@@ -405,11 +405,11 @@ Choix faits en détaillant le schéma :
 
 Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 développeur front/mobile et 1 chef de projet/testeur à temps partiel. Durées indicatives.
 
-### Phase 0 : fondations (2,5 semaines) ✅ *réalisée, sauf la bascule de Delivery App sur `socle`*
+### Phase 0 : fondations (2,5 semaines) ✅ *réalisée*
 - [x] Projet Laravel 12 + Vue 3 + Tailwind, CI (Pint, tests PostgreSQL en PHP 8.3 et 8.4, build front-end).
 - [x] Paquet `habibou84/socle` créé dans `packages/socle` (téléphones, montants, SMS, signature des webhooks), avec ses tests.
-- [ ] Sortir `socle` dans son propre dépôt et **faire basculer Delivery App dessus** : nécessite un dépôt `habibou84/socle` et un accès en écriture à `deliverynew`.
-- [ ] Squelette de `habibou84/delivery-app-client` : reporté à la phase 4, où il sert.
+- [x] `socle` sorti dans son propre dépôt public `habibou84/socle` ; Delivery App et Jibiat Marchand l'utilisent tous les deux (phase 4).
+- [x] Client de l'API de Delivery App : `DeliveryAppDriver` (phase 4), dans l'application plutôt qu'en paquet séparé tant qu'un seul client l'utilise.
 - [x] Multi-boutique : résolution par sous-domaine (`Tenancy`), filtre automatique `BelongsToStore`, sous-domaines réservés, anciennes adresses redirigées 90 jours, domaines personnalisés vérifiés (site seulement).
 - [x] Session par cookie limitée au nom d'hôte de la boutique (Sanctum), lien de connexion à usage unique pour passer d'une adresse à l'autre.
 - [x] Site vitrine `jibiat-marchand.com` + **création de boutique** (nom, adresse avec vérification de disponibilité, code SMS) et essai de 14 jours de l'offre Pro.
@@ -452,7 +452,7 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - Restent pour la V1 : codes promo, avis clients, paiement en ligne (phase 6), éditeur de thème par glisser-déposer, domaine personnalisé en libre-service.
 - **Jalon MVP vendable (~ 12,5 semaines)** : un marchand peut vendre en ligne et sur les réseaux, gérer stock et commandes, et livrer « à la main ».
 
-### Phase 4 : connecteur Delivery App (3 semaines) + ajouts côté Delivery App (2 semaines, en parallèle) ✅ *réalisée, sauf la bascule de Delivery App sur `socle` (dépôt à créer)*
+### Phase 4 : connecteur Delivery App (3 semaines) + ajouts côté Delivery App (2 semaines, en parallèle) ✅ *réalisée*
 *Placée avant les livreurs propres : les entreprises qui utilisent déjà Delivery App sont le premier canal de distribution (§12, suggestion 1).*
 - [x] Expéditions avec statut normalisé (§5.4), `CarrierDriver`, `DeliveryAppDriver`, `ManualDriver` (transporteur sans API : course envoyée par WhatsApp, statut saisi à la main).
 - [x] Connexion par clé (vérifiée par `GET /me`, portées contrôlées), copie des zones et correspondance automatique avec les lieux de la boutique (corrigeable), devis comparés, création (`Idempotency-Key`, `X-Client-App`) et annulation de course, adresse webhook créée par l'API, réception signée et dédoublonnée, synchronisation de secours toutes les 10 minutes (`shipping:sync`).
@@ -460,7 +460,7 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [x] Stock en entrepôt transporteur (emplacement relié, produits rapprochés par SKU, écarts affichés, course préparée par l'entrepôt avec ses identifiants produits) ; rapprochement des reversements (`payout.paid` → détail par course, écarts) ; numéro, code et lien de suivi du transporteur sur la page de suivi du client.
 - [x] Côté Delivery App (branche `claude/socle-et-api-marchand`) : §5.7 points 1 à 5 et 7 (`/me`, `/webhooks`, `/payouts`, bloc `pickup`, preuves photo en liens signés, `X-Client-App`), portées `webhooks:write` et `payouts:read`, contrat OpenAPI à jour.
 - [x] Test de bout en bout sur une instance Delivery App locale : connexion, zones, devis, course, ramassage, livraison et reversement rapproché sans écart, avec de vrais webhooks signés.
-- [ ] Bascule de Delivery App sur `socle` : le dépôt public `habibou84/socle` doit être créé (l'intégration GitHub ne peut pas créer de dépôt).
+- [x] Bascule de Delivery App sur `socle` (dépôt public `habibou84/socle`, branche `main` en 1.0.x) : nombres, téléphones, SMS et signature des webhooks viennent du même code dans les deux applications.
 - Restent pour la V1 : flux « Connecter » en un clic (§5.7 point 6), expédition partielle, test de contrat automatisé dans la CI de Delivery App.
 
 ### Phase 5 : livreurs propres (3 semaines)

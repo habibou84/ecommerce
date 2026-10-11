@@ -13,7 +13,7 @@ livreurs propres et connexion aux entreprises de livraison qui utilisent Deliver
 | API | Laravel 12, Sanctum (session par cookie), spatie/laravel-permission (rôles par boutique) |
 | Base de données | PostgreSQL 16 |
 | Front-end | Vue 3, Pinia, Vue Router, Tailwind CSS 4 (Vite) ; pages publiques en Blade |
-| Code commun avec Delivery App | `packages/socle` (paquet Composer `habibou84/socle`) |
+| Code commun avec Delivery App | paquet Composer public [`habibou84/socle`](https://github.com/habibou84/socle) |
 
 ## Adresses
 
@@ -75,7 +75,7 @@ Transporteurs › + Transporteur*, adresse `{entreprise}.localhost:8001`.
 ## Tests
 
 ```bash
-php artisan test     # PostgreSQL (base jibiat_marchand_test), y compris les tests du paquet socle
+php artisan test     # PostgreSQL (base jibiat_marchand_test) ; les tests de socle sont dans son dépôt
 vendor/bin/pint      # style du code
 ```
 
@@ -103,7 +103,7 @@ vendor/bin/pint      # style du code
 | `app/Services/Storefront`, `routes/storefront.php` | Boutique en ligne : thèmes (`config/themes.php`), catalogue public, panier par cookie, commande en une page ; routes sans session |
 | `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |
 | `app/Enums/Role.php`, `Permission.php` | Rôles (propriétaire, gérant, agent de confirmation, préparateur, caissier, livreur) et leurs permissions |
-| `packages/socle` | Code commun avec Delivery App : téléphones, montants, SMS, signature des webhooks |
+| `vendor/habibou84/socle` | Code commun avec Delivery App (dépôt `habibou84/socle`) : téléphones, montants, SMS, signature des webhooks ; une modification se fait dans ce dépôt, puis `composer update habibou84/socle` dans les deux applications |
 | `resources/js` | Application Vue : création de boutique, connexion, gestion (`/gestion`) |
 | `resources/views` | Pages Blade : présentation, boutique en ligne (`storefront/`, `layouts/storefront`), erreurs, PDF |
 | `resources/js/storefront.js`, `resources/css/storefront.css` | JavaScript (sans dépendance) et styles de la boutique en ligne, séparés de la gestion |

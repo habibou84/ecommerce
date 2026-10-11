@@ -11,14 +11,10 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
-        <testsuite name="Socle">
-            <directory>packages/socle/tests</directory>
-        </testsuite>
     </testsuites>
     <source>
         <include>
             <directory>app</directory>
-            <directory>packages/socle/src</directory>
         </include>
     </source>
     <php>
