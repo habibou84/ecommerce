@@ -1,4 +1,6 @@
-# Plan produit et d'exécution : application e-commerce pour marchands
+# Jibiat Marchand : plan produit et d'exécution
+
+> Application e-commerce pour marchands — `jibiat-marchand.com`
 
 > Produit indépendant de toute entreprise de livraison. C'est la « Phase 9 » prévue dans le plan de
 > l'application de livraison (`habibou84/deliverynew`, `docs/PLAN.md` §8.2), développée ici comme un produit à part entière.
@@ -106,7 +108,7 @@ Une commande produit une ou plusieurs **expéditions**. Chaque expédition chois
 - **[V2]** Expéditions interurbaines (« zones d'expédition » de Delivery App : gares routières, compagnies de car).
 
 ### 3.6 Boutique en ligne intégrée
-- **[MVP]** Site sur `{boutique}.domaine.com`, **thème** configurable (logo, couleurs, polices, bannières, sections de page d'accueil) ; 2 ou 3 thèmes au départ.
+- **[MVP]** Site sur `{boutique}.jibiat-marchand.com`, **thème** configurable (logo, couleurs, polices, bannières, sections de page d'accueil) ; 2 ou 3 thèmes au départ.
 - **[MVP]** Pages : accueil, collection, produit (sélecteur de variantes avec photo et stock dynamiques), panier, commande, suivi, pages libres (À propos, CGV, contact).
 - **[MVP]** **Commande en une page, optimisée mobile et 3G** : nom, téléphone, commune / quartier (liste), repère, position GPS facultative ; frais de livraison calculés immédiatement ; paiement à la livraison par défaut.
 - **[MVP]** Bouton « Commander sur WhatsApp » (message pré-rempli avec panier) en complément du formulaire.
@@ -169,10 +171,11 @@ Même stack que Delivery App, pour réutiliser le code et les compétences :
 ### 4.2 Schéma d'ensemble
 
 ```
- Client final ──► Boutique (Blade)           {slug}.domaine/  ou domaine perso ─┐
- Marchand & équipe ──► Back-office (Vue SPA)  {slug}.domaine/gestion ─────────┤
- Livreurs du marchand ──► Application (PWA)   {slug}.domaine/livreur ─────────┤
-                                                                    ▼
+ Client final ──────────► Boutique (Blade)       {slug}.jibiat-marchand.com/          ─┐
+                                                  ou domaine personnalisé du marchand   │
+ Marchand & équipe ─────► Back-office (Vue SPA)  {slug}.jibiat-marchand.com/gestion   ─┤
+ Livreurs du marchand ──► Application (PWA)      {slug}.jibiat-marchand.com/livreur   ─┤
+                                                                                        ▼
                                          API Laravel (multi-boutique)
                                          PostgreSQL · Redis · Reverb · S3
                                                     │
@@ -196,24 +199,24 @@ Même stack que Delivery App, pour réutiliser le code et les compétences :
 8. **L'argent du marchand ne transite jamais par la plateforme** : il connecte ses propres comptes de paiement (voir §6).
 
 ### 4.4 Domaines et adresses
-Domaine distinct de Delivery App (nom à choisir ; `domaine` ci-dessous), même méthode que Delivery App : **un sous-domaine par marchand**, qui porte à la fois son site et sa gestion.
+Domaine : **`jibiat-marchand.com`**, distinct de celui de Delivery App (`jibiat.com`). Même méthode que Delivery App : **un sous-domaine par marchand**, qui porte à la fois son site et sa gestion.
 
 | Adresse | Contenu |
 |---|---|
-| `domaine` (et `www.`) | Site vitrine du produit, tarifs, **création de boutique** (inscription en 5 minutes depuis un téléphone) |
-| `{boutique}.domaine/` | **Site e-commerce** du marchand (public) |
-| `{boutique}.domaine/gestion` | **Back-office** du marchand et de son équipe (connexion) |
-| `{boutique}.domaine/livreur` | Application PWA des livreurs du marchand |
-| `{boutique}.domaine/suivi/{code}` | Suivi de commande du client final |
+| `jibiat-marchand.com` (et `www.`) | Site vitrine du produit, tarifs, **création de boutique** (inscription en 5 minutes depuis un téléphone) |
+| `{boutique}.jibiat-marchand.com/` | **Site e-commerce** du marchand (public) |
+| `{boutique}.jibiat-marchand.com/gestion` | **Back-office** du marchand et de son équipe (connexion) |
+| `{boutique}.jibiat-marchand.com/livreur` | Application PWA des livreurs du marchand |
+| `{boutique}.jibiat-marchand.com/suivi/{code}` | Suivi de commande du client final |
 | `www.maboutique.ci` (option, V1) | Domaine personnalisé : **site uniquement** ; `/gestion` et `/livreur` redirigent vers le sous-domaine |
-| `admin.domaine` | Console du super administrateur |
-| `api.domaine` | API publique des marchands (V1) et réception des webhooks (transporteurs, paiements) |
+| `admin.jibiat-marchand.com` | Console du super administrateur |
+| `api.jibiat-marchand.com` | API publique des marchands (V1) et réception des webhooks (transporteurs, paiements) |
 
 Règles :
 - Résolution de la boutique par le nom d'hôte (sous-domaine ou domaine personnalisé), comme `Tenancy` dans Delivery App ; liste de sous-domaines réservés (`www`, `admin`, `api`, `app`, `mail`, `static`, `cdn`, `aide`…).
-- Cookies de session **limités à l'hôte** (jamais `.domaine`) : une connexion à une boutique n'est pas valable sur une autre.
-- Un utilisateur qui appartient à plusieurs boutiques choisit la boutique après connexion sur `domaine/connexion`, puis il est redirigé vers `{boutique}.domaine/gestion`.
-- Certificat *wildcard* `*.domaine` (validation DNS) pour tous les sous-domaines ; certificats à la demande (Caddy, avec vérification que le domaine est bien déclaré par une boutique) pour les domaines personnalisés.
+- Cookies de session **limités à l'hôte** (jamais `.jibiat-marchand.com`) : une connexion à une boutique n'est pas valable sur une autre.
+- Un utilisateur qui appartient à plusieurs boutiques choisit la boutique après connexion sur `jibiat-marchand.com/connexion`, puis il est redirigé vers `{boutique}.jibiat-marchand.com/gestion`.
+- Certificat *wildcard* `*.jibiat-marchand.com` (validation DNS) pour tous les sous-domaines ; certificats à la demande (Caddy, avec vérification que le domaine est bien déclaré par une boutique) pour les domaines personnalisés.
 - Changement de sous-domaine possible avec redirection 301 de l'ancien pendant 90 jours (`redirects`).
 
 ### 4.5 Partage de code avec Delivery App
@@ -247,7 +250,7 @@ Coût : environ 4 jours en phase 0 pour créer `socle` et faire basculer Deliver
 
 **Étape 2 (V1, nécessite des ajouts côté Delivery App) : « Connecter » en un clic**
 1. Annuaire des entreprises de livraison inscrites sur la plateforme (zones couvertes, tarifs indicatifs, note).
-2. Bouton **Connecter** → redirection vers `{entreprise}.domaine/connect` (flux de type OAuth 2 avec PKCE) → le marchand se connecte ou **demande à devenir client** (validation par l'entreprise) → autorisation des portées → retour avec la clé.
+2. Bouton **Connecter** → redirection vers `{entreprise}.jibiat.com/connect` (flux de type OAuth 2 avec PKCE) → le marchand se connecte ou **demande à devenir client** (validation par l'entreprise) → autorisation des portées → retour avec la clé.
 3. L'application crée elle-même l'abonnement webhook par API ; le secret ne transite jamais par le marchand.
 
 ### 5.3 Création d'une course depuis une expédition
@@ -399,7 +402,7 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [ ] Projet Laravel 12 + Vue 3 + Tailwind, CI (tests, lint, build), environnement local identique à Delivery App.
 - [ ] Paquet `habibou84/socle` créé et **Delivery App basculée dessus** (§4.5) ; squelette de `habibou84/delivery-app-client`.
 - [ ] Multi-boutique (`store_id` + scope), résolution par sous-domaine, cookies par hôte, sous-domaines réservés (§4.4).
-- [ ] Site vitrine `domaine` + **création de boutique en 5 minutes** depuis un téléphone (nom, sous-domaine, logo, numéro WhatsApp).
+- [ ] Site vitrine `jibiat-marchand.com` + **création de boutique en 5 minutes** depuis un téléphone (nom, sous-domaine, logo, numéro WhatsApp).
 - [ ] Comptes, rôles, invitation de membres, OTP téléphone ; back-office sur `/gestion`.
 - [ ] Schéma DBML complet et validé.
 
@@ -415,7 +418,7 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [ ] Réservation et sortie de stock, PDF (facture, étiquette).
 
 ### Phase 3 : boutique en ligne (4 semaines)
-- [ ] Rendu serveur Blade sur `{boutique}.domaine/`, 2 thèmes, réglages du thème, pages libres, menus.
+- [ ] Rendu serveur Blade sur `{boutique}.jibiat-marchand.com/`, 2 thèmes, réglages du thème, pages libres, menus.
 - [ ] Fiche produit avec sélecteur de variantes, panier, commande en une page, zones et frais de livraison, paiement à la livraison, « Commander sur WhatsApp ».
 - [ ] SEO, Open Graph, sitemap, performance (objectif : page produit < 1,5 s en 3G, < 100 Ko de JavaScript).
 - **Jalon MVP vendable (~ 12,5 semaines)** : un marchand peut vendre en ligne et sur les réseaux, gérer stock et commandes, et livrer « à la main ».
@@ -449,7 +452,7 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 ### Phase 8 : SaaS et lancement (3 semaines)
 - [ ] Abonnements, quotas, paiement sur le compte de la plateforme (§6.5), essai gratuit.
 - [ ] Domaines personnalisés + SSL automatique (§4.4).
-- [ ] Console super administrateur (`admin.domaine`), sessions de support.
+- [ ] Console super administrateur (`admin.jibiat-marchand.com`), sessions de support.
 - [ ] Flux « Connecter » en un clic et annuaire (§5.7 point 6) si Delivery App est prêt.
 - [ ] Déclaration à l'autorité de protection des données (ARTCI en Côte d'Ivoire), CGU / CGV, politique de confidentialité.
 - [ ] Pilote avec 10 marchands (dont des marchands déjà clients d'une entreprise utilisant Delivery App), corrections, documentation, supervision (Sentry, disponibilité).
@@ -504,11 +507,14 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
    - un **programme partenaire** : remise ou commission pour l'entreprise qui fait inscrire ses marchands ;
    - dans la mini-boutique `/b/{slug}` de Delivery App, un bouton **« Passer à la boutique complète »**, qui importe en un clic le catalogue et les clients et crée la connexion transporteur.
 2. ✅ **Création de boutique en 5 minutes depuis un téléphone** (phase 0). La plupart des marchands n'ont pas d'ordinateur. Le back-office `/gestion` doit être conçu d'abord pour le téléphone et installable en PWA, comme les applications de Delivery App.
-3. **Partage de produit prêt pour les réseaux sociaux** (V1, peu coûteux) : pour chaque produit, un lien court (`{boutique}.domaine/p/abc`) et une **image carrée générée** (photo, prix, nom de la boutique), prête à publier en statut WhatsApp, sur Facebook ou TikTok. C'est la façon dont ces marchands vendent déjà.
+3. **Partage de produit prêt pour les réseaux sociaux** (V1, peu coûteux) : pour chaque produit, un lien court (`{boutique}.jibiat-marchand.com/p/abc`) et une **image carrée générée** (photo, prix, nom de la boutique), prête à publier en statut WhatsApp, sur Facebook ou TikTok. C'est la façon dont ces marchands vendent déjà.
 4. **Fiche produit à partir d'une photo** (V1, option des offres payantes) : le marchand prend la photo, l'IA propose titre, description, catégorie et options (couleurs visibles). Il valide ou corrige. C'est un gain de temps énorme pour un catalogue de 200 articles.
 5. ✅ **Code de livraison** remis au client par SMS / WhatsApp et saisi par le livreur (phase 5) : il empêche les fausses livraisons déclarées, surtout avec les livreurs propres.
 6. **Prévoir le multi-pays dès le modèle de données** (coût faible maintenant, élevé plus tard) : pays et devise sur la boutique, format des numéros et zones par pays. Wave et PayDunya ouvrent naturellement le Sénégal.
 7. **Réseau de confiance anti-refus** (V2, à valider juridiquement) : un score de refus partagé entre boutiques, calculé sur le numéro de téléphone **haché**, avec l'accord des marchands. Le score n'affiche qu'une note (jamais l'historique ni le nom de la boutique). C'est très utile en paiement à la livraison, mais c'est un traitement de données personnelles à déclarer.
 8. **Mesurer l'activation dès le MVP** : part des boutiques qui reçoivent une première commande dans les 7 jours, puis taux de confirmation, taux de livraison et rétention à 30 jours. Ces chiffres guident les priorités de la phase 7 mieux que les intuitions.
 9. **Support par WhatsApp intégré** au back-office (bouton « Aide » qui ouvre une conversation avec le support, avec l'identifiant de la boutique pré-rempli), puis des sessions de support encadrées comme dans Delivery App.
-10. **Choisir le nom et le domaine tôt** : nom court, `.com` disponible (et si possible le `.ci`), comptes réseaux sociaux réservés. Le domaine conditionne le certificat *wildcard* et la configuration DNS de la phase 0.
+10. ✅ **Domaine** : `jibiat-marchand.com`. À faire avant la phase 0 :
+   - DNS : enregistrement *wildcard* `*.jibiat-marchand.com` vers le serveur, et accès API au DNS (Cloudflare conseillé) pour le certificat *wildcard* ;
+   - réserver aussi `jibiat-marchand.ci` si possible et les comptes réseaux sociaux « Jibiat Marchand » ;
+   - les adresses `{boutique}.jibiat-marchand.com` sont longues à partager : les liens courts de la suggestion 3 et les domaines personnalisés compensent. Un domaine court dédié aux liens (ex. `jbt.ci/abc`) peut s'ajouter plus tard.
