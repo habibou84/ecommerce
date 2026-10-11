@@ -78,7 +78,7 @@ class VerificationController extends Controller
                 $user = $invitations->completeNewAccount($verification);
                 $this->login($request, $user);
 
-                return response()->json(['redirect' => '/gestion']);
+                return response()->json(['redirect' => $invitations->homeFor($user, $verification->store)]);
             })(),
 
             VerificationPurpose::PasswordReset => (function () use ($reset, $verification, $request) {

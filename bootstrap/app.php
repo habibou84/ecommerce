@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\BusinessRuleException;
+use App\Http\Middleware\EnsureCourier;
 use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Http\Middleware\EnsureStoreMember;
 use App\Http\Middleware\EnsureZone;
@@ -43,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'storefront.open' => EnsureStorefrontOpen::class,
             'ajax' => RequireAjax::class,
+            'courier' => EnsureCourier::class,
         ]);
         $middleware->group('storefront', [
             EncryptCookies::class,

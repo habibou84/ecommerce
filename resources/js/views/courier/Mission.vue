@@ -1,0 +1,149 @@
+<script setup>
+import { computed, onMounted, reactive, ref } from 'vue'
+import Alert from '../../components/Alert.vue'
+import http, { errorMessage, fieldErrors } from '../../lib/http'
+import { money } from '../../lib/format'
+import { SHIPMENT_TONES } from '../../lib/shipping'
+
+const props = defineProps({ id: { type: String, required: true } })
+const mission = ref(null)
+const error = ref('')
+const errors = ref({})
+const busy = ref(false)
+const panel = ref(null) // 'delivered' | 'failed'
+const form = reactive({ code: '', payment_method: 'cash', collected_amount: 0, reason: '', rescheduled_to: '', photo: null })
+
+const REASONS = ['Client injoignable', 'Client absent', 'Adresse introuvable', 'Refus du client', 'Le client reporte']
+const METHODS = [['cash', 'Espèces'], ['wave', 'Wave'], ['orange_money', 'Orange Money'], ['mtn_momo', 'MTN MoMo'], ['moov_money', 'Moov Money']]
+
+async function load() {
+  try {
+    mission.value = (await http.get(`/courier/missions/${props.id}`)).data.data
+    form.collected_amount = mission.value.cod_amount
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+onMounted(load)
+
+const can = (step) => mission.value?.next_steps.includes(step)
+const mapsUrl = computed(() => {
+  const m = mission.value
+  return m ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([m.address, m.landmark, m.place, 'Côte d\'Ivoire'].filter(Boolean).join(', '))}` : '#'
+})
+const whatsapp = computed(() => mission.value ? `https://wa.me/${mission.value.customer_phone.replace('+', '')}` : '#')
+
+async function step(status) {
+  busy.value = true
+  error.value = ''
+  errors.value = {}
+  try {
+    const body = new FormData()
+    body.append('status', status)
+    if (status === 'delivered') {
+      if (mission.value.requires_code) body.append('code', form.code)
+      body.append('payment_method', form.payment_method)
+      body.append('collected_amount', form.collected_amount)
+    }
+    if (status === 'failed') {
+      body.append('reason', form.reason)
+      if (form.rescheduled_to) body.append('rescheduled_to', form.rescheduled_to)
+    }
+    if (form.photo && ['delivered', 'failed'].includes(status)) body.append('photo', form.photo)
+    await http.post(`/courier/missions/${props.id}/steps`, body)
+    panel.value = null
+    form.photo = null
+    await load()
+  } catch (e) {
+    errors.value = fieldErrors(e)
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+</script>
+
+<template>
+  <div v-if="mission" class="space-y-4">
+    <RouterLink to="/livreur" class="text-sm text-slate-500">← Mes livraisons</RouterLink>
+    <section class="rounded-xl bg-white p-4 shadow-sm">
+      <div class="flex items-center gap-2">
+        <h1 class="text-lg font-bold">{{ mission.reference }}</h1>
+        <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[mission.status]">{{ mission.status_label }}</span>
+      </div>
+      <p class="mt-2 text-2xl font-bold">{{ money(mission.cod_amount) }}</p>
+      <p class="text-sm text-slate-500">à encaisser auprès du client</p>
+    </section>
+
+    <section class="space-y-2 rounded-xl bg-white p-4 shadow-sm">
+      <p class="font-semibold">{{ mission.customer_name || 'Client' }}</p>
+      <p class="text-sm">{{ mission.place }}<template v-if="mission.address"> · {{ mission.address }}</template></p>
+      <p v-if="mission.landmark" class="text-sm text-slate-600">Repère : {{ mission.landmark }}</p>
+      <p v-if="mission.customer_note" class="rounded bg-amber-50 p-2 text-sm">« {{ mission.customer_note }} »</p>
+      <p v-if="mission.note" class="rounded bg-slate-50 p-2 text-sm">Boutique : {{ mission.note }}</p>
+      <div class="grid grid-cols-3 gap-2 pt-1">
+        <a :href="`tel:${mission.customer_phone}`" class="btn-secondary whitespace-nowrap px-1 text-sm">📞 Appeler</a>
+        <a :href="whatsapp" target="_blank" class="btn-secondary whitespace-nowrap px-1 text-sm">💬 WhatsApp</a>
+        <a :href="mapsUrl" target="_blank" class="btn-secondary whitespace-nowrap px-1 text-sm">🗺️ Carte</a>
+      </div>
+      <p class="text-xs text-slate-500">{{ mission.customer_phone_display }}<template v-if="mission.customer_phone2"> · autre : {{ mission.customer_phone2 }}</template></p>
+    </section>
+
+    <section class="rounded-xl bg-white p-4 text-sm shadow-sm">
+      <p v-if="mission.pickup" class="mb-2 text-slate-600">À récupérer : <strong>{{ mission.pickup.name }}</strong>{{ mission.pickup.address ? ` · ${mission.pickup.address}` : '' }}</p>
+      <ul class="space-y-1">
+        <li v-for="(item, i) in mission.items" :key="i">{{ item.quantity }} × {{ item.label }}</li>
+      </ul>
+      <p v-if="mission.failure_reason" class="mt-2 text-amber-800">Dernier échec : {{ mission.failure_reason }}<template v-if="mission.rescheduled_to"> · reportée au {{ new Date(mission.rescheduled_to).toLocaleDateString('fr-FR') }}</template></p>
+    </section>
+
+    <Alert v-if="error">{{ error }}</Alert>
+
+    <div class="space-y-2">
+      <button v-if="can('in_transit')" class="btn-brand w-full py-4 text-base" :disabled="busy" @click="step('in_transit')">📦 J'ai récupéré le colis</button>
+      <button v-if="can('out_for_delivery')" class="btn-brand w-full py-4 text-base" :disabled="busy" @click="step('out_for_delivery')">🛵 Je pars livrer</button>
+      <button v-if="can('delivered') && panel !== 'delivered'" class="btn-brand w-full py-4 text-base" @click="panel = 'delivered'">✓ Livré</button>
+      <button v-if="can('failed') && panel !== 'failed'" class="btn-secondary w-full py-3" @click="panel = 'failed'">✕ Pas livré</button>
+      <button v-if="can('returning')" class="btn-secondary w-full py-3" :disabled="busy" @click="step('returning')">↩ Je rapporte le colis à la boutique</button>
+    </div>
+
+    <form v-if="panel === 'delivered'" class="space-y-3 rounded-xl bg-white p-4 shadow-sm" @submit.prevent="step('delivered')">
+      <h2 class="font-semibold">Livraison</h2>
+      <div v-if="mission.requires_code">
+        <label for="code" class="label">Code donné par le client</label>
+        <input id="code" v-model="form.code" inputmode="numeric" maxlength="6" class="input text-center text-2xl tracking-widest" required />
+        <p v-if="errors.code" class="mt-1 text-sm text-red-600">{{ errors.code }}</p>
+      </div>
+      <div>
+        <p class="label">Payé en</p>
+        <div class="grid grid-cols-3 gap-2">
+          <button v-for="[value, label] in METHODS" :key="value" type="button" class="rounded-lg border px-2 py-2 text-sm"
+                  :class="form.payment_method === value ? 'border-emerald-600 bg-emerald-50 font-medium' : 'border-slate-200'" @click="form.payment_method = value">{{ label }}</button>
+        </div>
+      </div>
+      <div>
+        <label for="collected" class="label">Montant reçu</label>
+        <input id="collected" v-model.number="form.collected_amount" type="number" min="0" :max="mission.cod_amount" class="input" />
+      </div>
+      <div>
+        <label for="photo" class="label">Photo du colis remis <span class="font-normal text-slate-400">(facultatif)</span></label>
+        <input id="photo" type="file" accept="image/*" capture="environment" class="text-sm" @change="form.photo = $event.target.files[0]" />
+      </div>
+      <button class="btn-brand w-full py-3" :disabled="busy">{{ busy ? 'Envoi…' : 'Confirmer la livraison' }}</button>
+    </form>
+
+    <form v-if="panel === 'failed'" class="space-y-3 rounded-xl bg-white p-4 shadow-sm" @submit.prevent="step('failed')">
+      <h2 class="font-semibold">Livraison impossible</h2>
+      <div class="flex flex-wrap gap-2">
+        <button v-for="r in REASONS" :key="r" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="form.reason === r ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'" @click="form.reason = r">{{ r }}</button>
+      </div>
+      <input v-model="form.reason" class="input" placeholder="Motif" maxlength="255" required />
+      <div>
+        <label for="reschedule" class="label">Nouvelle date <span class="font-normal text-slate-400">(si reportée)</span></label>
+        <input id="reschedule" v-model="form.rescheduled_to" type="date" class="input" />
+      </div>
+      <button class="btn-danger w-full py-3" :disabled="busy">Enregistrer l'échec</button>
+    </form>
+  </div>
+  <Alert v-else-if="error">{{ error }}</Alert>
+</template>

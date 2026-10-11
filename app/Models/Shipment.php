@@ -17,10 +17,10 @@ class Shipment extends Model
     use BelongsToStore;
 
     protected $fillable = [
-        'store_id', 'order_id', 'sequence', 'mode', 'status', 'origin_location_id', 'carrier_connection_id',
+        'store_id', 'order_id', 'sequence', 'mode', 'status', 'origin_location_id', 'carrier_connection_id', 'courier_id',
         'carrier_tracking_code', 'carrier_tracking_url', 'carrier_status', 'idempotency_key', 'cod_amount', 'collected_amount',
-        'carrier_fee', 'fee_payer', 'weight_g', 'is_fragile', 'delivery_code', 'proof_photo_url', 'attempts_count',
-        'failure_reason', 'note', 'requested_at', 'picked_up_at', 'delivered_at', 'returned_at', 'cancelled_at',
+        'carrier_fee', 'fee_payer', 'weight_g', 'is_fragile', 'delivery_code', 'proof_photo_url', 'proof_photo_path', 'attempts_count',
+        'failure_reason', 'rescheduled_to', 'note', 'requested_at', 'picked_up_at', 'delivered_at', 'returned_at', 'cancelled_at',
         'last_synced_at', 'created_by',
     ];
 
@@ -29,6 +29,7 @@ class Shipment extends Model
         return [
             'status' => ShipmentStatus::class,
             'is_fragile' => 'boolean',
+            'rescheduled_to' => 'date',
             'requested_at' => 'datetime',
             'picked_up_at' => 'datetime',
             'delivered_at' => 'datetime',
@@ -46,6 +47,16 @@ class Shipment extends Model
     public function connection(): BelongsTo
     {
         return $this->belongsTo(CarrierConnection::class, 'carrier_connection_id');
+    }
+
+    public function courier(): BelongsTo
+    {
+        return $this->belongsTo(Courier::class);
+    }
+
+    public function isOwnCourier(): bool
+    {
+        return $this->mode === 'own_courier';
     }
 
     public function origin(): BelongsTo

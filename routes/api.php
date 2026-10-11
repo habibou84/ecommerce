@@ -7,6 +7,10 @@ use App\Http\Controllers\Api\V1\Catalog\CollectionController;
 use App\Http\Controllers\Api\V1\Catalog\ProductController;
 use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
+use App\Http\Controllers\Api\V1\Couriers\CashController;
+use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
+use App\Http\Controllers\Api\V1\Couriers\CourierController;
+use App\Http\Controllers\Api\V1\Couriers\PayrollController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\MemberController;
@@ -144,6 +148,42 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('shipments/{shipment}/status', [ShipmentController::class, 'status'])->whereNumber('shipment')->name('shipments.status');
                 Route::post('shipments/{shipment}/refresh', [ShipmentController::class, 'refresh'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.refresh');
                 Route::get('shipments/{shipment}/message', [ShipmentController::class, 'message'])->whereNumber('shipment')->name('shipments.message');
+                Route::post('shipments/{shipment}/assign', [ShipmentController::class, 'assign'])->whereNumber('shipment')->name('shipments.assign');
+                Route::get('shipments/{shipment}/proof', [ShipmentController::class, 'proof'])->whereNumber('shipment')->name('shipments.proof');
+            });
+
+            // ── Livreurs de la boutique ──
+            Route::middleware('permission:'.Permission::CouriersManage->value)->group(function () {
+                Route::get('couriers', [CourierController::class, 'index'])->name('couriers.index');
+                Route::post('couriers', [CourierController::class, 'store'])->name('couriers.store');
+                Route::patch('couriers/{courier}', [CourierController::class, 'update'])->whereNumber('courier')->name('couriers.update');
+                Route::post('couriers/{courier}/invitation', [CourierController::class, 'reinvite'])->whereNumber('courier')->name('couriers.reinvite');
+                Route::post('couriers/{courier}/deactivate', [CourierController::class, 'deactivate'])->whereNumber('courier')->name('couriers.deactivate');
+                Route::post('courier-pay-rules', [CourierController::class, 'storeRule'])->name('couriers.rules.store');
+                Route::put('courier-pay-rules/{rule}', [CourierController::class, 'updateRule'])->whereNumber('rule')->name('couriers.rules.update');
+                Route::delete('courier-pay-rules/{rule}', [CourierController::class, 'destroyRule'])->whereNumber('rule')->name('couriers.rules.destroy');
+                Route::get('couriers/{courier}/earnings', [PayrollController::class, 'earnings'])->whereNumber('courier')->name('couriers.earnings');
+                Route::post('couriers/{courier}/earnings', [PayrollController::class, 'adjust'])->whereNumber('courier')->name('couriers.earnings.adjust');
+                Route::post('couriers/{courier}/payouts', [PayrollController::class, 'createPayout'])->whereNumber('courier')->name('couriers.payouts.store');
+                Route::post('courier-payouts/{payout}/pay', [PayrollController::class, 'pay'])->whereNumber('payout')->name('couriers.payouts.pay');
+                Route::post('courier-payouts/{payout}/cancel', [PayrollController::class, 'cancel'])->whereNumber('payout')->name('couriers.payouts.cancel');
+            });
+            // Caisse : gérant ou caissier
+            Route::middleware('permission:'.Permission::CouriersManage->value.'|'.Permission::FinanceView->value)->group(function () {
+                Route::get('cash', [CashController::class, 'index'])->name('cash.index');
+                Route::get('cash/couriers/{courier}', [CashController::class, 'collections'])->whereNumber('courier')->name('cash.collections');
+                Route::post('cash/couriers/{courier}/remittances', [CashController::class, 'remit'])->whereNumber('courier')->name('cash.remit');
+            });
+
+            // ── Application livreur (/livreur) ──
+            Route::middleware('courier')->prefix('courier')->name('courier.')->group(function () {
+                Route::get('me', [CourierAppController::class, 'me'])->name('me');
+                Route::patch('availability', [CourierAppController::class, 'availability'])->name('availability');
+                Route::get('missions', [CourierAppController::class, 'missions'])->name('missions');
+                Route::get('missions/{shipment}', [CourierAppController::class, 'show'])->whereNumber('shipment')->name('missions.show');
+                Route::post('missions/{shipment}/steps', [CourierAppController::class, 'step'])->whereNumber('shipment')->middleware('throttle:60,1')->name('missions.step');
+                Route::get('cash', [CourierAppController::class, 'cash'])->name('cash');
+                Route::get('earnings', [CourierAppController::class, 'earnings'])->name('earnings');
             });
 
             // ── Boutique en ligne ──

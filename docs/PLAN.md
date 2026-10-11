@@ -463,10 +463,12 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [x] Bascule de Delivery App sur `socle` (dépôt public `habibou84/socle`, branche `main` en 1.0.x) : nombres, téléphones, SMS et signature des webhooks viennent du même code dans les deux applications.
 - Restent pour la V1 : flux « Connecter » en un clic (§5.7 point 6), expédition partielle, test de contrat automatisé dans la CI de Delivery App.
 
-### Phase 5 : livreurs propres (3 semaines)
-- [ ] Inscription des livreurs par invitation, zones, disponibilité.
-- [ ] Assignation, application livreur PWA sur `/livreur` (missions, statuts, code de livraison ou photo, encaissements).
-- [ ] Caisse : versements, écarts ; rémunération et relevés.
+### Phase 5 : livreurs propres (3 semaines) ✅ *réalisée*
+- [x] Livreurs ajoutés par la gestion (nom, téléphone, véhicule, zones couvertes, plafond d'espèces, règle de paie) ; lien d'invitation à envoyer par WhatsApp (compte créé avec code SMS) ; un membre de l'équipe qui livre aussi est relié sans invitation ; disponibilité ; désactivation ; limite de l'offre (1 livreur en gratuit, 5 en Pro).
+- [x] Assignation depuis la fiche commande (mes livreurs qui couvrent le quartier et disponibles en premier, puis les transporteurs), réassignation, annulation ; même flux d'expédition que les transporteurs (statuts, sortie de stock, commande livrée ou retournée).
+- [x] Application livreur installable sur `/livreur` (manifeste, fonctionne hors ligne pour l'affichage) : missions du jour, appel / WhatsApp / carte, « colis récupéré », « en route », livré (code du client si la boutique l'exige, photo, espèces ou mobile money, montant), échec avec motif et report, colis rapporté ; argent à verser et paie à recevoir. Un livreur n'a accès qu'à son application.
+- [x] Caisse (gérant ou caissier) : espèces détenues par livreur, alerte au-delà du plafond, versement avec écart (manque ou excédent) ; rémunération par livraison ou par zone, tentative échouée, primes, avances, relevés payés ou annulés.
+- Restent pour la V1 : position du livreur sur la carte et suivi en direct par le client, tournées, notifications push sur le téléphone du livreur.
 - **Jalon V1 livraison (~ 18,5 semaines)** : livreurs propres et transporteurs connectés dans le même flux.
 
 ### Phase 6 : paiements en ligne et WhatsApp (4 semaines)

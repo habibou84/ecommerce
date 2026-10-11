@@ -6,6 +6,9 @@ use App\Enums\Role;
 use App\Enums\StoreStatus;
 use App\Enums\UserStatus;
 use App\Models\Collection;
+use App\Models\Courier;
+use App\Models\CourierPayRule;
+use App\Models\DeliveryZone;
 use App\Models\Page;
 use App\Models\Place;
 use App\Models\Product;
@@ -45,6 +48,21 @@ class DemoSeeder extends Seeder
         }
 
         app(Places::class)->provisionDefaultZone($store);
+
+        // Livreur de la boutique : application /livreur
+        $courierUser = User::updateOrCreate(['phone' => '+2250700000003'], [
+            'name' => 'Moussa Traoré', 'password' => 'password', 'phone_verified_at' => now(), 'status' => UserStatus::Active,
+        ]);
+        $store->members()->updateOrCreate(['user_id' => $courierUser->id], ['status' => UserStatus::Active, 'joined_at' => now()]);
+        $roles->assign($courierUser, $store, Role::Courier);
+        $rule = CourierPayRule::forStore($store->id)->firstOrCreate(['store_id' => $store->id, 'name' => 'Par course'], [
+            'type' => 'per_delivery', 'amount' => 1000, 'failed_attempt_amount' => 300,
+        ]);
+        $courier = Courier::forStore($store->id)->updateOrCreate(['store_id' => $store->id, 'phone' => $courierUser->phone], [
+            'user_id' => $courierUser->id, 'name' => $courierUser->name, 'vehicle_type' => 'moto', 'pay_rule_id' => $rule->id,
+            'cash_limit' => 50000, 'status' => 'active',
+        ]);
+        $courier->zones()->syncWithoutDetaching(DeliveryZone::forStore($store->id)->pluck('id'));
 
         if (Product::forStore($store->id)->exists()) {
             return;

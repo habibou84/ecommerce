@@ -25,6 +25,9 @@ const nav = computed(() => [
   ...(auth.can('stock.manage') ? [{ to: '/gestion/stock', label: 'Stock', icon: 'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7M12 11v10' }] : []),
   ...(auth.can('customers.view') ? [{ to: '/gestion/clients', label: 'Clients', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 9a8 8 0 0 1 16 0z' }] : []),
   ...(auth.can('store.manage') ? [{ to: '/gestion/boutique-en-ligne', label: 'Boutique en ligne', icon: 'M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8M10 20v-5h4v5' }] : []),
+  ...(auth.can('couriers.manage') || auth.can('finance.view')
+    ? [{ to: auth.can('couriers.manage') ? '/gestion/livreurs' : '/gestion/livreurs/caisse', label: 'Livreurs', icon: 'M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0zm10 0a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM7 17h8l-2-6H9l-2 4M13 11l2-4h3' }]
+    : []),
   ...(auth.can('shipments.manage') || auth.can('carriers.manage')
     ? [{ to: auth.can('shipments.manage') ? '/gestion/expeditions' : '/gestion/expeditions/transporteurs', label: 'Expéditions', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z' }]
     : []),

@@ -879,11 +879,12 @@ Table shipments {
   store_id bigint [ref: > stores.id, not null]
   order_id bigint [ref: > orders.id, not null]
   sequence smallint [not null, default: 1, note: 'affiché #1042-1, envoyé comme merchant_reference']
-  mode varchar(20) [not null, note: 'carrier | manual_carrier (own_courier en phase 5)']
+  mode varchar(20) [not null, note: 'carrier | manual_carrier | own_courier']
   status varchar(25) [not null, note: 'requested | accepted | rejected | awaiting_pickup | in_transit | out_for_delivery | delivered | failed | rescheduled | returning | returned | cancelled | lost']
   origin_location_id bigint [ref: > stock_locations.id]
   // Transporteur
   carrier_connection_id bigint [ref: > carrier_connections.id]
+  courier_id bigint [ref: > couriers.id, note: 'livreur de la boutique (mode own_courier)']
   carrier_tracking_code varchar(40) [note: 'tracking_code de Delivery App']
   carrier_tracking_url varchar [note: 'page de suivi du transporteur, donnée au client']
   carrier_status varchar(30) [note: 'statut brut du transporteur']
@@ -898,8 +899,10 @@ Table shipments {
   is_fragile boolean [default: false]
   delivery_code varchar(20) [note: 'code à donner au livreur (fourni par le transporteur)']
   proof_photo_url varchar(1000) [note: 'lien signé du transporteur']
+  proof_photo_path varchar [note: 'photo prise par le livreur de la boutique (stockage privé)']
   attempts_count smallint [default: 0]
   failure_reason varchar
+  rescheduled_to date
   note varchar
   requested_at timestamp
   picked_up_at timestamp
@@ -913,7 +916,7 @@ Table shipments {
     (store_id, status)
     (carrier_connection_id, carrier_tracking_code) [unique]
   }
-  Note: 'Phase 5 : courier_id, délai et créneau (livreurs propres). V1 : shipment_items (expédition partielle).'
+  Note: 'V1 : shipment_items (expédition partielle), créneau de livraison.'
 }
 
 Table shipment_items {
@@ -1003,13 +1006,11 @@ Table courier_assignments {
   store_id bigint [ref: > stores.id, not null]
   shipment_id bigint [ref: > shipments.id, not null]
   courier_id bigint [ref: > couriers.id, not null]
-  type varchar(20) [not null, default: 'delivery', note: 'delivery | return | transfer']
-  status varchar(20) [not null, note: 'assigned | accepted | declined | completed | cancelled | reassigned']
+  status varchar(20) [not null, note: 'assigned | completed | cancelled | reassigned']
   assigned_by bigint [ref: > users.id]
   assigned_at timestamp [not null]
-  responded_at timestamp
   completed_at timestamp
-  Note: 'Historique de toutes les missions, y compris refusées ou réassignées.'
+  Note: 'Historique de toutes les missions, y compris réassignées.'
 }
 
 Table delivery_runs {
@@ -1036,8 +1037,9 @@ Table cash_collections {
   store_id bigint [ref: > stores.id, not null]
   shipment_id bigint [ref: > shipments.id, not null]
   courier_id bigint [ref: > couriers.id, not null]
-  payment_id bigint [ref: > payments.id, not null]
+  payment_id bigint [ref: > payments.id]
   amount int [not null]
+  method varchar(20) [default: 'cash', note: 'cash : détenu par le livreur ; mobile money : déjà chez la boutique']
   remittance_id bigint [ref: > courier_remittances.id, note: 'null = encore détenu par le livreur']
   collected_at timestamp [not null]
   indexes {
@@ -1062,7 +1064,7 @@ Table courier_pay_rules {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   name varchar [not null]
-  type varchar(20) [not null, note: 'per_delivery | per_zone | daily | monthly']
+  type varchar(20) [not null, note: 'per_delivery | per_zone (daily | monthly : V1)']
   amount int [note: 'montant par livraison, par jour ou par mois']
   zone_amounts jsonb [note: '{delivery_zone_id: montant} pour per_zone']
   failed_attempt_amount int [default: 0]
@@ -1073,10 +1075,11 @@ Table courier_earnings {
   store_id bigint [ref: > stores.id, not null]
   courier_id bigint [ref: > couriers.id, not null]
   shipment_id bigint [ref: > shipments.id]
-  type varchar(20) [not null, note: 'delivery | failed_attempt | daily | monthly | bonus | adjustment | advance']
+  type varchar(20) [not null, note: 'delivery | failed_attempt | bonus | adjustment | advance']
   amount int [not null, note: 'négatif pour une avance ou une retenue']
   payout_id bigint [ref: > courier_payouts.id]
   note varchar
+  created_by bigint [ref: > users.id]
   created_at timestamp [not null]
   Note: 'Journal.'
 }
@@ -1085,7 +1088,7 @@ Table courier_payouts {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   courier_id bigint [ref: > couriers.id, not null]
-  period_start date [not null]
+  period_start date
   period_end date [not null]
   total int [not null]
   status varchar(20) [not null, note: 'draft | paid | cancelled']
@@ -1093,6 +1096,7 @@ Table courier_payouts {
   reference varchar
   paid_at timestamp
   paid_by bigint [ref: > users.id]
+  created_by bigint [ref: > users.id]
 }
 
 Table courier_locations {

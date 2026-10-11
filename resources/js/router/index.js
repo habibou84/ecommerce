@@ -19,6 +19,24 @@ const storeRoutes = [
     meta: { guest: true },
   },
   { path: '/invitation/:token', component: () => import('../views/auth/Invitation.vue'), props: true, meta: { guest: true } },
+  // Application des livreurs de la boutique
+  {
+    path: '/livreur/connexion',
+    component: () => import('../views/auth/Login.vue'),
+    props: { home: '/livreur', title: 'Application livreur' },
+    meta: { guest: true },
+  },
+  {
+    path: '/livreur',
+    component: () => import('../layouts/CourierLayout.vue'),
+    meta: { auth: true, courier: true },
+    children: [
+      { path: '', component: () => import('../views/courier/Missions.vue'), meta: { title: 'Mes livraisons' } },
+      { path: 'missions/:id(\\d+)', component: () => import('../views/courier/Mission.vue'), props: true, meta: { title: 'Livraison' } },
+      { path: 'argent', component: () => import('../views/courier/Money.vue'), meta: { title: 'Mon argent' } },
+    ],
+  },
+  { path: '/livreur/:any(.*)*', redirect: '/livreur' },
   {
     path: '/gestion',
     component: () => import('../layouts/GestionLayout.vue'),
@@ -45,6 +63,8 @@ const storeRoutes = [
       { path: 'stock/inventaires/:id(\\d+)', component: () => import('../views/gestion/stock/CountSheet.vue'), props: true, meta: { title: 'Inventaire', permission: 'stock.manage' } },
       { path: 'stock/journal', component: () => import('../views/gestion/stock/StockMovements.vue'), meta: { title: 'Stock', permission: 'stock.manage' } },
       { path: 'stock/emplacements', component: () => import('../views/gestion/stock/StockLocations.vue'), meta: { title: 'Stock', permission: 'stock.manage' } },
+      { path: 'livreurs', component: () => import('../views/gestion/couriers/Couriers.vue'), meta: { title: 'Livreurs', permission: 'couriers.manage' } },
+      { path: 'livreurs/caisse', component: () => import('../views/gestion/couriers/CashDesk.vue'), meta: { title: 'Caisse des livreurs', permissionAny: ['couriers.manage', 'finance.view'] } },
       { path: 'expeditions', component: () => import('../views/gestion/shipping/Shipments.vue'), meta: { title: 'Expéditions', permission: 'shipments.manage' } },
       { path: 'expeditions/transporteurs', component: () => import('../views/gestion/shipping/Carriers.vue'), meta: { title: 'Expéditions', permission: 'carriers.manage' } },
       { path: 'expeditions/reversements', component: () => import('../views/gestion/shipping/CarrierPayouts.vue'), meta: { title: 'Expéditions', permission: 'carriers.manage' } },
@@ -70,10 +90,20 @@ router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (!auth.loaded) await auth.fetch()
 
+  const courierApp = to.path.startsWith('/livreur')
+  const home = auth.profile?.role?.value === 'courier' ? '/livreur' : '/gestion'
+
   if (to.matched.some((r) => r.meta.auth) && !auth.isAuthenticated) {
-    return { path: '/gestion/connexion', query: to.fullPath !== '/gestion' ? { retour: to.fullPath } : {} }
+    const login = courierApp ? '/livreur/connexion' : '/gestion/connexion'
+    return { path: login, query: !['/gestion', '/livreur'].includes(to.path) ? { retour: to.fullPath } : {} }
   }
   if (to.meta.guest && auth.isAuthenticated && !to.path.startsWith('/invitation')) {
+    return courierApp && auth.profile?.courier ? '/livreur' : home
+  }
+  // Un livreur n'a que son application ; l'application livreur demande une fiche livreur
+  if (to.path.startsWith('/gestion') && home === '/livreur') return '/livreur'
+  if (to.matched.some((r) => r.meta.courier) && !auth.profile?.courier) return '/gestion'
+  if (to.meta.permissionAny && !to.meta.permissionAny.some((p) => auth.can(p))) {
     return '/gestion'
   }
   if (to.meta.permission && !auth.can(to.meta.permission)) {

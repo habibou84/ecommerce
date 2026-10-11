@@ -91,6 +91,8 @@ abstract class TestCase extends BaseTestCase
     protected function logout(): void
     {
         auth()->guard('web')->logout();
+        // Session de la connexion précédente (empreinte du mot de passe vérifiée par AuthenticateSession)
+        $this->flushSession();
         config(['auth.defaults.guard' => 'web']);
         $this->app['auth']->forgetGuards();
     }

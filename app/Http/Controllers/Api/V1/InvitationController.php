@@ -87,7 +87,7 @@ class InvitationController extends Controller
             Auth::guard('web')->login($user, remember: true);
             $request->session()->regenerate();
 
-            return response()->json(['redirect' => '/gestion']);
+            return response()->json(['redirect' => $this->invitations->homeFor($user, $invitation->store)]);
         }
 
         $data = $request->validate([

@@ -15,7 +15,7 @@ class TrackingController extends Controller
 {
     public function __invoke(string $token): View
     {
-        $order = Order::where('tracking_token', $token)->with(['items', 'store', 'shipments.connection'])->firstOrFail();
+        $order = Order::where('tracking_token', $token)->with(['items', 'store', 'shipments.connection', 'shipments.courier'])->firstOrFail();
         // Expédition en cours (ou la dernière) : transporteur, numéro et lien de suivi
         $shipment = $order->shipments->reject(fn ($s) => in_array($s->status, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true))->last();
 

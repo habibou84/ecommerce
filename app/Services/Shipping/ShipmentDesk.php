@@ -11,6 +11,7 @@ use App\Enums\StockLocationType;
 use App\Exceptions\BusinessRuleException;
 use App\Models\CarrierConnection;
 use App\Models\CarrierProductMapping;
+use App\Models\Courier;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
@@ -18,6 +19,7 @@ use App\Models\StockLocation;
 use App\Models\User;
 use App\Notifications\ShipmentAlert;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Couriers\CourierMissions;
 use App\Services\Orders\OrderDesk;
 use App\Services\Shipping\Drivers\RemoteShipment;
 use Illuminate\Support\Carbon;
@@ -37,6 +39,7 @@ class ShipmentDesk
         private readonly CarrierConnections $connections,
         private readonly OrderDesk $orders,
         private readonly TeamNotifier $notifier,
+        private readonly CourierMissions $couriers,
     ) {}
 
     /**
@@ -77,17 +80,7 @@ class ShipmentDesk
      */
     public function create(Order $order, CarrierConnection $connection, array $options, ?User $actor): Shipment
     {
-        $order->loadMissing(['items.product', 'store', 'shipments']);
-
-        if (! in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Processing], true)) {
-            throw new BusinessRuleException('Seule une commande confirmée peut être expédiée.');
-        }
-        if ($order->delivery_method !== 'delivery') {
-            throw new BusinessRuleException('Cette commande est à retirer en boutique.');
-        }
-        if ($order->shipments->contains(fn (Shipment $s) => ! in_array($s->status, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true))) {
-            throw new BusinessRuleException('Cette commande a déjà une expédition en cours.');
-        }
+        $this->ensureShippable($order);
         if (! $connection->isActive() || $connection->store_id !== $order->store_id) {
             throw new BusinessRuleException('Ce transporteur n\'est pas connecté.', 'carrier_connection_id');
         }
@@ -148,6 +141,89 @@ class ShipmentDesk
     }
 
     /**
+     * Livraison par un livreur de la boutique : la mission apparaît dans son application.
+     *
+     * @param  array{origin_location_id?: ?int, note?: ?string}  $options
+     */
+    public function assignCourier(Order $order, Courier $courier, array $options, ?User $actor): Shipment
+    {
+        $this->ensureShippable($order);
+        if (! $courier->isActive() || $courier->store_id !== $order->store_id) {
+            throw new BusinessRuleException('Ce livreur n\'est pas actif (invitation pas encore acceptée ?).', 'courier_id');
+        }
+
+        $locationId = $options['origin_location_id'] ?? $order->location_id;
+        $shipment = DB::transaction(function () use ($order, $courier, $options, $actor, $locationId) {
+            $shipment = Shipment::create([
+                'store_id' => $order->store_id,
+                'order_id' => $order->id,
+                'sequence' => (int) $order->shipments->max('sequence') + 1,
+                'mode' => 'own_courier',
+                'status' => ShipmentStatus::AwaitingPickup,
+                'origin_location_id' => $locationId ? StockLocation::forStore($order->store_id)->find($locationId)?->id : null,
+                'courier_id' => $courier->id,
+                'idempotency_key' => (string) Str::uuid(),
+                'cod_amount' => $order->amountDue(),
+                'fee_payer' => 'customer',
+                'weight_g' => $this->weightG($order),
+                'is_fragile' => $order->items->contains(fn ($i) => $i->product?->is_fragile),
+                // Code remis au client (page de suivi), demandé par le livreur à la remise du colis
+                'delivery_code' => $order->store->require_delivery_code ? (string) random_int(1000, 9999) : null,
+                'note' => $options['note'] ?? null,
+                'requested_at' => now(),
+                'created_by' => $actor?->id,
+            ]);
+            $shipment->setRelation('order', $order);
+
+            $this->couriers->assign($shipment, $courier, $actor);
+            $this->event($shipment, ShipmentStatus::AwaitingPickup, null, 'user', 'Confiée à '.$courier->name, $actor);
+            if ($order->status === OrderStatus::Confirmed) {
+                $this->orders->transition($order, OrderStatus::Processing, $actor, ['note' => 'Expédition '.$shipment->reference()]);
+            }
+            $this->orders->log($order, 'shipment_created', ['shipment_id' => $shipment->id, 'carrier' => $courier->name], $actor);
+
+            return $shipment;
+        });
+
+        return $shipment->fresh(['order', 'courier']);
+    }
+
+    /**
+     * Autre livreur pour une mission pas encore livrée.
+     */
+    public function reassign(Shipment $shipment, Courier $courier, ?User $actor): Shipment
+    {
+        if (! $shipment->isOwnCourier() || $shipment->status->isFinal() || in_array($shipment->status, [ShipmentStatus::Returning], true)) {
+            throw new BusinessRuleException('Cette expédition ne peut plus changer de livreur.');
+        }
+        if (! $courier->isActive() || $courier->store_id !== $shipment->store_id) {
+            throw new BusinessRuleException('Ce livreur n\'est pas actif.', 'courier_id');
+        }
+
+        DB::transaction(function () use ($shipment, $courier, $actor) {
+            $this->couriers->assign($shipment, $courier, $actor);
+            $this->event($shipment, $shipment->status, null, 'user', 'Confiée à '.$courier->name, $actor);
+        });
+
+        return $shipment->fresh(['courier']);
+    }
+
+    private function ensureShippable(Order $order): void
+    {
+        $order->loadMissing(['items.product', 'store', 'shipments']);
+
+        if (! in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Processing], true)) {
+            throw new BusinessRuleException('Seule une commande confirmée peut être expédiée.');
+        }
+        if ($order->delivery_method !== 'delivery') {
+            throw new BusinessRuleException('Cette commande est à retirer en boutique.');
+        }
+        if ($order->shipments->contains(fn (Shipment $s) => ! in_array($s->status, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true))) {
+            throw new BusinessRuleException('Cette commande a déjà une expédition en cours.');
+        }
+    }
+
+    /**
      * Message WhatsApp à envoyer à un transporteur sans API.
      */
     public function requestMessage(Shipment $shipment): string
@@ -174,14 +250,16 @@ class ShipmentDesk
         }
 
         $connection = $shipment->connection;
-        $remote = $this->connections->driver($connection)->cancel($connection, $shipment, $reason);
+        $remote = $connection
+            ? $this->connections->driver($connection)->cancel($connection, $shipment, $reason)
+            : new RemoteShipment(trackingCode: '', status: ShipmentStatus::Cancelled, rawStatus: 'cancelled');
         $this->apply($shipment, $remote, 'user', $reason, $actor);
 
         return $shipment->fresh();
     }
 
     /**
-     * Statut saisi à la main (transporteur sans API).
+     * Statut saisi à la main (transporteur sans API, ou livreur de la boutique : réception d'un colis retourné…).
      */
     public function updateManually(Shipment $shipment, ShipmentStatus $status, ?string $note, ?int $collected, ?User $actor): Shipment
     {
@@ -205,7 +283,7 @@ class ShipmentDesk
 
     public function refresh(Shipment $shipment): Shipment
     {
-        $connection = $shipment->connection;
+        $connection = $shipment->connection ?? throw new BusinessRuleException('Cette expédition est suivie par votre livreur.');
         $this->apply($shipment, $this->connections->driver($connection)->fetch($connection, $shipment), 'carrier_sync');
 
         return $shipment->fresh();
@@ -230,8 +308,10 @@ class ShipmentDesk
                 'collected_amount' => $remote->collected,
                 'delivery_code' => $remote->deliveryCode,
                 'proof_photo_url' => $remote->proofPhotoUrl,
+                'proof_photo_path' => $remote->proofPhotoPath,
                 'attempts_count' => $remote->attempts ?: null,
                 'failure_reason' => $remote->incident,
+                'rescheduled_to' => $remote->rescheduledTo,
             ], fn ($v) => $v !== null))->forceFill(['last_synced_at' => $source === 'user' ? $shipment->last_synced_at : now()]);
 
             $to = $remote->status;
@@ -253,11 +333,11 @@ class ShipmentDesk
             $shipment->save();
 
             $this->event($shipment, $to, $remote->rawStatus, $source, $note ?? $remote->incident, $actor, $occurredAt);
-            $this->updateOrder($shipment, $to, $actor);
+            $this->updateOrder($shipment, $to, $actor, $source, $remote);
         });
     }
 
-    private function updateOrder(Shipment $shipment, ShipmentStatus $to, ?User $actor): void
+    private function updateOrder(Shipment $shipment, ShipmentStatus $to, ?User $actor, string $source, RemoteShipment $remote): void
     {
         $order = $shipment->order->fresh();
         $label = 'Expédition '.$shipment->reference();
@@ -268,7 +348,7 @@ class ShipmentDesk
         }
 
         match ($to) {
-            ShipmentStatus::Delivered => $this->delivered($shipment, $order, $actor),
+            ShipmentStatus::Delivered => $this->delivered($shipment, $order, $actor, $remote),
             ShipmentStatus::Returned => $order->status->canTransitionTo(OrderStatus::Returned)
                 ? $this->orders->transition($order, OrderStatus::Returned, $actor, ['note' => $label.' : colis retourné', 'restock' => true]) : null,
             // Course refusée ou annulée avant le ramassage : la commande revient à « Confirmée »
@@ -280,26 +360,43 @@ class ShipmentDesk
         $alert = match ($to) {
             ShipmentStatus::Rejected => 'Course refusée',
             ShipmentStatus::Failed => 'Échec de livraison',
+            ShipmentStatus::Rescheduled => 'Livraison reportée',
             ShipmentStatus::Lost => 'Colis perdu',
             ShipmentStatus::Returned => 'Colis retourné',
             default => null,
         };
-        if ($alert && $actor === null) {
+        // Alerte quand l'information vient du terrain (transporteur ou livreur), pas d'une saisie dans la gestion
+        if ($alert && ($actor === null || $source === 'courier')) {
             $this->notifier->notify($shipment->store, Permission::OrdersView->value, new ShipmentAlert($shipment, $alert, $shipment->failure_reason));
+        }
+
+        if ($shipment->isOwnCourier()) {
+            $this->couriers->afterStatus($shipment, $to);
         }
     }
 
     /**
-     * Livrée : la commande est terminée et l'argent encaissé par le transporteur est noté (il le reversera).
+     * Livrée : la commande est terminée et l'argent encaissé est noté : par le transporteur (il le reversera) ou par
+     * le livreur de la boutique (il le détient jusqu'à son versement à la caisse).
      */
-    private function delivered(Shipment $shipment, Order $order, ?User $actor): void
+    private function delivered(Shipment $shipment, Order $order, ?User $actor, RemoteShipment $remote): void
     {
         if ($order->status->canTransitionTo(OrderStatus::Completed)) {
             $order = $this->orders->transition($order, OrderStatus::Completed, $actor, ['note' => 'Expédition '.$shipment->reference().' livrée']);
         }
 
         $collected = min($shipment->collected_amount ?? $shipment->cod_amount, $order->amountDue());
-        if ($collected > 0) {
+        if ($collected > 0 && $shipment->isOwnCourier()) {
+            $method = PaymentMethod::tryFrom((string) $remote->paymentMethod) ?? PaymentMethod::Cash;
+            $payment = $this->orders->recordPayment($order, [
+                'amount' => $collected,
+                'method' => $method,
+                'kind' => $method === PaymentMethod::Cash ? PaymentKind::CodCash : PaymentKind::CodMobile,
+                'reference' => $shipment->reference(),
+                'note' => 'Encaissé par '.$shipment->courier?->name,
+            ], $actor);
+            $this->couriers->collected($shipment, $payment, $method);
+        } elseif ($collected > 0) {
             $this->orders->recordPayment($order, [
                 'amount' => $collected,
                 'method' => PaymentMethod::Cash,

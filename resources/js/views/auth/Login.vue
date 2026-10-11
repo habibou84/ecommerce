@@ -8,6 +8,10 @@ import { boot } from '../../lib/boot'
 import { errorMessage, fieldErrors } from '../../lib/http'
 import { useAuthStore } from '../../stores/auth'
 
+const props = defineProps({
+  home: { type: String, default: '/gestion' },
+  title: { type: String, default: 'Gestion de la boutique' },
+})
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -23,7 +27,9 @@ async function submit() {
   error.value = ''
   try {
     await auth.login(form.phone, form.password)
-    const back = typeof route.query.retour === 'string' && route.query.retour.startsWith('/gestion') ? route.query.retour : '/gestion'
+    // Un livreur arrive sur son application, les autres sur la gestion (ou la page demandée)
+    const home = auth.profile.role?.value === 'courier' ? '/livreur' : props.home
+    const back = typeof route.query.retour === 'string' && route.query.retour.startsWith(home) ? route.query.retour : home
     router.replace(back)
   } catch (e) {
     errors.value = fieldErrors(e)
@@ -35,7 +41,7 @@ async function submit() {
 </script>
 
 <template>
-  <AuthShell title="Gestion de la boutique" subtitle="Connectez-vous avec votre numéro de téléphone.">
+  <AuthShell :title="title" subtitle="Connectez-vous avec votre numéro de téléphone.">
     <form class="space-y-4" @submit.prevent="submit">
       <Alert v-if="error">{{ error }}</Alert>
       <Field id="phone" label="Numéro de téléphone" :error="errors.phone">

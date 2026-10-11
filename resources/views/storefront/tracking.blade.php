@@ -24,7 +24,7 @@
 
         @if ($shipment)
             <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
-                <p><span class="text-slate-500">Livraison :</span> <strong>{{ $shipment->connection?->name ?? 'Transporteur' }}</strong> · {{ $shipment->status->label() }}</p>
+                <p><span class="text-slate-500">Livraison :</span> <strong>{{ $shipment->connection?->name ?? ($shipment->courier ? 'livreur '.$shipment->courier->name : 'Transporteur') }}</strong> · {{ $shipment->status->label() }}</p>
                 @if ($shipment->carrier_tracking_code)
                     <p class="mt-1"><span class="text-slate-500">N° de suivi :</span> {{ $shipment->carrier_tracking_code }}</p>
                 @endif

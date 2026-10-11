@@ -8,6 +8,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\LoginHandoff;
 use App\Services\Accounts\StoreRoles;
+use App\Services\Couriers\CourierRoster;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -94,6 +95,8 @@ class AuthController extends Controller
             'role' => $role ? ['value' => $role->value, 'label' => $role->label()] : null,
             'permissions' => $this->roles->permissionsOf($user, $store),
             'is_owner' => $store->owner_id === $user->id,
+            // Fiche livreur de la personne dans cette boutique : accès à l'application /livreur
+            'courier' => ($courier = CourierRoster::of($user, $store)) ? ['id' => $courier->id, 'name' => $courier->name] : null,
             // Ses autres boutiques, pour passer de l'une à l'autre
             'other_stores' => $user->stores()->wherePivot('status', 'active')->where('stores.id', '!=', $store->id)
                 ->orderBy('name')->get(['stores.id', 'stores.name', 'stores.slug', 'stores.status'])

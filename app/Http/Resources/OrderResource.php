@@ -127,6 +127,6 @@ class OrderResource extends JsonResource
 
     public static function loadDetail(Order $order): Order
     {
-        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store', 'shipments.connection', 'shipments.events', 'shipments.origin']);
+        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store', 'shipments.connection', 'shipments.courier', 'shipments.events', 'shipments.origin']);
     }
 }

@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Enums\UserStatus;
 use App\Enums\VerificationPurpose;
 use App\Exceptions\BusinessRuleException;
+use App\Models\Courier;
 use App\Models\PhoneVerification;
 use App\Models\Store;
 use App\Models\StoreInvitation;
@@ -33,7 +34,8 @@ class Invitations
      */
     public function invite(Store $store, User $inviter, string $phone, Role $role, ?string $name = null): array
     {
-        if (! in_array($role, Role::invitable(), true)) {
+        // Les livreurs sont invités depuis l'écran Livreurs (CourierRoster), pas depuis l'équipe
+        if (! in_array($role, [...Role::invitable(), Role::Courier], true)) {
             throw new BusinessRuleException('Ce rôle ne peut pas être donné par invitation.', 'role');
         }
 
@@ -147,7 +149,19 @@ class Invitations
             $this->roles->assign($user, $invitation->store, $invitation->role);
 
             $invitation->forceFill(['accepted_at' => now(), 'accepted_by' => $user->id])->save();
+
+            // Livreur invité : sa fiche est reliée à son compte, il accède à l'application /livreur
+            Courier::forStore($invitation->store_id)->where('phone', $invitation->phone)->where('status', 'invited')
+                ->update(['user_id' => $user->id, 'status' => 'active']);
         });
+    }
+
+    /**
+     * Page d'arrivée après l'acceptation : l'application livreur pour un livreur, la gestion sinon.
+     */
+    public function homeFor(User $user, Store $store): string
+    {
+        return $this->roles->roleOf($user, $store) === Role::Courier ? '/livreur' : '/gestion';
     }
 
     private function ensurePending(StoreInvitation $invitation): void

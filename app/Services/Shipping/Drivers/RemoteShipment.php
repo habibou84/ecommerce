@@ -22,6 +22,9 @@ final class RemoteShipment
         public readonly ?string $proofPhotoUrl = null,
         public readonly ?string $merchantReference = null,
         public readonly ?string $occurredAt = null,
+        public readonly ?string $paymentMethod = null,
+        public readonly ?string $proofPhotoPath = null,
+        public readonly ?string $rescheduledTo = null,
     ) {}
 
     /**

@@ -5,6 +5,7 @@ use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\StorefrontController;
 use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\Webhooks\CarrierWebhookController;
+use App\Support\Tenancy;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -19,6 +20,23 @@ Route::get('/robots.txt', [StorefrontController::class, 'robots']);
 Route::middleware('zone:store,custom_domain')->group(function () {
     // Suivi d'une commande par le client (lien envoyé par WhatsApp), même boutique en ligne fermée
     Route::get('/suivi/{token}', TrackingController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('tracking');
+    // Application livreur : manifeste (installation sur l'écran d'accueil)
+    Route::get('/livreur/manifest.webmanifest', function (Tenancy $tenancy) {
+        $store = $tenancy->store();
+
+        return response()->json([
+            'name' => 'Livreur · '.$store->name,
+            'short_name' => 'Livreur',
+            'start_url' => '/livreur',
+            'scope' => '/livreur',
+            'display' => 'standalone',
+            'background_color' => '#ffffff',
+            'theme_color' => '#047857',
+            'lang' => 'fr',
+            'icons' => [['src' => '/livreur-icon.svg', 'sizes' => 'any', 'type' => 'image/svg+xml', 'purpose' => 'any maskable']],
+        ])->header('Content-Type', 'application/manifest+json');
+    })->middleware('zone:store');
+
     // Aperçu d'une boutique encore fermée (lien signé depuis la gestion)
     Route::get('/apercu', [StorefrontController::class, 'preview'])->name('storefront.preview');
 

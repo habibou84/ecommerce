@@ -58,6 +58,7 @@ En local, `PLATFORM_DOMAIN=localhost` : les navigateurs envoient `*.localhost` v
 |---|---|
 | Présentation et création de boutique | http://localhost:8000 |
 | Gestion de la boutique de démonstration | http://demo.localhost:8000/gestion : `07 00 00 00 01` / `password` (propriétaire) ou `07 00 00 00 02` / `password` (gérant). Produits, zone de livraison et deux commandes déjà créés. |
+| Application livreur de démonstration | http://demo.localhost:8000/livreur : `07 00 00 00 03` / `password` (Moussa, livreur de la boutique) |
 | Boutique en ligne de démonstration | http://demo.localhost:8000 (ouverte : catalogue, panier, commande paiement à la livraison) |
 
 Les SMS ne partent pas en local (`SMS_DRIVER=log`) : le code de vérification s'affiche sur la page et dans
@@ -100,6 +101,8 @@ vendor/bin/pint      # style du code
 | `app/Services/Orders` | Commandes (`OrderDesk` : création, statuts, stock, paiements, confirmation), analyse des messages, PDF, messages WhatsApp |
 | `app/Services/Customers`, `app/Services/Places` | Fichier clients et score de risque ; lieux et zones de livraison |
 | `app/Services/Shipping` | Expéditions et transporteurs : connecteurs (`Drivers/`), `ShipmentDesk` (course, statuts → commande), webhooks et synchronisation (`CarrierEvents`), reversements, stock chez le transporteur |
+| `app/Services/Couriers` | Livreurs de la boutique : ajout et invitation (`CourierRoster`), actions du livreur (`CourierDesk`), encaissements et gains (`CourierMissions`), caisse (`CashDesk`), paie (`CourierPayroll`) |
+| `resources/js/views/courier`, `public/livreur-sw.js` | Application livreur `/livreur` (installable) |
 | `app/Services/Storefront`, `routes/storefront.php` | Boutique en ligne : thèmes (`config/themes.php`), catalogue public, panier par cookie, commande en une page ; routes sans session |
 | `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |
 | `app/Enums/Role.php`, `Permission.php` | Rôles (propriétaire, gérant, agent de confirmation, préparateur, caissier, livreur) et leurs permissions |

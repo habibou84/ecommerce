@@ -17,7 +17,8 @@ const canShip = computed(() => props.order.delivery_method === 'delivery' && ['c
 const modal = ref(null) // 'ship' | 'status' | 'cancel'
 const quotes = ref(null)
 const locations = ref([])
-const form = reactive({ carrier_connection_id: null, origin_location_id: null, fee_payer: '', note: '', status: 'delivered', collected_amount: '', reason: '' })
+const couriers = ref([])
+const form = reactive({ target: null, carrier_connection_id: null, courier_id: null, origin_location_id: null, fee_payer: '', note: '', status: 'delivered', collected_amount: '', reason: '' })
 const current = ref(null)
 const error = ref('')
 const busy = ref(false)
@@ -30,9 +31,12 @@ async function openShip() {
     const { data } = await http.get(`/orders/${props.order.id}/shipping-quotes`)
     quotes.value = data.data
     locations.value = data.locations
+    couriers.value = data.couriers ?? []
     form.origin_location_id = data.location_id ?? data.locations[0]?.id ?? null
+    // Par défaut : mon livreur disponible qui couvre la zone, sinon le transporteur le moins cher
+    const mine = couriers.value.find((c) => c.is_available && c.covers_zone)
     const best = data.data.filter((q) => !q.error).sort((a, b) => (a.fee ?? 1e9) - (b.fee ?? 1e9))[0]
-    form.carrier_connection_id = best?.connection_id ?? null
+    form.target = mine ? `courier:${mine.id}` : best ? `carrier:${best.connection_id}` : null
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -53,11 +57,24 @@ async function run(request, close = true) {
 }
 
 const ship = () => run(() => http.post(`/orders/${props.order.id}/shipments`, {
-  carrier_connection_id: form.carrier_connection_id,
+  carrier_connection_id: form.target?.startsWith('carrier:') ? Number(form.target.split(':')[1]) : null,
+  courier_id: form.target?.startsWith('courier:') ? Number(form.target.split(':')[1]) : null,
   origin_location_id: form.origin_location_id,
   fee_payer: form.fee_payer || null,
   note: form.note || null,
 }))
+const reassign = () => run(() => http.post(`/shipments/${current.value.id}/assign`, { courier_id: form.courier_id }))
+const received = (s) => run(() => http.post(`/shipments/${s.id}/status`, { status: 'returned', note: 'Colis reçu à la boutique' }), false)
+
+async function openReassign(s) {
+  current.value = s
+  error.value = ''
+  const { data } = await http.get(`/orders/${props.order.id}/shipping-quotes`)
+  couriers.value = (data.couriers ?? []).filter((c) => c.id !== s.courier?.id)
+  form.courier_id = couriers.value[0]?.id ?? null
+  modal.value = 'reassign'
+}
+
 const refresh = (s) => run(() => http.post(`/shipments/${s.id}/refresh`), false)
 const cancel = () => run(() => http.post(`/shipments/${current.value.id}/cancel`, { reason: form.reason || null }))
 const setStatus = () => run(() => http.post(`/shipments/${current.value.id}/status`, {
@@ -119,8 +136,13 @@ async function whatsapp(s) {
           <span class="text-slate-400">({{ SOURCE_LABELS[e.source] ?? e.source }})</span><template v-if="e.note"> — {{ e.note }}</template>
         </li>
       </ol>
+      <p v-if="s.courier" class="text-slate-600">Livreur : <strong>{{ s.courier.name }}</strong> · <a :href="`tel:${s.courier.phone}`" class="text-emerald-700 underline">appeler</a></p>
       <div v-if="!s.is_final" class="flex flex-wrap gap-2 pt-1">
-        <template v-if="s.carrier?.driver === 'manual'">
+        <template v-if="s.mode === 'own_courier'">
+          <button v-if="s.status === 'returning'" class="btn-brand px-2 py-1" :disabled="busy" @click="received(s)">Colis reçu à la boutique</button>
+          <button v-else-if="!['in_transit', 'out_for_delivery'].includes(s.status)" class="btn-secondary px-2 py-1" @click="openReassign(s)">Autre livreur</button>
+        </template>
+        <template v-else-if="s.carrier?.driver === 'manual'">
           <button class="btn-secondary px-2 py-1" @click="whatsapp(s)">💬 Envoyer la course</button>
           <button class="btn-secondary px-2 py-1" @click="openModal('status', s)">Mettre à jour</button>
         </template>
@@ -133,16 +155,28 @@ async function whatsapp(s) {
       <form class="space-y-4" @submit.prevent="ship">
         <Alert v-if="error">{{ error }}</Alert>
         <p v-if="!quotes" class="text-sm text-slate-500">Demande des tarifs…</p>
-        <template v-else-if="!quotes.length">
-          <p class="text-sm">Aucun transporteur connecté.</p>
-          <RouterLink to="/gestion/expeditions/transporteurs" class="btn-brand">Connecter un transporteur</RouterLink>
+        <template v-else-if="!quotes.length && !couriers.length">
+          <p class="text-sm">Aucun livreur ni transporteur.</p>
+          <RouterLink to="/gestion/livreurs" class="btn-brand">Ajouter un livreur</RouterLink>
+          <RouterLink to="/gestion/expeditions/transporteurs" class="btn-secondary">Connecter un transporteur</RouterLink>
         </template>
         <template v-else>
-          <fieldset class="space-y-2">
-            <legend class="label">Transporteur</legend>
+          <fieldset v-if="couriers.length" class="space-y-2">
+            <legend class="label">Mes livreurs</legend>
+            <label v-for="c in couriers" :key="c.id" class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm"
+                   :class="form.target === `courier:${c.id}` ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
+              <input v-model="form.target" type="radio" :value="`courier:${c.id}`" class="accent-emerald-700" />
+              <span class="min-w-0 flex-1">
+                <span class="block font-medium">{{ c.name }}</span>
+                <span class="block text-xs text-slate-500">{{ c.is_available ? 'Disponible' : 'Indisponible' }}{{ c.covers_zone ? ' · couvre ce quartier' : '' }} · {{ c.active_missions }} en cours</span>
+              </span>
+            </label>
+          </fieldset>
+          <fieldset v-if="quotes.length" class="space-y-2">
+            <legend class="label">Transporteurs</legend>
             <label v-for="q in quotes" :key="q.connection_id" class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm"
-                   :class="form.carrier_connection_id === q.connection_id ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
-              <input v-model="form.carrier_connection_id" type="radio" :value="q.connection_id" :disabled="!!q.error" class="accent-emerald-700" />
+                   :class="form.target === `carrier:${q.connection_id}` ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
+              <input v-model="form.target" type="radio" :value="`carrier:${q.connection_id}`" :disabled="!!q.error" class="accent-emerald-700" />
               <span class="min-w-0 flex-1">
                 <span class="block font-medium">{{ q.name }}</span>
                 <span class="block text-xs" :class="q.error ? 'text-amber-800' : 'text-slate-500'">{{ q.error || q.zone || (q.driver === 'manual' ? 'Course demandée par WhatsApp' : '') }}</span>
@@ -155,7 +189,7 @@ async function whatsapp(s) {
               <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
             </select>
           </Field>
-          <Field id="ship-payer" label="Livraison payée par" hint="Par la boutique : le client paie exactement le montant de la commande ; le tarif du transporteur est retenu sur le reversement.">
+          <Field v-if="form.target?.startsWith('carrier:')" id="ship-payer" label="Livraison payée par" hint="Par la boutique : le client paie exactement le montant de la commande ; le tarif du transporteur est retenu sur le reversement.">
             <select id="ship-payer" v-model="form.fee_payer" class="input">
               <option value="">Réglage du transporteur</option>
               <option value="store">La boutique</option>
@@ -166,7 +200,7 @@ async function whatsapp(s) {
             <input id="ship-note" v-model="form.note" class="input" maxlength="255" />
           </Field>
           <p class="text-sm text-slate-600">À encaisser auprès du client : <strong>{{ money(order.amount_due) }}</strong></p>
-          <button class="btn-brand w-full" :disabled="busy || !form.carrier_connection_id">{{ busy ? 'Envoi…' : 'Demander la course' }}</button>
+          <button class="btn-brand w-full" :disabled="busy || !form.target">{{ busy ? 'Envoi…' : form.target?.startsWith('courier:') ? 'Confier au livreur' : 'Demander la course' }}</button>
         </template>
       </form>
     </Modal>
@@ -186,6 +220,17 @@ async function whatsapp(s) {
           <input id="sh-note" v-model="form.note" class="input" maxlength="255" />
         </Field>
         <button class="btn-brand w-full" :disabled="busy">Enregistrer</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'reassign'" :title="`Autre livreur pour ${current.reference}`" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="reassign">
+        <Alert v-if="error">{{ error }}</Alert>
+        <p v-if="!couriers.length" class="text-sm text-slate-500">Aucun autre livreur actif.</p>
+        <select v-else v-model="form.courier_id" class="input" aria-label="Livreur">
+          <option v-for="c in couriers" :key="c.id" :value="c.id">{{ c.name }}{{ c.is_available ? '' : ' (indisponible)' }}</option>
+        </select>
+        <button class="btn-brand w-full" :disabled="busy || !form.courier_id">Confier</button>
       </form>
     </Modal>
 
