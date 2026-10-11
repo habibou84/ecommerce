@@ -2,6 +2,8 @@
 
 Guide pratique pour mettre Jibiat Marchand en ligne, puis mener le pilote avec 10 marchands (docs/PLAN.md, phase 8).
 
+Préproduction sur le serveur existant de Delivery App (Apache, ISPConfig) : voir `docs/DEPLOIEMENT-PREPROD.md` et les scripts du dossier `deploy/`.
+
 ---
 
 ## 1. Serveur
