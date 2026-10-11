@@ -390,7 +390,14 @@ Les abonnements des marchands sont encaissés sur le **compte de la plateforme**
 | Messages | `message_templates`, `outbound_messages`, `push_subscriptions`, `notification_preferences` |
 | Intégrations | `api_keys`, `webhook_subscriptions`, `webhook_deliveries`, `idempotency_keys` (mêmes structures que Delivery App) |
 
-Le schéma DBML détaillé sera produit en phase 0 (`docs/database.dbml`), comme pour Delivery App.
+Schéma complet : [`database.dbml`](./database.dbml) (96 tables, importable tel quel sur https://dbdiagram.io ; le SQL généré a été chargé sans erreur dans PostgreSQL 16).
+
+Choix faits en détaillant le schéma :
+- **Référentiel commun des lieux** (`places` : ville › commune › quartier, avec variantes d'écriture). Les adresses des clients, les zones de livraison des boutiques et les correspondances avec les zones des transporteurs pointent toutes vers ces lieux. Une correspondance « lieu → zone du transporteur » faite une fois sert à toutes les commandes.
+- **Variantes** : trois colonnes `option1..3_value_id` plutôt qu'un JSONB, pour garantir l'unicité de chaque combinaison et garder des requêtes simples.
+- **Catégories = collections** : un seul concept pour le marchand.
+- **Grand livre en partie double simplifiée** (`ledger_entries` débit / crédit, avec sous-comptes par livreur, transporteur et prestataire de paiement). Il donne directement l'argent détenu par chaque livreur et ce que doit chaque transporteur.
+- **Rôles par boutique** avec spatie/laravel-permission en mode *teams* (`team_id` = boutique), car un même compte peut appartenir à plusieurs boutiques.
 
 ---
 
@@ -404,7 +411,7 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [ ] Multi-boutique (`store_id` + scope), résolution par sous-domaine, cookies par hôte, sous-domaines réservés (§4.4).
 - [ ] Site vitrine `jibiat-marchand.com` + **création de boutique en 5 minutes** depuis un téléphone (nom, sous-domaine, logo, numéro WhatsApp).
 - [ ] Comptes, rôles, invitation de membres, OTP téléphone ; back-office sur `/gestion`.
-- [ ] Schéma DBML complet et validé.
+- [x] Schéma DBML complet ([`database.dbml`](./database.dbml)) ; reste à le valider ensemble.
 
 ### Phase 1 : catalogue et stock (3 semaines)
 - [ ] Produits, options, génération et édition en masse des variantes, photos (par variante), collections.
