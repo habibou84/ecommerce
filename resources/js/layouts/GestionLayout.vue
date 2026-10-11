@@ -14,7 +14,13 @@ const switchError = ref('')
 const nav = computed(() => [
   { to: '/gestion', label: 'Accueil', icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z', exact: true },
   { label: 'Commandes', icon: 'M4 4h16v4H4zM4 10h16v10H4z', soon: 'Phase 2' },
-  { label: 'Catalogue', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', soon: 'Phase 1' },
+  ...(auth.can('products.view')
+    ? [
+        { to: '/gestion/catalogue', label: 'Catalogue', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' },
+        { to: '/gestion/collections', label: 'Collections', icon: 'M4 6h16M4 12h16M4 18h10' },
+      ]
+    : []),
+  ...(auth.can('stock.manage') ? [{ to: '/gestion/stock', label: 'Stock', icon: 'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7M12 11v10' }] : []),
   { label: 'Clients', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 9a8 8 0 0 1 16 0z', soon: 'Phase 2' },
   { label: 'Livraisons', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', soon: 'Phase 4' },
   ...(auth.can('team.manage') ? [{ to: '/gestion/equipe', label: 'Équipe', icon: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 10a7 7 0 0 1 14 0zm15-10a3 3 0 1 0 0-6M22 21a6 6 0 0 0-4-5.6' }] : []),

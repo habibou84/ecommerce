@@ -15,6 +15,9 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    // Photos du catalogue (public : servies directement ; s3 en production)
+    'catalog_disk' => env('CATALOG_DISK', 'public'),
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks

@@ -23,7 +23,9 @@ const steps = computed(() => [
   ...(auth.can('team.manage')
     ? [{ title: 'Inviter votre équipe', text: 'Gérant, agent de confirmation, préparateur, caissier.', to: '/gestion/equipe' }]
     : []),
-  { title: 'Ajouter vos produits et leurs variantes', text: 'Tailles, couleurs, photos, stock.', soon: true },
+  ...(auth.can('products.manage')
+    ? [{ title: 'Ajouter vos produits et leurs variantes', text: 'Tailles, couleurs, photos, stock. Ou importez un fichier Excel.', to: '/gestion/catalogue/nouveau' }]
+    : []),
   { title: 'Ouvrir votre boutique en ligne', text: 'Thème, livraison, paiement à la livraison.', soon: true },
 ])
 </script>

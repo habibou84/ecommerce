@@ -28,6 +28,10 @@ return [
         'security', 'securite', 'root', 'null', 'undefined',
     ],
 
+    // Domaines des entreprises de livraison (Delivery App) que la boutique peut interroger : import du catalogue,
+    // puis connexion transporteur (phase 4). Aucune requête n'est faite vers un autre domaine.
+    'delivery_app_domains' => array_filter(array_map('trim', explode(',', (string) env('DELIVERY_APP_DOMAINS', 'jibiat.com')))),
+
     // Durée de l'essai gratuit à la création d'une boutique (toutes les fonctions de l'offre d'essai)
     'trial_days' => (int) env('PLATFORM_TRIAL_DAYS', 14),
     'trial_plan' => env('PLATFORM_TRIAL_PLAN', 'pro'),

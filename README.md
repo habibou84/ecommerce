@@ -47,6 +47,7 @@ createdb -O jibiat jibiat_marchand
 createdb -O jibiat jibiat_marchand_test    # pour les tests
 
 php artisan migrate --seed                 # rôles, offres et boutique de démonstration
+php artisan storage:link                   # photos du catalogue
 npm run build                              # ou « npm run dev » pendant le développement
 php artisan serve
 ```
@@ -82,6 +83,8 @@ vendor/bin/pint      # style du code
 | `app/Support/Tenancy.php` | Boutique désignée par l'adresse (zones : plateforme, boutique, domaine personnalisé, console, API) |
 | `app/Http/Middleware` | `ResolveStore` (boutique de l'adresse, redirections), `EnsureZone`, `EnsureStoreMember` |
 | `app/Models/Concerns/BelongsToStore.php` | Filtre automatique par boutique, à mettre sur tous les modèles métier |
+| `app/Services/Catalog` | Produits et variantes (`CatalogWriter`), photos (`ImageStore`), import/export CSV, reprise depuis Delivery App |
+| `app/Services/Stock` | Tous les mouvements de stock (`StockKeeper`, journal immuable) et lectures agrégées (`StockLevels`) |
 | `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |
 | `app/Enums/Role.php`, `Permission.php` | Rôles (propriétaire, gérant, agent de confirmation, préparateur, caissier, livreur) et leurs permissions |
 | `packages/socle` | Code commun avec Delivery App : téléphones, montants, SMS, signature des webhooks |

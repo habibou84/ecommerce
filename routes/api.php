@@ -2,11 +2,21 @@
 
 use App\Enums\Permission;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\Catalog\CatalogTransferController;
+use App\Http\Controllers\Api\V1\Catalog\CollectionController;
+use App\Http\Controllers\Api\V1\Catalog\ProductController;
+use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
+use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\PlatformAccountController;
 use App\Http\Controllers\Api\V1\SignupController;
+use App\Http\Controllers\Api\V1\Stock\CountController;
+use App\Http\Controllers\Api\V1\Stock\LevelController;
+use App\Http\Controllers\Api\V1\Stock\LocationController;
+use App\Http\Controllers\Api\V1\Stock\ReceiptController;
+use App\Http\Controllers\Api\V1\Stock\TransferController;
 use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use Illuminate\Support\Facades\Route;
@@ -57,6 +67,64 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('team/invitations', [InvitationController::class, 'index'])->name('team.invitations');
                 Route::post('team/invitations', [InvitationController::class, 'store'])->name('team.invitations.store');
                 Route::delete('team/invitations/{invitation}', [InvitationController::class, 'destroy'])->whereNumber('invitation')->name('team.invitations.destroy');
+            });
+
+            // ── Catalogue ──
+            Route::middleware('permission:'.Permission::ProductsView->value)->group(function () {
+                Route::get('products', [ProductController::class, 'index'])->name('products.index');
+                Route::get('products/{product}', [ProductController::class, 'show'])->whereNumber('product')->name('products.show');
+                Route::get('collections', [CollectionController::class, 'index'])->name('collections.index');
+                Route::get('collections/{collection}', [CollectionController::class, 'show'])->whereNumber('collection')->name('collections.show');
+                Route::get('tags', [TagController::class, 'index'])->name('tags.index');
+            });
+            Route::middleware('permission:'.Permission::ProductsManage->value)->group(function () {
+                Route::post('products', [ProductController::class, 'store'])->name('products.store');
+                Route::put('products/{product}', [ProductController::class, 'update'])->whereNumber('product')->name('products.update');
+                Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate'])->whereNumber('product')->name('products.duplicate');
+                Route::delete('products/{product}', [ProductController::class, 'destroy'])->whereNumber('product')->name('products.destroy');
+                Route::post('products/{product}/images', [ProductImageController::class, 'store'])->whereNumber('product')->name('products.images.store');
+                Route::put('products/{product}/images/order', [ProductImageController::class, 'reorder'])->whereNumber('product')->name('products.images.order');
+                Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy'])->whereNumber(['product', 'image'])->name('products.images.destroy');
+
+                Route::post('collections', [CollectionController::class, 'store'])->name('collections.store');
+                Route::put('collections/{collection}', [CollectionController::class, 'update'])->whereNumber('collection')->name('collections.update');
+                Route::delete('collections/{collection}', [CollectionController::class, 'destroy'])->whereNumber('collection')->name('collections.destroy');
+
+                Route::get('catalog/export', [CatalogTransferController::class, 'export'])->name('catalog.export');
+                Route::post('catalog/import', [CatalogTransferController::class, 'import'])->middleware('throttle:20,1')->name('catalog.import');
+                Route::post('catalog/import/delivery-app/preview', [CatalogTransferController::class, 'deliveryAppPreview'])->middleware('throttle:10,1')->name('catalog.delivery-app.preview');
+                Route::post('catalog/import/delivery-app', [CatalogTransferController::class, 'deliveryAppImport'])->middleware('throttle:10,1')->name('catalog.delivery-app.import');
+            });
+
+            // ── Stock ──
+            Route::middleware('permission:'.Permission::StockManage->value)->prefix('stock')->name('stock.')->group(function () {
+                Route::get('summary', [LevelController::class, 'summary'])->name('summary');
+                Route::get('levels', [LevelController::class, 'index'])->name('levels');
+                Route::post('adjustments', [LevelController::class, 'adjust'])->name('adjust');
+                Route::get('movements', [LevelController::class, 'movements'])->name('movements');
+                Route::get('variants', [LevelController::class, 'variants'])->name('variants');
+
+                Route::get('locations', [LocationController::class, 'index'])->name('locations.index');
+                Route::post('locations', [LocationController::class, 'store'])->name('locations.store');
+                Route::put('locations/{location}', [LocationController::class, 'update'])->whereNumber('location')->name('locations.update');
+
+                Route::get('receipts', [ReceiptController::class, 'index'])->name('receipts.index');
+                Route::post('receipts', [ReceiptController::class, 'store'])->name('receipts.store');
+                Route::get('receipts/{receipt}', [ReceiptController::class, 'show'])->whereNumber('receipt')->name('receipts.show');
+                Route::get('suppliers', [ReceiptController::class, 'suppliers'])->name('suppliers');
+
+                Route::get('transfers', [TransferController::class, 'index'])->name('transfers.index');
+                Route::post('transfers', [TransferController::class, 'store'])->name('transfers.store');
+                Route::get('transfers/{transfer}', [TransferController::class, 'show'])->whereNumber('transfer')->name('transfers.show');
+                Route::post('transfers/{transfer}/receive', [TransferController::class, 'receive'])->whereNumber('transfer')->name('transfers.receive');
+                Route::post('transfers/{transfer}/cancel', [TransferController::class, 'cancel'])->whereNumber('transfer')->name('transfers.cancel');
+
+                Route::get('counts', [CountController::class, 'index'])->name('counts.index');
+                Route::post('counts', [CountController::class, 'store'])->name('counts.store');
+                Route::get('counts/{count}', [CountController::class, 'show'])->whereNumber('count')->name('counts.show');
+                Route::put('counts/{count}/items', [CountController::class, 'saveItems'])->whereNumber('count')->name('counts.items');
+                Route::post('counts/{count}/complete', [CountController::class, 'complete'])->whereNumber('count')->name('counts.complete');
+                Route::post('counts/{count}/cancel', [CountController::class, 'cancel'])->whereNumber('count')->name('counts.cancel');
             });
         });
     });

@@ -27,6 +27,7 @@ class StoreResource extends JsonResource
             'address' => $this->address,
             'country' => $this->country,
             'currency' => $this->currency,
+            'low_stock_threshold' => $this->low_stock_threshold,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'subscription' => $subscription ? [

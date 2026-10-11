@@ -418,10 +418,17 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [x] Schéma DBML complet ([`database.dbml`](./database.dbml)).
 - Vérification du numéro **par SMS uniquement** pour l'instant (mobiles ivoiriens) : la preuve gratuite par message WhatsApp entrant, utilisée par Delivery App, viendra avec le numéro WhatsApp Business de la plateforme (phase 6).
 
-### Phase 1 : catalogue et stock (3 semaines)
-- [ ] Produits, options, génération et édition en masse des variantes, photos (par variante), collections.
-- [ ] Emplacements, niveaux et mouvements de stock par variante ; alertes.
-- [ ] Import / export CSV ; import depuis Delivery App.
+### Phase 1 : catalogue et stock (3 semaines) ✅ *réalisée*
+- [x] Produits avec jusqu'à 3 options (taille, couleur…) ; variantes générées à partir des valeurs, avec prix, prix barré, coût, SKU, code-barres, poids, photo et stock propres ; combinaisons non vendues décochables ; saisie groupée du prix et du stock.
+- [x] Photos : envoi depuis le téléphone, redressées et converties en trois tailles WebP (400, 800, 1 600 px), ordre, photo par variante.
+- [x] Collections (rayons de la boutique, ordre des produits), étiquettes, duplication d'un produit, statut brouillon / actif / archivé.
+- [x] Stock par variante et par emplacement (boutique, entrepôt, domicile) : journal immuable, ajustements (correction, casse), réceptions fournisseur avec coût moyen pondéré, transferts (envoi / réception / annulation), inventaires (comptage enregistré au fil de l'eau, puis validation).
+- [x] Réservation, libération et sortie de stock prêtes pour les commandes (phase 2).
+- [x] Alertes : stock bas (seuil du produit ou de la boutique) et épuisé, dans le catalogue et l'écran Stock ; valeur du stock au coût.
+- [x] Import / export CSV (point-virgule et UTF-8 pour Excel, une colonne de stock par emplacement), avec vérification avant import et erreurs par ligne ; les exports Shopify sont acceptés. Les photos ne sont pas importées.
+- [x] Reprise du catalogue depuis Delivery App (`GET /products` avec la clé API du marchand, non conservée ; seuls les domaines Delivery App sont interrogés). Le stock déposé à l'entrepôt de l'entreprise sera suivi par la connexion transporteur (phase 4).
+- [x] Limite de produits selon l'offre.
+- Les alertes de stock bas par notification (push, WhatsApp) arriveront avec les notifications (phase 2) ; les collections automatiques et les prix par quantité restent en V1 (phase 7).
 
 ### Phase 2 : commandes et clients (3 semaines)
 - [ ] Saisie rapide (collage de message), commandes multicanales, statuts commande / paiement séparés.
