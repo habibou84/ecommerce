@@ -11,7 +11,7 @@ class StockLocation extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'name', 'type', 'address', 'landmark', 'phone', 'is_pickup_point', 'fulfills_online_orders', 'priority', 'is_active'];
+    protected $fillable = ['store_id', 'name', 'type', 'carrier_connection_id', 'remote_hub_id', 'address', 'landmark', 'phone', 'is_pickup_point', 'fulfills_online_orders', 'priority', 'is_active'];
 
     protected function casts(): array
     {

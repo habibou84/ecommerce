@@ -23,11 +23,14 @@ class TwilioSmsGateway implements SmsGateway
                     'Body' => $text,
                 ]);
         } catch (ConnectionException $e) {
-            throw new SmsException('Fournisseur SMS injoignable : '.$e->getMessage(), 0, $e);
+            throw new SmsException('Fournisseur SMS injoignable : '.$e->getMessage(), retryable: true, previous: $e);
         }
 
         if ($response->failed()) {
-            throw new SmsException('SMS refusé ('.$response->status().') : '.($response->json('message') ?? $response->body()));
+            throw new SmsException(
+                'SMS refusé ('.$response->status().') : '.($response->json('message') ?? $response->body()),
+                retryable: $response->serverError() || $response->status() === 429,
+            );
         }
 
         return (string) $response->json('sid');

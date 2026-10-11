@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\OrderStatus;
+use App\Enums\ShipmentStatus;
 use App\Models\Order;
 use Illuminate\View\View;
 
@@ -14,7 +15,9 @@ class TrackingController extends Controller
 {
     public function __invoke(string $token): View
     {
-        $order = Order::where('tracking_token', $token)->with(['items', 'store'])->firstOrFail();
+        $order = Order::where('tracking_token', $token)->with(['items', 'store', 'shipments.connection'])->firstOrFail();
+        // Expédition en cours (ou la dernière) : transporteur, numéro et lien de suivi
+        $shipment = $order->shipments->reject(fn ($s) => in_array($s->status, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true))->last();
 
         $steps = [
             ['label' => 'Commande reçue', 'done' => true],
@@ -23,6 +26,6 @@ class TrackingController extends Controller
             ['label' => $order->delivery_method === 'pickup' ? 'Retirée' : 'Livrée', 'done' => $order->status === OrderStatus::Completed],
         ];
 
-        return view('storefront.tracking', ['order' => $order, 'store' => $order->store, 'steps' => $steps]);
+        return view('storefront.tracking', ['order' => $order, 'store' => $order->store, 'steps' => $steps, 'shipment' => $shipment]);
     }
 }

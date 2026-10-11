@@ -4,7 +4,9 @@ namespace App\Http\Resources;
 
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Shipment;
 use App\Services\Catalog\ImageStore;
+use App\Services\Shipping\ShipmentPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Jibiat\Socle\PhoneNumber;
@@ -112,6 +114,7 @@ class OrderResource extends JsonResource
                 'user' => $c->user?->name,
                 'created_at' => $c->created_at->toIso8601String(),
             ]),
+            'shipments' => $this->shipments->map(fn (Shipment $s) => ShipmentPresenter::present($s)),
             'events' => $this->events->map(fn ($e) => [
                 'type' => $e->type,
                 'data' => $e->data,
@@ -124,6 +127,6 @@ class OrderResource extends JsonResource
 
     public static function loadDetail(Order $order): Order
     {
-        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store']);
+        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store', 'shipments.connection', 'shipments.events', 'shipments.origin']);
     }
 }

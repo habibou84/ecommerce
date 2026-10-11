@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\V1\Orders\DeliveryController;
 use App\Http\Controllers\Api\V1\Orders\OrderController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\PlatformAccountController;
+use App\Http\Controllers\Api\V1\Shipping\CarrierController;
+use App\Http\Controllers\Api\V1\Shipping\ShipmentController;
 use App\Http\Controllers\Api\V1\SignupController;
 use App\Http\Controllers\Api\V1\Stock\CountController;
 use App\Http\Controllers\Api\V1\Stock\LevelController;
@@ -117,6 +119,31 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::CustomersView->value)->group(function () {
                 Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
                 Route::get('customers/{customer}', [CustomerController::class, 'show'])->whereNumber('customer')->name('customers.show');
+            });
+
+            // ── Transporteurs et expéditions ──
+            Route::middleware('permission:'.Permission::CarriersManage->value)->group(function () {
+                Route::get('carriers', [CarrierController::class, 'index'])->name('carriers.index');
+                Route::post('carriers/delivery-app', [CarrierController::class, 'connectDeliveryApp'])->middleware('throttle:10,1')->name('carriers.delivery-app');
+                Route::post('carriers/manual', [CarrierController::class, 'connectManual'])->name('carriers.manual');
+                Route::patch('carriers/{carrier}', [CarrierController::class, 'update'])->whereNumber('carrier')->name('carriers.update');
+                Route::delete('carriers/{carrier}', [CarrierController::class, 'destroy'])->whereNumber('carrier')->name('carriers.destroy');
+                Route::get('carriers/{carrier}/zones', [CarrierController::class, 'zones'])->whereNumber('carrier')->name('carriers.zones');
+                Route::put('carriers/{carrier}/zones', [CarrierController::class, 'updateZones'])->whereNumber('carrier')->name('carriers.zones.update');
+                Route::post('carriers/{carrier}/sync', [CarrierController::class, 'sync'])->whereNumber('carrier')->middleware('throttle:10,1')->name('carriers.sync');
+                Route::get('carriers/{carrier}/stock', [CarrierController::class, 'stock'])->whereNumber('carrier')->middleware('throttle:10,1')->name('carriers.stock');
+                Route::post('carriers/{carrier}/hubs', [CarrierController::class, 'linkHub'])->whereNumber('carrier')->name('carriers.hubs');
+                Route::get('carrier-payouts', [CarrierController::class, 'payouts'])->name('carriers.payouts');
+            });
+            Route::middleware('permission:'.Permission::ShipmentsManage->value)->group(function () {
+                Route::get('carriers/active', [CarrierController::class, 'index'])->name('carriers.active');
+                Route::get('shipments', [ShipmentController::class, 'index'])->name('shipments.index');
+                Route::get('orders/{order}/shipping-quotes', [ShipmentController::class, 'quotes'])->whereNumber('order')->name('shipments.quotes');
+                Route::post('orders/{order}/shipments', [ShipmentController::class, 'store'])->whereNumber('order')->name('shipments.store');
+                Route::post('shipments/{shipment}/cancel', [ShipmentController::class, 'cancel'])->whereNumber('shipment')->name('shipments.cancel');
+                Route::post('shipments/{shipment}/status', [ShipmentController::class, 'status'])->whereNumber('shipment')->name('shipments.status');
+                Route::post('shipments/{shipment}/refresh', [ShipmentController::class, 'refresh'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.refresh');
+                Route::get('shipments/{shipment}/message', [ShipmentController::class, 'message'])->whereNumber('shipment')->name('shipments.message');
             });
 
             // ── Boutique en ligne ──

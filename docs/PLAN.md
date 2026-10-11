@@ -452,13 +452,16 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - Restent pour la V1 : codes promo, avis clients, paiement en ligne (phase 6), éditeur de thème par glisser-déposer, domaine personnalisé en libre-service.
 - **Jalon MVP vendable (~ 12,5 semaines)** : un marchand peut vendre en ligne et sur les réseaux, gérer stock et commandes, et livrer « à la main ».
 
-### Phase 4 : connecteur Delivery App (3 semaines) + ajouts côté Delivery App (2 semaines, en parallèle)
+### Phase 4 : connecteur Delivery App (3 semaines) + ajouts côté Delivery App (2 semaines, en parallèle) ✅ *réalisée, sauf la bascule de Delivery App sur `socle` (dépôt à créer)*
 *Placée avant les livreurs propres : les entreprises qui utilisent déjà Delivery App sont le premier canal de distribution (§12, suggestion 1).*
-- [ ] Expéditions (statut normalisé), `CarrierDriver`, `DeliveryAppDriver`, `ManualDriver`.
-- [ ] Écran de connexion par clé, correspondance des zones, devis, création et annulation de course, webhooks + synchronisation de secours.
-- [ ] Stock en entrepôt transporteur ; rapprochement des reversements ; lien de suivi client.
-- [ ] Côté Delivery App : §5.7 points 1 à 5 et 7 ; test de contrat de `delivery-app-client` dans sa CI.
-- [ ] Tests de bout en bout sur une instance Delivery App de recette (création → livraison → reversement).
+- [x] Expéditions avec statut normalisé (§5.4), `CarrierDriver`, `DeliveryAppDriver`, `ManualDriver` (transporteur sans API : course envoyée par WhatsApp, statut saisi à la main).
+- [x] Connexion par clé (vérifiée par `GET /me`, portées contrôlées), copie des zones et correspondance automatique avec les lieux de la boutique (corrigeable), devis comparés, création (`Idempotency-Key`, `X-Client-App`) et annulation de course, adresse webhook créée par l'API, réception signée et dédoublonnée, synchronisation de secours toutes les 10 minutes (`shipping:sync`).
+- [x] Effets sur la commande : en préparation à la demande, sortie de stock au ramassage, terminée et encaissement « transporteur » à la livraison, remise en stock au retour, retour à « Confirmée » si la course est refusée ou annulée ; alertes (refus, échec, perte, retour).
+- [x] Stock en entrepôt transporteur (emplacement relié, produits rapprochés par SKU, écarts affichés, course préparée par l'entrepôt avec ses identifiants produits) ; rapprochement des reversements (`payout.paid` → détail par course, écarts) ; numéro, code et lien de suivi du transporteur sur la page de suivi du client.
+- [x] Côté Delivery App (branche `claude/socle-et-api-marchand`) : §5.7 points 1 à 5 et 7 (`/me`, `/webhooks`, `/payouts`, bloc `pickup`, preuves photo en liens signés, `X-Client-App`), portées `webhooks:write` et `payouts:read`, contrat OpenAPI à jour.
+- [x] Test de bout en bout sur une instance Delivery App locale : connexion, zones, devis, course, ramassage, livraison et reversement rapproché sans écart, avec de vrais webhooks signés.
+- [ ] Bascule de Delivery App sur `socle` : le dépôt public `habibou84/socle` doit être créé (l'intégration GitHub ne peut pas créer de dépôt).
+- Restent pour la V1 : flux « Connecter » en un clic (§5.7 point 6), expédition partielle, test de contrat automatisé dans la CI de Delivery App.
 
 ### Phase 5 : livreurs propres (3 semaines)
 - [ ] Inscription des livreurs par invitation, zones, disponibilité.

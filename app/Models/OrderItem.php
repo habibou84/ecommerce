@@ -28,6 +28,11 @@ class OrderItem extends Model
         return $this->belongsTo(ProductVariant::class, 'variant_id')->withTrashed();
     }
 
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
     public function location(): BelongsTo
     {
         return $this->belongsTo(StockLocation::class, 'stock_location_id');

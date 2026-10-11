@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
+import ShipmentPanel from '../../../components/ShipmentPanel.vue'
 import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 import { CANCEL_REASONS, PAYMENT_METHODS, PAYMENT_TONES, STATUS_TONES, eventLabel, riskLabel } from '../../../lib/orders'
@@ -177,6 +178,8 @@ async function addNote() {
             <a :href="`https://wa.me/${order.customer_phone.replace('+', '')}`" target="_blank" class="btn-secondary flex-1 px-2 py-1.5">WhatsApp</a>
           </div>
         </section>
+
+        <ShipmentPanel v-if="auth.can('shipments.manage') && (order.shipments.length || order.delivery_method === 'delivery')" :order="order" @changed="load" />
 
         <section class="card space-y-1 p-4 text-sm">
           <h3 class="font-semibold">{{ order.delivery_method === 'pickup' ? 'Retrait en boutique' : 'Livraison' }}</h3>

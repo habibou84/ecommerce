@@ -11,8 +11,16 @@ sans logique métier (voir `docs/PLAN.md` §4.5) :
 | `Sms\SmsGateway`, `Sms\LogSmsGateway`, `Sms\TwilioSmsGateway` | Envoi de SMS (pilote `log` en développement) |
 | `Webhooks\WebhookSignature` | Signature et vérification HMAC des webhooks (`X-Webhook-Signature`) |
 
-Pour l'instant, le paquet vit dans `packages/socle` du dépôt `ecommerce` (dépôt Composer de type `path`).
-Il sera déplacé dans son propre dépôt `habibou84/socle` quand Delivery App basculera dessus.
+Installation (dépôt public, versions étiquetées `vX.Y.Z`) :
+
+```json
+"repositories": [{ "type": "vcs", "url": "https://github.com/habibou84/socle" }],
+"require": { "habibou84/socle": "^1.0" }
+```
+
+Toute modification passe par ce dépôt : nouvelle étiquette, puis `composer update habibou84/socle` dans chaque
+application. La signature des webhooks fait partie du contrat entre les deux applications : ne la changez qu'avec
+une nouvelle version majeure.
 
 Configuration (`config/services.php` de l'application) :
 

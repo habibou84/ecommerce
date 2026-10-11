@@ -411,7 +411,7 @@ Table stock_locations {
   landmark varchar
   phone varchar(20)
   carrier_connection_id bigint [ref: > carrier_connections.id, note: 'type carrier_hub : stock déposé chez une entreprise de livraison']
-  carrier_hub_ref varchar [note: 'identifiant de l’entrepôt chez le transporteur (pickup_hub_id)']
+  remote_hub_id varchar [note: 'identifiant de l’entrepôt chez le transporteur (pickup_hub_id)']
   is_pickup_point boolean [default: false, note: 'retrait en boutique possible']
   fulfills_online_orders boolean [default: true]
   priority smallint [default: 0, note: 'ordre de choix de l’emplacement qui prépare une commande']
@@ -878,46 +878,42 @@ Table shipments {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   order_id bigint [ref: > orders.id, not null]
-  sequence smallint [not null, default: 1, note: 'affiché #1042-1']
-  mode varchar(20) [not null, note: 'own_courier | carrier | manual_carrier | pickup']
-  status varchar(25) [not null, note: 'to_prepare | ready | requested | accepted | rejected | awaiting_pickup | in_transit | out_for_delivery | delivered | failed | rescheduled | returning | returned | cancelled | lost']
+  sequence smallint [not null, default: 1, note: 'affiché #1042-1, envoyé comme merchant_reference']
+  mode varchar(20) [not null, note: 'carrier | manual_carrier (own_courier en phase 5)']
+  status varchar(25) [not null, note: 'requested | accepted | rejected | awaiting_pickup | in_transit | out_for_delivery | delivered | failed | rescheduled | returning | returned | cancelled | lost']
   origin_location_id bigint [ref: > stock_locations.id]
-  // Livreur propre
-  courier_id bigint [ref: > couriers.id, note: 'livreur en charge actuellement']
   // Transporteur
   carrier_connection_id bigint [ref: > carrier_connections.id]
   carrier_tracking_code varchar(40) [note: 'tracking_code de Delivery App']
+  carrier_tracking_url varchar [note: 'page de suivi du transporteur, donnée au client']
   carrier_status varchar(30) [note: 'statut brut du transporteur']
   idempotency_key uuid [unique, not null, note: 'en-tête Idempotency-Key de la création de course']
   // Argent
-  cod_amount int [not null, default: 0, note: 'à encaisser auprès du client']
+  cod_amount int [not null, default: 0, note: 'à encaisser auprès du client (reste dû de la commande)']
   collected_amount int [note: 'réellement encaissé']
-  shipping_fee_charged int [note: 'part des frais facturée au client']
-  carrier_fee int [note: 'coût de la livraison pour la boutique (devis puis montant réel)']
-  fee_payer varchar(20) [note: 'customer | store']
+  carrier_fee int [note: 'tarif du transporteur (devis puis montant réel)']
+  fee_payer varchar(20) [default: 'customer', note: 'customer | store']
   // Colis et preuve
   weight_g int
   is_fragile boolean [default: false]
-  delivery_code_hash varchar(64)
-  proof_photo_path varchar
-  received_by_name varchar
+  delivery_code varchar(20) [note: 'code à donner au livreur (fourni par le transporteur)']
+  proof_photo_url varchar(1000) [note: 'lien signé du transporteur']
   attempts_count smallint [default: 0]
-  scheduled_date date
-  time_slot varchar(20)
   failure_reason varchar
-  manual_label_path varchar [note: 'bordereau PDF (transporteur sans API)']
+  note varchar
   requested_at timestamp
   picked_up_at timestamp
   delivered_at timestamp
   returned_at timestamp
   cancelled_at timestamp
   last_synced_at timestamp
+  created_by bigint [ref: > users.id]
   indexes {
     (order_id, sequence) [unique]
     (store_id, status)
     (carrier_connection_id, carrier_tracking_code) [unique]
-    (courier_id, status)
   }
+  Note: 'Phase 5 : courier_id, délai et créneau (livreurs propres). V1 : shipment_items (expédition partielle).'
 }
 
 Table shipment_items {
@@ -948,7 +944,7 @@ Table shipment_events {
   indexes {
     (shipment_id, occurred_at)
   }
-  Note: 'Journal.'
+  Note: 'Journal. photo_path, latitude, longitude, courier_id arrivent en phase 5 (livreurs propres).'
 }
 
 Table shipment_quotes {
@@ -1123,6 +1119,7 @@ Table carrier_connections {
   api_key text [note: 'chiffré']
   api_key_prefix varchar(12) [note: 'partie visible, pour l’affichage']
   scopes jsonb
+  remote_account jsonb [note: 'réponse de GET /me (marchand, entreprise, portées de la clé)']
   webhook_uuid uuid [unique, not null, note: 'URL de réception : api.jibiat-marchand.com/webhooks/carriers/{uuid}']
   webhook_secret text [note: 'chiffré ; créé par API (§5.7) ou saisi à la main']
   remote_webhook_id varchar [note: 'abonnement créé chez le transporteur']
@@ -1200,8 +1197,10 @@ Table carrier_payouts {
   total_collected int
   total_fees int
   method varchar(20)
+  transaction_ref varchar
   paid_at timestamp
   reconciliation_status varchar(20) [not null, default: 'pending', note: 'pending | matched | discrepancy']
+  difference int [default: 0, note: 'net reçu − net attendu']
   raw jsonb
   indexes {
     (connection_id, remote_id) [unique]

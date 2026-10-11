@@ -4,6 +4,7 @@ use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\StorefrontController;
 use App\Http\Controllers\TrackingController;
+use App\Http\Controllers\Webhooks\CarrierWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -41,3 +42,7 @@ Route::middleware('zone:store,custom_domain')->group(function () {
         });
     });
 });
+
+// api.jibiat-marchand.com : webhooks des entreprises de livraison (signés, sans session)
+Route::post('/webhooks/carriers/{uuid}', CarrierWebhookController::class)
+    ->middleware(['zone:api', 'throttle:carrier-webhooks'])->whereUuid('uuid')->name('webhooks.carriers');

@@ -137,6 +137,14 @@ class Tenancy
         return self::url(self::domain(), $path);
     }
 
+    /**
+     * Adresse sur api.jibiat-marchand.com (webhooks des transporteurs et prestataires de paiement).
+     */
+    public static function apiUrl(string $path = '/'): string
+    {
+        return self::url(config('platform.api_subdomain').'.'.self::domain(), $path);
+    }
+
     public static function consoleUrl(string $path = '/'): string
     {
         return self::url(config('platform.admin_subdomain').'.'.self::domain(), $path);

@@ -1,0 +1,202 @@
+<script setup>
+import { computed, reactive, ref } from 'vue'
+import Alert from './Alert.vue'
+import Field from './Field.vue'
+import Modal from './Modal.vue'
+import http, { errorMessage } from '../lib/http'
+import { formatDateTime, money } from '../lib/format'
+import { MANUAL_STATUSES, SHIPMENT_TONES, SOURCE_LABELS } from '../lib/shipping'
+
+const props = defineProps({ order: { type: Object, required: true } })
+const emit = defineEmits(['changed'])
+
+const shipments = computed(() => [...(props.order.shipments ?? [])].reverse())
+const active = computed(() => shipments.value.find((s) => !['cancelled', 'rejected'].includes(s.status)))
+const canShip = computed(() => props.order.delivery_method === 'delivery' && ['confirmed', 'processing'].includes(props.order.status) && !active.value)
+
+const modal = ref(null) // 'ship' | 'status' | 'cancel'
+const quotes = ref(null)
+const locations = ref([])
+const form = reactive({ carrier_connection_id: null, origin_location_id: null, fee_payer: '', note: '', status: 'delivered', collected_amount: '', reason: '' })
+const current = ref(null)
+const error = ref('')
+const busy = ref(false)
+
+async function openShip() {
+  modal.value = 'ship'
+  error.value = ''
+  quotes.value = null
+  try {
+    const { data } = await http.get(`/orders/${props.order.id}/shipping-quotes`)
+    quotes.value = data.data
+    locations.value = data.locations
+    form.origin_location_id = data.location_id ?? data.locations[0]?.id ?? null
+    const best = data.data.filter((q) => !q.error).sort((a, b) => (a.fee ?? 1e9) - (b.fee ?? 1e9))[0]
+    form.carrier_connection_id = best?.connection_id ?? null
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
+async function run(request, close = true) {
+  busy.value = true
+  error.value = ''
+  try {
+    await request()
+    if (close) modal.value = null
+    emit('changed')
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+const ship = () => run(() => http.post(`/orders/${props.order.id}/shipments`, {
+  carrier_connection_id: form.carrier_connection_id,
+  origin_location_id: form.origin_location_id,
+  fee_payer: form.fee_payer || null,
+  note: form.note || null,
+}))
+const refresh = (s) => run(() => http.post(`/shipments/${s.id}/refresh`), false)
+const cancel = () => run(() => http.post(`/shipments/${current.value.id}/cancel`, { reason: form.reason || null }))
+const setStatus = () => run(() => http.post(`/shipments/${current.value.id}/status`, {
+  status: form.status,
+  note: form.note || null,
+  collected_amount: form.status === 'delivered' && form.collected_amount !== '' ? Number(form.collected_amount) : null,
+}))
+
+function openModal(name, s) {
+  current.value = s
+  form.note = ''
+  form.reason = ''
+  form.collected_amount = s.cod_amount
+  error.value = ''
+  modal.value = name
+}
+
+async function whatsapp(s) {
+  const { data } = await http.get(`/shipments/${s.id}/message`)
+  if (data.data.whatsapp_url) window.open(data.data.whatsapp_url, '_blank')
+  else {
+    await navigator.clipboard?.writeText(data.data.text)
+    alert('Message copié : collez-le dans WhatsApp.')
+  }
+}
+</script>
+
+<template>
+  <section class="card space-y-3 p-4 text-sm">
+    <div class="flex items-center gap-2">
+      <h3 class="font-semibold">Expédition</h3>
+      <button v-if="canShip" class="btn-brand ml-auto px-3 py-1.5" @click="openShip">🚚 Expédier</button>
+    </div>
+    <p v-if="!shipments.length && !canShip" class="text-slate-500">
+      {{ order.delivery_method === 'pickup' ? 'Retrait en boutique.' : 'Confirmez la commande pour l\'expédier.' }}
+    </p>
+    <Alert v-if="error && !modal">{{ error }}</Alert>
+
+    <article v-for="s in shipments" :key="s.id" class="space-y-2 rounded-lg border border-slate-200 p-3" :class="{ 'opacity-60': ['cancelled', 'rejected'].includes(s.status) }">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="font-medium">{{ s.reference }}</span>
+        <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[s.status]">{{ s.status_label }}</span>
+        <span class="text-slate-500">{{ s.carrier?.name }}</span>
+      </div>
+      <p v-if="s.tracking_code" class="text-slate-600">
+        N° {{ s.tracking_code }}
+        <a v-if="s.tracking_url" :href="s.tracking_url" target="_blank" rel="noopener" class="ml-1 text-emerald-700 underline">suivi</a>
+        <span v-if="s.delivery_code"> · code client <strong>{{ s.delivery_code }}</strong></span>
+      </p>
+      <p class="text-slate-600">
+        À encaisser {{ money(s.cod_amount) }}<template v-if="s.carrier_fee !== null"> · tarif {{ money(s.carrier_fee) }}</template>
+        <template v-if="s.collected_amount !== null"> · encaissé {{ money(s.collected_amount) }}</template>
+      </p>
+      <p v-if="s.failure_reason" class="rounded bg-amber-50 p-2 text-amber-900">{{ s.failure_reason }}<template v-if="s.attempts_count"> ({{ s.attempts_count }} tentative{{ s.attempts_count > 1 ? 's' : '' }})</template></p>
+      <a v-if="s.proof_photo_url" :href="s.proof_photo_url" target="_blank" rel="noopener" class="text-emerald-700 underline">Photo de livraison</a>
+      <ol class="space-y-1 border-l-2 border-slate-100 pl-3 text-xs text-slate-600">
+        <li v-for="(e, i) in s.events" :key="i">
+          <span class="text-slate-400">{{ formatDateTime(e.occurred_at) }}</span> · {{ e.status_label }}
+          <span class="text-slate-400">({{ SOURCE_LABELS[e.source] ?? e.source }})</span><template v-if="e.note"> — {{ e.note }}</template>
+        </li>
+      </ol>
+      <div v-if="!s.is_final" class="flex flex-wrap gap-2 pt-1">
+        <template v-if="s.carrier?.driver === 'manual'">
+          <button class="btn-secondary px-2 py-1" @click="whatsapp(s)">💬 Envoyer la course</button>
+          <button class="btn-secondary px-2 py-1" @click="openModal('status', s)">Mettre à jour</button>
+        </template>
+        <button v-else class="btn-secondary px-2 py-1" :disabled="busy" @click="refresh(s)">Actualiser</button>
+        <button v-if="s.is_cancellable" class="btn-ghost px-2 py-1 text-red-600" @click="openModal('cancel', s)">Annuler la course</button>
+      </div>
+    </article>
+
+    <Modal v-if="modal === 'ship'" title="Expédier la commande" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="ship">
+        <Alert v-if="error">{{ error }}</Alert>
+        <p v-if="!quotes" class="text-sm text-slate-500">Demande des tarifs…</p>
+        <template v-else-if="!quotes.length">
+          <p class="text-sm">Aucun transporteur connecté.</p>
+          <RouterLink to="/gestion/expeditions/transporteurs" class="btn-brand">Connecter un transporteur</RouterLink>
+        </template>
+        <template v-else>
+          <fieldset class="space-y-2">
+            <legend class="label">Transporteur</legend>
+            <label v-for="q in quotes" :key="q.connection_id" class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm"
+                   :class="form.carrier_connection_id === q.connection_id ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
+              <input v-model="form.carrier_connection_id" type="radio" :value="q.connection_id" :disabled="!!q.error" class="accent-emerald-700" />
+              <span class="min-w-0 flex-1">
+                <span class="block font-medium">{{ q.name }}</span>
+                <span class="block text-xs" :class="q.error ? 'text-amber-800' : 'text-slate-500'">{{ q.error || q.zone || (q.driver === 'manual' ? 'Course demandée par WhatsApp' : '') }}</span>
+              </span>
+              <span v-if="q.fee !== null" class="font-semibold">{{ money(q.fee) }}</span>
+            </label>
+          </fieldset>
+          <Field id="ship-origin" label="Départ du colis">
+            <select id="ship-origin" v-model="form.origin_location_id" class="input">
+              <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
+            </select>
+          </Field>
+          <Field id="ship-payer" label="Livraison payée par" hint="Par la boutique : le client paie exactement le montant de la commande ; le tarif du transporteur est retenu sur le reversement.">
+            <select id="ship-payer" v-model="form.fee_payer" class="input">
+              <option value="">Réglage du transporteur</option>
+              <option value="store">La boutique</option>
+              <option value="customer">Le client (tarif du transporteur)</option>
+            </select>
+          </Field>
+          <Field id="ship-note" label="Note pour le transporteur">
+            <input id="ship-note" v-model="form.note" class="input" maxlength="255" />
+          </Field>
+          <p class="text-sm text-slate-600">À encaisser auprès du client : <strong>{{ money(order.amount_due) }}</strong></p>
+          <button class="btn-brand w-full" :disabled="busy || !form.carrier_connection_id">{{ busy ? 'Envoi…' : 'Demander la course' }}</button>
+        </template>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'status'" :title="`Expédition ${current.reference}`" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="setStatus">
+        <Alert v-if="error">{{ error }}</Alert>
+        <Field id="sh-status" label="Nouveau statut">
+          <select id="sh-status" v-model="form.status" class="input">
+            <option v-for="st in MANUAL_STATUSES" :key="st.value" :value="st.value">{{ st.label }}</option>
+          </select>
+        </Field>
+        <Field v-if="form.status === 'delivered'" id="sh-collected" label="Montant encaissé par le livreur">
+          <input id="sh-collected" v-model="form.collected_amount" type="number" min="0" class="input" />
+        </Field>
+        <Field id="sh-note" label="Note">
+          <input id="sh-note" v-model="form.note" class="input" maxlength="255" />
+        </Field>
+        <button class="btn-brand w-full" :disabled="busy">Enregistrer</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'cancel'" :title="`Annuler la course ${current.reference}`" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="cancel">
+        <Alert v-if="error">{{ error }}</Alert>
+        <Field id="sh-reason" label="Motif">
+          <input id="sh-reason" v-model="form.reason" class="input" maxlength="255" />
+        </Field>
+        <button class="btn-danger w-full" :disabled="busy">Annuler la course</button>
+      </form>
+    </Modal>
+  </section>
+</template>

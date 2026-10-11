@@ -22,6 +22,21 @@
             </ol>
         @endif
 
+        @if ($shipment)
+            <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+                <p><span class="text-slate-500">Livraison :</span> <strong>{{ $shipment->connection?->name ?? 'Transporteur' }}</strong> · {{ $shipment->status->label() }}</p>
+                @if ($shipment->carrier_tracking_code)
+                    <p class="mt-1"><span class="text-slate-500">N° de suivi :</span> {{ $shipment->carrier_tracking_code }}</p>
+                @endif
+                @if ($shipment->delivery_code && ! $shipment->status->isFinal())
+                    <p class="mt-1"><span class="text-slate-500">Code à donner au livreur :</span> <strong class="tracking-widest">{{ $shipment->delivery_code }}</strong></p>
+                @endif
+                @if ($shipment->carrier_tracking_url)
+                    <a href="{{ $shipment->carrier_tracking_url }}" target="_blank" rel="noopener" class="mt-2 inline-block font-medium text-emerald-800 underline">Suivre le colis en direct</a>
+                @endif
+            </div>
+        @endif
+
         <div class="mt-8 rounded-xl border border-slate-200">
             <ul class="divide-y divide-slate-100">
                 @foreach ($order->items as $item)

@@ -33,7 +33,8 @@ class DeliveryAppImporter
     public function apiUrl(string $address): string
     {
         $address = trim($address);
-        $host = strtolower((string) (parse_url(str_contains($address, '://') ? $address : "https://{$address}", PHP_URL_HOST) ?? ''));
+        $parts = parse_url(str_contains($address, '://') ? $address : "https://{$address}") ?: [];
+        $host = strtolower((string) ($parts['host'] ?? ''));
 
         $allowed = collect(config('platform.delivery_app_domains'))
             ->contains(fn (string $domain) => $host === $domain || str_ends_with($host, ".{$domain}"));
@@ -42,7 +43,11 @@ class DeliveryAppImporter
             throw new BusinessRuleException('Indiquez l\'adresse de votre entreprise de livraison, par exemple entreprise.jibiat.com.', 'address');
         }
 
-        return "https://{$host}/api/public/v1";
+        // HTTPS en production ; DELIVERY_APP_SCHEME=http et un port seulement pour une instance de développement
+        $scheme = config('platform.delivery_app_scheme', 'https');
+        $port = isset($parts['port']) && $scheme === 'http' ? ':'.$parts['port'] : '';
+
+        return "{$scheme}://{$host}{$port}/api/public/v1";
     }
 
     /**

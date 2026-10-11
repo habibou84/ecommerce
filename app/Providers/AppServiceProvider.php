@@ -58,6 +58,8 @@ class AppServiceProvider extends ServiceProvider
             Limit::perHour(30)->by('storefront-order-hour:'.$request->ip()),
         ]);
 
+        RateLimiter::for('carrier-webhooks', fn (Request $request) => Limit::perMinute(600)->by('carrier-webhooks:'.$request->route('uuid')));
+
         RateLimiter::for('verification-code', fn (Request $request) => Limit::perMinute(10)->by('verification-code:'.$request->ip()));
     }
 }

@@ -105,4 +105,9 @@ class Order extends Model
     {
         return $this->store->url('/suivi/'.$this->tracking_token);
     }
+
+    public function shipments(): HasMany
+    {
+        return $this->hasMany(Shipment::class)->orderBy('sequence');
+    }
 }

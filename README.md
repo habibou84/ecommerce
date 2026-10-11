@@ -63,6 +63,15 @@ En local, `PLATFORM_DOMAIN=localhost` : les navigateurs envoient `*.localhost` v
 Les SMS ne partent pas en local (`SMS_DRIVER=log`) : le code de vérification s'affiche sur la page et dans
 `storage/logs/laravel.log`. En production, `SMS_DRIVER=twilio` (le code n'est jamais affiché quand `APP_ENV=production`).
 
+### Avec une instance locale de Delivery App
+
+Pour essayer les expéditions de bout en bout, lancez `deliverynew` sur le port 8001 (`PLATFORM_DOMAIN=localhost`,
+`PLATFORM_SCHEME=http`, `WEBHOOKS_ALLOW_HTTP=true`, `WEBHOOKS_ALLOW_PRIVATE_TARGETS=true`, plusieurs processus :
+`PHP_CLI_SERVER_WORKERS=4 php artisan serve --port=8001`), et ici `DELIVERY_APP_DOMAINS=jibiat.com,localhost`,
+`DELIVERY_APP_SCHEME=http`, également avec `PHP_CLI_SERVER_WORKERS=4` (les deux applications s'appellent
+mutuellement). Créez une clé API pour un marchand de Delivery App, puis dans la gestion : *Expéditions ›
+Transporteurs › + Transporteur*, adresse `{entreprise}.localhost:8001`.
+
 ## Tests
 
 ```bash
@@ -76,6 +85,8 @@ vendor/bin/pint      # style du code
 - Certificat *wildcard* `*.jibiat-marchand.com` (validation DNS : hébergeur DNS avec API, Cloudflare conseillé).
 - `.env` : `APP_URL=https://jibiat-marchand.com`, `PLATFORM_DOMAIN=jibiat-marchand.com`, `SESSION_SECURE_COOKIE=true`,
   `SESSION_DOMAIN` **vide** (cookie limité à chaque sous-domaine).
+- `api.jibiat-marchand.com` reçoit les webhooks des entreprises de livraison (`/webhooks/carriers/{uuid}`).
+- Tâches planifiées : `* * * * * php artisan schedule:run` (synchronisation des expéditions toutes les 10 minutes).
 
 ## Organisation du code
 
@@ -88,6 +99,7 @@ vendor/bin/pint      # style du code
 | `app/Services/Stock` | Tous les mouvements de stock (`StockKeeper`, journal immuable) et lectures agrégées (`StockLevels`) |
 | `app/Services/Orders` | Commandes (`OrderDesk` : création, statuts, stock, paiements, confirmation), analyse des messages, PDF, messages WhatsApp |
 | `app/Services/Customers`, `app/Services/Places` | Fichier clients et score de risque ; lieux et zones de livraison |
+| `app/Services/Shipping` | Expéditions et transporteurs : connecteurs (`Drivers/`), `ShipmentDesk` (course, statuts → commande), webhooks et synchronisation (`CarrierEvents`), reversements, stock chez le transporteur |
 | `app/Services/Storefront`, `routes/storefront.php` | Boutique en ligne : thèmes (`config/themes.php`), catalogue public, panier par cookie, commande en une page ; routes sans session |
 | `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |
 | `app/Enums/Role.php`, `Permission.php` | Rôles (propriétaire, gérant, agent de confirmation, préparateur, caissier, livreur) et leurs permissions |
