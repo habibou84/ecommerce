@@ -7,8 +7,13 @@ use App\Http\Controllers\Api\V1\Catalog\CollectionController;
 use App\Http\Controllers\Api\V1\Catalog\ProductController;
 use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
+use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\MemberController;
+use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Orders\CustomerController;
+use App\Http\Controllers\Api\V1\Orders\DeliveryController;
+use App\Http\Controllers\Api\V1\Orders\OrderController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\PlatformAccountController;
 use App\Http\Controllers\Api\V1\SignupController;
@@ -67,6 +72,55 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('team/invitations', [InvitationController::class, 'index'])->name('team.invitations');
                 Route::post('team/invitations', [InvitationController::class, 'store'])->name('team.invitations.store');
                 Route::delete('team/invitations/{invitation}', [InvitationController::class, 'destroy'])->whereNumber('invitation')->name('team.invitations.destroy');
+            });
+
+            Route::get('dashboard', DashboardController::class)->name('dashboard');
+            Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+            Route::post('notifications/read', [NotificationController::class, 'read'])->name('notifications.read');
+            Route::get('places', [DeliveryController::class, 'places'])->name('places.index');
+
+            // ── Commandes ──
+            $view = 'permission:'.Permission::OrdersView->value;
+            $manage = 'permission:'.Permission::OrdersManage->value;
+            $confirm = 'permission:'.Permission::OrdersConfirm->value;
+            Route::middleware($view)->group(function () {
+                Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
+                Route::get('orders/{order}', [OrderController::class, 'show'])->whereNumber('order')->name('orders.show');
+                Route::get('orders/{order}/invoice', [OrderController::class, 'invoice'])->whereNumber('order')->name('orders.invoice');
+                Route::get('orders/{order}/label', [OrderController::class, 'label'])->whereNumber('order')->name('orders.label');
+                Route::post('orders/{order}/notes', [OrderController::class, 'note'])->whereNumber('order')->name('orders.notes');
+                Route::get('delivery-zones', [DeliveryController::class, 'zones'])->name('zones.index');
+            });
+            Route::middleware($manage)->group(function () {
+                Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
+                Route::post('orders/parse', [OrderController::class, 'parse'])->name('orders.parse');
+                Route::post('orders/{order}/status', [OrderController::class, 'transition'])->whereNumber('order')->name('orders.status');
+                Route::post('orders/{order}/payments', [OrderController::class, 'payment'])->whereNumber('order')->name('orders.payments');
+                Route::post('places', [DeliveryController::class, 'addPlace'])->name('places.store');
+                Route::post('customers', [CustomerController::class, 'store'])->name('customers.store');
+                Route::put('customers/{customer}', [CustomerController::class, 'update'])->whereNumber('customer')->name('customers.update');
+                Route::post('customers/{customer}/blacklist', [CustomerController::class, 'blacklist'])->whereNumber('customer')->name('customers.blacklist');
+                Route::delete('customers/{customer}/blacklist', [CustomerController::class, 'unblacklist'])->whereNumber('customer')->name('customers.unblacklist');
+            });
+            // Modification : gestionnaire, ou agent de confirmation tant que la commande est à confirmer (contrôle dans le contrôleur)
+            Route::put('orders/{order}', [OrderController::class, 'update'])->whereNumber('order')
+                ->middleware('permission:'.Permission::OrdersManage->value.'|'.Permission::OrdersConfirm->value)->name('orders.update');
+            Route::middleware($confirm)->group(function () {
+                Route::get('orders/confirmation-queue', [OrderController::class, 'queue'])->name('orders.queue');
+                Route::post('orders/{order}/confirmations', [OrderController::class, 'confirmation'])->whereNumber('order')->name('orders.confirmations');
+            });
+
+            // ── Clients ──
+            Route::middleware('permission:'.Permission::CustomersView->value)->group(function () {
+                Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
+                Route::get('customers/{customer}', [CustomerController::class, 'show'])->whereNumber('customer')->name('customers.show');
+            });
+
+            // ── Zones de livraison ──
+            Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
+                Route::post('delivery-zones', [DeliveryController::class, 'storeZone'])->name('zones.store');
+                Route::put('delivery-zones/{zone}', [DeliveryController::class, 'updateZone'])->whereNumber('zone')->name('zones.update');
+                Route::delete('delivery-zones/{zone}', [DeliveryController::class, 'destroyZone'])->whereNumber('zone')->name('zones.destroy');
             });
 
             // ── Catalogue ──

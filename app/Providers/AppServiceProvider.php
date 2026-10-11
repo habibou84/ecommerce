@@ -2,10 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\Customer;
 use App\Models\InventoryCount;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\StockReceipt;
 use App\Models\StockTransfer;
+use App\Services\Places\Places;
 use App\Support\Tenancy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -20,6 +23,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // Une boutique par requête (réinitialisée entre deux requêtes d'un même processus)
         $this->app->scoped(Tenancy::class);
+        // Lieux visibles d'une boutique : mis en cache le temps de la requête
+        $this->app->scoped(Places::class);
     }
 
     public function boot(): void
@@ -30,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
             'stock_receipt' => StockReceipt::class,
             'stock_transfer' => StockTransfer::class,
             'inventory_count' => InventoryCount::class,
+            'order' => Order::class,
+            'customer' => Customer::class,
         ]);
 
         RateLimiter::for('login', fn (Request $request) => [

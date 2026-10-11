@@ -22,6 +22,21 @@ class Store extends Model
         'phone', 'whatsapp_phone', 'email', 'address', 'status',
     ];
 
+    // Valeurs par défaut des colonnes, connues avant le rechargement depuis la base
+    protected $attributes = [
+        'status' => 'trial',
+        'country' => 'CI',
+        'currency' => 'XOF',
+        'timezone' => 'Africa/Abidjan',
+        'order_prefix' => '#',
+        'next_order_number' => 1001,
+        'require_order_confirmation' => true,
+        'require_delivery_code' => false,
+        'default_fee_payer' => 'customer',
+        'allow_backorder' => false,
+        'low_stock_threshold' => 3,
+    ];
+
     protected function casts(): array
     {
         return [

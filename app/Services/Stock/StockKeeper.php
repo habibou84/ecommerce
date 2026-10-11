@@ -286,6 +286,16 @@ class StockKeeper
     }
 
     /**
+     * Articles revenus (colis refusé, retour client) remis en stock.
+     */
+    public function returnToStock(?User $actor, ProductVariant $variant, StockLocation $location, int $quantity, Model $reference, ?string $note = null): StockMovement
+    {
+        $this->ensurePositive($quantity);
+
+        return $this->move($variant, $location, StockMovementType::Return, $quantity, 0, $actor, $reference, $note);
+    }
+
+    /**
      * Recalcule les niveaux d'une variante depuis le journal (contrôle ou réparation du cache).
      */
     public function rebuild(ProductVariant $variant): void
@@ -329,9 +339,14 @@ class StockKeeper
                 $check($level);
             }
 
+            $availableBefore = $level->available();
             $level->on_hand += $onHandChange;
             $level->reserved = max(0, $level->reserved + $reservedChange);
             $level->save();
+
+            if ($location->is_active) {
+                app(StockAlerts::class)->afterMovement($variant, $level->available() - $availableBefore);
+            }
 
             return StockMovement::create([
                 'store_id' => $variant->store_id,

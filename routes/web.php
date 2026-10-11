@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\HandoffController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\TrackingController;
 use Illuminate\Support\Facades\Route;
 
 // Racine de chaque adresse : présentation, site de la boutique, console (voir Tenancy)
@@ -13,6 +14,9 @@ Route::middleware('zone:platform')->group(function () {
     Route::get('/connexion', [PageController::class, 'spa'])->name('platform.login');
     Route::get('/mot-de-passe-oublie', [PageController::class, 'spa']);
 });
+
+// Suivi d'une commande par le client (lien envoyé par WhatsApp), aussi sur un domaine personnalisé
+Route::get('/suivi/{token}', TrackingController::class)->middleware('zone:store,custom_domain')->where('token', '[A-Za-z0-9]{16,32}')->name('tracking');
 
 // {slug}.jibiat-marchand.com : gestion de la boutique (application Vue)
 Route::middleware('zone:store')->group(function () {

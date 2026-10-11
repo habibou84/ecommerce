@@ -17,6 +17,7 @@ use App\Models\Store;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\Billing\PlanLimits;
+use App\Services\Stock\StockAlerts;
 use App\Services\Stock\StockKeeper;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -257,9 +258,11 @@ class CatalogWriter
             throw new BusinessRuleException("« {$variant->fullTitle()} » est réservée par des commandes en cours : elle ne peut pas être supprimée.", 'variants');
         }
 
-        foreach ($levels->where('on_hand', '!=', 0) as $level) {
-            $this->stock->setOnHand($actor, $variant, $level->location, 0, StockMovementType::Adjustment, 'Variante supprimée');
-        }
+        StockAlerts::muted(function () use ($levels, $actor, $variant) {
+            foreach ($levels->where('on_hand', '!=', 0) as $level) {
+                $this->stock->setOnHand($actor, $variant, $level->location, 0, StockMovementType::Adjustment, 'Variante supprimée');
+            }
+        });
 
         // Supprimée d'abord (elle sort de l'index d'unicité), puis détachée de ses options pour qu'elles puissent
         // disparaître ; son nom reste dans l'historique

@@ -7,6 +7,7 @@ use App\Enums\UserStatus;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\StoreRoles;
+use Database\Seeders\PlacesSeeder;
 use Database\Seeders\PlanSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -25,7 +26,7 @@ abstract class TestCase extends BaseTestCase
         // Pages rendues sans les fichiers compilés du front-end
         $this->withoutVite();
 
-        $this->seed([RolesAndPermissionsSeeder::class, PlanSeeder::class]);
+        $this->seed([RolesAndPermissionsSeeder::class, PlanSeeder::class, PlacesSeeder::class]);
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Models\Plan;
 use App\Models\Store;
 use App\Models\User;
 use App\Rules\StoreSlug;
+use App\Services\Places\Places;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -109,6 +110,7 @@ class StoreSignup
 
             $store->members()->create(['user_id' => $owner->id, 'status' => UserStatus::Active, 'joined_at' => now()]);
             $this->roles->assign($owner, $store, Role::Owner);
+            app(Places::class)->provisionDefaultZone($store);
 
             $plan = Plan::where('code', config('platform.trial_plan'))->first();
             if ($plan !== null) {
