@@ -107,6 +107,7 @@ vendor/bin/pint      # style du code
 | `app/Services/Domains` | Domaines personnalisés : vérification DNS, autorisation des certificats Caddy (`CustomDomains`) |
 | `app/Services/Console`, `resources/js/views/console` | Console du super administrateur (`admin.`) et sessions de support (`SupportSessions`) ; accès donné par `php artisan platform:admin {téléphone}` |
 | `docs/LANCEMENT.md` | Mise en production (Caddy, tâches, sauvegardes), supervision, déclaration ARTCI, pilote |
+| `docs/DEPLOIEMENT-PREPROD.md` | Préproduction sur le serveur de Delivery App (LWS, ISPConfig) : DNS Cloudflare, script `deploy/install-apache.sh`, mises à jour |
 | `app/Services/Promotions` | Prix de vente : ventes flash, prix par quantité, codes promo (`Pricing`), utilisé par le panier et par la saisie des commandes |
 | `app/Services/Marketing` | API Conversions de Meta (`Conversions`), lien court et image de partage d'un produit (`ShareImages`, polices dans `resources/fonts`) |
 | `app/Services/Reports` | Statistiques avancées (`StoreStats`) et rapport du jour (`DailyReport`) |
