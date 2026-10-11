@@ -112,7 +112,7 @@ Une commande produit une ou plusieurs **expéditions**. Chaque expédition chois
 - **[MVP]** Bouton « Commander sur WhatsApp » (message pré-rempli avec panier) en complément du formulaire.
 - **[MVP]** SEO : pages rendues côté serveur, balises Open Graph (aperçu propre quand le lien est partagé sur WhatsApp / Facebook), sitemap, URLs propres.
 - **[V1]** **Domaine personnalisé** (`www.maboutique.ci`) avec certificat SSL automatique.
-- **[V1]** Paiement en ligne (Wave, Orange Money, MTN MoMo, Moov, carte) via un agrégateur (CinetPay, PayDunya, Paystack) ; **acompte** possible (ex. 20 % pour les articles chers, le reste à la livraison).
+- **[V1]** Paiement en ligne (Wave, Orange Money, MTN MoMo, Moov, carte) avec **le ou les prestataires choisis par le marchand** (Wave, CinetPay, PayDunya) ; **acompte** possible (ex. 20 % pour les articles chers, le reste à la livraison). Détails au §6.
 - **[V1]** Codes promo, livraison gratuite dès X FCFA, ventes flash avec compte à rebours.
 - **[V1]** Paniers abandonnés : relance WhatsApp / SMS automatique (le numéro est saisi en premier).
 - **[V1]** Pixels Meta et TikTok, Google Analytics, API Conversions Meta (côté serveur).
@@ -162,15 +162,16 @@ Même stack que Delivery App, pour réutiliser le code et les compétences :
 | Application livreur | PWA Vue 3 (puis Capacitor si besoin du GPS en arrière-plan) | Reprise de l'application livreur existante |
 | **Boutique publique** | **Rendu serveur Blade** + petits composants Vue/Alpine (panier, sélecteur de variantes) | SEO, aperçus WhatsApp, pages très légères sur 3G ; pas de SPA pour le client final |
 | Images | Stockage S3 compatible + transformation (Intervention Image, ou CDN Cloudflare / imgproxy) | WebP, tailles multiples |
-| Domaines personnalisés | **Caddy** (certificats à la demande) ou Cloudflare for SaaS | SSL automatique pour `www.boutique.ci` |
-| Paiements | Agrégateur (CinetPay / PayDunya / Paystack) derrière une interface `PaymentGateway` | Changer de fournisseur sans réécrire |
+| Domaines | **Domaine distinct** de Delivery App ; certificat *wildcard* + **Caddy** (certificats à la demande) pour les domaines personnalisés | Voir §4.4 |
+| Paiements | **Plusieurs prestataires** (Wave, CinetPay, PayDunya au départ) derrière une interface `PaymentGateway` ; le marchand choisit | Voir §6 |
+| Code commun | Paquet Composer partagé + client PHP de l'API Delivery App | Voir §4.5 |
 
 ### 4.2 Schéma d'ensemble
 
 ```
- Client final ──► Boutique (Blade, {slug}.domaine / domaine perso) ─┐
- Marchand & équipe ──► Back-office (Vue SPA) ───────────────────────┤
- Livreurs du marchand ──► Application livreur (PWA) ────────────────┤
+ Client final ──► Boutique (Blade)           {slug}.domaine/  ou domaine perso ─┐
+ Marchand & équipe ──► Back-office (Vue SPA)  {slug}.domaine/gestion ─────────┤
+ Livreurs du marchand ──► Application (PWA)   {slug}.domaine/livreur ─────────┤
                                                                     ▼
                                          API Laravel (multi-boutique)
                                          PostgreSQL · Redis · Reverb · S3
@@ -191,7 +192,41 @@ Même stack que Delivery App, pour réutiliser le code et les compétences :
 4. **Journaux immuables** : `order_events`, `stock_movements`, `ledger_entries`, `carrier_events`.
 5. **Connecteurs transporteurs derrière une interface** (`CarrierDriver`) : le reste de l'application ne connaît que des expéditions normalisées.
 6. **Montants en entiers** (FCFA, sans décimales) avec la devise sur la boutique, comme `Money` dans Delivery App.
-7. **Code commun** : au départ, copier les modules éprouvés de Delivery App (`PhoneNumber`, `Money`, messagerie WhatsApp/SMS, push, PWA livreur, analyse de messages). Les extraire en paquet Composer partagé seulement quand les deux copies divergent trop peu pour justifier l'effort.
+7. **Code commun** : paquet partagé pour les briques techniques, copie adaptée pour le code métier (voir §4.5).
+8. **L'argent du marchand ne transite jamais par la plateforme** : il connecte ses propres comptes de paiement (voir §6).
+
+### 4.4 Domaines et adresses
+Domaine distinct de Delivery App (nom à choisir ; `domaine` ci-dessous), même méthode que Delivery App : **un sous-domaine par marchand**, qui porte à la fois son site et sa gestion.
+
+| Adresse | Contenu |
+|---|---|
+| `domaine` (et `www.`) | Site vitrine du produit, tarifs, **création de boutique** (inscription en 5 minutes depuis un téléphone) |
+| `{boutique}.domaine/` | **Site e-commerce** du marchand (public) |
+| `{boutique}.domaine/gestion` | **Back-office** du marchand et de son équipe (connexion) |
+| `{boutique}.domaine/livreur` | Application PWA des livreurs du marchand |
+| `{boutique}.domaine/suivi/{code}` | Suivi de commande du client final |
+| `www.maboutique.ci` (option, V1) | Domaine personnalisé : **site uniquement** ; `/gestion` et `/livreur` redirigent vers le sous-domaine |
+| `admin.domaine` | Console du super administrateur |
+| `api.domaine` | API publique des marchands (V1) et réception des webhooks (transporteurs, paiements) |
+
+Règles :
+- Résolution de la boutique par le nom d'hôte (sous-domaine ou domaine personnalisé), comme `Tenancy` dans Delivery App ; liste de sous-domaines réservés (`www`, `admin`, `api`, `app`, `mail`, `static`, `cdn`, `aide`…).
+- Cookies de session **limités à l'hôte** (jamais `.domaine`) : une connexion à une boutique n'est pas valable sur une autre.
+- Un utilisateur qui appartient à plusieurs boutiques choisit la boutique après connexion sur `domaine/connexion`, puis il est redirigé vers `{boutique}.domaine/gestion`.
+- Certificat *wildcard* `*.domaine` (validation DNS) pour tous les sous-domaines ; certificats à la demande (Caddy, avec vérification que le domaine est bien déclaré par une boutique) pour les domaines personnalisés.
+- Changement de sous-domaine possible avec redirection 301 de l'ancien pendant 90 jours (`redirects`).
+
+### 4.5 Partage de code avec Delivery App
+Décision : **un paquet Composer partagé pour les briques techniques stables, un client PHP pour l'API de Delivery App, et une copie adaptée pour le code métier.**
+
+| Quoi | Comment | Pourquoi |
+|---|---|---|
+| `Money`, `PhoneNumber` (+ règle de validation), passerelles WhatsApp Meta / SMS / journal, canal Web Push, signature et vérification HMAC des webhooks, middleware d'idempotence, résolution du locataire par sous-domaine | Paquet **`habibou84/socle`** (dépôt privé, versionné, installé par Composer dans les deux applications) | Code sans logique métier, déjà testé, qu'on ne veut corriger qu'une fois |
+| Client de l'API publique de Delivery App (devis, courses, zones, produits, webhooks, statuts) | Paquet **`habibou84/delivery-app-client`**, maintenu à côté de Delivery App ; ses tests tournent dans la CI de Delivery App (test de contrat) | Toute modification de l'API qui casserait l'application e-commerce est détectée **avant** sa mise en ligne |
+| Commandes, stock, livreurs, caisse, application livreur PWA, analyse des messages WhatsApp | **Copie puis adaptation** | Les modèles divergent (variantes, expéditions multimodes) ; les forcer dans un paquet commun freinerait les deux produits |
+| Composants Vue génériques (modale, pagination, notifications, champ téléphone, sélecteur de lieu) | Copie au départ ; paquet npm seulement si les deux copies évoluent ensemble | Peu de code, beaucoup de variations visuelles |
+
+Coût : environ 4 jours en phase 0 pour créer `socle` et faire basculer Delivery App dessus (sans changement fonctionnel, couvert par ses tests existants).
 
 ---
 
@@ -285,16 +320,65 @@ Implémentations : `DeliveryAppDriver` (MVP), `ManualDriver` (MVP), autres (V2).
 
 ---
 
-## 6. Modèle de données (tables principales)
+## 6. Paiements en ligne
+
+### 6.1 Principe : le marchand branche ses propres comptes
+- Chaque marchand ouvre **son** compte chez le ou les prestataires de son choix et saisit ses identifiants d'API dans *Gestion › Paiements* (chiffrés en base). L'argent va **directement** du client au marchand.
+- La plateforme ne détient donc jamais les fonds des marchands. Elle évite ainsi le statut d'établissement de paiement (agrément BCEAO), les litiges de reversement et la trésorerie à gérer.
+- Le paiement à la livraison reste toujours disponible ; le paiement en ligne s'ajoute (total ou **acompte**).
+
+### 6.2 Prestataires
+Une interface unique, un pilote par prestataire :
+
+```php
+interface PaymentGateway
+{
+    public function methods(PaymentAccount $a): array;                 // Wave, Orange Money, MTN, Moov, carte…
+    public function createCheckout(PaymentAccount $a, Payment $p): Checkout;   // URL de paiement
+    public function verify(PaymentAccount $a, Payment $p): PaymentStatus;      // contrôle côté serveur
+    public function parseWebhook(PaymentAccount $a, Request $r): ?PaymentEvent;
+    public function refund(PaymentAccount $a, Payment $p, int $amount): Refund;
+}
+```
+
+| Prestataire | Rôle | Phase |
+|---|---|---|
+| **Wave** (API Business, en direct) | Wave seul, frais en général plus bas qu'en passant par un agrégateur | V1 |
+| **CinetPay** | Agrégateur : Orange Money, MTN, Moov, Wave, cartes ; bien implanté en Côte d'Ivoire et dans l'UEMOA | V1 |
+| **PayDunya** | Agrégateur, simple à ouvrir ; fort au Sénégal | V1 |
+| Hub2, FedaPay, Paystack… | Selon la demande des marchands et les pays visés | V2 |
+
+> Les frais publiés circulent surtout via des blogs et se contredisent : en ordre de grandeur, environ 1 % pour Wave en direct
+> et 2 à 3,5 % pour les agrégateurs, plus d'éventuels frais de retrait. **Ne rien coder en dur** : les taux sont saisis par
+> le marchand (ils sont souvent négociés) et vérifiés auprès de chaque prestataire avant le lancement.
+
+### 6.3 Le marchand choisit ce qui lui coûte le moins
+- **Routage par moyen de paiement** : pour chaque moyen proposé au client, le marchand choisit le prestataire (ex. *Wave → Wave direct* ; *Orange Money, MTN, Moov, carte → CinetPay*). Si un prestataire est indisponible, le paiement bascule vers le suivant de la liste.
+- **Simulateur** dans *Gestion › Paiements* : à partir des taux saisis et de ses ventes des 3 derniers mois, l'application affiche le coût mensuel de chaque combinaison et recommande la moins chère.
+- **Rapport des frais réels** par prestataire (montant encaissé, frais, net reçu, délai de versement) dans les finances.
+
+### 6.4 Fonctions de paiement
+- **[V1]** Paiement total ou acompte au moment de la commande sur le site.
+- **[V1] Lien de paiement** envoyé par WhatsApp pour une commande saisie à la main (vente sur Facebook, TikTok, WhatsApp) : c'est très utile aux vendeurs sur les réseaux sociaux.
+- **[V1]** Remboursement total ou partiel depuis la commande (si le prestataire le permet, sinon remboursement manuel enregistré).
+- **[V1]** Webhooks de paiement : vérification de signature **et** contrôle par `verify()` avant de valider une commande ; idempotence sur la référence de transaction.
+- **[V2]** Paiement à la livraison par mobile money : le livreur affiche un QR code ou envoie un lien au client à la porte, et la commande passe à « payée » sans espèces à gérer.
+
+### 6.5 Abonnements de la plateforme
+Les abonnements des marchands sont encaissés sur le **compte de la plateforme**, avec le même pilote (CinetPay ou Wave), indépendamment des comptes des marchands.
+
+---
+
+## 7. Modèle de données (tables principales)
 
 | Domaine | Tables |
 |---|---|
-| Comptes | `users`, `stores`, `store_users` (rôle par boutique), `store_domains`, `subscriptions`, `plans` |
+| Comptes | `users`, `stores` (sous-domaine unique), `store_users` (rôle par boutique), `store_domains` (domaines personnalisés, état de vérification et du certificat), `subscriptions`, `plans` |
 | Catalogue | `products`, `product_options` (nom, position), `product_option_values`, `product_variants` (SKU, prix, prix barré, coût, poids, code-barres, `option_values` JSONB), `product_images`, `variant_images`, `collections`, `collection_product`, `tags` |
 | Stock | `stock_locations` (type : `store`, `warehouse`, `carrier_hub`), `stock_levels` (variante × emplacement : `on_hand`, `reserved`), `stock_movements`, `stock_transfers`, `inventory_counts` |
 | Clients | `customers` (téléphone unique par boutique), `customer_addresses` (zone, repère, GPS), `customer_tags` |
 | Ventes | `carts`, `cart_items`, `orders` (statut, statut de paiement, source, totaux), `order_items` (instantané de la variante), `order_events`, `order_confirmations` (tentatives d'appel), `discounts`, `discount_usages` |
-| Paiements | `payments` (méthode, fournisseur, référence, statut), `refunds` |
+| Paiements | `payment_accounts` (prestataire, identifiants chiffrés, taux saisis, actif), `payment_routes` (moyen de paiement → comptes par ordre de priorité), `payments` (méthode, prestataire, référence, statut, frais), `payment_links`, `refunds` |
 | Livraison | `delivery_zones` (zones du marchand, frais, délai), `shipments` (mode, statut normalisé, montant à encaisser, frais), `shipment_items`, `shipment_events` |
 | Livreurs propres | `couriers`, `courier_assignments`, `cash_collections`, `courier_remittances`, `courier_pay_rules`, `courier_payouts`, `courier_locations` |
 | Transporteurs | `carriers` (catalogue des connecteurs), `carrier_connections` (URL, clé chiffrée, statut, secret webhook chiffré), `carrier_zone_mappings`, `carrier_product_mappings`, `carrier_webhook_receipts` (dédoublonnage), `carrier_payouts`, `carrier_payout_lines` |
@@ -307,14 +391,16 @@ Le schéma DBML détaillé sera produit en phase 0 (`docs/database.dbml`), comme
 
 ---
 
-## 7. Plan d'exécution
+## 8. Plan d'exécution
 
 Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 développeur front/mobile et 1 chef de projet/testeur à temps partiel. Durées indicatives.
 
-### Phase 0 : fondations (2 semaines)
+### Phase 0 : fondations (2,5 semaines)
 - [ ] Projet Laravel 12 + Vue 3 + Tailwind, CI (tests, lint, build), environnement local identique à Delivery App.
-- [ ] Multi-boutique (`store_id` + scope), sous-domaines `{boutique}.domaine`, comptes et rôles, invitation de membres, OTP téléphone.
-- [ ] Reprise des modules communs : `Money`, `PhoneNumber`, push, notifications, journaux.
+- [ ] Paquet `habibou84/socle` créé et **Delivery App basculée dessus** (§4.5) ; squelette de `habibou84/delivery-app-client`.
+- [ ] Multi-boutique (`store_id` + scope), résolution par sous-domaine, cookies par hôte, sous-domaines réservés (§4.4).
+- [ ] Site vitrine `domaine` + **création de boutique en 5 minutes** depuis un téléphone (nom, sous-domaine, logo, numéro WhatsApp).
+- [ ] Comptes, rôles, invitation de membres, OTP téléphone ; back-office sur `/gestion`.
 - [ ] Schéma DBML complet et validé.
 
 ### Phase 1 : catalogue et stock (3 semaines)
@@ -329,29 +415,30 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [ ] Réservation et sortie de stock, PDF (facture, étiquette).
 
 ### Phase 3 : boutique en ligne (4 semaines)
-- [ ] Rendu serveur Blade, 2 thèmes, réglages du thème, pages libres, menus.
+- [ ] Rendu serveur Blade sur `{boutique}.domaine/`, 2 thèmes, réglages du thème, pages libres, menus.
 - [ ] Fiche produit avec sélecteur de variantes, panier, commande en une page, zones et frais de livraison, paiement à la livraison, « Commander sur WhatsApp ».
 - [ ] SEO, Open Graph, sitemap, performance (objectif : page produit < 1,5 s en 3G, < 100 Ko de JavaScript).
-- **Jalon MVP vendable (~ 12 semaines)** : un marchand peut vendre en ligne et sur les réseaux, gérer stock et commandes, et livrer « à la main ».
+- **Jalon MVP vendable (~ 12,5 semaines)** : un marchand peut vendre en ligne et sur les réseaux, gérer stock et commandes, et livrer « à la main ».
 
-### Phase 4 : livreurs propres (3 semaines)
-- [ ] Inscription des livreurs par invitation, zones, disponibilité.
-- [ ] Expéditions, assignation, application livreur PWA (missions, statuts, preuves, encaissements).
-- [ ] Caisse : versements, écarts ; rémunération et relevés.
-- [ ] Lien de suivi client.
-
-### Phase 5 : connecteur Delivery App (3 semaines) + ajouts côté Delivery App (2 semaines, en parallèle)
-- [ ] `CarrierDriver`, `DeliveryAppDriver`, `ManualDriver`.
+### Phase 4 : connecteur Delivery App (3 semaines) + ajouts côté Delivery App (2 semaines, en parallèle)
+*Placée avant les livreurs propres : les entreprises qui utilisent déjà Delivery App sont le premier canal de distribution (§12, suggestion 1).*
+- [ ] Expéditions (statut normalisé), `CarrierDriver`, `DeliveryAppDriver`, `ManualDriver`.
 - [ ] Écran de connexion par clé, correspondance des zones, devis, création et annulation de course, webhooks + synchronisation de secours.
-- [ ] Stock en entrepôt transporteur ; rapprochement des reversements.
-- [ ] Côté Delivery App : §5.7 points 1 à 5 et 7.
+- [ ] Stock en entrepôt transporteur ; rapprochement des reversements ; lien de suivi client.
+- [ ] Côté Delivery App : §5.7 points 1 à 5 et 7 ; test de contrat de `delivery-app-client` dans sa CI.
 - [ ] Tests de bout en bout sur une instance Delivery App de recette (création → livraison → reversement).
-- **Jalon V1 livraison (~ 18 semaines)** : livreurs propres et transporteurs connectés dans le même flux.
 
-### Phase 6 : paiements en ligne et WhatsApp (3 semaines)
-- [ ] Agrégateur de paiement (mobile money + carte), acomptes, remboursements, webhooks de paiement.
-- [ ] WhatsApp Cloud API au nom du marchand, modèles, boutons de confirmation automatique.
-- [ ] Relance des paniers abandonnés.
+### Phase 5 : livreurs propres (3 semaines)
+- [ ] Inscription des livreurs par invitation, zones, disponibilité.
+- [ ] Assignation, application livreur PWA sur `/livreur` (missions, statuts, code de livraison ou photo, encaissements).
+- [ ] Caisse : versements, écarts ; rémunération et relevés.
+- **Jalon V1 livraison (~ 18,5 semaines)** : livreurs propres et transporteurs connectés dans le même flux.
+
+### Phase 6 : paiements en ligne et WhatsApp (4 semaines)
+- [ ] `PaymentGateway` + pilotes **Wave**, **CinetPay**, **PayDunya** ; comptes de paiement du marchand, routage par moyen de paiement, bascule de secours (§6).
+- [ ] Paiement total ou acompte, **liens de paiement** par WhatsApp, remboursements, webhooks vérifiés.
+- [ ] Simulateur de frais et rapport des frais réels par prestataire.
+- [ ] WhatsApp Cloud API au nom du marchand, modèles, boutons de confirmation automatique ; relance des paniers abandonnés.
 
 ### Phase 7 : croissance (3 semaines)
 - [ ] Codes promo, livraison gratuite, ventes flash, prix par quantité.
@@ -360,20 +447,21 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [ ] Statistiques avancées (canal, produit, zone, livreur, transporteur), rapport quotidien.
 
 ### Phase 8 : SaaS et lancement (3 semaines)
-- [ ] Abonnements, quotas, paiement mobile money, essai gratuit.
-- [ ] Domaines personnalisés + SSL automatique.
-- [ ] Console super administrateur, sessions de support.
+- [ ] Abonnements, quotas, paiement sur le compte de la plateforme (§6.5), essai gratuit.
+- [ ] Domaines personnalisés + SSL automatique (§4.4).
+- [ ] Console super administrateur (`admin.domaine`), sessions de support.
 - [ ] Flux « Connecter » en un clic et annuaire (§5.7 point 6) si Delivery App est prêt.
+- [ ] Déclaration à l'autorité de protection des données (ARTCI en Côte d'Ivoire), CGU / CGV, politique de confidentialité.
 - [ ] Pilote avec 10 marchands (dont des marchands déjà clients d'une entreprise utilisant Delivery App), corrections, documentation, supervision (Sentry, disponibilité).
 
-**Total : environ 6 mois** jusqu'au lancement commercial ; MVP vendable vers la **12e semaine**.
+**Total : environ 6,5 mois** jusqu'au lancement commercial ; MVP vendable vers la **13e semaine**.
 
 ### Après le lancement (V2)
 Caisse pour boutique physique, catalogue Meta / WhatsApp, prise de commande par conversation WhatsApp, fidélité, multi-devise et multilingue, éditeur de thème, autres connecteurs transporteurs, application native (Capacitor).
 
 ---
 
-## 8. Modèle économique
+## 9. Modèle économique
 
 | Offre | Pour qui | Contenu indicatif |
 |---|---|---|
@@ -386,7 +474,7 @@ Revenus complémentaires possibles : commission sur paiement en ligne, apport d'
 
 ---
 
-## 9. Risques et réponses
+## 10. Risques et réponses
 
 | Risque | Réponse |
 |---|---|
@@ -400,8 +488,27 @@ Revenus complémentaires possibles : commission sur paiement en ligne, apport d'
 
 ---
 
-## 10. Qualité et sécurité
+## 11. Qualité et sécurité
 - Tests : machine à états des commandes et expéditions, stock (réservation, sortie, retour), grand livre, correspondance des statuts transporteurs, signature des webhooks, idempotence.
 - Secrets chiffrés (clés transporteurs, secrets webhook, jetons WhatsApp et paiement).
 - Isolation stricte des boutiques (scope global + *Policies*), limitation de débit sur la commande publique et l'OTP, protection anti-robot sur le formulaire de commande.
 - Sauvegardes quotidiennes chiffrées, supervision des files (Horizon) et des erreurs (Sentry).
+
+---
+
+## 12. Suggestions complémentaires
+
+Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les autres sont à décider.
+
+1. ✅ **Utiliser les entreprises de livraison comme canal de distribution.** Elles ont déjà des dizaines de marchands. Le connecteur passe donc avant les livreurs propres (phase 4). À ajouter :
+   - un **programme partenaire** : remise ou commission pour l'entreprise qui fait inscrire ses marchands ;
+   - dans la mini-boutique `/b/{slug}` de Delivery App, un bouton **« Passer à la boutique complète »**, qui importe en un clic le catalogue et les clients et crée la connexion transporteur.
+2. ✅ **Création de boutique en 5 minutes depuis un téléphone** (phase 0). La plupart des marchands n'ont pas d'ordinateur. Le back-office `/gestion` doit être conçu d'abord pour le téléphone et installable en PWA, comme les applications de Delivery App.
+3. **Partage de produit prêt pour les réseaux sociaux** (V1, peu coûteux) : pour chaque produit, un lien court (`{boutique}.domaine/p/abc`) et une **image carrée générée** (photo, prix, nom de la boutique), prête à publier en statut WhatsApp, sur Facebook ou TikTok. C'est la façon dont ces marchands vendent déjà.
+4. **Fiche produit à partir d'une photo** (V1, option des offres payantes) : le marchand prend la photo, l'IA propose titre, description, catégorie et options (couleurs visibles). Il valide ou corrige. C'est un gain de temps énorme pour un catalogue de 200 articles.
+5. ✅ **Code de livraison** remis au client par SMS / WhatsApp et saisi par le livreur (phase 5) : il empêche les fausses livraisons déclarées, surtout avec les livreurs propres.
+6. **Prévoir le multi-pays dès le modèle de données** (coût faible maintenant, élevé plus tard) : pays et devise sur la boutique, format des numéros et zones par pays. Wave et PayDunya ouvrent naturellement le Sénégal.
+7. **Réseau de confiance anti-refus** (V2, à valider juridiquement) : un score de refus partagé entre boutiques, calculé sur le numéro de téléphone **haché**, avec l'accord des marchands. Le score n'affiche qu'une note (jamais l'historique ni le nom de la boutique). C'est très utile en paiement à la livraison, mais c'est un traitement de données personnelles à déclarer.
+8. **Mesurer l'activation dès le MVP** : part des boutiques qui reçoivent une première commande dans les 7 jours, puis taux de confirmation, taux de livraison et rétention à 30 jours. Ces chiffres guident les priorités de la phase 7 mieux que les intuitions.
+9. **Support par WhatsApp intégré** au back-office (bouton « Aide » qui ouvre une conversation avec le support, avec l'identifiant de la boutique pré-rempli), puis des sessions de support encadrées comme dans Delivery App.
+10. **Choisir le nom et le domaine tôt** : nom court, `.com` disponible (et si possible le `.ci`), comptes réseaux sociaux réservés. Le domaine conditionne le certificat *wildcard* et la configuration DNS de la phase 0.
