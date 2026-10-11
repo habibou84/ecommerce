@@ -51,13 +51,20 @@ create_user() {
     chmod 700 "$APP_HOME/.ssh"
 }
 
-# Base PostgreSQL et utilisateur dédiés ; DB_PASSWORD est vide si l'utilisateur existait déjà
+# Base PostgreSQL et utilisateur dédiés ; DB_PASSWORD est vide si l'utilisateur existe déjà et que le .env est en place
 setup_postgres() {
     step "PostgreSQL : base « $DB_NAME »"
     systemctl enable --now postgresql
     if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
-        info "Utilisateur $DB_USER déjà créé (mot de passe dans $APP_DIR/.env)."
-        DB_PASSWORD=""
+        if [[ -f "$APP_DIR/.env" ]]; then
+            info "Utilisateur $DB_USER déjà créé (mot de passe dans $APP_DIR/.env)."
+            DB_PASSWORD=""
+        else
+            # Lancement précédent interrompu avant l'écriture du .env : nouveau mot de passe
+            info "Utilisateur $DB_USER déjà créé, .env absent : nouveau mot de passe."
+            DB_PASSWORD="$(random 16)"
+            sudo -u postgres psql -q -c "ALTER ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASSWORD'"
+        fi
     else
         DB_PASSWORD="$(random 16)"
         sudo -u postgres psql -q -c "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASSWORD'"
