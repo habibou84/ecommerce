@@ -1,0 +1,96 @@
+/*
+ * Boutique en ligne : feuille séparée de la gestion, générée à partir des seuls gabarits de la boutique
+ * (quelques Ko). Les couleurs et la police viennent du thème (variables posées dans le <head>).
+ */
+@import 'tailwindcss' source(none);
+
+@source '../views/layouts/storefront.blade.php';
+@source '../views/storefront';
+@source '../js/storefront.js';
+
+@theme {
+    --color-brand: var(--brand);
+    --color-brand-contrast: var(--brand-contrast);
+    --color-brand-soft: var(--brand-soft);
+    --color-page: var(--page-bg);
+}
+
+@layer base {
+    *,
+    ::after,
+    ::before {
+        border-color: var(--color-slate-200, currentColor);
+    }
+    body {
+        background: var(--page-bg);
+    }
+    h1,
+    h2,
+    h3,
+    .font-heading {
+        font-family: var(--heading-font);
+    }
+    [hidden] {
+        display: none !important;
+    }
+}
+
+@utility btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-base font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-store {
+    @apply btn bg-brand text-brand-contrast hover:opacity-90;
+}
+@utility btn-outline {
+    @apply btn border border-brand bg-white text-brand hover:bg-brand-soft;
+}
+@utility btn-whatsapp {
+    @apply btn bg-[#25d366] text-white hover:bg-[#1ebe5b];
+}
+@utility field {
+    @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand-soft focus:outline-none;
+}
+@utility field-label {
+    @apply mb-1 block text-sm font-medium text-slate-700;
+}
+
+/* Cartes produits : à plat (Classique) ou arrondies avec ombre (Marché) */
+.cards-rounded .product-card {
+    @apply rounded-2xl bg-white p-2 shadow-sm;
+}
+.cards-rounded .product-card img {
+    @apply rounded-xl;
+}
+.cards-flat .product-card img {
+    @apply rounded-md;
+}
+
+/* Choix d'une valeur d'option (taille, couleur) */
+.option-chip {
+    @apply min-w-11 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm;
+}
+.option-chip[aria-pressed='true'] {
+    @apply border-brand bg-brand-soft font-medium text-brand ring-1 ring-brand;
+}
+.option-chip.is-unavailable {
+    @apply text-slate-400 line-through;
+}
+
+.prose-store p {
+    @apply mb-3;
+}
+.prose-store h2 {
+    @apply mt-6 mb-2 text-xl font-semibold;
+}
+.prose-store h3 {
+    @apply mt-4 mb-2 text-lg font-semibold;
+}
+.prose-store ul {
+    @apply mb-3 list-disc pl-6;
+}
+.prose-store ol {
+    @apply mb-3 list-decimal pl-6;
+}
+.prose-store a {
+    @apply text-brand underline;
+}

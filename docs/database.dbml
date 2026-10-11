@@ -63,6 +63,13 @@ Table stores {
   address text
   place_id bigint [ref: > places.id]
   active_theme_id bigint [ref: > store_themes.id]
+  storefront_enabled boolean [default: false, note: 'boutique en ligne ouverte au public (sinon page « ouvre bientôt », aperçu par lien signé)']
+  online_payment varchar(20) [not null, default: 'off', note: 'off | optional (au choix du client) | deposit (acompte exigé) | required (tout en ligne)']
+  deposit_percent smallint [note: 'acompte en % du total, arrondi aux 5 F supérieurs']
+  free_shipping_above int [note: 'livraison offerte dès ce montant, toutes zones']
+  marketing jsonb [note: '{meta_pixel_id, tiktok_pixel_id, ga4_id}']
+  meta_capi_token text [note: 'chiffré : API Conversions de Meta']
+  assignment_mode varchar(10) [not null, default: 'suggest', note: 'off | suggest | auto (expédition créée à la confirmation)']
   order_prefix varchar(10) [default: '#']
   next_order_number int [not null, default: 1001, note: 'incrémenté sous verrou (SELECT … FOR UPDATE)']
   require_order_confirmation boolean [default: true, note: 'les commandes passent par la file « à confirmer »']
@@ -71,6 +78,8 @@ Table stores {
   allow_backorder boolean [default: false, note: 'valeur par défaut des nouveaux produits']
   low_stock_threshold int [default: 3]
   status varchar(20) [not null, default: 'trial', note: 'trial | active | past_due | suspended | closed']
+  suspended_reason varchar [note: 'motif donné par la console']
+  billing_notices jsonb [note: 'avertissements déjà envoyés : rappel d’échéance, quota de commandes du mois']
   closed_at timestamp
   deleted_at timestamp
 }
@@ -92,10 +101,12 @@ Table store_users {
 Table store_invitations {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
+  name varchar
   phone varchar(20) [not null]
   role varchar(30) [not null]
   token_hash varchar(64) [unique, not null]
   invited_by bigint [ref: > users.id]
+  accepted_by bigint [ref: > users.id]
   expires_at timestamp [not null]
   accepted_at timestamp
   revoked_at timestamp
@@ -105,10 +116,10 @@ Table store_domains {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   hostname varchar [unique, not null, note: 'www.maboutique.ci ; sert uniquement la boutique publique']
-  is_primary boolean [default: false, note: 'les autres adresses redirigent (301) vers le domaine principal']
-  verification_token varchar(64) [not null, note: 'enregistrement TXT à créer par le marchand']
-  verified_at timestamp
-  ssl_status varchar(20) [default: 'pending', note: 'pending | active | failed ; Caddy n’émet un certificat que pour un domaine vérifié']
+  is_primary boolean [default: false, note: 'adresse canonique du site public (offre Pro, 3 domaines au plus)']
+  verification_token varchar(64) [not null, note: 'TXT « _jibiat.{hostname} » à créer par le marchand, plus un CNAME (ou A pour un domaine nu) vers la plateforme']
+  verified_at timestamp [note: 'contrôle DNS (bouton « Vérifier », puis domains:check chaque nuit)']
+  ssl_status varchar(20) [default: 'pending', note: 'pending | active ; Caddy (on_demand_tls, route /_caddy/ask) n’émet un certificat que pour un domaine vérifié']
   last_checked_at timestamp
   last_error varchar
 }
@@ -139,19 +150,28 @@ Table subscriptions {
 
 Table subscription_invoices {
   id bigint [pk, increment]
-  subscription_id bigint [ref: > subscriptions.id, not null]
   store_id bigint [ref: > stores.id, not null]
-  number varchar(30) [unique, not null]
-  amount int [not null]
-  period_start date [not null]
-  period_end date [not null]
-  status varchar(20) [not null, note: 'open | paid | void | uncollectible']
+  subscription_id bigint [ref: > subscriptions.id, note: 'abonnement créé ou prolongé par le paiement']
+  plan_id bigint [ref: > plans.id, not null]
+  number varchar(20) [unique, not null, note: 'JM-2026-000123']
+  billing_cycle varchar(10) [not null, note: 'monthly | yearly']
+  amount int [not null, note: '0 pour des mois offerts par la console']
+  status varchar(20) [not null, note: 'pending | paid | failed | cancelled | offered']
+  period_start timestamp
+  period_end timestamp
   provider varchar(20) [note: 'encaissé sur le compte de la plateforme (wave | cinetpay | paydunya)']
+  method varchar(20)
+  idempotency_key uuid [unique, not null, note: 'référence envoyée au prestataire']
   provider_reference varchar
+  checkout_url varchar
+  raw jsonb
+  created_by bigint [ref: > users.id]
   paid_at timestamp
+  Note: 'Paiement validé seulement après relecture chez le prestataire (retour, notification signée). Même offre : la période s’ajoute à la précédente.'
 }
 
 Table usage_counters {
+  Note: 'Non créée : les quotas (commandes du mois, produits, membres…) sont comptés à la demande (PlanLimits).'
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   period date [not null, note: 'premier jour du mois']
@@ -165,29 +185,49 @@ Table usage_counters {
 
 Table phone_verifications {
   id bigint [pk, increment]
+  purpose varchar(20) [not null, note: 'signup | invitation | password_reset']
   phone varchar(20) [not null]
-  purpose varchar(20) [not null, note: 'login | signup | customer_login | invitation | change_phone']
-  store_id bigint [ref: > stores.id, note: 'renseigné pour la connexion d’un client de boutique']
-  code_hash varchar(64) [not null]
+  store_id bigint [ref: > stores.id, note: 'boutique de l’invitation ou du mot de passe oublié']
+  user_id bigint [ref: > users.id, note: 'compte concerné (mot de passe oublié)']
+  token_hash varchar(64) [unique, not null, note: 'empreinte du jeton gardé par le navigateur']
+  sms_code_hash varchar [note: 'code à 6 chiffres haché']
+  sms_count smallint [default: 0]
+  sms_sent_at timestamp
   attempts smallint [default: 0]
-  channel varchar(10) [note: 'sms | whatsapp']
+  payload text [note: 'chiffré : données à conserver jusqu’à la fin (nom de la boutique, mot de passe haché…)']
+  ip varchar(45)
+  verified_at timestamp
+  completed_at timestamp
   expires_at timestamp [not null]
-  consumed_at timestamp
+  created_at timestamp [not null]
   indexes {
     (phone, purpose)
+    (phone, created_at)
   }
 }
 
 Table support_sessions {
   id bigint [pk, increment]
-  admin_user_id bigint [ref: > users.id, not null]
   store_id bigint [ref: > stores.id, not null]
-  reason varchar [not null]
-  approved_by bigint [ref: > users.id, note: 'propriétaire de la boutique qui a accepté (si exigé)']
-  started_at timestamp
-  expires_at timestamp [not null]
+  admin_id bigint [ref: > users.id, not null, note: 'administrateur de la plateforme (users.is_super_admin)']
+  reason varchar [not null, note: 'visible par la boutique']
+  started_at timestamp [not null]
+  expires_at timestamp [not null, note: '60 minutes par défaut, 4 h au plus']
   ended_at timestamp
-  Note: 'Accès encadré du support à une boutique, journalisé (même principe que Delivery App).'
+  ended_by bigint [ref: > users.id, note: 'la boutique peut mettre fin à l’accès']
+  ip varchar(45)
+  Note: 'Accès temporaire à la gestion avec le rôle « support » (sans abonnement, équipe ni comptes de paiement) ; propriétaire prévenu ; fin automatique (support:expire).'
+}
+
+Table admin_actions {
+  id bigint [pk, increment]
+  admin_id bigint [ref: > users.id, not null]
+  store_id bigint [ref: > stores.id]
+  action varchar(40) [not null, note: 'console_login | suspend | reactivate | extend_trial | offer | support_session | plan_updated']
+  data jsonb
+  ip varchar(45)
+  created_at timestamp [not null]
+  Note: 'Journal de la console du super administrateur.'
 }
 
 // Tables techniques Laravel non détaillées : personal_access_tokens (Sanctum), roles / permissions /
@@ -331,13 +371,14 @@ Table product_images {
 
 Table volume_prices {
   id bigint [pk, increment]
-  variant_id bigint [ref: > product_variants.id, not null]
+  store_id bigint [ref: > stores.id, not null]
+  product_id bigint [ref: > products.id, not null]
   min_quantity int [not null]
-  unit_price int [not null]
+  price int [not null, note: 'prix du lot de min_quantity articles']
   indexes {
-    (variant_id, min_quantity) [unique]
+    (product_id, min_quantity) [unique]
   }
-  Note: 'Prix par quantité (V1) : 1 = 10 000, 3 = 25 000 → 3 unités à 8 333.'
+  Note: 'Prix par quantité, toutes variantes du produit confondues : 3 pour 25 000 → 3 unités à 8 333 (total exact 25 000). Appliqué s’il est plus avantageux qu’une vente flash.'
 }
 
 Table collections {
@@ -400,7 +441,7 @@ Table stock_locations {
   landmark varchar
   phone varchar(20)
   carrier_connection_id bigint [ref: > carrier_connections.id, note: 'type carrier_hub : stock déposé chez une entreprise de livraison']
-  carrier_hub_ref varchar [note: 'identifiant de l’entrepôt chez le transporteur (pickup_hub_id)']
+  remote_hub_id varchar [note: 'identifiant de l’entrepôt chez le transporteur (pickup_hub_id)']
   is_pickup_point boolean [default: false, note: 'retrait en boutique possible']
   fulfills_online_orders boolean [default: true]
   priority smallint [default: 0, note: 'ordre de choix de l’emplacement qui prépare une commande']
@@ -595,7 +636,7 @@ Table orders {
   customer_id bigint [ref: > customers.id]
   source varchar(20) [not null, note: 'online_store | manual | whatsapp | facebook | instagram | tiktok | phone | import | pos | api']
   external_reference varchar(100) [note: 'référence de l’import ou de l’API']
-  status varchar(25) [not null, note: 'pending_confirmation | confirmed | processing | shipped | completed | cancelled']
+  status varchar(25) [not null, note: 'pending_confirmation | confirmed | processing | shipped | completed | cancelled | returned']
   payment_status varchar(20) [not null, default: 'unpaid', note: 'unpaid | partially_paid | paid | partially_refunded | refunded']
   fulfillment_status varchar(20) [not null, default: 'unfulfilled', note: 'unfulfilled | partial | fulfilled | returned']
   // Instantané client et livraison
@@ -613,6 +654,7 @@ Table orders {
   shipping_longitude decimal(9,6)
   delivery_zone_id bigint [ref: > delivery_zones.id]
   pickup_location_id bigint [ref: > stock_locations.id, note: 'retrait en boutique']
+  location_id bigint [ref: > stock_locations.id, note: 'emplacement qui prépare la commande (réservation du stock)']
   scheduled_date date
   time_slot varchar(20)
   // Montants
@@ -626,6 +668,7 @@ Table orders {
   deposit_required int [note: 'acompte exigé avant expédition']
   discount_code varchar(40)
   // Suivi
+  conversion_sent_at timestamp [note: 'achat envoyé à l’API Conversions de Meta']
   customer_note text
   internal_note text
   risk_score smallint [note: '0 à 100 : historique de refus, doublon, numéro suspect']
@@ -633,9 +676,13 @@ Table orders {
   tracking_token varchar(32) [unique, note: 'lien public {slug}.jibiat-marchand.com/suivi/{token}']
   confirmed_at timestamp
   confirmed_by bigint [ref: > users.id]
-  cancelled_at timestamp
-  cancel_reason varchar
+  callback_at timestamp [note: 'relance prévue dans la file de confirmation']
+  shipped_at timestamp
   completed_at timestamp
+  cancelled_at timestamp
+  cancel_reason varchar(30) [note: 'customer_refused | unreachable | wrong_number | out_of_stock | duplicate | fraud | customer_request | other']
+  cancel_note varchar
+  returned_at timestamp
   created_by bigint [ref: > users.id, note: 'null = commande passée par le client']
   created_at timestamp [not null]
   indexes {
@@ -661,7 +708,8 @@ Table order_items {
   unit_price int [not null]
   compare_at_price int
   unit_cost int
-  discount_amount int [not null, default: 0]
+  discount_amount int [not null, default: 0, note: 'part du code promo répartie sur la ligne']
+  discount_id bigint [ref: > discounts.id, note: 'vente flash appliquée au prix']
   total int [not null]
   weight_g int
   requires_shipping boolean [default: true]
@@ -707,7 +755,7 @@ Table discounts {
   store_id bigint [ref: > stores.id, not null]
   code varchar(40) [note: 'null = remise automatique (vente flash)']
   title varchar
-  type varchar(20) [not null, note: 'percentage | fixed_amount | free_shipping | buy_x_get_y']
+  type varchar(20) [not null, note: 'percentage | fixed_amount | free_shipping (codes seulement) ; buy_x_get_y : V1']
   value int [not null, note: 'pourcentage ou montant']
   applies_to varchar(20) [default: 'all', note: 'all | collections | products']
   target_ids jsonb
@@ -721,15 +769,21 @@ Table discounts {
   indexes {
     (store_id, code) [unique]
   }
+  Note: 'Code en majuscules. Sans code : vente flash (date de fin obligatoire, compte à rebours).'
 }
 
 Table discount_usages {
   id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
   discount_id bigint [ref: > discounts.id, not null]
   order_id bigint [ref: > orders.id, not null]
   customer_id bigint [ref: > customers.id]
-  amount int [not null]
+  amount int [not null, note: 'remise accordée sur cette commande']
   created_at timestamp [not null]
+  indexes {
+    (discount_id, order_id) [unique]
+  }
+  Note: 'Recalculées à chaque modification de la commande, supprimées à l’annulation ; discounts.used_count en découle.'
 }
 
 Table returns {
@@ -763,13 +817,11 @@ Table payment_accounts {
   credentials text [not null, note: 'chiffré : clés et identifiants du compte du marchand chez le prestataire']
   mode varchar(10) [default: 'live', note: 'test | live']
   webhook_uuid uuid [unique, not null, note: 'URL de notification : api.jibiat-marchand.com/webhooks/payments/{uuid}']
-  fee_percent decimal(5,2) [note: 'taux saisi par le marchand (souvent négocié) : sert au simulateur']
-  fee_fixed int
-  payout_fee_percent decimal(5,2) [note: 'frais de retrait']
-  payout_delay_days smallint
-  status varchar(20) [default: 'pending', note: 'pending | active | error | disabled']
-  last_checked_at timestamp
+  fee_percent decimal(5,2) [note: 'taux saisi par le marchand (souvent négocié) : sert au simulateur et à estimer les frais quand le prestataire ne les donne pas']
+  fee_fixed int [not null, default: 0]
+  status varchar(20) [default: 'active', note: 'active | error | disabled']
   last_error varchar
+  Note: 'Frais de retrait et délai de reversement : V2.'
 }
 
 Table payment_routes {
@@ -779,7 +831,6 @@ Table payment_routes {
   payment_account_id bigint [ref: > payment_accounts.id, not null]
   priority smallint [not null, default: 1, note: '1 = prestataire principal ; les suivants servent de secours']
   indexes {
-    (store_id, method, priority) [unique]
     (store_id, method, payment_account_id) [unique]
   }
 }
@@ -807,7 +858,7 @@ Table payments {
   failure_reason varchar
   created_at timestamp [not null]
   indexes {
-    (provider, provider_reference) [unique]
+    (provider, provider_reference)
     (order_id)
     (store_id, status, created_at)
   }
@@ -821,7 +872,6 @@ Table payment_links {
   amount int [not null]
   description varchar
   status varchar(20) [not null, default: 'open', note: 'open | paid | expired | cancelled']
-  sent_via varchar(20) [note: 'whatsapp | sms | copy']
   expires_at timestamp
   paid_at timestamp
   created_by bigint [ref: > users.id]
@@ -832,11 +882,10 @@ Table refunds {
   store_id bigint [ref: > stores.id, not null]
   order_id bigint [ref: > orders.id, not null]
   payment_id bigint [ref: > payments.id]
-  return_id bigint [ref: > returns.id]
   amount int [not null]
-  method varchar(20) [not null, note: 'provider | manual']
+  method varchar(20) [not null, note: 'provider (remboursé par l’API, Wave : montant total seulement) | manual (rendu à la main)']
   reason varchar
-  status varchar(20) [not null, note: 'pending | succeeded | failed']
+  status varchar(20) [not null, note: 'succeeded | failed']
   provider_reference varchar
   refunded_at timestamp
   created_by bigint [ref: > users.id]
@@ -862,46 +911,45 @@ Table shipments {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   order_id bigint [ref: > orders.id, not null]
-  sequence smallint [not null, default: 1, note: 'affiché #1042-1']
-  mode varchar(20) [not null, note: 'own_courier | carrier | manual_carrier | pickup']
-  status varchar(25) [not null, note: 'to_prepare | ready | requested | accepted | rejected | awaiting_pickup | in_transit | out_for_delivery | delivered | failed | rescheduled | returning | returned | cancelled | lost']
+  sequence smallint [not null, default: 1, note: 'affiché #1042-1, envoyé comme merchant_reference']
+  mode varchar(20) [not null, note: 'carrier | manual_carrier | own_courier']
+  status varchar(25) [not null, note: 'requested | accepted | rejected | awaiting_pickup | in_transit | out_for_delivery | delivered | failed | rescheduled | returning | returned | cancelled | lost']
   origin_location_id bigint [ref: > stock_locations.id]
-  // Livreur propre
-  courier_id bigint [ref: > couriers.id, note: 'livreur en charge actuellement']
   // Transporteur
   carrier_connection_id bigint [ref: > carrier_connections.id]
+  courier_id bigint [ref: > couriers.id, note: 'livreur de la boutique (mode own_courier)']
   carrier_tracking_code varchar(40) [note: 'tracking_code de Delivery App']
+  carrier_tracking_url varchar [note: 'page de suivi du transporteur, donnée au client']
   carrier_status varchar(30) [note: 'statut brut du transporteur']
   idempotency_key uuid [unique, not null, note: 'en-tête Idempotency-Key de la création de course']
   // Argent
-  cod_amount int [not null, default: 0, note: 'à encaisser auprès du client']
+  cod_amount int [not null, default: 0, note: 'à encaisser auprès du client (reste dû de la commande)']
   collected_amount int [note: 'réellement encaissé']
-  shipping_fee_charged int [note: 'part des frais facturée au client']
-  carrier_fee int [note: 'coût de la livraison pour la boutique (devis puis montant réel)']
-  fee_payer varchar(20) [note: 'customer | store']
+  carrier_fee int [note: 'tarif du transporteur (devis puis montant réel)']
+  fee_payer varchar(20) [default: 'customer', note: 'customer | store']
   // Colis et preuve
   weight_g int
   is_fragile boolean [default: false]
-  delivery_code_hash varchar(64)
-  proof_photo_path varchar
-  received_by_name varchar
+  delivery_code varchar(20) [note: 'code à donner au livreur (fourni par le transporteur)']
+  proof_photo_url varchar(1000) [note: 'lien signé du transporteur']
+  proof_photo_path varchar [note: 'photo prise par le livreur de la boutique (stockage privé)']
   attempts_count smallint [default: 0]
-  scheduled_date date
-  time_slot varchar(20)
   failure_reason varchar
-  manual_label_path varchar [note: 'bordereau PDF (transporteur sans API)']
+  rescheduled_to date
+  note varchar
   requested_at timestamp
   picked_up_at timestamp
   delivered_at timestamp
   returned_at timestamp
   cancelled_at timestamp
   last_synced_at timestamp
+  created_by bigint [ref: > users.id]
   indexes {
     (order_id, sequence) [unique]
     (store_id, status)
     (carrier_connection_id, carrier_tracking_code) [unique]
-    (courier_id, status)
   }
+  Note: 'V1 : shipment_items (expédition partielle), créneau de livraison.'
 }
 
 Table shipment_items {
@@ -932,7 +980,7 @@ Table shipment_events {
   indexes {
     (shipment_id, occurred_at)
   }
-  Note: 'Journal.'
+  Note: 'Journal. photo_path, latitude, longitude, courier_id arrivent en phase 5 (livreurs propres).'
 }
 
 Table shipment_quotes {
@@ -952,7 +1000,7 @@ Table shipping_rules {
   store_id bigint [ref: > stores.id, not null]
   name varchar
   priority smallint [not null]
-  conditions jsonb [not null, note: '{delivery_zone_ids, place_ids, min_weight_g, max_weight_g, is_fragile, min_cod, max_cod}']
+  conditions jsonb [note: '{delivery_zone_ids, is_fragile, min_amount, max_amount, max_weight_g}']
   action varchar(20) [not null, note: 'own_courier | carrier | cheapest | fastest | manual']
   carrier_connection_id bigint [ref: > carrier_connections.id]
   is_active boolean [default: true]
@@ -991,13 +1039,11 @@ Table courier_assignments {
   store_id bigint [ref: > stores.id, not null]
   shipment_id bigint [ref: > shipments.id, not null]
   courier_id bigint [ref: > couriers.id, not null]
-  type varchar(20) [not null, default: 'delivery', note: 'delivery | return | transfer']
-  status varchar(20) [not null, note: 'assigned | accepted | declined | completed | cancelled | reassigned']
+  status varchar(20) [not null, note: 'assigned | completed | cancelled | reassigned']
   assigned_by bigint [ref: > users.id]
   assigned_at timestamp [not null]
-  responded_at timestamp
   completed_at timestamp
-  Note: 'Historique de toutes les missions, y compris refusées ou réassignées.'
+  Note: 'Historique de toutes les missions, y compris réassignées.'
 }
 
 Table delivery_runs {
@@ -1024,8 +1070,9 @@ Table cash_collections {
   store_id bigint [ref: > stores.id, not null]
   shipment_id bigint [ref: > shipments.id, not null]
   courier_id bigint [ref: > couriers.id, not null]
-  payment_id bigint [ref: > payments.id, not null]
+  payment_id bigint [ref: > payments.id]
   amount int [not null]
+  method varchar(20) [default: 'cash', note: 'cash : détenu par le livreur ; mobile money : déjà chez la boutique']
   remittance_id bigint [ref: > courier_remittances.id, note: 'null = encore détenu par le livreur']
   collected_at timestamp [not null]
   indexes {
@@ -1050,7 +1097,7 @@ Table courier_pay_rules {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   name varchar [not null]
-  type varchar(20) [not null, note: 'per_delivery | per_zone | daily | monthly']
+  type varchar(20) [not null, note: 'per_delivery | per_zone (daily | monthly : V1)']
   amount int [note: 'montant par livraison, par jour ou par mois']
   zone_amounts jsonb [note: '{delivery_zone_id: montant} pour per_zone']
   failed_attempt_amount int [default: 0]
@@ -1061,10 +1108,11 @@ Table courier_earnings {
   store_id bigint [ref: > stores.id, not null]
   courier_id bigint [ref: > couriers.id, not null]
   shipment_id bigint [ref: > shipments.id]
-  type varchar(20) [not null, note: 'delivery | failed_attempt | daily | monthly | bonus | adjustment | advance']
+  type varchar(20) [not null, note: 'delivery | failed_attempt | bonus | adjustment | advance']
   amount int [not null, note: 'négatif pour une avance ou une retenue']
   payout_id bigint [ref: > courier_payouts.id]
   note varchar
+  created_by bigint [ref: > users.id]
   created_at timestamp [not null]
   Note: 'Journal.'
 }
@@ -1073,7 +1121,7 @@ Table courier_payouts {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   courier_id bigint [ref: > couriers.id, not null]
-  period_start date [not null]
+  period_start date
   period_end date [not null]
   total int [not null]
   status varchar(20) [not null, note: 'draft | paid | cancelled']
@@ -1081,6 +1129,7 @@ Table courier_payouts {
   reference varchar
   paid_at timestamp
   paid_by bigint [ref: > users.id]
+  created_by bigint [ref: > users.id]
 }
 
 Table courier_locations {
@@ -1107,6 +1156,7 @@ Table carrier_connections {
   api_key text [note: 'chiffré']
   api_key_prefix varchar(12) [note: 'partie visible, pour l’affichage']
   scopes jsonb
+  remote_account jsonb [note: 'réponse de GET /me (marchand, entreprise, portées de la clé)']
   webhook_uuid uuid [unique, not null, note: 'URL de réception : api.jibiat-marchand.com/webhooks/carriers/{uuid}']
   webhook_secret text [note: 'chiffré ; créé par API (§5.7) ou saisi à la main']
   remote_webhook_id varchar [note: 'abonnement créé chez le transporteur']
@@ -1184,8 +1234,10 @@ Table carrier_payouts {
   total_collected int
   total_fees int
   method varchar(20)
+  transaction_ref varchar
   paid_at timestamp
   reconciliation_status varchar(20) [not null, default: 'pending', note: 'pending | matched | discrepancy']
+  difference int [default: 0, note: 'net reçu − net attendu']
   raw jsonb
   indexes {
     (connection_id, remote_id) [unique]
@@ -1325,7 +1377,7 @@ Table short_links {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   code varchar(12) [unique, not null, note: '{slug}.jibiat-marchand.com/p/{code}']
-  target_type varchar(20) [not null, note: 'product | collection | payment_link | order_tracking']
+  target_type varchar(20) [not null, note: 'product (V1 : collection, payment_link)']
   target_id bigint [not null]
   share_image_path varchar [note: 'image carrée prête pour les statuts WhatsApp']
   clicks int [default: 0]
@@ -1335,17 +1387,23 @@ Table short_links {
 
 Table whatsapp_accounts {
   id bigint [pk, increment]
-  store_id bigint [ref: > stores.id, not null]
+  store_id bigint [ref: > stores.id, unique, not null]
   phone_number_id varchar [not null]
-  waba_id varchar [not null]
+  waba_id varchar
   display_phone varchar(20)
   access_token text [not null, note: 'chiffré']
-  status varchar(20) [default: 'pending', note: 'pending | active | error']
+  app_secret text [not null, note: 'chiffré : vérifie la signature X-Hub-Signature-256 des webhooks de Meta']
+  verify_token varchar(64) [not null, note: 'vérification de l’URL de rappel (hub.challenge)']
+  webhook_uuid uuid [unique, not null, note: 'api.jibiat-marchand.com/webhooks/whatsapp/{uuid}']
+  templates jsonb [note: '{événement: nom du modèle approuvé chez Meta} ; variables dans l’ordre de CustomerMessenger::EVENTS']
+  automations jsonb [note: '{événement: true | false}']
+  status varchar(20) [default: 'active', note: 'active | error | disabled']
   last_error varchar
-  Note: 'WhatsApp Cloud API au nom du marchand (V1, offres payantes).'
+  Note: 'WhatsApp Cloud API au nom du marchand. Réponses « Confirmer / Annuler » appliquées à la commande, seulement depuis le numéro du client.'
 }
 
 Table message_templates {
+  Note: 'V2 : textes personnalisés par événement. En V1, les noms des modèles Meta sont dans whatsapp_accounts.templates et les textes des liens wa.me dans le code.'
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, note: 'null = modèle par défaut de la plateforme']
   event varchar(40) [not null, note: 'order_received | order_confirm_request | order_shipped | order_delivered | payment_link | cart_recovery | delivery_code…']
@@ -1408,8 +1466,8 @@ Table scheduled_reports {
   store_id bigint [ref: > stores.id, not null]
   user_id bigint [ref: > users.id, not null]
   frequency varchar(10) [not null, note: 'daily | weekly | monthly']
-  channel varchar(10) [not null, note: 'whatsapp | email']
-  send_at time [default: '20:00']
+  channel varchar(10) [not null, note: 'whatsapp (modèle « daily_report » du WhatsApp de la boutique) | email']
+  send_at time [default: '20:00', note: 'heure de la boutique']
   last_sent_at timestamp
   is_active boolean [default: true]
 }
@@ -1501,6 +1559,7 @@ TableGroup plateforme {
   usage_counters
   phone_verifications
   support_sessions
+  admin_actions
 }
 
 TableGroup geographie {

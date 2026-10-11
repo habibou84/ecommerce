@@ -405,64 +405,98 @@ Choix faits en détaillant le schéma :
 
 Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 développeur front/mobile et 1 chef de projet/testeur à temps partiel. Durées indicatives.
 
-### Phase 0 : fondations (2,5 semaines)
-- [ ] Projet Laravel 12 + Vue 3 + Tailwind, CI (tests, lint, build), environnement local identique à Delivery App.
-- [ ] Paquet `habibou84/socle` créé et **Delivery App basculée dessus** (§4.5) ; squelette de `habibou84/delivery-app-client`.
-- [ ] Multi-boutique (`store_id` + scope), résolution par sous-domaine, cookies par hôte, sous-domaines réservés (§4.4).
-- [ ] Site vitrine `jibiat-marchand.com` + **création de boutique en 5 minutes** depuis un téléphone (nom, sous-domaine, logo, numéro WhatsApp).
-- [ ] Comptes, rôles, invitation de membres, OTP téléphone ; back-office sur `/gestion`.
-- [x] Schéma DBML complet ([`database.dbml`](./database.dbml)) ; reste à le valider ensemble.
+### Phase 0 : fondations (2,5 semaines) ✅ *réalisée*
+- [x] Projet Laravel 12 + Vue 3 + Tailwind, CI (Pint, tests PostgreSQL en PHP 8.3 et 8.4, build front-end).
+- [x] Paquet `habibou84/socle` créé dans `packages/socle` (téléphones, montants, SMS, signature des webhooks), avec ses tests.
+- [x] `socle` sorti dans son propre dépôt public `habibou84/socle` ; Delivery App et Jibiat Marchand l'utilisent tous les deux (phase 4).
+- [x] Client de l'API de Delivery App : `DeliveryAppDriver` (phase 4), dans l'application plutôt qu'en paquet séparé tant qu'un seul client l'utilise.
+- [x] Multi-boutique : résolution par sous-domaine (`Tenancy`), filtre automatique `BelongsToStore`, sous-domaines réservés, anciennes adresses redirigées 90 jours, domaines personnalisés vérifiés (site seulement).
+- [x] Session par cookie limitée au nom d'hôte de la boutique (Sanctum), lien de connexion à usage unique pour passer d'une adresse à l'autre.
+- [x] Site vitrine `jibiat-marchand.com` + **création de boutique** (nom, adresse avec vérification de disponibilité, code SMS) et essai de 14 jours de l'offre Pro.
+- [x] Comptes (un compte par numéro, plusieurs boutiques possibles), rôles par boutique (spatie en mode *teams*), invitation par lien WhatsApp, mot de passe oublié par SMS, retrouver ses boutiques depuis `jibiat-marchand.com/connexion`.
+- [x] Back-office `/gestion` : connexion, accueil (premiers pas), équipe, paramètres (dont changement d'adresse), passage d'une boutique à l'autre.
+- [x] Schéma DBML complet ([`database.dbml`](./database.dbml)).
+- Vérification du numéro **par SMS uniquement** pour l'instant (mobiles ivoiriens) : la preuve gratuite par message WhatsApp entrant, utilisée par Delivery App, viendra avec le numéro WhatsApp Business de la plateforme (phase 6).
 
-### Phase 1 : catalogue et stock (3 semaines)
-- [ ] Produits, options, génération et édition en masse des variantes, photos (par variante), collections.
-- [ ] Emplacements, niveaux et mouvements de stock par variante ; alertes.
-- [ ] Import / export CSV ; import depuis Delivery App.
+### Phase 1 : catalogue et stock (3 semaines) ✅ *réalisée*
+- [x] Produits avec jusqu'à 3 options (taille, couleur…) ; variantes générées à partir des valeurs, avec prix, prix barré, coût, SKU, code-barres, poids, photo et stock propres ; combinaisons non vendues décochables ; saisie groupée du prix et du stock.
+- [x] Photos : envoi depuis le téléphone, redressées et converties en trois tailles WebP (400, 800, 1 600 px), ordre, photo par variante.
+- [x] Collections (rayons de la boutique, ordre des produits), étiquettes, duplication d'un produit, statut brouillon / actif / archivé.
+- [x] Stock par variante et par emplacement (boutique, entrepôt, domicile) : journal immuable, ajustements (correction, casse), réceptions fournisseur avec coût moyen pondéré, transferts (envoi / réception / annulation), inventaires (comptage enregistré au fil de l'eau, puis validation).
+- [x] Réservation, libération et sortie de stock prêtes pour les commandes (phase 2).
+- [x] Alertes : stock bas (seuil du produit ou de la boutique) et épuisé, dans le catalogue et l'écran Stock ; valeur du stock au coût.
+- [x] Import / export CSV (point-virgule et UTF-8 pour Excel, une colonne de stock par emplacement), avec vérification avant import et erreurs par ligne ; les exports Shopify sont acceptés. Les photos ne sont pas importées.
+- [x] Reprise du catalogue depuis Delivery App (`GET /products` avec la clé API du marchand, non conservée ; seuls les domaines Delivery App sont interrogés). Le stock déposé à l'entrepôt de l'entreprise sera suivi par la connexion transporteur (phase 4).
+- [x] Limite de produits selon l'offre.
+- Les alertes de stock bas par notification (push, WhatsApp) arriveront avec les notifications (phase 2) ; les collections automatiques et les prix par quantité restent en V1 (phase 7).
 
-### Phase 2 : commandes et clients (3 semaines)
-- [ ] Saisie rapide (collage de message), commandes multicanales, statuts commande / paiement séparés.
-- [ ] File de confirmation (appel, WhatsApp manuel, motifs, relances).
-- [ ] CRM : fiche client, adresses, étiquettes, liste noire, score de livraison.
-- [ ] Réservation et sortie de stock, PDF (facture, étiquette).
+### Phase 2 : commandes et clients (3 semaines) ✅ *réalisée*
+- [x] Saisie rapide : le message du client est collé et analysé (téléphones, nom, quartier, adresse, repère, montant, produits avec quantité et variante) ; le client déjà connu retrouve son adresse habituelle.
+- [x] Commandes multicanales (WhatsApp, Facebook, Instagram, TikTok, téléphone, boutique) avec statuts commande / paiement / expédition séparés : à confirmer → confirmée → en préparation → expédiée → livrée, annulée (avec motif) ou retournée (remise en stock au choix).
+- [x] File de confirmation : appel ou WhatsApp en un geste, réponses (confirmée, injoignable, à rappeler, modification, faux numéro, refus), relances planifiées ; l'agent de confirmation peut corriger une commande encore à confirmer.
+- [x] Fichier clients : un client par numéro, adresses, compteurs (commandes, livrées, refus, montant dépensé), taux de livraison, étiquettes, liste noire ; score de risque (refus, liste noire, doublons de moins de 24 h).
+- [x] Stock : réservation à la commande, sortie à l'expédition, libération à l'annulation, retour en stock ; paiements saisis (acompte, mobile money, espèces encaissées à la livraison).
+- [x] Référentiel des lieux (communes et quartiers d'Abidjan, grandes villes, variantes d'écriture) et zones de livraison de la boutique (frais, livraison offerte, délai) ; une boutique peut ajouter un quartier manquant.
+- [x] Facture et étiquette colis 10 × 15 cm en PDF (QR code de suivi), messages WhatsApp préremplis selon le statut, page de suivi publique pour le client.
+- [x] Notifications dans la gestion (nouvelle commande, stock bas ou épuisé) et chiffres de l'accueil.
+- Restent pour la V1 : expédition partielle, échanges et retours clients (RMA), notifications push sur téléphone (avec l'application installable).
 
-### Phase 3 : boutique en ligne (4 semaines)
-- [ ] Rendu serveur Blade sur `{boutique}.jibiat-marchand.com/`, 2 thèmes, réglages du thème, pages libres, menus.
-- [ ] Fiche produit avec sélecteur de variantes, panier, commande en une page, zones et frais de livraison, paiement à la livraison, « Commander sur WhatsApp ».
-- [ ] SEO, Open Graph, sitemap, performance (objectif : page produit < 1,5 s en 3G, < 100 Ko de JavaScript).
+### Phase 3 : boutique en ligne (4 semaines) ✅ *réalisée*
+- [x] Rendu serveur Blade sur `{boutique}.jibiat-marchand.com/` (et domaine personnalisé vérifié), sans session : le visiteur n'a qu'un cookie de panier ; les écritures passent par des appels JSON de nos pages (en-tête `X-Requested-With`, limites de débit).
+- [x] 2 thèmes (Classique, Marché) décrits dans `config/themes.php` ; réglages (couleurs, police, bandeau, accueil, collection mise en avant, sections, bouton WhatsApp), logo et image d'accueil ; pages libres (mise en forme simple) et menus en-tête / pied de page, avec menus automatiques par défaut.
+- [x] Accueil, catalogue avec recherche et tri, collections, fiche produit avec sélecteur de variantes (combinaisons épuisées barrées, photo de la variante, stock restant), panier, commande en une page : quartier recherché dans le référentiel, frais et délai de la zone calculés aussitôt (hors zone : frais à confirmer), retrait en boutique, paiement à la livraison. La commande arrive dans la file « À confirmer » ; page de remerciement et lien de suivi.
+- [x] « Commander sur WhatsApp » préremplit le produit, la variante, la quantité et le lien ; coordonnées gardées avec le panier dès la saisie (relance en phase 6) ; origine de la visite (utm, fbclid, ttclid) notée sur la commande.
+- [x] Ouverture et fermeture par le marchand (page « ouvre bientôt » tant que la boutique est fermée), aperçu par lien signé valable une heure, liste de ce qui manque (produits, zones, WhatsApp, logo).
+- [x] SEO : titre, description, adresse canonique, Open Graph, données structurées (Store, Product), `sitemap.xml` et `robots.txt` par boutique.
+- [x] Performance mesurée (Chromium, téléphone, réseau « 3G rapide ») : fiche produit affichée en ~0,55 s, 48 Ko transférés dont 8 Ko de JavaScript (3 Ko compressé), feuille de style propre à la boutique (~6 Ko compressée), photos WebP en `srcset`.
+- Restent pour la V1 : codes promo, avis clients, paiement en ligne (phase 6), éditeur de thème par glisser-déposer, domaine personnalisé en libre-service.
 - **Jalon MVP vendable (~ 12,5 semaines)** : un marchand peut vendre en ligne et sur les réseaux, gérer stock et commandes, et livrer « à la main ».
 
-### Phase 4 : connecteur Delivery App (3 semaines) + ajouts côté Delivery App (2 semaines, en parallèle)
+### Phase 4 : connecteur Delivery App (3 semaines) + ajouts côté Delivery App (2 semaines, en parallèle) ✅ *réalisée*
 *Placée avant les livreurs propres : les entreprises qui utilisent déjà Delivery App sont le premier canal de distribution (§12, suggestion 1).*
-- [ ] Expéditions (statut normalisé), `CarrierDriver`, `DeliveryAppDriver`, `ManualDriver`.
-- [ ] Écran de connexion par clé, correspondance des zones, devis, création et annulation de course, webhooks + synchronisation de secours.
-- [ ] Stock en entrepôt transporteur ; rapprochement des reversements ; lien de suivi client.
-- [ ] Côté Delivery App : §5.7 points 1 à 5 et 7 ; test de contrat de `delivery-app-client` dans sa CI.
-- [ ] Tests de bout en bout sur une instance Delivery App de recette (création → livraison → reversement).
+- [x] Expéditions avec statut normalisé (§5.4), `CarrierDriver`, `DeliveryAppDriver`, `ManualDriver` (transporteur sans API : course envoyée par WhatsApp, statut saisi à la main).
+- [x] Connexion par clé (vérifiée par `GET /me`, portées contrôlées), copie des zones et correspondance automatique avec les lieux de la boutique (corrigeable), devis comparés, création (`Idempotency-Key`, `X-Client-App`) et annulation de course, adresse webhook créée par l'API, réception signée et dédoublonnée, synchronisation de secours toutes les 10 minutes (`shipping:sync`).
+- [x] Effets sur la commande : en préparation à la demande, sortie de stock au ramassage, terminée et encaissement « transporteur » à la livraison, remise en stock au retour, retour à « Confirmée » si la course est refusée ou annulée ; alertes (refus, échec, perte, retour).
+- [x] Stock en entrepôt transporteur (emplacement relié, produits rapprochés par SKU, écarts affichés, course préparée par l'entrepôt avec ses identifiants produits) ; rapprochement des reversements (`payout.paid` → détail par course, écarts) ; numéro, code et lien de suivi du transporteur sur la page de suivi du client.
+- [x] Côté Delivery App (branche `claude/socle-et-api-marchand`) : §5.7 points 1 à 5 et 7 (`/me`, `/webhooks`, `/payouts`, bloc `pickup`, preuves photo en liens signés, `X-Client-App`), portées `webhooks:write` et `payouts:read`, contrat OpenAPI à jour.
+- [x] Test de bout en bout sur une instance Delivery App locale : connexion, zones, devis, course, ramassage, livraison et reversement rapproché sans écart, avec de vrais webhooks signés.
+- [x] Bascule de Delivery App sur `socle` (dépôt public `habibou84/socle`, branche `main` en 1.0.x) : nombres, téléphones, SMS et signature des webhooks viennent du même code dans les deux applications.
+- Restent pour la V1 : flux « Connecter » en un clic (§5.7 point 6), expédition partielle, test de contrat automatisé dans la CI de Delivery App.
 
-### Phase 5 : livreurs propres (3 semaines)
-- [ ] Inscription des livreurs par invitation, zones, disponibilité.
-- [ ] Assignation, application livreur PWA sur `/livreur` (missions, statuts, code de livraison ou photo, encaissements).
-- [ ] Caisse : versements, écarts ; rémunération et relevés.
+### Phase 5 : livreurs propres (3 semaines) ✅ *réalisée*
+- [x] Livreurs ajoutés par la gestion (nom, téléphone, véhicule, zones couvertes, plafond d'espèces, règle de paie) ; lien d'invitation à envoyer par WhatsApp (compte créé avec code SMS) ; un membre de l'équipe qui livre aussi est relié sans invitation ; disponibilité ; désactivation ; limite de l'offre (1 livreur en gratuit, 5 en Pro).
+- [x] Assignation depuis la fiche commande (mes livreurs qui couvrent le quartier et disponibles en premier, puis les transporteurs), réassignation, annulation ; même flux d'expédition que les transporteurs (statuts, sortie de stock, commande livrée ou retournée).
+- [x] Application livreur installable sur `/livreur` (manifeste, fonctionne hors ligne pour l'affichage) : missions du jour, appel / WhatsApp / carte, « colis récupéré », « en route », livré (code du client si la boutique l'exige, photo, espèces ou mobile money, montant), échec avec motif et report, colis rapporté ; argent à verser et paie à recevoir. Un livreur n'a accès qu'à son application.
+- [x] Caisse (gérant ou caissier) : espèces détenues par livreur, alerte au-delà du plafond, versement avec écart (manque ou excédent) ; rémunération par livraison ou par zone, tentative échouée, primes, avances, relevés payés ou annulés.
+- Restent pour la V1 : position du livreur sur la carte et suivi en direct par le client, tournées, notifications push sur le téléphone du livreur.
 - **Jalon V1 livraison (~ 18,5 semaines)** : livreurs propres et transporteurs connectés dans le même flux.
 
-### Phase 6 : paiements en ligne et WhatsApp (4 semaines)
-- [ ] `PaymentGateway` + pilotes **Wave**, **CinetPay**, **PayDunya** ; comptes de paiement du marchand, routage par moyen de paiement, bascule de secours (§6).
-- [ ] Paiement total ou acompte, **liens de paiement** par WhatsApp, remboursements, webhooks vérifiés.
-- [ ] Simulateur de frais et rapport des frais réels par prestataire.
-- [ ] WhatsApp Cloud API au nom du marchand, modèles, boutons de confirmation automatique ; relance des paniers abandonnés.
+### Phase 6 : paiements en ligne et WhatsApp (4 semaines) ✅ *réalisée*
+- [x] `PaymentGateway` + pilotes **Wave** (sessions de paiement), **CinetPay** (v2) et **PayDunya** (factures) ; comptes du marchand (identifiants chiffrés, mode test / réel, frais), routage par moyen de paiement (Wave, Orange Money, MTN, Moov, carte) avec prestataires de secours essayés dans l'ordre (§6).
+- [x] Paiement sur la boutique : désactivé, au choix du client, acompte exigé (% arrondi aux 5 F) ou tout en ligne ; paiement depuis la page de remerciement ; **liens de paiement** (7 jours, un seul ouvert par commande) envoyés par le WhatsApp de la boutique ou par lien wa.me ; un paiement réussi confirme la commande en attente.
+- [x] Webhooks vérifiés (signature Wave, jeton CinetPay, clé PayDunya) et dédoublonnés ; une notification ne valide jamais un paiement seule : statut relu par l'API du prestataire, montant contrôlé. Remboursements par le prestataire quand il le permet, sinon notés comme rendus à la main.
+- [x] Simulateur de frais (volume réel des 3 derniers mois par moyen, coût par prestataire, « choisir la combinaison la moins chère ») et rapport des frais réels par prestataire.
+- [x] WhatsApp Cloud API au nom du marchand : modèles approuvés par événement (demande de confirmation avec boutons Confirmer / Annuler appliqués à la commande, expédition, livraison, lien de paiement, relance de panier), webhooks signés, statuts envoyé / reçu / lu ; paniers abandonnés relancés automatiquement après 1 h (`carts:recover`) ou à la main depuis la gestion.
+- Avant la mise en production : valider chaque pilote sur le bac à sable du prestataire avec de vrais comptes (Wave Business, CinetPay, PayDunya) et faire approuver les modèles chez Meta.
+- Restent pour la V1 : remboursement partiel Wave (l'API ne rembourse que le total), textes de messages modifiables par le marchand (`message_templates`), inscription WhatsApp intégrée (Embedded Signup de Meta) au lieu de la saisie des identifiants.
 
-### Phase 7 : croissance (3 semaines)
-- [ ] Codes promo, livraison gratuite, ventes flash, prix par quantité.
-- [ ] Pixels Meta / TikTok, API Conversions, Analytics.
-- [ ] Règles d'affectation automatiques et comparateur de transporteurs.
-- [ ] Statistiques avancées (canal, produit, zone, livreur, transporteur), rapport quotidien.
+### Phase 7 : croissance (3 semaines) ✅ *réalisée*
+- [x] Moteur de prix commun à la boutique et à la saisie des commandes : **ventes flash** (remise automatique datée, prix barré et compte à rebours), **prix par quantité** (« 3 pour 25 000 F », variantes confondues ; le plus avantageux des deux pour le client, sans cumul), **codes promo** (pourcentage, montant ou livraison offerte ; produits ou collections visés, achat minimum, limites globale et par client, dates), **livraison offerte dès X F** (barre « Plus que … » au panier). Utilisations comptées par commande, libérées à l'annulation ; ventes et remises par promotion.
+- [x] Pixels Meta et TikTok, Google Analytics 4 (vue produit, ajout au panier, début de commande, achat) et **API Conversions de Meta** : l'achat est aussi envoyé par le serveur (données hachées, cookies `_fbp` / `_fbc`, `fbclid`), avec le même identifiant que le pixel pour le dédoublonnage.
+- [x] **Comparateur** à l'expédition (paie du livreur ou devis du transporteur, taux de réussite et délai moyen sur 90 jours, dans la zone si l'historique suffit) et **règles d'affectation** ordonnées (zones, fragile, montant, poids → mes livreurs, un transporteur, le moins cher, le plus rapide, à la main) ; mode désactivé, suggestion ou **automatique** dès la confirmation (échec noté au journal).
+- [x] **Statistiques avancées** (offre Pro) : vue d'ensemble, marge nette des commandes livrées (produits − remises + frais facturés − coût des livraisons), par canal, produit / variante, zone, livreur, transporteur et promotion ; **rapport du jour** par WhatsApp (modèle Meta) ou email, à l'heure choisie par chaque membre (`reports:send`).
+- [x] **Partage de produit** (suggestion 3) : lien court `/p/{code}` (visites comptées, origine notée) et image carrée 1080 × 1080 générée (photo, nom, prix, promotion, boutique).
+- Restent pour la V1 : offres « 1 acheté = 1 offert » (`buy_x_get_y`), tableaux `store_daily_stats` précalculés quand les volumes l'exigeront, événements TikTok côté serveur, dépenses (publicité, emballage) dans la marge.
 
-### Phase 8 : SaaS et lancement (3 semaines)
-- [ ] Abonnements, quotas, paiement sur le compte de la plateforme (§6.5), essai gratuit.
-- [ ] Domaines personnalisés + SSL automatique (§4.4).
-- [ ] Console super administrateur (`admin.jibiat-marchand.com`), sessions de support.
-- [ ] Flux « Connecter » en un clic et annuaire (§5.7 point 6) si Delivery App est prêt.
-- [ ] Déclaration à l'autorité de protection des données (ARTCI en Côte d'Ivoire), CGU / CGV, politique de confidentialité.
-- [ ] Pilote avec 10 marchands (dont des marchands déjà clients d'une entreprise utilisant Delivery App), corrections, documentation, supervision (Sentry, disponibilité).
+### Phase 8 : SaaS et lancement (3 semaines) ✅ *réalisée pour la partie logicielle*
+- [x] **Abonnements** (§6.5) : offres Gratuit, Starter, Pro, Business (prix indicatifs 0 / 5 000 / 15 000 / 35 000 F par mois, deux mois offerts à l'année, modifiables dans la console) ; essai de 14 jours de l'offre Pro à la création ; paiement mensuel ou annuel sur le compte de la plateforme (mêmes pilotes Wave, CinetPay, PayDunya), validé par relecture chez le prestataire ; factures PDF ; rappels avant échéance, retard avec 7 jours de grâce, puis **retour à l'offre gratuite sans rien supprimer** (`billing:run`).
+- [x] **Quotas** de l'offre : commandes par mois (la boutique en ligne affiche un message neutre au client, l'équipe est prévenue), produits, membres, livreurs, transporteurs, comptes de paiement ; fonctions réservées (domaine, WhatsApp automatique, statistiques avancées). Page Abonnement avec l'utilisation de chaque limite.
+- [x] **Domaines personnalisés** (§4.4) : ajout (3 au plus, offre Pro), vérification DNS (TXT de propriété + CNAME ou A), domaine principal (adresse canonique), contrôle chaque nuit (`domains:check`) ; certificats à la demande par Caddy, autorisés par `/_caddy/ask` pour les seuls domaines vérifiés.
+- [x] **Console** `admin.jibiat-marchand.com` : connexion par mot de passe **et code SMS**, tableau de bord (boutiques, actives, revenu mensuel récurrent, ventes, essais qui se terminent, créations par jour), boutiques (recherche, filtres, fiche, suspension / réactivation, essai prolongé, mois offerts), offres (prix, limites, fonctions), factures ; journal des actions.
+- [x] **Sessions de support** : motif, durée limitée (60 min par défaut), rôle « support » sans abonnement, équipe ni comptes de paiement ; le propriétaire est prévenu, voit un bandeau et peut y mettre fin ; fin automatique (`support:expire`). Bouton **« Aide »** (WhatsApp du support) dans la gestion (suggestion 9).
+- [x] **Pages légales** provisoires (`/cgu`, `/confidentialite`), acceptation à la création de boutique ; **supervision** : Sentry, sonde `/up` qui vérifie la base de données ; guide de mise en production, de déclaration ARTCI et de pilote (`docs/LANCEMENT.md`).
+- À faire hors logiciel : relecture juridique des pages légales et identité de l'éditeur, déclaration ARTCI, comptes de paiement de la plateforme, pilote avec 10 marchands (`docs/LANCEMENT.md`).
+- Reste : flux « Connecter » en un clic et annuaire (§5.7 point 6), qui dépend de Delivery App (branche `claude/socle-et-api-marchand` à terminer et déployer) ; export complet des données d'une boutique et fermeture en libre-service.
 
 **Total : environ 6,5 mois** jusqu'au lancement commercial ; MVP vendable vers la **13e semaine**.
 
@@ -514,7 +548,7 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
    - un **programme partenaire** : remise ou commission pour l'entreprise qui fait inscrire ses marchands ;
    - dans la mini-boutique `/b/{slug}` de Delivery App, un bouton **« Passer à la boutique complète »**, qui importe en un clic le catalogue et les clients et crée la connexion transporteur.
 2. ✅ **Création de boutique en 5 minutes depuis un téléphone** (phase 0). La plupart des marchands n'ont pas d'ordinateur. Le back-office `/gestion` doit être conçu d'abord pour le téléphone et installable en PWA, comme les applications de Delivery App.
-3. **Partage de produit prêt pour les réseaux sociaux** (V1, peu coûteux) : pour chaque produit, un lien court (`{boutique}.jibiat-marchand.com/p/abc`) et une **image carrée générée** (photo, prix, nom de la boutique), prête à publier en statut WhatsApp, sur Facebook ou TikTok. C'est la façon dont ces marchands vendent déjà.
+3. ✅ **Partage de produit prêt pour les réseaux sociaux** (phase 7) : pour chaque produit, un lien court (`{boutique}.jibiat-marchand.com/p/abc`) et une **image carrée générée** (photo, prix, nom de la boutique), prête à publier en statut WhatsApp, sur Facebook ou TikTok. C'est la façon dont ces marchands vendent déjà.
 4. **Fiche produit à partir d'une photo** (V1, option des offres payantes) : le marchand prend la photo, l'IA propose titre, description, catégorie et options (couleurs visibles). Il valide ou corrige. C'est un gain de temps énorme pour un catalogue de 200 articles.
 5. ✅ **Code de livraison** remis au client par SMS / WhatsApp et saisi par le livreur (phase 5) : il empêche les fausses livraisons déclarées, surtout avec les livreurs propres.
 6. **Prévoir le multi-pays dès le modèle de données** (coût faible maintenant, élevé plus tard) : pays et devise sur la boutique, format des numéros et zones par pays. Wave et PayDunya ouvrent naturellement le Sénégal.

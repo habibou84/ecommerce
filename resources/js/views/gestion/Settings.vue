@@ -1,0 +1,125 @@
+<script setup>
+import { computed, reactive, ref, watch } from 'vue'
+import Alert from '../../components/Alert.vue'
+import Field from '../../components/Field.vue'
+import http, { errorMessage, fieldErrors } from '../../lib/http'
+import { boot } from '../../lib/boot'
+import { useAuthStore } from '../../stores/auth'
+
+const auth = useAuthStore()
+const canEdit = computed(() => auth.can('store.manage'))
+
+const form = reactive({
+  name: auth.store?.name ?? '',
+  tagline: auth.store?.tagline ?? '',
+  whatsapp_phone: auth.store?.whatsapp_phone ?? '',
+  phone: auth.store?.phone ?? '',
+  email: auth.store?.email ?? '',
+  address: auth.store?.address ?? '',
+})
+const errors = ref({})
+const error = ref('')
+const saved = ref(false)
+const saving = ref(false)
+
+async function save() {
+  saving.value = true
+  errors.value = {}
+  error.value = ''
+  saved.value = false
+  try {
+    const { data } = await http.patch('/store', form)
+    auth.setStore(data.data)
+    saved.value = true
+  } catch (e) {
+    errors.value = fieldErrors(e)
+    if (!Object.keys(errors.value).length) error.value = errorMessage(e)
+  } finally {
+    saving.value = false
+  }
+}
+
+// Adresse de la boutique
+const slug = ref(auth.store?.slug ?? '')
+const slugError = ref('')
+const slugBusy = ref(false)
+watch(slug, (v) => (slug.value = v.toLowerCase()))
+
+async function changeSlug() {
+  if (!confirm(`Votre boutique passera à l'adresse ${slug.value}.${boot.domain}. L'ancienne adresse redirigera vers la nouvelle pendant 90 jours. Continuer ?`)) return
+  slugBusy.value = true
+  slugError.value = ''
+  try {
+    const { data } = await http.put('/store/slug', { slug: slug.value })
+    // La session est liée à l'adresse : on rejoint la nouvelle avec un lien de connexion
+    window.location.assign(data.redirect)
+  } catch (e) {
+    slugError.value = fieldErrors(e).slug ?? errorMessage(e)
+    slugBusy.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="space-y-6">
+    <form class="card space-y-4 p-4 sm:p-6" @submit.prevent="save">
+      <h2 class="font-semibold">Informations de la boutique</h2>
+      <Alert v-if="error">{{ error }}</Alert>
+      <Alert v-if="saved" tone="success">Modifications enregistrées.</Alert>
+      <Alert v-if="!canEdit" tone="info">Seuls le propriétaire et le gérant peuvent modifier ces informations.</Alert>
+
+      <fieldset class="grid gap-4 sm:grid-cols-2" :disabled="!canEdit">
+        <Field id="name" label="Nom" :error="errors.name">
+          <input id="name" v-model="form.name" class="input" maxlength="80" required />
+        </Field>
+        <Field id="tagline" label="Slogan" :error="errors.tagline" hint="Affiché sur votre site et dans les aperçus WhatsApp.">
+          <input id="tagline" v-model="form.tagline" class="input" maxlength="160" />
+        </Field>
+        <Field id="whatsapp_phone" label="WhatsApp des clients" :error="errors.whatsapp_phone" hint="Bouton « Commander sur WhatsApp » du site.">
+          <input id="whatsapp_phone" v-model="form.whatsapp_phone" class="input" type="tel" inputmode="tel" />
+        </Field>
+        <Field id="phone" label="Téléphone" :error="errors.phone">
+          <input id="phone" v-model="form.phone" class="input" type="tel" inputmode="tel" />
+        </Field>
+        <Field id="email" label="E-mail" :error="errors.email">
+          <input id="email" v-model="form.email" class="input" type="email" />
+        </Field>
+        <Field id="address" label="Adresse" :error="errors.address">
+          <input id="address" v-model="form.address" class="input" maxlength="500" />
+        </Field>
+      </fieldset>
+      <button v-if="canEdit" class="btn-brand" :disabled="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button>
+    </form>
+
+    <RouterLink v-if="canEdit" to="/gestion/zones-de-livraison" class="card flex items-center justify-between p-4 hover:border-emerald-600 sm:p-6">
+      <span>
+        <span class="block font-semibold">Zones et frais de livraison</span>
+        <span class="block text-sm text-slate-600">Prix de la livraison selon le quartier, livraison offerte, délai annoncé.</span>
+      </span>
+      <span class="text-slate-400">→</span>
+    </RouterLink>
+
+    <form v-if="canEdit" class="card space-y-4 p-4 sm:p-6" @submit.prevent="changeSlug">
+      <div>
+        <h2 class="font-semibold">Adresse de la boutique</h2>
+        <p class="mt-1 text-sm text-slate-600">L'ancienne adresse redirige vers la nouvelle pendant 90 jours.</p>
+      </div>
+      <Field id="slug" label="Adresse" :error="slugError">
+        <div class="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-600">
+          <input id="slug" v-model="slug" class="min-w-0 flex-1 px-3 py-2.5 text-base outline-none sm:text-sm" maxlength="40" autocapitalize="off" spellcheck="false" />
+          <span class="flex items-center bg-slate-50 px-3 text-sm text-slate-500">.{{ boot.domain }}</span>
+        </div>
+      </Field>
+      <button class="btn-secondary" :disabled="slugBusy || slug === auth.store?.slug">Changer l'adresse</button>
+    </form>
+
+    <section v-if="auth.store?.subscription" class="card p-4 sm:p-6">
+      <h2 class="font-semibold">Abonnement</h2>
+      <p class="mt-1 text-sm text-slate-600">
+        Offre {{ auth.store.subscription.plan }}
+        <template v-if="auth.store.subscription.status === 'trialing'"> (essai gratuit)</template>.
+        Le paiement des abonnements arrive en phase 8.
+      </p>
+    </section>
+  </div>
+</template>

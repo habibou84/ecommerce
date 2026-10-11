@@ -1,0 +1,430 @@
+<?php
+
+namespace Tests\Feature\Shipping;
+
+use App\Enums\OrderStatus;
+use App\Enums\Role;
+use App\Models\CarrierConnection;
+use App\Models\CarrierPayout;
+use App\Models\CarrierZone;
+use App\Models\Order;
+use App\Models\Place;
+use App\Models\Product;
+use App\Models\Shipment;
+use App\Models\StockLevel;
+use App\Models\Store;
+use App\Models\User;
+use App\Services\Catalog\CatalogWriter;
+use App\Services\Orders\OrderDesk;
+use App\Services\Places\Places;
+use Illuminate\Http\Client\Request as HttpRequest;
+use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
+use Jibiat\Socle\Webhooks\WebhookSignature;
+use Tests\TestCase;
+
+class ShippingTest extends TestCase
+{
+    private const API = 'https://rapide.jibiat.com/api/public/v1';
+
+    private const KEY = 'lv_abcd1234_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    private Store $store;
+
+    private Product $robe;
+
+    /** @var array<string, \Closure> Réponses de l'instance Delivery App simulée, la plus récente d'abord */
+    private array $remote = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Http::preventStrayRequests();
+        Http::fake(function (HttpRequest $request) {
+            foreach ($this->remote as $pattern => $response) {
+                [$method, $url] = str_contains($pattern, ' ') ? explode(' ', $pattern, 2) : [null, $pattern];
+                if (($method === null || $method === $request->method()) && Str::is($url, $request->url())) {
+                    return $response();
+                }
+            }
+
+            return Http::response(['message' => 'Introuvable'], 404);
+        });
+        $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode', 'phone' => '+2250700000001']);
+        app(Places::class)->provisionDefaultZone($this->store);
+        $this->robe = app(CatalogWriter::class)->save($this->store, null, [
+            'title' => 'Robe wax',
+            'options' => [['name' => 'Taille', 'values' => ['S', 'M']]],
+            'variants' => [['options' => ['S'], 'price' => 15000, 'on_hand' => 5], ['options' => ['M'], 'price' => 15000, 'on_hand' => 5]],
+        ]);
+        $this->actingAs($this->store->owner);
+    }
+
+    private function remoteOrder(string $status, array $extra = []): array
+    {
+        return array_replace_recursive([
+            'tracking_code' => 'LV-7K2M-QX9P',
+            'merchant_reference' => '#1001-1',
+            'status' => $status,
+            'tracking_url' => 'https://rapide.jibiat.com/suivi/LV-7K2M-QX9P',
+            'delivery_code' => '4821',
+            'amounts' => ['items_amount' => 31500, 'delivery_fee' => 1200, 'fee_payer' => 'merchant', 'cod_amount' => 31500, 'collected_amount' => null],
+            'attempts_count' => 0,
+            'last_incident' => null,
+            'proof' => ['delivered_at' => null, 'photos' => []],
+            'updated_at' => now()->toIso8601String(),
+        ], $extra);
+    }
+
+    /**
+     * @param  array<string, mixed>  $routes  « [MÉTHODE ]url » => réponse
+     */
+    private function stub(array $routes): void
+    {
+        foreach (array_reverse($routes, true) as $pattern => $response) {
+            unset($this->remote[$pattern]);
+            $this->remote = [$pattern => fn () => $response instanceof \Closure ? $response() : $response] + $this->remote;
+        }
+    }
+
+    private function fakeDeliveryApp(): void
+    {
+        $this->stub([
+            self::API.'/me' => Http::response(['data' => [
+                'merchant' => ['id' => 12, 'business_name' => 'Awa Mode'],
+                'company' => ['name' => 'Rapide Express', 'slug' => 'rapide', 'url' => 'https://rapide.jibiat.com'],
+                'key' => ['name' => 'Jibiat Marchand', 'prefix' => 'abcd1234', 'scopes' => ['orders:read', 'orders:write', 'webhooks:write', 'payouts:read']],
+            ]]),
+            self::API.'/zones' => Http::response(['data' => [
+                ['id' => 1, 'parent_id' => null, 'name' => 'Cocody', 'is_shipping' => false, 'is_active' => true],
+                ['id' => 2, 'parent_id' => 1, 'name' => 'Angré', 'is_shipping' => false, 'is_active' => true],
+                ['id' => 3, 'parent_id' => null, 'name' => 'Yopougon', 'is_shipping' => false, 'is_active' => true],
+            ]]),
+            self::API.'/webhooks' => Http::response(['data' => ['id' => 77], 'secret' => 'whsec_secret'], 201),
+            self::API.'/quotes' => Http::response(['data' => ['total' => 1200]]),
+            self::API.'/orders' => Http::response(['data' => $this->remoteOrder('pending')], 201),
+        ]);
+    }
+
+    private function connect(): CarrierConnection
+    {
+        $this->fakeDeliveryApp();
+        $id = $this->storeApi($this->store, 'POST', 'carriers/delivery-app', ['address' => 'rapide.jibiat.com', 'api_key' => self::KEY])
+            ->assertCreated()->json('data.id');
+
+        return CarrierConnection::findOrFail($id);
+    }
+
+    private function place(string $name): Place
+    {
+        return Place::whereNull('store_id')->where('name', $name)->firstOrFail();
+    }
+
+    private function confirmedOrder(string $placeName = 'Angré'): Order
+    {
+        return app(OrderDesk::class)->create($this->store, [
+            'source' => 'whatsapp', 'customer_name' => 'Fatou Diallo', 'customer_phone' => '+2250506070809',
+            'delivery_method' => 'delivery', 'shipping_place_id' => $this->place($placeName)->id,
+            'shipping_address' => 'Cité Arcades', 'shipping_landmark' => 'Face pharmacie', 'confirmed' => true,
+            'items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 2]],
+        ], $this->store->owner);
+    }
+
+    private function ship(Order $order, CarrierConnection $connection): Shipment
+    {
+        $id = $this->storeApi($this->store, 'POST', "orders/{$order->id}/shipments", ['carrier_connection_id' => $connection->id])
+            ->assertCreated()->json('data.id');
+
+        return Shipment::findOrFail($id);
+    }
+
+    private function webhook(CarrierConnection $connection, string $event, array $data, string $id = 'evt-1', ?string $secret = null): TestResponse
+    {
+        $body = json_encode(['id' => $id, 'event' => $event, 'created_at' => now()->toIso8601String(), 'data' => $data]);
+        $timestamp = time();
+
+        return $this->call('POST', 'http://api.localhost/webhooks/carriers/'.$connection->webhook_uuid, [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_X_WEBHOOK_ID' => $id,
+            'HTTP_X_WEBHOOK_EVENT' => $event,
+            'HTTP_X_WEBHOOK_TIMESTAMP' => (string) $timestamp,
+            'HTTP_X_WEBHOOK_SIGNATURE' => WebhookSignature::sign($secret ?? $connection->webhook_secret, $timestamp, $body),
+        ], $body);
+    }
+
+    private function stock(int $variantIndex = 0): array
+    {
+        $level = StockLevel::where('variant_id', $this->robe->variants[$variantIndex]->id)->first();
+
+        return [$level->on_hand, $level->reserved];
+    }
+
+    public function test_connecting_a_delivery_app_company_by_key(): void
+    {
+        $connection = $this->connect();
+
+        $this->assertSame(['active', 'Rapide Express', '77', 'whsec_secret'], [$connection->status, $connection->name, $connection->remote_webhook_id, $connection->webhook_secret]);
+        $this->assertSame(3, CarrierZone::where('connection_id', $connection->id)->count());
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API.'/webhooks'
+            && $r['url'] === 'http://api.localhost/webhooks/carriers/'.$connection->webhook_uuid
+            && $r->hasHeader('Authorization', 'Bearer '.self::KEY)
+            && $r->hasHeader('X-Client-App', 'jibiat-marchand'));
+
+        // Correspondance automatique : Angré → Angré, Siporex → sa commune Yopougon, Plateau non couvert
+        $zones = collect($this->storeApi($this->store, 'GET', "carriers/{$connection->id}/zones")->assertOk()->json('data.places'))->keyBy('label');
+        $byName = CarrierZone::where('connection_id', $connection->id)->pluck('id', 'name');
+        $this->assertSame($byName['Angré'], $zones['Angré, Cocody']['carrier_zone_id']);
+        $this->assertSame($byName['Yopougon'], $zones['Siporex, Yopougon']['carrier_zone_id']);
+        $this->assertNull($zones['Plateau']['carrier_zone_id']);
+
+        $this->storeApi($this->store, 'GET', 'carriers')->assertOk()
+            ->assertJsonPath('data.0.webhook_auto', true)->assertJsonPath('data.0.merchant_name', 'Awa Mode')->assertJsonMissingPath('data.0.api_key');
+
+        // Même entreprise, même compte : refusé
+        $this->storeApi($this->store, 'POST', 'carriers/delivery-app', ['address' => 'rapide.jibiat.com', 'api_key' => self::KEY])->assertStatus(422);
+    }
+
+    public function test_connection_errors_are_explained(): void
+    {
+        $this->storeApi($this->store, 'POST', 'carriers/delivery-app', ['address' => 'evil.example.com', 'api_key' => self::KEY])
+            ->assertStatus(422)->assertJsonValidationErrors('address');
+        $this->storeApi($this->store, 'POST', 'carriers/delivery-app', ['address' => 'rapide.jibiat.com', 'api_key' => 'abc'])
+            ->assertStatus(422)->assertJsonValidationErrors('api_key');
+
+        $this->stub([self::API.'/me' => Http::response(['message' => 'Clé API manquante, invalide, expirée ou révoquée.'], 401)]);
+        $this->storeApi($this->store, 'POST', 'carriers/delivery-app', ['address' => 'rapide.jibiat.com', 'api_key' => self::KEY])
+            ->assertStatus(422)->assertJsonPath('message', 'Clé API refusée par rapide.jibiat.com : vérifiez-la ou créez-en une nouvelle.');
+
+        $this->stub([self::API.'/me' => Http::response(['data' => ['merchant' => ['id' => 1], 'company' => ['name' => 'X'], 'key' => ['scopes' => ['orders:read']]]])]);
+        $this->storeApi($this->store, 'POST', 'carriers/delivery-app', ['address' => 'rapide.jibiat.com', 'api_key' => self::KEY])
+            ->assertStatus(422)->assertJsonPath('message', 'Cette clé n\'a pas les droits nécessaires (orders:write) : créez-en une avec toutes les portées.');
+        $this->assertSame(0, CarrierConnection::count());
+    }
+
+    public function test_shipping_an_order_creates_the_course_and_follows_it_to_delivery(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}/shipping-quotes")->assertOk()
+            ->assertJsonPath('data.0.fee', 1200)->assertJsonPath('data.0.zone', 'Angré (Cocody)');
+
+        $shipment = $this->ship($order, $connection);
+        $this->assertSame(['LV-7K2M-QX9P', 'requested', 1200, '4821'], [$shipment->carrier_tracking_code, $shipment->status->value, $shipment->carrier_fee, $shipment->delivery_code]);
+        $this->assertSame(OrderStatus::Processing, $order->fresh()->status);
+
+        $angre = CarrierZone::where('connection_id', $connection->id)->where('name', 'Angré')->value('remote_id');
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API.'/orders' && $r->method() === 'POST'
+            && $r['merchant_reference'] === '#1001-1'
+            && $r['delivery_zone_id'] === (int) $angre
+            && $r['recipient_phone'] === '+2250506070809'
+            && $r['items_amount'] === 31500 && $r['fee_payer'] === 'merchant'
+            && $r['items'][0] === ['label' => 'Robe wax — S', 'quantity' => 2, 'unit_price' => 15000]
+            && $r['pickup_contact_name'] === 'Awa Mode'
+            && $r->hasHeader('Idempotency-Key', $shipment->idempotency_key));
+
+        // Ramassage : le stock sort
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('picked_up')], 'evt-1')->assertOk();
+        $this->assertSame([OrderStatus::Shipped, 'in_transit'], [$order->fresh()->status, $shipment->fresh()->status->value]);
+        $this->assertSame([3, 0], $this->stock());
+
+        // Même webhook reçu deux fois : ignoré ; signature fausse : refusée
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('picked_up')], 'evt-1')->assertOk();
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('delivered')], 'evt-x', 'whsec_faux')->assertStatus(401);
+        $this->assertSame(1, $shipment->events()->where('status', 'in_transit')->count());
+
+        // Livrée : commande terminée, encaissement du transporteur noté
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('delivered', [
+            'amounts' => ['collected_amount' => 31500],
+            'proof' => ['photos' => [['type' => 'photo_delivery', 'url' => 'https://rapide.jibiat.com/photo?signature=x']]],
+        ])], 'evt-2')->assertOk();
+
+        $order->refresh();
+        $this->assertSame([OrderStatus::Completed, 'paid', 0], [$order->status, $order->payment_status->value, $order->amountDue()]);
+        $this->assertSame('carrier_cod', $order->payments()->first()->kind->value);
+        $this->assertSame('https://rapide.jibiat.com/photo?signature=x', $shipment->fresh()->proof_photo_url);
+
+        $detail = $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertOk();
+        $detail->assertJsonPath('data.shipments.0.status', 'delivered')->assertJsonPath('data.shipments.0.carrier.name', 'Rapide Express');
+        $this->assertSame(['requested', 'in_transit', 'delivered'], array_column($detail->json('data.shipments.0.events'), 'status'));
+
+        // Page de suivi du client : lien du transporteur
+        $this->get($this->storeUrl($this->store, '/suivi/'.$order->tracking_token))->assertOk()->assertSee('Rapide Express')->assertSee('LV-7K2M-QX9P');
+    }
+
+    public function test_cancel_reject_failure_and_return(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, $connection);
+
+        $this->stub([self::API.'/orders/LV-7K2M-QX9P/cancel' => Http::response(['data' => $this->remoteOrder('cancelled')])]);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/cancel", ['reason' => 'Client absent'])->assertOk()->assertJsonPath('data.status', 'cancelled');
+        $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
+        $this->assertSame([5, 2], $this->stock());
+
+        // Nouvelle course, refusée par le transporteur : alerte, commande de nouveau à expédier
+        $this->stub([self::API.'/orders' => Http::response(['data' => $this->remoteOrder('pending', ['tracking_code' => 'LV-2'])], 201)]);
+        $second = $this->ship($order, $connection);
+        $this->assertSame(2, $second->sequence);
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('rejected', ['tracking_code' => 'LV-2'])], 'evt-r')->assertOk();
+        $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
+        $this->assertContains('shipment_rejected', DatabaseNotification::all()->pluck('data.kind'));
+
+        // Troisième : échec, puis retour → remise en stock
+        $this->stub([self::API.'/orders' => Http::response(['data' => $this->remoteOrder('pending', ['tracking_code' => 'LV-3'])], 201)]);
+        $third = $this->ship($order, $connection);
+        $this->webhook($connection, 'order.incident', ['order' => $this->remoteOrder('delivery_failed', ['tracking_code' => 'LV-3', 'last_incident' => 'Client injoignable', 'attempts_count' => 1])], 'evt-f')->assertOk();
+        $this->assertSame(['failed', 'Client injoignable', 1], [$third->fresh()->status->value, $third->fresh()->failure_reason, $third->fresh()->attempts_count]);
+        $this->assertSame(OrderStatus::Shipped, $order->fresh()->status);
+        $this->assertSame([3, 0], $this->stock());
+
+        $this->storeApi($this->store, 'POST', "shipments/{$third->id}/cancel")->assertStatus(422);
+
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('returned', ['tracking_code' => 'LV-3'])], 'evt-ret')->assertOk();
+        $this->assertSame(OrderStatus::Returned, $order->fresh()->status);
+        $this->assertSame([5, 0], $this->stock());
+    }
+
+    public function test_a_late_webhook_does_not_move_the_status_backwards(): void
+    {
+        $connection = $this->connect();
+        $shipment = $this->ship($this->confirmedOrder(), $connection);
+
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('out_for_delivery')], 'evt-2')->assertOk();
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('confirmed', ['updated_at' => now()->subHour()->toIso8601String()])], 'evt-1')->assertOk();
+
+        $this->assertSame('out_for_delivery', $shipment->fresh()->status->value);
+    }
+
+    public function test_periodic_sync_catches_up_lost_webhooks(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+        $this->ship($order, $connection);
+
+        $this->stub([self::API.'/orders*' => Http::response(['data' => [
+            $this->remoteOrder('delivered', ['amounts' => ['collected_amount' => 31500]]),
+            $this->remoteOrder('delivered', ['tracking_code' => 'LV-INCONNU']),
+        ], 'meta' => ['last_page' => 1]])]);
+
+        $this->artisan('shipping:sync')->assertSuccessful();
+
+        $this->assertSame(OrderStatus::Completed, $order->fresh()->status);
+        Http::assertSent(fn (HttpRequest $r) => str_starts_with($r->url(), self::API.'/orders?updated_since='));
+        $this->assertNotNull($connection->fresh()->last_synced_at);
+    }
+
+    public function test_payouts_are_reconciled_with_shipments(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, $connection);
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('delivered', ['amounts' => ['collected_amount' => 31500]])], 'evt-d')->assertOk();
+
+        $this->stub([self::API.'/payouts/RV-261011-00001' => Http::response(['data' => [
+            'reference' => 'RV-261011-00001', 'net_amount' => 30300, 'total_collected' => 31500, 'total_fees' => 1200, 'method' => 'wave', 'paid_at' => now()->toIso8601String(),
+            'entries' => [
+                ['type' => 'cod_credit', 'amount' => 31500, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']],
+                ['type' => 'delivery_fee', 'amount' => -1200, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']],
+            ],
+        ]])]);
+        $this->webhook($connection, 'payout.paid', ['payout' => ['reference' => 'RV-261011-00001']], 'evt-p')->assertOk();
+
+        $payout = CarrierPayout::with('lines')->sole();
+        $this->assertSame(['matched', 0, 30300], [$payout->reconciliation_status, $payout->difference, $payout->amount]);
+        $this->assertSame([$shipment->id, 30300, 30300], [$payout->lines[0]->shipment_id, $payout->lines[0]->net, $payout->lines[0]->expected_net]);
+
+        // Frais retenus plus élevés que le tarif annoncé : écart signalé
+        $this->stub([self::API.'/payouts/RV-2' => Http::response(['data' => [
+            'reference' => 'RV-2', 'net_amount' => 29500, 'total_collected' => 31500, 'total_fees' => 2000,
+            'entries' => [['type' => 'cod_credit', 'amount' => 31500, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']], ['type' => 'delivery_fee', 'amount' => -2000, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']]],
+        ]])]);
+        $this->webhook($connection, 'payout.paid', ['payout' => ['reference' => 'RV-2']], 'evt-p2')->assertOk();
+        $this->storeApi($this->store, 'GET', 'carrier-payouts')->assertOk()
+            ->assertJsonPath('data.0.reference', 'RV-2')->assertJsonPath('data.0.status', 'discrepancy')->assertJsonPath('data.0.difference', -800)
+            ->assertJsonPath('data.0.lines.0.order_reference', '#1001');
+    }
+
+    public function test_manual_carrier_by_whatsapp(): void
+    {
+        $id = $this->storeApi($this->store, 'POST', 'carriers/manual', ['name' => 'Moto Express', 'phone' => '0102030405'])->assertCreated()->json('data.id');
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, CarrierConnection::find($id));
+
+        $message = $this->storeApi($this->store, 'GET', "shipments/{$shipment->id}/message")->assertOk();
+        $this->assertStringContainsString('#1001-1', $message->json('data.text'));
+        $this->assertStringContainsString('À encaisser : 31 500 F', $message->json('data.text'));
+        $this->assertStringStartsWith('https://wa.me/2250102030405?text=', $message->json('data.whatsapp_url'));
+
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/status", ['status' => 'in_transit'])->assertOk();
+        $this->assertSame(OrderStatus::Shipped, $order->fresh()->status);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/status", ['status' => 'delivered', 'collected_amount' => 31500])->assertOk();
+        $this->assertSame([OrderStatus::Completed, 0], [$order->fresh()->status, $order->fresh()->amountDue()]);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/status", ['status' => 'returned'])->assertStatus(422);
+    }
+
+    public function test_rules_and_permissions(): void
+    {
+        $connection = $this->connect();
+        $pending = app(OrderDesk::class)->create($this->store, [
+            'source' => 'whatsapp', 'customer_phone' => '+2250506070809', 'delivery_method' => 'delivery',
+            'shipping_place_id' => $this->place('Angré')->id, 'items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 1]],
+        ], $this->store->owner);
+        $this->storeApi($this->store, 'POST', "orders/{$pending->id}/shipments", ['carrier_connection_id' => $connection->id])
+            ->assertStatus(422)->assertJsonPath('message', 'Seule une commande confirmée peut être expédiée.');
+
+        $order = $this->confirmedOrder();
+        $this->ship($order, $connection);
+        $this->storeApi($this->store, 'POST', "orders/{$order->id}/shipments", ['carrier_connection_id' => $connection->id])
+            ->assertStatus(422)->assertJsonPath('message', 'Cette commande a déjà une expédition en cours.');
+
+        // Transporteur qui refuse : la tentative n'est pas gardée
+        $this->stub([self::API.'/orders' => Http::response(['message' => 'Données invalides', 'errors' => ['delivery_zone_id' => ['Zone inactive.']]], 422)]);
+        $other = $this->confirmedOrder('Yopougon');
+        $this->storeApi($this->store, 'POST', "orders/{$other->id}/shipments", ['carrier_connection_id' => $connection->id])
+            ->assertStatus(422)->assertJsonPath('message', 'Zone inactive.');
+        $this->assertSame(0, Shipment::where('order_id', $other->id)->count());
+
+        $agent = $this->addMember($this->store, User::factory()->create(), Role::ConfirmationAgent);
+        $this->logout();
+        $this->actingAs($agent);
+        $this->storeApi($this->store, 'GET', 'carriers')->assertForbidden();
+        $this->storeApi($this->store, 'POST', "orders/{$other->id}/shipments", ['carrier_connection_id' => $connection->id])->assertForbidden();
+    }
+
+    public function test_stock_in_the_carrier_warehouse(): void
+    {
+        $connection = $this->connect();
+        $connection->forceFill(['scopes' => [...$connection->scopes, 'stock:read']])->save();
+        $this->robe->variants[0]->forceFill(['sku' => 'robe-s'])->save();
+        $sku = 'ROBE-S';
+        $this->stub([
+            self::API.'/hubs' => Http::response(['data' => [['id' => 4, 'name' => 'Entrepôt Treichville', 'zone_id' => 9]]]),
+            self::API.'/products*' => Http::response(['data' => [
+                ['id' => 55, 'sku' => $sku, 'name' => 'Robe wax S', 'levels' => [['hub_id' => 4, 'on_hand' => 8, 'available' => 7], ['hub_id' => null, 'on_hand' => 2, 'available' => 2]]],
+                ['id' => 56, 'sku' => 'INCONNU', 'name' => 'Autre', 'levels' => []],
+            ], 'meta' => ['last_page' => 1]]),
+        ]);
+
+        $locationId = $this->storeApi($this->store, 'POST', "carriers/{$connection->id}/hubs", ['remote_hub_id' => '4'])->assertCreated()->json('data.id');
+        $this->storeApi($this->store, 'POST', "carriers/{$connection->id}/hubs", ['remote_hub_id' => '99'])->assertStatus(422);
+
+        $stock = $this->storeApi($this->store, 'GET', "carriers/{$connection->id}/stock")->assertOk();
+        $stock->assertJsonPath('data.hubs.0.location_id', $locationId)
+            ->assertJsonPath('data.products.0.variant_id', $this->robe->variants[0]->id)
+            ->assertJsonPath('data.products.0.remote_on_hand', 8)
+            ->assertJsonPath('data.products.0.local_on_hand', 0)
+            ->assertJsonPath('data.products.0.difference', 8)
+            ->assertJsonPath('data.products.1.variant_id', null);
+
+        // Expédition depuis l'entrepôt du transporteur : course préparée chez lui, avec ses identifiants produits
+        $order = $this->confirmedOrder();
+        $this->storeApi($this->store, 'POST', "orders/{$order->id}/shipments", ['carrier_connection_id' => $connection->id, 'origin_location_id' => $locationId])->assertCreated();
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API.'/orders' && $r->method() === 'POST'
+            && $r['pickup_hub_id'] === 4 && $r['items'][0]['product_id'] === 55 && ! isset($r['pickup_address']));
+    }
+}
