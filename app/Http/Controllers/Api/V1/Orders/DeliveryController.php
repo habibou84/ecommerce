@@ -34,6 +34,8 @@ class DeliveryController extends Controller
             'label' => $p->label(),
             'type' => $p->type,
             'parent_id' => $p->parent_id,
+            // Pour retrouver la zone de livraison côté écran (quartier, puis commune, puis ville)
+            'ancestor_ids' => array_values(array_filter([$p->parent_id, $p->parent?->parent_id])),
             'is_custom' => $p->store_id !== null,
         ])]);
     }

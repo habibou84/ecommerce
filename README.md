@@ -57,7 +57,7 @@ En local, `PLATFORM_DOMAIN=localhost` : les navigateurs envoient `*.localhost` v
 | Page | Adresse |
 |---|---|
 | Présentation et création de boutique | http://localhost:8000 |
-| Gestion de la boutique de démonstration | http://demo.localhost:8000/gestion : `07 00 00 00 01` / `password` (propriétaire) ou `07 00 00 00 02` / `password` (gérant) |
+| Gestion de la boutique de démonstration | http://demo.localhost:8000/gestion : `07 00 00 00 01` / `password` (propriétaire) ou `07 00 00 00 02` / `password` (gérant). Produits, zone de livraison et deux commandes déjà créés. |
 
 Les SMS ne partent pas en local (`SMS_DRIVER=log`) : le code de vérification s'affiche sur la page et dans
 `storage/logs/laravel.log`. En production, `SMS_DRIVER=twilio` (le code n'est jamais affiché quand `APP_ENV=production`).
@@ -85,6 +85,8 @@ vendor/bin/pint      # style du code
 | `app/Models/Concerns/BelongsToStore.php` | Filtre automatique par boutique, à mettre sur tous les modèles métier |
 | `app/Services/Catalog` | Produits et variantes (`CatalogWriter`), photos (`ImageStore`), import/export CSV, reprise depuis Delivery App |
 | `app/Services/Stock` | Tous les mouvements de stock (`StockKeeper`, journal immuable) et lectures agrégées (`StockLevels`) |
+| `app/Services/Orders` | Commandes (`OrderDesk` : création, statuts, stock, paiements, confirmation), analyse des messages, PDF, messages WhatsApp |
+| `app/Services/Customers`, `app/Services/Places` | Fichier clients et score de risque ; lieux et zones de livraison |
 | `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |
 | `app/Enums/Role.php`, `Permission.php` | Rôles (propriétaire, gérant, agent de confirmation, préparateur, caissier, livreur) et leurs permissions |
 | `packages/socle` | Code commun avec Delivery App : téléphones, montants, SMS, signature des webhooks |

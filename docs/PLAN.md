@@ -430,11 +430,16 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [x] Limite de produits selon l'offre.
 - Les alertes de stock bas par notification (push, WhatsApp) arriveront avec les notifications (phase 2) ; les collections automatiques et les prix par quantité restent en V1 (phase 7).
 
-### Phase 2 : commandes et clients (3 semaines)
-- [ ] Saisie rapide (collage de message), commandes multicanales, statuts commande / paiement séparés.
-- [ ] File de confirmation (appel, WhatsApp manuel, motifs, relances).
-- [ ] CRM : fiche client, adresses, étiquettes, liste noire, score de livraison.
-- [ ] Réservation et sortie de stock, PDF (facture, étiquette).
+### Phase 2 : commandes et clients (3 semaines) ✅ *réalisée*
+- [x] Saisie rapide : le message du client est collé et analysé (téléphones, nom, quartier, adresse, repère, montant, produits avec quantité et variante) ; le client déjà connu retrouve son adresse habituelle.
+- [x] Commandes multicanales (WhatsApp, Facebook, Instagram, TikTok, téléphone, boutique) avec statuts commande / paiement / expédition séparés : à confirmer → confirmée → en préparation → expédiée → livrée, annulée (avec motif) ou retournée (remise en stock au choix).
+- [x] File de confirmation : appel ou WhatsApp en un geste, réponses (confirmée, injoignable, à rappeler, modification, faux numéro, refus), relances planifiées ; l'agent de confirmation peut corriger une commande encore à confirmer.
+- [x] Fichier clients : un client par numéro, adresses, compteurs (commandes, livrées, refus, montant dépensé), taux de livraison, étiquettes, liste noire ; score de risque (refus, liste noire, doublons de moins de 24 h).
+- [x] Stock : réservation à la commande, sortie à l'expédition, libération à l'annulation, retour en stock ; paiements saisis (acompte, mobile money, espèces encaissées à la livraison).
+- [x] Référentiel des lieux (communes et quartiers d'Abidjan, grandes villes, variantes d'écriture) et zones de livraison de la boutique (frais, livraison offerte, délai) ; une boutique peut ajouter un quartier manquant.
+- [x] Facture et étiquette colis 10 × 15 cm en PDF (QR code de suivi), messages WhatsApp préremplis selon le statut, page de suivi publique pour le client.
+- [x] Notifications dans la gestion (nouvelle commande, stock bas ou épuisé) et chiffres de l'accueil.
+- Restent pour la V1 : expédition partielle, échanges et retours clients (RMA), notifications push sur téléphone (avec l'application installable).
 
 ### Phase 3 : boutique en ligne (4 semaines)
 - [ ] Rendu serveur Blade sur `{boutique}.jibiat-marchand.com/`, 2 thèmes, réglages du thème, pages libres, menus.

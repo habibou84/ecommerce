@@ -40,3 +40,11 @@ export function formatDateTime(iso) {
 export function combinations(lists) {
   return lists.reduce((acc, values) => acc.flatMap((combo) => values.map((v) => [...combo, v])), [[]])
 }
+
+/**
+ * +2250707070707 → « 07 07 07 07 07 » (numéros ivoiriens), sinon inchangé.
+ */
+export function phoneDisplay(phone) {
+  const match = /^\+225(\d{10})$/.exec(phone ?? '')
+  return match ? match[1].replace(/(\d{2})(?=\d)/g, '$1 ') : phone ?? ''
+}

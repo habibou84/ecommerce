@@ -59,3 +59,14 @@ export function fieldErrors(error) {
 }
 
 export default http
+
+/**
+ * Téléchargement d'un fichier servi par l'API (PDF, CSV) avec la session en cours.
+ */
+export async function download(url, fallbackName = 'document') {
+  const response = await http.get(url, { responseType: 'blob' })
+  const name = response.headers['content-disposition']?.match(/filename="?([^";]+)"?/)?.[1] ?? fallbackName
+  const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(response.data), download: name })
+  link.click()
+  URL.revokeObjectURL(link.href)
+}

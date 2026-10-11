@@ -227,7 +227,7 @@ class OrderMessageParser
 
     private function name(string $text): ?string
     {
-        if (preg_match('/\b(?:je suis|moi c\'est|pour|client(?:e)?|destinataire|chez|livrer à|livrer a)\s*:?\s+((?:m(?:me|lle|r)?\.?\s+)?\p{Lu}[\p{L}\'\-]+(?:\s+\p{Lu}[\p{L}\'\-]+)?)/u', $text, $m)) {
+        if (preg_match('/\b(?i:je suis|je m\'appelle|moi c\'est|c\'est|c’est|ici|pour|client(?:e)?|destinataire|chez|livrer à|livrer a)\s*:?\s+((?:m(?:me|lle|r)?\.?\s+)?\p{Lu}[\p{L}\'\-]+(?:\s+\p{Lu}[\p{L}\'\-]+)?)/u', $text, $m)) {
             return trim($m[1]);
         }
 

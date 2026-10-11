@@ -605,7 +605,7 @@ Table orders {
   customer_id bigint [ref: > customers.id]
   source varchar(20) [not null, note: 'online_store | manual | whatsapp | facebook | instagram | tiktok | phone | import | pos | api']
   external_reference varchar(100) [note: 'référence de l’import ou de l’API']
-  status varchar(25) [not null, note: 'pending_confirmation | confirmed | processing | shipped | completed | cancelled']
+  status varchar(25) [not null, note: 'pending_confirmation | confirmed | processing | shipped | completed | cancelled | returned']
   payment_status varchar(20) [not null, default: 'unpaid', note: 'unpaid | partially_paid | paid | partially_refunded | refunded']
   fulfillment_status varchar(20) [not null, default: 'unfulfilled', note: 'unfulfilled | partial | fulfilled | returned']
   // Instantané client et livraison
@@ -623,6 +623,7 @@ Table orders {
   shipping_longitude decimal(9,6)
   delivery_zone_id bigint [ref: > delivery_zones.id]
   pickup_location_id bigint [ref: > stock_locations.id, note: 'retrait en boutique']
+  location_id bigint [ref: > stock_locations.id, note: 'emplacement qui prépare la commande (réservation du stock)']
   scheduled_date date
   time_slot varchar(20)
   // Montants
@@ -643,9 +644,13 @@ Table orders {
   tracking_token varchar(32) [unique, note: 'lien public {slug}.jibiat-marchand.com/suivi/{token}']
   confirmed_at timestamp
   confirmed_by bigint [ref: > users.id]
-  cancelled_at timestamp
-  cancel_reason varchar
+  callback_at timestamp [note: 'relance prévue dans la file de confirmation']
+  shipped_at timestamp
   completed_at timestamp
+  cancelled_at timestamp
+  cancel_reason varchar(30) [note: 'customer_refused | unreachable | wrong_number | out_of_stock | duplicate | fraud | customer_request | other']
+  cancel_note varchar
+  returned_at timestamp
   created_by bigint [ref: > users.id, note: 'null = commande passée par le client']
   created_at timestamp [not null]
   indexes {

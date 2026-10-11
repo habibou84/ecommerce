@@ -41,6 +41,16 @@ class OrderMessageParserTest extends TestCase
         $this->assertSame([1, $sac->variants[0]->id], [$items['Sac en pagne']['quantity'], $items['Sac en pagne']['variant_id']]);
     }
 
+    public function test_names_after_usual_introductions(): void
+    {
+        $store = $this->createStore();
+        $parser = app(OrderMessageParser::class);
+
+        $this->assertSame('Aïcha Bamba', $parser->parse($store, "Bonsoir c'est Aïcha Bamba, je suis à Angré")['customer_name']);
+        $this->assertSame('Koffi', $parser->parse($store, "Je m'appelle Koffi et je veux un sac")['customer_name']);
+        $this->assertNull($parser->parse($store, "c'est pour un cadeau")['customer_name']);
+    }
+
     public function test_labeled_messages_and_unknown_variants(): void
     {
         $store = $this->createStore();

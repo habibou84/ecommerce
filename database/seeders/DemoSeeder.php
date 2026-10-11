@@ -5,14 +5,20 @@ namespace Database\Seeders;
 use App\Enums\Role;
 use App\Enums\StoreStatus;
 use App\Enums\UserStatus;
+use App\Models\Place;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\StoreRoles;
+use App\Services\Catalog\CatalogWriter;
+use App\Services\Orders\OrderDesk;
+use App\Services\Places\Places;
 use Illuminate\Database\Seeder;
 
 /**
  * Données de démonstration (local uniquement) : boutique « demo » → http://demo.localhost:8000/gestion
- * Propriétaire : 07 00 00 00 01 / password ; gérante : 07 00 00 00 02 / password.
+ * Propriétaire : 07 00 00 00 01 / password ; gérant : 07 00 00 00 02 / password.
+ * Avec une zone de livraison, quelques produits (dont une robe à 6 variantes) et deux commandes.
  */
 class DemoSeeder extends Seeder
 {
@@ -34,5 +40,35 @@ class DemoSeeder extends Seeder
             $store->members()->updateOrCreate(['user_id' => $user->id], ['status' => UserStatus::Active, 'joined_at' => now()]);
             $roles->assign($user, $store, $role);
         }
+
+        app(Places::class)->provisionDefaultZone($store);
+
+        if (Product::forStore($store->id)->exists()) {
+            return;
+        }
+
+        $writer = app(CatalogWriter::class);
+        $robe = $writer->save($store, null, [
+            'title' => 'Robe wax évasée', 'description' => 'Coton wax, coupe évasée, longueur genou.', 'tags' => ['wax', 'nouveauté'],
+            'options' => [['name' => 'Taille', 'values' => ['S', 'M', 'L']], ['name' => 'Couleur', 'values' => ['Rouge', 'Bleu']]],
+            'variants' => collect(['S', 'M', 'L'])->crossJoin(['Rouge', 'Bleu'])
+                ->map(fn ($c) => ['options' => $c, 'price' => 15000, 'cost_price' => 6500, 'on_hand' => 4])->all(),
+        ]);
+        $sac = $writer->save($store, null, ['title' => 'Sac en pagne', 'variants' => [['price' => 9000, 'cost_price' => 3500, 'sku' => 'SAC-PAGNE', 'on_hand' => 12]]]);
+        $writer->save($store, null, ['title' => 'Collier perles', 'variants' => [['price' => 3500, 'cost_price' => 1200, 'sku' => 'COL-PERLES', 'on_hand' => 2]]]);
+
+        $desk = app(OrderDesk::class);
+        $place = fn (string $name) => Place::whereNull('store_id')->where('name', $name)->value('id');
+        $desk->create($store, [
+            'source' => 'whatsapp', 'customer_name' => 'Fatou Diallo', 'customer_phone' => '+2250506070809', 'delivery_method' => 'delivery',
+            'shipping_place_id' => $place('Angré'), 'shipping_address' => 'Cité Arcades', 'shipping_landmark' => 'Face pharmacie Arcades',
+            'items' => [['variant_id' => $robe->variants[2]->id, 'quantity' => 1], ['variant_id' => $sac->variants[0]->id, 'quantity' => 1]],
+        ], $owner);
+        $confirmed = $desk->create($store, [
+            'source' => 'facebook', 'customer_name' => 'Mariam Traoré', 'customer_phone' => '+2250102030405', 'delivery_method' => 'delivery',
+            'shipping_place_id' => $place('Siporex'), 'confirmed' => true,
+            'items' => [['variant_id' => $sac->variants[0]->id, 'quantity' => 2]],
+        ], $owner);
+        $desk->recordPayment($confirmed, ['amount' => 5000, 'method' => 'wave', 'reference' => 'WAVE-DEMO'], $owner);
     }
 }

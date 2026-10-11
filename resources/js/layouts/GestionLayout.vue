@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import NotificationBell from '../components/NotificationBell.vue'
 import http, { errorMessage } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
 
@@ -13,7 +14,8 @@ const switchError = ref('')
 // Modules à venir : affichés pour montrer la suite, sans lien
 const nav = computed(() => [
   { to: '/gestion', label: 'Accueil', icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z', exact: true },
-  { label: 'Commandes', icon: 'M4 4h16v4H4zM4 10h16v10H4z', soon: 'Phase 2' },
+  ...(auth.can('orders.view') ? [{ to: '/gestion/commandes', label: 'Commandes', icon: 'M4 4h16v4H4zM4 10h16v10H4z' }] : []),
+  ...(auth.can('orders.confirm') ? [{ to: '/gestion/confirmation', label: 'À confirmer', icon: 'M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z' }] : []),
   ...(auth.can('products.view')
     ? [
         { to: '/gestion/catalogue', label: 'Catalogue', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' },
@@ -21,8 +23,8 @@ const nav = computed(() => [
       ]
     : []),
   ...(auth.can('stock.manage') ? [{ to: '/gestion/stock', label: 'Stock', icon: 'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7M12 11v10' }] : []),
-  { label: 'Clients', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 9a8 8 0 0 1 16 0z', soon: 'Phase 2' },
-  { label: 'Livraisons', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', soon: 'Phase 4' },
+  ...(auth.can('customers.view') ? [{ to: '/gestion/clients', label: 'Clients', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 9a8 8 0 0 1 16 0z' }] : []),
+  { label: 'Expéditions', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', soon: 'Phase 4' },
   ...(auth.can('team.manage') ? [{ to: '/gestion/equipe', label: 'Équipe', icon: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 10a7 7 0 0 1 14 0zm15-10a3 3 0 1 0 0-6M22 21a6 6 0 0 0-4-5.6' }] : []),
   { to: '/gestion/parametres', label: 'Paramètres', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z' },
 ])
@@ -106,6 +108,7 @@ async function switchTo(store) {
         </button>
         <h1 class="truncate text-lg font-semibold">{{ route.meta.title }}</h1>
         <div class="ml-auto flex items-center gap-3">
+          <NotificationBell />
           <span class="hidden text-right text-sm sm:block">
             <span class="block font-medium">{{ auth.user?.name }}</span>
             <span class="block text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
