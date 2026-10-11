@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\Payments\PaymentDesk;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\Storefront\CartService;
 use App\Services\Storefront\Checkout;
+use App\Services\Storefront\OnlinePayment;
 use App\Services\Storefront\StorefrontView;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +29,7 @@ class CheckoutController extends Controller
         private readonly CartService $carts,
         private readonly Checkout $checkout,
         private readonly StorefrontView $view,
+        private readonly OnlinePayment $onlinePayment,
     ) {}
 
     public function show(Request $request): View|RedirectResponse
@@ -41,6 +45,7 @@ class CheckoutController extends Controller
             'summary' => $summary,
             'cart' => $cart,
             'pickupPoints' => $this->checkout->pickupPoints($store),
+            'payment' => $this->onlinePayment->options($store, $summary['subtotal']),
             'meta' => ['title' => 'Commande · '.$store->name, 'description' => '', 'path' => '/commande', 'noindex' => true],
         ]);
     }
@@ -96,13 +101,34 @@ class CheckoutController extends Controller
             'landmark' => ['nullable', 'string', 'max:255'],
             'pickup_location_id' => ['nullable', 'integer'],
             'note' => ['nullable', 'string', 'max:1000'],
-        ], [], ['name' => 'nom', 'phone' => 'téléphone', 'place_id' => 'quartier']);
+            'payment' => ['nullable', Rule::in(['cod', 'online'])],
+            'payment_method' => ['nullable', Rule::in(array_keys(PaymentDesk::METHODS))],
+        ], [], ['name' => 'nom', 'phone' => 'téléphone', 'place_id' => 'quartier', 'payment_method' => 'moyen de paiement']);
 
         $store = $this->currentStore();
         $cart = $this->carts->find($request, $store) ?? abort(422, 'Votre panier est vide.');
-        $order = $this->checkout->place($store, $cart, $data);
 
-        return response()->json(['redirect' => '/commande/merci/'.$order->tracking_token], 201);
+        // Paiement en ligne : au choix du client, ou exigé (total ou acompte) par la boutique
+        $options = $this->onlinePayment->options($store);
+        $online = $options['mode'] === 'required' || $options['mode'] === 'deposit' || ($options['mode'] === 'optional' && ($data['payment'] ?? 'cod') === 'online');
+        if ($online && ! array_key_exists($data['payment_method'] ?? '', $options['methods'])) {
+            throw new BusinessRuleException('Choisissez votre moyen de paiement.', 'payment_method');
+        }
+
+        $order = $this->checkout->place($store, $cart, $data);
+        $thanks = '/commande/merci/'.$order->tracking_token;
+        if (! $online) {
+            return response()->json(['redirect' => $thanks], 201);
+        }
+
+        try {
+            $payment = $this->onlinePayment->payOrder($order, $data['payment_method'], $options['mode'] === 'deposit');
+        } catch (BusinessRuleException) {
+            // Commande enregistrée ; le client pourra payer depuis la page de remerciement
+            return response()->json(['redirect' => $thanks.'?paiement=indisponible'], 201);
+        }
+
+        return response()->json(['redirect' => $payment->checkout_url], 201);
     }
 
     public function thanks(Request $request, string $token): View
@@ -112,6 +138,8 @@ class CheckoutController extends Controller
 
         return view('storefront.thanks', $this->view->shared($request, $store) + [
             'order' => $order,
+            'payment' => $this->onlinePayment->options($store),
+            'paymentUnavailable' => $request->query('paiement') === 'indisponible',
             'whatsappText' => 'Bonjour, je viens de passer la commande '.$order->reference().' sur votre boutique.',
             'meta' => ['title' => 'Merci · '.$store->name, 'description' => '', 'path' => '/commande/merci', 'noindex' => true],
         ]);

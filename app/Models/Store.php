@@ -32,6 +32,7 @@ class Store extends Model
         'next_order_number' => 1001,
         'require_order_confirmation' => true,
         'storefront_enabled' => false,
+        'online_payment' => 'off',
         'require_delivery_code' => false,
         'default_fee_payer' => 'customer',
         'allow_backorder' => false,

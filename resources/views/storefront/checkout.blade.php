@@ -92,7 +92,26 @@
                     <p data-eta class="text-xs text-slate-500" hidden></p>
                     <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold"><dt>Total</dt><dd data-total>@money($summary['subtotal'])</dd></div>
                 </dl>
-                <p class="mt-4 rounded-lg bg-brand-soft p-3 text-sm">💵 Paiement à la livraison, en espèces ou Mobile Money.</p>
+                @if ($payment['mode'] === 'off')
+                    <p class="mt-4 rounded-lg bg-brand-soft p-3 text-sm">💵 Paiement à la livraison, en espèces ou Mobile Money.</p>
+                @else
+                    <fieldset class="mt-4 space-y-3 text-sm" data-payment>
+                        <legend class="mb-2 font-semibold">Paiement</legend>
+                        @if ($payment['mode'] === 'optional')
+                            <label class="flex items-center gap-2"><input type="radio" name="payment" value="cod" checked class="accent-[var(--brand)]"> À la livraison (espèces ou Mobile Money)</label>
+                            <label class="flex items-center gap-2"><input type="radio" name="payment" value="online" class="accent-[var(--brand)]"> Maintenant en ligne</label>
+                        @elseif ($payment['mode'] === 'deposit')
+                            <input type="hidden" name="payment" value="online">
+                            <p class="rounded-lg bg-brand-soft p-3">Acompte de {{ $payment['deposit_percent'] }} % à payer maintenant ({{ \Jibiat\Socle\Money::format($payment['deposit']) }} environ), le reste à la livraison.</p>
+                        @else
+                            <input type="hidden" name="payment" value="online">
+                            <p class="rounded-lg bg-brand-soft p-3">Paiement en ligne à la commande.</p>
+                        @endif
+                        <div data-payment-methods @if ($payment['mode'] === 'optional') hidden @endif>
+                            @include('storefront.partials.pay-methods', ['methods' => $payment['methods']])
+                        </div>
+                    </fieldset>
+                @endif
                 <p data-error="form" class="mt-3 text-sm text-red-700" hidden></p>
                 <button type="submit" class="btn-store mt-4 w-full">Confirmer la commande</button>
             </aside>

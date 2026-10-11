@@ -87,7 +87,7 @@ vendor/bin/pint      # style du code
 - `.env` : `APP_URL=https://jibiat-marchand.com`, `PLATFORM_DOMAIN=jibiat-marchand.com`, `SESSION_SECURE_COOKIE=true`,
   `SESSION_DOMAIN` **vide** (cookie limité à chaque sous-domaine).
 - `api.jibiat-marchand.com` reçoit les webhooks des entreprises de livraison (`/webhooks/carriers/{uuid}`).
-- Tâches planifiées : `* * * * * php artisan schedule:run` (synchronisation des expéditions toutes les 10 minutes).
+- Tâches planifiées : `* * * * * php artisan schedule:run` (synchronisation des expéditions toutes les 10 minutes, relance des paniers abandonnés chaque heure) ; `php artisan queue:work` pour les messages WhatsApp.
 
 ## Organisation du code
 
@@ -102,6 +102,8 @@ vendor/bin/pint      # style du code
 | `app/Services/Customers`, `app/Services/Places` | Fichier clients et score de risque ; lieux et zones de livraison |
 | `app/Services/Shipping` | Expéditions et transporteurs : connecteurs (`Drivers/`), `ShipmentDesk` (course, statuts → commande), webhooks et synchronisation (`CarrierEvents`), reversements, stock chez le transporteur |
 | `app/Services/Couriers` | Livreurs de la boutique : ajout et invitation (`CourierRoster`), actions du livreur (`CourierDesk`), encaissements et gains (`CourierMissions`), caisse (`CashDesk`), paie (`CourierPayroll`) |
+| `app/Services/Payments` | Paiement en ligne sur les comptes du marchand : pilotes `Gateways/` (Wave, CinetPay, PayDunya), `PaymentDesk` (routage et secours, vérification, webhooks, remboursements), `FeeSimulator` |
+| `app/Services/WhatsApp` | WhatsApp Cloud API au nom du marchand : envoi des modèles (`WhatsAppCloud`), messages automatiques et réponses des clients (`CustomerMessenger`) |
 | `resources/js/views/courier`, `public/livreur-sw.js` | Application livreur `/livreur` (installable) |
 | `app/Services/Storefront`, `routes/storefront.php` | Boutique en ligne : thèmes (`config/themes.php`), catalogue public, panier par cookie, commande en une page ; routes sans session |
 | `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |

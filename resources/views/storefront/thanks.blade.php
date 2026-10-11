@@ -21,9 +21,26 @@
             </ul>
             <dl class="space-y-1 border-t border-slate-200 px-4 py-3 text-sm">
                 <div class="flex justify-between"><dt>Livraison</dt><dd>{{ $order->shipping_fee ? \Jibiat\Socle\Money::format($order->shipping_fee) : ($order->delivery_method === 'pickup' ? 'Retrait' : ($order->internal_note ? 'À confirmer' : 'Offerte')) }}</dd></div>
-                <div class="flex justify-between font-semibold"><dt>Total à payer à la livraison</dt><dd>@money($order->total)</dd></div>
+                @if ($order->amount_paid)
+                    <div class="flex justify-between text-emerald-800"><dt>Déjà payé</dt><dd>@money($order->amount_paid)</dd></div>
+                @endif
+                <div class="flex justify-between font-semibold"><dt>{{ $order->amount_paid ? 'Reste à payer' : 'Total à payer à la livraison' }}</dt><dd>@money($order->amountDue())</dd></div>
             </dl>
         </div>
+
+        @if ($payment['mode'] !== 'off' && $order->amountDue() > 0 && ! in_array($order->status->value, ['cancelled', 'returned']))
+            <div class="mt-6">
+                @if ($paymentUnavailable)
+                    <p class="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Le paiement en ligne n'a pas pu être ouvert. Réessayez, ou payez à la livraison.</p>
+                @endif
+                @include('storefront.partials.pay-order', [
+                    'action' => '/commande/'.$order->tracking_token.'/paiement',
+                    'methods' => $payment['methods'],
+                    'amount' => $payment['mode'] === 'deposit' && $order->amount_paid === 0 ? min($order->amountDue(), \App\Services\Storefront\OnlinePayment::deposit($order->total, $payment['deposit_percent'])) : $order->amountDue(),
+                    'title' => $payment['mode'] === 'deposit' && $order->amount_paid === 0 ? 'Acompte à payer' : 'Payer maintenant',
+                ])
+            </div>
+        @endif
 
         <div class="mt-6 grid gap-3">
             <a href="/suivi/{{ $order->tracking_token }}" class="btn-outline w-full">Suivre ma commande</a>

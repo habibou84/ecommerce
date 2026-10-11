@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cart;
 use App\Services\Storefront\CartService;
 use App\Services\Storefront\StorefrontView;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -21,6 +23,16 @@ class CartController extends Controller
             'summary' => $this->carts->summary($store, $this->carts->find($request, $store)),
             'meta' => ['title' => 'Panier · '.$store->name, 'description' => '', 'path' => '/panier', 'noindex' => true],
         ]);
+    }
+
+    /**
+     * Lien de relance d'un panier abandonné (WhatsApp) : le panier est retrouvé sur ce téléphone.
+     */
+    public function resume(string $token): RedirectResponse
+    {
+        $cart = Cart::forStore($this->currentStore()->id)->where('token', $token)->where('status', 'active')->first();
+
+        return $cart ? redirect('/panier')->withCookie($this->carts->cookie($cart)) : redirect('/');
     }
 
     public function summary(Request $request): JsonResponse

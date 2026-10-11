@@ -61,7 +61,8 @@ const total = (c) => Object.entries(c).filter(([k]) => k !== 'to_ship').reduce((
         <option value="online_store">Site</option>
         <option v-for="s in SOURCES" :key="s.value" :value="s.value">{{ s.label }}</option>
       </select>
-      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/commandes/nouvelle" class="btn-brand sm:ml-auto">+ Commande</RouterLink>
+      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/paniers-abandonnes" class="btn-ghost sm:ml-auto">Paniers abandonnés</RouterLink>
+      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/commandes/nouvelle" class="btn-brand">+ Commande</RouterLink>
     </div>
 
     <nav class="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">

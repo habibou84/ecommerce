@@ -15,8 +15,8 @@ const auth = useAuthStore()
 const order = ref(null)
 const error = ref('')
 const busy = ref(false)
-const modal = ref(null) // 'cancel' | 'complete' | 'return' | 'payment' | 'callback'
-const form = reactive({ reason: 'customer_refused', note: '', collect_payment: true, method: 'cash', restock: true, amount: '', reference: '', callback_at: '' })
+const modal = ref(null) // 'cancel' | 'complete' | 'return' | 'payment' | 'callback' | 'link' | 'refund'
+const form = reactive({ reason: 'customer_refused', note: '', collect_payment: true, method: 'cash', restock: true, amount: '', reference: '', callback_at: '', manual: false })
 const formErrors = ref({})
 const note = ref('')
 
@@ -68,6 +68,51 @@ function quickCallback(when) {
   confirm('callback', { callback_at: at.toISOString() })
 }
 
+// Lien de paiement en ligne à envoyer au client
+const payLink = ref(null)
+async function createPayLink() {
+  busy.value = true
+  error.value = ''
+  formErrors.value = {}
+  try {
+    payLink.value = (await http.post(`/orders/${props.id}/payment-links`, { amount: Number(form.amount) || null })).data.data
+  } catch (e) {
+    formErrors.value = fieldErrors(e)
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+function openPayLink() {
+  payLink.value = null
+  openModal('link')
+}
+
+// Remboursement (par le prestataire si possible, sinon noté comme rendu à la main)
+const canRefund = computed(() => auth.can('payments.manage') && order.value?.amount_paid > order.value?.amount_refunded)
+const refundResult = ref(null)
+function openRefund() {
+  refundResult.value = null
+  openModal('refund')
+  form.amount = order.value.amount_paid - order.value.amount_refunded
+  form.note = ''
+  form.manual = false
+}
+async function refund() {
+  busy.value = true
+  error.value = ''
+  formErrors.value = {}
+  try {
+    refundResult.value = (await http.post(`/orders/${props.id}/refunds`, { amount: Number(form.amount), reason: form.note || null, manual: form.manual })).data.data
+    await load()
+  } catch (e) {
+    formErrors.value = fieldErrors(e)
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function addNote() {
   await http.post(`/orders/${props.id}/notes`, { note: note.value })
   note.value = ''
@@ -107,6 +152,8 @@ async function addNote() {
         <button v-if="nextStatuses.includes('shipped')" class="btn-brand" :disabled="busy" @click="setStatus('shipped')">Expédiée</button>
         <button v-if="nextStatuses.includes('completed')" class="btn-secondary" :disabled="busy" @click="openModal('complete')">Livrée</button>
         <button v-if="order.amount_due > 0 && !['cancelled', 'returned'].includes(order.status)" class="btn-secondary" @click="openModal('payment')">+ Paiement</button>
+        <button v-if="order.amount_due > 0 && !['cancelled', 'returned'].includes(order.status)" class="btn-secondary" @click="openPayLink">Lien de paiement</button>
+        <button v-if="canRefund" class="btn-ghost" @click="openRefund">Rembourser</button>
         <RouterLink v-if="order.is_editable" :to="`/gestion/commandes/${order.id}/modifier`" class="btn-secondary">Modifier</RouterLink>
         <button v-if="nextStatuses.includes('returned')" class="btn-ghost text-red-600" @click="openModal('return')">Retour</button>
         <button v-if="nextStatuses.includes('cancelled')" class="btn-ghost text-red-600" @click="openModal('cancel')">Annuler</button>
@@ -134,6 +181,7 @@ async function addNote() {
             <div class="flex justify-between"><span>Livraison{{ order.delivery_zone ? ` (${order.delivery_zone.name})` : '' }}</span><span>{{ order.shipping_fee ? money(order.shipping_fee) : 'Offerte' }}</span></div>
             <div class="flex justify-between text-base font-semibold"><span>Total</span><span>{{ money(order.total) }}</span></div>
             <div v-if="order.amount_paid" class="flex justify-between text-slate-600"><span>Payé</span><span>{{ money(order.amount_paid) }}</span></div>
+            <div v-if="order.amount_refunded" class="flex justify-between text-slate-600"><span>Remboursé</span><span>− {{ money(order.amount_refunded) }}</span></div>
             <div v-if="order.amount_due && order.amount_paid" class="flex justify-between font-medium text-amber-800"><span>Reste à payer</span><span>{{ money(order.amount_due) }}</span></div>
             <div v-if="order.cost_total !== null && auth.can('finance.view')" class="flex justify-between text-slate-500"><span>Marge</span><span>{{ money(order.subtotal - order.discount_total - order.cost_total) }}</span></div>
           </div>
@@ -282,6 +330,45 @@ async function addNote() {
           <button class="btn-ghost text-red-600" @click="confirm('refused')">Refuse la commande</button>
         </div>
       </div>
+    </Modal>
+
+    <Modal v-if="modal === 'link'" title="Lien de paiement" @close="modal = null">
+      <div v-if="payLink" class="space-y-3 text-sm">
+        <Alert tone="success">
+          Lien de {{ money(payLink.amount) }} valable jusqu'au {{ formatDateTime(payLink.expires_at) }}.
+          <template v-if="payLink.sent_by_whatsapp"> Il a été envoyé au client par le WhatsApp de la boutique.</template>
+        </Alert>
+        <input class="input text-xs" :value="payLink.url" readonly @focus="$event.target.select()" />
+        <a v-if="!payLink.sent_by_whatsapp" :href="payLink.whatsapp_url" target="_blank" rel="noopener" class="btn-brand w-full">💬 Envoyer par WhatsApp</a>
+        <button class="btn-secondary w-full" @click="modal = null">Fermer</button>
+      </div>
+      <form v-else class="space-y-4" @submit.prevent="createPayLink">
+        <Alert v-if="error">{{ error }}</Alert>
+        <p class="text-sm text-slate-600">Le client paie en ligne (Wave, mobile money ou carte) ; la commande est mise à jour dès que le paiement est vérifié. Un nouveau lien remplace le précédent.</p>
+        <Field id="link-amount" label="Montant (F)" :error="formErrors.amount" :hint="`Reste à payer : ${money(order.amount_due)}`">
+          <input id="link-amount" v-model="form.amount" class="input" type="number" min="5" :max="order.amount_due" required />
+        </Field>
+        <button class="btn-brand w-full" :disabled="busy">Créer le lien</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'refund'" title="Rembourser le client" @close="modal = null">
+      <div v-if="refundResult" class="space-y-3 text-sm">
+        <Alert :tone="refundResult.method === 'provider' ? 'success' : 'warning'">{{ money(refundResult.amount) }} — {{ refundResult.message }}</Alert>
+        <button class="btn-secondary w-full" @click="modal = null">Fermer</button>
+      </div>
+      <form v-else class="space-y-4" @submit.prevent="refund">
+        <Alert v-if="error">{{ error }}</Alert>
+        <Field id="refund-amount" label="Montant (F)" :error="formErrors.amount" :hint="`Payé : ${money(order.amount_paid)}${order.amount_refunded ? ` · déjà remboursé : ${money(order.amount_refunded)}` : ''}`">
+          <input id="refund-amount" v-model="form.amount" class="input" type="number" min="1" :max="order.amount_paid - order.amount_refunded" required />
+        </Field>
+        <Field id="refund-reason" label="Motif"><input id="refund-reason" v-model="form.note" class="input" maxlength="255" /></Field>
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="form.manual" type="checkbox" class="h-4 w-4 accent-emerald-700" />
+          Déjà rendu à la main (ne pas passer par le prestataire)
+        </label>
+        <button class="btn-danger w-full" :disabled="busy">Rembourser</button>
+      </form>
     </Modal>
   </div>
   <p v-else-if="!error" class="text-sm text-slate-500">Chargement…</p>

@@ -328,6 +328,35 @@ function checkoutPage() {
   quote()
 }
 
+/* ---------- Paiement en ligne ---------- */
+
+function paymentForms() {
+  // Commande : la liste des moyens n'apparaît que si le client choisit de payer en ligne
+  const methods = $('[data-payment-methods]')
+  $$('[name=payment]').forEach((radio) =>
+    radio.addEventListener('change', () => (methods.hidden = $('[name=payment]:checked')?.value !== 'online')),
+  )
+
+  // Lien de paiement, paiement depuis la page de remerciement
+  $$('[data-pay-form]').forEach((form) =>
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault()
+      const button = $('button', form)
+      const error = $('[data-pay-error]', form)
+      button.disabled = true
+      error.hidden = true
+      try {
+        const { redirect } = await api('POST', form.getAttribute('action'), { method: new FormData(form).get('method') })
+        window.location.href = redirect
+      } catch (e) {
+        error.textContent = firstError(e)
+        error.hidden = false
+        button.disabled = false
+      }
+    }),
+  )
+}
+
 /* ---------- Commun ---------- */
 
 $$('[data-autosubmit]').forEach((el) => el.addEventListener('change', () => el.form.submit()))
@@ -335,3 +364,4 @@ $$('[data-autosubmit]').forEach((el) => el.addEventListener('change', () => el.f
 productPage()
 cartPage()
 checkoutPage()
+paymentForms()

@@ -471,11 +471,14 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - Restent pour la V1 : position du livreur sur la carte et suivi en direct par le client, tournées, notifications push sur le téléphone du livreur.
 - **Jalon V1 livraison (~ 18,5 semaines)** : livreurs propres et transporteurs connectés dans le même flux.
 
-### Phase 6 : paiements en ligne et WhatsApp (4 semaines)
-- [ ] `PaymentGateway` + pilotes **Wave**, **CinetPay**, **PayDunya** ; comptes de paiement du marchand, routage par moyen de paiement, bascule de secours (§6).
-- [ ] Paiement total ou acompte, **liens de paiement** par WhatsApp, remboursements, webhooks vérifiés.
-- [ ] Simulateur de frais et rapport des frais réels par prestataire.
-- [ ] WhatsApp Cloud API au nom du marchand, modèles, boutons de confirmation automatique ; relance des paniers abandonnés.
+### Phase 6 : paiements en ligne et WhatsApp (4 semaines) ✅ *réalisée*
+- [x] `PaymentGateway` + pilotes **Wave** (sessions de paiement), **CinetPay** (v2) et **PayDunya** (factures) ; comptes du marchand (identifiants chiffrés, mode test / réel, frais), routage par moyen de paiement (Wave, Orange Money, MTN, Moov, carte) avec prestataires de secours essayés dans l'ordre (§6).
+- [x] Paiement sur la boutique : désactivé, au choix du client, acompte exigé (% arrondi aux 5 F) ou tout en ligne ; paiement depuis la page de remerciement ; **liens de paiement** (7 jours, un seul ouvert par commande) envoyés par le WhatsApp de la boutique ou par lien wa.me ; un paiement réussi confirme la commande en attente.
+- [x] Webhooks vérifiés (signature Wave, jeton CinetPay, clé PayDunya) et dédoublonnés ; une notification ne valide jamais un paiement seule : statut relu par l'API du prestataire, montant contrôlé. Remboursements par le prestataire quand il le permet, sinon notés comme rendus à la main.
+- [x] Simulateur de frais (volume réel des 3 derniers mois par moyen, coût par prestataire, « choisir la combinaison la moins chère ») et rapport des frais réels par prestataire.
+- [x] WhatsApp Cloud API au nom du marchand : modèles approuvés par événement (demande de confirmation avec boutons Confirmer / Annuler appliqués à la commande, expédition, livraison, lien de paiement, relance de panier), webhooks signés, statuts envoyé / reçu / lu ; paniers abandonnés relancés automatiquement après 1 h (`carts:recover`) ou à la main depuis la gestion.
+- Avant la mise en production : valider chaque pilote sur le bac à sable du prestataire avec de vrais comptes (Wave Business, CinetPay, PayDunya) et faire approuver les modèles chez Meta.
+- Restent pour la V1 : remboursement partiel Wave (l'API ne rembourse que le total), textes de messages modifiables par le marchand (`message_templates`), inscription WhatsApp intégrée (Embedded Signup de Meta) au lieu de la saisie des identifiants.
 
 ### Phase 7 : croissance (3 semaines)
 - [ ] Codes promo, livraison gratuite, ventes flash, prix par quantité.

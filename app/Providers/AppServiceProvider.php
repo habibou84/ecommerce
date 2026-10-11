@@ -5,15 +5,18 @@ namespace App\Providers;
 use App\Models\Customer;
 use App\Models\InventoryCount;
 use App\Models\Order;
+use App\Models\OrderEvent;
 use App\Models\Product;
 use App\Models\StockReceipt;
 use App\Models\StockTransfer;
 use App\Services\Places\Places;
+use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Jibiat\Socle\PhoneNumber;
@@ -30,6 +33,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Messages WhatsApp automatiques aux clients (confirmation, expédition, livraison), une fois l'opération validée
+        OrderEvent::created(fn (OrderEvent $event) => DB::afterCommit(fn () => app(CustomerMessenger::class)->onOrderEvent($event)));
+
         // Montant dans les gabarits : @money($order->total) → « 12 500 F »
         Blade::directive('money', fn (string $expression) => "<?php echo e(\\Jibiat\\Socle\\Money::format((int) ({$expression}))); ?>");
 

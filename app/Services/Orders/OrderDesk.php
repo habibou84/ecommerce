@@ -19,6 +19,7 @@ use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Place;
 use App\Models\ProductVariant;
+use App\Models\Refund;
 use App\Models\StockLocation;
 use App\Models\Store;
 use App\Models\User;
@@ -439,13 +440,20 @@ class OrderDesk
         $order->total = $order->subtotal - $order->discount_total + $order->shipping_fee;
     }
 
-    private function refreshPaymentStatus(Order $order): void
+    /**
+     * Montants payés et remboursés recalculés depuis les paiements (après un paiement en ligne, un remboursement…).
+     */
+    public function refreshPaymentStatus(Order $order): void
     {
         $paid = (int) $order->payments()->where('status', 'succeeded')->sum('amount');
+        $refunded = (int) Refund::where('order_id', $order->id)->where('status', 'succeeded')->sum('amount');
 
         $order->forceFill([
             'amount_paid' => $paid,
+            'amount_refunded' => $refunded,
             'payment_status' => match (true) {
+                $refunded > 0 && $refunded >= $paid => PaymentStatus::Refunded,
+                $refunded > 0 => PaymentStatus::PartiallyRefunded,
                 $paid <= 0 => PaymentStatus::Unpaid,
                 $paid >= $order->total => PaymentStatus::Paid,
                 default => PaymentStatus::PartiallyPaid,

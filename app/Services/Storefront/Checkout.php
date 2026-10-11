@@ -103,7 +103,7 @@ class Checkout
                 'items' => array_map(fn ($line) => ['variant_id' => $line['variant_id'], 'quantity' => $line['quantity']], $summary['lines']),
             ], null, 'customer');
 
-            $cart->forceFill(['status' => 'converted', 'order_id' => $order->id, 'customer_id' => $order->customer_id, 'name' => $data['name'], 'phone' => $data['phone']])->save();
+            $cart->forceFill(['status' => 'converted', 'order_id' => $order->id, 'recovered_at' => $cart->recovery_sent_at ? now() : null, 'customer_id' => $order->customer_id, 'name' => $data['name'], 'phone' => $data['phone']])->save();
 
             return $order;
         });

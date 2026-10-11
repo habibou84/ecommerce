@@ -46,6 +46,7 @@ class OrderResource extends JsonResource
             'shipping_place_label' => $this->shipping_place_label,
             'total' => $this->total,
             'amount_paid' => $this->amount_paid,
+            'amount_refunded' => $this->amount_refunded,
             'amount_due' => $this->amountDue(),
             'risk_score' => $this->risk_score,
             'callback_at' => $this->callback_at?->toIso8601String(),
@@ -96,7 +97,8 @@ class OrderResource extends JsonResource
                 'total' => $i->total,
                 'stock_state' => $i->stock_state,
             ]),
-            'payments' => $this->payments->map(fn ($p) => [
+            // Paiements reçus (les tentatives en ligne non abouties ne sont pas listées)
+            'payments' => $this->payments->where('status', 'succeeded')->values()->map(fn ($p) => [
                 'id' => $p->id,
                 'kind_label' => $p->kind->label(),
                 'method_label' => $p->method->label(),

@@ -14,11 +14,14 @@ use App\Http\Controllers\Api\V1\Couriers\PayrollController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\MemberController;
+use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Orders\CustomerController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryController;
 use App\Http\Controllers\Api\V1\Orders\OrderController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\Payments\OrderPaymentController;
+use App\Http\Controllers\Api\V1\Payments\PaymentSettingsController;
 use App\Http\Controllers\Api\V1\PlatformAccountController;
 use App\Http\Controllers\Api\V1\Shipping\CarrierController;
 use App\Http\Controllers\Api\V1\Shipping\ShipmentController;
@@ -150,6 +153,33 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('shipments/{shipment}/message', [ShipmentController::class, 'message'])->whereNumber('shipment')->name('shipments.message');
                 Route::post('shipments/{shipment}/assign', [ShipmentController::class, 'assign'])->whereNumber('shipment')->name('shipments.assign');
                 Route::get('shipments/{shipment}/proof', [ShipmentController::class, 'proof'])->whereNumber('shipment')->name('shipments.proof');
+            });
+
+            // ── Paiements en ligne ──
+            Route::middleware('permission:'.Permission::PaymentsManage->value)->prefix('payments')->name('payments.')->group(function () {
+                Route::get('settings', [PaymentSettingsController::class, 'show'])->name('settings');
+                Route::patch('settings', [PaymentSettingsController::class, 'update'])->name('settings.update');
+                Route::post('accounts', [PaymentSettingsController::class, 'storeAccount'])->name('accounts.store');
+                Route::patch('accounts/{account}', [PaymentSettingsController::class, 'updateAccount'])->whereNumber('account')->name('accounts.update');
+                Route::delete('accounts/{account}', [PaymentSettingsController::class, 'destroyAccount'])->whereNumber('account')->name('accounts.destroy');
+                Route::put('routes', [PaymentSettingsController::class, 'routes'])->name('routes');
+                Route::get('simulator', [PaymentSettingsController::class, 'simulator'])->name('simulator');
+                Route::get('report', [PaymentSettingsController::class, 'report'])->name('report');
+            });
+            Route::post('orders/{order}/payment-links', [OrderPaymentController::class, 'link'])->whereNumber('order')
+                ->middleware('permission:'.Permission::OrdersManage->value)->name('orders.payment-links');
+            Route::post('orders/{order}/refunds', [OrderPaymentController::class, 'refund'])->whereNumber('order')
+                ->middleware('permission:'.Permission::PaymentsManage->value)->name('orders.refunds');
+
+            // ── WhatsApp de la boutique et paniers abandonnés ──
+            Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
+                Route::get('whatsapp', [WhatsAppController::class, 'show'])->name('whatsapp.show');
+                Route::put('whatsapp', [WhatsAppController::class, 'update'])->name('whatsapp.update');
+                Route::delete('whatsapp', [WhatsAppController::class, 'destroy'])->name('whatsapp.destroy');
+            });
+            Route::middleware('permission:'.Permission::OrdersManage->value)->group(function () {
+                Route::get('carts/abandoned', [WhatsAppController::class, 'abandonedCarts'])->name('carts.abandoned');
+                Route::post('carts/{cart}/recovery', [WhatsAppController::class, 'markRecovered'])->whereNumber('cart')->name('carts.recovery');
             });
 
             // ── Livreurs de la boutique ──

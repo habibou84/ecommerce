@@ -2,9 +2,12 @@
 
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CheckoutController;
+use App\Http\Controllers\Storefront\PaymentPageController;
 use App\Http\Controllers\Storefront\StorefrontController;
 use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\Webhooks\CarrierWebhookController;
+use App\Http\Controllers\Webhooks\PaymentWebhookController;
+use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +40,14 @@ Route::middleware('zone:store,custom_domain')->group(function () {
         ])->header('Content-Type', 'application/manifest+json');
     })->middleware('zone:store');
 
+    // Paiement en ligne : lien de paiement, paiement d'une commande, retour du prestataire (boutique ouverte ou non)
+    Route::get('/payer/{token}', [PaymentPageController::class, 'link'])->where('token', '[A-Za-z0-9]{16,32}')->name('payment-link');
+    Route::get('/paiement/{key}', [PaymentPageController::class, 'result'])->whereUuid('key')->name('payment-result');
+    Route::middleware(['ajax', 'throttle:storefront-order'])->group(function () {
+        Route::post('/payer/{token}', [PaymentPageController::class, 'payLink'])->where('token', '[A-Za-z0-9]{16,32}');
+        Route::post('/commande/{token}/paiement', [PaymentPageController::class, 'payOrder'])->where('token', '[A-Za-z0-9]{16,32}');
+    });
+
     // Aperçu d'une boutique encore fermée (lien signé depuis la gestion)
     Route::get('/apercu', [StorefrontController::class, 'preview'])->name('storefront.preview');
 
@@ -47,6 +58,7 @@ Route::middleware('zone:store,custom_domain')->group(function () {
         Route::get('/pages/{slug}', [StorefrontController::class, 'page'])->name('storefront.page');
         Route::get('/sitemap.xml', [StorefrontController::class, 'sitemap']);
         Route::get('/panier', [CartController::class, 'show'])->name('storefront.cart');
+        Route::get('/panier/reprendre/{token}', [CartController::class, 'resume'])->where('token', '[A-Za-z0-9]{40}');
         Route::get('/commande', [CheckoutController::class, 'show'])->name('storefront.checkout');
         Route::get('/commande/merci/{token}', [CheckoutController::class, 'thanks'])->where('token', '[A-Za-z0-9]{16,32}');
 
@@ -60,6 +72,16 @@ Route::middleware('zone:store,custom_domain')->group(function () {
         });
     });
 });
+
+// api.jibiat-marchand.com : notifications de Meta pour le WhatsApp des boutiques
+Route::middleware(['zone:api', 'throttle:carrier-webhooks'])->group(function () {
+    Route::get('/webhooks/whatsapp/{uuid}', [WhatsAppWebhookController::class, 'verify'])->whereUuid('uuid');
+    Route::post('/webhooks/whatsapp/{uuid}', [WhatsAppWebhookController::class, 'handle'])->whereUuid('uuid')->name('webhooks.whatsapp');
+});
+
+// api.jibiat-marchand.com : notifications des prestataires de paiement
+Route::match(['get', 'post'], '/webhooks/payments/{uuid}', PaymentWebhookController::class)
+    ->middleware(['zone:api', 'throttle:carrier-webhooks'])->whereUuid('uuid')->name('webhooks.payments');
 
 // api.jibiat-marchand.com : webhooks des entreprises de livraison (signés, sans session)
 Route::post('/webhooks/carriers/{uuid}', CarrierWebhookController::class)

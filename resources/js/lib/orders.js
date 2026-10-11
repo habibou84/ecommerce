@@ -63,9 +63,10 @@ export function eventLabel(event) {
     case 'created': return 'Commande créée'
     case 'edited': return 'Commande modifiée'
     case 'status_changed': return `Statut : ${STATUS_LABELS[d.to] ?? d.to}${d.note ? ` (${d.note})` : ''}`
-    case 'payment_recorded': return `Paiement de ${new Intl.NumberFormat('fr-FR').format(d.amount)} F`
+    case 'payment_recorded': return `Paiement de ${new Intl.NumberFormat('fr-FR').format(d.amount)} F${d.online ? ' en ligne' : ''}`
     case 'confirmation_attempt': return `Confirmation : ${OUTCOME_LABELS[d.outcome] ?? d.outcome}${d.note ? ` (${d.note})` : ''}`
     case 'note': return `Note : ${d.note}`
+    case 'refund': return `Remboursement de ${new Intl.NumberFormat('fr-FR').format(d.amount)} F${d.method === 'manual' ? ' (à la main)' : ''}${d.reason ? ` : ${d.reason}` : ''}`
     case 'shipment_created': return `Expédition demandée à ${d.carrier}${d.tracking_code ? ` (n° ${d.tracking_code})` : ''}`
     default: return event.type
   }

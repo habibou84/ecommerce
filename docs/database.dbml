@@ -64,6 +64,8 @@ Table stores {
   place_id bigint [ref: > places.id]
   active_theme_id bigint [ref: > store_themes.id]
   storefront_enabled boolean [default: false, note: 'boutique en ligne ouverte au public (sinon page « ouvre bientôt », aperçu par lien signé)']
+  online_payment varchar(20) [not null, default: 'off', note: 'off | optional (au choix du client) | deposit (acompte exigé) | required (tout en ligne)']
+  deposit_percent smallint [note: 'acompte en % du total, arrondi aux 5 F supérieurs']
   order_prefix varchar(10) [default: '#']
   next_order_number int [not null, default: 1001, note: 'incrémenté sous verrou (SELECT … FOR UPDATE)']
   require_order_confirmation boolean [default: true, note: 'les commandes passent par la file « à confirmer »']
@@ -779,13 +781,11 @@ Table payment_accounts {
   credentials text [not null, note: 'chiffré : clés et identifiants du compte du marchand chez le prestataire']
   mode varchar(10) [default: 'live', note: 'test | live']
   webhook_uuid uuid [unique, not null, note: 'URL de notification : api.jibiat-marchand.com/webhooks/payments/{uuid}']
-  fee_percent decimal(5,2) [note: 'taux saisi par le marchand (souvent négocié) : sert au simulateur']
-  fee_fixed int
-  payout_fee_percent decimal(5,2) [note: 'frais de retrait']
-  payout_delay_days smallint
-  status varchar(20) [default: 'pending', note: 'pending | active | error | disabled']
-  last_checked_at timestamp
+  fee_percent decimal(5,2) [note: 'taux saisi par le marchand (souvent négocié) : sert au simulateur et à estimer les frais quand le prestataire ne les donne pas']
+  fee_fixed int [not null, default: 0]
+  status varchar(20) [default: 'active', note: 'active | error | disabled']
   last_error varchar
+  Note: 'Frais de retrait et délai de reversement : V2.'
 }
 
 Table payment_routes {
@@ -795,7 +795,6 @@ Table payment_routes {
   payment_account_id bigint [ref: > payment_accounts.id, not null]
   priority smallint [not null, default: 1, note: '1 = prestataire principal ; les suivants servent de secours']
   indexes {
-    (store_id, method, priority) [unique]
     (store_id, method, payment_account_id) [unique]
   }
 }
@@ -823,7 +822,7 @@ Table payments {
   failure_reason varchar
   created_at timestamp [not null]
   indexes {
-    (provider, provider_reference) [unique]
+    (provider, provider_reference)
     (order_id)
     (store_id, status, created_at)
   }
@@ -837,7 +836,6 @@ Table payment_links {
   amount int [not null]
   description varchar
   status varchar(20) [not null, default: 'open', note: 'open | paid | expired | cancelled']
-  sent_via varchar(20) [note: 'whatsapp | sms | copy']
   expires_at timestamp
   paid_at timestamp
   created_by bigint [ref: > users.id]
@@ -848,11 +846,10 @@ Table refunds {
   store_id bigint [ref: > stores.id, not null]
   order_id bigint [ref: > orders.id, not null]
   payment_id bigint [ref: > payments.id]
-  return_id bigint [ref: > returns.id]
   amount int [not null]
-  method varchar(20) [not null, note: 'provider | manual']
+  method varchar(20) [not null, note: 'provider (remboursé par l’API, Wave : montant total seulement) | manual (rendu à la main)']
   reason varchar
-  status varchar(20) [not null, note: 'pending | succeeded | failed']
+  status varchar(20) [not null, note: 'succeeded | failed']
   provider_reference varchar
   refunded_at timestamp
   created_by bigint [ref: > users.id]
@@ -1354,17 +1351,23 @@ Table short_links {
 
 Table whatsapp_accounts {
   id bigint [pk, increment]
-  store_id bigint [ref: > stores.id, not null]
+  store_id bigint [ref: > stores.id, unique, not null]
   phone_number_id varchar [not null]
-  waba_id varchar [not null]
+  waba_id varchar
   display_phone varchar(20)
   access_token text [not null, note: 'chiffré']
-  status varchar(20) [default: 'pending', note: 'pending | active | error']
+  app_secret text [not null, note: 'chiffré : vérifie la signature X-Hub-Signature-256 des webhooks de Meta']
+  verify_token varchar(64) [not null, note: 'vérification de l’URL de rappel (hub.challenge)']
+  webhook_uuid uuid [unique, not null, note: 'api.jibiat-marchand.com/webhooks/whatsapp/{uuid}']
+  templates jsonb [note: '{événement: nom du modèle approuvé chez Meta} ; variables dans l’ordre de CustomerMessenger::EVENTS']
+  automations jsonb [note: '{événement: true | false}']
+  status varchar(20) [default: 'active', note: 'active | error | disabled']
   last_error varchar
-  Note: 'WhatsApp Cloud API au nom du marchand (V1, offres payantes).'
+  Note: 'WhatsApp Cloud API au nom du marchand. Réponses « Confirmer / Annuler » appliquées à la commande, seulement depuis le numéro du client.'
 }
 
 Table message_templates {
+  Note: 'V2 : textes personnalisés par événement. En V1, les noms des modèles Meta sont dans whatsapp_accounts.templates et les textes des liens wa.me dans le code.'
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, note: 'null = modèle par défaut de la plateforme']
   event varchar(40) [not null, note: 'order_received | order_confirm_request | order_shipped | order_delivered | payment_link | cart_recovery | delivery_code…']
