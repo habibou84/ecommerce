@@ -53,16 +53,18 @@ if [[ -d /usr/local/ispconfig ]]; then info "ISPConfig détecté : il n'est pas 
 # ─────────────────────────── Paquets ───────────────────────────
 
 export DEBIAN_FRONTEND=noninteractive
+# Aucune question pendant l'installation des paquets (services à redémarrer, fichiers de configuration modifiés)
+export NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
 
 step "Paquets (PostgreSQL, Supervisor, Node.js, Composer, Certbot, extensions PHP)"
 apt-get update -q
-apt-get install -y -q git unzip openssl sudo curl postgresql supervisor nodejs npm composer \
+apt-get install -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold git unzip openssl sudo curl postgresql supervisor nodejs npm composer \
     certbot python3-certbot-dns-cloudflare \
     php-fpm php-cli php-pgsql php-intl php-bcmath php-gd php-zip php-mbstring php-xml php-curl
 
 PHP_BIN="$(command -v php)"
 PHP_V="$($PHP_BIN -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
-info "PHP $PHP_V ($PHP_BIN), Node.js $(node -v), Composer $(composer --version 2>/dev/null | awk '{print $3}')"
+info "PHP $PHP_V ($PHP_BIN), Node.js $(node -v), Composer $(COMPOSER_ALLOW_SUPERUSER=1 composer --version --no-interaction 2>/dev/null </dev/null | awk '{print $3}')"
 [[ "$(node -v | tr -d v | awk -F. '{print ($1*100)+$2}')" -ge 2019 ]] || fail "Node.js 20.19 ou plus requis (installé : $(node -v))."
 $PHP_BIN -r 'exit(function_exists("imagettftext") && function_exists("imagecreatefromwebp") ? 0 : 1);' \
     || fail "l'extension GD de PHP doit gérer FreeType et WebP (images de partage, photos)."
