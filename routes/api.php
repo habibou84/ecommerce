@@ -23,6 +23,9 @@ use App\Http\Controllers\Api\V1\Stock\LocationController;
 use App\Http\Controllers\Api\V1\Stock\ReceiptController;
 use App\Http\Controllers\Api\V1\Stock\TransferController;
 use App\Http\Controllers\Api\V1\StoreController;
+use App\Http\Controllers\Api\V1\Storefront\MenuController;
+use App\Http\Controllers\Api\V1\Storefront\OnlineStoreController;
+use App\Http\Controllers\Api\V1\Storefront\PageController as StorePageController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use Illuminate\Support\Facades\Route;
 
@@ -114,6 +117,26 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::CustomersView->value)->group(function () {
                 Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
                 Route::get('customers/{customer}', [CustomerController::class, 'show'])->whereNumber('customer')->name('customers.show');
+            });
+
+            // ── Boutique en ligne ──
+            Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
+                Route::get('online-store', [OnlineStoreController::class, 'show'])->name('online-store.show');
+                Route::patch('online-store', [OnlineStoreController::class, 'update'])->name('online-store.update');
+                Route::put('online-store/theme', [OnlineStoreController::class, 'updateTheme'])->name('online-store.theme');
+                Route::post('online-store/theme/activate', [OnlineStoreController::class, 'activateTheme'])->name('online-store.theme.activate');
+                Route::post('online-store/theme/hero-image', [OnlineStoreController::class, 'heroImage'])->name('online-store.hero.store');
+                Route::delete('online-store/theme/hero-image', [OnlineStoreController::class, 'removeHeroImage'])->name('online-store.hero.destroy');
+                Route::post('online-store/logo', [OnlineStoreController::class, 'logo'])->name('online-store.logo.store');
+                Route::delete('online-store/logo', [OnlineStoreController::class, 'removeLogo'])->name('online-store.logo.destroy');
+                Route::post('online-store/preview', [OnlineStoreController::class, 'preview'])->name('online-store.preview');
+                Route::get('pages', [StorePageController::class, 'index'])->name('pages.index');
+                Route::post('pages', [StorePageController::class, 'store'])->name('pages.store');
+                Route::put('pages/{page}', [StorePageController::class, 'update'])->whereNumber('page')->name('pages.update');
+                Route::delete('pages/{page}', [StorePageController::class, 'destroy'])->whereNumber('page')->name('pages.destroy');
+                Route::get('menus', [MenuController::class, 'index'])->name('menus.index');
+                Route::put('menus/{handle}', [MenuController::class, 'update'])->name('menus.update');
+                Route::delete('menus/{handle}', [MenuController::class, 'destroy'])->name('menus.destroy');
             });
 
             // ── Zones de livraison ──

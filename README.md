@@ -22,7 +22,7 @@ Chaque boutique a son sous-domaine, qui porte son site et sa gestion :
 | Adresse | Contenu |
 |---|---|
 | `jibiat-marchand.com` | Présentation, **création de boutique** (`/creer-ma-boutique`), retrouver ses boutiques (`/connexion`) |
-| `{boutique}.jibiat-marchand.com/` | Site de la boutique (page d'attente jusqu'à la phase 3) |
+| `{boutique}.jibiat-marchand.com/` | Boutique en ligne (page « ouvre bientôt » tant que le marchand ne l'a pas ouverte) |
 | `{boutique}.jibiat-marchand.com/gestion` | Gestion de la boutique |
 | `admin.jibiat-marchand.com` | Console du super administrateur (phase 8) |
 | `api.jibiat-marchand.com` | API publique et webhooks entrants (à venir) |
@@ -58,6 +58,7 @@ En local, `PLATFORM_DOMAIN=localhost` : les navigateurs envoient `*.localhost` v
 |---|---|
 | Présentation et création de boutique | http://localhost:8000 |
 | Gestion de la boutique de démonstration | http://demo.localhost:8000/gestion : `07 00 00 00 01` / `password` (propriétaire) ou `07 00 00 00 02` / `password` (gérant). Produits, zone de livraison et deux commandes déjà créés. |
+| Boutique en ligne de démonstration | http://demo.localhost:8000 (ouverte : catalogue, panier, commande paiement à la livraison) |
 
 Les SMS ne partent pas en local (`SMS_DRIVER=log`) : le code de vérification s'affiche sur la page et dans
 `storage/logs/laravel.log`. En production, `SMS_DRIVER=twilio` (le code n'est jamais affiché quand `APP_ENV=production`).
@@ -87,8 +88,10 @@ vendor/bin/pint      # style du code
 | `app/Services/Stock` | Tous les mouvements de stock (`StockKeeper`, journal immuable) et lectures agrégées (`StockLevels`) |
 | `app/Services/Orders` | Commandes (`OrderDesk` : création, statuts, stock, paiements, confirmation), analyse des messages, PDF, messages WhatsApp |
 | `app/Services/Customers`, `app/Services/Places` | Fichier clients et score de risque ; lieux et zones de livraison |
+| `app/Services/Storefront`, `routes/storefront.php` | Boutique en ligne : thèmes (`config/themes.php`), catalogue public, panier par cookie, commande en une page ; routes sans session |
 | `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |
 | `app/Enums/Role.php`, `Permission.php` | Rôles (propriétaire, gérant, agent de confirmation, préparateur, caissier, livreur) et leurs permissions |
 | `packages/socle` | Code commun avec Delivery App : téléphones, montants, SMS, signature des webhooks |
 | `resources/js` | Application Vue : création de boutique, connexion, gestion (`/gestion`) |
-| `resources/views` | Pages Blade : présentation, site de la boutique, erreurs |
+| `resources/views` | Pages Blade : présentation, boutique en ligne (`storefront/`, `layouts/storefront`), erreurs, PDF |
+| `resources/js/storefront.js`, `resources/css/storefront.css` | JavaScript (sans dépendance) et styles de la boutique en ligne, séparés de la gestion |

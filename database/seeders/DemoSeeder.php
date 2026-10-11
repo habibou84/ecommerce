@@ -5,6 +5,8 @@ namespace Database\Seeders;
 use App\Enums\Role;
 use App\Enums\StoreStatus;
 use App\Enums\UserStatus;
+use App\Models\Collection;
+use App\Models\Page;
 use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
@@ -13,6 +15,7 @@ use App\Services\Accounts\StoreRoles;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
+use App\Services\Storefront\ThemeSettings;
 use Illuminate\Database\Seeder;
 
 /**
@@ -70,5 +73,13 @@ class DemoSeeder extends Seeder
             'items' => [['variant_id' => $sac->variants[0]->id, 'quantity' => 2]],
         ], $owner);
         $desk->recordPayment($confirmed, ['amount' => 5000, 'method' => 'wave', 'reference' => 'WAVE-DEMO'], $owner);
+
+        // Boutique en ligne ouverte, avec une collection et une page
+        $collection = Collection::create(['store_id' => $store->id, 'title' => 'Accessoires', 'slug' => 'accessoires', 'is_visible_online' => true]);
+        $collection->products()->attach([$sac->id => ['position' => 1]]);
+        Page::create(['store_id' => $store->id, 'title' => 'Livraison et retours', 'slug' => 'livraison-et-retours',
+            'body' => "## Livraison\n\nSous 24 h à Abidjan. Paiement à la livraison, en espèces ou Mobile Money.\n\n## Retours\n\nVous pouvez refuser un article non conforme à la livraison."]);
+        app(ThemeSettings::class)->update($store, ['announcement' => 'Livraison sous 24 h à Abidjan · Paiement à la livraison', 'hero_title' => 'La mode wax, livrée chez vous']);
+        $store->forceFill(['storefront_enabled' => true])->save();
     }
 }

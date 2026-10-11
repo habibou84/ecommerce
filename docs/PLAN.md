@@ -441,10 +441,15 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [x] Notifications dans la gestion (nouvelle commande, stock bas ou épuisé) et chiffres de l'accueil.
 - Restent pour la V1 : expédition partielle, échanges et retours clients (RMA), notifications push sur téléphone (avec l'application installable).
 
-### Phase 3 : boutique en ligne (4 semaines)
-- [ ] Rendu serveur Blade sur `{boutique}.jibiat-marchand.com/`, 2 thèmes, réglages du thème, pages libres, menus.
-- [ ] Fiche produit avec sélecteur de variantes, panier, commande en une page, zones et frais de livraison, paiement à la livraison, « Commander sur WhatsApp ».
-- [ ] SEO, Open Graph, sitemap, performance (objectif : page produit < 1,5 s en 3G, < 100 Ko de JavaScript).
+### Phase 3 : boutique en ligne (4 semaines) ✅ *réalisée*
+- [x] Rendu serveur Blade sur `{boutique}.jibiat-marchand.com/` (et domaine personnalisé vérifié), sans session : le visiteur n'a qu'un cookie de panier ; les écritures passent par des appels JSON de nos pages (en-tête `X-Requested-With`, limites de débit).
+- [x] 2 thèmes (Classique, Marché) décrits dans `config/themes.php` ; réglages (couleurs, police, bandeau, accueil, collection mise en avant, sections, bouton WhatsApp), logo et image d'accueil ; pages libres (mise en forme simple) et menus en-tête / pied de page, avec menus automatiques par défaut.
+- [x] Accueil, catalogue avec recherche et tri, collections, fiche produit avec sélecteur de variantes (combinaisons épuisées barrées, photo de la variante, stock restant), panier, commande en une page : quartier recherché dans le référentiel, frais et délai de la zone calculés aussitôt (hors zone : frais à confirmer), retrait en boutique, paiement à la livraison. La commande arrive dans la file « À confirmer » ; page de remerciement et lien de suivi.
+- [x] « Commander sur WhatsApp » préremplit le produit, la variante, la quantité et le lien ; coordonnées gardées avec le panier dès la saisie (relance en phase 6) ; origine de la visite (utm, fbclid, ttclid) notée sur la commande.
+- [x] Ouverture et fermeture par le marchand (page « ouvre bientôt » tant que la boutique est fermée), aperçu par lien signé valable une heure, liste de ce qui manque (produits, zones, WhatsApp, logo).
+- [x] SEO : titre, description, adresse canonique, Open Graph, données structurées (Store, Product), `sitemap.xml` et `robots.txt` par boutique.
+- [x] Performance mesurée (Chromium, téléphone, réseau « 3G rapide ») : fiche produit affichée en ~0,55 s, 48 Ko transférés dont 8 Ko de JavaScript (3 Ko compressé), feuille de style propre à la boutique (~6 Ko compressée), photos WebP en `srcset`.
+- Restent pour la V1 : codes promo, avis clients, paiement en ligne (phase 6), éditeur de thème par glisser-déposer, domaine personnalisé en libre-service.
 - **Jalon MVP vendable (~ 12,5 semaines)** : un marchand peut vendre en ligne et sur les réseaux, gérer stock et commandes, et livrer « à la main ».
 
 ### Phase 4 : connecteur Delivery App (3 semaines) + ajouts côté Delivery App (2 semaines, en parallèle)

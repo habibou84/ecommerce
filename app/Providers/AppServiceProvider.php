@@ -13,6 +13,7 @@ use App\Support\Tenancy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Jibiat\Socle\PhoneNumber;
@@ -29,6 +30,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Montant dans les gabarits : @money($order->total) → « 12 500 F »
+        Blade::directive('money', fn (string $expression) => "<?php echo e(\\Jibiat\\Socle\\Money::format((int) ({$expression}))); ?>");
+
         // Noms courts dans les colonnes polymorphes (étiquettes, références du journal de stock)
         Relation::morphMap([
             'product' => Product::class,
@@ -46,6 +50,13 @@ class AppServiceProvider extends ServiceProvider
 
         // Ouverture d'une vérification par SMS (création de boutique, mot de passe oublié)
         RateLimiter::for('verification-start', fn (Request $request) => Limit::perHour(10)->by('verification-start:'.$request->ip()));
+
+        // Boutique en ligne : appels JSON (panier, quartier, frais) et passage de commande
+        RateLimiter::for('storefront', fn (Request $request) => Limit::perMinute(120)->by('storefront:'.$request->ip()));
+        RateLimiter::for('storefront-order', fn (Request $request) => [
+            Limit::perMinute(5)->by('storefront-order:'.$request->ip()),
+            Limit::perHour(30)->by('storefront-order-hour:'.$request->ip()),
+        ]);
 
         RateLimiter::for('verification-code', fn (Request $request) => Limit::perMinute(10)->by('verification-code:'.$request->ip()));
     }

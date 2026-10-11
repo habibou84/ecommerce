@@ -63,6 +63,7 @@ Table stores {
   address text
   place_id bigint [ref: > places.id]
   active_theme_id bigint [ref: > store_themes.id]
+  storefront_enabled boolean [default: false, note: 'boutique en ligne ouverte au public (sinon page « ouvre bientôt », aperçu par lien signé)']
   order_prefix varchar(10) [default: '#']
   next_order_number int [not null, default: 1001, note: 'incrémenté sous verrou (SELECT … FOR UPDATE)']
   require_order_confirmation boolean [default: true, note: 'les commandes passent par la file « à confirmer »']

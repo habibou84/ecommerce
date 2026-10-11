@@ -10,6 +10,7 @@ use App\Services\Accounts\StoreRoles;
 use Database\Seeders\PlacesSeeder;
 use Database\Seeders\PlanSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\ThemeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Testing\TestResponse;
@@ -26,7 +27,7 @@ abstract class TestCase extends BaseTestCase
         // Pages rendues sans les fichiers compilés du front-end
         $this->withoutVite();
 
-        $this->seed([RolesAndPermissionsSeeder::class, PlanSeeder::class, PlacesSeeder::class]);
+        $this->seed([RolesAndPermissionsSeeder::class, PlanSeeder::class, PlacesSeeder::class, ThemeSeeder::class]);
     }
 
     /**

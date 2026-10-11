@@ -36,7 +36,9 @@ const steps = computed(() => [
     ? [{ title: 'Saisir votre première commande', text: 'Collez le message WhatsApp du client : tout se remplit.', to: '/gestion/commandes/nouvelle' }]
     : []),
   ...(auth.can('team.manage') ? [{ title: 'Inviter votre équipe', text: 'Gérant, agent de confirmation, préparateur, caissier.', to: '/gestion/equipe' }] : []),
-  { title: 'Ouvrir votre boutique en ligne', text: 'Thème, livraison, paiement à la livraison.', soon: true },
+  ...(auth.can('store.manage')
+    ? [{ title: 'Ouvrir votre boutique en ligne', text: 'Choisissez un thème, ajoutez votre logo et ouvrez : vos clients commandent et paient à la livraison.', to: '/gestion/boutique-en-ligne', done: !!auth.store?.storefront_enabled }]
+    : []),
 ])
 </script>
 

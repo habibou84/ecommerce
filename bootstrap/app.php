@@ -1,17 +1,23 @@
 <?php
 
 use App\Exceptions\BusinessRuleException;
+use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Http\Middleware\EnsureStoreMember;
 use App\Http\Middleware\EnsureZone;
+use App\Http\Middleware\RequireAjax;
 use App\Http\Middleware\ResolveStore;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Exceptions\UnauthorizedException;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -23,6 +29,8 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        // Boutique en ligne : groupe léger, sans session (voir routes/storefront.php)
+        then: fn () => Route::middleware('storefront')->group(base_path('routes/storefront.php')),
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // Boutique désignée par l'adresse ({slug}.jibiat-marchand.com ou domaine personnalisé)
@@ -33,6 +41,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'zone' => EnsureZone::class,
             'member' => EnsureStoreMember::class,
             'permission' => PermissionMiddleware::class,
+            'storefront.open' => EnsureStorefrontOpen::class,
+            'ajax' => RequireAjax::class,
+        ]);
+        $middleware->group('storefront', [
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            SubstituteBindings::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

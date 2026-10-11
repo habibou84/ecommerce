@@ -31,6 +31,7 @@ class Store extends Model
         'order_prefix' => '#',
         'next_order_number' => 1001,
         'require_order_confirmation' => true,
+        'storefront_enabled' => false,
         'require_delivery_code' => false,
         'default_fee_payer' => 'customer',
         'allow_backorder' => false,
@@ -44,6 +45,7 @@ class Store extends Model
             'require_order_confirmation' => 'boolean',
             'require_delivery_code' => 'boolean',
             'allow_backorder' => 'boolean',
+            'storefront_enabled' => 'boolean',
             'closed_at' => 'datetime',
         ];
     }
@@ -83,6 +85,11 @@ class Store extends Model
         return $this->hasOne(Subscription::class)
             ->whereIn('status', [SubscriptionStatus::Trialing->value, SubscriptionStatus::Active->value, SubscriptionStatus::PastDue->value])
             ->latestOfMany();
+    }
+
+    public function activeTheme(): BelongsTo
+    {
+        return $this->belongsTo(StoreTheme::class, 'active_theme_id');
     }
 
     public function isOpen(): bool
