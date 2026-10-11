@@ -405,13 +405,18 @@ Choix faits en détaillant le schéma :
 
 Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 développeur front/mobile et 1 chef de projet/testeur à temps partiel. Durées indicatives.
 
-### Phase 0 : fondations (2,5 semaines)
-- [ ] Projet Laravel 12 + Vue 3 + Tailwind, CI (tests, lint, build), environnement local identique à Delivery App.
-- [ ] Paquet `habibou84/socle` créé et **Delivery App basculée dessus** (§4.5) ; squelette de `habibou84/delivery-app-client`.
-- [ ] Multi-boutique (`store_id` + scope), résolution par sous-domaine, cookies par hôte, sous-domaines réservés (§4.4).
-- [ ] Site vitrine `jibiat-marchand.com` + **création de boutique en 5 minutes** depuis un téléphone (nom, sous-domaine, logo, numéro WhatsApp).
-- [ ] Comptes, rôles, invitation de membres, OTP téléphone ; back-office sur `/gestion`.
-- [x] Schéma DBML complet ([`database.dbml`](./database.dbml)) ; reste à le valider ensemble.
+### Phase 0 : fondations (2,5 semaines) ✅ *réalisée, sauf la bascule de Delivery App sur `socle`*
+- [x] Projet Laravel 12 + Vue 3 + Tailwind, CI (Pint, tests PostgreSQL en PHP 8.3 et 8.4, build front-end).
+- [x] Paquet `habibou84/socle` créé dans `packages/socle` (téléphones, montants, SMS, signature des webhooks), avec ses tests.
+- [ ] Sortir `socle` dans son propre dépôt et **faire basculer Delivery App dessus** : nécessite un dépôt `habibou84/socle` et un accès en écriture à `deliverynew`.
+- [ ] Squelette de `habibou84/delivery-app-client` : reporté à la phase 4, où il sert.
+- [x] Multi-boutique : résolution par sous-domaine (`Tenancy`), filtre automatique `BelongsToStore`, sous-domaines réservés, anciennes adresses redirigées 90 jours, domaines personnalisés vérifiés (site seulement).
+- [x] Session par cookie limitée au nom d'hôte de la boutique (Sanctum), lien de connexion à usage unique pour passer d'une adresse à l'autre.
+- [x] Site vitrine `jibiat-marchand.com` + **création de boutique** (nom, adresse avec vérification de disponibilité, code SMS) et essai de 14 jours de l'offre Pro.
+- [x] Comptes (un compte par numéro, plusieurs boutiques possibles), rôles par boutique (spatie en mode *teams*), invitation par lien WhatsApp, mot de passe oublié par SMS, retrouver ses boutiques depuis `jibiat-marchand.com/connexion`.
+- [x] Back-office `/gestion` : connexion, accueil (premiers pas), équipe, paramètres (dont changement d'adresse), passage d'une boutique à l'autre.
+- [x] Schéma DBML complet ([`database.dbml`](./database.dbml)).
+- Vérification du numéro **par SMS uniquement** pour l'instant (mobiles ivoiriens) : la preuve gratuite par message WhatsApp entrant, utilisée par Delivery App, viendra avec le numéro WhatsApp Business de la plateforme (phase 6).
 
 ### Phase 1 : catalogue et stock (3 semaines)
 - [ ] Produits, options, génération et édition en masse des variantes, photos (par variante), collections.

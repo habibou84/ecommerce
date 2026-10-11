@@ -1,0 +1,66 @@
+<?php
+
+use App\Exceptions\BusinessRuleException;
+use App\Http\Middleware\EnsureStoreMember;
+use App\Http\Middleware\EnsureZone;
+use App\Http\Middleware\ResolveStore;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Http\Request;
+use Spatie\Permission\Exceptions\UnauthorizedException;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        commands: __DIR__.'/../routes/console.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware $middleware): void {
+        // Boutique désignée par l'adresse ({slug}.jibiat-marchand.com ou domaine personnalisé)
+        $middleware->prepend(ResolveStore::class);
+        // Gestion (SPA) authentifiée par cookie de session, limité au nom d'hôte de la boutique
+        $middleware->statefulApi();
+        $middleware->alias([
+            'zone' => EnsureZone::class,
+            'member' => EnsureStoreMember::class,
+            'permission' => PermissionMiddleware::class,
+        ]);
+    })
+    ->withExceptions(function (Exceptions $exceptions): void {
+        // Toujours répondre en JSON sur l'API, au format { message, errors? }
+        $exceptions->shouldRenderJsonWhen(fn (Request $request) => $request->is('api/*') || $request->expectsJson());
+
+        $json = fn (string $message, int $status) => response()->json(['message' => $message], $status);
+        $isApi = fn (Request $request) => $request->is('api/*') || $request->expectsJson();
+
+        $exceptions->render(fn (BusinessRuleException $e) => $e->render());
+
+        $exceptions->render(fn (AuthenticationException $e, Request $request) => $isApi($request) ? $json('Non authentifié.', 401) : null);
+
+        $exceptions->render(function (AuthorizationException|AccessDeniedHttpException|UnauthorizedException $e, Request $request) use ($json, $isApi) {
+            if (! $isApi($request)) {
+                return null;
+            }
+
+            // Conserve un message métier explicite (abort(403, '…')), sinon message générique
+            $message = $e->getMessage();
+            $generic = $message === '' || $message === 'This action is unauthorized.' || $e instanceof UnauthorizedException;
+
+            return $json($generic ? 'Action non autorisée.' : $message, 403);
+        });
+
+        $exceptions->render(fn (ModelNotFoundException|NotFoundHttpException $e, Request $request) => $isApi($request) ? $json('Ressource introuvable.', 404) : null);
+
+        $exceptions->render(fn (ThrottleRequestsException $e, Request $request) => $isApi($request)
+            ? $json('Trop de tentatives. Réessayez dans quelques instants.', 429)->withHeaders($e->getHeaders())
+            : null);
+    })->create();

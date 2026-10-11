@@ -92,10 +92,12 @@ Table store_users {
 Table store_invitations {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
+  name varchar
   phone varchar(20) [not null]
   role varchar(30) [not null]
   token_hash varchar(64) [unique, not null]
   invited_by bigint [ref: > users.id]
+  accepted_by bigint [ref: > users.id]
   expires_at timestamp [not null]
   accepted_at timestamp
   revoked_at timestamp
@@ -165,16 +167,24 @@ Table usage_counters {
 
 Table phone_verifications {
   id bigint [pk, increment]
+  purpose varchar(20) [not null, note: 'signup | invitation | password_reset']
   phone varchar(20) [not null]
-  purpose varchar(20) [not null, note: 'login | signup | customer_login | invitation | change_phone']
-  store_id bigint [ref: > stores.id, note: 'renseigné pour la connexion d’un client de boutique']
-  code_hash varchar(64) [not null]
+  store_id bigint [ref: > stores.id, note: 'boutique de l’invitation ou du mot de passe oublié']
+  user_id bigint [ref: > users.id, note: 'compte concerné (mot de passe oublié)']
+  token_hash varchar(64) [unique, not null, note: 'empreinte du jeton gardé par le navigateur']
+  sms_code_hash varchar [note: 'code à 6 chiffres haché']
+  sms_count smallint [default: 0]
+  sms_sent_at timestamp
   attempts smallint [default: 0]
-  channel varchar(10) [note: 'sms | whatsapp']
+  payload text [note: 'chiffré : données à conserver jusqu’à la fin (nom de la boutique, mot de passe haché…)']
+  ip varchar(45)
+  verified_at timestamp
+  completed_at timestamp
   expires_at timestamp [not null]
-  consumed_at timestamp
+  created_at timestamp [not null]
   indexes {
     (phone, purpose)
+    (phone, created_at)
   }
 }
 
