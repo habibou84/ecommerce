@@ -4,6 +4,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Http\Middleware\EnsureCourier;
 use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Http\Middleware\EnsureStoreMember;
+use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureZone;
 use App\Http\Middleware\RequireAjax;
 use App\Http\Middleware\ResolveStore;
@@ -19,6 +20,7 @@ use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
+use Sentry\Laravel\Integration;
 use Spatie\Permission\Exceptions\UnauthorizedException;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -47,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'storefront.open' => EnsureStorefrontOpen::class,
             'ajax' => RequireAjax::class,
             'courier' => EnsureCourier::class,
+            'super_admin' => EnsureSuperAdmin::class,
         ]);
         $middleware->group('storefront', [
             EncryptCookies::class,
@@ -55,6 +58,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Supervision : erreurs envoyées à Sentry si SENTRY_LARAVEL_DSN est renseigné
+        Integration::handles($exceptions);
+
         // Toujours répondre en JSON sur l'API, au format { message, errors? }
         $exceptions->shouldRenderJsonWhen(fn (Request $request) => $request->is('api/*') || $request->expectsJson());
 

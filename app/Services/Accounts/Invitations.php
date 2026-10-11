@@ -11,6 +11,7 @@ use App\Models\PhoneVerification;
 use App\Models\Store;
 use App\Models\StoreInvitation;
 use App\Models\User;
+use App\Services\Billing\PlanLimits;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -44,6 +45,10 @@ class Invitations
         $member = User::where('phone', $phone)->first();
         if ($member !== null && $store->members()->where('user_id', $member->id)->exists()) {
             throw new BusinessRuleException('Cette personne fait déjà partie de l\'équipe.', 'phone');
+        }
+
+        if ($role !== Role::Courier) {
+            app(PlanLimits::class)->ensureCanAdd($store, 'members');
         }
 
         $token = Str::random(40);

@@ -60,6 +60,7 @@ class StatsTest extends TestCase
 
     public function test_advanced_stats(): void
     {
+        Subscription::query()->delete();
         $this->storeApi($this->store, 'GET', 'stats')->assertForbidden()->assertJsonPath('upgrade', true);
         $this->pro();
 

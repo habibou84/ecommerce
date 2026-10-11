@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\Accounts\LoginHandoff;
+use App\Services\Console\SupportSessions;
 use App\Support\Tenancy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,8 @@ class HandoffController extends Controller
         }
 
         [$user, $redirect] = $result;
-        if (! $user->isActive() || $user->activeMembershipIn($tenancy->store()) === null) {
+        $allowed = $user->activeMembershipIn($tenancy->store()) !== null || app(SupportSessions::class)->ongoingFor($user, $tenancy->store()) !== null;
+        if (! $user->isActive() || ! $allowed) {
             return redirect('/gestion/connexion');
         }
 

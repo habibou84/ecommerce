@@ -57,6 +57,6 @@
     </main>
 
     <footer class="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-500">
-        © {{ date('Y') }} Jibiat Marchand
+        © {{ date('Y') }} Jibiat Marchand · <a href="/cgu" class="hover:underline">Conditions d'utilisation et de vente</a> · <a href="/confidentialite" class="hover:underline">Confidentialité</a>
     </footer>
 @endsection

@@ -3,12 +3,14 @@
 namespace App\Services\Storefront;
 
 use App\Exceptions\BusinessRuleException;
+use App\Exceptions\QuotaExceededException;
 use App\Models\Cart;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\StockLevel;
 use App\Models\StockLocation;
 use App\Models\Store;
+use App\Services\Billing\PlanLimits;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
 use Illuminate\Support\Collection;
@@ -94,6 +96,13 @@ class Checkout
         }
 
         $quote = $this->quote($store, $cart, $data['delivery_method'], $data['place_id'] ?? null);
+
+        try {
+            app(PlanLimits::class)->ensureOrderQuota($store);
+        } catch (QuotaExceededException) {
+            // Le message de l'offre s'adresse au marchand : le client est invité à commander autrement
+            throw new BusinessRuleException('La boutique ne peut pas prendre de nouvelle commande en ligne pour le moment. Contactez-la directement (WhatsApp ou téléphone).');
+        }
 
         return DB::transaction(function () use ($store, $cart, $data, $summary, $pickup, $quote) {
             $order = $this->desk->create($store, [

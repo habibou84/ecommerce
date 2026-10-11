@@ -42,7 +42,7 @@ class MemberController extends Controller
             'description' => $r->description(),
             'invitable' => in_array($r, Role::invitable(), true),
             'permissions' => array_map(fn ($p) => $p->label(), $r->permissions()),
-        ], array_filter(Role::cases(), fn (Role $r) => $r !== Role::Courier))]);
+        ], array_filter(Role::cases(), fn (Role $r) => ! in_array($r, [Role::Courier, Role::Support], true)))]);
     }
 
     public function update(Request $request, int $member): JsonResponse

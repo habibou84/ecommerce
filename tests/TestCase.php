@@ -3,7 +3,9 @@
 namespace Tests;
 
 use App\Enums\Role;
+use App\Enums\SubscriptionStatus;
 use App\Enums\UserStatus;
+use App\Models\Plan;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\StoreRoles;
@@ -65,12 +67,21 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * Boutique ouverte avec son propriétaire.
+     * Boutique ouverte comme après l'inscription : propriétaire, et essai de l'offre Pro (sans offre : offre gratuite).
      */
-    protected function createStore(array $attributes = []): Store
+    protected function createStore(array $attributes = [], ?string $plan = 'pro'): Store
     {
         $store = Store::factory()->create($attributes);
         $this->addMember($store, $store->owner, Role::Owner);
+        if ($plan !== null) {
+            $store->subscriptions()->create([
+                'plan_id' => Plan::where('code', $plan)->value('id'),
+                'status' => SubscriptionStatus::Trialing,
+                'trial_ends_at' => now()->addDays(14),
+                'current_period_start' => now(),
+                'current_period_end' => now()->addDays(14),
+            ]);
+        }
 
         return $store;
     }

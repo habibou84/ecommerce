@@ -183,7 +183,7 @@ class CatalogWriterTest extends TestCase
 
     public function test_the_plan_limits_the_number_of_products(): void
     {
-        $store = $this->createStore();
+        $store = $this->createStore(plan: null);
         Plan::where('code', 'free')->update(['limits' => json_encode(['products' => 1])]);
 
         $this->writer()->save($store, null, ['title' => 'A', 'variants' => [['price' => 1]]]);

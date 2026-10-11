@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { boot } from '../lib/boot'
 import { useAuthStore } from '../stores/auth'
+import { useConsoleStore } from '../stores/console'
 
 // jibiat-marchand.com : création de boutique, retrouver ses boutiques
 const platformRoutes = [
@@ -72,12 +73,14 @@ const storeRoutes = [
       { path: 'expeditions/reversements', component: () => import('../views/gestion/shipping/CarrierPayouts.vue'), meta: { title: 'Expéditions', permission: 'carriers.manage' } },
       { path: 'boutique-en-ligne', component: () => import('../views/gestion/online-store/OnlineStore.vue'), meta: { title: 'Boutique en ligne', permission: 'store.manage' } },
       { path: 'boutique-en-ligne/pages', component: () => import('../views/gestion/online-store/Pages.vue'), meta: { title: 'Boutique en ligne', permission: 'store.manage' } },
+      { path: 'boutique-en-ligne/domaine', component: () => import('../views/gestion/online-store/Domains.vue'), meta: { title: 'Boutique en ligne', permission: 'store.manage' } },
       { path: 'boutique-en-ligne/menus', component: () => import('../views/gestion/online-store/Menus.vue'), meta: { title: 'Boutique en ligne', permission: 'store.manage' } },
       { path: 'marketing', component: () => import('../views/gestion/marketing/Promotions.vue'), meta: { title: 'Marketing', permission: 'store.manage' } },
       { path: 'marketing/suivi', component: () => import('../views/gestion/marketing/Tracking.vue'), meta: { title: 'Marketing', permission: 'store.manage' } },
       { path: 'statistiques', component: () => import('../views/gestion/Stats.vue'), meta: { title: 'Statistiques', permissionAny: ['finance.view', 'orders.view'] } },
       { path: 'paiements', component: () => import('../views/gestion/payments/Payments.vue'), meta: { title: 'Paiements', permission: 'payments.manage' } },
       { path: 'whatsapp', component: () => import('../views/gestion/messaging/WhatsApp.vue'), meta: { title: 'WhatsApp', permission: 'store.manage' } },
+      { path: 'abonnement', component: () => import('../views/gestion/Billing.vue'), meta: { title: 'Abonnement', permission: 'billing.manage' } },
       { path: 'equipe', component: () => import('../views/gestion/Team.vue'), meta: { title: 'Équipe', permission: 'team.manage' } },
       { path: 'parametres', component: () => import('../views/gestion/Settings.vue'), meta: { title: 'Paramètres' } },
     ],
@@ -85,13 +88,38 @@ const storeRoutes = [
   { path: '/gestion/:any(.*)*', redirect: '/gestion' },
 ]
 
+// admin.jibiat-marchand.com : console du super administrateur
+const consoleRoutes = [
+  { path: '/console/connexion', component: () => import('../views/console/Login.vue'), meta: { guest: true, title: 'Connexion' } },
+  {
+    path: '/console',
+    component: () => import('../layouts/ConsoleLayout.vue'),
+    meta: { auth: true },
+    children: [
+      { path: '', component: () => import('../views/console/Dashboard.vue'), meta: { title: 'Tableau de bord' } },
+      { path: 'boutiques', component: () => import('../views/console/Stores.vue'), meta: { title: 'Boutiques' } },
+      { path: 'boutiques/:id(\\d+)', component: () => import('../views/console/StoreDetail.vue'), props: true, meta: { title: 'Boutique' } },
+      { path: 'factures', component: () => import('../views/console/Invoices.vue'), meta: { title: 'Factures' } },
+      { path: 'offres', component: () => import('../views/console/Plans.vue'), meta: { title: 'Offres' } },
+    ],
+  },
+  { path: '/:any(.*)*', redirect: '/console' },
+]
+
 const router = createRouter({
   history: createWebHistory(),
-  routes: boot.zone === 'store' ? storeRoutes : platformRoutes,
+  routes: boot.zone === 'store' ? storeRoutes : boot.zone === 'console' ? consoleRoutes : platformRoutes,
   scrollBehavior: () => ({ top: 0 }),
 })
 
 router.beforeEach(async (to) => {
+  if (boot.zone === 'console') {
+    const console_ = useConsoleStore()
+    if (!console_.loaded) await console_.fetch()
+    if (to.matched.some((r) => r.meta.auth) && !console_.admin) return '/console/connexion'
+    if (to.meta.guest && console_.admin) return '/console'
+    return true
+  }
   if (boot.zone !== 'store') return true
 
   const auth = useAuthStore()
@@ -120,7 +148,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  const store = boot.store?.name
+  const store = boot.zone === 'console' ? 'Console Jibiat Marchand' : boot.store?.name
   document.title = [to.meta.title, store ?? 'Jibiat Marchand'].filter(Boolean).join(' · ')
 })
 

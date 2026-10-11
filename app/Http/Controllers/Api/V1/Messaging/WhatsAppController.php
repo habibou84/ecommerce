@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\OutboundMessage;
 use App\Models\WhatsappAccount;
+use App\Services\Billing\PlanLimits;
 use App\Services\Storefront\CartService;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
@@ -49,6 +50,9 @@ class WhatsAppController extends Controller
     public function update(Request $request): JsonResponse
     {
         $account = WhatsappAccount::first();
+        if ($account === null) {
+            app(PlanLimits::class)->ensureFeature($this->currentStore(), 'whatsapp_api');
+        }
         $required = $account ? 'sometimes' : 'required';
         $data = $request->validate([
             'phone_number_id' => [$required, 'nullable', 'string', 'max:40'],

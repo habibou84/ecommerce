@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NotificationBell from '../components/NotificationBell.vue'
+import { boot } from '../lib/boot'
 import http, { errorMessage } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
 
@@ -35,6 +36,7 @@ const nav = computed(() => [
   ...(auth.can('store.manage') ? [{ to: '/gestion/marketing', label: 'Marketing', icon: 'M3 11l18-8v18L3 13zM7 12v6a2 2 0 0 0 4 0v-4' }] : []),
   ...(auth.can('payments.manage') ? [{ to: '/gestion/paiements', label: 'Paiements', icon: 'M2 6h20v12H2zM2 10h20M6 15h4' }] : []),
   ...(auth.can('store.manage') ? [{ to: '/gestion/whatsapp', label: 'WhatsApp', icon: 'M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z' }] : []),
+  ...(auth.can('billing.manage') ? [{ to: '/gestion/abonnement', label: 'Abonnement', icon: 'M12 2l3 6 6 .9-4.5 4.4 1 6.2L12 16.6 6.5 19.5l1-6.2L3 8.9 9 8z' }] : []),
   ...(auth.can('team.manage') ? [{ to: '/gestion/equipe', label: 'Équipe', icon: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 10a7 7 0 0 1 14 0zm15-10a3 3 0 1 0 0-6M22 21a6 6 0 0 0-4-5.6' }] : []),
   { to: '/gestion/parametres', label: 'Paramètres', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z' },
 ])
@@ -42,6 +44,15 @@ const nav = computed(() => [
 function isActive(item) {
   return item.exact ? route.path === item.to : route.path.startsWith(item.to)
 }
+
+// Session de support de la plateforme : bandeau pour le support (lui-même) et pour la boutique
+const support = computed(() => auth.profile?.support ?? null)
+const supportUntil = computed(() => support.value ? new Date(support.value.expires_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '')
+async function endSupport() {
+  await http.post(`/support-sessions/${support.value.id}/end`)
+  await auth.fetch()
+}
+const helpUrl = computed(() => `https://wa.me/${String(boot.supportWhatsapp ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide pour ma boutique ${auth.store?.name ?? ''} (${boot.store?.slug ?? ''}).`)}`)
 
 async function logout() {
   await auth.logout()
@@ -118,6 +129,7 @@ async function switchTo(store) {
         </button>
         <h1 class="truncate text-lg font-semibold">{{ route.meta.title }}</h1>
         <div class="ml-auto flex items-center gap-3">
+          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="btn-ghost px-2 text-sm" title="Écrire au support Jibiat Marchand sur WhatsApp">💬 Aide</a>
           <NotificationBell />
           <span class="hidden text-right text-sm sm:block">
             <span class="block font-medium">{{ auth.user?.name }}</span>
@@ -127,6 +139,13 @@ async function switchTo(store) {
         </div>
       </header>
 
+      <div v-if="support?.self" class="bg-amber-400 px-4 py-2 text-center text-sm font-medium text-slate-900">
+        🛟 Session de support jusqu'à {{ supportUntil }} — vous agissez dans la boutique d'un marchand : « {{ support.reason }} »
+      </div>
+      <div v-else-if="support && auth.can('team.manage')" class="flex flex-wrap items-center justify-center gap-3 bg-sky-50 px-4 py-2 text-sm text-sky-900">
+        <span>🛟 Le support Jibiat Marchand ({{ support.admin }}) a accès à votre gestion jusqu'à {{ supportUntil }} : « {{ support.reason }} »</span>
+        <button class="underline" @click="endSupport">Mettre fin</button>
+      </div>
       <main class="mx-auto max-w-5xl p-4 sm:p-6">
         <RouterView />
       </main>

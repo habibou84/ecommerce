@@ -36,4 +36,35 @@ return [
     // Durée de l'essai gratuit à la création d'une boutique (toutes les fonctions de l'offre d'essai)
     'trial_days' => (int) env('PLATFORM_TRIAL_DAYS', 14),
     'trial_plan' => env('PLATFORM_TRIAL_PLAN', 'pro'),
+
+    // Abonnements des boutiques, encaissés sur le compte de la plateforme (docs/PLAN.md §6.5)
+    'billing' => [
+        'provider' => env('BILLING_PROVIDER', 'wave'), // wave | cinetpay | paydunya
+        'mode' => env('BILLING_MODE', 'live'), // test | live
+        // Identifiants du compte de la plateforme chez le prestataire (noms des champs du pilote)
+        'credentials' => array_filter([
+            'api_key' => env('BILLING_WAVE_API_KEY'),
+            'webhook_secret' => env('BILLING_WAVE_WEBHOOK_SECRET'),
+            'apikey' => env('BILLING_CINETPAY_APIKEY'),
+            'site_id' => env('BILLING_CINETPAY_SITE_ID'),
+            'secret_key' => env('BILLING_CINETPAY_SECRET_KEY'),
+            'master_key' => env('BILLING_PAYDUNYA_MASTER_KEY'),
+            'private_key' => env('BILLING_PAYDUNYA_PRIVATE_KEY'),
+            'token' => env('BILLING_PAYDUNYA_TOKEN'),
+        ]),
+        // Jours de grâce après l'échéance avant le retour à l'offre gratuite ; rappel avant l'échéance
+        'grace_days' => (int) env('BILLING_GRACE_DAYS', 7),
+        'reminder_days' => (int) env('BILLING_REMINDER_DAYS', 3),
+    ],
+
+    // Domaines personnalisés : le marchand fait pointer son domaine (CNAME) vers cette adresse, ou (domaine nu)
+    // vers ces adresses IP ; les certificats sont demandés à la volée par Caddy (route /_caddy/ask)
+    'custom_domains' => [
+        'cname_target' => env('CUSTOM_DOMAIN_CNAME', 'domaines.'.strtolower((string) env('PLATFORM_DOMAIN', 'localhost'))),
+        'ips' => array_filter(array_map('trim', explode(',', (string) env('CUSTOM_DOMAIN_IPS', '')))),
+    ],
+
+    // Support : WhatsApp de l'équipe Jibiat Marchand (bouton « Aide » de la gestion)
+    'support_whatsapp' => env('SUPPORT_WHATSAPP', '+2250700000000'),
+    'support_session_minutes' => (int) env('SUPPORT_SESSION_MINUTES', 60),
 ];

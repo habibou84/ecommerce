@@ -198,6 +198,7 @@ class PhoneVerifier
             VerificationPurpose::Signup => 'pour créer votre boutique',
             VerificationPurpose::Invitation => 'pour rejoindre la boutique '.$verification->store?->name,
             VerificationPurpose::PasswordReset => 'pour changer votre mot de passe',
+            VerificationPurpose::ConsoleLogin => 'pour vous connecter à la console Jibiat Marchand',
         };
 
         return "{$code} est votre code Jibiat Marchand {$what}. Il expire dans ".self::TTL_MINUTES.' minutes. Ne le communiquez à personne.';

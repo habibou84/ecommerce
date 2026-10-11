@@ -113,6 +113,7 @@ function done(data) {
         <input id="password" v-model="form.password" class="input" type="password" autocomplete="new-password" minlength="8" required />
       </Field>
 
+      <p class="text-xs text-slate-500">En créant votre boutique, vous acceptez les <a href="/cgu" target="_blank" class="underline">conditions d'utilisation et de vente</a> et la <a href="/confidentialite" target="_blank" class="underline">politique de confidentialité</a>.</p>
       <button class="btn-brand w-full" :disabled="busy || slugState.available === false">
         {{ busy ? 'Un instant…' : 'Continuer' }}
       </button>

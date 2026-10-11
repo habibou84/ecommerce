@@ -32,11 +32,11 @@ class StorefrontController extends Controller
     /**
      * Racine de chaque adresse : présentation (plateforme), boutique, console.
      */
-    public function home(Request $request, Tenancy $tenancy): Response|JsonResponse
+    public function home(Request $request, Tenancy $tenancy): Response|JsonResponse|RedirectResponse
     {
         return match ($tenancy->zone()) {
             Tenancy::PLATFORM => response()->view('platform.home', ['signupUrl' => '/creer-ma-boutique', 'loginUrl' => '/connexion']),
-            Tenancy::CONSOLE => response()->view('console.home'),
+            Tenancy::CONSOLE => redirect('/console'),
             Tenancy::API => response()->json(['message' => 'API Jibiat Marchand.'], 404),
             default => $this->storefrontHome($request),
         };

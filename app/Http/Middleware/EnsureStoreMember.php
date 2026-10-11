@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Console\SupportSessions;
 use App\Support\Tenancy;
 use Closure;
 use Illuminate\Http\Request;
@@ -30,7 +31,14 @@ class EnsureStoreMember
 
         $membership = $user->activeMembershipIn($store);
         if ($membership === null) {
-            return response()->json(['message' => 'Vous n\'avez pas accès à cette boutique.'], 403);
+            // Administrateur de la plateforme pendant une session de support (durée limitée)
+            $support = app(SupportSessions::class)->ongoingFor($user, $store);
+            if ($support === null) {
+                return response()->json(['message' => 'Vous n\'avez pas accès à cette boutique.'], 403);
+            }
+            $request->attributes->set('support_session', $support);
+
+            return $next($request);
         }
 
         // Au plus une écriture par quart d'heure

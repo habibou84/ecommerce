@@ -25,6 +25,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Notifications\OrderPlaced;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Billing\PlanLimits;
 use App\Services\Customers\CustomerBook;
 use App\Services\Places\Places;
 use App\Services\Promotions\Pricing;
@@ -54,6 +55,7 @@ class OrderDesk
         private readonly Places $places,
         private readonly TeamNotifier $notifier,
         private readonly Pricing $pricing,
+        private readonly PlanLimits $limits,
     ) {}
 
     /**
@@ -61,6 +63,8 @@ class OrderDesk
      */
     public function create(Store $store, array $data, ?User $actor, string $actorType = 'user'): Order
     {
+        $this->limits->ensureOrderQuota($store);
+
         $order = DB::transaction(function () use ($store, $data, $actor, $actorType) {
             $customer = $this->customers->findOrCreate($store, $data['customer_phone'], $data['customer_name'] ?? null, ['source' => $data['source']]);
 

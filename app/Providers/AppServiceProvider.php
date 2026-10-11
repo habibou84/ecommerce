@@ -17,9 +17,11 @@ use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Jibiat\Socle\PhoneNumber;
@@ -45,6 +47,9 @@ class AppServiceProvider extends ServiceProvider
                 DB::afterCommit(fn () => AutoAssignOrder::dispatch($event->order_id));
             }
         });
+
+        // Sonde /up : la base de données doit répondre (supervision de la disponibilité)
+        Event::listen(DiagnosingHealth::class, fn () => DB::select('select 1'));
 
         // Montant dans les gabarits : @money($order->total) → « 12 500 F »
         Blade::directive('money', fn (string $expression) => "<?php echo e(\\Jibiat\\Socle\\Money::format((int) ({$expression}))); ?>");

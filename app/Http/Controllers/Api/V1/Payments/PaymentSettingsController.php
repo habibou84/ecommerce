@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Payments;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentAccount;
 use App\Models\PaymentRoute;
+use App\Services\Billing\PlanLimits;
 use App\Services\Payments\FeeSimulator;
 use App\Services\Payments\PaymentDesk;
 use App\Support\Tenancy;
@@ -56,6 +57,7 @@ class PaymentSettingsController extends Controller
     public function storeAccount(Request $request): JsonResponse
     {
         $data = $this->validatedAccount($request);
+        app(PlanLimits::class)->ensureCanAdd($this->currentStore(), 'payment_accounts');
         $account = PaymentAccount::create($data + ['store_id' => $this->currentStore()->id, 'status' => 'active']);
 
         // Premier compte : il devient le prestataire de tous les moyens qu'il couvre

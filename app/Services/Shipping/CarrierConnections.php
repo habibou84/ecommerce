@@ -8,6 +8,7 @@ use App\Models\CarrierZone;
 use App\Models\CarrierZoneMapping;
 use App\Models\Place;
 use App\Models\Store;
+use App\Services\Billing\PlanLimits;
 use App\Services\Catalog\DeliveryAppImporter;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
@@ -48,6 +49,7 @@ class CarrierConnections
             throw new BusinessRuleException('Clé API invalide : elle commence par « lv_ » (Profil › Intégrations de votre entreprise de livraison).', 'api_key');
         }
         $baseUrl = $this->addresses->apiUrl($address);
+        app(PlanLimits::class)->ensureCanAdd($store, 'carrier_connections');
 
         $connection = new CarrierConnection([
             'store_id' => $store->id,
@@ -95,6 +97,8 @@ class CarrierConnections
      */
     public function connectManual(Store $store, string $name, ?string $phone): CarrierConnection
     {
+        app(PlanLimits::class)->ensureCanAdd($store, 'carrier_connections');
+
         return CarrierConnection::create([
             'store_id' => $store->id,
             'driver' => CarrierConnection::MANUAL,

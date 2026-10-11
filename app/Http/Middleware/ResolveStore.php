@@ -14,8 +14,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ResolveStore
 {
-    // Accessibles sur tous les noms d'hôte (sonde de disponibilité)
-    private const ANY_HOST = ['up'];
+    // Accessibles sur tous les noms d'hôte (sondes de disponibilité, autorisation des certificats par Caddy)
+    private const ANY_HOST = ['up', '_caddy/ask'];
 
     // Sur un domaine personnalisé, ces espaces sont servis par le sous-domaine de la boutique
     private const SUBDOMAIN_ONLY = ['gestion', 'gestion/*', 'livreur', 'livreur/*', 'invitation/*', 'auth/*'];

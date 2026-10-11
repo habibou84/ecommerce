@@ -2,16 +2,20 @@
 
 use App\Enums\Permission;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\Billing\BillingController;
 use App\Http\Controllers\Api\V1\Catalog\CatalogTransferController;
 use App\Http\Controllers\Api\V1\Catalog\CollectionController;
 use App\Http\Controllers\Api\V1\Catalog\ProductController;
 use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
+use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
+use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
 use App\Http\Controllers\Api\V1\Couriers\CourierController;
 use App\Http\Controllers\Api\V1\Couriers\PayrollController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\DomainController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
@@ -41,6 +45,7 @@ use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\Storefront\MenuController;
 use App\Http\Controllers\Api\V1\Storefront\OnlineStoreController;
 use App\Http\Controllers\Api\V1\Storefront\PageController as StorePageController;
+use App\Http\Controllers\Api\V1\SupportSessionController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use Illuminate\Support\Facades\Route;
 
@@ -65,6 +70,29 @@ Route::prefix('v1')->name('v1.')->group(function () {
         Route::post('verifications/{token}/confirm', [VerificationController::class, 'confirm'])->middleware('throttle:verification-code')->name('verifications.confirm');
     });
 
+    // ── admin.jibiat-marchand.com : console du super administrateur ──
+    Route::middleware('zone:console')->prefix('console')->name('console.')->group(function () {
+        Route::post('auth/login', [ConsoleAuthController::class, 'login'])->middleware('throttle:login')->name('login');
+        Route::post('auth/verify', [ConsoleAuthController::class, 'verify'])->middleware('throttle:verification-code')->name('verify');
+
+        Route::middleware(['auth:sanctum', 'super_admin'])->group(function () {
+            Route::get('auth/me', [ConsoleAuthController::class, 'me'])->name('me');
+            Route::post('auth/logout', [ConsoleAuthController::class, 'logout'])->name('logout');
+            Route::get('stats', [ConsoleController::class, 'stats'])->name('stats');
+            Route::get('stores', [ConsoleController::class, 'stores'])->name('stores');
+            Route::get('stores/{store}', [ConsoleController::class, 'store'])->whereNumber('store')->name('stores.show');
+            Route::post('stores/{store}/suspend', [ConsoleController::class, 'suspend'])->whereNumber('store')->name('stores.suspend');
+            Route::post('stores/{store}/reactivate', [ConsoleController::class, 'reactivate'])->whereNumber('store')->name('stores.reactivate');
+            Route::post('stores/{store}/trial', [ConsoleController::class, 'extendTrial'])->whereNumber('store')->name('stores.trial');
+            Route::post('stores/{store}/offer', [ConsoleController::class, 'offer'])->whereNumber('store')->name('stores.offer');
+            Route::post('stores/{store}/support', [ConsoleController::class, 'support'])->whereNumber('store')->name('stores.support');
+            Route::post('support-sessions/{session}/end', [ConsoleController::class, 'endSupport'])->whereNumber('session')->name('support.end');
+            Route::get('plans', [ConsoleController::class, 'plans'])->name('plans');
+            Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
+            Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
+        });
+    });
+
     // ── {slug}.jibiat-marchand.com : gestion de la boutique ──
     Route::middleware('zone:store')->group(function () {
         Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login')->name('auth.login');
@@ -78,6 +106,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
 
             Route::get('store', [StoreController::class, 'show'])->name('store.show');
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
+                Route::get('domains', [DomainController::class, 'index'])->name('domains.index');
+                Route::post('domains', [DomainController::class, 'store'])->middleware('throttle:10,1')->name('domains.store');
+                Route::post('domains/{domain}/verify', [DomainController::class, 'verify'])->whereNumber('domain')->middleware('throttle:20,1')->name('domains.verify');
+                Route::post('domains/{domain}/primary', [DomainController::class, 'primary'])->whereNumber('domain')->name('domains.primary');
+                Route::delete('domains/{domain}', [DomainController::class, 'destroy'])->whereNumber('domain')->name('domains.destroy');
                 Route::patch('store', [StoreController::class, 'update'])->name('store.update');
                 Route::put('store/slug', [StoreController::class, 'changeSlug'])->name('store.slug');
             });
@@ -93,6 +126,18 @@ Route::prefix('v1')->name('v1.')->group(function () {
             });
 
             Route::get('dashboard', DashboardController::class)->name('dashboard');
+            // La boutique met fin à un accès du support de la plateforme
+            Route::post('support-sessions/{session}/end', SupportSessionController::class)->whereNumber('session')
+                ->middleware('permission:'.Permission::TeamManage->value)->name('support.end');
+
+            // ── Abonnement de la boutique ──
+            Route::middleware('permission:'.Permission::BillingManage->value)->prefix('billing')->name('billing.')->group(function () {
+                Route::get('/', [BillingController::class, 'show'])->name('show');
+                Route::post('checkout', [BillingController::class, 'checkout'])->middleware('throttle:10,1')->name('checkout');
+                Route::post('invoices/{number}/check', [BillingController::class, 'check'])->where('number', 'JM-\\d{4}-\\d{6}')->name('check');
+                Route::get('invoices/{invoice}/receipt', [BillingController::class, 'receipt'])->whereNumber('invoice')->name('receipt');
+                Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
+            });
             Route::get('stats', [StatsController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('stats');
             Route::get('reports/schedule', [StatsController::class, 'schedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule');
             Route::put('reports/schedule', [StatsController::class, 'updateSchedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule.update');

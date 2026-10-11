@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StoreResource;
 use App\Models\Store;
+use App\Models\SupportSession;
 use App\Models\User;
 use App\Services\Accounts\LoginHandoff;
 use App\Services\Accounts\StoreRoles;
+use App\Services\Console\SupportSessions;
 use App\Services\Couriers\CourierRoster;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
@@ -97,6 +99,12 @@ class AuthController extends Controller
             'is_owner' => $store->owner_id === $user->id,
             // Fiche livreur de la personne dans cette boutique : accès à l'application /livreur
             'courier' => ($courier = CourierRoster::of($user, $store)) ? ['id' => $courier->id, 'name' => $courier->name] : null,
+            // Session de support : la personne connectée est le support (bandeau), ou un accès du support est ouvert
+            'support' => ($own = app(SupportSessions::class)->ongoingFor($user, $store))
+                ? ['self' => true, 'id' => $own->id, 'expires_at' => $own->expires_at->toIso8601String(), 'reason' => $own->reason]
+                : (($open = SupportSession::forStore($store->id)->ongoing()->with('admin:id,name')->latest('id')->first())
+                    ? ['self' => false, 'id' => $open->id, 'expires_at' => $open->expires_at->toIso8601String(), 'reason' => $open->reason, 'admin' => $open->admin?->name]
+                    : null),
             // Ses autres boutiques, pour passer de l'une à l'autre
             'other_stores' => $user->stores()->wherePivot('status', 'active')->where('stores.id', '!=', $store->id)
                 ->orderBy('name')->get(['stores.id', 'stores.name', 'stores.slug', 'stores.status'])

@@ -23,6 +23,7 @@ class PageController extends Controller
             'platformUrl' => Tenancy::platformUrl(),
             'storeUrlTemplate' => Tenancy::storeUrl('{slug}'),
             'trialDays' => (int) config('platform.trial_days'),
+            'supportWhatsapp' => config('platform.support_whatsapp'),
             'store' => $store ? ['id' => $store->id, 'name' => $store->name, 'slug' => $store->slug] : null,
         ]]);
     }

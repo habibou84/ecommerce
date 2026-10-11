@@ -87,7 +87,7 @@ vendor/bin/pint      # style du code
 - `.env` : `APP_URL=https://jibiat-marchand.com`, `PLATFORM_DOMAIN=jibiat-marchand.com`, `SESSION_SECURE_COOKIE=true`,
   `SESSION_DOMAIN` **vide** (cookie limité à chaque sous-domaine).
 - `api.jibiat-marchand.com` reçoit les webhooks des entreprises de livraison (`/webhooks/carriers/{uuid}`).
-- Tâches planifiées : `* * * * * php artisan schedule:run` (synchronisation des expéditions toutes les 10 minutes, relance des paniers abandonnés chaque heure, rapports du jour toutes les 15 minutes) ; `php artisan queue:work` pour les messages WhatsApp.
+- Tâches planifiées : `* * * * * php artisan schedule:run` (synchronisation des expéditions toutes les 10 minutes, relance des paniers abandonnés chaque heure, rapports du jour toutes les 15 minutes, abonnements chaque jour, contrôle des domaines chaque nuit, fin des sessions de support) ; `php artisan queue:work` pour les messages WhatsApp.
 
 ## Organisation du code
 
@@ -103,6 +103,10 @@ vendor/bin/pint      # style du code
 | `app/Services/Shipping` | Expéditions et transporteurs : connecteurs (`Drivers/`), `ShipmentDesk` (course, statuts → commande), webhooks et synchronisation (`CarrierEvents`), reversements, stock chez le transporteur |
 | `app/Services/Couriers` | Livreurs de la boutique : ajout et invitation (`CourierRoster`), actions du livreur (`CourierDesk`), encaissements et gains (`CourierMissions`), caisse (`CashDesk`), paie (`CourierPayroll`) |
 | `app/Services/Payments` | Paiement en ligne sur les comptes du marchand : pilotes `Gateways/` (Wave, CinetPay, PayDunya), `PaymentDesk` (routage et secours, vérification, webhooks, remboursements), `FeeSimulator` |
+| `app/Services/Billing` | Offres et quotas (`PlanLimits`), abonnements payés sur le compte de la plateforme (`Billing`) |
+| `app/Services/Domains` | Domaines personnalisés : vérification DNS, autorisation des certificats Caddy (`CustomDomains`) |
+| `app/Services/Console`, `resources/js/views/console` | Console du super administrateur (`admin.`) et sessions de support (`SupportSessions`) ; accès donné par `php artisan platform:admin {téléphone}` |
+| `docs/LANCEMENT.md` | Mise en production (Caddy, tâches, sauvegardes), supervision, déclaration ARTCI, pilote |
 | `app/Services/Promotions` | Prix de vente : ventes flash, prix par quantité, codes promo (`Pricing`), utilisé par le panier et par la saisie des commandes |
 | `app/Services/Marketing` | API Conversions de Meta (`Conversions`), lien court et image de partage d'un produit (`ShareImages`, polices dans `resources/fonts`) |
 | `app/Services/Reports` | Statistiques avancées (`StoreStats`) et rapport du jour (`DailyReport`) |

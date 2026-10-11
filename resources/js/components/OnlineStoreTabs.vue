@@ -3,6 +3,7 @@ const tabs = [
   { to: '/gestion/boutique-en-ligne', label: 'Apparence', exact: true },
   { to: '/gestion/boutique-en-ligne/pages', label: 'Pages' },
   { to: '/gestion/boutique-en-ligne/menus', label: 'Menus' },
+  { to: '/gestion/boutique-en-ligne/domaine', label: 'Domaine' },
 ]
 </script>
 

@@ -50,6 +50,7 @@ class Store extends Model
             'storefront_enabled' => 'boolean',
             'closed_at' => 'datetime',
             'free_shipping_above' => 'integer',
+            'billing_notices' => 'array',
             'marketing' => 'array',
             'meta_capi_token' => 'encrypted',
         ];
@@ -86,6 +87,11 @@ class Store extends Model
     public function domains(): HasMany
     {
         return $this->hasMany(StoreDomain::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
     }
 
     public function subscriptions(): HasMany

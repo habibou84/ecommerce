@@ -78,6 +78,8 @@ Table stores {
   allow_backorder boolean [default: false, note: 'valeur par défaut des nouveaux produits']
   low_stock_threshold int [default: 3]
   status varchar(20) [not null, default: 'trial', note: 'trial | active | past_due | suspended | closed']
+  suspended_reason varchar [note: 'motif donné par la console']
+  billing_notices jsonb [note: 'avertissements déjà envoyés : rappel d’échéance, quota de commandes du mois']
   closed_at timestamp
   deleted_at timestamp
 }
@@ -114,10 +116,10 @@ Table store_domains {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   hostname varchar [unique, not null, note: 'www.maboutique.ci ; sert uniquement la boutique publique']
-  is_primary boolean [default: false, note: 'les autres adresses redirigent (301) vers le domaine principal']
-  verification_token varchar(64) [not null, note: 'enregistrement TXT à créer par le marchand']
-  verified_at timestamp
-  ssl_status varchar(20) [default: 'pending', note: 'pending | active | failed ; Caddy n’émet un certificat que pour un domaine vérifié']
+  is_primary boolean [default: false, note: 'adresse canonique du site public (offre Pro, 3 domaines au plus)']
+  verification_token varchar(64) [not null, note: 'TXT « _jibiat.{hostname} » à créer par le marchand, plus un CNAME (ou A pour un domaine nu) vers la plateforme']
+  verified_at timestamp [note: 'contrôle DNS (bouton « Vérifier », puis domains:check chaque nuit)']
+  ssl_status varchar(20) [default: 'pending', note: 'pending | active ; Caddy (on_demand_tls, route /_caddy/ask) n’émet un certificat que pour un domaine vérifié']
   last_checked_at timestamp
   last_error varchar
 }
@@ -148,19 +150,28 @@ Table subscriptions {
 
 Table subscription_invoices {
   id bigint [pk, increment]
-  subscription_id bigint [ref: > subscriptions.id, not null]
   store_id bigint [ref: > stores.id, not null]
-  number varchar(30) [unique, not null]
-  amount int [not null]
-  period_start date [not null]
-  period_end date [not null]
-  status varchar(20) [not null, note: 'open | paid | void | uncollectible']
+  subscription_id bigint [ref: > subscriptions.id, note: 'abonnement créé ou prolongé par le paiement']
+  plan_id bigint [ref: > plans.id, not null]
+  number varchar(20) [unique, not null, note: 'JM-2026-000123']
+  billing_cycle varchar(10) [not null, note: 'monthly | yearly']
+  amount int [not null, note: '0 pour des mois offerts par la console']
+  status varchar(20) [not null, note: 'pending | paid | failed | cancelled | offered']
+  period_start timestamp
+  period_end timestamp
   provider varchar(20) [note: 'encaissé sur le compte de la plateforme (wave | cinetpay | paydunya)']
+  method varchar(20)
+  idempotency_key uuid [unique, not null, note: 'référence envoyée au prestataire']
   provider_reference varchar
+  checkout_url varchar
+  raw jsonb
+  created_by bigint [ref: > users.id]
   paid_at timestamp
+  Note: 'Paiement validé seulement après relecture chez le prestataire (retour, notification signée). Même offre : la période s’ajoute à la précédente.'
 }
 
 Table usage_counters {
+  Note: 'Non créée : les quotas (commandes du mois, produits, membres…) sont comptés à la demande (PlanLimits).'
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   period date [not null, note: 'premier jour du mois']
@@ -197,14 +208,26 @@ Table phone_verifications {
 
 Table support_sessions {
   id bigint [pk, increment]
-  admin_user_id bigint [ref: > users.id, not null]
   store_id bigint [ref: > stores.id, not null]
-  reason varchar [not null]
-  approved_by bigint [ref: > users.id, note: 'propriétaire de la boutique qui a accepté (si exigé)']
-  started_at timestamp
-  expires_at timestamp [not null]
+  admin_id bigint [ref: > users.id, not null, note: 'administrateur de la plateforme (users.is_super_admin)']
+  reason varchar [not null, note: 'visible par la boutique']
+  started_at timestamp [not null]
+  expires_at timestamp [not null, note: '60 minutes par défaut, 4 h au plus']
   ended_at timestamp
-  Note: 'Accès encadré du support à une boutique, journalisé (même principe que Delivery App).'
+  ended_by bigint [ref: > users.id, note: 'la boutique peut mettre fin à l’accès']
+  ip varchar(45)
+  Note: 'Accès temporaire à la gestion avec le rôle « support » (sans abonnement, équipe ni comptes de paiement) ; propriétaire prévenu ; fin automatique (support:expire).'
+}
+
+Table admin_actions {
+  id bigint [pk, increment]
+  admin_id bigint [ref: > users.id, not null]
+  store_id bigint [ref: > stores.id]
+  action varchar(40) [not null, note: 'console_login | suspend | reactivate | extend_trial | offer | support_session | plan_updated']
+  data jsonb
+  ip varchar(45)
+  created_at timestamp [not null]
+  Note: 'Journal de la console du super administrateur.'
 }
 
 // Tables techniques Laravel non détaillées : personal_access_tokens (Sanctum), roles / permissions /
@@ -1536,6 +1559,7 @@ TableGroup plateforme {
   usage_counters
   phone_verifications
   support_sessions
+  admin_actions
 }
 
 TableGroup geographie {

@@ -488,13 +488,15 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [x] **Partage de produit** (suggestion 3) : lien court `/p/{code}` (visites comptées, origine notée) et image carrée 1080 × 1080 générée (photo, nom, prix, promotion, boutique).
 - Restent pour la V1 : offres « 1 acheté = 1 offert » (`buy_x_get_y`), tableaux `store_daily_stats` précalculés quand les volumes l'exigeront, événements TikTok côté serveur, dépenses (publicité, emballage) dans la marge.
 
-### Phase 8 : SaaS et lancement (3 semaines)
-- [ ] Abonnements, quotas, paiement sur le compte de la plateforme (§6.5), essai gratuit.
-- [ ] Domaines personnalisés + SSL automatique (§4.4).
-- [ ] Console super administrateur (`admin.jibiat-marchand.com`), sessions de support.
-- [ ] Flux « Connecter » en un clic et annuaire (§5.7 point 6) si Delivery App est prêt.
-- [ ] Déclaration à l'autorité de protection des données (ARTCI en Côte d'Ivoire), CGU / CGV, politique de confidentialité.
-- [ ] Pilote avec 10 marchands (dont des marchands déjà clients d'une entreprise utilisant Delivery App), corrections, documentation, supervision (Sentry, disponibilité).
+### Phase 8 : SaaS et lancement (3 semaines) ✅ *réalisée pour la partie logicielle*
+- [x] **Abonnements** (§6.5) : offres Gratuit, Starter, Pro, Business (prix indicatifs 0 / 5 000 / 15 000 / 35 000 F par mois, deux mois offerts à l'année, modifiables dans la console) ; essai de 14 jours de l'offre Pro à la création ; paiement mensuel ou annuel sur le compte de la plateforme (mêmes pilotes Wave, CinetPay, PayDunya), validé par relecture chez le prestataire ; factures PDF ; rappels avant échéance, retard avec 7 jours de grâce, puis **retour à l'offre gratuite sans rien supprimer** (`billing:run`).
+- [x] **Quotas** de l'offre : commandes par mois (la boutique en ligne affiche un message neutre au client, l'équipe est prévenue), produits, membres, livreurs, transporteurs, comptes de paiement ; fonctions réservées (domaine, WhatsApp automatique, statistiques avancées). Page Abonnement avec l'utilisation de chaque limite.
+- [x] **Domaines personnalisés** (§4.4) : ajout (3 au plus, offre Pro), vérification DNS (TXT de propriété + CNAME ou A), domaine principal (adresse canonique), contrôle chaque nuit (`domains:check`) ; certificats à la demande par Caddy, autorisés par `/_caddy/ask` pour les seuls domaines vérifiés.
+- [x] **Console** `admin.jibiat-marchand.com` : connexion par mot de passe **et code SMS**, tableau de bord (boutiques, actives, revenu mensuel récurrent, ventes, essais qui se terminent, créations par jour), boutiques (recherche, filtres, fiche, suspension / réactivation, essai prolongé, mois offerts), offres (prix, limites, fonctions), factures ; journal des actions.
+- [x] **Sessions de support** : motif, durée limitée (60 min par défaut), rôle « support » sans abonnement, équipe ni comptes de paiement ; le propriétaire est prévenu, voit un bandeau et peut y mettre fin ; fin automatique (`support:expire`). Bouton **« Aide »** (WhatsApp du support) dans la gestion (suggestion 9).
+- [x] **Pages légales** provisoires (`/cgu`, `/confidentialite`), acceptation à la création de boutique ; **supervision** : Sentry, sonde `/up` qui vérifie la base de données ; guide de mise en production, de déclaration ARTCI et de pilote (`docs/LANCEMENT.md`).
+- À faire hors logiciel : relecture juridique des pages légales et identité de l'éditeur, déclaration ARTCI, comptes de paiement de la plateforme, pilote avec 10 marchands (`docs/LANCEMENT.md`).
+- Reste : flux « Connecter » en un clic et annuaire (§5.7 point 6), qui dépend de Delivery App (branche `claude/socle-et-api-marchand` à terminer et déployer) ; export complet des données d'une boutique et fermeture en libre-service.
 
 **Total : environ 6,5 mois** jusqu'au lancement commercial ; MVP vendable vers la **13e semaine**.
 

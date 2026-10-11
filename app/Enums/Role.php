@@ -14,6 +14,8 @@ enum Role: string
     case StockKeeper = 'stock_keeper';
     case Cashier = 'cashier';
     case Courier = 'courier';
+    // Administrateur de la plateforme pendant une session de support (jamais attribué par la boutique)
+    case Support = 'support';
 
     public function label(): string
     {
@@ -24,6 +26,7 @@ enum Role: string
             self::StockKeeper => 'Préparateur / magasinier',
             self::Cashier => 'Caissier',
             self::Courier => 'Livreur',
+            self::Support => 'Support Jibiat Marchand',
         };
     }
 
@@ -36,6 +39,7 @@ enum Role: string
             self::StockKeeper => 'Catalogue, stock, préparation des colis.',
             self::Cashier => 'Encaissements, versements des livreurs, finances.',
             self::Courier => 'Application livreur uniquement.',
+            self::Support => 'Accès temporaire de l\'équipe Jibiat Marchand, sans l\'abonnement, l\'équipe ni les comptes de paiement.',
         };
     }
 
@@ -51,6 +55,7 @@ enum Role: string
             self::StockKeeper => [Permission::ProductsView, Permission::ProductsManage, Permission::StockManage, Permission::OrdersView, Permission::ShipmentsManage],
             self::Cashier => [Permission::OrdersView, Permission::FinanceView, Permission::CustomersView],
             self::Courier => [],
+            self::Support => array_values(array_filter(Permission::cases(), fn (Permission $p) => ! in_array($p, [Permission::BillingManage, Permission::TeamManage, Permission::PaymentsManage], true))),
         };
     }
 

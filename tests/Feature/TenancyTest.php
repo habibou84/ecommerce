@@ -80,7 +80,8 @@ class TenancyTest extends TestCase
 
     public function test_reserved_subdomains_are_not_stores(): void
     {
-        $this->get('http://admin.localhost/')->assertOk()->assertSee('Console Jibiat Marchand');
+        $this->get('http://admin.localhost/')->assertRedirect('/console');
+        $this->get('http://admin.localhost/console')->assertOk();
         $this->getJson('http://api.localhost/')->assertNotFound();
     }
 

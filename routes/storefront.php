@@ -1,11 +1,13 @@
 <?php
 
+use App\Http\Controllers\CaddyAskController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\PaymentPageController;
 use App\Http\Controllers\Storefront\ShortLinkController;
 use App\Http\Controllers\Storefront\StorefrontController;
 use App\Http\Controllers\TrackingController;
+use App\Http\Controllers\Webhooks\BillingWebhookController;
 use App\Http\Controllers\Webhooks\CarrierWebhookController;
 use App\Http\Controllers\Webhooks\PaymentWebhookController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
@@ -20,6 +22,8 @@ use Illuminate\Support\Facades\Route;
 // Racine de chaque adresse : présentation (plateforme), boutique, console (voir Tenancy)
 Route::get('/', [StorefrontController::class, 'home'])->name('home');
 Route::get('/robots.txt', [StorefrontController::class, 'robots']);
+// Caddy (même machine) : autorisation d'émettre un certificat pour un nom d'hôte
+Route::get('/_caddy/ask', CaddyAskController::class);
 
 Route::middleware('zone:store,custom_domain')->group(function () {
     // Suivi d'une commande par le client (lien envoyé par WhatsApp), même boutique en ligne fermée
@@ -81,6 +85,10 @@ Route::middleware(['zone:api', 'throttle:carrier-webhooks'])->group(function () 
     Route::get('/webhooks/whatsapp/{uuid}', [WhatsAppWebhookController::class, 'verify'])->whereUuid('uuid');
     Route::post('/webhooks/whatsapp/{uuid}', [WhatsAppWebhookController::class, 'handle'])->whereUuid('uuid')->name('webhooks.whatsapp');
 });
+
+// api.jibiat-marchand.com : notifications du prestataire de paiement de la plateforme (abonnements)
+Route::match(['get', 'post'], '/webhooks/billing', BillingWebhookController::class)
+    ->middleware(['zone:api', 'throttle:carrier-webhooks'])->name('webhooks.billing');
 
 // api.jibiat-marchand.com : notifications des prestataires de paiement
 Route::match(['get', 'post'], '/webhooks/payments/{uuid}', PaymentWebhookController::class)
