@@ -53,10 +53,12 @@ if [[ -d /usr/local/ispconfig ]]; then info "ISPConfig détecté : il n'est pas 
 # ─────────────────────────── Paquets ───────────────────────────
 
 export DEBIAN_FRONTEND=noninteractive
+# Aucune question pendant l'installation des paquets (services à redémarrer, fichiers de configuration modifiés)
+export NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
 
 step "Paquets (PostgreSQL, Supervisor, Node.js, Composer, Certbot, extensions PHP)"
 apt-get update -q
-apt-get install -y -q git unzip openssl sudo curl postgresql supervisor nodejs npm composer \
+apt-get install -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold git unzip openssl sudo curl postgresql supervisor nodejs npm composer \
     certbot python3-certbot-dns-cloudflare \
     php-fpm php-cli php-pgsql php-intl php-bcmath php-gd php-zip php-mbstring php-xml php-curl
 
