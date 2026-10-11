@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockLevel;
 use App\Models\Store;
+use App\Services\Promotions\Pricing;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\DB;
  */
 class StorefrontCatalog
 {
+    public function __construct(private readonly Pricing $pricing) {}
+
     public function products(Store $store): Builder
     {
         return Product::forStore($store->id)
@@ -76,18 +79,24 @@ class StorefrontCatalog
     {
         $products->loadMissing(['images' => fn ($q) => $q->orderBy('position'), 'variants' => fn ($q) => $q->where('is_active', true)]);
         $availability = $this->availability($store, $products->flatMap->variants->pluck('id')->all());
+        $pricing = $this->pricing->context($store->id, $products->pluck('id')->all());
 
-        return $products->map(function (Product $p) use ($availability) {
+        return $products->map(function (Product $p) use ($availability, $pricing) {
             $variants = $p->variants->each->setRelation('product', $p);
             $inStock = $variants->contains(fn ($v) => ($this->sellable($v, $availability) ?? 1) > 0);
-            $compare = $variants->pluck('compare_at_price')->filter()->max();
+            // Prix affiché : vente flash comprise
+            $prices = $variants->map(fn ($v) => $this->pricing->unit($pricing, $v));
+            $min = $prices->min('price') ?? $p->price_min;
+            $compare = $prices->pluck('compare_at')->filter()->max();
 
             return [
                 'slug' => $p->slug,
                 'title' => $p->title,
-                'price_min' => $p->price_min,
-                'price_max' => $p->price_max,
-                'compare_at' => $compare && $compare > $p->price_min ? $compare : null,
+                'price_min' => $min,
+                'price_max' => $prices->max('price') ?? $p->price_max,
+                'compare_at' => $compare && $compare > $min ? $compare : null,
+                'flash' => $prices->contains(fn ($x) => $x['discount'] !== null),
+                'volume' => ! empty($pricing->tiers[$p->id]),
                 'image' => $p->images->first()?->urls(),
                 'image_alt' => $p->images->first()?->alt ?? $p->title,
                 'in_stock' => $inStock,

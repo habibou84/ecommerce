@@ -67,6 +67,21 @@
                 <span data-price class="text-2xl font-semibold">@money($selected['price'])</span>
                 <s data-compare class="text-slate-400" @if (! $selected['compare_at']) hidden @endif>{{ $selected['compare_at'] ? \Jibiat\Socle\Money::format($selected['compare_at']) : '' }}</s>
             </p>
+            @if ($flashEndsAt)
+                <p class="mt-2 inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700">
+                    ⚡ Vente flash · fin dans <span data-countdown="{{ $flashEndsAt }}" class="tabular-nums">…</span>
+                </p>
+            @endif
+            @if ($volumePrices->isNotEmpty())
+                <div class="mt-4 rounded-lg border border-slate-200 p-3 text-sm">
+                    <p class="mb-2 font-medium">Prix par quantité <span class="font-normal text-slate-500">(modèles et tailles au choix)</span></p>
+                    <ul class="flex flex-wrap gap-2">
+                        @foreach ($volumePrices as $tier)
+                            <li class="rounded-lg bg-brand-soft px-3 py-1.5"><strong>{{ $tier['quantity'] }}</strong> pour <strong>@money($tier['price'])</strong>@if ($tier['quantity'] > 1) <span class="text-slate-500">· @money($tier['unit']) l'unité</span>@endif</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             @if ($hasChoices)
                 @foreach ($options as $index => $option)
@@ -136,7 +151,13 @@
         </section>
     @endif
 
+    @push('tracking')
+        jmTrack('view_item', {!! json_encode(['value' => $selected['price'], 'currency' => $store->currency, 'items' => [['id' => $product->id, 'name' => $product->title, 'price' => $selected['price'], 'quantity' => 1]]], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) !!});
+    @endpush
+
     <script type="application/json" id="product-data">{!! json_encode([
+        'id' => $product->id,
+        'currency' => $store->currency,
         'title' => $product->title,
         'url' => $productUrl,
         'whatsapp' => $showWhatsapp ? $whatsapp : null,

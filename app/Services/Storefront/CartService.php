@@ -7,6 +7,7 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\ProductVariant;
 use App\Models\Store;
+use App\Services\Promotions\Pricing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -22,7 +23,7 @@ class CartService
 
     public const MAX_LINES = 30;
 
-    public function __construct(private readonly StorefrontCatalog $catalog) {}
+    public function __construct(private readonly StorefrontCatalog $catalog, private readonly Pricing $pricing) {}
 
     public function find(Request $request, Store $store): ?Cart
     {
@@ -84,20 +85,21 @@ class CartService
     }
 
     /**
-     * Contenu du panier aux prix et stocks du moment ; les articles qui ne sont plus en vente sont retirés.
+     * Contenu du panier aux prix et stocks du moment (ventes flash, prix par quantité, code promo) ;
+     * les articles qui ne sont plus en vente sont retirés.
      *
-     * @return array{lines: list<array<string, mixed>>, count: int, subtotal: int, removed: list<string>}
+     * @return array{lines: list<array<string, mixed>>, count: int, subtotal: int, discount: ?array<string, mixed>, total: int, free_shipping: ?array{threshold: int, remaining: int}, removed: list<string>}
      */
     public function summary(Store $store, ?Cart $cart): array
     {
         if ($cart === null) {
-            return ['lines' => [], 'count' => 0, 'subtotal' => 0, 'removed' => []];
+            return ['lines' => [], 'count' => 0, 'subtotal' => 0, 'discount' => null, 'total' => 0, 'free_shipping' => $this->freeShipping($store, 0), 'removed' => []];
         }
 
         $items = $cart->items()->with(['variant.product.images', 'variant.image'])->get();
         $visible = $this->catalog->products($store)->whereIn('id', $items->pluck('variant.product_id')->filter())->pluck('id')->all();
         $availability = $this->catalog->availability($store, $items->pluck('variant_id')->all());
-        $lines = [];
+        $kept = [];
         $removed = [];
 
         foreach ($items as $item) {
@@ -108,29 +110,72 @@ class CartService
 
                 continue;
             }
+            $kept[] = $item;
+        }
 
+        $prices = $this->pricing->lines($store->id, array_map(fn ($item) => ['variant' => $item->variant, 'quantity' => $item->quantity], $kept));
+        $lines = [];
+        foreach ($kept as $index => $item) {
+            $variant = $item->variant;
             $sellable = $this->catalog->sellable($variant, $availability);
             $image = $variant->image ?? $variant->product->images->first();
             $lines[] = [
                 'variant_id' => $variant->id,
+                'product_id' => $variant->product_id,
                 'product_slug' => $variant->product->slug,
                 'title' => $variant->product->title,
                 'variant_title' => $variant->is_default ? null : $variant->title,
-                'unit_price' => $variant->price,
+                'unit_price' => $prices[$index]['unit_price'],
+                'compare_at' => $prices[$index]['compare_at'],
+                'volume' => $prices[$index]['volume'],
                 'quantity' => $item->quantity,
-                'total' => $variant->price * $item->quantity,
+                'total' => $prices[$index]['total'],
                 'image' => $image?->urls()['thumb'],
                 'max' => $sellable,
                 'short' => $sellable !== null && $item->quantity > $sellable,
             ];
         }
 
+        $subtotal = array_sum(array_column($lines, 'total'));
+        $code = $cart->discount_code && $lines !== []
+            ? $this->pricing->code($store->id, $cart->discount_code, array_map(fn ($l) => ['product_id' => $l['product_id'], 'total' => $l['total']], $lines), $cart->phone)
+            : null;
+
         return [
             'lines' => $lines,
             'count' => array_sum(array_column($lines, 'quantity')),
-            'subtotal' => array_sum(array_column($lines, 'total')),
+            'subtotal' => $subtotal,
+            'discount' => $code ? ['code' => $code['code'], 'amount' => $code['amount'], 'free_shipping' => $code['free_shipping'], 'label' => $code['label'], 'error' => $code['error']] : null,
+            'total' => $subtotal - ($code['amount'] ?? 0),
+            'free_shipping' => $this->freeShipping($store, $subtotal),
             'removed' => $removed,
         ];
+    }
+
+    /**
+     * Code promo saisi par le client (vide : retiré). Refusé s'il ne s'applique pas au panier.
+     */
+    public function applyCode(Store $store, Cart $cart, ?string $code): void
+    {
+        $code = Pricing::normalize($code);
+        if ($code !== null) {
+            $summary = $this->summary($store, $cart->setAttribute('discount_code', $code));
+            if ($summary['discount']['error'] ?? null) {
+                throw new BusinessRuleException($summary['discount']['error'], 'code');
+            }
+        }
+
+        $cart->forceFill(['discount_code' => $code, 'last_activity_at' => now()])->save();
+    }
+
+    /**
+     * Livraison offerte dès un montant (réglage de la boutique) : ce qu'il reste à ajouter.
+     *
+     * @return array{threshold: int, remaining: int}|null
+     */
+    private function freeShipping(Store $store, int $subtotal): ?array
+    {
+        return $store->free_shipping_above ? ['threshold' => $store->free_shipping_above, 'remaining' => max(0, $store->free_shipping_above - $subtotal)] : null;
     }
 
     public function saveContact(Cart $cart, ?string $name, ?string $phone): void

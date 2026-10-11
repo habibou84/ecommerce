@@ -66,6 +66,10 @@ Table stores {
   storefront_enabled boolean [default: false, note: 'boutique en ligne ouverte au public (sinon page « ouvre bientôt », aperçu par lien signé)']
   online_payment varchar(20) [not null, default: 'off', note: 'off | optional (au choix du client) | deposit (acompte exigé) | required (tout en ligne)']
   deposit_percent smallint [note: 'acompte en % du total, arrondi aux 5 F supérieurs']
+  free_shipping_above int [note: 'livraison offerte dès ce montant, toutes zones']
+  marketing jsonb [note: '{meta_pixel_id, tiktok_pixel_id, ga4_id}']
+  meta_capi_token text [note: 'chiffré : API Conversions de Meta']
+  assignment_mode varchar(10) [not null, default: 'suggest', note: 'off | suggest | auto (expédition créée à la confirmation)']
   order_prefix varchar(10) [default: '#']
   next_order_number int [not null, default: 1001, note: 'incrémenté sous verrou (SELECT … FOR UPDATE)']
   require_order_confirmation boolean [default: true, note: 'les commandes passent par la file « à confirmer »']
@@ -344,13 +348,14 @@ Table product_images {
 
 Table volume_prices {
   id bigint [pk, increment]
-  variant_id bigint [ref: > product_variants.id, not null]
+  store_id bigint [ref: > stores.id, not null]
+  product_id bigint [ref: > products.id, not null]
   min_quantity int [not null]
-  unit_price int [not null]
+  price int [not null, note: 'prix du lot de min_quantity articles']
   indexes {
-    (variant_id, min_quantity) [unique]
+    (product_id, min_quantity) [unique]
   }
-  Note: 'Prix par quantité (V1) : 1 = 10 000, 3 = 25 000 → 3 unités à 8 333.'
+  Note: 'Prix par quantité, toutes variantes du produit confondues : 3 pour 25 000 → 3 unités à 8 333 (total exact 25 000). Appliqué s’il est plus avantageux qu’une vente flash.'
 }
 
 Table collections {
@@ -640,6 +645,7 @@ Table orders {
   deposit_required int [note: 'acompte exigé avant expédition']
   discount_code varchar(40)
   // Suivi
+  conversion_sent_at timestamp [note: 'achat envoyé à l’API Conversions de Meta']
   customer_note text
   internal_note text
   risk_score smallint [note: '0 à 100 : historique de refus, doublon, numéro suspect']
@@ -679,7 +685,8 @@ Table order_items {
   unit_price int [not null]
   compare_at_price int
   unit_cost int
-  discount_amount int [not null, default: 0]
+  discount_amount int [not null, default: 0, note: 'part du code promo répartie sur la ligne']
+  discount_id bigint [ref: > discounts.id, note: 'vente flash appliquée au prix']
   total int [not null]
   weight_g int
   requires_shipping boolean [default: true]
@@ -725,7 +732,7 @@ Table discounts {
   store_id bigint [ref: > stores.id, not null]
   code varchar(40) [note: 'null = remise automatique (vente flash)']
   title varchar
-  type varchar(20) [not null, note: 'percentage | fixed_amount | free_shipping | buy_x_get_y']
+  type varchar(20) [not null, note: 'percentage | fixed_amount | free_shipping (codes seulement) ; buy_x_get_y : V1']
   value int [not null, note: 'pourcentage ou montant']
   applies_to varchar(20) [default: 'all', note: 'all | collections | products']
   target_ids jsonb
@@ -739,15 +746,21 @@ Table discounts {
   indexes {
     (store_id, code) [unique]
   }
+  Note: 'Code en majuscules. Sans code : vente flash (date de fin obligatoire, compte à rebours).'
 }
 
 Table discount_usages {
   id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
   discount_id bigint [ref: > discounts.id, not null]
   order_id bigint [ref: > orders.id, not null]
   customer_id bigint [ref: > customers.id]
-  amount int [not null]
+  amount int [not null, note: 'remise accordée sur cette commande']
   created_at timestamp [not null]
+  indexes {
+    (discount_id, order_id) [unique]
+  }
+  Note: 'Recalculées à chaque modification de la commande, supprimées à l’annulation ; discounts.used_count en découle.'
 }
 
 Table returns {
@@ -964,7 +977,7 @@ Table shipping_rules {
   store_id bigint [ref: > stores.id, not null]
   name varchar
   priority smallint [not null]
-  conditions jsonb [not null, note: '{delivery_zone_ids, place_ids, min_weight_g, max_weight_g, is_fragile, min_cod, max_cod}']
+  conditions jsonb [note: '{delivery_zone_ids, is_fragile, min_amount, max_amount, max_weight_g}']
   action varchar(20) [not null, note: 'own_courier | carrier | cheapest | fastest | manual']
   carrier_connection_id bigint [ref: > carrier_connections.id]
   is_active boolean [default: true]
@@ -1341,7 +1354,7 @@ Table short_links {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   code varchar(12) [unique, not null, note: '{slug}.jibiat-marchand.com/p/{code}']
-  target_type varchar(20) [not null, note: 'product | collection | payment_link | order_tracking']
+  target_type varchar(20) [not null, note: 'product (V1 : collection, payment_link)']
   target_id bigint [not null]
   share_image_path varchar [note: 'image carrée prête pour les statuts WhatsApp']
   clicks int [default: 0]
@@ -1430,8 +1443,8 @@ Table scheduled_reports {
   store_id bigint [ref: > stores.id, not null]
   user_id bigint [ref: > users.id, not null]
   frequency varchar(10) [not null, note: 'daily | weekly | monthly']
-  channel varchar(10) [not null, note: 'whatsapp | email']
-  send_at time [default: '20:00']
+  channel varchar(10) [not null, note: 'whatsapp (modèle « daily_report » du WhatsApp de la boutique) | email']
+  send_at time [default: '20:00', note: 'heure de la boutique']
   last_sent_at timestamp
   is_active boolean [default: true]
 }

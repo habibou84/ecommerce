@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Enums\OrderStatus;
+use App\Jobs\AutoAssignOrder;
 use App\Models\Customer;
 use App\Models\InventoryCount;
 use App\Models\Order;
@@ -9,6 +11,7 @@ use App\Models\OrderEvent;
 use App\Models\Product;
 use App\Models\StockReceipt;
 use App\Models\StockTransfer;
+use App\Models\Store;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
@@ -35,6 +38,13 @@ class AppServiceProvider extends ServiceProvider
     {
         // Messages WhatsApp automatiques aux clients (confirmation, expédition, livraison), une fois l'opération validée
         OrderEvent::created(fn (OrderEvent $event) => DB::afterCommit(fn () => app(CustomerMessenger::class)->onOrderEvent($event)));
+        // Affectation automatique (mode « auto ») : livreur ou transporteur choisi par les règles dès la confirmation
+        OrderEvent::created(function (OrderEvent $event) {
+            if ($event->type === 'status_changed' && ($event->data['to'] ?? null) === OrderStatus::Confirmed->value
+                && Store::whereKey($event->store_id)->value('assignment_mode') === 'auto') {
+                DB::afterCommit(fn () => AutoAssignOrder::dispatch($event->order_id));
+            }
+        });
 
         // Montant dans les gabarits : @money($order->total) → « 12 500 F »
         Blade::directive('money', fn (string $expression) => "<?php echo e(\\Jibiat\\Socle\\Money::format((int) ({$expression}))); ?>");

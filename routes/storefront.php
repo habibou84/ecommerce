@@ -3,6 +3,7 @@
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\PaymentPageController;
+use App\Http\Controllers\Storefront\ShortLinkController;
 use App\Http\Controllers\Storefront\StorefrontController;
 use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\Webhooks\CarrierWebhookController;
@@ -54,6 +55,7 @@ Route::middleware('zone:store,custom_domain')->group(function () {
     Route::middleware('storefront.open')->group(function () {
         Route::get('/produits', [StorefrontController::class, 'products'])->name('storefront.products');
         Route::get('/produits/{slug}', [StorefrontController::class, 'product'])->name('storefront.product');
+        Route::get('/p/{code}', ShortLinkController::class)->where('code', '[a-z0-9]{4,12}')->name('storefront.short-link');
         Route::get('/collections/{slug}', [StorefrontController::class, 'collection'])->name('storefront.collection');
         Route::get('/pages/{slug}', [StorefrontController::class, 'page'])->name('storefront.page');
         Route::get('/sitemap.xml', [StorefrontController::class, 'sitemap']);
@@ -65,6 +67,7 @@ Route::middleware('zone:store,custom_domain')->group(function () {
         Route::middleware(['ajax', 'throttle:storefront'])->group(function () {
             Route::get('/panier/resume', [CartController::class, 'summary']);
             Route::post('/panier/articles', [CartController::class, 'put']);
+            Route::post('/panier/code', [CartController::class, 'code']);
             Route::get('/lieux', [CheckoutController::class, 'places']);
             Route::post('/commande/devis', [CheckoutController::class, 'quote']);
             Route::post('/commande/contact', [CheckoutController::class, 'contact']);

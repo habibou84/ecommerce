@@ -4,8 +4,9 @@ import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import ChipsInput from '../../../components/ChipsInput.vue'
 import Field from '../../../components/Field.vue'
+import Modal from '../../../components/Modal.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
-import { combinations } from '../../../lib/format'
+import { combinations, money } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
 
 const props = defineProps({ id: { type: String, default: null } })
@@ -261,6 +262,49 @@ async function destroy() {
   }
 }
 
+// Prix par quantité (« 3 pour 25 000 F ») : enregistrés à part
+const tiers = ref([])
+const tiersSaved = ref(false)
+const tiersErrors = ref({})
+async function loadTiers() {
+  if (props.id) tiers.value = (await http.get(`/products/${props.id}/volume-prices`)).data.data
+}
+async function saveTiers() {
+  tiersSaved.value = false
+  tiersErrors.value = {}
+  try {
+    tiers.value = (await http.put(`/products/${props.id}/volume-prices`, {
+      tiers: tiers.value.filter((t) => t.min_quantity && t.price).map((t) => ({ min_quantity: Number(t.min_quantity), price: Number(t.price) })),
+    })).data.data
+    tiersSaved.value = true
+  } catch (e) {
+    tiersErrors.value = fieldErrors(e)
+    if (!Object.keys(tiersErrors.value).length) tiersErrors.value = { form: errorMessage(e) }
+  }
+}
+onMounted(loadTiers)
+
+// Partage sur les réseaux : lien court et image carrée
+const share = ref(null)
+const sharing = ref(false)
+async function openShare() {
+  sharing.value = true
+  error.value = ''
+  try {
+    share.value = (await http.post(`/products/${props.id}/share`)).data.data
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    sharing.value = false
+  }
+}
+const shareCopied = ref(false)
+async function copyShare(text) {
+  await navigator.clipboard?.writeText(text)
+  shareCopied.value = true
+  setTimeout(() => (shareCopied.value = false), 2000)
+}
+
 const variantError = (index, field) => errors.value[`variants.${index}.${field}`]
 const margin = computed(() => {
   const price = num(simple.price)
@@ -276,6 +320,7 @@ const margin = computed(() => {
     <div class="flex flex-wrap items-center gap-2">
       <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Catalogue</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
+      <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare">📣 Partager</button>
     </div>
 
     <Alert v-if="error">{{ error }}</Alert>
@@ -479,6 +524,28 @@ const margin = computed(() => {
         </div>
       </section>
 
+      <section v-if="props.id" class="card space-y-3 p-4 sm:p-6">
+        <div>
+          <h2 class="font-semibold">Prix par quantité</h2>
+          <p class="text-sm text-slate-500">Ex. 3 pour 25 000 F : appliqué au panier, toutes tailles et couleurs confondues, si c'est plus avantageux pour le client.</p>
+        </div>
+        <Alert v-if="tiersErrors.form">{{ tiersErrors.form }}</Alert>
+        <div v-for="(t, i) in tiers" :key="i" class="flex flex-wrap items-center gap-2 text-sm">
+          <input v-model="t.min_quantity" type="number" min="2" class="input w-20" aria-label="Quantité" />
+          <span>pour</span>
+          <input v-model="t.price" type="number" min="1" class="input w-32" aria-label="Prix du lot" />
+          <span>F</span>
+          <span v-if="t.min_quantity > 1 && t.price" class="text-slate-500">soit {{ money(Math.round(t.price / t.min_quantity)) }} l'unité</span>
+          <button type="button" class="btn-ghost px-2 text-red-600" aria-label="Retirer" @click="tiers.splice(i, 1)">✕</button>
+          <p v-if="tiersErrors[`tiers.${i}.price`] || tiersErrors[`tiers.${i}.min_quantity`]" class="w-full text-red-700">{{ tiersErrors[`tiers.${i}.price`] || tiersErrors[`tiers.${i}.min_quantity`] }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn-ghost text-emerald-700" @click="tiers.push({ min_quantity: (tiers.at(-1)?.min_quantity ?? 1) + 1, price: '' })">+ Palier</button>
+          <button type="button" class="btn-secondary ml-auto px-3 py-1.5" @click="saveTiers">Enregistrer les prix par quantité</button>
+          <span v-if="tiersSaved" class="text-sm text-emerald-700">✓</span>
+        </div>
+      </section>
+
       <section class="card p-4 sm:p-6">
         <button type="button" class="flex w-full items-center justify-between font-semibold" @click="showSeo = !showSeo">
           Référencement (Google, partage WhatsApp)
@@ -507,5 +574,20 @@ const margin = computed(() => {
         <button class="btn-brand ml-auto" :disabled="saving || uploading">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button>
       </div>
     </div>
+
+    <Modal v-if="share" title="Partager le produit" @close="share = null">
+      <div class="space-y-3 text-sm">
+        <img :src="share.image_url" alt="Image de partage" class="w-full rounded-lg border border-slate-200" width="1080" height="1080" />
+        <p class="text-slate-600">Image prête pour un statut WhatsApp, Facebook ou TikTok. Le lien court mène à la fiche du produit ({{ share.clicks }} visite(s)).</p>
+        <div class="flex gap-2">
+          <input class="input text-xs" :value="share.url" readonly @focus="$event.target.select()" />
+          <button type="button" class="btn-secondary shrink-0" @click="copyShare(share.url)">{{ shareCopied ? 'Copié ✓' : 'Copier' }}</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <a :href="share.image_url" download class="btn-brand">⬇ Télécharger l'image</a>
+          <a :href="`https://wa.me/?text=${encodeURIComponent(share.text)}`" target="_blank" rel="noopener" class="btn-secondary">💬 Envoyer le lien</a>
+        </div>
+      </div>
+    </Modal>
   </form>
 </template>

@@ -27,6 +27,7 @@ use App\Notifications\OrderPlaced;
 use App\Services\Accounts\TeamNotifier;
 use App\Services\Customers\CustomerBook;
 use App\Services\Places\Places;
+use App\Services\Promotions\Pricing;
 use App\Services\Stock\StockKeeper;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -52,6 +53,7 @@ class OrderDesk
         private readonly CustomerBook $customers,
         private readonly Places $places,
         private readonly TeamNotifier $notifier,
+        private readonly Pricing $pricing,
     ) {}
 
     /**
@@ -76,6 +78,7 @@ class OrderDesk
                 'shipping_phone' => $data['shipping_phone'] ?? $data['customer_phone'],
                 'location_id' => $this->location($store, $data['location_id'] ?? null)->id,
                 'discount_total' => (int) ($data['discount_total'] ?? 0),
+                'discount_code' => Pricing::normalize($data['discount_code'] ?? null),
                 'deposit_required' => $data['deposit_required'] ?? null,
                 'status' => OrderStatus::PendingConfirmation,
                 'payment_status' => PaymentStatus::Unpaid,
@@ -89,6 +92,7 @@ class OrderDesk
             $this->replaceItems($order, $data['items'], $actor);
             $this->recalculate($order, $data['shipping_fee'] ?? null, true);
             $order->save();
+            $this->pricing->recordUsages($order);
 
             $this->log($order, 'created', ['source' => $order->source->value, 'total' => $order->total], $actor, $actorType);
 
@@ -121,8 +125,15 @@ class OrderDesk
                 throw new BusinessRuleException('Une commande expédiée, livrée ou annulée ne se modifie plus.');
             }
 
-            $before = $order->only(['customer_name', 'shipping_place_id', 'shipping_address', 'total', 'discount_total', 'shipping_fee']);
+            $before = $order->only(['customer_name', 'shipping_place_id', 'shipping_address', 'total', 'discount_total', 'discount_code', 'shipping_fee']);
             $order->fill(Arr::only($data, [...self::CONTACT_FIELDS, 'discount_total', 'deposit_required']));
+            if (array_key_exists('discount_code', $data)) {
+                $order->discount_code = Pricing::normalize($data['discount_code']);
+            }
+            $codeChanged = $order->isDirty('discount_code');
+            if ($codeChanged && $order->discount_code === null && ! array_key_exists('discount_total', $data)) {
+                $order->discount_total = 0; // la remise venait du code retiré
+            }
             $placeChanged = $order->isDirty('shipping_place_id') || $order->isDirty('delivery_method');
             if ($placeChanged) {
                 $this->applyPlace($order->store, $order);
@@ -135,8 +146,9 @@ class OrderDesk
                 $this->replaceItems($order, $data['items'], $actor);
             }
 
-            $this->recalculate($order, $data['shipping_fee'] ?? null, $placeChanged || $itemsChanged || array_key_exists('shipping_fee', $data));
+            $this->recalculate($order, $data['shipping_fee'] ?? null, $placeChanged || $itemsChanged || $codeChanged || array_key_exists('shipping_fee', $data));
             $order->save();
+            $this->pricing->recordUsages($order->setRelation('items', $order->items()->get()));
             $this->refreshPaymentStatus($order);
 
             $after = $order->only(array_keys($before));
@@ -169,7 +181,7 @@ class OrderDesk
                 OrderStatus::Confirmed => $order->forceFill(['confirmed_at' => $order->confirmed_at ?? now(), 'confirmed_by' => $order->confirmed_by ?? $actor?->id, 'callback_at' => null]),
                 OrderStatus::Shipped => $this->shipItems($order, $actor)->forceFill(['shipped_at' => now()]),
                 OrderStatus::Completed => $this->shipItems($order, $actor)->forceFill(['completed_at' => now(), 'shipped_at' => $order->shipped_at ?? now()]),
-                OrderStatus::Cancelled => $this->releaseItems($order, $actor, 'Commande annulée')->forceFill([
+                OrderStatus::Cancelled => $this->releaseUsages($this->releaseItems($order, $actor, 'Commande annulée'))->forceFill([
                     'cancelled_at' => now(),
                     'cancel_reason' => $context['reason'] ?? CancelReason::Other,
                     'cancel_note' => $context['note'] ?? null,
@@ -331,7 +343,13 @@ class OrderDesk
             ->whereIn('id', collect($lines)->pluck('variant_id')->filter())->get()->keyBy('id');
         $location = $order->location ?? $this->stock->defaultLocation($order->store);
 
-        foreach (array_values($lines) as $index => $line) {
+        // Prix de vente du moment (vente flash, prix par quantité) ; un prix saisi à la main reste prioritaire
+        $lines = array_values($lines);
+        $catalogLines = array_filter(array_map(fn ($line) => isset($line['variant_id']) && $variants->has($line['variant_id']) && (int) $line['quantity'] > 0
+            ? ['variant' => $variants->get($line['variant_id']), 'quantity' => (int) $line['quantity']] : null, $lines));
+        $prices = $catalogLines === [] ? [] : array_combine(array_keys($catalogLines), $this->pricing->lines($order->store_id, array_values($catalogLines)));
+
+        foreach ($lines as $index => $line) {
             $quantity = (int) $line['quantity'];
             if ($quantity <= 0) {
                 throw new BusinessRuleException('Quantité invalide.', "items.{$index}.quantity");
@@ -345,7 +363,9 @@ class OrderDesk
                 throw new BusinessRuleException('Indiquez le nom de l\'article.', "items.{$index}.title");
             }
 
-            $unitPrice = (int) ($line['unit_price'] ?? $variant?->price ?? 0);
+            $price = $prices[$index] ?? null;
+            $manual = isset($line['unit_price']) && $line['unit_price'] !== null && ($price === null || (int) $line['unit_price'] !== $price['unit_price']);
+            $unitPrice = $manual ? (int) $line['unit_price'] : (int) ($price['unit_price'] ?? $variant?->price ?? 0);
             $item = OrderItem::create([
                 'store_id' => $order->store_id,
                 'order_id' => $order->id,
@@ -357,9 +377,10 @@ class OrderDesk
                 'image_path' => $variant ? ($variant->image?->path ?? $variant->product->images()->value('path')) : null,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
-                'compare_at_price' => $variant?->compare_at_price,
+                'compare_at_price' => $manual || $price === null ? $variant?->compare_at_price : $price['compare_at'],
+                'discount_id' => $manual ? null : ($price['discount_id'] ?? null),
                 'unit_cost' => $variant?->cost_price,
-                'total' => $unitPrice * $quantity,
+                'total' => $manual || $price === null ? $unitPrice * $quantity : $price['total'],
                 'weight_g' => $variant?->weight_g,
                 'requires_shipping' => $variant?->product->requires_shipping ?? true,
                 'stock_location_id' => $variant ? $location->id : null,
@@ -384,6 +405,13 @@ class OrderDesk
             $this->stock->release($actor, $item->variant, $item->location, $item->quantity, $order, $note);
             $item->forceFill(['stock_state' => 'released'])->save();
         }
+
+        return $order;
+    }
+
+    private function releaseUsages(Order $order): Order
+    {
+        $this->pricing->releaseUsages($order);
 
         return $order;
     }
@@ -430,10 +458,26 @@ class OrderDesk
         $order->cost_total = $items->every(fn ($i) => $i->unit_cost !== null || $i->variant_id === null)
             ? (int) $items->sum(fn ($i) => ($i->unit_cost ?? 0) * $i->quantity) : null;
 
+        // Code promo : remise calculée (elle remplace la remise saisie à la main), livraison offerte
+        $freeShipping = false;
+        if ($order->discount_code) {
+            $code = $this->pricing->code($order->store_id, $order->discount_code, $items->map(fn ($i) => ['product_id' => $i->product_id, 'total' => $i->total])->values()->all(), $order->customer_phone, $order->exists ? $order->id : null);
+            if ($code['error'] !== null) {
+                throw new BusinessRuleException($code['error'], 'discount_code');
+            }
+            $order->discount_total = $code['amount'];
+            $freeShipping = $code['free_shipping'];
+            foreach ($items->values() as $i => $item) {
+                $item->forceFill(['discount_amount' => $code['allocations'][$i]])->save();
+            }
+        } elseif ($items->contains(fn ($i) => $i->discount_amount > 0)) {
+            $order->items()->update(['discount_amount' => 0]);
+        }
+
         if ($shippingFee !== null) {
             $order->shipping_fee = $shippingFee;
         } elseif ($refreshFee) {
-            $order->shipping_fee = $order->delivery_method === 'pickup' ? 0 : ($order->zone?->feeFor($order->subtotal) ?? 0);
+            $order->shipping_fee = $order->delivery_method === 'pickup' || $freeShipping ? 0 : ($order->zone?->feeFor($order->subtotal, $order->store->free_shipping_above) ?? 0);
         }
 
         $order->discount_total = min($order->discount_total, $order->subtotal);

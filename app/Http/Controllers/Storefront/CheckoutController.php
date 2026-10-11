@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Storefront;
 
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
+use App\Jobs\SendPurchaseConversion;
 use App\Models\Order;
 use App\Services\Payments\PaymentDesk;
 use App\Services\Places\PlaceMatcher;
@@ -117,6 +118,17 @@ class CheckoutController extends Controller
 
         $order = $this->checkout->place($store, $cart, $data);
         $thanks = '/commande/merci/'.$order->tracking_token;
+
+        // Achat envoyé à Meta par le serveur (API Conversions), si la boutique l'a configurée
+        if ($store->marketingId('meta_pixel_id') && filled($store->meta_capi_token)) {
+            SendPurchaseConversion::dispatch($order->id, [
+                'ip' => $request->ip(),
+                'user_agent' => mb_substr((string) $request->userAgent(), 0, 500),
+                'fbp' => $request->cookie('_fbp'),
+                'fbc' => $request->cookie('_fbc'),
+                'url' => $store->url('/commande'),
+            ]);
+        }
         if (! $online) {
             return response()->json(['redirect' => $thanks], 201);
         }

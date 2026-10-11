@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const tabs = computed(() => [
-  ...(auth.can('shipments.manage') ? [{ to: '/gestion/expeditions', label: 'Expéditions', exact: true }] : []),
+  ...(auth.can('shipments.manage') ? [{ to: '/gestion/expeditions', label: 'Expéditions', exact: true }, { to: '/gestion/expeditions/regles', label: 'Règles d\'affectation' }] : []),
   ...(auth.can('carriers.manage')
     ? [
         { to: '/gestion/expeditions/transporteurs', label: 'Transporteurs' },

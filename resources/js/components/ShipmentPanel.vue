@@ -18,6 +18,7 @@ const modal = ref(null) // 'ship' | 'status' | 'cancel'
 const quotes = ref(null)
 const locations = ref([])
 const couriers = ref([])
+const suggestion = ref(null)
 const form = reactive({ target: null, carrier_connection_id: null, courier_id: null, origin_location_id: null, fee_payer: '', note: '', status: 'delivered', collected_amount: '', reason: '' })
 const current = ref(null)
 const error = ref('')
@@ -33,13 +34,21 @@ async function openShip() {
     locations.value = data.locations
     couriers.value = data.couriers ?? []
     form.origin_location_id = data.location_id ?? data.locations[0]?.id ?? null
-    // Par défaut : mon livreur disponible qui couvre la zone, sinon le transporteur le moins cher
-    const mine = couriers.value.find((c) => c.is_available && c.covers_zone)
-    const best = data.data.filter((q) => !q.error).sort((a, b) => (a.fee ?? 1e9) - (b.fee ?? 1e9))[0]
-    form.target = mine ? `courier:${mine.id}` : best ? `carrier:${best.connection_id}` : null
+    // Suggestion des règles d'affectation (ou par défaut : mon livreur du quartier, sinon le moins cher)
+    suggestion.value = data.assignment_mode === 'off' ? null : data.suggestion
+    form.target = suggestion.value ? `${suggestion.value.type}:${suggestion.value.id}` : null
   } catch (e) {
     error.value = errorMessage(e)
   }
+}
+
+// Historique sur 90 jours : réussite et délai moyen (dans le quartier si assez de courses)
+function history(stats) {
+  if (!stats?.shipments) return 'Pas encore d’historique'
+  const parts = [`${stats.success_rate} % livrées`]
+  if (stats.avg_hours !== null) parts.push(stats.avg_hours < 24 ? `${Math.round(stats.avg_hours)} h en moyenne` : `${Math.round(stats.avg_hours / 24)} j en moyenne`)
+  parts.push(`${stats.shipments} course(s)${stats.scope === 'zone' ? ' dans cette zone' : ''}`)
+  return parts.join(' · ')
 }
 
 async function run(request, close = true) {
@@ -161,6 +170,7 @@ async function whatsapp(s) {
           <RouterLink to="/gestion/expeditions/transporteurs" class="btn-secondary">Connecter un transporteur</RouterLink>
         </template>
         <template v-else>
+          <p v-if="suggestion" class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">💡 Suggestion : <strong>{{ suggestion.name }}</strong> <span class="text-emerald-700">({{ suggestion.reason }})</span></p>
           <fieldset v-if="couriers.length" class="space-y-2">
             <legend class="label">Mes livreurs</legend>
             <label v-for="c in couriers" :key="c.id" class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm"
@@ -169,7 +179,9 @@ async function whatsapp(s) {
               <span class="min-w-0 flex-1">
                 <span class="block font-medium">{{ c.name }}</span>
                 <span class="block text-xs text-slate-500">{{ c.is_available ? 'Disponible' : 'Indisponible' }}{{ c.covers_zone ? ' · couvre ce quartier' : '' }} · {{ c.active_missions }} en cours</span>
+                <span class="block text-xs text-slate-400">{{ history(c.stats) }}</span>
               </span>
+              <span v-if="c.cost !== null && c.cost !== undefined" class="text-right"><span class="block font-semibold">{{ money(c.cost) }}</span><span class="block text-xs text-slate-400">sa paie</span></span>
             </label>
           </fieldset>
           <fieldset v-if="quotes.length" class="space-y-2">
@@ -180,6 +192,7 @@ async function whatsapp(s) {
               <span class="min-w-0 flex-1">
                 <span class="block font-medium">{{ q.name }}</span>
                 <span class="block text-xs" :class="q.error ? 'text-amber-800' : 'text-slate-500'">{{ q.error || q.zone || (q.driver === 'manual' ? 'Course demandée par WhatsApp' : '') }}</span>
+                <span v-if="q.stats" class="block text-xs text-slate-400">{{ history(q.stats) }}</span>
               </span>
               <span v-if="q.fee !== null" class="font-semibold">{{ money(q.fee) }}</span>
             </label>

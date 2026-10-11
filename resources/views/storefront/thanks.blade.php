@@ -20,6 +20,9 @@
                 @endforeach
             </ul>
             <dl class="space-y-1 border-t border-slate-200 px-4 py-3 text-sm">
+                @if ($order->discount_total)
+                    <div class="flex justify-between text-brand"><dt>Remise{{ $order->discount_code ? ' ('.$order->discount_code.')' : '' }}</dt><dd>− @money($order->discount_total)</dd></div>
+                @endif
                 <div class="flex justify-between"><dt>Livraison</dt><dd>{{ $order->shipping_fee ? \Jibiat\Socle\Money::format($order->shipping_fee) : ($order->delivery_method === 'pickup' ? 'Retrait' : ($order->internal_note ? 'À confirmer' : 'Offerte')) }}</dd></div>
                 @if ($order->amount_paid)
                     <div class="flex justify-between text-emerald-800"><dt>Déjà payé</dt><dd>@money($order->amount_paid)</dd></div>
@@ -52,4 +55,7 @@
             <a href="/" class="text-sm text-slate-600 underline">Retour à la boutique</a>
         </div>
     </div>
+    @push('tracking')
+        jmTrack('purchase', {!! json_encode(['value' => $order->total, 'currency' => $store->currency, 'items' => $order->items->map(fn ($i) => ['id' => $i->product_id ?? 'libre', 'name' => $i->title, 'price' => $i->unit_price, 'quantity' => $i->quantity])->values()], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) !!}, {!! json_encode(\App\Services\Marketing\Conversions::eventId($order)) !!});
+    @endpush
 @endsection

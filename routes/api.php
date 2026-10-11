@@ -13,6 +13,10 @@ use App\Http\Controllers\Api\V1\Couriers\CourierController;
 use App\Http\Controllers\Api\V1\Couriers\PayrollController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\InvitationController;
+use App\Http\Controllers\Api\V1\Marketing\PricingController;
+use App\Http\Controllers\Api\V1\Marketing\PromotionController;
+use App\Http\Controllers\Api\V1\Marketing\ShareController;
+use App\Http\Controllers\Api\V1\Marketing\TrackingController;
 use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
 use App\Http\Controllers\Api\V1\NotificationController;
@@ -23,8 +27,10 @@ use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\Payments\OrderPaymentController;
 use App\Http\Controllers\Api\V1\Payments\PaymentSettingsController;
 use App\Http\Controllers\Api\V1\PlatformAccountController;
+use App\Http\Controllers\Api\V1\Reports\StatsController;
 use App\Http\Controllers\Api\V1\Shipping\CarrierController;
 use App\Http\Controllers\Api\V1\Shipping\ShipmentController;
+use App\Http\Controllers\Api\V1\Shipping\ShippingRuleController;
 use App\Http\Controllers\Api\V1\SignupController;
 use App\Http\Controllers\Api\V1\Stock\CountController;
 use App\Http\Controllers\Api\V1\Stock\LevelController;
@@ -87,6 +93,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
             });
 
             Route::get('dashboard', DashboardController::class)->name('dashboard');
+            Route::get('stats', [StatsController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('stats');
+            Route::get('reports/schedule', [StatsController::class, 'schedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule');
+            Route::put('reports/schedule', [StatsController::class, 'updateSchedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule.update');
             Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
             Route::post('notifications/read', [NotificationController::class, 'read'])->name('notifications.read');
             Route::get('places', [DeliveryController::class, 'places'])->name('places.index');
@@ -153,6 +162,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('shipments/{shipment}/message', [ShipmentController::class, 'message'])->whereNumber('shipment')->name('shipments.message');
                 Route::post('shipments/{shipment}/assign', [ShipmentController::class, 'assign'])->whereNumber('shipment')->name('shipments.assign');
                 Route::get('shipments/{shipment}/proof', [ShipmentController::class, 'proof'])->whereNumber('shipment')->name('shipments.proof');
+                Route::get('shipping-rules', [ShippingRuleController::class, 'index'])->name('shipping-rules.index');
+                Route::post('shipping-rules', [ShippingRuleController::class, 'store'])->name('shipping-rules.store');
+                Route::put('shipping-rules/{rule}', [ShippingRuleController::class, 'update'])->whereNumber('rule')->name('shipping-rules.update');
+                Route::delete('shipping-rules/{rule}', [ShippingRuleController::class, 'destroy'])->whereNumber('rule')->name('shipping-rules.destroy');
+                Route::patch('shipping-rules', [ShippingRuleController::class, 'settings'])->name('shipping-rules.settings');
             });
 
             // ── Paiements en ligne ──
@@ -170,6 +184,25 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 ->middleware('permission:'.Permission::OrdersManage->value)->name('orders.payment-links');
             Route::post('orders/{order}/refunds', [OrderPaymentController::class, 'refund'])->whereNumber('order')
                 ->middleware('permission:'.Permission::PaymentsManage->value)->name('orders.refunds');
+
+            // ── Promotions : codes promo, ventes flash, livraison offerte, prix par quantité ──
+            Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
+                Route::get('promotions', [PromotionController::class, 'index'])->name('promotions.index');
+                Route::post('promotions', [PromotionController::class, 'store'])->name('promotions.store');
+                Route::put('promotions/{discount}', [PromotionController::class, 'update'])->whereNumber('discount')->name('promotions.update');
+                Route::delete('promotions/{discount}', [PromotionController::class, 'destroy'])->whereNumber('discount')->name('promotions.destroy');
+                Route::patch('promotions/settings', [PromotionController::class, 'settings'])->name('promotions.settings');
+                Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
+                Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
+            });
+            Route::get('products/{product}/volume-prices', [PricingController::class, 'volumePrices'])->whereNumber('product')
+                ->middleware('permission:'.Permission::ProductsView->value)->name('products.volume-prices');
+            Route::put('products/{product}/volume-prices', [PricingController::class, 'updateVolumePrices'])->whereNumber('product')
+                ->middleware('permission:'.Permission::ProductsManage->value)->name('products.volume-prices.update');
+            Route::post('products/{product}/share', [ShareController::class, 'product'])->whereNumber('product')
+                ->middleware('permission:'.Permission::ProductsView->value)->name('products.share');
+            Route::post('orders/pricing', [PricingController::class, 'quote'])
+                ->middleware('permission:'.Permission::OrdersManage->value.'|'.Permission::OrdersConfirm->value)->name('orders.pricing');
 
             // ── WhatsApp de la boutique et paniers abandonnés ──
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {

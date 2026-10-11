@@ -64,7 +64,7 @@
 
     <table class="totals" style="margin-top: 12px; width: 45%; margin-left: 55%">
         <tr><td>Sous-total</td><td class="right">{{ $money($order->subtotal) }}</td></tr>
-        @if ($order->discount_total)<tr><td>Remise</td><td class="right">− {{ $money($order->discount_total) }}</td></tr>@endif
+        @if ($order->discount_total)<tr><td>Remise{{ $order->discount_code ? ' ('.$order->discount_code.')' : '' }}</td><td class="right">− {{ $money($order->discount_total) }}</td></tr>@endif
         <tr><td>Livraison</td><td class="right">{{ $order->shipping_fee ? $money($order->shipping_fee) : 'Offerte' }}</td></tr>
         <tr class="total"><td>Total</td><td class="right">{{ $money($order->total) }}</td></tr>
         @if ($order->amount_paid)

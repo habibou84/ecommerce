@@ -26,10 +26,12 @@ class DeliveryZone extends Model
     }
 
     /**
-     * Frais pour un sous-total donné (livraison offerte au-delà du seuil).
+     * Frais pour un sous-total donné : livraison offerte au-delà du seuil de la zone ou de celui de la boutique.
      */
-    public function feeFor(int $subtotal): int
+    public function feeFor(int $subtotal, ?int $storeThreshold = null): int
     {
-        return $this->free_above !== null && $subtotal >= $this->free_above ? 0 : $this->fee;
+        $threshold = collect([$this->free_above, $storeThreshold])->filter(fn ($v) => $v !== null)->min();
+
+        return $threshold !== null && $subtotal >= $threshold ? 0 : $this->fee;
     }
 }

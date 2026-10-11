@@ -29,27 +29,30 @@ class Checkout
     /**
      * Frais et délai pour un lieu (null : hors des zones de la boutique, frais à confirmer).
      *
-     * @return array{fee: ?int, zone: ?string, eta: ?string, subtotal: int, total: ?int, free_above: ?int}
+     * @return array{fee: ?int, zone: ?string, eta: ?string, subtotal: int, discount: int, total: ?int, free_above: ?int}
      */
     public function quote(Store $store, Cart $cart, string $method, ?int $placeId): array
     {
-        $subtotal = $this->carts->summary($store, $cart)['subtotal'];
+        $summary = $this->carts->summary($store, $cart);
+        $subtotal = $summary['subtotal'];
+        $discount = $summary['discount']['amount'] ?? 0;
 
         if ($method === 'pickup') {
-            return ['fee' => 0, 'zone' => null, 'eta' => null, 'subtotal' => $subtotal, 'total' => $subtotal, 'free_above' => null];
+            return ['fee' => 0, 'zone' => null, 'eta' => null, 'subtotal' => $subtotal, 'discount' => $discount, 'total' => $subtotal - $discount, 'free_above' => null];
         }
 
         $place = $placeId ? Place::visibleTo($store->id)->with('parent.parent')->find($placeId) : null;
         $zone = $this->places->zoneFor($store, $place);
-        $fee = $zone?->feeFor($subtotal);
+        $fee = ($summary['discount']['free_shipping'] ?? false) && $zone ? 0 : $zone?->feeFor($subtotal, $store->free_shipping_above);
 
         return [
             'fee' => $fee,
             'zone' => $zone?->name,
             'eta' => $zone?->eta_label,
             'subtotal' => $subtotal,
-            'total' => $fee === null ? null : $subtotal + $fee,
-            'free_above' => $zone?->free_above,
+            'discount' => $discount,
+            'total' => $fee === null ? null : $subtotal - $discount + $fee,
+            'free_above' => collect([$zone?->free_above, $store->free_shipping_above])->filter()->min(),
         ];
     }
 
@@ -68,12 +71,18 @@ class Checkout
      */
     public function place(Store $store, Cart $cart, array $data): Order
     {
+        $cart->phone = $data['phone']; // limite d'utilisation d'un code promo par client
         $summary = $this->carts->summary($store, $cart);
         if ($summary['lines'] === []) {
             throw new BusinessRuleException('Votre panier est vide.');
         }
         if (collect($summary['lines'])->contains('short', true)) {
             throw new BusinessRuleException('Certains articles ne sont plus disponibles en quantité suffisante : vérifiez votre panier.');
+        }
+        if ($summary['discount']['error'] ?? null) {
+            $cart->forceFill(['discount_code' => null])->save();
+
+            throw new BusinessRuleException($summary['discount']['error'].' Il a été retiré : vérifiez le total avant de confirmer.', 'code');
         }
 
         $pickup = $data['delivery_method'] === 'pickup';
@@ -100,6 +109,7 @@ class Checkout
                 'customer_note' => $data['note'] ?? null,
                 'internal_note' => ! $pickup && $quote['fee'] === null ? 'Quartier hors des zones de livraison : frais à confirmer avec le client.' : null,
                 'utm' => $cart->utm,
+                'discount_code' => $summary['discount']['code'] ?? null,
                 'items' => array_map(fn ($line) => ['variant_id' => $line['variant_id'], 'quantity' => $line['quantity']], $summary['lines']),
             ], null, 'customer');
 

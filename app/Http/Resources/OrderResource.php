@@ -73,6 +73,7 @@ class OrderResource extends JsonResource
             'time_slot' => $this->time_slot,
             'subtotal' => $this->subtotal,
             'discount_total' => $this->discount_total,
+            'discount_code' => $this->discount_code,
             'shipping_fee' => $this->shipping_fee,
             'cost_total' => $this->cost_total,
             'deposit_required' => $this->deposit_required,

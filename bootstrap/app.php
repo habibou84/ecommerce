@@ -38,6 +38,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(ResolveStore::class);
         // Gestion (SPA) authentifiée par cookie de session, limité au nom d'hôte de la boutique
         $middleware->statefulApi();
+        // Cookies des pixels publicitaires (posés par leur script) : lus tels quels pour l'API Conversions
+        $middleware->encryptCookies(except: ['_fbp', '_fbc', '_ttp']);
         $middleware->alias([
             'zone' => EnsureZone::class,
             'member' => EnsureStoreMember::class,

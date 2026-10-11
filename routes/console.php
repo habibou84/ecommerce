@@ -2,6 +2,7 @@
 
 use App\Models\CarrierConnection;
 use App\Models\Cart;
+use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierEvents;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
@@ -43,3 +44,9 @@ Artisan::command('carts:recover', function (CustomerMessenger $messenger) {
 })->purpose('Relance par WhatsApp des paniers abandonnés');
 
 Schedule::command('carts:recover')->hourly()->withoutOverlapping();
+
+Artisan::command('reports:send', function (DailyReport $reports) {
+    $this->line($reports->sendDue().' rapport(s) envoyé(s)');
+})->purpose('Rapports quotidiens à l\'équipe (WhatsApp ou email), à l\'heure choisie');
+
+Schedule::command('reports:send')->everyFifteenMinutes()->withoutOverlapping();

@@ -43,6 +43,19 @@ class CartController extends Controller
     }
 
     /**
+     * Code promo saisi par le client (vide : retiré).
+     */
+    public function code(Request $request): JsonResponse
+    {
+        $data = $request->validate(['code' => ['nullable', 'string', 'max:40']]);
+        $store = $this->currentStore();
+        $cart = $this->carts->find($request, $store) ?? abort(422, 'Votre panier est vide.');
+        $this->carts->applyCode($store, $cart, $data['code'] ?? null);
+
+        return response()->json(['data' => $this->carts->summary($store, $cart)]);
+    }
+
+    /**
      * Ajout au panier (ou quantité fixée avec replace=1 ; 0 retire l'article).
      */
     public function put(Request $request): JsonResponse

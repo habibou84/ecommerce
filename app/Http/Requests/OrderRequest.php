@@ -48,6 +48,7 @@ class OrderRequest extends FormRequest
             'internal_note' => ['nullable', 'string', 'max:2000'],
             'external_reference' => ['nullable', 'string', 'max:100'],
             'discount_total' => ['sometimes', 'integer', 'min:0', 'max:100000000'],
+            'discount_code' => ['sometimes', 'nullable', 'string', 'max:40'],
             'shipping_fee' => ['nullable', 'integer', 'min:0', 'max:10000000'],
             'deposit_required' => ['nullable', 'integer', 'min:0', 'max:100000000'],
             'confirmed' => ['sometimes', 'boolean'],
@@ -66,6 +67,7 @@ class OrderRequest extends FormRequest
             'customer_phone' => 'téléphone du client', 'customer_name' => 'nom du client', 'source' => 'canal',
             'items' => 'articles', 'items.*.quantity' => 'quantité', 'items.*.title' => 'nom de l\'article',
             'items.*.unit_price' => 'prix', 'shipping_fee' => 'frais de livraison', 'discount_total' => 'remise',
+            'discount_code' => 'code promo',
         ];
     }
 

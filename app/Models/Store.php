@@ -33,6 +33,7 @@ class Store extends Model
         'require_order_confirmation' => true,
         'storefront_enabled' => false,
         'online_payment' => 'off',
+        'assignment_mode' => 'suggest',
         'require_delivery_code' => false,
         'default_fee_payer' => 'customer',
         'allow_backorder' => false,
@@ -48,7 +49,18 @@ class Store extends Model
             'allow_backorder' => 'boolean',
             'storefront_enabled' => 'boolean',
             'closed_at' => 'datetime',
+            'free_shipping_above' => 'integer',
+            'marketing' => 'array',
+            'meta_capi_token' => 'encrypted',
         ];
+    }
+
+    /**
+     * Identifiant public d'un outil de suivi (meta_pixel_id, tiktok_pixel_id, ga4_id).
+     */
+    public function marketingId(string $key): ?string
+    {
+        return filled($this->marketing[$key] ?? null) ? (string) $this->marketing[$key] : null;
     }
 
     public function owner(): BelongsTo

@@ -9,6 +9,7 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderEvent;
 use App\Models\OutboundMessage;
+use App\Models\Store;
 use App\Models\WhatsappAccount;
 use App\Services\Orders\OrderDesk;
 use Illuminate\Support\Str;
@@ -30,6 +31,7 @@ class CustomerMessenger
         'order_delivered' => ['label' => 'Commande livrée (remerciement)', 'variables' => ['nom du client', 'n° de commande'], 'buttons' => []],
         'payment_link' => ['label' => 'Lien de paiement', 'variables' => ['nom du client', 'n° de commande', 'montant', 'lien'], 'buttons' => []],
         'cart_recovery' => ['label' => 'Relance de panier abandonné', 'variables' => ['nom du client', 'boutique', 'lien du panier'], 'buttons' => []],
+        'daily_report' => ['label' => 'Rapport du jour (envoyé à l\'équipe)', 'variables' => ['boutique', 'date', 'commandes reçues', 'montant livré', 'à confirmer', 'à expédier'], 'buttons' => []],
     ];
 
     public function __construct(private readonly OrderDesk $orders) {}
@@ -93,6 +95,18 @@ class CustomerMessenger
         return $this->queue($account, $cart->phone, 'cart_recovery', [
             Str::before((string) ($cart->name ?: 'cher client'), ' '), $cart->store->name, $cart->store->url('/panier/reprendre/'.$cart->token),
         ], [], 'cart', $cart->id);
+    }
+
+    /**
+     * Message à un membre de l'équipe (rapport quotidien), depuis le WhatsApp de la boutique.
+     *
+     * @param  list<string>  $params
+     */
+    public function forTeam(Store $store, string $phone, string $event, array $params, string $type, int $id): ?OutboundMessage
+    {
+        $account = $this->account($store->id, $event);
+
+        return $account && $phone !== '' ? $this->queue($account, $phone, $event, $params, [], $type, $id) : null;
     }
 
     private function queue(WhatsappAccount $account, string $phone, string $event, array $params, array $buttons, string $type, int $id): OutboundMessage

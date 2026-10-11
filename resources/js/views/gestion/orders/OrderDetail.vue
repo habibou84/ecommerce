@@ -177,7 +177,7 @@ async function addNote() {
           </ul>
           <div class="space-y-1 border-t border-slate-200 px-4 py-3 text-sm">
             <div class="flex justify-between"><span>Sous-total</span><span>{{ money(order.subtotal) }}</span></div>
-            <div v-if="order.discount_total" class="flex justify-between"><span>Remise</span><span>− {{ money(order.discount_total) }}</span></div>
+            <div v-if="order.discount_total" class="flex justify-between"><span>Remise<template v-if="order.discount_code"> (code {{ order.discount_code }})</template></span><span>− {{ money(order.discount_total) }}</span></div>
             <div class="flex justify-between"><span>Livraison{{ order.delivery_zone ? ` (${order.delivery_zone.name})` : '' }}</span><span>{{ order.shipping_fee ? money(order.shipping_fee) : 'Offerte' }}</span></div>
             <div class="flex justify-between text-base font-semibold"><span>Total</span><span>{{ money(order.total) }}</span></div>
             <div v-if="order.amount_paid" class="flex justify-between text-slate-600"><span>Payé</span><span>{{ money(order.amount_paid) }}</span></div>

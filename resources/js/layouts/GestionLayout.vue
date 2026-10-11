@@ -31,6 +31,8 @@ const nav = computed(() => [
   ...(auth.can('shipments.manage') || auth.can('carriers.manage')
     ? [{ to: auth.can('shipments.manage') ? '/gestion/expeditions' : '/gestion/expeditions/transporteurs', label: 'Expéditions', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z' }]
     : []),
+  ...(auth.can('finance.view') || auth.can('orders.view') ? [{ to: '/gestion/statistiques', label: 'Statistiques', icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2' }] : []),
+  ...(auth.can('store.manage') ? [{ to: '/gestion/marketing', label: 'Marketing', icon: 'M3 11l18-8v18L3 13zM7 12v6a2 2 0 0 0 4 0v-4' }] : []),
   ...(auth.can('payments.manage') ? [{ to: '/gestion/paiements', label: 'Paiements', icon: 'M2 6h20v12H2zM2 10h20M6 15h4' }] : []),
   ...(auth.can('store.manage') ? [{ to: '/gestion/whatsapp', label: 'WhatsApp', icon: 'M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z' }] : []),
   ...(auth.can('team.manage') ? [{ to: '/gestion/equipe', label: 'Équipe', icon: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 10a7 7 0 0 1 14 0zm15-10a3 3 0 1 0 0-6M22 21a6 6 0 0 0-4-5.6' }] : []),

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
@@ -23,6 +23,7 @@ const form = reactive({
   shipping_landmark: '',
   scheduled_date: '',
   discount_total: 0,
+  discount_code: '',
   deposit_required: '',
   customer_note: '',
   internal_note: '',
@@ -51,18 +52,44 @@ onMounted(async () => {
     Object.assign(form, {
       customer_phone: o.customer_phone_display, customer_name: o.customer_name ?? '', delivery_method: o.delivery_method,
       shipping_phone2: o.shipping_phone2 ?? '', shipping_address: o.shipping_address ?? '', shipping_landmark: o.shipping_landmark ?? '',
-      scheduled_date: o.scheduled_date ?? '', discount_total: o.discount_total, deposit_required: o.deposit_required ?? '',
+      scheduled_date: o.scheduled_date ?? '', discount_total: o.discount_total, discount_code: o.discount_code ?? '', deposit_required: o.deposit_required ?? '',
       customer_note: o.customer_note ?? '', internal_note: o.internal_note ?? '',
     })
     place.value = o.shipping_place_id ? { id: o.shipping_place_id, label: o.shipping_place_label, ancestor_ids: [] } : null
-    items.value = o.items.map((i) => ({ variant_id: i.variant_id, title: i.title, variant_title: i.variant_title, quantity: i.quantity, unit_price: i.unit_price, thumb: i.thumb }))
+    // Prix convenus à la commande : gardés tels quels (pas de recalcul par les promotions du moment)
+    items.value = o.items.map((i) => ({ variant_id: i.variant_id, title: i.title, variant_title: i.variant_title, quantity: i.quantity, unit_price: i.unit_price, thumb: i.thumb, price_edited: true }))
     shippingFee.value = o.shipping_fee
     manualFee.value = true
     loading.value = false
   }
 })
 
-const subtotal = computed(() => items.value.reduce((sum, i) => sum + Number(i.unit_price || 0) * Number(i.quantity || 0), 0))
+// Prix du moment (vente flash, prix par quantité) et code promo, recalculés par le serveur ; un prix modifié à la main est gardé
+const promo = ref(null)
+let pricingTimer
+async function reprice() {
+  const lines = items.value.map((i) => ({ variant_id: i.variant_id ?? null, quantity: Number(i.quantity) || 1, unit_price: i.unit_price === '' ? null : Number(i.unit_price) }))
+  if (!lines.length && !form.discount_code) return (promo.value = null)
+  try {
+    const { data } = await http.post('/orders/pricing', { items: lines, discount_code: form.discount_code || null, customer_phone: form.customer_phone || null, order_id: editing.value ? Number(props.id) : null })
+    data.data.lines.forEach((line, index) => {
+      const item = items.value[index]
+      if (!item || !item.variant_id || item.price_edited) return
+      Object.assign(item, { unit_price: line.unit_price, line_total: line.total, compare_at: line.compare_at, volume: line.volume, flash: line.flash })
+    })
+    promo.value = data.data.discount
+  } catch {
+    promo.value = null
+  }
+}
+watch(() => [items.value.map((i) => `${i.variant_id}:${i.quantity}:${i.price_edited ? i.unit_price : ''}`).join(','), form.discount_code, form.customer_phone], () => {
+  clearTimeout(pricingTimer)
+  pricingTimer = setTimeout(reprice, 400)
+})
+
+const lineTotal = (i) => (!i.price_edited && i.line_total !== undefined ? i.line_total : Number(i.unit_price || 0) * Number(i.quantity || 0))
+const subtotal = computed(() => items.value.reduce((sum, i) => sum + lineTotal(i), 0))
+const codeDiscount = computed(() => (promo.value && !promo.value.error ? promo.value.amount : 0))
 const zone = computed(() => {
   if (!place.value) return null
   for (const id of [place.value.id, ...(place.value.ancestor_ids ?? [])]) {
@@ -74,10 +101,11 @@ const zone = computed(() => {
 const fee = computed(() => {
   if (form.delivery_method === 'pickup') return 0
   if (manualFee.value) return Number(shippingFee.value || 0)
-  if (!zone.value) return 0
+  if (!zone.value || (promo.value?.free_shipping && !promo.value.error)) return 0
   return zone.value.free_above !== null && subtotal.value >= zone.value.free_above ? 0 : zone.value.fee
 })
-const total = computed(() => Math.max(0, subtotal.value - Number(form.discount_total || 0)) + fee.value)
+const discount = computed(() => (form.discount_code ? codeDiscount.value : Number(form.discount_total || 0)))
+const total = computed(() => Math.max(0, subtotal.value - discount.value) + fee.value)
 
 async function analyse() {
   parsing.value = true
@@ -164,8 +192,10 @@ async function save() {
       shipping_place_id: form.delivery_method === 'delivery' ? place.value?.id ?? null : null,
       deposit_required: form.deposit_required === '' ? null : Number(form.deposit_required),
       scheduled_date: form.scheduled_date || null,
+      discount_code: form.discount_code || null,
       items: items.value.map((i) => ({ variant_id: i.variant_id ?? null, title: i.variant_id ? undefined : i.title, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
     }
+    if (form.discount_code) delete payload.discount_total
     if (manualFee.value && form.delivery_method === 'delivery') payload.shipping_fee = Number(shippingFee.value || 0)
     if (editing.value) {
       delete payload.source
@@ -239,9 +269,12 @@ async function save() {
                   <span v-if="item.available !== null && item.available !== undefined" class="block text-xs" :class="item.available < item.quantity ? 'text-red-600' : 'text-slate-400'">{{ item.available }} disponible(s)</span>
                 </span>
                 <label class="flex items-center gap-1 text-slate-500">Qté <input v-model.number="item.quantity" type="number" min="1" class="input w-16 py-1.5" required /></label>
-                <label class="flex items-center gap-1 text-slate-500">Prix <input v-model.number="item.unit_price" type="number" min="0" class="input w-28 py-1.5" required /></label>
+                <label class="flex items-center gap-1 text-slate-500">Prix <input v-model.number="item.unit_price" type="number" min="0" class="input w-28 py-1.5" required @input="item.price_edited = true" /></label>
                 <button type="button" class="btn-ghost px-1.5 text-red-600" @click="items.splice(index, 1)">✕</button>
               </div>
+              <p v-if="!item.price_edited && (item.flash || item.volume)" class="text-xs text-emerald-700">
+                {{ item.flash ? '⚡ Prix de vente flash' : 'Prix par quantité' }}<template v-if="item.compare_at"> (au lieu de {{ money(item.compare_at) }})</template><template v-if="item.volume"> · {{ money(item.line_total) }} pour {{ item.quantity }}</template>
+              </p>
               <p v-if="errors[`items.${index}.quantity`] || errors[`items.${index}.title`]" class="text-sm text-red-600">{{ errors[`items.${index}.quantity`] || errors[`items.${index}.title`] }}</p>
               <div v-if="item.needs_variant" class="flex flex-wrap items-center gap-2 text-sm">
                 <span class="text-amber-800">Quelle variante ?</span>
@@ -305,8 +338,15 @@ async function save() {
           <h2 class="font-semibold">Récapitulatif</h2>
           <div class="flex justify-between"><span>Articles</span><span>{{ money(subtotal) }}</span></div>
           <div class="flex items-center justify-between gap-2">
+            <span>Code promo</span>
+            <input v-model.trim="form.discount_code" class="input w-28 py-1 text-right uppercase" maxlength="40" placeholder="—" />
+          </div>
+          <p v-if="form.discount_code && promo?.error" class="text-xs text-red-600">{{ promo.error }}</p>
+          <p v-else-if="errors.discount_code" class="text-xs text-red-600">{{ errors.discount_code }}</p>
+          <div class="flex items-center justify-between gap-2">
             <span>Remise</span>
-            <input v-model.number="form.discount_total" type="number" min="0" class="input w-28 py-1 text-right" />
+            <span v-if="form.discount_code" class="text-emerald-700">{{ codeDiscount ? `− ${money(codeDiscount)}` : promo?.free_shipping ? 'Livraison offerte' : '—' }}</span>
+            <input v-else v-model.number="form.discount_total" type="number" min="0" class="input w-28 py-1 text-right" />
           </div>
           <div class="flex justify-between"><span>Livraison</span><span>{{ fee ? money(fee) : 'Offerte' }}</span></div>
           <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold"><span>Total</span><span>{{ money(total) }}</span></div>

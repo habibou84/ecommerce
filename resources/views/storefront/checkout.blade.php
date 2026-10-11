@@ -86,12 +86,17 @@
             <aside class="h-fit rounded-xl border border-slate-200 bg-white p-4 md:sticky md:top-4">
                 <h2 class="mb-2 text-lg font-semibold">Récapitulatif</h2>
                 @include('storefront.partials.cart-lines', ['editable' => false])
-                <dl class="space-y-2 border-t border-slate-200 pt-3 text-sm">
+                @include('storefront.partials.promo-code')
+                <dl class="mt-3 space-y-2 border-t border-slate-200 pt-3 text-sm">
                     <div class="flex justify-between"><dt>Sous-total</dt><dd>@money($summary['subtotal'])</dd></div>
+                    @if ($summary['discount']['amount'] ?? 0)
+                        <div class="flex justify-between text-brand"><dt>Remise ({{ $summary['discount']['code'] }})</dt><dd>− @money($summary['discount']['amount'])</dd></div>
+                    @endif
                     <div class="flex justify-between gap-4"><dt>Livraison</dt><dd data-fee class="text-right text-slate-500">Choisissez votre quartier</dd></div>
                     <p data-eta class="text-xs text-slate-500" hidden></p>
-                    <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold"><dt>Total</dt><dd data-total>@money($summary['subtotal'])</dd></div>
+                    <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold"><dt>Total</dt><dd data-total>@money($summary['total'])</dd></div>
                 </dl>
+                @include('storefront.partials.free-shipping')
                 @if ($payment['mode'] === 'off')
                     <p class="mt-4 rounded-lg bg-brand-soft p-3 text-sm">💵 Paiement à la livraison, en espèces ou Mobile Money.</p>
                 @else
@@ -118,5 +123,9 @@
         </form>
     </div>
 
-    <script type="application/json" id="checkout-data">{!! json_encode(['subtotal' => $summary['subtotal']], JSON_HEX_TAG) !!}</script>
+    @push('tracking')
+        jmTrack('begin_checkout', {!! json_encode(['value' => $summary['total'], 'currency' => $store->currency, 'items' => collect($summary['lines'])->map(fn ($l) => ['id' => $l['product_id'], 'name' => $l['title'], 'price' => $l['unit_price'], 'quantity' => $l['quantity']])->values()], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) !!});
+    @endpush
+
+    <script type="application/json" id="checkout-data">{!! json_encode(['subtotal' => $summary['subtotal'], 'total' => $summary['total']], JSON_HEX_TAG) !!}</script>
 @endsection

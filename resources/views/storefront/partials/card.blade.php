@@ -9,7 +9,7 @@
         @if (! $card['in_stock'])
             <span class="absolute top-2 left-2 rounded bg-white/90 px-2 py-0.5 text-xs font-medium text-slate-700">Épuisé</span>
         @elseif ($card['compare_at'])
-            <span class="absolute top-2 left-2 rounded bg-brand px-2 py-0.5 text-xs font-medium text-brand-contrast">Promo</span>
+            <span class="absolute top-2 left-2 rounded bg-brand px-2 py-0.5 text-xs font-medium text-brand-contrast">{{ ($card['flash'] ?? false) ? 'Vente flash' : 'Promo' }}</span>
         @endif
     </div>
     <div class="px-1 pt-2 pb-1">
@@ -21,5 +21,8 @@
                 <s class="ml-1 text-xs text-slate-400">@money($card['compare_at'])</s>
             @endif
         </p>
+        @if ($card['volume'] ?? false)
+            <p class="text-xs text-brand">Prix dégressif par quantité</p>
+        @endif
     </div>
 </a>

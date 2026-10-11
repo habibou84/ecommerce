@@ -12,7 +12,11 @@
                 @if ($line['variant_title'])
                     <p class="text-sm text-slate-500">{{ $line['variant_title'] }}</p>
                 @endif
-                <p class="text-sm text-slate-500">@money($line['unit_price'])</p>
+                <p class="text-sm text-slate-500">
+                    <span data-line-unit>@money($line['unit_price'])</span>
+                    <s data-line-compare class="text-slate-400" @if (! $line['compare_at']) hidden @endif>{{ $line['compare_at'] ? \Jibiat\Socle\Money::format($line['compare_at']) : '' }}</s>
+                    <span data-line-volume class="text-brand" @if (! $line['volume']) hidden @endif>· prix par quantité</span>
+                </p>
                 <p data-line-short class="text-sm text-red-700" @if (! $line['short']) hidden @endif>Il n'en reste que {{ $line['max'] }} : ajustez la quantité.</p>
                 @if ($editable ?? false)
                     <div class="mt-2 flex items-center gap-3">

@@ -139,8 +139,10 @@ function productPage() {
     if (!variant) return
     button.disabled = true
     try {
-      const { data: summary } = await api('POST', '/panier/articles', { variant_id: variant.id, quantity: Number(qty.value) || 1 })
+      const quantity = Number(qty.value) || 1
+      const { data: summary } = await api('POST', '/panier/articles', { variant_id: variant.id, quantity })
       setCartCount(summary.count)
+      window.jmTrack?.('add_to_cart', { value: variant.price * quantity, currency: data.currency, items: [{ id: data.id, name: data.title, price: variant.price, quantity }] })
       if (thenCheckout) {
         window.location.href = '/commande'
         return
@@ -169,11 +171,24 @@ function cartPage() {
       const { data: summary } = await api('POST', '/panier/articles', { variant_id: Number(line.dataset.line), quantity, replace: true })
       setCartCount(summary.count)
       $('[data-subtotal]').textContent = money(summary.subtotal)
+      $('[data-cart-total]').textContent = money(summary.total)
+      const discount = summary.discount?.error ? 0 : summary.discount?.amount || 0
+      $('[data-discount-row]').hidden = !discount
+      $('[data-discount]').textContent = `− ${money(discount)}`
+      const free = $('[data-free-shipping]')
+      if (free && summary.free_shipping) {
+        free.innerHTML = summary.free_shipping.remaining > 0
+          ? `Plus que <strong>${money(summary.free_shipping.remaining)}</strong> pour la livraison offerte 🚚` : '🎉 Livraison offerte !'
+      }
       $$('[data-line]', list).forEach((el) => {
         const current = summary.lines.find((l) => String(l.variant_id) === el.dataset.line)
         if (!current) return el.remove()
         $('[data-line-qty]', el).textContent = current.quantity
         $('[data-line-total]', el).textContent = money(current.total)
+        $('[data-line-unit]', el).textContent = money(current.unit_price)
+        $('[data-line-compare]', el).hidden = !current.compare_at
+        $('[data-line-compare]', el).textContent = current.compare_at ? money(current.compare_at) : ''
+        $('[data-line-volume]', el).hidden = !current.volume
         $('[data-line-short]', el).hidden = !current.short
       })
       if (!summary.lines.length) {
@@ -222,14 +237,14 @@ function checkoutPage() {
     const eta = $('[data-eta]')
     if (method() === 'delivery' && !placeId.value) {
       fee.textContent = 'Choisissez votre quartier'
-      $('[data-total]').textContent = money(JSON.parse($('#checkout-data').textContent).subtotal)
+      $('[data-total]').textContent = money(JSON.parse($('#checkout-data').textContent).total)
       eta.hidden = true
       return
     }
     try {
       const { data } = await api('POST', '/commande/devis', { delivery_method: method(), place_id: Number(placeId.value) || null })
       fee.textContent = method() === 'pickup' ? 'Retrait gratuit' : data.fee === null ? 'À confirmer par la boutique' : data.fee === 0 ? 'Offerte' : money(data.fee)
-      $('[data-total]').textContent = money(data.total ?? data.subtotal)
+      $('[data-total]').textContent = money(data.total ?? data.subtotal - data.discount)
       eta.textContent = data.eta ? `Délai : ${data.eta}` : data.free_above && data.fee ? `Livraison offerte dès ${money(data.free_above)}` : ''
       eta.hidden = !eta.textContent
     } catch (error) {
@@ -328,6 +343,50 @@ function checkoutPage() {
   quote()
 }
 
+/* ---------- Code promo, vente flash ---------- */
+
+function promoCode() {
+  const box = $('[data-promo]')
+  if (!box) return
+  const input = $('[data-promo-input]', box)
+  const error = $('[data-promo-error]', box)
+
+  async function send(code) {
+    try {
+      await api('POST', '/panier/code', { code })
+      window.location.reload()
+    } catch (e) {
+      if (error) {
+        error.textContent = firstError(e)
+        error.hidden = false
+      }
+    }
+  }
+  $('[data-promo-apply]', box)?.addEventListener('click', () => input.value.trim() && send(input.value.trim()))
+  input?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault() // la page de commande est un formulaire : Entrée ne doit pas l'envoyer
+    if (input.value.trim()) send(input.value.trim())
+  })
+  $('[data-promo-remove]', box)?.addEventListener('click', () => send(''))
+}
+
+function countdowns() {
+  const els = $$('[data-countdown]')
+  if (!els.length) return
+  const pad = (n) => String(n).padStart(2, '0')
+  const tick = () => els.forEach((el) => {
+    const left = Math.max(0, new Date(el.dataset.countdown).getTime() - Date.now())
+    const days = Math.floor(left / 86400000)
+    const h = Math.floor((left % 86400000) / 3600000)
+    const m = Math.floor((left % 3600000) / 60000)
+    const sec = Math.floor((left % 60000) / 1000)
+    el.textContent = left <= 0 ? 'terminée' : `${days ? `${days} j ` : ''}${pad(h)}:${pad(m)}:${pad(sec)}`
+  })
+  tick()
+  setInterval(tick, 1000)
+}
+
 /* ---------- Paiement en ligne ---------- */
 
 function paymentForms() {
@@ -365,3 +424,5 @@ productPage()
 cartPage()
 checkoutPage()
 paymentForms()
+promoCode()
+countdowns()

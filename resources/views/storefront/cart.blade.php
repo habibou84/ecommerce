@@ -16,11 +16,15 @@
         @if ($summary['lines'])
             <div data-cart-full>
                 @include('storefront.partials.cart-lines', ['editable' => true])
-                <div class="mt-4 flex items-center justify-between border-t border-slate-200 pt-4 text-lg">
-                    <span>Sous-total</span>
-                    <span data-subtotal class="font-semibold">@money($summary['subtotal'])</span>
-                </div>
-                <p class="mt-1 text-sm text-slate-500">Frais de livraison calculés à l'étape suivante, selon votre quartier.</p>
+                @include('storefront.partials.promo-code')
+                <dl class="mt-4 space-y-1 border-t border-slate-200 pt-4">
+                    <div class="flex justify-between"><dt>Sous-total</dt><dd data-subtotal>@money($summary['subtotal'])</dd></div>
+                    @php($amount = $summary['discount']['amount'] ?? 0)
+                    <div data-discount-row class="flex justify-between text-brand" @if (! $amount) hidden @endif><dt>Remise</dt><dd data-discount>− @money($amount)</dd></div>
+                    <div class="flex justify-between text-lg"><dt>Total</dt><dd data-cart-total class="font-semibold">@money($summary['total'])</dd></div>
+                </dl>
+                @include('storefront.partials.free-shipping')
+                <p class="mt-2 text-sm text-slate-500">Frais de livraison calculés à l'étape suivante, selon votre quartier.</p>
                 <a href="/commande" class="btn-store mt-6 w-full">Commander · paiement à la livraison</a>
                 <a href="/produits" class="mt-3 block text-center text-sm text-slate-600 underline">Continuer mes achats</a>
             </div>

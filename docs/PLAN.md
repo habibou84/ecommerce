@@ -480,11 +480,13 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - Avant la mise en production : valider chaque pilote sur le bac à sable du prestataire avec de vrais comptes (Wave Business, CinetPay, PayDunya) et faire approuver les modèles chez Meta.
 - Restent pour la V1 : remboursement partiel Wave (l'API ne rembourse que le total), textes de messages modifiables par le marchand (`message_templates`), inscription WhatsApp intégrée (Embedded Signup de Meta) au lieu de la saisie des identifiants.
 
-### Phase 7 : croissance (3 semaines)
-- [ ] Codes promo, livraison gratuite, ventes flash, prix par quantité.
-- [ ] Pixels Meta / TikTok, API Conversions, Analytics.
-- [ ] Règles d'affectation automatiques et comparateur de transporteurs.
-- [ ] Statistiques avancées (canal, produit, zone, livreur, transporteur), rapport quotidien.
+### Phase 7 : croissance (3 semaines) ✅ *réalisée*
+- [x] Moteur de prix commun à la boutique et à la saisie des commandes : **ventes flash** (remise automatique datée, prix barré et compte à rebours), **prix par quantité** (« 3 pour 25 000 F », variantes confondues ; le plus avantageux des deux pour le client, sans cumul), **codes promo** (pourcentage, montant ou livraison offerte ; produits ou collections visés, achat minimum, limites globale et par client, dates), **livraison offerte dès X F** (barre « Plus que … » au panier). Utilisations comptées par commande, libérées à l'annulation ; ventes et remises par promotion.
+- [x] Pixels Meta et TikTok, Google Analytics 4 (vue produit, ajout au panier, début de commande, achat) et **API Conversions de Meta** : l'achat est aussi envoyé par le serveur (données hachées, cookies `_fbp` / `_fbc`, `fbclid`), avec le même identifiant que le pixel pour le dédoublonnage.
+- [x] **Comparateur** à l'expédition (paie du livreur ou devis du transporteur, taux de réussite et délai moyen sur 90 jours, dans la zone si l'historique suffit) et **règles d'affectation** ordonnées (zones, fragile, montant, poids → mes livreurs, un transporteur, le moins cher, le plus rapide, à la main) ; mode désactivé, suggestion ou **automatique** dès la confirmation (échec noté au journal).
+- [x] **Statistiques avancées** (offre Pro) : vue d'ensemble, marge nette des commandes livrées (produits − remises + frais facturés − coût des livraisons), par canal, produit / variante, zone, livreur, transporteur et promotion ; **rapport du jour** par WhatsApp (modèle Meta) ou email, à l'heure choisie par chaque membre (`reports:send`).
+- [x] **Partage de produit** (suggestion 3) : lien court `/p/{code}` (visites comptées, origine notée) et image carrée 1080 × 1080 générée (photo, nom, prix, promotion, boutique).
+- Restent pour la V1 : offres « 1 acheté = 1 offert » (`buy_x_get_y`), tableaux `store_daily_stats` précalculés quand les volumes l'exigeront, événements TikTok côté serveur, dépenses (publicité, emballage) dans la marge.
 
 ### Phase 8 : SaaS et lancement (3 semaines)
 - [ ] Abonnements, quotas, paiement sur le compte de la plateforme (§6.5), essai gratuit.
@@ -544,7 +546,7 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
    - un **programme partenaire** : remise ou commission pour l'entreprise qui fait inscrire ses marchands ;
    - dans la mini-boutique `/b/{slug}` de Delivery App, un bouton **« Passer à la boutique complète »**, qui importe en un clic le catalogue et les clients et crée la connexion transporteur.
 2. ✅ **Création de boutique en 5 minutes depuis un téléphone** (phase 0). La plupart des marchands n'ont pas d'ordinateur. Le back-office `/gestion` doit être conçu d'abord pour le téléphone et installable en PWA, comme les applications de Delivery App.
-3. **Partage de produit prêt pour les réseaux sociaux** (V1, peu coûteux) : pour chaque produit, un lien court (`{boutique}.jibiat-marchand.com/p/abc`) et une **image carrée générée** (photo, prix, nom de la boutique), prête à publier en statut WhatsApp, sur Facebook ou TikTok. C'est la façon dont ces marchands vendent déjà.
+3. ✅ **Partage de produit prêt pour les réseaux sociaux** (phase 7) : pour chaque produit, un lien court (`{boutique}.jibiat-marchand.com/p/abc`) et une **image carrée générée** (photo, prix, nom de la boutique), prête à publier en statut WhatsApp, sur Facebook ou TikTok. C'est la façon dont ces marchands vendent déjà.
 4. **Fiche produit à partir d'une photo** (V1, option des offres payantes) : le marchand prend la photo, l'IA propose titre, description, catégorie et options (couleurs visibles). Il valide ou corrige. C'est un gain de temps énorme pour un catalogue de 200 articles.
 5. ✅ **Code de livraison** remis au client par SMS / WhatsApp et saisi par le livreur (phase 5) : il empêche les fausses livraisons déclarées, surtout avec les livreurs propres.
 6. **Prévoir le multi-pays dès le modèle de données** (coût faible maintenant, élevé plus tard) : pays et devise sur la boutique, format des numéros et zones par pays. Wave et PayDunya ouvrent naturellement le Sénégal.

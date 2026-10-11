@@ -9,6 +9,7 @@ use App\Models\Courier;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\StockLocation;
+use App\Services\Shipping\DeliveryAdvisor;
 use App\Services\Shipping\ShipmentDesk;
 use App\Services\Shipping\ShipmentPresenter;
 use Illuminate\Http\JsonResponse;
@@ -45,23 +46,23 @@ class ShipmentController extends Controller
         ]);
     }
 
-    public function quotes(int $order): JsonResponse
+    /**
+     * Comparateur : devis des transporteurs et livreurs de la boutique, avec leur historique, et suggestion des règles.
+     */
+    public function quotes(int $order, DeliveryAdvisor $advisor): JsonResponse
     {
         $model = Order::with('items.product')->findOrFail($order);
+        $options = $advisor->options($model);
 
         return response()->json([
-            'data' => $this->desk->quotes($model),
+            'data' => $options['carriers'],
             // Départ possible : emplacements actifs (celui de la commande en premier)
             'locations' => StockLocation::where('is_active', true)->orderByRaw('id = ? desc', [(int) $model->location_id])->orderBy('priority')->get(['id', 'name', 'type', 'carrier_connection_id']),
             'location_id' => $model->location_id,
             // Livreurs de la boutique : ceux qui couvrent la zone de la commande d'abord, puis les disponibles
-            'couriers' => Courier::where('status', 'active')->with('zones:id')->withCount(['shipments as active_missions' => fn ($q) => $q->whereIn('status', ['awaiting_pickup', 'in_transit', 'out_for_delivery'])])
-                ->get()
-                ->map(fn (Courier $c) => [
-                    'id' => $c->id, 'name' => $c->name, 'is_available' => $c->is_available, 'active_missions' => $c->active_missions,
-                    'covers_zone' => $model->delivery_zone_id !== null && $c->zones->contains('id', $model->delivery_zone_id),
-                ])
-                ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['active_missions']])->values(),
+            'couriers' => $options['couriers'],
+            'suggestion' => $advisor->suggest($model, $options),
+            'assignment_mode' => $this->currentStore()->assignment_mode,
         ]);
     }
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Models\Collection;
 use App\Models\Page;
+use App\Services\Promotions\Pricing;
 use App\Services\Storefront\CartService;
 use App\Services\Storefront\StorefrontCatalog;
 use App\Services\Storefront\StorefrontView;
@@ -25,6 +26,7 @@ class StorefrontController extends Controller
         private readonly StorefrontCatalog $catalog,
         private readonly StorefrontView $view,
         private readonly CartService $carts,
+        private readonly Pricing $pricing,
     ) {}
 
     /**
@@ -87,17 +89,23 @@ class StorefrontController extends Controller
         $store = $this->currentStore();
         $product = $this->catalog->findProduct($store, $slug) ?? abort(404);
         $availability = $this->catalog->availability($store, $product->variants->pluck('id')->all());
+        $pricing = $this->pricing->context($store->id, [$product->id]);
+        $flashEnds = null;
 
-        $variants = $product->variants->map(function ($v) use ($product, $availability) {
+        $variants = $product->variants->map(function ($v) use ($product, $availability, $pricing, &$flashEnds) {
             $v->setRelation('product', $product);
             $image = $product->images->firstWhere('id', $v->image_id);
+            $price = $this->pricing->unit($pricing, $v);
+            if ($price['discount']?->ends_at && ($flashEnds === null || $price['discount']->ends_at->lt($flashEnds))) {
+                $flashEnds = $price['discount']->ends_at;
+            }
 
             return [
                 'id' => $v->id,
                 'options' => array_values(array_filter([$v->option1?->value, $v->option2?->value, $v->option3?->value], fn ($x) => $x !== null)),
                 'title' => $v->title,
-                'price' => $v->price,
-                'compare_at' => $v->compare_at_price && $v->compare_at_price > $v->price ? $v->compare_at_price : null,
+                'price' => $price['price'],
+                'compare_at' => $price['compare_at'],
                 'available' => $this->catalog->sellable($v, $availability),
                 'image' => $image ? $image->urls() : null,
             ];
@@ -117,6 +125,9 @@ class StorefrontController extends Controller
             'selected' => $first,
             'options' => $product->options->map(fn ($o) => ['name' => $o->name, 'values' => $o->values->pluck('value')->values()])->values(),
             'related' => $related,
+            // Vente flash : fin la plus proche (compte à rebours) ; prix par quantité
+            'flashEndsAt' => $flashEnds?->toIso8601String(),
+            'volumePrices' => collect($pricing->tiers[$product->id] ?? [])->map(fn ($t) => ['quantity' => $t->min_quantity, 'price' => $t->price, 'unit' => (int) round($t->price / $t->min_quantity)])->values(),
             'meta' => [
                 'title' => ($product->seo_title ?: $product->title).' · '.$store->name,
                 'description' => $product->seo_description ?: Str::limit(strip_tags((string) $product->description), 155) ?: $product->title,
