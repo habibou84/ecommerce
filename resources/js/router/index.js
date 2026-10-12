@@ -77,6 +77,7 @@ const storeRoutes = [
       { path: 'boutique-en-ligne/menus', component: () => import('../views/gestion/online-store/Menus.vue'), meta: { title: 'Boutique en ligne', permission: 'store.manage' } },
       { path: 'marketing', component: () => import('../views/gestion/marketing/Promotions.vue'), meta: { title: 'Marketing', permission: 'store.manage' } },
       { path: 'marketing/suivi', component: () => import('../views/gestion/marketing/Tracking.vue'), meta: { title: 'Marketing', permission: 'store.manage' } },
+      { path: 'caisse', component: () => import('../views/gestion/Cash.vue'), meta: { title: 'Caisse', permission: 'finance.view' } },
       { path: 'statistiques', component: () => import('../views/gestion/Stats.vue'), meta: { title: 'Statistiques', permissionAny: ['finance.view', 'orders.view'] } },
       { path: 'paiements', component: () => import('../views/gestion/payments/Payments.vue'), meta: { title: 'Paiements', permission: 'payments.manage' } },
       { path: 'whatsapp', component: () => import('../views/gestion/messaging/WhatsApp.vue'), meta: { title: 'WhatsApp', permission: 'store.manage' } },

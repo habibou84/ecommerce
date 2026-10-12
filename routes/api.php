@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Couriers\CourierController;
 use App\Http\Controllers\Api\V1\Couriers\PayrollController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DomainController;
+use App\Http\Controllers\Api\V1\Finance\CashOverviewController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
@@ -140,6 +141,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
             });
             Route::get('stats', [StatsController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('stats');
+            Route::get('cash-overview', [CashOverviewController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('cash.overview');
             Route::get('reports/schedule', [StatsController::class, 'schedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule');
             Route::put('reports/schedule', [StatsController::class, 'updateSchedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule.update');
             Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
