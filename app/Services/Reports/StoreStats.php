@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Enums\OrderSource;
+use App\Models\CashMovement;
 use App\Models\Order;
 use App\Models\Store;
 use Carbon\CarbonImmutable;
@@ -22,7 +23,8 @@ class StoreStats
     {
         return [
             'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
-            'overview' => $this->overview($store, $from, $to),
+            'overview' => $overview = $this->overview($store, $from, $to),
+            'profit' => $this->profit($store, $from, $to, $overview['net_margin']),
             'by_source' => $this->bySource($store, $from, $to),
             'by_product' => $this->byProduct($store, $from, $to),
             'by_zone' => $this->byZone($store, $from, $to),
@@ -200,6 +202,51 @@ class StoreStats
             ->orderByDesc('orders')->get()
             ->map(fn ($r) => ['id' => (int) $r->id, 'name' => $r->code ?? $r->title, 'kind' => $r->code ? 'code' : 'flash', 'orders' => (int) $r->orders, 'discounted' => (int) $r->discounted, 'revenue' => (int) $r->revenue])
             ->all();
+    }
+
+    /**
+     * Bénéfice réel de la période : marge nette des commandes livrées, moins ce qui ne figure pas sur une commande
+     * livrée : frais des paiements en ligne, livraisons des commandes retournées, primes et ajustements des livreurs,
+     * dépenses de la boutique. Les achats de marchandises ne sont pas retirés une seconde fois : le prix d'achat des
+     * produits vendus est déjà dans la marge.
+     *
+     * @return array<string, mixed>
+     */
+    public function profit(Store $store, CarbonImmutable $from, CarbonImmutable $to, int $netMargin): array
+    {
+        $orders = fn (string $status) => fn (Builder $q) => $q->select('id')->from('orders')->where('store_id', $store->id)
+            ->whereBetween('created_at', [$from, $to])->where('status', $status);
+
+        $paymentFees = (int) DB::table('payments')->whereIn('order_id', $orders('completed'))->where('kind', 'online')
+            ->where('status', 'succeeded')->sum('fee');
+
+        $returned = fn (Builder $q) => $q->select('id')->from('shipments')->whereIn('order_id', $orders('returned'));
+        $returnCosts = (int) DB::table('shipments')->whereIn('order_id', $orders('returned'))->whereNotNull('carrier_connection_id')
+            ->where(fn ($q) => $q->whereNull('fee_payer')->orWhere('fee_payer', 'store'))->sum('carrier_fee')
+            + (int) DB::table('courier_earnings')->whereIn('shipment_id', $returned)->whereIn('type', ['delivery', 'failed_attempt'])->sum('amount');
+
+        // Primes et ajustements (les avances ne sont pas une charge : elles seront retenues sur la paie)
+        $courierExtras = (int) DB::table('courier_earnings')->where('store_id', $store->id)->whereIn('type', ['bonus', 'adjustment'])
+            ->whereBetween('created_at', [$from, $to])->sum('amount');
+
+        $expenses = DB::table('cash_movements')->where('store_id', $store->id)->where('type', 'expense')->whereBetween('occurred_at', [$from, $to])
+            ->groupBy('category')->selectRaw('category, SUM(amount) AS total')->pluck('total', 'category')->map(fn ($v) => (int) $v);
+        $stockPurchases = (int) ($expenses['stock'] ?? 0);
+        $byCategory = $expenses->except('stock')->sortDesc()
+            ->map(fn (int $total, ?string $category) => ['category' => $category, 'label' => CashMovement::CATEGORIES[$category] ?? 'Autre', 'total' => $total])
+            ->values();
+        $expensesTotal = (int) $byCategory->sum('total');
+
+        return [
+            'net_margin' => $netMargin,
+            'payment_fees' => $paymentFees,
+            'return_costs' => $returnCosts,
+            'courier_extras' => $courierExtras,
+            'expenses' => $expensesTotal,
+            'expenses_by_category' => $byCategory->all(),
+            'stock_purchases' => $stockPurchases,
+            'profit' => $netMargin - $paymentFees - $returnCosts - $courierExtras - $expensesTotal,
+        ];
     }
 
     /**
