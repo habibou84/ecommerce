@@ -19,6 +19,10 @@ class OrderMessages
      */
     public function suggestions(Order $order): array
     {
+        if (blank($order->customer_phone)) {
+            return []; // client anonyme au comptoir
+        }
+
         $keys = match ($order->status) {
             OrderStatus::PendingConfirmation => ['confirm_request'],
             OrderStatus::Confirmed, OrderStatus::Processing => ['confirmed', 'payment_reminder'],

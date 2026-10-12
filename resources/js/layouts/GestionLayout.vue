@@ -32,7 +32,7 @@ const nav = computed(() => [
   ...(auth.can('shipments.manage') || auth.can('carriers.manage')
     ? [{ to: auth.can('shipments.manage') ? '/gestion/expeditions' : '/gestion/expeditions/transporteurs', label: 'Expéditions', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z' }]
     : []),
-  ...(auth.can('finance.view') ? [{ to: '/gestion/caisse', label: 'Caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z' }] : []),
+  ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse', label: 'Caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z' }] : []),
   ...(auth.can('finance.view') || auth.can('orders.view') ? [{ to: '/gestion/statistiques', label: 'Statistiques', icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2' }] : []),
   ...(auth.can('store.manage') ? [{ to: '/gestion/marketing', label: 'Marketing', icon: 'M3 11l18-8v18L3 13zM7 12v6a2 2 0 0 0 4 0v-4' }] : []),
   ...(auth.can('payments.manage') ? [{ to: '/gestion/paiements', label: 'Paiements', icon: 'M2 6h20v12H2zM2 10h20M6 15h4' }] : []),

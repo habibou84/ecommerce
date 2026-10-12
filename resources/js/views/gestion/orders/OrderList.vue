@@ -86,7 +86,7 @@ const total = (c) => Object.entries(c).filter(([k]) => k !== 'to_ship').reduce((
           <RouterLink :to="`/gestion/commandes/${o.id}`" class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-slate-50">
             <span class="w-16 font-semibold">{{ o.reference }}</span>
             <span class="min-w-0 flex-1">
-              <span class="block truncate font-medium">{{ o.customer_name || o.customer_phone_display }}</span>
+              <span class="block truncate font-medium">{{ o.customer_name || o.customer_phone_display || 'Client au comptoir' }}</span>
               <span class="block truncate text-sm text-slate-500">
                 {{ o.customer_phone_display }} · {{ o.delivery_method === 'pickup' ? 'Retrait' : o.shipping_place_label || 'Adresse à préciser' }} · {{ o.source_label }}
               </span>

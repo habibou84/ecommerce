@@ -23,6 +23,7 @@ enum Permission: string
     case CarriersManage = 'carriers.manage';
     case PaymentsManage = 'payments.manage';
     case FinanceView = 'finance.view';
+    case CashManage = 'cash.manage';
 
     public function label(): string
     {
@@ -42,6 +43,7 @@ enum Permission: string
             self::CarriersManage => 'Gérer les transporteurs',
             self::PaymentsManage => 'Gérer les moyens de paiement',
             self::FinanceView => 'Voir les finances',
+            self::CashManage => 'Tenir la caisse (ventes au comptoir, dépenses, clôture)',
         };
     }
 

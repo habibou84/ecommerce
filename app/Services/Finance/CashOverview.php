@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentKind;
 use App\Models\CarrierPayout;
 use App\Models\CashCollection;
+use App\Models\CashMovement;
 use App\Models\CourierEarning;
 use App\Models\CourierPayout;
 use App\Models\CourierRemittance;
@@ -94,6 +95,10 @@ class CashOverview
         $carrierPayouts = CarrierPayout::forStore($store->id)->whereBetween('paid_at', [$from, $to])->get(['amount', 'method']);
         $refunds = Refund::forStore($store->id)->where('status', 'succeeded')->whereBetween('refunded_at', [$from, $to])->get(['amount']);
         $courierPay = CourierPayout::forStore($store->id)->where('status', 'paid')->whereBetween('paid_at', [$from, $to])->get(['total', 'method']);
+        $movements = CashMovement::forStore($store->id)->whereBetween('occurred_at', [$from, $to])->get(['type', 'amount', 'method']);
+        $expenses = $movements->where('type', 'expense');
+        $drawerIn = $movements->where('type', 'deposit');
+        $drawerOut = $movements->where('type', 'withdrawal');
 
         $cash = fn ($rows, string $column) => (int) $rows
             ->filter(fn ($r) => ($r->method instanceof BackedEnum ? $r->method->value : $r->method) === 'cash')->sum($column);
@@ -106,6 +111,10 @@ class CashOverview
             ['key' => 'online', 'label' => 'Paiements en ligne (frais déduits)', 'amount' => (int) ($online->sum('amount') - $online->sum('fee')), 'cash' => 0, 'count' => $online->count()],
             ['key' => 'refunds', 'label' => 'Remboursements', 'amount' => -(int) $refunds->sum('amount'), 'cash' => 0, 'count' => $refunds->count()],
             ['key' => 'courier_pay', 'label' => 'Paie des livreurs', 'amount' => -(int) $courierPay->sum('total'), 'cash' => -$cash($courierPay, 'total'), 'count' => $courierPay->count()],
+            ['key' => 'expenses', 'label' => 'Dépenses', 'amount' => -(int) $expenses->sum('amount'), 'cash' => -$cash($expenses, 'amount'), 'count' => $expenses->count()],
+            // Retraits (banque, prélèvement) et apports de monnaie : l'argent change de place, la boutique ne gagne ni ne perd
+            ['key' => 'drawer', 'label' => 'Retraits et apports de la caisse', 'amount' => 0,
+                'cash' => $cash($drawerIn, 'amount') - $cash($drawerOut, 'amount'), 'count' => $drawerIn->count() + $drawerOut->count()],
         ];
 
         return [

@@ -37,7 +37,7 @@ enum Role: string
             self::Manager => 'Tous les droits sauf l\'abonnement.',
             self::ConfirmationAgent => 'Appelle les clients et confirme les commandes.',
             self::StockKeeper => 'Catalogue, stock, préparation des colis.',
-            self::Cashier => 'Encaissements, versements des livreurs, finances.',
+            self::Cashier => 'Ventes au comptoir, encaissements, versements des livreurs, clôture de caisse, finances.',
             self::Courier => 'Application livreur uniquement.',
             self::Support => 'Accès temporaire de l\'équipe Jibiat Marchand, sans l\'abonnement, l\'équipe ni les comptes de paiement.',
         };
@@ -53,7 +53,7 @@ enum Role: string
             self::Manager => array_values(array_filter(Permission::cases(), fn (Permission $p) => $p !== Permission::BillingManage)),
             self::ConfirmationAgent => [Permission::OrdersView, Permission::OrdersConfirm, Permission::CustomersView, Permission::ProductsView],
             self::StockKeeper => [Permission::ProductsView, Permission::ProductsManage, Permission::StockManage, Permission::OrdersView, Permission::ShipmentsManage],
-            self::Cashier => [Permission::OrdersView, Permission::FinanceView, Permission::CustomersView],
+            self::Cashier => [Permission::OrdersView, Permission::ProductsView, Permission::FinanceView, Permission::CashManage, Permission::CustomersView],
             self::Courier => [],
             self::Support => array_values(array_filter(Permission::cases(), fn (Permission $p) => ! in_array($p, [Permission::BillingManage, Permission::TeamManage, Permission::PaymentsManage], true))),
         };

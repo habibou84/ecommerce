@@ -107,7 +107,7 @@ class OrderController extends Controller
             'duplicates' => $customer ? $customers->openDuplicates($customer, $model->id)
                 ->map(fn ($o) => ['id' => $o->id, 'reference' => $model->store->order_prefix.$o->number, 'total' => $o->total]) : [],
             'messages' => $messages->suggestions($model),
-            'call_url' => 'tel:'.$model->customer_phone,
+            'call_url' => $model->customer_phone ? 'tel:'.$model->customer_phone : null,
         ]]);
     }
 

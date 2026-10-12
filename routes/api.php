@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Couriers\PayrollController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DomainController;
 use App\Http\Controllers\Api\V1\Finance\CashOverviewController;
+use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
@@ -142,6 +143,13 @@ Route::prefix('v1')->name('v1.')->group(function () {
             });
             Route::get('stats', [StatsController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('stats');
             Route::get('cash-overview', [CashOverviewController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('cash.overview');
+            Route::get('cash-register', [CashRegisterController::class, 'show'])->middleware('permission:'.Permission::CashManage->value.'|'.Permission::FinanceView->value)->name('cash-register.show');
+            Route::middleware('permission:'.Permission::CashManage->value)->group(function () {
+                Route::post('cash-register/open', [CashRegisterController::class, 'open'])->name('cash-register.open');
+                Route::post('cash-register/close', [CashRegisterController::class, 'close'])->name('cash-register.close');
+                Route::post('cash-register/movements', [CashRegisterController::class, 'movement'])->name('cash-register.movements');
+                Route::post('counter-sales', [CashRegisterController::class, 'sell'])->middleware('throttle:60,1')->name('counter-sales.store');
+            });
             Route::get('reports/schedule', [StatsController::class, 'schedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule');
             Route::put('reports/schedule', [StatsController::class, 'updateSchedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule.update');
             Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
