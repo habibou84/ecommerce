@@ -3,6 +3,7 @@
 namespace App\Services\Shipping;
 
 use App\Models\CarrierConnection;
+use App\Models\CarrierPayout;
 use App\Models\CarrierWebhookReceipt;
 use App\Models\Shipment;
 use App\Services\Shipping\Drivers\RemoteShipment;
@@ -98,9 +99,30 @@ class CarrierEvents
         foreach ($changed as $remote) {
             $applied += $this->applyOrder($connection, $remote, 'carrier_sync') ? 1 : 0;
         }
+        $this->syncPayouts($connection);
         $connection->forceFill(['last_synced_at' => $started, 'last_error' => null])->save();
 
         return $applied;
+    }
+
+    /**
+     * Reversements payés pas encore reçus par webhook : importés et rapprochés, pour que le solde à recevoir
+     * ne compte pas des courses déjà reversées.
+     */
+    private function syncPayouts(CarrierConnection $connection): void
+    {
+        if (! $connection->allows('payouts:read')) {
+            return;
+        }
+
+        try {
+            $known = CarrierPayout::forStore($connection->store_id)->where('connection_id', $connection->id)->pluck('remote_id')->all();
+            foreach (array_diff($this->connections->driver($connection)->paidPayouts($connection), $known) as $reference) {
+                $this->payouts->import($connection, $reference);
+            }
+        } catch (CarrierException) {
+            // Transporteur injoignable : nouvel essai à la prochaine synchronisation
+        }
     }
 
     private function applyOrder(CarrierConnection $connection, RemoteShipment $remote, string $source, ?string $note = null): bool

@@ -145,6 +145,13 @@ class DeliveryAppDriver implements CarrierDriver
         $this->send($connection, fn (PendingRequest $http) => $http->delete('webhooks/'.rawurlencode($connection->remote_webhook_id)), allowMissing: true);
     }
 
+    public function paidPayouts(CarrierConnection $connection): array
+    {
+        $data = $this->send($connection, fn (PendingRequest $http) => $http->get('payouts', ['status' => 'paid', 'per_page' => 20]), allowMissing: true)->json('data');
+
+        return collect(is_array($data) ? $data : [])->pluck('reference')->filter()->map(fn ($r) => (string) $r)->values()->all();
+    }
+
     public function payout(CarrierConnection $connection, string $reference): array
     {
         $data = $this->send($connection, fn (PendingRequest $http) => $http->get('payouts/'.rawurlencode($reference)))->json('data');

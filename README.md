@@ -100,7 +100,7 @@ vendor/bin/pint      # style du code
 | `app/Services/Stock` | Tous les mouvements de stock (`StockKeeper`, journal immuable) et lectures agrégées (`StockLevels`) |
 | `app/Services/Orders` | Commandes (`OrderDesk` : création, statuts, stock, paiements, confirmation), analyse des messages, PDF, messages WhatsApp |
 | `app/Services/Customers`, `app/Services/Places` | Fichier clients et score de risque ; lieux et zones de livraison |
-| `app/Services/Shipping` | Expéditions et transporteurs : connecteurs (`Drivers/`), `ShipmentDesk` (course, statuts → commande), webhooks et synchronisation (`CarrierEvents`), reversements, stock chez le transporteur |
+| `app/Services/Shipping` | Expéditions et transporteurs : connecteurs (`Drivers/`), `ShipmentDesk` (course, statuts → commande), webhooks et synchronisation (`CarrierEvents`), reversements (`PayoutReconciler`), solde à recevoir de chaque transporteur (`CarrierBalances`), stock chez le transporteur |
 | `app/Services/Couriers` | Livreurs de la boutique : ajout et invitation (`CourierRoster`), actions du livreur (`CourierDesk`), encaissements et gains (`CourierMissions`), caisse (`CashDesk`), paie (`CourierPayroll`) |
 | `app/Services/Payments` | Paiement en ligne sur les comptes du marchand : pilotes `Gateways/` (Wave, CinetPay, PayDunya), `PaymentDesk` (routage et secours, vérification, webhooks, remboursements), `FeeSimulator` |
 | `app/Services/Billing` | Offres et quotas (`PlanLimits`), abonnements payés sur le compte de la plateforme (`Billing`) |

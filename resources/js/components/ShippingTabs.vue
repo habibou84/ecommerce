@@ -8,7 +8,7 @@ const tabs = computed(() => [
   ...(auth.can('carriers.manage')
     ? [
         { to: '/gestion/expeditions/transporteurs', label: 'Transporteurs' },
-        { to: '/gestion/expeditions/reversements', label: 'Reversements' },
+        { to: '/gestion/expeditions/reversements', label: 'À recevoir' },
       ]
     : []),
 ])

@@ -68,4 +68,9 @@ class ManualDriver implements CarrierDriver
     {
         throw new CarrierException('Ce transporteur n\'a pas d\'API.');
     }
+
+    public function paidPayouts(CarrierConnection $connection): array
+    {
+        return [];
+    }
 }
