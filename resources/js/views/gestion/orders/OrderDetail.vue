@@ -216,12 +216,12 @@ async function addNote() {
         <section class="card space-y-2 p-4 text-sm">
           <h3 class="font-semibold">Client</h3>
           <RouterLink v-if="order.customer_id && auth.can('customers.view')" :to="`/gestion/clients/${order.customer_id}`" class="block font-medium hover:text-emerald-700">{{ order.customer_name || 'Sans nom' }}</RouterLink>
-          <p v-else class="font-medium">{{ order.customer_name }}</p>
+          <p v-else class="font-medium">{{ order.customer_name || 'Client au comptoir' }}</p>
           <p>{{ order.customer_phone_display }}</p>
           <p v-if="order.customer" class="text-slate-500">
             {{ order.customer.orders_count }} commande(s)<template v-if="order.customer.delivery_rate !== null"> · {{ order.customer.delivery_rate }} % livrées</template>
           </p>
-          <div class="flex gap-2 pt-1">
+          <div v-if="order.customer_phone" class="flex gap-2 pt-1">
             <a :href="order.call_url" class="btn-secondary flex-1 px-2 py-1.5">📞 Appeler</a>
             <a :href="`https://wa.me/${order.customer_phone.replace('+', '')}`" target="_blank" class="btn-secondary flex-1 px-2 py-1.5">WhatsApp</a>
           </div>

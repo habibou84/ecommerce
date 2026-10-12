@@ -66,20 +66,23 @@ class OrderDesk
         $this->limits->ensureOrderQuota($store);
 
         $order = DB::transaction(function () use ($store, $data, $actor, $actorType) {
-            $customer = $this->customers->findOrCreate($store, $data['customer_phone'], $data['customer_name'] ?? null, ['source' => $data['source']]);
+            // Vente au comptoir : le client peut rester anonyme (pas de numéro)
+            $customer = filled($data['customer_phone'] ?? null)
+                ? $this->customers->findOrCreate($store, $data['customer_phone'], $data['customer_name'] ?? null, ['source' => $data['source']])
+                : null;
 
             $order = new Order(['store_id' => $store->id]);
             $order->fill(Arr::only($data, self::CONTACT_FIELDS));
             $order->forceFill([
                 'store_id' => $store->id,
                 'number' => $this->nextNumber($store),
-                'customer_id' => $customer->id,
-                'customer_name' => $data['customer_name'] ?? $customer->name,
-                'customer_phone' => $data['customer_phone'],
+                'customer_id' => $customer?->id,
+                'customer_name' => $data['customer_name'] ?? $customer?->name,
+                'customer_phone' => $customer ? $data['customer_phone'] : null,
                 'source' => OrderSource::from($data['source']),
                 'utm' => $data['utm'] ?? null,
-                'shipping_name' => $data['shipping_name'] ?? $data['customer_name'] ?? $customer->name,
-                'shipping_phone' => $data['shipping_phone'] ?? $data['customer_phone'],
+                'shipping_name' => $data['shipping_name'] ?? $data['customer_name'] ?? $customer?->name,
+                'shipping_phone' => $data['shipping_phone'] ?? ($customer ? $data['customer_phone'] : null),
                 'location_id' => $this->location($store, $data['location_id'] ?? null)->id,
                 'discount_total' => (int) ($data['discount_total'] ?? 0),
                 'discount_code' => Pricing::normalize($data['discount_code'] ?? null),
@@ -104,9 +107,11 @@ class OrderDesk
                 $this->transition($order, OrderStatus::Confirmed, $actor, ['note' => ($data['confirmed'] ?? false) ? 'Confirmée à la saisie' : 'Confirmation non requise']);
             }
 
-            $this->customers->rememberAddress($customer, $order);
-            $this->customers->refreshStats($customer);
-            $order->forceFill(['risk_score' => $this->customers->riskScore($customer->fresh(), $order->id)])->save();
+            if ($customer !== null) {
+                $this->customers->rememberAddress($customer, $order);
+                $this->customers->refreshStats($customer);
+                $order->forceFill(['risk_score' => $this->customers->riskScore($customer->fresh(), $order->id)])->save();
+            }
 
             return $order;
         });

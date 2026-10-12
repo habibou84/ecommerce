@@ -68,8 +68,8 @@ class CustomerMessenger
     public function forOrder(Order $order, string $event, array $extra = []): ?OutboundMessage
     {
         $account = $this->account($order->store_id, $event);
-        if ($account === null) {
-            return null;
+        if ($account === null || blank($order->customer_phone)) {
+            return null; // pas de WhatsApp, ou client anonyme au comptoir
         }
 
         $name = Str::before((string) ($order->customer_name ?: 'cher client'), ' ');

@@ -182,8 +182,10 @@ class CatalogApiTest extends TestCase
         $this->actingAs($this->addMember($this->store, null, Role::ConfirmationAgent));
         $this->api('GET', 'products')->assertOk();
         $this->api('PUT', "products/{$product['id']}", $this->robe())->assertForbidden();
+        // Caissier : voit le catalogue pour vendre au comptoir, sans le modifier
         $this->actingAs($this->addMember($this->store, null, Role::Cashier));
-        $this->api('GET', 'products')->assertForbidden();
+        $this->api('GET', 'products')->assertOk();
+        $this->api('PUT', "products/{$product['id']}", $this->robe())->assertForbidden();
 
         // Une autre boutique ne voit pas ce produit
         $other = $this->createStore();

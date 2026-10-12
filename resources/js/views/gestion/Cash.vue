@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
+import CashDrawer from '../../components/CashDrawer.vue'
 import http, { errorMessage } from '../../lib/http'
 import { formatDate, money } from '../../lib/format'
 import { useAuthStore } from '../../stores/auth'
@@ -19,6 +20,7 @@ const error = ref('')
 const showCredit = ref(false)
 
 async function load() {
+  if (!auth.can('finance.view')) return
   error.value = ''
   try {
     data.value = (await http.get('/cash-overview', { params: { period: period.value } })).data.data
@@ -40,8 +42,10 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
   <div class="space-y-5">
     <Alert v-if="error">{{ error }}</Alert>
 
+    <CashDrawer @changed="load" />
+
     <!-- Où est l'argent en ce moment -->
-    <section class="space-y-3">
+    <section v-if="auth.can('finance.view')" class="space-y-3">
       <h2 class="text-lg font-semibold">Où est mon argent</h2>
       <div v-if="data" class="grid grid-cols-2 gap-3">
         <RouterLink to="/gestion/livreurs/caisse" class="card block p-4">
@@ -78,7 +82,7 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
     </section>
 
     <!-- Entrées et sorties de la période -->
-    <section class="space-y-3">
+    <section v-if="auth.can('finance.view')" class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-lg font-semibold">Entrées et sorties</h2>
         <div class="flex rounded-lg bg-slate-100 p-1 text-sm" role="group" aria-label="Période">
