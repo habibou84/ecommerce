@@ -9,6 +9,7 @@ use App\Models\ScheduledReport;
 use App\Models\Shipment;
 use App\Models\Store;
 use App\Notifications\DailyReportMail;
+use App\Services\Shipping\CarrierBalances;
 use App\Services\WhatsApp\CustomerMessenger;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
@@ -31,6 +32,7 @@ class DailyReport
         $end = $start->addDay();
         $received = Order::forStore($store->id)->whereBetween('created_at', [$start, $end]);
         $delivered = Order::forStore($store->id)->where('status', OrderStatus::Completed->value)->whereBetween('completed_at', [$start, $end]);
+        $due = app(CarrierBalances::class)->pending($store);
 
         return [
             'date' => $day->setTimezone($store->timezone)->locale('fr')->isoFormat('dddd D MMMM'),
@@ -43,6 +45,8 @@ class DailyReport
             'to_ship' => Order::forStore($store->id)->where('status', OrderStatus::Confirmed->value)->count(),
             'in_delivery' => Shipment::forStore($store->id)->whereIn('status', ['requested', 'accepted', 'awaiting_pickup', 'in_transit', 'out_for_delivery', 'rescheduled'])->count(),
             'courier_cash' => (int) CashCollection::forStore($store->id)->whereNull('remittance_id')->where('method', 'cash')->sum('amount'),
+            'carrier_due' => (int) $due->sum('net'),
+            'carrier_due_overdue' => (int) $due->where('overdue', true)->sum('net'),
         ];
     }
 
@@ -58,6 +62,8 @@ class DailyReport
             $f['cancelled'] ? "Annulées : {$f['cancelled']}" : null,
             "À confirmer : {$f['to_confirm']} · À expédier : {$f['to_ship']} · En livraison : {$f['in_delivery']}",
             $f['courier_cash'] ? 'Espèces chez les livreurs : '.Money::format($f['courier_cash']) : null,
+            $f['carrier_due'] ? 'À recevoir des transporteurs : '.Money::format($f['carrier_due'])
+                .($f['carrier_due_overdue'] ? ' (dont '.Money::format($f['carrier_due_overdue']).' en retard)' : '') : null,
         ]));
     }
 

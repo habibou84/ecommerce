@@ -76,4 +76,11 @@ interface CarrierDriver
      * @return array{remote_id: string, amount: int, total_collected: int, total_fees: int, method: ?string, transaction_ref: ?string, paid_at: ?string, lines: list<array{tracking_code: string, collected: int, fees: int}>, raw: array}
      */
     public function payout(CarrierConnection $connection, string $reference): array;
+
+    /**
+     * Références des derniers reversements payés (rattrapage d'un webhook payout.paid perdu).
+     *
+     * @return list<string>
+     */
+    public function paidPayouts(CarrierConnection $connection): array;
 }

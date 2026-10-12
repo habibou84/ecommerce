@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\V1\Payments\OrderPaymentController;
 use App\Http\Controllers\Api\V1\Payments\PaymentSettingsController;
 use App\Http\Controllers\Api\V1\PlatformAccountController;
 use App\Http\Controllers\Api\V1\Reports\StatsController;
+use App\Http\Controllers\Api\V1\Shipping\CarrierBalanceController;
 use App\Http\Controllers\Api\V1\Shipping\CarrierController;
 use App\Http\Controllers\Api\V1\Shipping\ShipmentController;
 use App\Http\Controllers\Api\V1\Shipping\ShippingRuleController;
@@ -195,6 +196,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('carriers/{carrier}/stock', [CarrierController::class, 'stock'])->whereNumber('carrier')->middleware('throttle:10,1')->name('carriers.stock');
                 Route::post('carriers/{carrier}/hubs', [CarrierController::class, 'linkHub'])->whereNumber('carrier')->name('carriers.hubs');
                 Route::get('carrier-payouts', [CarrierController::class, 'payouts'])->name('carriers.payouts');
+                Route::get('carrier-balances', [CarrierBalanceController::class, 'index'])->name('carriers.balances');
+                Route::get('carrier-balances/{carrier}', [CarrierBalanceController::class, 'show'])->whereNumber('carrier')->name('carriers.balances.show');
+                Route::get('carrier-balances/{carrier}/export', [CarrierBalanceController::class, 'export'])->whereNumber('carrier')->name('carriers.balances.export');
+                Route::post('carriers/{carrier}/payouts', [CarrierBalanceController::class, 'storePayout'])->whereNumber('carrier')->name('carriers.payouts.store');
             });
             Route::middleware('permission:'.Permission::ShipmentsManage->value)->group(function () {
                 Route::get('carriers/active', [CarrierController::class, 'index'])->name('carriers.active');

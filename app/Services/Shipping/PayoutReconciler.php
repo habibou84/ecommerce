@@ -2,11 +2,14 @@
 
 namespace App\Services\Shipping;
 
+use App\Enums\ShipmentStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\CarrierConnection;
 use App\Models\CarrierPayout;
 use App\Models\CarrierPayoutLine;
 use App\Models\Shipment;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Rapprochement d'un reversement du transporteur avec les expéditions : pour chaque course, montant encaissé et
@@ -63,6 +66,61 @@ class PayoutReconciler
                 'difference' => $difference,
                 'reconciliation_status' => $difference === 0 && $shipments->count() === count($data['lines']) ? 'matched' : 'discrepancy',
             ])->save();
+
+            return $payout;
+        });
+    }
+
+    /**
+     * Reversement d'un transporteur sans API (payé en espèces, Wave…), saisi par la boutique : les courses cochées
+     * sont soldées et l'écart entre le montant reçu et le net attendu est noté.
+     *
+     * @param  list<int>  $shipmentIds
+     * @param  array{amount: int, method?: ?string, transaction_ref?: ?string, paid_at?: ?string}  $data
+     */
+    public function recordManual(CarrierConnection $connection, array $shipmentIds, array $data): CarrierPayout
+    {
+        if ($connection->isApi()) {
+            throw new BusinessRuleException('Les reversements de '.$connection->name.' arrivent automatiquement.', 'shipment_ids');
+        }
+
+        return DB::transaction(function () use ($connection, $shipmentIds, $data) {
+            $shipments = Shipment::forStore($connection->store_id)->where('carrier_connection_id', $connection->id)
+                ->where('status', ShipmentStatus::Delivered->value)->whereDoesntHave('payoutLines')
+                ->whereIn('id', $shipmentIds)->lockForUpdate()->get();
+            if ($shipments->isEmpty() || $shipments->count() !== count(array_unique($shipmentIds))) {
+                throw new BusinessRuleException('Choisissez des courses livrées qui n\'ont pas encore été reversées.', 'shipment_ids');
+            }
+
+            $nets = $shipments->mapWithKeys(fn (Shipment $s) => [$s->id => (int) ($s->collected_amount ?? $s->cod_amount) - (int) $s->carrier_fee]);
+            $difference = $data['amount'] - $nets->sum();
+
+            $payout = CarrierPayout::create([
+                'store_id' => $connection->store_id,
+                'connection_id' => $connection->id,
+                'remote_id' => 'MAN-'.now()->format('ymd').'-'.Str::upper(Str::random(5)),
+                'amount' => $data['amount'],
+                'total_collected' => (int) $shipments->sum(fn (Shipment $s) => (int) ($s->collected_amount ?? $s->cod_amount)),
+                'total_fees' => (int) $shipments->sum('carrier_fee'),
+                'method' => $data['method'] ?? null,
+                'transaction_ref' => $data['transaction_ref'] ?? null,
+                'paid_at' => $data['paid_at'] ?? now(),
+                'reconciliation_status' => $difference === 0 ? 'matched' : 'discrepancy',
+                'difference' => $difference,
+            ]);
+
+            foreach ($shipments as $s) {
+                CarrierPayoutLine::create([
+                    'carrier_payout_id' => $payout->id,
+                    'shipment_id' => $s->id,
+                    'remote_tracking_code' => $s->carrier_tracking_code ?? $s->reference(),
+                    'collected' => (int) ($s->collected_amount ?? $s->cod_amount),
+                    'fees' => (int) $s->carrier_fee,
+                    'net' => $nets[$s->id],
+                    'expected_net' => $nets[$s->id],
+                    'difference' => 0,
+                ]);
+            }
 
             return $payout;
         });

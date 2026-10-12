@@ -64,6 +64,14 @@ class Shipment extends Model
         return $this->belongsTo(StockLocation::class, 'origin_location_id');
     }
 
+    /**
+     * Lignes des reversements du transporteur qui comprennent cette course.
+     */
+    public function payoutLines(): HasMany
+    {
+        return $this->hasMany(CarrierPayoutLine::class);
+    }
+
     public function events(): HasMany
     {
         return $this->hasMany(ShipmentEvent::class)->orderBy('occurred_at')->orderBy('id');

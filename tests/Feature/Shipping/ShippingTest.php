@@ -17,6 +17,8 @@ use App\Models\User;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
+use App\Services\Reports\DailyReport;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Http;
@@ -347,6 +349,106 @@ class ShippingTest extends TestCase
         $this->storeApi($this->store, 'GET', 'carrier-payouts')->assertOk()
             ->assertJsonPath('data.0.reference', 'RV-2')->assertJsonPath('data.0.status', 'discrepancy')->assertJsonPath('data.0.difference', -800)
             ->assertJsonPath('data.0.lines.0.order_reference', '#1001');
+    }
+
+    public function test_balance_owed_by_each_carrier(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, $connection);
+
+        // Rien de livré : rien à recevoir
+        $this->storeApi($this->store, 'GET', 'carrier-balances')->assertOk()
+            ->assertJsonPath('total', 0)->assertJsonPath('data.0.carrier', 'Rapide Express')->assertJsonPath('data.0.count', 0);
+
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('delivered', ['amounts' => ['collected_amount' => 31500]])], 'evt-d')->assertOk();
+        $this->travel(8)->days();
+
+        $this->storeApi($this->store, 'GET', 'carrier-balances')->assertOk()
+            ->assertJsonPath('total', 30300)->assertJsonPath('overdue_days', 7)
+            ->assertJsonPath('data.0.amount', 30300)->assertJsonPath('data.0.count', 1)
+            ->assertJsonPath('data.0.overdue_count', 1)->assertJsonPath('data.0.is_api', true);
+        $this->storeApi($this->store, 'GET', "carrier-balances/{$connection->id}")->assertOk()
+            ->assertJsonPath('data.0.order_reference', '#1001-1')->assertJsonPath('data.0.collected', 31500)
+            ->assertJsonPath('data.0.fees', 1200)->assertJsonPath('data.0.net', 30300)->assertJsonPath('data.0.days', 8);
+
+        $csv = $this->withCredentials()->get($this->storeUrl($this->store, "/api/v1/carrier-balances/{$connection->id}/export"))->assertOk();
+        $this->assertStringContainsString('#1001-1;LV-7K2M-QX9P;', $csv->getContent());
+        $this->assertStringContainsString('Total;;;;31500;1200;30300', $csv->getContent());
+
+        $report = app(DailyReport::class);
+        $this->assertStringContainsString('À recevoir des transporteurs : 30 300 F (dont 30 300 F en retard)', $report->text($this->store, $report->figures($this->store, CarbonImmutable::now())));
+
+        // Les reversements d'un transporteur avec API ne se saisissent pas à la main
+        $this->storeApi($this->store, 'POST', "carriers/{$connection->id}/payouts", ['shipment_ids' => [$shipment->id], 'amount' => 30300])->assertStatus(422);
+
+        // Reversement reçu : la course n'est plus à recevoir
+        $this->stub([self::API.'/payouts/RV-1' => Http::response(['data' => [
+            'reference' => 'RV-1', 'net_amount' => 30300, 'total_collected' => 31500, 'total_fees' => 1200,
+            'entries' => [['type' => 'cod_credit', 'amount' => 31500, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']], ['type' => 'delivery_fee', 'amount' => -1200, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']]],
+        ]])]);
+        $this->webhook($connection, 'payout.paid', ['payout' => ['reference' => 'RV-1']], 'evt-p')->assertOk();
+        $this->storeApi($this->store, 'GET', 'carrier-balances')->assertJsonPath('total', 0)->assertJsonPath('data.0.count', 0);
+
+        // Commande déjà payée : la boutique doit la livraison au transporteur
+        $shipment->payoutLines()->delete();
+        $shipment->forceFill(['collected_amount' => 0])->save();
+        $this->storeApi($this->store, 'GET', 'carrier-balances')->assertJsonPath('total', -1200);
+    }
+
+    public function test_paid_payouts_missed_by_webhook_are_caught_up_by_sync(): void
+    {
+        $connection = $this->connect();
+        $this->ship($this->confirmedOrder(), $connection);
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('delivered', ['amounts' => ['collected_amount' => 31500]])], 'evt-d')->assertOk();
+
+        $this->stub([
+            self::API.'/payouts/RV-9' => Http::response(['data' => [
+                'reference' => 'RV-9', 'net_amount' => 30300, 'total_collected' => 31500, 'total_fees' => 1200,
+                'entries' => [['type' => 'cod_credit', 'amount' => 31500, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']], ['type' => 'delivery_fee', 'amount' => -1200, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']]],
+            ]]),
+            self::API.'/payouts?*' => Http::response(['data' => [['reference' => 'RV-9', 'status' => 'paid']]]),
+            self::API.'/orders?*' => Http::response(['data' => [], 'meta' => ['last_page' => 1]]),
+        ]);
+
+        $this->artisan('shipping:sync')->assertSuccessful();
+        $this->artisan('shipping:sync')->assertSuccessful();
+
+        $this->assertSame(['RV-9', 'matched'], [CarrierPayout::sole()->remote_id, CarrierPayout::sole()->reconciliation_status]);
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API.'/payouts?status=paid&per_page=20');
+        $this->storeApi($this->store, 'GET', 'carrier-balances')->assertJsonPath('total', 0);
+    }
+
+    public function test_payout_from_a_manual_carrier_is_entered_by_the_store(): void
+    {
+        $id = $this->storeApi($this->store, 'POST', 'carriers/manual', ['name' => 'Moto Express'])->assertCreated()->json('data.id');
+        $first = $this->ship($this->confirmedOrder(), CarrierConnection::find($id));
+        $second = $this->ship($this->confirmedOrder(), CarrierConnection::find($id));
+        foreach ([$first, $second] as $shipment) {
+            $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/status", ['status' => 'delivered', 'collected_amount' => 31500])->assertOk();
+        }
+
+        $this->storeApi($this->store, 'GET', 'carrier-balances')->assertJsonPath('data.0.carrier', 'Moto Express')
+            ->assertJsonPath('data.0.is_api', false)->assertJsonPath('data.0.amount', 63000)->assertJsonPath('data.0.count', 2);
+
+        // Le transporteur a gardé 1 500 F sur la première course
+        $this->storeApi($this->store, 'POST', "carriers/{$id}/payouts", ['shipment_ids' => [$first->id], 'amount' => 30000, 'method' => 'wave', 'transaction_ref' => 'W-123'])
+            ->assertCreated()->assertJsonPath('data.status', 'discrepancy')->assertJsonPath('data.difference', -1500);
+        $this->storeApi($this->store, 'GET', 'carrier-balances')->assertJsonPath('data.0.amount', 31500)->assertJsonPath('data.0.count', 1);
+        $this->storeApi($this->store, 'GET', 'carrier-payouts')->assertJsonPath('data.0.carrier', 'Moto Express')
+            ->assertJsonPath('data.0.method', 'wave')->assertJsonPath('data.0.lines.0.order_reference', '#1001');
+
+        // Course déjà reversée, ou d'un autre transporteur : refusée
+        $this->storeApi($this->store, 'POST', "carriers/{$id}/payouts", ['shipment_ids' => [$first->id, $second->id], 'amount' => 63000])
+            ->assertStatus(422)->assertJsonValidationErrors('shipment_ids');
+        $this->storeApi($this->store, 'POST', "carriers/{$id}/payouts", ['shipment_ids' => [$second->id], 'amount' => 31500])
+            ->assertCreated()->assertJsonPath('data.status', 'matched');
+        $this->storeApi($this->store, 'GET', 'carrier-balances')->assertJsonPath('total', 0);
+
+        // Réservé à qui gère les transporteurs
+        $cashier = $this->addMember($this->store, User::factory()->create(), Role::Cashier);
+        $this->actingAs($cashier);
+        $this->storeApi($this->store, 'GET', 'carrier-balances')->assertForbidden();
     }
 
     public function test_manual_carrier_by_whatsapp(): void
