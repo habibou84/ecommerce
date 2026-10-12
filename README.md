@@ -103,6 +103,7 @@ vendor/bin/pint      # style du code
 | `app/Services/Shipping` | Expéditions et transporteurs : connecteurs (`Drivers/`), `ShipmentDesk` (course, statuts → commande), webhooks et synchronisation (`CarrierEvents`), reversements (`PayoutReconciler`), solde à recevoir de chaque transporteur (`CarrierBalances`), stock chez le transporteur |
 | `app/Services/Couriers` | Livreurs de la boutique : ajout et invitation (`CourierRoster`), actions du livreur (`CourierDesk`), encaissements et gains (`CourierMissions`), caisse (`CashDesk`), paie (`CourierPayroll`) |
 | `app/Services/Payments` | Paiement en ligne sur les comptes du marchand : pilotes `Gateways/` (Wave, CinetPay, PayDunya), `PaymentDesk` (routage et secours, vérification, webhooks, remboursements), `FeeSimulator` |
+| `app/Services/Finance` | Caisse de la boutique (`CashOverview`) : où est l'argent (livreurs, transporteurs, clients à crédit, à payer) et entrées / sorties par canal, avec la part en espèces |
 | `app/Services/Billing` | Offres et quotas (`PlanLimits`), abonnements payés sur le compte de la plateforme (`Billing`) |
 | `app/Services/Domains` | Domaines personnalisés : vérification DNS, autorisation des certificats Caddy (`CustomDomains`) |
 | `app/Services/Console`, `resources/js/views/console` | Console du super administrateur (`admin.`) et sessions de support (`SupportSessions`) ; accès donné par `php artisan platform:admin {téléphone}` |
