@@ -149,6 +149,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('cash-register/close', [CashRegisterController::class, 'close'])->name('cash-register.close');
                 Route::post('cash-register/movements', [CashRegisterController::class, 'movement'])->name('cash-register.movements');
                 Route::post('counter-sales', [CashRegisterController::class, 'sell'])->middleware('throttle:60,1')->name('counter-sales.store');
+                Route::post('counter-sales/{order}/whatsapp', [CashRegisterController::class, 'receiptWhatsapp'])->whereNumber('order')->name('counter-sales.whatsapp');
             });
             Route::get('reports/schedule', [StatsController::class, 'schedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule');
             Route::put('reports/schedule', [StatsController::class, 'updateSchedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule.update');

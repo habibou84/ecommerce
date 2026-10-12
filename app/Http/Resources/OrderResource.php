@@ -83,6 +83,7 @@ class OrderResource extends JsonResource
             'cancel_reason_label' => $this->cancel_reason?->label(),
             'cancel_note' => $this->cancel_note,
             'tracking_url' => $this->trackingUrl(),
+            'receipt_url' => $this->receiptUrl(),
             'is_editable' => $this->status->isEditable(),
             'next_statuses' => array_map(fn ($s) => ['value' => $s->value, 'label' => $s->label()], $this->status->allowedTransitions()),
             'items' => $this->items->map(fn (OrderItem $i) => [

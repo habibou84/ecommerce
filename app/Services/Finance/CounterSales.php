@@ -10,6 +10,8 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Orders\OrderDesk;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Jibiat\Socle\Money;
 
 /**
  * Vente au comptoir en une fois : commande « En boutique » retirée sur place, stock sorti, paiements notés.
@@ -60,5 +62,17 @@ class CounterSales
 
             return $order->fresh(['items', 'payments']);
         });
+    }
+
+    /**
+     * Lien WhatsApp qui ouvre une conversation avec le client, le ticket de caisse déjà écrit.
+     */
+    public function whatsappUrl(Order $order, string $phone): string
+    {
+        $name = trim(Str::before((string) $order->customer_name, ' '));
+        $text = 'Bonjour'.($name !== '' ? ' '.$name : '').', merci pour votre achat chez '.$order->store->name.' ! '
+            .'Votre ticket '.$order->reference().' ('.Money::format($order->total).') : '.$order->receiptUrl();
+
+        return 'https://wa.me/'.ltrim($phone, '+').'?text='.rawurlencode($text);
     }
 }

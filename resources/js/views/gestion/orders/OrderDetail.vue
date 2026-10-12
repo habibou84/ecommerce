@@ -250,6 +250,7 @@ async function addNote() {
         <section class="card space-y-2 p-4 text-sm">
           <h3 class="font-semibold">Documents</h3>
           <button class="btn-secondary w-full justify-start" @click="download(`/orders/${order.id}/invoice`, 'facture.pdf')">📄 Facture</button>
+          <a v-if="order.amount_paid > 0" :href="order.receipt_url" target="_blank" class="btn-secondary w-full justify-start">🧾 Ticket de caisse</a>
           <button class="btn-secondary w-full justify-start" @click="download(`/orders/${order.id}/label`, 'etiquette.pdf')">🏷️ Étiquette colis</button>
           <a :href="order.tracking_url" target="_blank" class="btn-ghost w-full justify-start">Page de suivi du client ↗</a>
         </section>
