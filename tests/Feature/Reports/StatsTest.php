@@ -4,10 +4,13 @@ namespace Tests\Feature\Reports;
 
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
+use App\Models\CashMovement;
 use App\Models\Courier;
+use App\Models\CourierEarning;
 use App\Models\CourierPayRule;
 use App\Models\DeliveryZone;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\Place;
 use App\Models\Plan;
 use App\Models\Product;
@@ -89,6 +92,22 @@ class StatsTest extends TestCase
         $this->assertEquals([66.7, 100], [$overview['delivery_rate'], $overview['confirmation_rate']]);
         // Marge : (45 000 − 27 000) + frais facturés − paie du livreur (2 × 1 000)
         $this->assertSame([18000, 2000, 18000 + 2 * $fee - 2000], [$overview['product_margin'], $overview['shipping_costs'], $overview['net_margin']]);
+
+        // Bénéfice réel : frais d'un paiement en ligne, prime du livreur, dépenses ; l'achat de tissu n'est pas retiré deux fois
+        $delivered = Order::forStore($this->store->id)->where('status', 'completed')->first();
+        Payment::create(['store_id' => $this->store->id, 'order_id' => $delivered->id, 'kind' => 'online', 'method' => 'wave', 'amount' => 1000, 'fee' => 300,
+            'currency' => 'XOF', 'status' => 'succeeded', 'idempotency_key' => (string) Str::uuid(), 'paid_at' => now()]);
+        CourierEarning::create(['store_id' => $this->store->id, 'courier_id' => $courier->id, 'type' => 'bonus', 'amount' => 500, 'created_at' => now()]);
+        CourierEarning::create(['store_id' => $this->store->id, 'courier_id' => $courier->id, 'type' => 'advance', 'amount' => -2000, 'created_at' => now()]);
+        foreach ([['transport', 3000, 'cash'], ['rent', 20000, 'wave'], ['stock', 10000, 'wave']] as [$category, $amount, $method]) {
+            CashMovement::create(['store_id' => $this->store->id, 'type' => 'expense', 'category' => $category, 'amount' => $amount, 'method' => $method, 'occurred_at' => now()]);
+        }
+        CashMovement::create(['store_id' => $this->store->id, 'type' => 'withdrawal', 'amount' => 50000, 'method' => 'cash', 'occurred_at' => now()]);
+
+        $profit = $this->storeApi($this->store, 'GET', 'stats')->json('data.profit');
+        $this->assertSame([$overview['net_margin'], 300, 0, 500, 23000, 10000], [$profit['net_margin'], $profit['payment_fees'], $profit['return_costs'], $profit['courier_extras'], $profit['expenses'], $profit['stock_purchases']]);
+        $this->assertSame([['rent', 'Loyer', 20000], ['transport', 'Transport', 3000]], array_map(fn ($e) => array_values($e), $profit['expenses_by_category']));
+        $this->assertSame($overview['net_margin'] - 300 - 500 - 23000, $profit['profit']);
 
         $sources = collect($stats['by_source'])->keyBy('source');
         $this->assertEquals([2, 100], [$sources['whatsapp']['delivered'], $sources['whatsapp']['delivery_rate']]);

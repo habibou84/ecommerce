@@ -60,6 +60,7 @@ onMounted(() => {
 })
 
 const o = computed(() => stats.value?.overview)
+const p = computed(() => stats.value?.profit)
 const pct = (v) => (v === null || v === undefined ? '—' : `${String(v).replace('.', ',')} %`)
 const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h / 24).toFixed(1).replace('.', ',')} j`)
 </script>
@@ -102,6 +103,24 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
           <div class="flex justify-between border-t border-slate-200 pt-1 font-semibold sm:col-span-2"><dt>Marge nette</dt><dd>{{ money(o.net_margin) }}</dd></div>
         </dl>
         <p v-if="o.without_cost" class="mt-2 text-xs text-amber-800">{{ o.without_cost }} commande(s) sans prix d'achat : renseignez le coût de vos produits pour une marge exacte.</p>
+      </section>
+
+      <section v-if="p" class="card p-4 text-sm">
+        <h3 class="mb-2 font-semibold">Bénéfice réel</h3>
+        <dl class="space-y-1">
+          <div class="flex justify-between"><dt>Marge nette des commandes livrées</dt><dd>{{ money(p.net_margin) }}</dd></div>
+          <div v-if="p.payment_fees" class="flex justify-between"><dt>Frais des paiements en ligne</dt><dd>− {{ money(p.payment_fees) }}</dd></div>
+          <div v-if="p.return_costs" class="flex justify-between"><dt>Livraisons des commandes retournées</dt><dd>− {{ money(p.return_costs) }}</dd></div>
+          <div v-if="p.courier_extras" class="flex justify-between"><dt>Primes et ajustements des livreurs</dt><dd>− {{ money(p.courier_extras) }}</dd></div>
+          <div v-for="e in p.expenses_by_category" :key="e.category" class="flex justify-between"><dt>{{ e.label }}</dt><dd>− {{ money(e.total) }}</dd></div>
+          <div class="flex justify-between border-t border-slate-200 pt-1 text-base font-semibold" :class="p.profit < 0 ? 'text-red-700' : 'text-emerald-800'">
+            <dt>Bénéfice</dt><dd>{{ money(p.profit) }}</dd>
+          </div>
+        </dl>
+        <p v-if="p.stock_purchases" class="mt-2 text-xs text-slate-500">
+          Achats de marchandises de la période : {{ money(p.stock_purchases) }}. Ils ne sont pas retirés ici : le prix d'achat des produits vendus est déjà compté dans la marge.
+        </p>
+        <p v-else-if="!p.expenses" class="mt-2 text-xs text-slate-500">Notez vos dépenses (loyer, transport, emballages…) dans Caisse › Dépense pour un bénéfice complet.</p>
       </section>
 
       <div class="grid gap-5 lg:grid-cols-2">
