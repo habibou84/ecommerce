@@ -65,15 +65,66 @@ async function disconnect() {
 
 const copy = (text) => navigator.clipboard?.writeText(text)
 
-// Création de l'accès WhatsApp Business chez Meta, étape par étape, avec un lien direct vers chaque écran
+// Création de l'accès WhatsApp Business chez Meta, étape par étape : lien direct et clics à faire sur chaque écran
 const META_STEPS = [
-  { title: 'Créer votre portefeuille Meta Business', text: 'Avec le compte Facebook du gérant : nom de la boutique, e-mail professionnel.', url: 'https://business.facebook.com/overview', link: 'Ouvrir Meta Business' },
-  { title: 'Créer une application et y ajouter WhatsApp', text: 'Type « Business », reliée à votre portefeuille, puis ajoutez le produit « WhatsApp ».', url: 'https://developers.facebook.com/apps/creation/', link: 'Créer l\'application' },
-  { title: 'Ajouter le numéro de la boutique', text: 'Dans l\'application : WhatsApp › Configuration de l\'API › Ajouter un numéro. Copiez ensuite « Phone number ID » et « WhatsApp Business Account ID » ci-dessous.', url: 'https://developers.facebook.com/apps/', link: 'Mes applications' },
-  { title: 'Créer le jeton d\'accès permanent', text: 'Utilisateur système (Admin) relié à l\'application, jeton sans expiration avec les droits whatsapp_business_messaging et whatsapp_business_management.', url: 'https://business.facebook.com/settings/system-users', link: 'Utilisateurs système' },
-  { title: 'Copier la clé secrète de l\'application', text: 'Dans l\'application : Paramètres de l\'application › Général › Clé secrète.', url: 'https://developers.facebook.com/apps/', link: 'Mes applications' },
-  { title: 'Faire approuver vos modèles de messages', text: 'Un modèle par message automatique, en français, avec les variables dans l\'ordre indiqué plus bas.', url: 'https://business.facebook.com/wa/manage/message-templates/', link: 'Modèles de messages' },
-  { title: 'Ajouter un moyen de paiement chez Meta', text: 'Meta facture les conversations ouvertes par la boutique (confirmations, suivi…).', url: 'https://business.facebook.com/billing_hub/payment_settings', link: 'Paiements Meta' },
+  {
+    title: 'Créer votre portefeuille Meta Business',
+    url: 'https://business.facebook.com/overview', link: 'Ouvrir Meta Business',
+    items: ['Connectez-vous avec le compte Facebook du gérant.', 'Créez le portefeuille : nom de la boutique, votre nom, e-mail professionnel.'],
+  },
+  {
+    title: 'Vous inscrire comme développeur Meta (une seule fois)',
+    url: 'https://developers.facebook.com/', link: 'Ouvrir Meta for Developers',
+    items: [
+      'En haut à droite, cliquez sur « Commencer » (ou « Get Started »).',
+      'Acceptez les conditions, confirmez votre numéro ou votre e-mail, choisissez « Développeur » comme rôle.',
+      'Si vous voyez « Mes applications » en haut à droite, c\'est déjà fait : passez à l\'étape suivante.',
+    ],
+  },
+  {
+    title: 'Créer l\'application WhatsApp',
+    url: 'https://developers.facebook.com/apps/', link: 'Ouvrir Mes applications',
+    items: [
+      'Cliquez sur « Créer une application » (« Create App »).',
+      'Nom de l\'application (ex. « Awa Mode WhatsApp ») et votre e-mail, puis « Suivant ».',
+      'Cas d\'utilisation : « Contacter les clients via WhatsApp » (« Connect with customers through WhatsApp »), puis « Suivant ».',
+      'Choisissez le portefeuille créé à l\'étape 1, puis « Créer l\'application ».',
+    ],
+  },
+  {
+    title: 'Ajouter le numéro de la boutique et copier ses identifiants',
+    url: 'https://developers.facebook.com/apps/', link: 'Ouvrir Mes applications',
+    items: [
+      'Ouvrez l\'application, puis WhatsApp › Configuration de l\'API (« API Setup »).',
+      'En bas de la page : « Ajouter un numéro de téléphone », nom affiché de la boutique, puis le code reçu par SMS ou appel.',
+      'Choisissez ce numéro dans la liste « De » (« From ») : copiez « Phone number ID » et « WhatsApp Business Account ID » dans le formulaire ci-dessous.',
+    ],
+  },
+  {
+    title: 'Créer le jeton d\'accès permanent',
+    url: 'https://business.facebook.com/settings/system-users', link: 'Ouvrir Utilisateurs système',
+    items: [
+      '« Ajouter » : un nom (ex. « jibiat »), rôle « Admin ».',
+      '« Attribuer des éléments » : Applications › votre application › Contrôle total ; Comptes WhatsApp › votre compte › Contrôle total.',
+      '« Générer un jeton » : votre application, expiration « Jamais », droits whatsapp_business_messaging et whatsapp_business_management.',
+      'Copiez le jeton tout de suite (Meta ne l\'affiche qu\'une fois) dans « Jeton d\'accès permanent » ci-dessous.',
+    ],
+  },
+  {
+    title: 'Copier la clé secrète de l\'application',
+    url: 'https://developers.facebook.com/apps/', link: 'Ouvrir Mes applications',
+    items: ['Ouvrez l\'application, puis Paramètres de l\'application › Général (« App settings › Basic »).', 'Clé secrète (« App secret ») › « Afficher » : copiez-la ci-dessous.'],
+  },
+  {
+    title: 'Faire approuver vos modèles de messages',
+    url: 'https://business.facebook.com/wa/manage/message-templates/', link: 'Ouvrir les modèles de messages',
+    items: ['Un modèle par message automatique, catégorie « Utilitaire », langue « Français ».', 'Variables dans l\'ordre indiqué plus bas ; Meta répond en général en quelques minutes.'],
+  },
+  {
+    title: 'Ajouter un moyen de paiement chez Meta',
+    url: 'https://business.facebook.com/billing_hub/payment_settings', link: 'Ouvrir les paiements Meta',
+    items: ['Meta facture les messages envoyés à l\'initiative de la boutique (confirmations, suivi…). Les réponses aux clients dans les 24 h sont gratuites.'],
+  },
 ]
 </script>
 
@@ -84,18 +135,20 @@ const META_STEPS = [
       Chaque message utilise un modèle que vous avez fait approuver chez Meta ; indiquez ici son nom.
     </p>
     <details class="card p-4 text-sm" :open="!data.account">
-      <summary class="cursor-pointer font-semibold">Créer votre accès WhatsApp Business chez Meta (environ 20 minutes)</summary>
+      <summary class="cursor-pointer font-semibold">Créer votre accès WhatsApp Business chez Meta (environ 30 minutes)</summary>
       <p class="mt-2 text-slate-600">
         Gratuit à créer. Le numéro utilisé ne doit plus être actif dans l'application WhatsApp du téléphone, sauf si Meta vous propose de garder les deux (« coexistence »).
-        <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" rel="noopener" class="text-emerald-700 underline">Guide de Meta</a>
+        <a href="https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started" target="_blank" rel="noopener" class="text-emerald-700 underline">Guide de Meta</a>
       </p>
       <ol class="mt-3 space-y-3">
         <li v-for="(step, i) in META_STEPS" :key="step.title" class="flex gap-3">
           <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-800">{{ i + 1 }}</span>
           <div class="min-w-0">
             <p class="font-medium">{{ step.title }}</p>
-            <p class="text-slate-600">{{ step.text }}</p>
             <a :href="step.url" target="_blank" rel="noopener" class="font-medium text-emerald-700 hover:underline">{{ step.link }} ↗</a>
+            <ul class="mt-1 list-disc space-y-0.5 pl-5 text-slate-600">
+              <li v-for="item in step.items" :key="item">{{ item }}</li>
+            </ul>
           </div>
         </li>
         <li class="flex gap-3">
