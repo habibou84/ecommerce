@@ -26,7 +26,7 @@ enum ShipmentStatus: string
         return match ($this) {
             self::Requested => 'Demandée',
             self::Accepted => 'Acceptée',
-            self::Rejected => 'Refusée par le transporteur',
+            self::Rejected => 'Refusée par l\'entreprise de livraison',
             self::AwaitingPickup => 'En attente de ramassage',
             self::InTransit => 'En transit',
             self::OutForDelivery => 'En cours de livraison',

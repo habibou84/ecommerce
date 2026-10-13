@@ -85,7 +85,7 @@ class CarrierController extends Controller
     {
         $this->connections->disconnect(CarrierConnection::findOrFail($carrier));
 
-        return response()->json(['message' => 'Transporteur déconnecté.']);
+        return response()->json(['message' => 'Entreprise de livraison déconnectée.']);
     }
 
     /**
@@ -133,7 +133,7 @@ class CarrierController extends Controller
     public function sync(int $carrier, CarrierEvents $events): JsonResponse
     {
         $connection = CarrierConnection::findOrFail($carrier);
-        abort_unless($connection->isApi(), 422, 'Ce transporteur n\'a pas d\'API.');
+        abort_unless($connection->isApi(), 422, 'Cette entreprise de livraison n\'a pas d\'API.');
 
         $this->connections->syncZones($connection);
         $updated = $events->sync($connection);

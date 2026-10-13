@@ -27,4 +27,4 @@ export const MANUAL_STATUSES = [
   { value: 'lost', label: 'Perdue' },
 ]
 
-export const SOURCE_LABELS = { carrier_webhook: 'transporteur', carrier_sync: 'synchronisation', user: 'saisie', system: 'automatique' }
+export const SOURCE_LABELS = { carrier_webhook: 'entreprise de livraison', carrier_sync: 'synchronisation', user: 'saisie', system: 'automatique' }

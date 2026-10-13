@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import CashDrawer from '../../components/CashDrawer.vue'
+import CashTabs from '../../components/CashTabs.vue'
 import http, { errorMessage } from '../../lib/http'
 import { formatDate, money } from '../../lib/format'
 import { useAuthStore } from '../../stores/auth'
@@ -40,6 +41,7 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
 
 <template>
   <div class="space-y-5">
+    <CashTabs />
     <Alert v-if="error">{{ error }}</Alert>
 
     <CashDrawer @changed="load" />
@@ -48,13 +50,13 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
     <section v-if="auth.can('finance.view')" class="space-y-3">
       <h2 class="text-lg font-semibold">Où est mon argent</h2>
       <div v-if="data" class="grid grid-cols-2 gap-3">
-        <RouterLink to="/gestion/livreurs/caisse" class="card block p-4">
+        <RouterLink to="/gestion/caisse/livreurs" class="card block p-4">
           <p class="text-sm text-slate-600">Chez mes livreurs (espèces)</p>
           <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl">{{ money(data.position.couriers_cash) }}</p>
           <p class="text-xs text-slate-500">{{ data.position.couriers_cash_count }} livreur(s) à faire verser</p>
         </RouterLink>
-        <component :is="auth.can('carriers.manage') ? 'RouterLink' : 'div'" to="/gestion/expeditions/reversements" class="card block p-4">
-          <p class="text-sm text-slate-600">Chez les transporteurs</p>
+        <component :is="auth.can('carriers.manage') ? 'RouterLink' : 'div'" to="/gestion/caisse/a-recevoir" class="card block p-4">
+          <p class="text-sm text-slate-600">Chez les entreprises de livraison</p>
           <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl" :class="data.position.carriers_due < 0 ? 'text-red-700' : ''">{{ money(data.position.carriers_due) }}</p>
           <p v-if="data.position.carriers_due_overdue" class="text-xs text-red-700">dont {{ money(data.position.carriers_due_overdue) }} en retard</p>
           <p v-else class="text-xs text-slate-500">Livré, pas encore reversé</p>
@@ -73,7 +75,7 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
             </li>
           </ul>
         </div>
-        <component :is="auth.can('couriers.manage') ? 'RouterLink' : 'div'" to="/gestion/livreurs" class="card block p-4">
+        <component :is="auth.can('couriers.manage') ? 'RouterLink' : 'div'" to="/gestion/livraisons/livreurs" class="card block p-4">
           <p class="text-sm text-slate-600">À payer à mes livreurs</p>
           <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl">{{ money(data.position.couriers_to_pay) }}</p>
           <p class="text-xs text-slate-500">Gains et relevés pas encore payés</p>
@@ -119,7 +121,7 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
         </table>
       </div>
       <p class="text-xs text-slate-500">
-        Un encaissement de livreur compte quand il est remis à la boutique, celui d'un transporteur quand il est reversé : rien n'est compté deux fois.
+        Un encaissement de livreur compte quand il est remis à la boutique, celui d'une entreprise de livraison quand elle le reverse : rien n'est compté deux fois.
         La colonne « espèces » donne ce qui doit être entré dans le tiroir-caisse.
         <template v-if="data?.flows.online_fees"> Frais des paiements en ligne : {{ money(data.flows.online_fees) }}.</template>
       </p>

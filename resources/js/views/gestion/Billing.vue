@@ -14,7 +14,7 @@ const busy = ref(false)
 const choice = reactive({ plan: 'pro', cycle: 'monthly', method: 'wave' })
 
 const FEATURES = { custom_domain: 'Domaine personnalisé', online_payment: 'Paiement en ligne', whatsapp_api: 'WhatsApp automatique', ai_product: 'Fiche produit depuis une photo', advanced_stats: 'Statistiques avancées', merchant_api: 'API marchand', multi_store: 'Plusieurs boutiques' }
-const LIMITS = { orders_per_month: 'commandes / mois', products: 'produits', members: 'membres', couriers: 'livreurs', carrier_connections: 'transporteurs', payment_accounts: 'comptes de paiement' }
+const LIMITS = { orders_per_month: 'commandes / mois', products: 'produits', members: 'membres', couriers: 'livreurs', carrier_connections: 'entreprises de livraison', payment_accounts: 'comptes de paiement' }
 
 async function load() {
   data.value = (await http.get('/billing')).data.data

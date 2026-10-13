@@ -41,7 +41,7 @@
     <p>Le Marchand est responsable du traitement des données de ses clients ; l'Éditeur les traite pour son compte, comme sous-traitant, dans le seul but de fournir le Service. Le traitement des données personnelles est décrit dans la <a href="/confidentialite" class="underline">politique de confidentialité</a>. Le Marchand peut exporter son catalogue et demander au support la fermeture de sa boutique et la remise de ses données ; elles sont alors supprimées dans un délai de 90 jours, sauf obligation légale de conservation.</p>
 
     <h2>9. Responsabilité</h2>
-    <p>La responsabilité de l'Éditeur est limitée aux dommages directs et prouvés, et plafonnée au montant payé par le Marchand au cours des douze derniers mois. L'Éditeur ne répond pas des ventes perdues, ni des actes des clients, livreurs, transporteurs et prestataires de paiement.</p>
+    <p>La responsabilité de l'Éditeur est limitée aux dommages directs et prouvés, et plafonnée au montant payé par le Marchand au cours des douze derniers mois. L'Éditeur ne répond pas des ventes perdues, ni des actes des clients, livreurs, entreprises de livraison et prestataires de paiement.</p>
 
     <h2>10. Durée, résiliation</h2>
     <p>Le contrat est conclu pour une durée indéterminée. Le Marchand peut demander la fermeture de sa boutique à tout moment. L'Éditeur peut résilier en cas de manquement grave, après mise en demeure restée sans effet pendant 15 jours.</p>

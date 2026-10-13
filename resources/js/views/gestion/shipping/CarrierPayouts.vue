@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
-import ShippingTabs from '../../../components/ShippingTabs.vue'
+import CashTabs from '../../../components/CashTabs.vue'
 import http, { download, errorMessage } from '../../../lib/http'
 import { formatDate, formatDateTime, money } from '../../../lib/format'
 import { PAYMENT_METHODS } from '../../../lib/orders'
@@ -13,10 +13,10 @@ const payouts = ref(null)
 const open = ref(null)
 const error = ref('')
 
-// Détail des courses à reverser d'un transporteur (chargé à l'ouverture)
+// Détail des courses à reverser d'une entreprise de livraison (chargé à l'ouverture)
 const detail = reactive({ id: null, lines: [], loading: false })
 
-// Saisie d'un reversement reçu d'un transporteur sans API
+// Saisie d'un reversement reçu d'une entreprise sans API
 const entry = ref(null)
 const form = reactive({ amount: 0, method: 'cash', transaction_ref: '', selected: [] })
 const formError = ref('')
@@ -85,19 +85,19 @@ async function savePayout() {
 
 <template>
   <div class="space-y-4">
-    <ShippingTabs />
+    <CashTabs />
     <Alert v-if="error">{{ error }}</Alert>
 
-    <!-- Ce que les transporteurs doivent à la boutique -->
+    <!-- Ce que les entreprises de livraison doivent à la boutique -->
     <section class="space-y-3">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <h2 class="text-lg font-semibold">À recevoir</h2>
         <p v-if="balances" class="text-sm text-slate-600">Total : <strong class="text-slate-900">{{ money(balances.total) }}</strong></p>
       </div>
       <p class="text-sm text-slate-600">
-        Courses livrées pas encore reversées : encaissé par le transporteur, moins son tarif. Une commande déjà payée compte en négatif : vous lui devez la livraison.
+        Courses livrées pas encore reversées : encaissé par l'entreprise de livraison, moins son tarif. Une commande déjà payée compte en négatif : vous lui devez la livraison.
       </p>
-      <p v-if="balances && !balances.data.length" class="card p-6 text-sm text-slate-500">Aucun transporteur connecté.</p>
+      <p v-if="balances && !balances.data.length" class="card p-6 text-sm text-slate-500">Aucune entreprise de livraison connectée.</p>
       <article v-for="c in balances?.data ?? []" :key="c.connection_id" class="card text-sm">
         <div class="flex flex-wrap items-center gap-3 px-4 py-3">
           <button class="flex flex-1 flex-wrap items-center gap-3 text-left" :disabled="!c.count" @click="toggle(c)">
@@ -138,10 +138,10 @@ async function savePayout() {
       </article>
     </section>
 
-    <!-- Reversements reçus -->
+    <!-- Argent reversé -->
     <section class="space-y-3">
-      <h2 class="text-lg font-semibold">Reversements reçus</h2>
-      <p class="text-sm text-slate-600">Rapprochés de vos expéditions : encaissé par le livreur, moins le tarif annoncé.</p>
+      <h2 class="text-lg font-semibold">Argent reversé</h2>
+      <p class="text-sm text-slate-600">Chaque reversement est rapproché de vos livraisons : encaissé, moins le tarif annoncé.</p>
       <p v-if="payouts && !payouts.length" class="card p-6 text-sm text-slate-500">Aucun reversement reçu pour l'instant.</p>
       <article v-for="p in payouts ?? []" :key="p.id" class="card text-sm">
         <button class="flex w-full flex-wrap items-center gap-3 px-4 py-3 text-left" @click="open = open === p.id ? null : p.id">

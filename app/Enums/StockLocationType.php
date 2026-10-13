@@ -15,7 +15,7 @@ enum StockLocationType: string
             self::Shop => 'Boutique',
             self::Warehouse => 'Entrepôt',
             self::Home => 'Domicile',
-            self::CarrierHub => 'Entrepôt d\'un transporteur',
+            self::CarrierHub => 'Entrepôt d\'une entreprise de livraison',
         };
     }
 

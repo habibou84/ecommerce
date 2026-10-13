@@ -15,7 +15,7 @@ class ShippingRule extends Model
 
     public const ACTIONS = [
         'own_courier' => 'Mes livreurs',
-        'carrier' => 'Ce transporteur',
+        'carrier' => 'Cette entreprise de livraison',
         'cheapest' => 'Le moins cher',
         'fastest' => 'Le plus rapide',
         'manual' => 'Choisir à la main',

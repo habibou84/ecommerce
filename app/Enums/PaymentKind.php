@@ -19,7 +19,7 @@ enum PaymentKind: string
             self::CodCash => 'Encaissé à la livraison',
             self::CodMobile => 'Mobile money à la livraison',
             self::Online => 'Paiement en ligne',
-            self::CarrierCod => 'Encaissé par le transporteur',
+            self::CarrierCod => 'Encaissé par l\'entreprise de livraison',
         };
     }
 }

@@ -25,7 +25,7 @@ enum StockMovementType: string
             self::Damaged => 'Abîmé / perdu',
             self::Reservation => 'Réservation',
             self::Release => 'Libération',
-            self::Shipment => 'Expédition',
+            self::Shipment => 'Sortie (livraison)',
             self::Return => 'Retour',
             self::TransferOut => 'Transfert (sortie)',
             self::TransferIn => 'Transfert (entrée)',

@@ -2,15 +2,12 @@
 import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 
+// Menu « Caisse » : tout l'argent de la boutique
 const auth = useAuthStore()
 const tabs = computed(() => [
-  ...(auth.can('shipments.manage') ? [{ to: '/gestion/expeditions', label: 'Expéditions', exact: true }, { to: '/gestion/expeditions/regles', label: 'Règles d\'affectation' }] : []),
-  ...(auth.can('carriers.manage')
-    ? [
-        { to: '/gestion/expeditions/transporteurs', label: 'Transporteurs' },
-        { to: '/gestion/expeditions/reversements', label: 'À recevoir' },
-      ]
-    : []),
+  ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse', label: 'Vue d\'ensemble', exact: true }] : []),
+  ...(auth.can('couriers.manage') || auth.can('finance.view') ? [{ to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' }] : []),
+  ...(auth.can('carriers.manage') ? [{ to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' }] : []),
 ])
 </script>
 

@@ -131,7 +131,7 @@ class OrderDesk
         return DB::transaction(function () use ($order, $data, $actor) {
             $order = $this->locked($order);
             if (! $order->status->isEditable()) {
-                throw new BusinessRuleException('Une commande expédiée, livrée ou annulée ne se modifie plus.');
+                throw new BusinessRuleException('Une commande en route, livrée ou annulée ne se modifie plus.');
             }
 
             $before = $order->only(['customer_name', 'shipping_place_id', 'shipping_address', 'total', 'discount_total', 'discount_code', 'shipping_fee']);

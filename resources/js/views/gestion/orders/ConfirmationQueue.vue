@@ -54,7 +54,7 @@ function later(order, hours) {
 <template>
   <div class="space-y-4">
     <p class="text-sm text-slate-600">
-      Appelez ou écrivez à chaque client avant d'expédier : c'est le meilleur moyen d'éviter les refus à la livraison.
+      Appelez ou écrivez à chaque client avant de faire livrer : c'est le meilleur moyen d'éviter les refus à la livraison.
       <span v-if="done" class="font-medium text-emerald-700">{{ done }} traitée(s) depuis l'ouverture.</span>
     </p>
     <Alert v-if="error">{{ error }}</Alert>

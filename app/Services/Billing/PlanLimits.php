@@ -26,7 +26,7 @@ class PlanLimits
         'products' => 'produits',
         'members' => 'membres d\'équipe',
         'couriers' => 'livreurs',
-        'carrier_connections' => 'transporteurs connectés',
+        'carrier_connections' => 'entreprises de livraison connectées',
         'payment_accounts' => 'comptes de paiement en ligne',
     ];
 

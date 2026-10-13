@@ -81,7 +81,7 @@ class PayoutReconciler
     public function recordManual(CarrierConnection $connection, array $shipmentIds, array $data): CarrierPayout
     {
         if ($connection->isApi()) {
-            throw new BusinessRuleException('Les reversements de '.$connection->name.' arrivent automatiquement.', 'shipment_ids');
+            throw new BusinessRuleException('L\'argent reversé par '.$connection->name.' arrive automatiquement.', 'shipment_ids');
         }
 
         return DB::transaction(function () use ($connection, $shipmentIds, $data) {

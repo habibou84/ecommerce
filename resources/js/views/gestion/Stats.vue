@@ -160,7 +160,7 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
       </section>
 
       <div class="grid gap-5 lg:grid-cols-2">
-        <section v-for="[key, title] in [['by_courier', 'Mes livreurs'], ['by_carrier', 'Transporteurs']]" :key="key" class="card overflow-x-auto p-4 text-sm">
+        <section v-for="[key, title] in [['by_courier', 'Mes livreurs'], ['by_carrier', 'Entreprises de livraison']]" :key="key" class="card overflow-x-auto p-4 text-sm">
           <h3 class="mb-2 font-semibold">{{ title }}</h3>
           <table class="w-full">
             <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Nom</th><th class="text-right">Courses</th><th class="text-right">Réussite</th><th class="text-right">Délai</th><th class="text-right">Coût moyen</th></tr></thead>
@@ -185,7 +185,7 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
 
     <section v-if="report" class="card space-y-3 p-4 text-sm">
       <h3 class="font-semibold">📬 Mon rapport du jour</h3>
-      <p class="text-slate-600">Chaque jour à l'heure choisie : ventes du jour, commandes à confirmer et à expédier, espèces chez les livreurs.</p>
+      <p class="text-slate-600">Chaque jour à l'heure choisie : ventes du jour, commandes à confirmer et à faire livrer, espèces chez les livreurs.</p>
       <Alert v-if="reportError">{{ reportError }}</Alert>
       <div class="grid gap-3 sm:grid-cols-2">
         <div class="rounded-lg border border-slate-200 p-3">

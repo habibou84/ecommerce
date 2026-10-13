@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
-import ShippingTabs from '../../../components/ShippingTabs.vue'
+import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime } from '../../../lib/format'
 
@@ -78,7 +78,7 @@ async function sync(carrier) {
   try {
     const { data } = await http.post(`/carriers/${carrier.id}/sync`)
     Object.assign(carrier, data.data)
-    notice.value = `${carrier.name} : zones à jour, ${data.updated} expédition(s) mise(s) à jour.`
+    notice.value = `${carrier.name} : zones à jour, ${data.updated} livraison(s) mise(s) à jour.`
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -87,7 +87,7 @@ async function sync(carrier) {
 }
 
 async function disconnect(carrier) {
-  if (!confirm(`Déconnecter ${carrier.name} ? Les expéditions en cours ne seront plus suivies.`)) return
+  if (!confirm(`Déconnecter ${carrier.name} ? Les livraisons en cours ne seront plus suivies.`)) return
   await http.delete(`/carriers/${carrier.id}`)
   await load()
 }
@@ -138,16 +138,16 @@ const copy = (text) => navigator.clipboard?.writeText(text)
 
 <template>
   <div class="space-y-4">
-    <ShippingTabs />
+    <DeliveryTabs />
     <div class="flex items-center justify-between gap-3">
       <p class="text-sm text-slate-600">Vos entreprises de livraison : les courses leur sont demandées en un clic depuis la commande et suivies automatiquement.</p>
-      <button class="btn-brand shrink-0" @click="openConnect">+ Transporteur</button>
+      <button class="btn-brand shrink-0" @click="openConnect">+ Entreprise</button>
     </div>
     <Alert v-if="error && !modal">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
     <p v-if="carriers && !carriers.length" class="card p-6 text-sm text-slate-500">
-      Aucun transporteur. Si votre entreprise de livraison utilise Delivery App (adresse en …jibiat.com), connectez-la avec une clé API :
+      Aucune entreprise de livraison connectée. Si la vôtre utilise Delivery App (adresse en …jibiat.com), connectez-la avec une clé API :
       les courses, statuts et reversements arrivent tout seuls.
     </p>
 
@@ -163,7 +163,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <p>
           {{ c.zones_count }} zones ·
           <button class="underline" :class="{ 'text-amber-800': c.unmapped_count }" @click="openZones(c)">{{ c.unmapped_count ? `${c.unmapped_count} lieu(x) sans zone` : 'correspondance des zones' }}</button>
-          · <button class="underline" @click="openStock(c)">stock chez le transporteur</button>
+          · <button class="underline" @click="openStock(c)">stock chez l'entreprise</button>
         </p>
         <p v-if="c.webhook_auto">✓ Statuts reçus en direct (webhook créé automatiquement)<template v-if="c.last_synced_at"> · dernière synchronisation {{ formatDateTime(c.last_synced_at) }}</template></p>
         <div v-else class="rounded bg-amber-50 p-2 text-amber-900">
@@ -179,7 +179,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <Field :id="`payer-${c.id}`" label="Livraison payée par">
           <select :id="`payer-${c.id}`" :value="c.settings.fee_payer" class="input" @change="save(c, { fee_payer: $event.target.value })">
             <option value="store">La boutique (le client paie le montant de la commande)</option>
-            <option value="customer">Le client (tarif du transporteur)</option>
+            <option value="customer">Le client (tarif de l'entreprise)</option>
           </select>
         </Field>
         <Field :id="`origin-${c.id}`" label="Ramassage par défaut">
@@ -195,7 +195,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
       </div>
     </article>
 
-    <Modal v-if="modal === 'connect'" title="Connecter un transporteur" @close="modal = null">
+    <Modal v-if="modal === 'connect'" title="Connecter une entreprise de livraison" @close="modal = null">
       <div class="mb-4 grid grid-cols-2 gap-2 text-sm">
         <button class="rounded-lg border p-3" :class="kind === 'delivery_app' ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'" @click="kind = 'delivery_app'">Utilise Delivery App</button>
         <button class="rounded-lg border p-3" :class="kind === 'manual' ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'" @click="kind = 'manual'">Autre (par WhatsApp)</button>
@@ -226,7 +226,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
     <Modal v-if="modal === 'zones'" :title="`Zones de ${current.name}`" wide @close="modal = null">
       <p v-if="!zones" class="text-sm text-slate-500">Chargement…</p>
       <template v-else>
-        <p class="mb-3 text-sm text-slate-600">Pour chaque commune ou quartier de vos clients, la zone du transporteur. Sans zone : le transporteur n'y livre pas.</p>
+        <p class="mb-3 text-sm text-slate-600">Pour chaque commune ou quartier de vos clients, la zone de l'entreprise de livraison. Sans zone : l'entreprise n'y livre pas.</p>
         <div class="mb-3 flex gap-2 text-sm">
           <button class="rounded-full px-3 py-1" :class="zoneFilter === 'unmapped' ? 'bg-emerald-700 text-white' : 'bg-slate-100'" @click="zoneFilter = 'unmapped'">Sans zone</button>
           <button class="rounded-full px-3 py-1" :class="zoneFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-slate-100'" @click="zoneFilter = 'all'">Tous</button>
@@ -247,7 +247,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
 
     <Modal v-if="modal === 'stock'" :title="`Stock chez ${current.name}`" wide @close="modal = null">
       <Alert v-if="error">{{ error }}</Alert>
-      <p v-else-if="!stock" class="text-sm text-slate-500">Lecture du stock du transporteur…</p>
+      <p v-else-if="!stock" class="text-sm text-slate-500">Lecture du stock de l'entreprise…</p>
       <template v-else>
         <h4 class="mb-2 text-sm font-semibold">Entrepôts</h4>
         <ul class="mb-4 space-y-2 text-sm">
@@ -259,7 +259,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         </ul>
         <h4 class="mb-2 text-sm font-semibold">Produits (rapprochés par référence SKU)</h4>
         <table class="w-full text-sm">
-          <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Chez le transporteur</th><th>Votre variante</th><th class="text-right">Transporteur</th><th class="text-right">Boutique</th></tr></thead>
+          <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Chez l'entreprise</th><th>Votre variante</th><th class="text-right">Entreprise</th><th class="text-right">Boutique</th></tr></thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-for="p in stock.products" :key="p.remote_id">
               <td class="py-1.5">{{ p.name }} <span class="text-slate-400">{{ p.sku }}</span></td>
@@ -269,7 +269,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
             </tr>
           </tbody>
         </table>
-        <p class="mt-3 text-xs text-slate-500">Le stock du transporteur fait foi : corrigez un écart par un ajustement sur l'emplacement de l'entrepôt.</p>
+        <p class="mt-3 text-xs text-slate-500">Le stock de l'entreprise fait foi : corrigez un écart par un ajustement sur l'emplacement de l'entrepôt.</p>
       </template>
     </Modal>
   </div>
