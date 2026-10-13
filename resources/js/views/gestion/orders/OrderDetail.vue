@@ -149,7 +149,7 @@ async function addNote() {
       </template>
       <template v-if="canManage">
         <button v-if="nextStatuses.includes('processing')" class="btn-secondary" :disabled="busy" @click="setStatus('processing')">En préparation</button>
-        <button v-if="nextStatuses.includes('shipped')" class="btn-brand" :disabled="busy" @click="setStatus('shipped')">Expédiée</button>
+        <button v-if="nextStatuses.includes('shipped')" class="btn-brand" :disabled="busy" @click="setStatus('shipped')">En route</button>
         <button v-if="nextStatuses.includes('completed')" class="btn-secondary" :disabled="busy" @click="openModal('complete')">Livrée</button>
         <button v-if="order.amount_due > 0 && !['cancelled', 'returned'].includes(order.status)" class="btn-secondary" @click="openModal('payment')">+ Paiement</button>
         <button v-if="order.amount_due > 0 && !['cancelled', 'returned'].includes(order.status)" class="btn-secondary" @click="openPayLink">Lien de paiement</button>

@@ -7,7 +7,7 @@ import { formatDateTime } from '../../../lib/format'
 
 const TYPES = {
   receipt: 'Réception', adjustment: 'Ajustement', count: 'Inventaire', damaged: 'Abîmé / perdu', reservation: 'Réservation',
-  release: 'Libération', shipment: 'Expédition', return: 'Retour', transfer_out: 'Transfert (sortie)', transfer_in: 'Transfert (entrée)', import: 'Import',
+  release: 'Libération', shipment: 'Sortie (livraison)', return: 'Retour', transfer_out: 'Transfert (sortie)', transfer_in: 'Transfert (entrée)', import: 'Import',
 }
 
 const filters = reactive({ location_id: '', type: '', page: 1 })

@@ -142,7 +142,7 @@ async function importDelivery() {
       <Alert v-if="deliveryResult" tone="success">
         {{ deliveryResult.created }} produit(s) importé(s){{ deliveryResult.skipped ? `, ${deliveryResult.skipped} déjà présent(s)` : '' }}.
         <template v-if="deliveryResult.at_carrier">
-          {{ deliveryResult.at_carrier }} article(s) se trouvent à l'entrepôt de l'entreprise : ils seront suivis quand vous la connecterez comme transporteur.
+          {{ deliveryResult.at_carrier }} article(s) se trouvent à l'entrepôt de l'entreprise : ils seront suivis quand vous la connecterez dans Livraisons › Entreprises de livraison.
         </template>
       </Alert>
     </section>

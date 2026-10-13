@@ -13,6 +13,18 @@ const menuOpen = ref(false)
 const switchError = ref('')
 
 // Modules à venir : affichés pour montrer la suite, sans lien
+const deliveryHome = computed(() => {
+  if (auth.can('shipments.manage')) return '/gestion/livraisons'
+  if (auth.can('couriers.manage')) return '/gestion/livraisons/livreurs'
+  if (auth.can('carriers.manage')) return '/gestion/livraisons/entreprises'
+  return auth.can('store.manage') ? '/gestion/livraisons/zones' : null
+})
+const cashHome = computed(() => {
+  if (auth.can('finance.view') || auth.can('cash.manage')) return '/gestion/caisse'
+  if (auth.can('couriers.manage')) return '/gestion/caisse/livreurs'
+  return auth.can('carriers.manage') ? '/gestion/caisse/a-recevoir' : null
+})
+
 const nav = computed(() => [
   { to: '/gestion', label: 'Accueil', icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z', exact: true },
   ...(auth.can('orders.view') ? [{ to: '/gestion/commandes', label: 'Commandes', icon: 'M4 4h16v4H4zM4 10h16v10H4z' }] : []),
@@ -26,13 +38,10 @@ const nav = computed(() => [
   ...(auth.can('stock.manage') ? [{ to: '/gestion/stock', label: 'Stock', icon: 'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7M12 11v10' }] : []),
   ...(auth.can('customers.view') ? [{ to: '/gestion/clients', label: 'Clients', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 9a8 8 0 0 1 16 0z' }] : []),
   ...(auth.can('store.manage') ? [{ to: '/gestion/boutique-en-ligne', label: 'Boutique en ligne', icon: 'M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8M10 20v-5h4v5' }] : []),
-  ...(auth.can('couriers.manage') || auth.can('finance.view')
-    ? [{ to: auth.can('couriers.manage') ? '/gestion/livreurs' : '/gestion/livreurs/caisse', label: 'Livreurs', icon: 'M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0zm10 0a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM7 17h8l-2-6H9l-2 4M13 11l2-4h3' }]
-    : []),
-  ...(auth.can('shipments.manage') || auth.can('carriers.manage')
-    ? [{ to: auth.can('shipments.manage') ? '/gestion/expeditions' : '/gestion/expeditions/transporteurs', label: 'Expéditions', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z' }]
-    : []),
-  ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse', label: 'Caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z' }] : []),
+  // Livraisons : qui livre et comment (Mes livreurs, entreprises de livraison, zones, attribution)
+  ...(deliveryHome.value ? [{ to: deliveryHome.value, label: 'Livraisons', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', match: '/gestion/livraisons' }] : []),
+  // Caisse : tout l'argent (vue d'ensemble, argent des livreurs, à recevoir des entreprises)
+  ...(cashHome.value ? [{ to: cashHome.value, label: 'Caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', match: '/gestion/caisse' }] : []),
   ...(auth.can('finance.view') || auth.can('orders.view') ? [{ to: '/gestion/statistiques', label: 'Statistiques', icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2' }] : []),
   ...(auth.can('store.manage') ? [{ to: '/gestion/marketing', label: 'Marketing', icon: 'M3 11l18-8v18L3 13zM7 12v6a2 2 0 0 0 4 0v-4' }] : []),
   ...(auth.can('payments.manage') ? [{ to: '/gestion/paiements', label: 'Paiements', icon: 'M2 6h20v12H2zM2 10h20M6 15h4' }] : []),
@@ -43,7 +52,7 @@ const nav = computed(() => [
 ])
 
 function isActive(item) {
-  return item.exact ? route.path === item.to : route.path.startsWith(item.to)
+  return item.exact ? route.path === item.to : route.path.startsWith(item.match ?? item.to)
 }
 
 // Session de support de la plateforme : bandeau pour le support (lui-même) et pour la boutique

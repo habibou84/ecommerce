@@ -91,13 +91,6 @@ async function changeSlug() {
       <button v-if="canEdit" class="btn-brand" :disabled="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button>
     </form>
 
-    <RouterLink v-if="canEdit" to="/gestion/zones-de-livraison" class="card flex items-center justify-between p-4 hover:border-emerald-600 sm:p-6">
-      <span>
-        <span class="block font-semibold">Zones et frais de livraison</span>
-        <span class="block text-sm text-slate-600">Prix de la livraison selon le quartier, livraison offerte, délai annoncé.</span>
-      </span>
-      <span class="text-slate-400">→</span>
-    </RouterLink>
 
     <form v-if="canEdit" class="card space-y-4 p-4 sm:p-6" @submit.prevent="changeSlug">
       <div>

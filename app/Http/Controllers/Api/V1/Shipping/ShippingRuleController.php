@@ -93,7 +93,7 @@ class ShippingRuleController extends Controller
             'conditions.max_amount' => ['nullable', 'integer', 'min:0'],
             'conditions.max_weight_g' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['sometimes', 'boolean'],
-        ], ['carrier_connection_id.required_if' => 'Choisissez le transporteur.'], ['name' => 'nom', 'action' => 'action']);
+        ], ['carrier_connection_id.required_if' => 'Choisissez l\'entreprise de livraison.'], ['name' => 'nom', 'action' => 'action']);
 
         $conditions = $data['conditions'] ?? [];
         if (! empty($conditions['delivery_zone_ids'])) {

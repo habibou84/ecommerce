@@ -21,7 +21,7 @@ enum OrderStatus: string
             self::PendingConfirmation => 'À confirmer',
             self::Confirmed => 'Confirmée',
             self::Processing => 'En préparation',
-            self::Shipped => 'Expédiée',
+            self::Shipped => 'En route',
             self::Completed => 'Livrée',
             self::Cancelled => 'Annulée',
             self::Returned => 'Retournée',

@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
-import CourierTabs from '../../../components/CourierTabs.vue'
+import CashTabs from '../../../components/CashTabs.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage } from '../../../lib/http'
@@ -44,7 +44,7 @@ async function remit() {
 
 <template>
   <div class="space-y-4">
-    <CourierTabs />
+    <CashTabs />
     <p class="text-sm text-slate-600">Espèces encaissées par vos livreurs et pas encore versées. Le paiement mobile money du client va directement à la boutique.</p>
     <Alert v-if="error && !current">{{ error }}</Alert>
 

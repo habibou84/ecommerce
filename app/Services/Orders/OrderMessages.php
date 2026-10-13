@@ -53,7 +53,7 @@ class OrderMessages
             'confirm_request' => ['Demander la confirmation', "{$hello}, merci pour votre commande {$order->reference()} chez {$store} :\n{$items}\n\nTotal : ".Money::format($order->total)." ({$where}).\n\nPouvez-vous nous confirmer la commande et votre disponibilité ? Répondez « OUI » pour confirmer."],
             'confirmed' => ['Commande confirmée', "{$hello}, votre commande {$order->reference()} est confirmée ✅\nTotal : ".Money::format($order->total).($order->amountDue() < $order->total ? ' (reste à payer : '.Money::format($order->amountDue()).')' : '')."\nSuivez-la ici : {$order->trackingUrl()}"],
             'payment_reminder' => ['Rappel de paiement', "{$hello}, pour la commande {$order->reference()}, le reste à payer est de ".Money::format($order->amountDue()).'. Merci !'],
-            'shipped' => ['Commande expédiée', "{$hello}, votre commande {$order->reference()} est en route 🚚\n".($order->amountDue() > 0 ? 'Montant à payer à la livraison : '.Money::format($order->amountDue())."\n" : '')."Suivi : {$order->trackingUrl()}"],
+            'shipped' => ['Commande en route', "{$hello}, votre commande {$order->reference()} est en route 🚚\n".($order->amountDue() > 0 ? 'Montant à payer à la livraison : '.Money::format($order->amountDue())."\n" : '')."Suivi : {$order->trackingUrl()}"],
             'thanks' => ['Remerciement', "{$hello}, merci pour votre achat chez {$store} ! Nous espérons que vous êtes satisfait(e). À bientôt 🙏"],
         };
 

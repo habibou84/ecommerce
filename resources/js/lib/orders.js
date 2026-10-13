@@ -69,13 +69,13 @@ export function eventLabel(event) {
     case 'refund': return `Remboursement de ${new Intl.NumberFormat('fr-FR').format(d.amount)} F${d.method === 'manual' ? ' (à la main)' : ''}${d.reason ? ` : ${d.reason}` : ''}`
     case 'auto_assigned': return `Confiée automatiquement à ${d.to} (${d.reason})`
     case 'auto_assignment_failed': return `Affectation automatique impossible (${d.to}) : ${d.error}`
-    case 'shipment_created': return `Expédition demandée à ${d.carrier}${d.tracking_code ? ` (n° ${d.tracking_code})` : ''}`
+    case 'shipment_created': return `Livraison demandée à ${d.carrier}${d.tracking_code ? ` (n° ${d.tracking_code})` : ''}`
     default: return event.type
   }
 }
 
 export const STATUS_LABELS = {
-  pending_confirmation: 'À confirmer', confirmed: 'Confirmée', processing: 'En préparation', shipped: 'Expédiée',
+  pending_confirmation: 'À confirmer', confirmed: 'Confirmée', processing: 'En préparation', shipped: 'En route',
   completed: 'Livrée', cancelled: 'Annulée', returned: 'Retournée',
 }
 

@@ -377,7 +377,7 @@ class ShippingTest extends TestCase
         $this->assertStringContainsString('Total;;;;31500;1200;30300', $csv->getContent());
 
         $report = app(DailyReport::class);
-        $this->assertStringContainsString('À recevoir des transporteurs : 30 300 F (dont 30 300 F en retard)', $report->text($this->store, $report->figures($this->store, CarbonImmutable::now())));
+        $this->assertStringContainsString('À recevoir des entreprises de livraison : 30 300 F (dont 30 300 F en retard)', $report->text($this->store, $report->figures($this->store, CarbonImmutable::now())));
 
         // Les reversements d'un transporteur avec API ne se saisissent pas à la main
         $this->storeApi($this->store, 'POST', "carriers/{$connection->id}/payouts", ['shipment_ids' => [$shipment->id], 'amount' => 30300])->assertStatus(422);
@@ -477,12 +477,12 @@ class ShippingTest extends TestCase
             'shipping_place_id' => $this->place('Angré')->id, 'items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 1]],
         ], $this->store->owner);
         $this->storeApi($this->store, 'POST', "orders/{$pending->id}/shipments", ['carrier_connection_id' => $connection->id])
-            ->assertStatus(422)->assertJsonPath('message', 'Seule une commande confirmée peut être expédiée.');
+            ->assertStatus(422)->assertJsonPath('message', 'Seule une commande confirmée peut être confiée à la livraison.');
 
         $order = $this->confirmedOrder();
         $this->ship($order, $connection);
         $this->storeApi($this->store, 'POST', "orders/{$order->id}/shipments", ['carrier_connection_id' => $connection->id])
-            ->assertStatus(422)->assertJsonPath('message', 'Cette commande a déjà une expédition en cours.');
+            ->assertStatus(422)->assertJsonPath('message', 'Cette commande a déjà une livraison en cours.');
 
         // Transporteur qui refuse : la tentative n'est pas gardée
         $this->stub([self::API.'/orders' => Http::response(['message' => 'Données invalides', 'errors' => ['delivery_zone_id' => ['Zone inactive.']]], 422)]);

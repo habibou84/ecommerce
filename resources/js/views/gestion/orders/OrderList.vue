@@ -15,8 +15,8 @@ const router = useRouter()
 const TABS = [
   { value: '', label: 'Toutes' },
   { value: 'pending_confirmation', label: 'À confirmer' },
-  { value: 'to_ship', label: 'À expédier' },
-  { value: 'shipped', label: 'Expédiées' },
+  { value: 'to_ship', label: 'À faire livrer' },
+  { value: 'shipped', label: 'En route' },
   { value: 'completed', label: 'Livrées' },
   { value: 'cancelled', label: 'Annulées' },
   { value: 'returned', label: 'Retournées' },

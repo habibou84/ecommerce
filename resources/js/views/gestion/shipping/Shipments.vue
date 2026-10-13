@@ -2,7 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Pagination from '../../../components/Pagination.vue'
-import ShippingTabs from '../../../components/ShippingTabs.vue'
+import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 import { SHIPMENT_TONES } from '../../../lib/shipping'
@@ -29,7 +29,7 @@ watch(page, load)
 
 <template>
   <div class="space-y-4">
-    <ShippingTabs />
+    <DeliveryTabs />
     <div class="flex gap-2">
       <button v-for="f in [['active', 'En cours'], ['problems', 'À traiter'], ['all', 'Toutes']]" :key="f[0]" class="rounded-full px-3 py-1.5 text-sm"
               :class="filter === f[0] ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-700'" @click="filter = f[0]">{{ f[1] }}</button>
@@ -37,7 +37,7 @@ watch(page, load)
     <Alert v-if="error">{{ error }}</Alert>
 
     <div class="card">
-      <p v-if="result && !result.data.length" class="p-6 text-sm text-slate-500">Aucune expédition. Ouvrez une commande confirmée et cliquez sur « Expédier ».</p>
+      <p v-if="result && !result.data.length" class="p-6 text-sm text-slate-500">Aucune livraison en cours. Ouvrez une commande confirmée et cliquez sur « Faire livrer ».</p>
       <ul v-else class="divide-y divide-slate-100">
         <li v-for="s in result?.data ?? []" :key="s.id">
           <RouterLink :to="`/gestion/commandes/${s.order_id}`" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm hover:bg-slate-50">

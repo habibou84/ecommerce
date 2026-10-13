@@ -107,7 +107,7 @@ class CashOverview
             ['key' => 'counter', 'label' => 'Encaissé par la boutique', 'amount' => (int) $counter->sum('amount'), 'cash' => $cash($counter, 'amount'), 'count' => $counter->count()],
             ['key' => 'courier_remittances', 'label' => 'Remis par les livreurs', 'amount' => (int) $remittances->sum('received_amount'), 'cash' => $cash($remittances, 'received_amount'), 'count' => $remittances->count()],
             ['key' => 'courier_mobile', 'label' => 'Payé aux livreurs par mobile money', 'amount' => (int) $courierMobile->sum('amount'), 'cash' => 0, 'count' => $courierMobile->count()],
-            ['key' => 'carrier_payouts', 'label' => 'Reversé par les transporteurs', 'amount' => (int) $carrierPayouts->sum('amount'), 'cash' => $cash($carrierPayouts, 'amount'), 'count' => $carrierPayouts->count()],
+            ['key' => 'carrier_payouts', 'label' => 'Reversé par les entreprises de livraison', 'amount' => (int) $carrierPayouts->sum('amount'), 'cash' => $cash($carrierPayouts, 'amount'), 'count' => $carrierPayouts->count()],
             ['key' => 'online', 'label' => 'Paiements en ligne (frais déduits)', 'amount' => (int) ($online->sum('amount') - $online->sum('fee')), 'cash' => 0, 'count' => $online->count()],
             ['key' => 'refunds', 'label' => 'Remboursements', 'amount' => -(int) $refunds->sum('amount'), 'cash' => 0, 'count' => $refunds->count()],
             ['key' => 'courier_pay', 'label' => 'Paie des livreurs', 'amount' => -(int) $courierPay->sum('total'), 'cash' => -$cash($courierPay, 'total'), 'count' => $courierPay->count()],

@@ -12,9 +12,9 @@ enum FulfillmentStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::Unfulfilled => 'Non expédiée',
-            self::Partial => 'Expédiée en partie',
-            self::Fulfilled => 'Expédiée',
+            self::Unfulfilled => 'Non envoyée',
+            self::Partial => 'Envoyée en partie',
+            self::Fulfilled => 'Envoyée',
             self::Returned => 'Retournée',
         };
     }

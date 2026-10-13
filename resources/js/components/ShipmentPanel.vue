@@ -114,11 +114,11 @@ async function whatsapp(s) {
 <template>
   <section class="card space-y-3 p-4 text-sm">
     <div class="flex items-center gap-2">
-      <h3 class="font-semibold">Expédition</h3>
-      <button v-if="canShip" class="btn-brand ml-auto px-3 py-1.5" @click="openShip">🚚 Expédier</button>
+      <h3 class="font-semibold">Livraison</h3>
+      <button v-if="canShip" class="btn-brand ml-auto px-3 py-1.5" @click="openShip">🚚 Faire livrer</button>
     </div>
     <p v-if="!shipments.length && !canShip" class="text-slate-500">
-      {{ order.delivery_method === 'pickup' ? 'Retrait en boutique.' : 'Confirmez la commande pour l\'expédier.' }}
+      {{ order.delivery_method === 'pickup' ? 'Retrait en boutique.' : 'Confirmez la commande pour la faire livrer.' }}
     </p>
     <Alert v-if="error && !modal">{{ error }}</Alert>
 
@@ -160,14 +160,14 @@ async function whatsapp(s) {
       </div>
     </article>
 
-    <Modal v-if="modal === 'ship'" title="Expédier la commande" @close="modal = null">
+    <Modal v-if="modal === 'ship'" title="Faire livrer la commande" @close="modal = null">
       <form class="space-y-4" @submit.prevent="ship">
         <Alert v-if="error">{{ error }}</Alert>
         <p v-if="!quotes" class="text-sm text-slate-500">Demande des tarifs…</p>
         <template v-else-if="!quotes.length && !couriers.length">
-          <p class="text-sm">Aucun livreur ni transporteur.</p>
-          <RouterLink to="/gestion/livreurs" class="btn-brand">Ajouter un livreur</RouterLink>
-          <RouterLink to="/gestion/expeditions/transporteurs" class="btn-secondary">Connecter un transporteur</RouterLink>
+          <p class="text-sm">Aucun livreur ni entreprise de livraison.</p>
+          <RouterLink to="/gestion/livraisons/livreurs" class="btn-brand">Ajouter un livreur</RouterLink>
+          <RouterLink to="/gestion/livraisons/entreprises" class="btn-secondary">Connecter une entreprise de livraison</RouterLink>
         </template>
         <template v-else>
           <p v-if="suggestion" class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">💡 Suggestion : <strong>{{ suggestion.name }}</strong> <span class="text-emerald-700">({{ suggestion.reason }})</span></p>
@@ -185,7 +185,7 @@ async function whatsapp(s) {
             </label>
           </fieldset>
           <fieldset v-if="quotes.length" class="space-y-2">
-            <legend class="label">Transporteurs</legend>
+            <legend class="label">Entreprises de livraison</legend>
             <label v-for="q in quotes" :key="q.connection_id" class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm"
                    :class="form.target === `carrier:${q.connection_id}` ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
               <input v-model="form.target" type="radio" :value="`carrier:${q.connection_id}`" :disabled="!!q.error" class="accent-emerald-700" />
@@ -202,14 +202,14 @@ async function whatsapp(s) {
               <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
             </select>
           </Field>
-          <Field v-if="form.target?.startsWith('carrier:')" id="ship-payer" label="Livraison payée par" hint="Par la boutique : le client paie exactement le montant de la commande ; le tarif du transporteur est retenu sur le reversement.">
+          <Field v-if="form.target?.startsWith('carrier:')" id="ship-payer" label="Livraison payée par" hint="Par la boutique : le client paie exactement le montant de la commande ; le tarif de l'entreprise est retenu sur ce qu'elle vous reverse.">
             <select id="ship-payer" v-model="form.fee_payer" class="input">
-              <option value="">Réglage du transporteur</option>
+              <option value="">Réglage de l'entreprise</option>
               <option value="store">La boutique</option>
-              <option value="customer">Le client (tarif du transporteur)</option>
+              <option value="customer">Le client (tarif de l'entreprise)</option>
             </select>
           </Field>
-          <Field id="ship-note" label="Note pour le transporteur">
+          <Field id="ship-note" label="Note pour l'entreprise de livraison">
             <input id="ship-note" v-model="form.note" class="input" maxlength="255" />
           </Field>
           <p class="text-sm text-slate-600">À encaisser auprès du client : <strong>{{ money(order.amount_due) }}</strong></p>
@@ -218,7 +218,7 @@ async function whatsapp(s) {
       </form>
     </Modal>
 
-    <Modal v-if="modal === 'status'" :title="`Expédition ${current.reference}`" @close="modal = null">
+    <Modal v-if="modal === 'status'" :title="`Livraison ${current.reference}`" @close="modal = null">
       <form class="space-y-4" @submit.prevent="setStatus">
         <Alert v-if="error">{{ error }}</Alert>
         <Field id="sh-status" label="Nouveau statut">

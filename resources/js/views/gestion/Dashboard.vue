@@ -26,7 +26,7 @@ const steps = computed(() => [
   ...(auth.can('store.manage')
     ? [
         { title: 'Compléter les informations de la boutique', text: 'Slogan, numéro WhatsApp des clients, adresse.', to: '/gestion/parametres', done: !!auth.store?.tagline },
-        { title: 'Vérifier vos frais de livraison', text: 'Une zone « Abidjan » à 1 500 F est créée par défaut : adaptez-la par quartier.', to: '/gestion/zones-de-livraison' },
+        { title: 'Vérifier vos frais de livraison', text: 'Une zone « Abidjan » à 1 500 F est créée par défaut : adaptez-la par quartier.', to: '/gestion/livraisons/zones' },
       ]
     : []),
   ...(auth.can('products.manage')
@@ -70,7 +70,7 @@ const steps = computed(() => [
         <p v-if="stats.orders.callbacks_due" class="text-sm text-amber-800">{{ stats.orders.callbacks_due }} rappel(s) à faire</p>
       </RouterLink>
       <RouterLink to="/gestion/commandes?status=to_ship" class="card p-4 hover:border-emerald-600">
-        <p class="text-xs text-slate-500">À expédier</p>
+        <p class="text-xs text-slate-500">À faire livrer</p>
         <p class="text-2xl font-semibold">{{ stats.orders.to_ship }}</p>
       </RouterLink>
       <div class="card p-4">

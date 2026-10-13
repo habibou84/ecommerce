@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
+import DeliveryTabs from '../../components/DeliveryTabs.vue'
 import Field from '../../components/Field.vue'
 import Modal from '../../components/Modal.vue'
 import PlacePicker from '../../components/PlacePicker.vue'
@@ -57,7 +58,7 @@ async function destroy() {
 
 <template>
   <div class="space-y-4">
-    <RouterLink to="/gestion/parametres" class="text-sm text-slate-500 hover:text-emerald-700">← Paramètres</RouterLink>
+    <DeliveryTabs />
     <div class="flex items-center justify-between gap-3">
       <p class="text-sm text-slate-600">
         Frais de livraison facturés aux clients selon le quartier. Un quartier prend la zone qui le contient, sinon celle de sa commune, sinon celle de sa ville.

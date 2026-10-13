@@ -27,7 +27,7 @@ class CustomerMessenger
      */
     public const EVENTS = [
         'order_confirmation' => ['label' => 'Demande de confirmation (boutons Confirmer / Annuler)', 'variables' => ['nom du client', 'n° de commande', 'montant'], 'buttons' => ['Confirmer', 'Annuler']],
-        'order_shipped' => ['label' => 'Commande expédiée', 'variables' => ['nom du client', 'n° de commande', 'lien de suivi'], 'buttons' => []],
+        'order_shipped' => ['label' => 'Commande en route', 'variables' => ['nom du client', 'n° de commande', 'lien de suivi'], 'buttons' => []],
         'order_delivered' => ['label' => 'Commande livrée (remerciement)', 'variables' => ['nom du client', 'n° de commande'], 'buttons' => []],
         'payment_link' => ['label' => 'Lien de paiement', 'variables' => ['nom du client', 'n° de commande', 'montant', 'lien'], 'buttons' => []],
         'cart_recovery' => ['label' => 'Relance de panier abandonné', 'variables' => ['nom du client', 'boutique', 'lien du panier'], 'buttons' => []],

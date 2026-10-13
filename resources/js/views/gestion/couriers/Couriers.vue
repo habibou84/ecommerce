@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
-import CourierTabs from '../../../components/CourierTabs.vue'
+import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
@@ -138,7 +138,7 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
 
 <template>
   <div class="space-y-4">
-    <CourierTabs />
+    <DeliveryTabs />
     <div class="flex items-center justify-between gap-3">
       <p class="text-sm text-slate-600">Vos livreurs reçoivent leurs missions dans l'application <strong>/livreur</strong>, sur leur téléphone.</p>
       <button class="btn-brand shrink-0" @click="open(null)">+ Livreur</button>

@@ -82,7 +82,7 @@ class ShipmentDesk
     {
         $this->ensureShippable($order);
         if (! $connection->isActive() || $connection->store_id !== $order->store_id) {
-            throw new BusinessRuleException('Ce transporteur n\'est pas connecté.', 'carrier_connection_id');
+            throw new BusinessRuleException('Cette entreprise de livraison n\'est pas connectée.', 'carrier_connection_id');
         }
 
         $origin = $this->origin($order, $connection, $options['origin_location_id'] ?? null);
@@ -127,7 +127,7 @@ class ShipmentDesk
             $this->event($shipment, ShipmentStatus::Requested, $remote->rawStatus, 'user', $connection->isApi() ? 'Course créée chez '.$connection->name : 'À demander à '.$connection->name, $actor);
 
             if ($order->status === OrderStatus::Confirmed) {
-                $this->orders->transition($order, OrderStatus::Processing, $actor, ['note' => 'Expédition '.$shipment->reference()]);
+                $this->orders->transition($order, OrderStatus::Processing, $actor, ['note' => 'Livraison '.$shipment->reference()]);
             }
             $this->orders->log($order, 'shipment_created', ['shipment_id' => $shipment->id, 'carrier' => $connection->name, 'tracking_code' => $shipment->carrier_tracking_code], $actor);
         });
@@ -178,7 +178,7 @@ class ShipmentDesk
             $this->couriers->assign($shipment, $courier, $actor);
             $this->event($shipment, ShipmentStatus::AwaitingPickup, null, 'user', 'Confiée à '.$courier->name, $actor);
             if ($order->status === OrderStatus::Confirmed) {
-                $this->orders->transition($order, OrderStatus::Processing, $actor, ['note' => 'Expédition '.$shipment->reference()]);
+                $this->orders->transition($order, OrderStatus::Processing, $actor, ['note' => 'Livraison '.$shipment->reference()]);
             }
             $this->orders->log($order, 'shipment_created', ['shipment_id' => $shipment->id, 'carrier' => $courier->name], $actor);
 
@@ -194,7 +194,7 @@ class ShipmentDesk
     public function reassign(Shipment $shipment, Courier $courier, ?User $actor): Shipment
     {
         if (! $shipment->isOwnCourier() || $shipment->status->isFinal() || in_array($shipment->status, [ShipmentStatus::Returning], true)) {
-            throw new BusinessRuleException('Cette expédition ne peut plus changer de livreur.');
+            throw new BusinessRuleException('Cette livraison ne peut plus changer de livreur.');
         }
         if (! $courier->isActive() || $courier->store_id !== $shipment->store_id) {
             throw new BusinessRuleException('Ce livreur n\'est pas actif.', 'courier_id');
@@ -213,13 +213,13 @@ class ShipmentDesk
         $order->loadMissing(['items.product', 'store', 'shipments']);
 
         if (! in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Processing], true)) {
-            throw new BusinessRuleException('Seule une commande confirmée peut être expédiée.');
+            throw new BusinessRuleException('Seule une commande confirmée peut être confiée à la livraison.');
         }
         if ($order->delivery_method !== 'delivery') {
             throw new BusinessRuleException('Cette commande est à retirer en boutique.');
         }
         if ($order->shipments->contains(fn (Shipment $s) => ! in_array($s->status, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true))) {
-            throw new BusinessRuleException('Cette commande a déjà une expédition en cours.');
+            throw new BusinessRuleException('Cette commande a déjà une livraison en cours.');
         }
     }
 
@@ -246,7 +246,7 @@ class ShipmentDesk
     public function cancel(Shipment $shipment, ?string $reason, ?User $actor): Shipment
     {
         if (! $shipment->status->isCancellable()) {
-            throw new BusinessRuleException('Le colis est déjà parti : l\'expédition ne peut plus être annulée.');
+            throw new BusinessRuleException('Le colis est déjà parti : la livraison ne peut plus être annulée.');
         }
 
         $connection = $shipment->connection;
@@ -264,10 +264,10 @@ class ShipmentDesk
     public function updateManually(Shipment $shipment, ShipmentStatus $status, ?string $note, ?int $collected, ?User $actor): Shipment
     {
         if ($shipment->connection?->isApi()) {
-            throw new BusinessRuleException('Le statut de cette expédition est donné par le transporteur.');
+            throw new BusinessRuleException('Le statut de cette livraison est donné par l\'entreprise de livraison.');
         }
         if (! in_array($status, ShipmentStatus::manual(), true) || $shipment->status->isFinal()) {
-            throw new BusinessRuleException('Statut impossible pour cette expédition.', 'status');
+            throw new BusinessRuleException('Statut impossible pour cette livraison.', 'status');
         }
 
         $this->apply($shipment, new RemoteShipment(
@@ -283,7 +283,7 @@ class ShipmentDesk
 
     public function refresh(Shipment $shipment): Shipment
     {
-        $connection = $shipment->connection ?? throw new BusinessRuleException('Cette expédition est suivie par votre livreur.');
+        $connection = $shipment->connection ?? throw new BusinessRuleException('Cette livraison est suivie par votre livreur.');
         $this->apply($shipment, $this->connections->driver($connection)->fetch($connection, $shipment), 'carrier_sync');
 
         return $shipment->fresh();
@@ -340,7 +340,7 @@ class ShipmentDesk
     private function updateOrder(Shipment $shipment, ShipmentStatus $to, ?User $actor, string $source, RemoteShipment $remote): void
     {
         $order = $shipment->order->fresh();
-        $label = 'Expédition '.$shipment->reference();
+        $label = 'Livraison '.$shipment->reference();
 
         // Le colis est parti : sortie de stock
         if ($to->hasLeft() && $order->status->holdsStock()) {
@@ -382,7 +382,7 @@ class ShipmentDesk
     private function delivered(Shipment $shipment, Order $order, ?User $actor, RemoteShipment $remote): void
     {
         if ($order->status->canTransitionTo(OrderStatus::Completed)) {
-            $order = $this->orders->transition($order, OrderStatus::Completed, $actor, ['note' => 'Expédition '.$shipment->reference().' livrée']);
+            $order = $this->orders->transition($order, OrderStatus::Completed, $actor, ['note' => 'Livraison '.$shipment->reference().' terminée']);
         }
 
         $collected = min($shipment->collected_amount ?? $shipment->cod_amount, $order->amountDue());
@@ -402,7 +402,7 @@ class ShipmentDesk
                 'method' => PaymentMethod::Cash,
                 'kind' => PaymentKind::CarrierCod,
                 'reference' => $shipment->carrier_tracking_code,
-                'note' => 'Encaissé par '.($shipment->connection?->name ?? 'le transporteur'),
+                'note' => 'Encaissé par '.($shipment->connection?->name ?? 'l\'entreprise de livraison'),
             ], $actor);
         }
     }

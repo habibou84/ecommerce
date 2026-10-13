@@ -74,7 +74,7 @@ class ShipmentController extends Controller
             'origin_location_id' => ['nullable', 'integer'],
             'fee_payer' => ['nullable', Rule::in(['store', 'customer'])],
             'note' => ['nullable', 'string', 'max:255'],
-        ], [], ['carrier_connection_id' => 'transporteur', 'courier_id' => 'livreur']);
+        ], [], ['carrier_connection_id' => 'entreprise de livraison', 'courier_id' => 'livreur']);
 
         $model = Order::findOrFail($order);
         $shipment = isset($data['courier_id'])

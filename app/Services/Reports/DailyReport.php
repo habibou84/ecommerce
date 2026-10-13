@@ -60,9 +60,9 @@ class DailyReport
             "Commandes reçues : {$f['orders']} (".Money::format($f['orders_amount']).')',
             "Livrées : {$f['delivered']} (".Money::format($f['delivered_amount']).')',
             $f['cancelled'] ? "Annulées : {$f['cancelled']}" : null,
-            "À confirmer : {$f['to_confirm']} · À expédier : {$f['to_ship']} · En livraison : {$f['in_delivery']}",
+            "À confirmer : {$f['to_confirm']} · À faire livrer : {$f['to_ship']} · En livraison : {$f['in_delivery']}",
             $f['courier_cash'] ? 'Espèces chez les livreurs : '.Money::format($f['courier_cash']) : null,
-            $f['carrier_due'] ? 'À recevoir des transporteurs : '.Money::format($f['carrier_due'])
+            $f['carrier_due'] ? 'À recevoir des entreprises de livraison : '.Money::format($f['carrier_due'])
                 .($f['carrier_due_overdue'] ? ' (dont '.Money::format($f['carrier_due_overdue']).' en retard)' : '') : null,
         ]));
     }

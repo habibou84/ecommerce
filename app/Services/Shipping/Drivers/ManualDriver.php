@@ -49,7 +49,7 @@ class ManualDriver implements CarrierDriver
 
     public function fetch(CarrierConnection $connection, Shipment $shipment): RemoteShipment
     {
-        throw new CarrierException('Ce transporteur n\'a pas d\'API : mettez le statut à jour à la main.');
+        throw new CarrierException('Cette entreprise de livraison n\'a pas d\'API : mettez le statut à jour à la main.');
     }
 
     public function changedSince(CarrierConnection $connection, \DateTimeInterface $since): array
@@ -59,14 +59,14 @@ class ManualDriver implements CarrierDriver
 
     public function registerWebhook(CarrierConnection $connection, string $url, array $events): array
     {
-        throw new CarrierException('Ce transporteur n\'a pas d\'API.');
+        throw new CarrierException('Cette entreprise de livraison n\'a pas d\'API.');
     }
 
     public function removeWebhook(CarrierConnection $connection): void {}
 
     public function payout(CarrierConnection $connection, string $reference): array
     {
-        throw new CarrierException('Ce transporteur n\'a pas d\'API.');
+        throw new CarrierException('Cette entreprise de livraison n\'a pas d\'API.');
     }
 
     public function paidPayouts(CarrierConnection $connection): array

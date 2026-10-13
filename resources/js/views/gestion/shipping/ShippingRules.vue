@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
-import ShippingTabs from '../../../components/ShippingTabs.vue'
+import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money } from '../../../lib/format'
 
@@ -14,8 +14,8 @@ const errors = ref({})
 
 const MODES = [
   ['off', 'Désactivée', 'Vous choisissez à chaque fois, sans suggestion'],
-  ['suggest', 'Suggestion', 'Le bon choix est présélectionné quand vous expédiez'],
-  ['auto', 'Automatique', 'L\'expédition est créée dès que la commande est confirmée'],
+  ['suggest', 'Suggestion', 'Le bon choix est présélectionné quand vous faites livrer'],
+  ['auto', 'Automatique', 'La livraison est demandée dès que la commande est confirmée'],
 ]
 
 async function load() {
@@ -94,7 +94,7 @@ function describe(rule) {
 
 <template>
   <div class="space-y-5">
-    <ShippingTabs />
+    <DeliveryTabs />
     <Alert v-if="error">{{ error }}</Alert>
 
     <template v-if="data">
@@ -114,7 +114,7 @@ function describe(rule) {
           <h3 class="font-semibold">Règles</h3>
           <button class="btn-secondary ml-auto px-3 py-1.5" @click="open()">+ Règle</button>
         </div>
-        <p class="mb-3 text-sm text-slate-500">La première règle qui correspond à la commande s'applique. Sans règle : un de vos livreurs du quartier, sinon le transporteur le moins cher.</p>
+        <p class="mb-3 text-sm text-slate-500">La première règle qui correspond à la commande s'applique. Sans règle : un de vos livreurs du quartier, sinon l'entreprise de livraison la moins chère.</p>
         <ol class="divide-y divide-slate-100 text-sm">
           <li v-for="(r, i) in data.data" :key="r.id" class="flex items-center gap-3 py-2" :class="{ 'opacity-50': !r.is_active }">
             <span class="w-6 text-center text-slate-400">{{ i + 1 }}</span>
@@ -155,13 +155,13 @@ function describe(rule) {
         <Field id="rule-action" label="… livrer par" :error="errors.action">
           <select id="rule-action" v-model="editing.action" class="input">
             <option value="own_courier">Un de mes livreurs (qui couvre le quartier et disponible)</option>
-            <option value="carrier">Un transporteur précis</option>
+            <option value="carrier">Une entreprise de livraison précise</option>
             <option value="cheapest">Le moins cher</option>
             <option value="fastest">Le plus rapide (d'après l'historique)</option>
             <option value="manual">Je choisis à la main</option>
           </select>
         </Field>
-        <Field v-if="editing.action === 'carrier'" id="rule-carrier" label="Transporteur" :error="errors.carrier_connection_id">
+        <Field v-if="editing.action === 'carrier'" id="rule-carrier" label="Entreprise de livraison" :error="errors.carrier_connection_id">
           <select id="rule-carrier" v-model="editing.carrier_connection_id" class="input" required>
             <option v-for="c in data.carriers" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
