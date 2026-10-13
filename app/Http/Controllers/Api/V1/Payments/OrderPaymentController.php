@@ -23,7 +23,7 @@ class OrderPaymentController extends Controller
         $model = Order::with('store')->findOrFail($order);
         $store = $model->store;
 
-        abort_if($payments->availableMethods($store) === [], 422, 'Ajoutez d\'abord un compte de paiement (Paramètres › Paiements).');
+        abort_if($payments->availableMethods($store) === [], 422, 'Ajoutez d\'abord un compte de paiement (Réglages › Paiement en ligne).');
         abort_if(in_array($model->status->value, ['cancelled', 'returned'], true) || $model->amountDue() <= 0, 422, 'Il n\'y a rien à payer pour cette commande.');
         $amount = min($data['amount'] ?? $model->amountDue(), $model->amountDue());
 
