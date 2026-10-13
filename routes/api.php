@@ -106,6 +106,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
             Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
             Route::post('auth/switch/{store}', [AuthController::class, 'switch'])->whereNumber('store')->name('auth.switch');
+            Route::put('auth/account', [AuthController::class, 'updateAccount'])->name('auth.account');
+            Route::put('auth/password', [AuthController::class, 'updatePassword'])->middleware('throttle:login')->name('auth.password');
 
             Route::get('store', [StoreController::class, 'show'])->name('store.show');
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {

@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Enums\StoreStatus;
 use App\Enums\UserStatus;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -154,5 +155,36 @@ class AuthTest extends TestCase
 
         $this->assertStringStartsWith($this->storeUrl($a, '/auth/relais'), $this->platformApi('POST', "account/stores/{$a->id}/open")->assertOk()->json('redirect'));
         $this->platformApi('POST', "account/stores/{$b->id}/open")->assertForbidden();
+    }
+
+    public function test_my_account_name_email_and_password(): void
+    {
+        $store = $this->createStore();
+        $cashier = $this->addMember($store, User::factory()->create(['email' => null]), Role::Cashier);
+        $this->addMember($store, User::factory()->create(['email' => 'pris@exemple.com']));
+        $this->actingAs($cashier);
+
+        // Rapport par email sans adresse : refusé, avec le chemin vers « Mon compte »
+        $this->storeApi($store, 'PUT', 'reports/schedule', ['channels' => ['email' => ['is_active' => true]]])
+            ->assertStatus(422)->assertJsonPath('message', 'Ajoutez d\'abord votre adresse email (Réglages › Mon compte).');
+
+        // Tout membre, quel que soit son rôle, modifie son nom et son email
+        $this->storeApi($store, 'PUT', 'auth/account', ['name' => 'Koffi', 'email' => ' Koffi@Exemple.com '])->assertOk()
+            ->assertJsonPath('data.user.name', 'Koffi')->assertJsonPath('data.user.email', 'koffi@exemple.com');
+        $this->storeApi($store, 'PUT', 'auth/account', ['name' => 'Koffi', 'email' => 'pris@exemple.com'])
+            ->assertStatus(422)->assertJsonPath('errors.email.0', 'Cette adresse email est déjà utilisée par un autre compte.');
+        $this->storeApi($store, 'PUT', 'auth/account', ['name' => '', 'email' => 'pas-un-email'])->assertStatus(422)->assertJsonValidationErrors(['name', 'email']);
+        $this->storeApi($store, 'PUT', 'reports/schedule', ['channels' => ['email' => ['is_active' => true]]])->assertOk();
+
+        // Email retiré
+        $this->storeApi($store, 'PUT', 'auth/account', ['name' => 'Koffi', 'email' => ''])->assertOk()->assertJsonPath('data.user.email', null);
+
+        // Mot de passe : l'actuel est demandé, le nouveau confirmé
+        $this->storeApi($store, 'PUT', 'auth/password', ['current_password' => 'mauvais', 'password' => 'nouveau-mdp', 'password_confirmation' => 'nouveau-mdp'])
+            ->assertStatus(422)->assertJsonPath('errors.current_password.0', 'Mot de passe actuel incorrect.');
+        $this->storeApi($store, 'PUT', 'auth/password', ['current_password' => 'password', 'password' => 'nouveau-mdp', 'password_confirmation' => 'autre'])
+            ->assertStatus(422)->assertJsonValidationErrors('password');
+        $this->storeApi($store, 'PUT', 'auth/password', ['current_password' => 'password', 'password' => 'nouveau-mdp', 'password_confirmation' => 'nouveau-mdp'])->assertOk();
+        $this->assertTrue(Hash::check('nouveau-mdp', $cashier->fresh()->password));
     }
 }

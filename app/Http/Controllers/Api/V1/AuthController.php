@@ -16,6 +16,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Jibiat\Socle\PhoneNumber;
 
@@ -62,6 +64,39 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return response()->json(['message' => 'Déconnecté.']);
+    }
+
+    /**
+     * Mon compte : nom et adresse email (rapport du jour par email, reçus).
+     */
+    public function updateAccount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $request->merge(['email' => $request->filled('email') ? Str::lower(trim((string) $request->input('email'))) : null]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+        ], ['email.unique' => 'Cette adresse email est déjà utilisée par un autre compte.'], ['name' => 'votre nom', 'email' => 'adresse email']);
+
+        $user->update($data);
+
+        return response()->json(['data' => $this->profile($user)]);
+    }
+
+    public function updatePassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'current_password' => ['required', 'string', 'max:100'],
+            'password' => ['required', 'string', 'min:8', 'max:100', 'confirmed'],
+        ], [], ['current_password' => 'mot de passe actuel', 'password' => 'nouveau mot de passe']);
+
+        $user = $request->user();
+        if (! Hash::check($request->string('current_password'), (string) $user->password)) {
+            throw ValidationException::withMessages(['current_password' => 'Mot de passe actuel incorrect.']);
+        }
+        $user->update(['password' => Hash::make($request->string('password'))]);
+
+        return response()->json(['message' => 'Mot de passe modifié.']);
     }
 
     /**
