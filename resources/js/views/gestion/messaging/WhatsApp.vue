@@ -64,6 +64,17 @@ async function disconnect() {
 }
 
 const copy = (text) => navigator.clipboard?.writeText(text)
+
+// Création de l'accès WhatsApp Business chez Meta, étape par étape, avec un lien direct vers chaque écran
+const META_STEPS = [
+  { title: 'Créer votre portefeuille Meta Business', text: 'Avec le compte Facebook du gérant : nom de la boutique, e-mail professionnel.', url: 'https://business.facebook.com/overview', link: 'Ouvrir Meta Business' },
+  { title: 'Créer une application et y ajouter WhatsApp', text: 'Type « Business », reliée à votre portefeuille, puis ajoutez le produit « WhatsApp ».', url: 'https://developers.facebook.com/apps/creation/', link: 'Créer l\'application' },
+  { title: 'Ajouter le numéro de la boutique', text: 'Dans l\'application : WhatsApp › Configuration de l\'API › Ajouter un numéro. Copiez ensuite « Phone number ID » et « WhatsApp Business Account ID » ci-dessous.', url: 'https://developers.facebook.com/apps/', link: 'Mes applications' },
+  { title: 'Créer le jeton d\'accès permanent', text: 'Utilisateur système (Admin) relié à l\'application, jeton sans expiration avec les droits whatsapp_business_messaging et whatsapp_business_management.', url: 'https://business.facebook.com/settings/system-users', link: 'Utilisateurs système' },
+  { title: 'Copier la clé secrète de l\'application', text: 'Dans l\'application : Paramètres de l\'application › Général › Clé secrète.', url: 'https://developers.facebook.com/apps/', link: 'Mes applications' },
+  { title: 'Faire approuver vos modèles de messages', text: 'Un modèle par message automatique, en français, avec les variables dans l\'ordre indiqué plus bas.', url: 'https://business.facebook.com/wa/manage/message-templates/', link: 'Modèles de messages' },
+  { title: 'Ajouter un moyen de paiement chez Meta', text: 'Meta facture les conversations ouvertes par la boutique (confirmations, suivi…).', url: 'https://business.facebook.com/billing_hub/payment_settings', link: 'Paiements Meta' },
+]
 </script>
 
 <template>
@@ -72,6 +83,30 @@ const copy = (text) => navigator.clipboard?.writeText(text)
       Envoyez automatiquement les messages à vos clients depuis le numéro WhatsApp Business de la boutique (API Cloud de Meta).
       Chaque message utilise un modèle que vous avez fait approuver chez Meta ; indiquez ici son nom.
     </p>
+    <details class="card p-4 text-sm" :open="!data.account">
+      <summary class="cursor-pointer font-semibold">Créer votre accès WhatsApp Business chez Meta (environ 20 minutes)</summary>
+      <p class="mt-2 text-slate-600">
+        Gratuit à créer. Le numéro utilisé ne doit plus être actif dans l'application WhatsApp du téléphone, sauf si Meta vous propose de garder les deux (« coexistence »).
+        <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" rel="noopener" class="text-emerald-700 underline">Guide de Meta</a>
+      </p>
+      <ol class="mt-3 space-y-3">
+        <li v-for="(step, i) in META_STEPS" :key="step.title" class="flex gap-3">
+          <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-800">{{ i + 1 }}</span>
+          <div class="min-w-0">
+            <p class="font-medium">{{ step.title }}</p>
+            <p class="text-slate-600">{{ step.text }}</p>
+            <a :href="step.url" target="_blank" rel="noopener" class="font-medium text-emerald-700 hover:underline">{{ step.link }} ↗</a>
+          </div>
+        </li>
+        <li class="flex gap-3">
+          <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-800">{{ META_STEPS.length + 1 }}</span>
+          <div class="min-w-0">
+            <p class="font-medium">Connecter ici, puis brancher le webhook</p>
+            <p class="text-slate-600">Remplissez le formulaire ci-dessous et cliquez sur « Connecter WhatsApp ». L'URL de rappel et le jeton de vérification s'affichent alors : collez-les dans l'application Meta (WhatsApp › Configuration › Webhook) et abonnez le champ « messages ».</p>
+          </div>
+        </li>
+      </ol>
+    </details>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="saved" tone="success">Réglages enregistrés.</Alert>
     <Alert v-if="data.account?.last_error" tone="warning">Dernière erreur de Meta : {{ data.account.last_error }}</Alert>
