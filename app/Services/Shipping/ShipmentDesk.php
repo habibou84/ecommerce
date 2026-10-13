@@ -298,7 +298,9 @@ class ShipmentDesk
         DB::transaction(function () use ($shipment, $remote, $source, $note, $actor) {
             $shipment = Shipment::forStore($shipment->store_id)->lockForUpdate()->with(['order', 'connection'])->findOrFail($shipment->id);
             $occurredAt = $remote->occurredAt ? Carbon::parse($remote->occurredAt) : now();
-            $lastEventAt = ShipmentEvent::where('shipment_id', $shipment->id)->max('occurred_at');
+            // Heure du transporteur comparée aux seules heures du transporteur : l'horloge de son serveur peut différer
+            // de la nôtre, et la réponse à la création arrive après l'heure qu'elle porte
+            $lastEventAt = ShipmentEvent::where('shipment_id', $shipment->id)->whereIn('source', ['carrier_webhook', 'carrier_sync'])->max('occurred_at');
             $stale = $source !== 'user' && $lastEventAt !== null && $occurredAt->lt(Carbon::parse($lastEventAt));
 
             $shipment->forceFill(array_filter([
