@@ -302,6 +302,24 @@ class ShippingTest extends TestCase
         $this->assertSame('out_for_delivery', $shipment->fresh()->status->value);
     }
 
+    public function test_carrier_times_are_only_compared_with_carrier_times(): void
+    {
+        $connection = $this->connect();
+
+        // Horloge du serveur de Delivery App en retard de 10 minutes sur la nôtre ; course acceptée d'office à la création
+        $this->stub([self::API.'/orders' => Http::response(['data' => $this->remoteOrder('confirmed', ['updated_at' => now()->subMinutes(10)->subSeconds(30)->toIso8601String()])], 201)]);
+        $shipment = $this->ship($this->confirmedOrder(), $connection);
+        $this->assertSame(['accepted', 'confirmed'], [$shipment->status->value, $shipment->carrier_status]);
+
+        // Le changement suivant, à son heure à lui, passe aussi
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('picked_up', ['updated_at' => now()->subMinutes(10)->toIso8601String()])], 'evt-2')->assertOk();
+        $this->assertSame('in_transit', $shipment->fresh()->status->value);
+
+        // Mais un webhook plus ancien que le dernier reçu reste ignoré
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('confirmed', ['updated_at' => now()->subMinutes(11)->toIso8601String()])], 'evt-3')->assertOk();
+        $this->assertSame('in_transit', $shipment->fresh()->status->value);
+    }
+
     public function test_periodic_sync_catches_up_lost_webhooks(): void
     {
         $connection = $this->connect();
