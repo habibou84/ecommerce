@@ -13,13 +13,13 @@ class WhatsappAccount extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'phone_number_id', 'waba_id', 'display_phone', 'access_token', 'app_secret', 'verify_token', 'webhook_uuid', 'templates', 'automations', 'status', 'last_error'];
+    protected $fillable = ['store_id', 'connection', 'two_step_pin', 'template_status', 'phone_number_id', 'waba_id', 'display_phone', 'access_token', 'app_secret', 'verify_token', 'webhook_uuid', 'templates', 'automations', 'status', 'last_error'];
 
-    protected $hidden = ['access_token', 'app_secret'];
+    protected $hidden = ['access_token', 'app_secret', 'two_step_pin'];
 
     protected function casts(): array
     {
-        return ['access_token' => 'encrypted', 'app_secret' => 'encrypted', 'templates' => 'array', 'automations' => 'array'];
+        return ['access_token' => 'encrypted', 'app_secret' => 'encrypted', 'two_step_pin' => 'encrypted', 'templates' => 'array', 'automations' => 'array', 'template_status' => 'array'];
     }
 
     protected static function booted(): void
@@ -28,6 +28,11 @@ class WhatsappAccount extends Model
             $a->webhook_uuid ??= (string) Str::uuid();
             $a->verify_token ??= Str::random(32);
         });
+    }
+
+    public function isEmbedded(): bool
+    {
+        return $this->connection === 'embedded';
     }
 
     public function automates(string $event): bool

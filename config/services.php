@@ -35,6 +35,14 @@ return [
         ],
     ],
 
+    // Application Meta de la plateforme : WhatsApp des boutiques connecté en un clic (inscription intégrée)
+    'meta' => [
+        'app_id' => env('META_APP_ID'),
+        'app_secret' => env('META_APP_SECRET'),
+        'whatsapp_config_id' => env('META_WHATSAPP_CONFIG_ID'), // Facebook Login for Business › Configurations
+        'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
+    ],
+
     // SMS (vérification des numéros) : log = écrit dans le journal, sans envoi (développement)
     'sms' => [
         'driver' => env('SMS_DRIVER', 'log'), // log | twilio | none

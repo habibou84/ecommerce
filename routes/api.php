@@ -279,6 +279,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
                 Route::get('whatsapp', [WhatsAppController::class, 'show'])->name('whatsapp.show');
                 Route::put('whatsapp', [WhatsAppController::class, 'update'])->name('whatsapp.update');
+                Route::post('whatsapp/embedded', [WhatsAppController::class, 'connectEmbedded'])->middleware('throttle:login')->name('whatsapp.embedded');
                 Route::delete('whatsapp', [WhatsAppController::class, 'destroy'])->name('whatsapp.destroy');
             });
             Route::middleware('permission:'.Permission::OrdersManage->value)->group(function () {
