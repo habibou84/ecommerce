@@ -68,7 +68,7 @@ class PlanLimits
     public function ensureFeature(Store $store, string $feature): void
     {
         if (! $this->hasFeature($store, $feature)) {
-            throw new QuotaExceededException((self::FEATURES[$feature] ?? $feature).' : fonction comprise dans l\'offre Pro. Passez à l\'offre supérieure (Paramètres › Abonnement).');
+            throw new QuotaExceededException((self::FEATURES[$feature] ?? $feature).' : fonction comprise dans l\'offre Pro. Passez à l\'offre supérieure (Réglages › Abonnement).');
         }
     }
 

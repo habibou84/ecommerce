@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NotificationBell from '../components/NotificationBell.vue'
 import { boot } from '../lib/boot'
@@ -12,47 +12,77 @@ const router = useRouter()
 const menuOpen = ref(false)
 const switchError = ref('')
 
-// Modules à venir : affichés pour montrer la suite, sans lien
-const deliveryHome = computed(() => {
-  if (auth.can('shipments.manage')) return '/gestion/livraisons'
-  if (auth.can('couriers.manage')) return '/gestion/livraisons/livreurs'
-  if (auth.can('carriers.manage')) return '/gestion/livraisons/entreprises'
-  return auth.can('store.manage') ? '/gestion/livraisons/zones' : null
-})
-const cashHome = computed(() => {
-  if (auth.can('finance.view') || auth.can('cash.manage')) return '/gestion/caisse'
-  if (auth.can('couriers.manage')) return '/gestion/caisse/livreurs'
-  return auth.can('carriers.manage') ? '/gestion/caisse/a-recevoir' : null
-})
+// Menu en groupes : un groupe n'affiche que les pages que le rôle peut ouvrir (droits lus sur les routes),
+// disparaît s'il est vide et devient un lien direct s'il ne garde qu'une page
+const groups = [
+  { label: 'Ventes', icon: 'M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2', items: [
+    { to: '/gestion/commandes', label: 'Commandes' },
+    { to: '/gestion/confirmation', label: 'À confirmer' },
+    { to: '/gestion/caisse/vente', label: 'Vente au comptoir' },
+    { to: '/gestion/clients', label: 'Clients' },
+    { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' },
+    { to: '/gestion/statistiques', label: 'Statistiques' },
+  ] },
+  { label: 'Produits', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', items: [
+    { to: '/gestion/catalogue', label: 'Mes produits' },
+    { to: '/gestion/collections', label: 'Collections' },
+    { to: '/gestion/stock', label: 'Stock' },
+  ] },
+  { label: 'Livraisons', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', items: [
+    { to: '/gestion/livraisons', label: 'En cours', exact: true },
+    { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
+    { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' },
+    { to: '/gestion/livraisons/zones', label: 'Zones et tarifs' },
+    { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' },
+  ] },
+  { label: 'Caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', items: [
+    { to: '/gestion/caisse', label: 'Vue d\'ensemble', exact: true },
+    { to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' },
+    { to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' },
+  ] },
+  { label: 'Boutique en ligne', icon: 'M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8M10 20v-5h4v5', items: [
+    { to: '/gestion/boutique-en-ligne', label: 'Apparence', exact: true },
+    { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus', also: ['/gestion/boutique-en-ligne/menus'] },
+    { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' },
+    { to: '/gestion/marketing', label: 'Promotions' },
+  ] },
+  { label: 'Réglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
+    { to: '/gestion/parametres', label: 'Ma boutique' },
+    { to: '/gestion/equipe', label: 'Équipe' },
+    { to: '/gestion/paiements', label: 'Paiement en ligne' },
+    { to: '/gestion/whatsapp', label: 'WhatsApp' },
+    { to: '/gestion/abonnement', label: 'Abonnement' },
+  ] },
+]
+
+function canOpen(path) {
+  const { meta } = router.resolve(path)
+  if (meta.permissionAny) return meta.permissionAny.some((p) => auth.can(p))
+  return !meta.permission || auth.can(meta.permission)
+}
 
 const nav = computed(() => [
   { to: '/gestion', label: 'Accueil', icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z', exact: true },
-  ...(auth.can('orders.view') ? [{ to: '/gestion/commandes', label: 'Commandes', icon: 'M4 4h16v4H4zM4 10h16v10H4z' }] : []),
-  ...(auth.can('orders.confirm') ? [{ to: '/gestion/confirmation', label: 'À confirmer', icon: 'M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z' }] : []),
-  ...(auth.can('products.view')
-    ? [
-        { to: '/gestion/catalogue', label: 'Catalogue', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' },
-        { to: '/gestion/collections', label: 'Collections', icon: 'M4 6h16M4 12h16M4 18h10' },
-      ]
-    : []),
-  ...(auth.can('stock.manage') ? [{ to: '/gestion/stock', label: 'Stock', icon: 'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7M12 11v10' }] : []),
-  ...(auth.can('customers.view') ? [{ to: '/gestion/clients', label: 'Clients', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 9a8 8 0 0 1 16 0z' }] : []),
-  ...(auth.can('store.manage') ? [{ to: '/gestion/boutique-en-ligne', label: 'Boutique en ligne', icon: 'M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8M10 20v-5h4v5' }] : []),
-  // Livraisons : qui livre et comment (Mes livreurs, entreprises de livraison, zones, attribution)
-  ...(deliveryHome.value ? [{ to: deliveryHome.value, label: 'Livraisons', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', match: '/gestion/livraisons' }] : []),
-  // Caisse : tout l'argent (vue d'ensemble, argent des livreurs, à recevoir des entreprises)
-  ...(cashHome.value ? [{ to: cashHome.value, label: 'Caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', match: '/gestion/caisse' }] : []),
-  ...(auth.can('finance.view') || auth.can('orders.view') ? [{ to: '/gestion/statistiques', label: 'Statistiques', icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2' }] : []),
-  ...(auth.can('store.manage') ? [{ to: '/gestion/marketing', label: 'Marketing', icon: 'M3 11l18-8v18L3 13zM7 12v6a2 2 0 0 0 4 0v-4' }] : []),
-  ...(auth.can('payments.manage') ? [{ to: '/gestion/paiements', label: 'Paiements', icon: 'M2 6h20v12H2zM2 10h20M6 15h4' }] : []),
-  ...(auth.can('store.manage') ? [{ to: '/gestion/whatsapp', label: 'WhatsApp', icon: 'M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z' }] : []),
-  ...(auth.can('billing.manage') ? [{ to: '/gestion/abonnement', label: 'Abonnement', icon: 'M12 2l3 6 6 .9-4.5 4.4 1 6.2L12 16.6 6.5 19.5l1-6.2L3 8.9 9 8z' }] : []),
-  ...(auth.can('team.manage') ? [{ to: '/gestion/equipe', label: 'Équipe', icon: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 10a7 7 0 0 1 14 0zm15-10a3 3 0 1 0 0-6M22 21a6 6 0 0 0-4-5.6' }] : []),
-  { to: '/gestion/parametres', label: 'Paramètres', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z' },
+  ...groups.flatMap((group) => {
+    const items = group.items.filter((item) => canOpen(item.to))
+    if (!items.length) return []
+    return items.length === 1 ? [{ ...items[0], label: group.label, icon: group.icon }] : [{ ...group, items }]
+  }),
 ])
 
 function isActive(item) {
-  return item.exact ? route.path === item.to : route.path.startsWith(item.match ?? item.to)
+  if (item.items) return item.items.some(isActive)
+  if (item.exact) return route.path === item.to
+  return [item.to, ...(item.also ?? [])].some((p) => route.path === p || route.path.startsWith(`${p}/`))
+}
+
+// Un seul groupe ouvert à la fois : celui de la page affichée, ou celui que l'on vient d'ouvrir
+const openGroup = ref(null)
+watch(() => route.path, () => {
+  openGroup.value = nav.value.find((item) => item.items && isActive(item))?.label ?? openGroup.value
+}, { immediate: true })
+function toggle(group) {
+  openGroup.value = openGroup.value === group.label ? null : group.label
 }
 
 // Session de support de la plateforme : bandeau pour le support (lui-même) et pour la boutique
@@ -84,7 +114,7 @@ async function switchTo(store) {
   <div class="min-h-screen lg:flex">
     <!-- Barre latérale (ordinateur) / menu déroulant (téléphone) -->
     <aside
-      class="fixed inset-y-0 left-0 z-30 w-64 -translate-x-full border-r border-slate-200 bg-white transition lg:static lg:translate-x-0"
+      class="fixed inset-y-0 left-0 z-30 w-64 -translate-x-full overflow-y-auto border-r border-slate-200 bg-white transition lg:static lg:translate-x-0"
       :class="{ 'translate-x-0': menuOpen }"
     >
       <div class="flex h-16 items-center gap-2 border-b border-slate-100 px-4">
@@ -99,8 +129,33 @@ async function switchTo(store) {
 
       <nav class="space-y-1 p-3">
         <template v-for="item in nav" :key="item.label">
+          <div v-if="item.items">
+            <button
+              type="button"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium"
+              :class="isActive(item) ? 'text-emerald-800' : 'text-slate-700 hover:bg-slate-50'"
+              :aria-expanded="openGroup === item.label"
+              @click="toggle(item)"
+            >
+              <svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
+              {{ item.label }}
+              <svg viewBox="0 0 24 24" class="ml-auto h-4 w-4 shrink-0 text-slate-400 transition" :class="{ 'rotate-90': openGroup === item.label }" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" /></svg>
+            </button>
+            <div v-show="openGroup === item.label" class="mb-1 ml-5 space-y-0.5 border-l border-slate-200 pl-3">
+              <RouterLink
+                v-for="sub in item.items"
+                :key="sub.to"
+                :to="sub.to"
+                class="block rounded-lg px-3 py-1.5 text-sm"
+                :class="isActive(sub) ? 'bg-emerald-50 font-medium text-emerald-800' : 'text-slate-600 hover:bg-slate-50'"
+                @click="menuOpen = false"
+              >
+                {{ sub.label }}
+              </RouterLink>
+            </div>
+          </div>
           <RouterLink
-            v-if="item.to"
+            v-else
             :to="item.to"
             class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium"
             :class="isActive(item) ? 'bg-emerald-50 text-emerald-800' : 'text-slate-700 hover:bg-slate-50'"
@@ -109,11 +164,6 @@ async function switchTo(store) {
             <svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
             {{ item.label }}
           </RouterLink>
-          <span v-else class="flex cursor-default items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400" :title="`Arrive en ${item.soon}`">
-            <svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
-            {{ item.label }}
-            <span class="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-slate-500">Bientôt</span>
-          </span>
         </template>
       </nav>
 

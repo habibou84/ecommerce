@@ -265,7 +265,7 @@ class Billing
             }
 
             if ($sub->status === SubscriptionStatus::Active && ! $sub->cancel_at_period_end && $end?->lte($remind) && $this->once($store, 'renewal_reminder', $sub->id.'-'.$end->toDateString())) {
-                $this->notify($store, 'Renouvellement de l\'abonnement', "Votre abonnement {$sub->plan->name} arrive à échéance le {$end->locale('fr')->isoFormat('D MMMM')}. Renouvelez-le depuis Paramètres › Abonnement.");
+                $this->notify($store, 'Renouvellement de l\'abonnement', "Votre abonnement {$sub->plan->name} arrive à échéance le {$end->locale('fr')->isoFormat('D MMMM')}. Renouvelez-le depuis Réglages › Abonnement.");
                 $counts['reminded']++;
             }
 

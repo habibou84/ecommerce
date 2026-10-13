@@ -20,7 +20,7 @@ class SupportAccess extends StoreNotification
             'kind' => 'support',
             'title' => 'Accès du support Jibiat Marchand',
             'body' => ($this->session->admin?->name ?? 'Le support').' accède à votre gestion jusqu\'à '.$this->session->expires_at->timezone('Africa/Abidjan')->format('H:i')
-                .' : « '.$this->session->reason.' ». Vous pouvez y mettre fin dans Paramètres.',
+                .' : « '.$this->session->reason.' ». Vous pouvez y mettre fin depuis le bandeau en haut de la gestion.',
             'url' => '/gestion/parametres',
         ];
     }

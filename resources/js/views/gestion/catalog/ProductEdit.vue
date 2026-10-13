@@ -318,7 +318,7 @@ const margin = computed(() => {
 
   <form v-else class="space-y-5 pb-24" @submit.prevent="save">
     <div class="flex flex-wrap items-center gap-2">
-      <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Catalogue</RouterLink>
+      <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
       <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare">📣 Partager</button>
     </div>

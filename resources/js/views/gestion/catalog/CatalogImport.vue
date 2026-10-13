@@ -78,7 +78,7 @@ async function importDelivery() {
 
 <template>
   <div class="space-y-6">
-    <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Catalogue</RouterLink>
+    <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
 
     <section class="card space-y-4 p-4 sm:p-6">
       <div>

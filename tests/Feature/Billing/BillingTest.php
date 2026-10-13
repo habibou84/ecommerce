@@ -148,7 +148,7 @@ class BillingTest extends TestCase
         $this->storeApi($this->store, 'POST', 'carriers/manual', ['name' => 'Moto'])->assertStatus(422);
         $this->storeApi($this->store, 'POST', 'payments/accounts', ['provider' => 'wave', 'credentials' => ['api_key' => 'x', 'webhook_secret' => 'y']])->assertStatus(422);
         $this->storeApi($this->store, 'PUT', 'whatsapp', ['phone_number_id' => '1', 'access_token' => 't', 'app_secret' => 's'])
-            ->assertStatus(422)->assertJsonPath('message', 'WhatsApp automatique : fonction comprise dans l\'offre Pro. Passez à l\'offre supérieure (Paramètres › Abonnement).');
+            ->assertStatus(422)->assertJsonPath('message', 'WhatsApp automatique : fonction comprise dans l\'offre Pro. Passez à l\'offre supérieure (Réglages › Abonnement).');
 
         $usage = $this->storeApi($this->store, 'GET', 'billing')->json('data.usage');
         $this->assertSame(['used' => 2, 'limit' => 2], array_intersect_key($usage['orders_per_month'], array_flip(['used', 'limit'])));
