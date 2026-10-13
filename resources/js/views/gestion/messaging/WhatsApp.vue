@@ -4,6 +4,7 @@ import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime } from '../../../lib/format'
+import { connectWhatsApp } from '../../../lib/facebook'
 
 const data = ref(null)
 const error = ref('')
@@ -64,6 +65,32 @@ async function disconnect() {
 }
 
 const copy = (text) => navigator.clipboard?.writeText(text)
+
+// Connexion en un clic : fenêtre Facebook (inscription intégrée), puis le serveur fait le reste
+const coexistence = ref(false)
+const connecting = ref(false)
+const warnings = ref([])
+async function connectFacebook() {
+  connecting.value = true
+  error.value = ''
+  saved.value = false
+  warnings.value = []
+  try {
+    const result = await connectWhatsApp({ appId: data.value.embedded.app_id, configId: data.value.embedded.config_id, version: data.value.embedded.graph_version, coexistence: coexistence.value })
+    const response = (await http.post('/whatsapp/embedded', { ...result, coexistence: coexistence.value })).data.data
+    warnings.value = response.warnings ?? []
+    data.value = response
+    fill()
+    saved.value = true
+  } catch (e) {
+    error.value = e.response ? errorMessage(e) : e.message
+  } finally {
+    connecting.value = false
+  }
+}
+const TEMPLATE_STATUS = { APPROVED: ['Approuvé', 'bg-emerald-100 text-emerald-800'], PENDING: ['En vérification chez Meta', 'bg-amber-100 text-amber-900'], REJECTED: ['Refusé', 'bg-red-100 text-red-800'], ERROR: ['Non créé', 'bg-red-100 text-red-800'], PAUSED: ['En pause', 'bg-slate-200 text-slate-700'], DISABLED: ['Désactivé', 'bg-slate-200 text-slate-700'] }
+const embeddedAccount = () => data.value.account?.connection === 'embedded'
+const manual = ref(false) // connexion manuelle choisie alors que le bouton est proposé
 
 // Création de l'accès WhatsApp Business chez Meta, étape par étape : lien direct et clics à faire sur chaque écran
 const META_STEPS = [
@@ -134,8 +161,29 @@ const META_STEPS = [
       Envoyez automatiquement les messages à vos clients depuis le numéro WhatsApp Business de la boutique (API Cloud de Meta).
       Chaque message utilise un modèle que vous avez fait approuver chez Meta ; indiquez ici son nom.
     </p>
-    <details class="card p-4 text-sm" :open="!data.account">
-      <summary class="cursor-pointer font-semibold">Créer votre accès WhatsApp Business chez Meta (environ 30 minutes)</summary>
+    <section v-if="data.embedded && (!data.account || embeddedAccount())" class="card space-y-3 border-emerald-200 p-4">
+      <template v-if="embeddedAccount()">
+        <h3 class="font-semibold">✅ WhatsApp connecté : {{ data.account.display_phone || data.account.phone_number_id }}</h3>
+        <p class="text-sm text-slate-600">Connecté avec Facebook. Les modèles de messages ont été créés pour vous et vérifiés par Meta (en général en quelques minutes).</p>
+        <button type="button" class="btn-secondary" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Reconnecter avec Facebook' }}</button>
+      </template>
+      <template v-else>
+        <h3 class="font-semibold">Connecter WhatsApp en un clic</h3>
+        <p class="text-sm text-slate-600">
+          Une fenêtre Facebook s'ouvre et vous guide : compte Business, nom affiché, numéro de la boutique et code reçu par SMS.
+          L'application se branche ensuite toute seule et crée vos modèles de messages. Environ 5 minutes.
+        </p>
+        <label class="flex items-start gap-2 text-sm">
+          <input v-model="coexistence" type="checkbox" class="mt-0.5 h-4 w-4 accent-emerald-700" />
+          <span>Mon numéro est déjà dans l'application <strong>WhatsApp Business</strong> du téléphone et je veux continuer à l'utiliser (coexistence, si Meta la propose pour votre numéro).</span>
+        </label>
+        <button type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Fenêtre Facebook ouverte…' : 'Connecter WhatsApp avec Facebook' }}</button>
+      </template>
+      <Alert v-for="w in warnings" :key="w" tone="warning">{{ w }}</Alert>
+    </section>
+
+    <details v-if="!embeddedAccount()" class="card p-4 text-sm" :open="!data.account && !data.embedded" @toggle="manual = $event.target.open">
+      <summary class="cursor-pointer font-semibold">{{ data.embedded ? 'Connexion manuelle, sans la fenêtre Facebook (avancé)' : 'Créer votre accès WhatsApp Business chez Meta (environ 30 minutes)' }}</summary>
       <p class="mt-2 text-slate-600">
         Gratuit à créer. Le numéro utilisé ne doit plus être actif dans l'application WhatsApp du téléphone, sauf si Meta vous propose de garder les deux (« coexistence »).
         <a href="https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started" target="_blank" rel="noopener" class="text-emerald-700 underline">Guide de Meta</a>
@@ -164,8 +212,8 @@ const META_STEPS = [
     <Alert v-if="saved" tone="success">Réglages enregistrés.</Alert>
     <Alert v-if="data.account?.last_error" tone="warning">Dernière erreur de Meta : {{ data.account.last_error }}</Alert>
 
-    <form class="space-y-5" @submit.prevent="save">
-      <section class="card space-y-4 p-4">
+    <form v-if="data.account || !data.embedded || manual" class="space-y-5" @submit.prevent="save">
+      <section v-if="!embeddedAccount()" class="card space-y-4 p-4">
         <h3 class="font-semibold">Numéro WhatsApp Business</h3>
         <div class="grid gap-4 sm:grid-cols-2">
           <Field id="wa-phone-id" label="Identifiant du numéro (Phone number ID)" :error="formErrors.phone_number_id">
@@ -211,6 +259,7 @@ const META_STEPS = [
             </div>
             <Field :id="`tpl-${key}`" label="Nom du modèle Meta" :error="formErrors[`templates.${key}`]">
               <input :id="`tpl-${key}`" v-model="form.templates[key]" class="input" maxlength="100" placeholder="ex. confirmation_commande" />
+              <span v-if="TEMPLATE_STATUS[data.account?.template_status?.[key]]" class="mt-1 inline-block rounded px-1.5 py-0.5 text-xs" :class="TEMPLATE_STATUS[data.account.template_status[key]][1]">{{ TEMPLATE_STATUS[data.account.template_status[key]][0] }}</span>
             </Field>
           </li>
         </ul>

@@ -1388,11 +1388,14 @@ Table short_links {
 Table whatsapp_accounts {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, unique, not null]
+  connection varchar(20) [not null, default: 'manual', note: 'manual | embedded (connecté en un clic via l’application Meta de la plateforme)']
   phone_number_id varchar [not null]
-  waba_id varchar
+  waba_id varchar [note: 'indexé : notifications de l’application de la plateforme']
   display_phone varchar(20)
   access_token text [not null, note: 'chiffré']
-  app_secret text [not null, note: 'chiffré : vérifie la signature X-Hub-Signature-256 des webhooks de Meta']
+  app_secret text [note: 'chiffré : vérifie la signature X-Hub-Signature-256 des webhooks de Meta (vide en connexion en un clic : clé de la plateforme)']
+  two_step_pin text [note: 'chiffré : code PIN du numéro (connexion en un clic)']
+  template_status json [note: '{événement: PENDING | APPROVED | REJECTED…}']
   verify_token varchar(64) [not null, note: 'vérification de l’URL de rappel (hub.challenge)']
   webhook_uuid uuid [unique, not null, note: 'api.jibiat-marchand.com/webhooks/whatsapp/{uuid}']
   templates jsonb [note: '{événement: nom du modèle approuvé chez Meta} ; variables dans l’ordre de CustomerMessenger::EVENTS']

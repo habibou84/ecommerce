@@ -65,13 +65,46 @@ class WhatsAppCloud
     }
 
     /**
+     * Appel à l'API Graph (inscription intégrée : jeton, abonnement du compte, numéro, modèles).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public function graph(string $method, string $path, ?string $token, array $data = []): array
+    {
+        try {
+            $request = Http::acceptJson()->timeout(20);
+            if ($token) {
+                $request = $request->withToken($token);
+            }
+            $response = $method === 'GET' ? $request->get(self::GRAPH.$path, $data) : $request->post(self::GRAPH.$path, $data);
+        } catch (ConnectionException) {
+            throw new RuntimeException('Meta ne répond pas.');
+        }
+
+        if ($response->failed()) {
+            throw new RuntimeException('Meta : '.($response->json('error.error_user_msg') ?? $response->json('error.message') ?? 'erreur '.$response->status()));
+        }
+
+        return $response->json() ?? [];
+    }
+
+    /**
      * Signature des notifications de Meta : X-Hub-Signature-256 = sha256=HMAC(secret de l'application, corps).
      */
     public function verifySignature(WhatsappAccount $account, Request $request): bool
     {
+        // Numéro connecté en un clic : les notifications viennent de l'application Meta de la plateforme
+        $secret = $account->isEmbedded() ? config('services.meta.app_secret') : $account->app_secret;
+
+        return self::signatureMatches($request, $secret);
+    }
+
+    public static function signatureMatches(Request $request, ?string $secret): bool
+    {
         $signature = (string) $request->header('X-Hub-Signature-256');
 
-        return $account->app_secret && $signature !== ''
-            && hash_equals('sha256='.hash_hmac('sha256', $request->getContent(), $account->app_secret), $signature);
+        return $secret && $signature !== ''
+            && hash_equals('sha256='.hash_hmac('sha256', $request->getContent(), $secret), $signature);
     }
 }

@@ -9,6 +9,7 @@ use App\Models\WhatsappAccount;
 use App\Services\Billing\PlanLimits;
 use App\Services\Storefront\CartService;
 use App\Services\WhatsApp\CustomerMessenger;
+use App\Services\WhatsApp\EmbeddedSignup;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,17 +30,21 @@ class WhatsAppController extends Controller
 
         return response()->json(['data' => [
             'account' => $account ? [
+                'connection' => $account->connection,
                 'phone_number_id' => $account->phone_number_id,
                 'waba_id' => $account->waba_id,
                 'display_phone' => $account->display_phone,
                 'status' => $account->status,
                 'last_error' => $account->last_error,
                 'templates' => (object) ($account->templates ?? []),
+                'template_status' => (object) ($account->template_status ?? []),
                 'automations' => (object) ($account->automations ?? []),
                 'webhook_url' => Tenancy::apiUrl('/webhooks/whatsapp/'.$account->webhook_uuid),
                 'verify_token' => $account->verify_token,
             ] : null,
             'events' => CustomerMessenger::EVENTS,
+            // Bouton « Connecter WhatsApp avec Facebook » : application Meta de la plateforme
+            'embedded' => EmbeddedSignup::enabled() ? ['app_id' => config('services.meta.app_id'), 'config_id' => config('services.meta.whatsapp_config_id'), 'graph_version' => 'v20.0'] : null,
             'messages' => OutboundMessage::latest('id')->limit(30)->get()->map(fn (OutboundMessage $m) => [
                 'id' => $m->id, 'event' => $m->event, 'to' => PhoneNumber::display($m->to_phone), 'status' => $m->status, 'error' => $m->error,
                 'related_type' => $m->related_type, 'related_id' => $m->related_id, 'created_at' => $m->created_at->toIso8601String(),
@@ -81,6 +86,29 @@ class WhatsAppController extends Controller
             : WhatsappAccount::create($data + ['store_id' => $this->currentStore()->id, 'status' => 'active', 'automations' => array_fill_keys(array_keys(CustomerMessenger::EVENTS), false)]);
 
         return $this->show();
+    }
+
+    /**
+     * Retour de la fenêtre Facebook (inscription intégrée) : code et identifiants du compte choisi.
+     */
+    public function connectEmbedded(Request $request, EmbeddedSignup $signup): JsonResponse
+    {
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:1000'],
+            'waba_id' => ['required', 'string', 'max:40', 'regex:/^\d+$/'],
+            'phone_number_id' => ['nullable', 'string', 'max:40', 'regex:/^\d+$/'],
+            'coexistence' => ['sometimes', 'boolean'],
+        ]);
+        if (WhatsappAccount::first() === null) {
+            app(PlanLimits::class)->ensureFeature($this->currentStore(), 'whatsapp_api');
+        }
+
+        $result = $signup->connect($this->currentStore(), $data['code'], $data['waba_id'], $data['phone_number_id'] ?? null, (bool) ($data['coexistence'] ?? false));
+
+        $payload = $this->show()->getData(true);
+        $payload['data']['warnings'] = $result['warnings'];
+
+        return response()->json($payload);
     }
 
     public function destroy(): JsonResponse
