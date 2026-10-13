@@ -12,6 +12,7 @@ use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OrderRequest;
 use App\Http\Resources\OrderResource;
+use App\Models\Conversation;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Services\Customers\CustomerBook;
@@ -114,6 +115,11 @@ class OrderController extends Controller
     public function store(OrderRequest $request): JsonResponse
     {
         $order = $this->desk->create($this->currentStore(), $request->orderData(), $request->user());
+
+        // Commande créée depuis la boîte « Messages » : la conversation la garde et retrouve la fiche client
+        if ($request->filled('conversation_id') && ($conversation = Conversation::find($request->integer('conversation_id')))) {
+            $conversation->forceFill(['order_id' => $order->id, 'customer_id' => $order->customer_id ?? $conversation->customer_id])->save();
+        }
 
         return response()->json(['data' => ['id' => $order->id, 'reference' => $order->reference()]], 201);
     }

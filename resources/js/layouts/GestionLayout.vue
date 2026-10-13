@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NotificationBell from '../components/NotificationBell.vue'
 import { boot } from '../lib/boot'
@@ -17,6 +17,7 @@ const switchError = ref('')
 const groups = [
   { label: 'Ventes', icon: 'M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2', items: [
     { to: '/gestion/commandes', label: 'Commandes' },
+    { to: '/gestion/messages', label: 'Messages', badge: 'messages' },
     { to: '/gestion/confirmation', label: 'À confirmer' },
     { to: '/gestion/caisse/vente', label: 'Vente au comptoir' },
     { to: '/gestion/clients', label: 'Clients' },
@@ -86,6 +87,25 @@ function toggle(group) {
   openGroup.value = openGroup.value === group.label ? null : group.label
 }
 
+// Pastille des messages WhatsApp non lus
+const badges = ref({ messages: 0 })
+const groupBadge = (group) => group.items.reduce((sum, item) => sum + (badges.value[item.badge] ?? 0), 0)
+let badgeTimer
+async function refreshBadges() {
+  if (document.hidden || !canOpen('/gestion/messages')) return
+  try {
+    badges.value.messages = (await http.get('/conversations/unread')).data.data.count
+  } catch {
+    // pastille seulement : une erreur passagère ne gêne pas la page
+  }
+}
+onMounted(() => {
+  refreshBadges()
+  badgeTimer = setInterval(refreshBadges, 30000)
+})
+onBeforeUnmount(() => clearInterval(badgeTimer))
+watch(() => route.path, refreshBadges)
+
 // Session de support de la plateforme : bandeau pour le support (lui-même) et pour la boutique
 const support = computed(() => auth.profile?.support ?? null)
 const supportUntil = computed(() => support.value ? new Date(support.value.expires_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '')
@@ -140,18 +160,20 @@ async function switchTo(store) {
             >
               <svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
               {{ item.label }}
-              <svg viewBox="0 0 24 24" class="ml-auto h-4 w-4 shrink-0 text-slate-400 transition" :class="{ 'rotate-90': openGroup === item.label }" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" /></svg>
+              <span v-if="groupBadge(item) && openGroup !== item.label" class="ml-auto rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white">{{ groupBadge(item) }}</span>
+              <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400 transition" :class="[{ 'rotate-90': openGroup === item.label }, groupBadge(item) && openGroup !== item.label ? '' : 'ml-auto']" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" /></svg>
             </button>
             <div v-show="openGroup === item.label" class="mb-1 ml-5 space-y-0.5 border-l border-slate-200 pl-3">
               <RouterLink
                 v-for="sub in item.items"
                 :key="sub.to"
                 :to="sub.to"
-                class="block rounded-lg px-3 py-1.5 text-sm"
+                class="flex items-center rounded-lg px-3 py-1.5 text-sm"
                 :class="isActive(sub) ? 'bg-emerald-50 font-medium text-emerald-800' : 'text-slate-600 hover:bg-slate-50'"
                 @click="menuOpen = false"
               >
                 {{ sub.label }}
+                <span v-if="badges[sub.badge]" class="ml-auto rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white">{{ badges[sub.badge] }}</span>
               </RouterLink>
             </div>
           </div>

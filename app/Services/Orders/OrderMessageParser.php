@@ -75,6 +75,7 @@ class OrderMessageParser
 
     /**
      * Produits du catalogue cités : tous les mots significatifs du nom présents (pluriel accepté).
+     * Un nom à moitié cité n'est retenu que s'il désigne un seul produit.
      * Quantité lue juste avant le nom (« 2 robes », « deux sacs ») ou après (« x2 »). Variante retenue si toutes
      * ses valeurs d'options apparaissent dans le message (« taille M », « rouge »).
      *
@@ -89,12 +90,25 @@ class OrderMessageParser
             ->with(['variants' => fn ($q) => $q->where('is_active', true)->with(['option1', 'option2', 'option3'])])
             ->limit(1000)->get();
 
-        $items = [];
-        foreach ($products as $product) {
+        $found = fn (string $t) => isset($words[$t]) || isset($words[$t.'s']) || isset($words[$t.'x']);
+        $candidates = $products->map(function (Product $product) use ($found) {
             $tokens = array_values(array_filter(explode(' ', PlaceMatcher::normalize($product->title)), fn ($t) => mb_strlen($t) >= 2 && ! in_array($t, self::STOPWORDS, true)));
-            if ($tokens === [] || ! collect($tokens)->every(fn ($t) => isset($words[$t]) || isset($words[$t.'s']) || isset($words[$t.'x']))) {
-                continue;
-            }
+
+            return ['product' => $product, 'tokens' => $tokens, 'matched' => count(array_filter($tokens, $found))];
+        })->filter(fn ($c) => $c['tokens'] !== []);
+
+        // Tous les mots du nom cités ; à défaut, le seul produit dont le premier mot et au moins un autre sont cités
+        // (« robe wax » pour « Robe wax évasée »), s'il n'y en a pas deux aussi proches
+        $matches = $candidates->filter(fn ($c) => $c['matched'] === count($c['tokens']));
+        if ($matches->isEmpty()) {
+            $partial = $candidates->filter(fn ($c) => $c['matched'] >= 2 && $found($c['tokens'][0]));
+            $best = $partial->max('matched');
+            $partial = $partial->where('matched', $best);
+            $matches = $partial->count() === 1 ? $partial : collect();
+        }
+
+        $items = [];
+        foreach ($matches as ['product' => $product, 'tokens' => $tokens]) {
 
             $variant = $this->variant($product->variants, $words);
             $items[] = [

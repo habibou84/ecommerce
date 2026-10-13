@@ -1,0 +1,117 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1\Messaging;
+
+use App\Http\Controllers\Controller;
+use App\Models\Conversation;
+use App\Models\ConversationMessage;
+use App\Models\WhatsappAccount;
+use App\Services\WhatsApp\Inbox;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Jibiat\Socle\PhoneNumber;
+
+/**
+ * Boîte « Messages » de la gestion : conversations WhatsApp des clients, réponses de l'équipe, et texte à analyser
+ * pour créer la commande depuis la conversation.
+ */
+class ConversationController extends Controller
+{
+    public function __construct(private readonly Inbox $inbox) {}
+
+    public function index(Request $request): JsonResponse
+    {
+        $request->validate(['filter' => ['nullable', 'in:all,unread,without_order'], 'q' => ['nullable', 'string', 'max:60']]);
+
+        $query = Conversation::query()->whereNotNull('last_inbound_at')->with('order.store')
+            ->when($request->input('filter') === 'unread', fn ($q) => $q->where('unread_count', '>', 0))
+            ->when($request->input('filter') === 'without_order', fn ($q) => $q->whereNull('order_id'))
+            ->when($request->filled('q'), function ($q) use ($request) {
+                $term = trim((string) $request->input('q'));
+                $digits = preg_replace('/\D/', '', $term);
+                $q->where(fn ($w) => $w->where('contact_name', 'ilike', '%'.$term.'%')
+                    ->when(strlen($digits) >= 4, fn ($w) => $w->orWhere('contact', 'like', '%'.substr($digits, -8).'%')));
+            })
+            ->orderByDesc('last_message_at');
+        $page = $query->paginate(30);
+
+        return response()->json([
+            'data' => collect($page->items())->map(fn (Conversation $c) => $this->summary($c))->values(),
+            'meta' => ['total' => $page->total(), 'last_page' => $page->lastPage(), 'unread' => $this->unreadCount()],
+            'connected' => WhatsappAccount::query()->exists(),
+        ]);
+    }
+
+    public function unread(): JsonResponse
+    {
+        return response()->json(['data' => ['count' => $this->unreadCount()]]);
+    }
+
+    public function show(int $conversation): JsonResponse
+    {
+        $model = Conversation::with(['order.store', 'customer'])->findOrFail($conversation);
+        $this->inbox->markRead($model);
+
+        return response()->json(['data' => $this->detail($model)]);
+    }
+
+    public function reply(Request $request, int $conversation): JsonResponse
+    {
+        $data = $request->validate(['body' => ['required', 'string', 'max:4000']], [], ['body' => 'message']);
+        $model = Conversation::findOrFail($conversation);
+        $this->inbox->reply($model, trim($data['body']), $request->user());
+
+        return response()->json(['data' => $this->detail($model->fresh(['order.store', 'customer']))], 201);
+    }
+
+    private function unreadCount(): int
+    {
+        return Conversation::query()->where('unread_count', '>', 0)->count();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function summary(Conversation $c): array
+    {
+        return [
+            'id' => $c->id,
+            'channel' => $c->channel,
+            'name' => $c->contact_name,
+            'phone' => $c->contact,
+            'phone_display' => PhoneNumber::display($c->contact),
+            'preview' => $c->last_preview,
+            'last_message_at' => $c->last_message_at?->toIso8601String(),
+            'unread' => $c->unread_count,
+            'order' => $c->order ? ['id' => $c->order->id, 'reference' => $c->order->reference()] : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function detail(Conversation $c): array
+    {
+        $messages = $c->messages()->with('user:id,name')->latest('sent_at')->latest('id')->limit(200)->get()->reverse()->values();
+        $since = $c->order?->created_at;
+
+        return $this->summary($c) + [
+            'customer' => $c->customer ? ['id' => $c->customer->id, 'name' => $c->customer->name] : null,
+            'can_reply' => $c->canReply(),
+            'reply_until' => $c->last_inbound_at?->addHours(Conversation::REPLY_WINDOW_HOURS)->toIso8601String(),
+            'messages' => $messages->map(fn (ConversationMessage $m) => [
+                'id' => $m->id,
+                'direction' => $m->direction,
+                'type' => $m->type,
+                'body' => $m->body,
+                'status' => $m->status,
+                'error' => $m->error,
+                'by' => $m->user?->name,
+                'sent_at' => $m->sent_at->toIso8601String(),
+            ]),
+            // Ce que le client a écrit depuis la dernière commande créée ici : texte proposé à l'analyse
+            'order_text' => $messages->filter(fn (ConversationMessage $m) => $m->direction === 'in' && ($since === null || $m->sent_at->gt($since)))
+                ->pluck('body')->take(-20)->implode("\n"),
+        ];
+    }
+}
