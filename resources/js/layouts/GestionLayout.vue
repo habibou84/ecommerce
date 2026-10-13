@@ -48,6 +48,7 @@ const groups = [
   ] },
   { label: 'Réglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
     { to: '/gestion/parametres', label: 'Ma boutique' },
+    { to: '/gestion/compte', label: 'Mon compte' },
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/whatsapp', label: 'WhatsApp' },
@@ -191,10 +192,10 @@ async function switchTo(store) {
         <div class="ml-auto flex items-center gap-3">
           <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="btn-ghost px-2 text-sm" title="Écrire au support Jibiat Marchand sur WhatsApp">💬 Aide</a>
           <NotificationBell />
-          <span class="hidden text-right text-sm sm:block">
+          <RouterLink to="/gestion/compte" class="hidden rounded-lg px-2 py-1 text-right text-sm hover:bg-slate-50 sm:block" title="Mon compte">
             <span class="block font-medium">{{ auth.user?.name }}</span>
             <span class="block text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
-          </span>
+          </RouterLink>
           <button class="btn-secondary px-3 py-2" @click="logout">Déconnexion</button>
         </div>
       </header>

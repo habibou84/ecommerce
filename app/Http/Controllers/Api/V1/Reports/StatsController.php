@@ -68,7 +68,7 @@ class StatsController extends Controller
             'channels.email.send_at' => ['sometimes', 'date_format:H:i'],
         ]);
         if (($data['channels']['email']['is_active'] ?? false) && blank($request->user()->email)) {
-            return response()->json(['message' => 'Ajoutez d\'abord votre adresse email (Paramètres › Mon compte).', 'errors' => ['channels.email.is_active' => ['Adresse email manquante.']]], 422);
+            return response()->json(['message' => 'Ajoutez d\'abord votre adresse email (Réglages › Mon compte).', 'errors' => ['channels.email.is_active' => ['Adresse email manquante.']]], 422);
         }
 
         foreach ($data['channels'] as $channel => $settings) {

@@ -93,6 +93,7 @@ const storeRoutes = [
       { path: 'abonnement', component: () => import('../views/gestion/Billing.vue'), meta: { title: 'Abonnement', permission: 'billing.manage' } },
       { path: 'equipe', component: () => import('../views/gestion/Team.vue'), meta: { title: 'Équipe', permission: 'team.manage' } },
       { path: 'parametres', component: () => import('../views/gestion/Settings.vue'), meta: { title: 'Ma boutique' } },
+      { path: 'compte', component: () => import('../views/gestion/Account.vue'), meta: { title: 'Mon compte' } },
     ],
   },
   { path: '/gestion/:any(.*)*', redirect: '/gestion' },
