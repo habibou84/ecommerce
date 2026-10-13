@@ -106,6 +106,14 @@ class Order extends Model
         return $this->store->url('/suivi/'.$this->tracking_token);
     }
 
+    /**
+     * Ticket de caisse du client (lien public, imprimable sur une imprimante de tickets de 58 ou 80 mm).
+     */
+    public function receiptUrl(): string
+    {
+        return $this->store->url('/recu/'.$this->tracking_token);
+    }
+
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class)->orderBy('sequence');

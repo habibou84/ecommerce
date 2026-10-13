@@ -6,6 +6,7 @@ use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Models\CashMovement;
 use App\Models\CashSession;
+use App\Models\Order;
 use App\Services\Finance\CashRegister;
 use App\Services\Finance\CounterSales;
 use Illuminate\Http\JsonResponse;
@@ -110,6 +111,22 @@ class CashRegisterController extends Controller
             'amount_paid' => $order->amount_paid,
             'amount_due' => $order->amountDue(),
             'payment_status' => $order->payment_status->value,
+            'receipt_url' => $order->receiptUrl(),
+            'whatsapp_url' => $order->customer_phone ? $sales->whatsappUrl($order, $order->customer_phone) : null,
         ]], 201);
+    }
+
+    /**
+     * Ticket par WhatsApp à un numéro saisi après la vente (client anonyme) : le numéro n'est pas enregistré.
+     */
+    public function receiptWhatsapp(Request $request, int $order, CounterSales $sales): JsonResponse
+    {
+        if (is_string($request->input('phone')) && PhoneNumber::isValid($request->input('phone'))) {
+            $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);
+        }
+        $data = $request->validate(['phone' => ['required', new PhoneRule]], [], ['phone' => 'numéro WhatsApp']);
+        $model = Order::with('store')->findOrFail($order);
+
+        return response()->json(['data' => ['whatsapp_url' => $sales->whatsappUrl($model, $data['phone'])]]);
     }
 }

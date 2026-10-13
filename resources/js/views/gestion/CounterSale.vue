@@ -17,6 +17,7 @@ const busy = ref(false)
 const error = ref('')
 const errors = ref({})
 const done = ref(null)
+const share = reactive({ phone: '', error: '', busy: false })
 
 const total = computed(() => lines.value.reduce((sum, l) => sum + l.unit_price * l.quantity, 0))
 // Encaissé avec le moyen principal : pour les espèces, le montant reçu au-delà du reste est rendu
@@ -61,11 +62,28 @@ async function sell() {
   }
 }
 
+// Ticket par WhatsApp à un numéro saisi maintenant (client anonyme). L'onglet est ouvert avant l'appel pour ne pas être bloqué.
+async function sendWhatsapp() {
+  share.error = ''
+  share.busy = true
+  const tab = window.open('', '_blank')
+  try {
+    const { data } = await http.post(`/counter-sales/${done.value.id}/whatsapp`, { phone: share.phone })
+    tab ? (tab.location.href = data.data.whatsapp_url) : (window.location.href = data.data.whatsapp_url)
+  } catch (e) {
+    tab?.close()
+    share.error = errorMessage(e)
+  } finally {
+    share.busy = false
+  }
+}
+
 function reset() {
   lines.value = []
   Object.assign(customer, { open: false, name: '', phone: '' })
   Object.assign(pay, { method: 'cash', received: null, second: false, secondMethod: 'wave', secondAmount: 0 })
   done.value = null
+  Object.assign(share, { phone: '', error: '', busy: false })
   error.value = ''
 }
 </script>
@@ -80,10 +98,20 @@ function reset() {
       <p class="text-3xl font-semibold">{{ money(done.total) }}</p>
       <p v-if="done.change" class="rounded-lg bg-amber-50 p-3 text-lg font-semibold text-amber-900">Monnaie à rendre : {{ money(done.change) }}</p>
       <p v-if="done.amount_due" class="text-sm text-red-700">Reste à payer par le client : {{ money(done.amount_due) }}</p>
-      <div class="flex gap-2">
-        <RouterLink :to="`/gestion/commandes/${done.id}`" class="btn-secondary flex-1">Voir la commande</RouterLink>
-        <button class="btn-brand flex-1" @click="reset">Nouvelle vente</button>
+      <div class="grid grid-cols-2 gap-2">
+        <a :href="`${done.receipt_url}?imprimer=1`" target="_blank" class="btn-secondary">🧾 Imprimer le ticket</a>
+        <a v-if="done.whatsapp_url" :href="done.whatsapp_url" target="_blank" class="btn-secondary">Ticket par WhatsApp</a>
+        <RouterLink v-else :to="`/gestion/commandes/${done.id}`" class="btn-secondary">Voir la commande</RouterLink>
       </div>
+      <form v-if="!done.whatsapp_url" class="space-y-1 text-left" @submit.prevent="sendWhatsapp">
+        <label for="cs-share" class="text-sm text-slate-600">Envoyer le ticket par WhatsApp</label>
+        <div class="flex gap-2">
+          <input id="cs-share" v-model="share.phone" type="tel" inputmode="tel" class="input flex-1" placeholder="Numéro du client" required />
+          <button class="btn-secondary" :disabled="share.busy">Envoyer</button>
+        </div>
+        <p v-if="share.error" class="text-sm text-red-700">{{ share.error }}</p>
+      </form>
+      <button class="btn-brand w-full py-3 text-base" @click="reset">Nouvelle vente</button>
     </section>
 
     <form v-else class="space-y-4" @submit.prevent="sell">

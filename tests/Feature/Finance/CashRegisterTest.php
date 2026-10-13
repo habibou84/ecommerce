@@ -73,6 +73,43 @@ class CashRegisterTest extends TestCase
         $this->storeApi($this->store, 'GET', 'cash-register')->assertOk()->assertJsonPath('data.session.expected_cash', 20000 + 15000 + 4000);
     }
 
+    public function test_receipt_to_print_or_send_by_whatsapp(): void
+    {
+        $this->storeApi($this->store, 'POST', 'cash-register/open', ['opening_float' => 0])->assertCreated();
+        $sale = $this->sale([['method' => 'cash', 'amount' => 15000], ['method' => 'wave', 'amount' => 5000]])->assertCreated()
+            ->assertJsonPath('data.whatsapp_url', null);
+        $receipt = $sale->json('data.receipt_url');
+        $this->assertStringStartsWith($this->storeUrl($this->store, '/recu/'), $receipt);
+
+        // Ticket public : articles, total, paiements ; impression automatique sur demande
+        $page = $this->get($receipt)->assertOk()->assertSee('Awa Mode')->assertSee('Ticket #1001')->assertSee('Robe')
+            ->assertSee('2 × 10 000 F')->assertSee('20 000 F')->assertSee('Espèces')->assertSee('Wave')->assertDontSee('Reste à payer');
+        $this->assertStringNotContainsString('window.print())</script>', $page->getContent());
+        $this->assertStringContainsString('window.print())</script>', $this->get($receipt.'?imprimer=1')->getContent());
+
+        // Envoi à un numéro saisi après la vente (non enregistré)
+        $id = $sale->json('data.id');
+        $url = $this->storeApi($this->store, 'POST', "counter-sales/{$id}/whatsapp", ['phone' => '07 01 02 03 04'])->assertOk()->json('data.whatsapp_url');
+        $this->assertStringStartsWith('https://wa.me/2250701020304?text=', $url);
+        $this->assertStringContainsString(rawurlencode($receipt), $url);
+        $this->assertNull(Order::find($id)->customer_phone);
+        $this->storeApi($this->store, 'POST', "counter-sales/{$id}/whatsapp", ['phone' => '12'])->assertStatus(422);
+
+        // Client connu, à crédit : lien WhatsApp direct, reste à payer sur le ticket
+        $credit = $this->sale([['method' => 'cash', 'amount' => 4000]], 1, ['customer_name' => 'Fatou Koné', 'customer_phone' => '0506070809'])->assertCreated();
+        $this->assertStringStartsWith('https://wa.me/2250506070809?text='.rawurlencode('Bonjour Fatou, merci pour votre achat chez Awa Mode !'), $credit->json('data.whatsapp_url'));
+        $this->get($credit->json('data.receipt_url'))->assertOk()->assertSee('Client : Fatou Koné')->assertSee('Reste à payer : 6 000 F');
+
+        // Lien du ticket aussi dans le détail de la commande ; jeton inconnu : introuvable
+        $this->storeApi($this->store, 'GET', "orders/{$id}")->assertJsonPath('data.receipt_url', $receipt);
+        $this->get($this->storeUrl($this->store, '/recu/'.str_repeat('x', 24)))->assertNotFound();
+
+        // Commande d'une autre boutique : introuvable
+        $other = $this->createStore(['slug' => 'autre']);
+        $this->actingAs($other->owner);
+        $this->storeApi($other, 'POST', "counter-sales/{$id}/whatsapp", ['phone' => '0701020304'])->assertNotFound();
+    }
+
     public function test_expenses_withdrawals_and_closing(): void
     {
         // Dépense en espèces sans caisse ouverte : refusée ; payée par Wave : acceptée
