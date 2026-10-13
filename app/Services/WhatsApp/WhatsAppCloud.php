@@ -10,7 +10,7 @@ use RuntimeException;
 
 /**
  * API Cloud de WhatsApp (graph.facebook.com) au nom du marchand. Un message envoyé à l'initiative de la boutique
- * est toujours un modèle approuvé par Meta.
+ * est toujours un modèle approuvé par Meta ; un texte libre n'est permis qu'en réponse, dans les 24 h.
  */
 class WhatsAppCloud
 {
@@ -31,14 +31,28 @@ class WhatsAppCloud
             $components[] = ['type' => 'button', 'sub_type' => 'quick_reply', 'index' => (string) $index, 'parameters' => [['type' => 'payload', 'payload' => $payload]]];
         }
 
+        return $this->send($account, $to, [
+            'type' => 'template',
+            'template' => array_filter(['name' => $template, 'language' => ['code' => 'fr'], 'components' => $components ?: null]),
+        ]);
+    }
+
+    /**
+     * Réponse libre, permise par Meta dans les 24 h qui suivent le dernier message du client.
+     */
+    public function sendText(WhatsappAccount $account, string $to, string $text): string
+    {
+        return $this->send($account, $to, ['type' => 'text', 'text' => ['preview_url' => true, 'body' => $text]]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $message
+     */
+    private function send(WhatsappAccount $account, string $to, array $message): string
+    {
         try {
             $response = Http::withToken($account->access_token)->acceptJson()->timeout(15)
-                ->post(self::GRAPH.$account->phone_number_id.'/messages', array_filter([
-                    'messaging_product' => 'whatsapp',
-                    'to' => ltrim($to, '+'),
-                    'type' => 'template',
-                    'template' => array_filter(['name' => $template, 'language' => ['code' => 'fr'], 'components' => $components ?: null]),
-                ]));
+                ->post(self::GRAPH.$account->phone_number_id.'/messages', ['messaging_product' => 'whatsapp', 'to' => ltrim($to, '+')] + $message);
         } catch (ConnectionException) {
             throw new RuntimeException('WhatsApp (Meta) ne répond pas.');
         }

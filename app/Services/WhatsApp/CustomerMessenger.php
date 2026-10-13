@@ -34,7 +34,7 @@ class CustomerMessenger
         'daily_report' => ['label' => 'Rapport du jour (envoyé à l\'équipe)', 'variables' => ['boutique', 'date', 'commandes reçues', 'montant livré', 'à confirmer', 'à expédier'], 'buttons' => []],
     ];
 
-    public function __construct(private readonly OrderDesk $orders) {}
+    public function __construct(private readonly OrderDesk $orders, private readonly Inbox $inbox) {}
 
     public function account(int $storeId, string $event): ?WhatsappAccount
     {
@@ -122,6 +122,9 @@ class CustomerMessenger
             'status' => 'queued',
         ]);
         SendWhatsAppMessage::dispatch($message->id, $params, $buttons)->afterCommit();
+        if ($type !== 'report') {
+            $this->inbox->logAutomatic($account->store_id, $phone, '🤖 '.Str::before(self::EVENTS[$event]['label'], ' (').' · '.implode(' · ', $params));
+        }
 
         return $message;
     }
@@ -138,6 +141,7 @@ class CustomerMessenger
                 $value = $change['value'] ?? [];
 
                 foreach ($value['statuses'] ?? [] as $status) {
+                    $this->inbox->updateStatus($account->store_id, (string) ($status['id'] ?? ''), (string) ($status['status'] ?? ''), ($status['status'] ?? null) === 'failed' ? mb_substr((string) ($status['errors'][0]['title'] ?? 'Échec'), 0, 250) : null);
                     $column = ['sent' => 'sent_at', 'delivered' => 'delivered_at', 'read' => 'read_at'][$status['status'] ?? ''] ?? null;
                     OutboundMessage::forStore($account->store_id)->where('provider_message_id', $status['id'] ?? '')->update(array_filter([
                         'status' => $status['status'] ?? null,
@@ -147,6 +151,7 @@ class CustomerMessenger
                 }
 
                 foreach ($value['messages'] ?? [] as $message) {
+                    $this->inbox->receive($account, $message, $value['contacts'] ?? []);
                     $reply = $message['button']['payload'] ?? $message['interactive']['button_reply']['id'] ?? null;
                     if (is_string($reply) && preg_match('/^(confirm|cancel):(\d+)$/', $reply, $m)) {
                         $this->answer($account, (int) $m[2], $m[1], (string) ($message['from'] ?? ''));

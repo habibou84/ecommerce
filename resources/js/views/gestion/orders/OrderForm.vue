@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import PlacePicker from '../../../components/PlacePicker.vue'
@@ -11,6 +11,7 @@ import { SOURCES } from '../../../lib/orders'
 
 const props = defineProps({ id: { type: String, default: null } })
 const router = useRouter()
+const route = useRoute()
 const editing = computed(() => !!props.id)
 
 const form = reactive({
@@ -43,6 +44,8 @@ const errors = ref({})
 const error = ref('')
 const saving = ref(false)
 const loading = ref(editing.value)
+// Commande créée depuis la boîte « Messages » : le client est l'expéditeur du message
+const conversation = ref(null)
 
 onMounted(async () => {
   zones.value = (await http.get('/delivery-zones')).data.data
@@ -61,8 +64,28 @@ onMounted(async () => {
     shippingFee.value = o.shipping_fee
     manualFee.value = true
     loading.value = false
+  } else if (route.query.conversation) {
+    await fromConversation(route.query.conversation)
   }
 })
+
+async function fromConversation(id) {
+  try {
+    conversation.value = (await http.get(`/conversations/${id}`)).data.data
+  } catch {
+    return
+  }
+  const c = conversation.value
+  form.source = 'whatsapp'
+  paste.value = c.order_text
+  if (paste.value.trim().length >= 5) await analyse()
+  // Un autre numéro cité dans le message devient le second numéro de livraison
+  const parsed = form.customer_phone.replace(/\D/g, '')
+  if (parsed && !c.phone.endsWith(parsed.slice(-10))) form.shipping_phone2 ||= form.customer_phone
+  form.customer_phone = c.phone_display
+  form.customer_name ||= c.customer?.name ?? c.name ?? ''
+  await lookupCustomer()
+}
 
 // Prix du moment (vente flash, prix par quantité) et code promo, recalculés par le serveur ; un prix modifié à la main est gardé
 const promo = ref(null)
@@ -204,7 +227,7 @@ async function save() {
       await http.put(`/orders/${props.id}`, payload)
       router.push(`/gestion/commandes/${props.id}`)
     } else {
-      const { data } = await http.post('/orders', payload)
+      const { data } = await http.post('/orders', { ...payload, conversation_id: conversation.value?.id ?? null })
       router.push(`/gestion/commandes/${data.data.id}`)
     }
   } catch (e) {
@@ -219,7 +242,8 @@ async function save() {
 <template>
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
   <form v-else class="space-y-5 pb-24" @submit.prevent="save">
-    <RouterLink :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
+    <RouterLink v-if="conversation" :to="`/gestion/messages/${conversation.id}`" class="text-sm text-slate-500 hover:text-emerald-700">← Conversation avec {{ conversation.name || conversation.phone_display }}</RouterLink>
+    <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
 
     <section v-if="!editing" class="card space-y-3 p-4 sm:p-6">

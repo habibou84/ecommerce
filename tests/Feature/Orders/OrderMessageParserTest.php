@@ -41,6 +41,23 @@ class OrderMessageParserTest extends TestCase
         $this->assertSame([1, $sac->variants[0]->id], [$items['Sac en pagne']['quantity'], $items['Sac en pagne']['variant_id']]);
     }
 
+    public function test_a_product_half_named_is_found_only_when_unique(): void
+    {
+        $store = $this->createStore();
+        $writer = app(CatalogWriter::class);
+        $evasee = $writer->save($store, null, ['title' => 'Robe wax évasée', 'variants' => [['price' => 15000]]]);
+        $writer->save($store, null, ['title' => 'Sac en pagne', 'variants' => [['price' => 9000]]]);
+        $parser = app(OrderMessageParser::class);
+
+        $items = $parser->parse($store, 'Bonsoir je veux 2 robes wax')['items'];
+        $this->assertSame([[$evasee->id, 2]], array_map(fn ($i) => [$i['product_id'], $i['quantity']], $items));
+        // Un seul mot cité, ou deux produits aussi proches : rien n'est deviné
+        $this->assertSame([], $parser->parse($store, 'je veux une robe')['items']);
+        $writer->save($store, null, ['title' => 'Robe wax droite', 'variants' => [['price' => 14000]]]);
+        $this->assertSame([], $parser->parse($store, 'je veux 2 robes wax')['items']);
+        $this->assertSame('Robe wax droite', $parser->parse($store, 'je veux la robe wax droite')['items'][0]['title']);
+    }
+
     public function test_names_after_usual_introductions(): void
     {
         $store = $this->createStore();

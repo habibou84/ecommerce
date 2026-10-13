@@ -1441,6 +1441,45 @@ Table outbound_messages {
   }
 }
 
+Table conversations {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  channel varchar(20) [not null, note: 'whatsapp (puis messenger, instagram)']
+  contact varchar(64) [not null, note: 'numéro +225… pour WhatsApp']
+  contact_name varchar(120) [note: 'nom du profil WhatsApp']
+  customer_id bigint [ref: > customers.id]
+  order_id bigint [ref: > orders.id, note: 'dernière commande créée depuis la conversation']
+  last_preview varchar(200)
+  last_message_at timestamp
+  last_inbound_at timestamp [note: 'réponse libre permise 24 h après']
+  unread_count int [not null, default: 0]
+  created_at timestamp [not null]
+  indexes {
+    (store_id, channel, contact) [unique]
+    (store_id, last_message_at)
+  }
+  Note: 'Boîte « Messages » : un fil par client et par canal'
+}
+
+Table conversation_messages {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  conversation_id bigint [ref: > conversations.id, not null]
+  direction varchar(3) [not null, note: 'in | out']
+  type varchar(20) [not null, note: 'text | image | audio | video | document | location | sticker | button | interactive | template | other']
+  body text
+  provider_message_id varchar [note: 'wamid… (notification rejouée ignorée)']
+  status varchar(20) [not null, note: 'received | sent | delivered | read | failed']
+  error varchar
+  user_id bigint [ref: > users.id, note: 'membre qui a répondu']
+  sent_at timestamp [not null]
+  created_at timestamp [not null]
+  indexes {
+    (conversation_id, sent_at)
+    provider_message_id
+  }
+}
+
 Table push_subscriptions {
   id bigint [pk, increment]
   user_id bigint [ref: > users.id, not null]
@@ -1672,6 +1711,8 @@ TableGroup messages {
   whatsapp_accounts
   message_templates
   outbound_messages
+  conversations
+  conversation_messages
   push_subscriptions
   notification_preferences
   scheduled_reports
