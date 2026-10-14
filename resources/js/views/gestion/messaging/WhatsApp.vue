@@ -4,7 +4,8 @@ import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime } from '../../../lib/format'
-import { connectWhatsApp } from '../../../lib/facebook'
+import { boot } from '../../../lib/boot'
+import { facebookRelayUrl, takeFacebookResult } from '../../../lib/facebook'
 
 const data = ref(null)
 const error = ref('')
@@ -38,7 +39,12 @@ async function load() {
     error.value = errorMessage(e)
   }
 }
-onMounted(load)
+onMounted(async () => {
+  const facebook = takeFacebookResult()
+  await load()
+  if (facebook?.error) error.value = facebook.error
+  else if (facebook && data.value) await finishFacebook(facebook)
+})
 
 async function save() {
   busy.value = true
@@ -70,20 +76,25 @@ const copy = (text) => navigator.clipboard?.writeText(text)
 const coexistence = ref(false)
 const connecting = ref(false)
 const warnings = ref([])
-async function connectFacebook() {
+// La fenêtre Facebook s'ouvre depuis la plateforme (seul domaine déclaré chez Meta), qui revient ici avec le résultat
+function connectFacebook() {
+  connecting.value = true
+  const { app_id: appId, config_id: configId, graph_version: version } = data.value.embedded
+  window.location.assign(facebookRelayUrl(boot.platformUrl, { appId, configId, version, coexistence: coexistence.value }, window.location.origin + window.location.pathname))
+}
+async function finishFacebook(result) {
   connecting.value = true
   error.value = ''
   saved.value = false
   warnings.value = []
   try {
-    const result = await connectWhatsApp({ appId: data.value.embedded.app_id, configId: data.value.embedded.config_id, version: data.value.embedded.graph_version, coexistence: coexistence.value })
-    const response = (await http.post('/whatsapp/embedded', { ...result, coexistence: coexistence.value })).data.data
+    const response = (await http.post('/whatsapp/embedded', result)).data.data
     warnings.value = response.warnings ?? []
     data.value = response
     fill()
     saved.value = true
   } catch (e) {
-    error.value = e.response ? errorMessage(e) : e.message
+    error.value = errorMessage(e)
   } finally {
     connecting.value = false
   }
@@ -177,7 +188,7 @@ const META_STEPS = [
           <input v-model="coexistence" type="checkbox" class="mt-0.5 h-4 w-4 accent-emerald-700" />
           <span>Mon numéro est déjà dans l'application <strong>WhatsApp Business</strong> du téléphone et je veux continuer à l'utiliser (coexistence, si Meta la propose pour votre numéro).</span>
         </label>
-        <button type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Fenêtre Facebook ouverte…' : 'Connecter WhatsApp avec Facebook' }}</button>
+        <button type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Connecter WhatsApp avec Facebook' }}</button>
       </template>
       <Alert v-for="w in warnings" :key="w" tone="warning">{{ w }}</Alert>
     </section>

@@ -29,13 +29,15 @@ de l'application). En attendant, le bouton fonctionne déjà pour les comptes aj
    - domaines de l'application : `jibiat-marchand.com` ;
    - URL de la politique de confidentialité : `https://jibiat-marchand.com/confidentialite` ;
    - URL des conditions : `https://jibiat-marchand.com/cgu` ;
+   - suppression des données : « URL des instructions », `https://jibiat-marchand.com/confidentialite` (section 6) ;
    - icône (1024 × 1024) et catégorie « Entreprise ».
    Notez l'**identifiant de l'application** et la **clé secrète** (« Afficher »).
 4. Ajoutez le produit **Facebook Login for Business** :
    - Paramètres › URI de redirection OAuth valides : `https://jibiat-marchand.com/` et
      `https://preprod.jibiat-marchand.com/` ;
-   - domaines autorisés pour le SDK JavaScript : `jibiat-marchand.com`, `*.jibiat-marchand.com` (chaque boutique a
-     son sous-domaine) ;
+   - domaines autorisés pour le SDK JavaScript : `jibiat-marchand.com` et `preprod.jibiat-marchand.com` seulement
+     (Meta refuse les jokers `*.` : la fenêtre Facebook de toutes les boutiques s'ouvre depuis la plateforme, page
+     `/whatsapp/facebook`, puis revient sur la gestion de la boutique) ;
    - **Configurations › Créer une configuration** : nom « WhatsApp boutiques », variante **« Inscription intégrée
      WhatsApp »** (WhatsApp Embedded Signup), produits : WhatsApp Cloud API, droits
      `whatsapp_business_management` et `whatsapp_business_messaging`. Notez l'**identifiant de configuration**.
