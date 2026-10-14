@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import http from '../lib/http'
+import { registerDevice, unregisterDevice } from '../lib/push'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -9,6 +10,7 @@ const router = useRouter()
 const available = ref(true)
 
 onMounted(async () => {
+  registerDevice()
   // Installable sur l'écran d'accueil ; la page s'ouvre même sans réseau
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/livreur-sw.js').catch(() => {})
   try {
@@ -24,6 +26,7 @@ async function toggle() {
 }
 
 async function logout() {
+  await unregisterDevice()
   await auth.logout()
   router.replace('/livreur/connexion')
 }

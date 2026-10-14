@@ -2,12 +2,13 @@
 
 namespace App\Notifications;
 
+use App\Notifications\Channels\PushChannel;
 use App\Notifications\Channels\StoreDatabaseChannel;
 use Illuminate\Notifications\Notification;
 
 /**
- * Notification interne d'une boutique (cloche de la gestion). Le push sur téléphone viendra avec l'application
- * installable ; WhatsApp en phase 6.
+ * Notification interne d'une boutique : cloche de la gestion, et push sur les téléphones où l'application est
+ * installée.
  */
 abstract class StoreNotification extends Notification
 {
@@ -15,7 +16,7 @@ abstract class StoreNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return [StoreDatabaseChannel::class];
+        return [StoreDatabaseChannel::class, PushChannel::class];
     }
 
     /**

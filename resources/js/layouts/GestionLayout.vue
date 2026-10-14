@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NotificationBell from '../components/NotificationBell.vue'
 import { inApp } from '../lib/app'
+import { registerDevice, unregisterDevice } from '../lib/push'
 import { boot } from '../lib/boot'
 import http, { errorMessage } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
@@ -101,6 +102,7 @@ async function refreshBadges() {
   }
 }
 onMounted(() => {
+  registerDevice()
   refreshBadges()
   badgeTimer = setInterval(refreshBadges, 30000)
 })
@@ -117,6 +119,7 @@ async function endSupport() {
 const helpUrl = computed(() => `https://wa.me/${String(boot.supportWhatsapp ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide pour ma boutique ${auth.store?.name ?? ''} (${boot.store?.slug ?? ''}).`)}`)
 
 async function logout() {
+  await unregisterDevice()
   await auth.logout()
   router.replace('/gestion/connexion')
 }

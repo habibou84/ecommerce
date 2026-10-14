@@ -2,12 +2,15 @@
 
 namespace App\Services\WhatsApp;
 
+use App\Enums\Permission;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\Customer;
 use App\Models\User;
 use App\Models\WhatsappAccount;
+use App\Notifications\CustomerMessage;
+use App\Services\Accounts\TeamNotifier;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -19,7 +22,7 @@ use RuntimeException;
  */
 class Inbox
 {
-    public function __construct(private readonly WhatsAppCloud $cloud) {}
+    public function __construct(private readonly WhatsAppCloud $cloud, private readonly TeamNotifier $team) {}
 
     /**
      * Message reçu d'un client (notification de Meta). Une notification rejouée n'est enregistrée qu'une fois.
@@ -43,8 +46,10 @@ class Inbox
         $name = collect($contacts)->firstWhere('wa_id', $from)['profile']['name'] ?? null;
         $sentAt = isset($message['timestamp']) ? Carbon::createFromTimestamp((int) $message['timestamp']) : now();
 
-        return DB::transaction(function () use ($account, $phone, $name, $message, $body, $providerId, $sentAt) {
+        $received = DB::transaction(function () use ($account, $phone, $name, $message, $body, $providerId, $sentAt) {
             $conversation = Conversation::forStore($account->store_id)->lockForUpdate()->firstOrNew(['channel' => 'whatsapp', 'contact' => $phone]);
+            // Alerte à l'équipe pour un nouveau fil de discussion, pas à chaque message d'une conversation en cours
+            $alert = $conversation->unread_count === 0 || $conversation->last_inbound_at === null || $conversation->last_inbound_at->lt($sentAt->copy()->subMinutes(10));
             $conversation->fill([
                 'store_id' => $account->store_id,
                 'contact_name' => $name ? Str::limit($name, 117) : $conversation->contact_name,
@@ -55,7 +60,7 @@ class Inbox
                 'unread_count' => $conversation->unread_count + 1,
             ])->save();
 
-            return $conversation->messages()->create([
+            $created = $conversation->messages()->create([
                 'store_id' => $account->store_id,
                 'direction' => 'in',
                 'type' => in_array($message['type'] ?? '', ['text', 'image', 'audio', 'video', 'document', 'location', 'sticker', 'button', 'interactive'], true) ? $message['type'] : 'other',
@@ -64,7 +69,16 @@ class Inbox
                 'status' => 'received',
                 'sent_at' => $sentAt,
             ]);
+
+            return [$created, $conversation, $alert];
         });
+
+        [$created, $conversation, $alert] = $received;
+        if ($alert && $account->store) {
+            $this->team->notify($account->store, Permission::OrdersConfirm->value, new CustomerMessage($conversation, $body));
+        }
+
+        return $created;
     }
 
     /**

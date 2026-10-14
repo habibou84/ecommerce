@@ -46,6 +46,17 @@ jobs:
           java-version: '21'
           cache: gradle
       - run: npm ci
+      # Notifications push : fichier Firebase de l'application Android (secret GOOGLE_SERVICES_JSON, contenu du fichier)
+      - name: Firebase
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "Notifications push activées"
+          else
+            echo "Pas de secret GOOGLE_SERVICES_JSON : application sans notifications push"
+          fi
       - run: npx cap sync android
 
       - name: APK d'essai (à installer directement)
