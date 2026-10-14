@@ -87,8 +87,8 @@ class InboxTest extends TestCase
         $this->inbound($account, [$this->text('wamid.5', 'Bonsoir', '2250102030405')])->assertOk();
 
         // L'équipe est prévenue d'une nouvelle conversation, pas de chaque message qui suit
-        $this->assertSame(2, $this->store->owner->notifications()->where('type', CustomerMessage::class)->count());
-        $this->assertSame('💬 Fatou Diallo', $this->store->owner->notifications()->oldest()->first()->data['title']);
+        $titles = $this->store->owner->notifications()->where('type', CustomerMessage::class)->get()->pluck('data.title')->all();
+        $this->assertEqualsCanonicalizing(['💬 Fatou Diallo', '💬 Message WhatsApp'], $titles);
 
         $list = $this->storeApi($this->store, 'GET', 'conversations')->assertOk()
             ->assertJsonPath('meta.unread', 2)->assertJsonPath('connected', true)->assertJsonCount(2, 'data');
