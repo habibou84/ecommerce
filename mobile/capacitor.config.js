@@ -19,6 +19,7 @@ module.exports = {
   },
   plugins: {
     SplashScreen: { launchShowDuration: 1200, backgroundColor: '#047857', showSpinner: false },
-    StatusBar: { style: 'LIGHT', backgroundColor: '#047857', overlaysWebView: false },
+    // Icônes sombres sur le fond blanc de la page
+    StatusBar: { style: 'LIGHT' },
   },
 }

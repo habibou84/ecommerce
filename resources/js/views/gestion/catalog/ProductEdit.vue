@@ -342,10 +342,17 @@ const margin = computed(() => {
       <section class="card space-y-3 p-4 sm:p-6">
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">Photos</h2>
-          <label v-if="canEdit" class="btn-secondary cursor-pointer px-3 py-1.5">
-            {{ uploading ? 'Envoi…' : '+ Ajouter' }}
-            <input type="file" accept="image/jpeg,image/png,image/webp" multiple class="hidden" @change="onFiles" />
-          </label>
+          <div v-if="canEdit" class="flex gap-2">
+            <!-- Sur téléphone, le choix de fichier n'ouvre que la galerie : l'appareil photo a son propre bouton -->
+            <label class="btn-secondary cursor-pointer px-3 py-1.5" :class="{ 'opacity-60': uploading }">
+              📷 Photo
+              <input type="file" accept="image/*" capture="environment" class="hidden" :disabled="uploading" @change="onFiles" />
+            </label>
+            <label class="btn-secondary cursor-pointer px-3 py-1.5">
+              {{ uploading ? 'Envoi…' : '+ Galerie' }}
+              <input type="file" accept="image/jpeg,image/png,image/webp" multiple class="hidden" @change="onFiles" />
+            </label>
+          </div>
         </div>
         <p v-if="!images.length && !pendingFiles.length" class="text-sm text-slate-500">La première photo est la photo principale. Prenez-les à la lumière du jour, sur fond uni.</p>
         <div class="grid grid-cols-3 gap-3 sm:grid-cols-5">
