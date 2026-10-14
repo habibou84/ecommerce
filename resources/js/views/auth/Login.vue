@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AuthShell from '../../components/AuthShell.vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
+import { inApp } from '../../lib/app'
 import { boot } from '../../lib/boot'
 import { errorMessage, fieldErrors } from '../../lib/http'
 import { useAuthStore } from '../../stores/auth'
@@ -56,7 +57,8 @@ async function submit() {
       </p>
     </form>
     <template #footer>
-      <a :href="boot.platformUrl" class="hover:underline">Jibiat Marchand</a>
+      <a v-if="inApp" :href="`${boot.platformUrl.replace(/\/$/, '')}/connexion?app=1&choisir=1`" class="font-medium text-emerald-700 hover:underline">Changer de boutique</a>
+      <a v-else :href="boot.platformUrl" class="hover:underline">Jibiat Marchand</a>
     </template>
   </AuthShell>
 </template>

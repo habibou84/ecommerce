@@ -1,0 +1,83 @@
+name: Android
+
+# Application Android (mobile/) : APK d'essai à installer sur un téléphone, et paquet AAB signé pour le Play Store
+# quand la clé de signature est dans les secrets du dépôt.
+on:
+  push:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: Serveur ouvert par l'application
+        type: choice
+        options:
+          - preprod.jibiat-marchand.com
+          - jibiat-marchand.com
+        default: preprod.jibiat-marchand.com
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Construction Android
+    runs-on: ubuntu-latest
+    env:
+      JM_DOMAIN: ${{ inputs.domain || 'preprod.jibiat-marchand.com' }}
+      JM_VERSION_CODE: ${{ github.run_number }}
+      JM_VERSION_NAME: 1.0.${{ github.run_number }}
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - run: npm ci
+      - run: npx cap sync android
+
+      - name: APK d'essai (à installer directement)
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jibiat-marchand-${{ env.JM_VERSION_NAME }}-${{ env.JM_DOMAIN }}-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      # Version Play Store : seulement si la clé de signature est fournie (Settings › Secrets › Actions)
+      - name: Clé de signature
+        id: keystore
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "path=$RUNNER_TEMP/release.keystore" >> "$GITHUB_OUTPUT"
+      - name: Paquet AAB signé (Play Store)
+        if: ${{ steps.keystore.outputs.path != '' }}
+        working-directory: mobile/android
+        env:
+          JM_KEYSTORE_PATH: ${{ steps.keystore.outputs.path }}
+          JM_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          JM_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          JM_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
+      - if: ${{ steps.keystore.outputs.path != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: jibiat-marchand-${{ env.JM_VERSION_NAME }}-${{ env.JM_DOMAIN }}-aab
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 90
