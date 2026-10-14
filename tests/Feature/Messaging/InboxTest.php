@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\User;
 use App\Models\WhatsappAccount;
+use App\Notifications\CustomerMessage;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Places\Places;
 use Illuminate\Http\Client\Request as HttpRequest;
@@ -84,6 +85,10 @@ class InboxTest extends TestCase
             ['from' => '2250506070809', 'id' => 'wamid.4', 'type' => 'reaction', 'reaction' => ['emoji' => '👍']],
         ])->assertOk();
         $this->inbound($account, [$this->text('wamid.5', 'Bonsoir', '2250102030405')])->assertOk();
+
+        // L'équipe est prévenue d'une nouvelle conversation, pas de chaque message qui suit
+        $titles = $this->store->owner->notifications()->where('type', CustomerMessage::class)->get()->pluck('data.title')->all();
+        $this->assertEqualsCanonicalizing(['💬 Fatou Diallo', '💬 Message WhatsApp'], $titles);
 
         $list = $this->storeApi($this->store, 'GET', 'conversations')->assertOk()
             ->assertJsonPath('meta.unread', 2)->assertJsonPath('connected', true)->assertJsonCount(2, 'data');

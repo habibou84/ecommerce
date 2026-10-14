@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
 use App\Http\Controllers\Api\V1\Couriers\CourierController;
 use App\Http\Controllers\Api\V1\Couriers\PayrollController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DomainController;
 use App\Http\Controllers\Api\V1\Finance\CashOverviewController;
 use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
@@ -107,6 +108,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
             Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
             Route::post('auth/switch/{store}', [AuthController::class, 'switch'])->whereNumber('store')->name('auth.switch');
+            Route::post('devices', [DeviceController::class, 'store'])->name('devices.store');
+            Route::delete('devices', [DeviceController::class, 'destroy'])->name('devices.destroy');
             Route::put('auth/account', [AuthController::class, 'updateAccount'])->name('auth.account');
             Route::put('auth/password', [AuthController::class, 'updatePassword'])->middleware('throttle:login')->name('auth.password');
 

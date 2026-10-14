@@ -43,6 +43,11 @@ return [
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
     ],
 
+    // Notifications push de l'application (Firebase Cloud Messaging) : chemin du fichier JSON du compte de service
+    'firebase' => [
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+    ],
+
     // SMS (vérification des numéros) : log = écrit dans le journal, sans envoi (développement)
     'sms' => [
         'driver' => env('SMS_DRIVER', 'log'), // log | twilio | none
