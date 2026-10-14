@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NotificationBell from '../components/NotificationBell.vue'
+import { inApp } from '../lib/app'
 import { boot } from '../lib/boot'
 import http, { errorMessage } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
@@ -190,6 +191,9 @@ async function switchTo(store) {
         </template>
       </nav>
 
+      <div v-if="inApp" class="border-t border-slate-100 p-3">
+        <a :href="`${boot.platformUrl.replace(/\/$/, '')}/connexion?app=1&choisir=1`" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">⇄ Changer de boutique</a>
+      </div>
       <div v-if="auth.profile?.other_stores?.length" class="border-t border-slate-100 p-3">
         <p class="px-3 pb-1 text-xs font-medium uppercase text-slate-400">Mes autres boutiques</p>
         <button

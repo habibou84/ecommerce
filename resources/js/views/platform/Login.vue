@@ -1,9 +1,11 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import AuthShell from '../../components/AuthShell.vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
+import { forgetStore, inApp, rememberStore, rememberedStore } from '../../lib/app'
 
 // Pour qui ne connaît plus l'adresse de sa boutique : connexion, puis choix de la boutique
 const form = reactive({ phone: '', password: '' })
@@ -11,6 +13,15 @@ const errors = ref({})
 const error = ref('')
 const busy = ref(false)
 const account = ref(null)
+const route = useRoute()
+
+// Dans l'application : la dernière boutique se rouvre directement (« Changer de boutique » revient ici avec ?choisir)
+onMounted(() => {
+  if (!inApp) return
+  if (route.query.choisir) return forgetStore()
+  const last = rememberedStore()
+  if (last?.url) window.location.replace(`${last.url.replace(/\/$/, '')}/gestion`)
+})
 
 async function submit() {
   busy.value = true
@@ -32,6 +43,7 @@ async function submit() {
 async function openStore(store) {
   try {
     const { data } = await http.post(`/account/stores/${store.id}/open`)
+    if (inApp) rememberStore(store)
     window.location.assign(data.redirect)
   } catch (e) {
     error.value = errorMessage(e)
