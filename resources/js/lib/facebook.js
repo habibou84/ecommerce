@@ -1,4 +1,6 @@
-// Fenêtre Facebook de l'inscription intégrée WhatsApp (Embedded Signup) : le SDK n'est chargé qu'au clic.
+// Fenêtre Facebook de l'inscription intégrée WhatsApp (Embedded Signup). Meta n'accepte le SDK que sur des domaines
+// déclarés un par un : la fenêtre s'ouvre depuis la plateforme (page /whatsapp/facebook), qui renvoie le résultat
+// à la gestion de la boutique (#whatsapp&code=…).
 let sdk = null
 
 function loadSdk(appId, version) {
@@ -18,6 +20,11 @@ function loadSdk(appId, version) {
     document.body.appendChild(script)
   })
   return sdk
+}
+
+// Chargement à l'avance : la fenêtre s'ouvre alors aussitôt le clic (pas bloquée par le navigateur)
+export function prepareFacebook({ appId, version }) {
+  return loadSdk(appId, version).catch(() => {})
 }
 
 /**
@@ -71,4 +78,26 @@ export async function connectWhatsApp({ appId, configId, version, coexistence = 
       },
     )
   })
+}
+
+// Gestion de la boutique → page de la plateforme qui ouvre la fenêtre Facebook, puis revient sur `back`
+export function facebookRelayUrl(platformUrl, { appId, configId, version, coexistence }, back) {
+  const query = new URLSearchParams({ app: appId, config: configId, v: version, retour: back })
+  if (coexistence) query.set('coexistence', '1')
+  return `${platformUrl.replace(/\/$/, '')}/whatsapp/facebook?${query}`
+}
+
+// Retour sur la gestion : résultat de la fenêtre Facebook dans l'adresse (#whatsapp&code=…), effacé aussitôt lu
+export function takeFacebookResult() {
+  if (!window.location.hash.startsWith('#whatsapp')) return null
+  const params = new URLSearchParams(window.location.hash.slice(1))
+  window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
+  if (params.get('erreur')) return { error: params.get('erreur') }
+  if (!params.get('code') || !params.get('waba_id')) return null
+  return {
+    code: params.get('code'),
+    waba_id: params.get('waba_id'),
+    phone_number_id: params.get('phone_number_id') || null,
+    coexistence: params.get('coexistence') === '1',
+  }
 }

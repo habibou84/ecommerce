@@ -7,6 +7,8 @@ import { useConsoleStore } from '../stores/console'
 const platformRoutes = [
   { path: '/creer-ma-boutique', component: () => import('../views/platform/Signup.vue') },
   { path: '/connexion', component: () => import('../views/platform/Login.vue') },
+  // Fenêtre Facebook de la connexion WhatsApp, pour toutes les boutiques
+  { path: '/whatsapp/facebook', component: () => import('../views/platform/WhatsAppFacebook.vue') },
   { path: '/mot-de-passe-oublie', component: () => import('../views/auth/ForgotPassword.vue'), props: { loginPath: '/connexion' } },
 ]
 

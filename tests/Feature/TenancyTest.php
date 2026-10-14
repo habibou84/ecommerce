@@ -18,6 +18,15 @@ class TenancyTest extends TestCase
         $this->get('http://www.localhost/')->assertOk()->assertSee('Créer ma boutique');
     }
 
+    public function test_the_whatsapp_facebook_window_is_only_on_the_platform(): void
+    {
+        $store = $this->createStore();
+
+        // Seul domaine déclaré chez Meta pour le SDK : la fenêtre Facebook de toutes les boutiques s'ouvre ici
+        $this->get($this->platformUrl('/whatsapp/facebook'))->assertOk();
+        $this->get($this->storeUrl($store, '/whatsapp/facebook'))->assertNotFound();
+    }
+
     public function test_a_store_subdomain_shows_its_storefront(): void
     {
         $store = $this->createStore(['name' => 'Awa Mode', 'whatsapp_phone' => '+2250707070707']);

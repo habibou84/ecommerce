@@ -12,6 +12,8 @@ Route::middleware('zone:platform')->group(function () {
     Route::get('/creer-ma-boutique', [PageController::class, 'spa'])->name('signup');
     Route::get('/connexion', [PageController::class, 'spa'])->name('platform.login');
     Route::get('/mot-de-passe-oublie', [PageController::class, 'spa']);
+    // Fenêtre Facebook de la connexion WhatsApp des boutiques (Meta n'accepte que des domaines déclarés un par un)
+    Route::get('/whatsapp/facebook', [PageController::class, 'spa'])->name('whatsapp.facebook');
     Route::get('/cgu', [LegalController::class, 'terms'])->name('legal.terms');
     Route::get('/confidentialite', [LegalController::class, 'privacy'])->name('legal.privacy');
 });
