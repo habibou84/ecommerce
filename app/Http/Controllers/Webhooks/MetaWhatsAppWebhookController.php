@@ -10,10 +10,12 @@ use App\Services\WhatsApp\WhatsAppCloud;
 use App\Support\Tenancy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Notifications de Meta pour l'application de la plateforme (api.jibiat-marchand.com/webhooks/whatsapp) : tous les
- * numéros connectés en un clic. Chaque entrée porte l'identifiant du compte WhatsApp (WABA) de la boutique.
+ * Notifications de Meta pour l'application de la plateforme (api.jibiat-marchand.com/webhooks/whatsapp) : les
+ * numéros connectés en un clic, et ceux connectés à la main avec un compte WhatsApp de l'application de la plateforme
+ * (numéro de test de Meta…). Chaque entrée porte l'identifiant du compte WhatsApp (WABA) de la boutique.
  */
 class MetaWhatsAppWebhookController extends Controller
 {
@@ -32,8 +34,7 @@ class MetaWhatsAppWebhookController extends Controller
         }
 
         foreach ($request->json('entry') ?? [] as $entry) {
-            $account = WhatsappAccount::withoutGlobalScopes()->with('store')->where('connection', 'embedded')
-                ->where('waba_id', (string) ($entry['id'] ?? ''))->first();
+            $account = $this->account((string) ($entry['id'] ?? ''));
             if ($account === null) {
                 continue;
             }
@@ -48,5 +49,28 @@ class MetaWhatsAppWebhookController extends Controller
         }
 
         return response('OK');
+    }
+
+    /**
+     * Boutique destinataire : le compte connecté en un clic ; à défaut, un compte connecté à la main, s'il est le seul
+     * à déclarer ce compte WhatsApp (sinon personne : les messages ne vont pas à une boutique au hasard).
+     */
+    private function account(string $wabaId): ?WhatsappAccount
+    {
+        if ($wabaId === '') {
+            return null;
+        }
+        $accounts = WhatsappAccount::withoutGlobalScopes()->with('store')->where('waba_id', $wabaId)->get();
+        $embedded = $accounts->firstWhere('connection', 'embedded');
+        if ($embedded !== null) {
+            return $embedded;
+        }
+        if ($accounts->count() > 1) {
+            Log::warning('Webhook WhatsApp : plusieurs boutiques déclarent ce compte WhatsApp, message ignoré', ['waba_id' => $wabaId]);
+
+            return null;
+        }
+
+        return $accounts->first();
     }
 }
