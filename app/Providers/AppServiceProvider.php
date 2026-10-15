@@ -13,6 +13,7 @@ use App\Models\StockReceipt;
 use App\Models\StockTransfer;
 use App\Models\Store;
 use App\Services\Places\Places;
+use App\Services\Sms\OrangeSmsGateway;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -25,6 +26,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Jibiat\Socle\PhoneNumber;
+use Jibiat\Socle\Sms\SmsGateway;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -34,6 +36,16 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(Tenancy::class);
         // Lieux visibles d'une boutique : mis en cache le temps de la requête
         $this->app->scoped(Places::class);
+
+        // SMS par Orange (SMS_DRIVER=orange) ; les autres pilotes (log, twilio, none) viennent du paquet socle
+        if (config('services.sms.driver') === 'orange') {
+            $this->app->singleton(SmsGateway::class, fn () => new OrangeSmsGateway(
+                (string) config('services.sms.orange.client_id'),
+                (string) config('services.sms.orange.client_secret'),
+                (string) config('services.sms.orange.sender_address'),
+                config('services.sms.orange.sender_name') ?: null,
+            ));
+        }
     }
 
     public function boot(): void
