@@ -2,13 +2,16 @@
 #
 # Mise à jour de Jibiat Marchand déjà installé par install-apache.sh, à lancer en root :
 #
-#   bash /var/www/jibiat-marchand/deploy/update.sh
+#   bash /var/www/jibiat-marchand/deploy/update.sh      (préproduction)
+#   bash /var/www/jibiat-production/deploy/update.sh    (production)
 #
+# L'installation mise à jour est celle du dossier où se trouve ce script.
 # Récupère la dernière version de la branche, met à jour les dépendances, recompile l'interface,
 # applique les migrations puis redémarre les processus.
 
 set -euo pipefail
 
+INSTANCE="$(basename "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)")"
 # shellcheck source=lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -22,7 +25,7 @@ step "Mode maintenance"
 as_app "php artisan down --retry=30 || true"
 trap 'as_app "php artisan up"' EXIT
 
-step "Code (branche $BRANCH)"
+step "Code ($INSTANCE, branche $BRANCH)"
 sync_code
 
 step "Dépendances PHP"
@@ -42,7 +45,7 @@ step "Redémarrage des processus"
 # PHP-FPM : vider le cache OPcache de l'ancien code
 systemctl reload "php$PHP_V-fpm"
 as_app "php artisan queue:restart"
-supervisorctl restart jibiat-marchand-queue
-supervisorctl status jibiat-marchand-queue
+supervisorctl restart "$INSTANCE-queue"
+supervisorctl status "$INSTANCE-queue"
 
 step "Terminé : $(as_app "git log -1 --format='%h %s'")"

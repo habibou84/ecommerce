@@ -18,7 +18,9 @@
 #   DEMO                  1 (défaut) = boutique de démonstration « demo », 0 = base vide
 #   DELIVERY_APP_DOMAINS  domaine(s) des serveurs Delivery App joignables (ex. test.mondomaine.ci)
 #   REPO, BRANCH          dépôt et branche (défaut : git@github.com:habibou84/ecommerce.git, main)
-#   APP_DIR               dossier de l'application (défaut : /var/www/jibiat-marchand)
+#   INSTANCE              nom de l'installation sur le serveur (défaut : jibiat-marchand, la préproduction) ;
+#                         la production : INSTANCE=jibiat-production (voir docs/PRODUCTION-LWS.md)
+#   APP_DIR               dossier de l'application (défaut : /var/www/INSTANCE)
 #
 # Relançable sans risque : base de données, .env et certificat sont conservés.
 
@@ -31,19 +33,24 @@ APP_ENV="${APP_ENV:-staging}"
 DEMO="${DEMO:-1}"
 REPO="${REPO:-git@github.com:habibou84/ecommerce.git}"
 BRANCH="${BRANCH:-main}"
-APP_DIR="${APP_DIR:-/var/www/jibiat-marchand}"
-APP_USER=jibiat
-APP_HOME=/var/lib/jibiat
 CLOUDFLARE_INI=/etc/letsencrypt/cloudflare-jibiat.ini
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 . "$SCRIPT_DIR/lib.sh"
+APP_DIR="${APP_DIR:-/var/www/$INSTANCE}"
+APP_USER="$DEFAULT_USER"
+APP_HOME="/var/lib/$APP_USER"
 
 [[ $EUID -eq 0 ]] || fail "lancez ce script en root (sudo -i)."
 [[ -n "$DOMAIN" ]] || fail "indiquez le domaine : DOMAIN=preprod.jibiat-marchand.com EMAIL=… CLOUDFLARE_API_TOKEN=… bash $0"
 [[ -n "$EMAIL" ]] || fail "indiquez une adresse e-mail : EMAIL=moi@exemple.ci"
 [[ "$APP_ENV" == "staging" || "$APP_ENV" == "production" ]] || fail "APP_ENV : staging ou production."
+[[ "$INSTANCE" =~ ^[a-z][a-z0-9-]{2,30}$ ]] || fail "INSTANCE : lettres minuscules, chiffres et tirets (ex. jibiat-production)."
+# Une installation par domaine : refuse d'écraser celle d'un autre domaine
+if [[ -f "$DEPLOY_CONF" ]] && ! grep -qx "DOMAIN=$DOMAIN" "$DEPLOY_CONF"; then
+    fail "l'installation « $INSTANCE » sert déjà un autre domaine ($(grep '^DOMAIN=' "$DEPLOY_CONF" | cut -d= -f2)). Pour un second site, choisissez un autre INSTANCE."
+fi
 
 . /etc/os-release
 [[ "$ID" == "debian" || "$ID" == "ubuntu" ]] || warn "Prévu pour Debian 13 ; système détecté : $PRETTY_NAME."
@@ -75,9 +82,12 @@ step "Certificat HTTPS pour $DOMAIN et *.$DOMAIN"
 if [[ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]]; then
     info "Déjà obtenu (renouvelé automatiquement par certbot)."
 else
-    [[ -n "$CLOUDFLARE_API_TOKEN" ]] || fail "premier lancement : indiquez le jeton Cloudflare, CLOUDFLARE_API_TOKEN=… (voir docs/DEPLOIEMENT-PREPROD.md)."
-    install -m 600 /dev/null "$CLOUDFLARE_INI"
-    echo "dns_cloudflare_api_token = $CLOUDFLARE_API_TOKEN" > "$CLOUDFLARE_INI"
+    # Jeton déjà enregistré par une installation précédente (ex. la préproduction) : réutilisé
+    if [[ -n "$CLOUDFLARE_API_TOKEN" ]]; then
+        install -m 600 /dev/null "$CLOUDFLARE_INI"
+        echo "dns_cloudflare_api_token = $CLOUDFLARE_API_TOKEN" > "$CLOUDFLARE_INI"
+    fi
+    [[ -s "$CLOUDFLARE_INI" ]] || fail "premier lancement : indiquez le jeton Cloudflare, CLOUDFLARE_API_TOKEN=… (voir docs/DEPLOIEMENT-PREPROD.md)."
     certbot certonly --non-interactive --agree-tos -m "$EMAIL" \
         --dns-cloudflare --dns-cloudflare-credentials "$CLOUDFLARE_INI" --dns-cloudflare-propagation-seconds 30 \
         --cert-name "$DOMAIN" -d "$DOMAIN" -d "*.$DOMAIN"
@@ -102,30 +112,40 @@ chmod -R g+rX "$APP_DIR/public" "$APP_DIR/storage/app/public"
 
 # ─────────────────────────── PHP-FPM et Apache ───────────────────────────
 
-step "PHP-FPM (groupe dédié « jibiat-marchand »)"
-sed -e "s|__USER__|$APP_USER|g" -e "s|__PHP_V__|$PHP_V|g" "$APP_DIR/deploy/php-fpm.conf" > "/etc/php/$PHP_V/fpm/pool.d/jibiat-marchand.conf"
+step "PHP-FPM (groupe dédié « $INSTANCE »)"
+sed -e "s|__USER__|$APP_USER|g" -e "s|__PHP_V__|$PHP_V|g" -e "s|__INSTANCE__|$INSTANCE|g" "$APP_DIR/deploy/php-fpm.conf" > "/etc/php/$PHP_V/fpm/pool.d/$INSTANCE.conf"
 systemctl enable "php$PHP_V-fpm" >/dev/null 2>&1 || true
 systemctl restart "php$PHP_V-fpm"
 
 step "Apache (hôte virtuel $DOMAIN et *.$DOMAIN)"
 a2enmod -q ssl rewrite headers proxy proxy_fcgi setenvif >/dev/null
 sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__USER__|$APP_USER|g" -e "s|__PHP_V__|$PHP_V|g" \
-    "$APP_DIR/deploy/apache.conf" > /etc/apache2/sites-available/jibiat-marchand.conf
-a2ensite -q jibiat-marchand >/dev/null
+    -e "s|__INSTANCE__|$INSTANCE|g" "$APP_DIR/deploy/apache.conf" > "/etc/apache2/sites-available/$INSTANCE.conf"
+a2ensite -q "$INSTANCE" >/dev/null
 apache2ctl configtest || fail "configuration Apache refusée (ci-dessus) : rien n'a été rechargé."
 systemctl reload apache2
 
 install_supervisor
 install_cron
+[[ "$APP_ENV" != "production" ]] || install_backup
 save_deploy_conf
 
 # ─────────────────────────── Vérification ───────────────────────────
 
 step "Vérification"
 sleep 2
-for host in "$DOMAIN" "admin.$DOMAIN" "demo.$DOMAIN"; do
+hosts=("$DOMAIN" "admin.$DOMAIN")
+[[ "$DEMO" != "1" ]] || hosts+=("demo.$DOMAIN")
+for host in "${hosts[@]}"; do
     code="$(curl -s -o /dev/null -w '%{http_code}' --resolve "$host:443:127.0.0.1" "https://$host/up" || true)"
     info "https://$host/up → $code"
+done
+# Les autres installations du serveur (ex. la préproduction) répondent toujours
+for conf in /etc/*-deploy.conf; do
+    other="$(grep '^DOMAIN=' "$conf" | cut -d= -f2)"
+    [[ -n "$other" && "$other" != "$DOMAIN" ]] || continue
+    code="$(curl -s -o /dev/null -w '%{http_code}' --resolve "$other:443:127.0.0.1" "https://$other/up" || true)"
+    info "https://$other/up (autre installation) → $code"
 done
 
 step "Terminé"

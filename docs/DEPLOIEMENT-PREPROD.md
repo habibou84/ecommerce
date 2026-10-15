@@ -100,7 +100,8 @@ Durée : 5 à 10 minutes, surtout pour les paquets, Composer et la compilation d
 | `APP_ENV` | `staging` | `production` : codes SMS envoyés réellement (fournisseur requis) |
 | `DEMO` | `1` | Boutique de démonstration `demo` (`0` : base vide) |
 | `BRANCH` | `main` | Branche déployée |
-| `APP_DIR` | `/var/www/jibiat-marchand` | Dossier de l'application |
+| `INSTANCE` | `jibiat-marchand` | Nom de l'installation (dossier, utilisateur, base, Apache…) ; la production : `jibiat-production` |
+| `APP_DIR` | `/var/www/INSTANCE` | Dossier de l'application |
 | `DELIVERY_APP_DOMAINS` | — | Domaine(s) des serveurs Delivery App que les marchands peuvent connecter |
 
 ## 5. Premiers essais
@@ -192,4 +193,5 @@ Points à vérifier si l'installation échoue :
 
 ## Pour la production
 
-La même procédure fonctionne avec `DOMAIN=jibiat-marchand.com` et `APP_ENV=production`, une fois un fournisseur SMS et les comptes de paiement de la plateforme configurés. Pour la production, un serveur dédié est préférable, comme décrit dans `docs/LANCEMENT.md` (Caddy, domaines personnalisés des marchands).
+Production sur ce même serveur, à côté de la préproduction : voir `docs/PRODUCTION-LWS.md` (installation
+`INSTANCE=jibiat-production`, branche `production`). Plus tard, un serveur dédié : `docs/LANCEMENT.md`.

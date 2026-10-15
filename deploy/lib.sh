@@ -1,11 +1,23 @@
 # shellcheck shell=bash
 # Fonctions communes à l'installation (install-apache.sh) et à la mise à jour (update.sh).
-# Variables attendues : APP_DIR, APP_USER, APP_HOME (dossier personnel : clé Git, caches Composer et npm),
+# Variables attendues : INSTANCE, APP_DIR, APP_USER, APP_HOME (dossier personnel : clé Git, caches Composer et npm),
 # PHP_BIN, et selon les fonctions : DOMAIN, EMAIL, REPO, BRANCH, APP_ENV, DEMO.
+#
+# INSTANCE nomme une installation sur le serveur (dossier, utilisateur, base, PHP-FPM, Apache, Supervisor, cron) :
+# plusieurs installations cohabitent, par exemple la préproduction (jibiat-marchand) et la production
+# (jibiat-production). Les noms de la préproduction, installée en premier, restent ceux d'origine.
 
-DB_NAME="${DB_NAME:-jibiat_marchand}"
-DB_USER="${DB_USER:-jibiat}"
-DEPLOY_CONF=/etc/jibiat-marchand-deploy.conf
+INSTANCE="${INSTANCE:-jibiat-marchand}"
+if [[ "$INSTANCE" == "jibiat-marchand" ]]; then
+    DEFAULT_USER=jibiat
+    DEFAULT_DB=jibiat_marchand
+else
+    DEFAULT_USER="${INSTANCE//-/_}"
+    DEFAULT_DB="${INSTANCE//-/_}"
+fi
+DB_NAME="${DB_NAME:-$DEFAULT_DB}"
+DB_USER="${DB_USER:-$DEFAULT_USER}"
+DEPLOY_CONF="/etc/$INSTANCE-deploy.conf"
 
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
@@ -135,7 +147,8 @@ write_env() {
     env_set DB_PASSWORD "$DB_PASSWORD"
     env_set SESSION_SECURE_COOKIE true
     env_set MAIL_FROM_ADDRESS "\"$EMAIL\""
-    env_set BILLING_MODE test
+    # Abonnements : paiements de test en préproduction ; en production, mode réel une fois les comptes configurés
+    env_set BILLING_MODE "$([[ "$APP_ENV" == production ]] && echo live || echo test)"
     env_set CUSTOM_DOMAIN_CNAME "domaines.$DOMAIN"
     [[ -z "${DELIVERY_APP_DOMAINS:-}" ]] || env_set DELIVERY_APP_DOMAINS "$DELIVERY_APP_DOMAINS"
     chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
@@ -167,23 +180,34 @@ build_app() {
 install_supervisor() {
     step "Supervisor (file d'attente)"
     sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__PHP__|$PHP_BIN|g" -e "s|__USER__|$APP_USER|g" -e "s|__HOME__|$APP_HOME|g" \
-        "$APP_DIR/deploy/supervisor.conf" > /etc/supervisor/conf.d/jibiat-marchand.conf
+        -e "s|__INSTANCE__|$INSTANCE|g" "$APP_DIR/deploy/supervisor.conf" > "/etc/supervisor/conf.d/$INSTANCE.conf"
     systemctl enable --now supervisor
     supervisorctl reread
     supervisorctl update
-    supervisorctl restart jibiat-marchand-queue
+    supervisorctl restart "$INSTANCE-queue"
 }
 
 # Planificateur Laravel (expéditions, abonnements, rapports, domaines, support) chaque minute
 install_cron() {
     step "Tâches planifiées"
-    echo "* * * * * $APP_USER cd $APP_DIR && $PHP_BIN artisan schedule:run >> /dev/null 2>&1" > /etc/cron.d/jibiat-marchand
-    chmod 644 /etc/cron.d/jibiat-marchand
+    echo "* * * * * $APP_USER cd $APP_DIR && $PHP_BIN artisan schedule:run >> /dev/null 2>&1" > "/etc/cron.d/$INSTANCE"
+    chmod 644 "/etc/cron.d/$INSTANCE"
+}
+
+# Sauvegarde de la base chaque nuit (production) : 7 copies tournantes, une par jour de la semaine
+install_backup() {
+    step "Sauvegarde nocturne de la base"
+    local dir="/var/backups/$INSTANCE"
+    install -d -m 700 -o postgres -g postgres "$dir"
+    echo "30 2 * * * postgres pg_dump -Fc $DB_NAME > $dir/base-\$(date +\%u).dump" > "/etc/cron.d/$INSTANCE-backup"
+    chmod 644 "/etc/cron.d/$INSTANCE-backup"
+    info "Chaque nuit à 2 h 30 dans $dir (copiez-les aussi hors du serveur)."
 }
 
 # Paramètres relus par update.sh
 save_deploy_conf() {
     cat > "$DEPLOY_CONF" <<EOF
+INSTANCE=$INSTANCE
 APP_DIR=$APP_DIR
 APP_USER=$APP_USER
 APP_HOME=$APP_HOME
