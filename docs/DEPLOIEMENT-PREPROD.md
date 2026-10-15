@@ -145,7 +145,18 @@ Le script :
 - relance PHP-FPM et la file d'attente ;
 - rouvre le site.
 
-## 7. Où regarder en cas de problème
+## 7. Sécurité de la préproduction
+
+- **Moteurs de recherche** : hors production (`APP_ENV` différent de `production`), toutes les pages envoient
+  l'en-tête `X-Robots-Tag: noindex, nofollow` et `robots.txt` interdit tout. Rien à régler (`SEARCH_INDEXING=true`
+  forcerait l'indexation).
+- **Réglages** : `APP_DEBUG=false`, clés de paiement **de test** uniquement, aucune vraie donnée client, mots de passe
+  et clés différents de ceux de la production.
+- **Accès** : la préproduction affiche les codes SMS à l'écran ; elle ne doit pas rester ouverte à tous. Le proxy
+  gratuit de Cloudflare (et donc Cloudflare Access) ne couvre pas les sous-domaines de second niveau
+  (`demo.preprod…`) : il faut une protection sur le serveur, ou le certificat avancé payant de Cloudflare.
+
+## 8. Où regarder en cas de problème
 
 | Quoi | Où |
 |---|---|

@@ -19,6 +19,7 @@
         <env name="APP_URL" value="http://localhost"/>
         <env name="PLATFORM_DOMAIN" value="localhost"/>
         <env name="SMS_DRIVER" value="log"/>
+        <env name="SEARCH_INDEXING" value="true"/>
         <env name="DELIVERY_APP_DOMAINS" value="jibiat.com"/>
         <env name="DELIVERY_APP_SCHEME" value="https"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

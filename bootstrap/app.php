@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Http\Middleware\EnsureStoreMember;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureZone;
+use App\Http\Middleware\PreventIndexing;
 use App\Http\Middleware\RequireAjax;
 use App\Http\Middleware\ResolveStore;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -38,6 +39,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Boutique désignée par l'adresse ({slug}.jibiat-marchand.com ou domaine personnalisé)
         $middleware->prepend(ResolveStore::class);
+        // Préproduction : aucune page dans les moteurs de recherche
+        $middleware->append(PreventIndexing::class);
         // Gestion (SPA) authentifiée par cookie de session, limité au nom d'hôte de la boutique
         $middleware->statefulApi();
         // Cookies des pixels publicitaires (posés par leur script) : lus tels quels pour l'API Conversions
