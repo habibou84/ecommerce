@@ -11,7 +11,7 @@ import { connectWhatsApp, prepareFacebook } from '../../lib/facebook'
 const route = useRoute()
 const error = ref('')
 const busy = ref(false)
-const options = { appId: route.query.app, configId: route.query.config, version: route.query.v || 'v20.0', coexistence: route.query.coexistence === '1' }
+const options = { appId: route.query.app, configId: route.query.config, version: route.query.v || 'v25.0', coexistence: route.query.coexistence === '1' }
 
 // Retour seulement vers une boutique de la plateforme (https://{boutique}.jibiat-marchand.com/…)
 const back = computed(() => {

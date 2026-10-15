@@ -3,6 +3,7 @@
 namespace App\Services\Marketing;
 
 use App\Models\Order;
+use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -14,7 +15,7 @@ use Throwable;
  */
 class Conversions
 {
-    public const GRAPH = 'https://graph.facebook.com/v20.0';
+    public const GRAPH = 'https://graph.facebook.com/'.WhatsAppCloud::VERSION;
 
     public static function eventId(Order $order): string
     {
