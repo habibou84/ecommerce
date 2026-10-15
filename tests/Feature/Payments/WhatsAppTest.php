@@ -34,7 +34,7 @@ class WhatsAppTest extends TestCase
     {
         parent::setUp();
         Http::preventStrayRequests();
-        Http::fake(['https://graph.facebook.com/v20.0/*' => function () {
+        Http::fake(['https://graph.facebook.com/v25.0/*' => function () {
             if ($this->metaError) {
                 return Http::response(['error' => ['message' => $this->metaError]], 400);
             }
@@ -103,7 +103,7 @@ class WhatsAppTest extends TestCase
         $account = $this->connect();
         $order = $this->order();
 
-        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'https://graph.facebook.com/v20.0/1098765/messages'
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'https://graph.facebook.com/v25.0/1098765/messages'
             && $r->hasHeader('Authorization', 'Bearer EAAG-token')
             && $r['to'] === '2250506070809' && $r['template']['name'] === 'confirmation_commande'
             && $r['template']['components'][0]['parameters'][1]['text'] === '#1001'

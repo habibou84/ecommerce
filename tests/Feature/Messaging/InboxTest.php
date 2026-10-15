@@ -32,7 +32,7 @@ class InboxTest extends TestCase
     {
         parent::setUp();
         Http::preventStrayRequests();
-        Http::fake(['https://graph.facebook.com/v20.0/*' => function () {
+        Http::fake(['https://graph.facebook.com/v25.0/*' => function () {
             if ($this->metaError) {
                 return Http::response(['error' => ['message' => $this->metaError]], 400);
             }
@@ -116,7 +116,7 @@ class InboxTest extends TestCase
         $this->storeApi($this->store, 'POST', "conversations/{$conversation->id}/messages", ['body' => 'Oui, en M et L 🙂'])->assertCreated()
             ->assertJsonPath('data.messages.1.direction', 'out')->assertJsonPath('data.messages.1.by', $this->store->owner->name)
             ->assertJsonPath('data.preview', 'Oui, en M et L 🙂');
-        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'https://graph.facebook.com/v20.0/1098765/messages'
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'https://graph.facebook.com/v25.0/1098765/messages'
             && $r['to'] === '2250506070809' && $r['type'] === 'text' && $r['text']['body'] === 'Oui, en M et L 🙂');
 
         // Statut renvoyé par Meta

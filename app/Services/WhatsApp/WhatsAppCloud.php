@@ -14,7 +14,10 @@ use RuntimeException;
  */
 class WhatsAppCloud
 {
-    public const GRAPH = 'https://graph.facebook.com/v20.0/';
+    // Version de l'API Graph de Meta (chacune expire environ deux ans après sa sortie)
+    public const VERSION = 'v25.0';
+
+    public const GRAPH = 'https://graph.facebook.com/'.self::VERSION.'/';
 
     /**
      * @param  list<string>  $params  variables {{1}}, {{2}}… du corps du modèle
