@@ -82,9 +82,12 @@ step "Certificat HTTPS pour $DOMAIN et *.$DOMAIN"
 if [[ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]]; then
     info "Déjà obtenu (renouvelé automatiquement par certbot)."
 else
-    [[ -n "$CLOUDFLARE_API_TOKEN" ]] || fail "premier lancement : indiquez le jeton Cloudflare, CLOUDFLARE_API_TOKEN=… (voir docs/DEPLOIEMENT-PREPROD.md)."
-    install -m 600 /dev/null "$CLOUDFLARE_INI"
-    echo "dns_cloudflare_api_token = $CLOUDFLARE_API_TOKEN" > "$CLOUDFLARE_INI"
+    # Jeton déjà enregistré par une installation précédente (ex. la préproduction) : réutilisé
+    if [[ -n "$CLOUDFLARE_API_TOKEN" ]]; then
+        install -m 600 /dev/null "$CLOUDFLARE_INI"
+        echo "dns_cloudflare_api_token = $CLOUDFLARE_API_TOKEN" > "$CLOUDFLARE_INI"
+    fi
+    [[ -s "$CLOUDFLARE_INI" ]] || fail "premier lancement : indiquez le jeton Cloudflare, CLOUDFLARE_API_TOKEN=… (voir docs/DEPLOIEMENT-PREPROD.md)."
     certbot certonly --non-interactive --agree-tos -m "$EMAIL" \
         --dns-cloudflare --dns-cloudflare-credentials "$CLOUDFLARE_INI" --dns-cloudflare-propagation-seconds 30 \
         --cert-name "$DOMAIN" -d "$DOMAIN" -d "*.$DOMAIN"

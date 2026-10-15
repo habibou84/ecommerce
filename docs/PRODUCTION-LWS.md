@@ -31,7 +31,7 @@ Chaque `update.sh` met à jour l'installation du dossier où il se trouve.
 
 - **Préproduction à jour** (elle contient le script d'installation qui gère plusieurs installations) :
   `bash /var/www/jibiat-marchand/deploy/update.sh`.
-- **Branche `production`** créée sur GitHub à partir de `main`.
+- **Branche `production`** créée sur GitHub à partir de `main`, une fois ce guide et les scripts fusionnés dans `main`.
 - **SMS** : sans fournisseur SMS, personne ne peut créer de compte en production (les codes ne s'affichent pas
   à l'écran comme en préproduction). L'installation peut se faire avant, mais pas l'ouverture aux marchands.
 
@@ -65,7 +65,8 @@ DELIVERY_APP_DOMAINS=domaine.de.delivery.app \
 bash /var/www/jibiat-marchand/deploy/install-apache.sh
 ```
 
-- Le jeton Cloudflare est déjà sur le serveur (installation de la préproduction) : inutile de le redonner.
+- Le jeton Cloudflare est déjà sur le serveur (installation de la préproduction) : il est réutilisé. Il couvre
+  toute la zone `jibiat-marchand.com`, donc aussi le certificat de la production.
 - **Clé de déploiement** : au premier lancement, le script s'arrête et affiche une nouvelle clé `ssh-ed25519 …`
   (celle de l'utilisateur de la production). GitHub › dépôt **ecommerce** › **Settings** › **Deploy keys** ›
   **Add deploy key** : titre « Production LWS », sans « Allow write access ». Puis relancer la même commande.
