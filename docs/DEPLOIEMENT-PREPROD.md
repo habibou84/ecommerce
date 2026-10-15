@@ -145,7 +145,29 @@ Le script :
 - relance PHP-FPM et la file d'attente ;
 - rouvre le site.
 
-## 7. Où regarder en cas de problème
+## 7. Sécurité de la préproduction
+
+- **Moteurs de recherche** : hors production (`APP_ENV` différent de `production`), toutes les pages envoient
+  l'en-tête `X-Robots-Tag: noindex, nofollow` et `robots.txt` interdit tout. Rien à régler (`SEARCH_INDEXING=true`
+  forcerait l'indexation).
+- **Réglages** : `APP_DEBUG=false`, clés de paiement **de test** uniquement, aucune vraie donnée client, mots de passe
+  et clés différents de ceux de la production.
+- **Accès** : la préproduction affiche les codes SMS à l'écran ; elle ne doit pas rester ouverte à tous. Avec
+  `PREPROD_ACCESS_CODE` dans le `.env`, chaque visiteur doit saisir ce code avant toute page (plateforme, boutiques de
+  test, gestion, application Android) ; il est mémorisé 30 jours sur l'appareil, pour toutes les boutiques de test.
+  Restent ouverts : `api.preprod…` (notifications de Meta, de Delivery App et des paiements) et `/up`. Le réglage
+  est ignoré quand `APP_ENV=production`.
+
+  ```bash
+  sudo -i
+  nano /var/www/jibiat-marchand/.env        # ajouter : PREPROD_ACCESS_CODE=un-code-a-vous
+  cd /var/www/jibiat-marchand && sudo -u jibiat php artisan optimize
+  ```
+
+  Changer le code oblige tout le monde à le saisir de nouveau. (Cloudflare Access n'est pas utilisable ici : le
+  proxy gratuit de Cloudflare ne couvre pas les sous-domaines de second niveau comme `demo.preprod…`.)
+
+## 8. Où regarder en cas de problème
 
 | Quoi | Où |
 |---|---|

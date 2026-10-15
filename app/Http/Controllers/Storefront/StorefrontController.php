@@ -165,9 +165,9 @@ class StorefrontController extends Controller
     {
         $store = $tenancy->store();
         $open = $store?->storefront_enabled;
-        $lines = $open
+        $lines = ! config('platform.indexable') ? ['User-agent: *', 'Disallow: /'] : ($open
             ? ['User-agent: *', 'Disallow: /gestion', 'Disallow: /livreur', 'Disallow: /panier', 'Disallow: /commande', 'Disallow: /suivi', 'Sitemap: '.$this->view->baseUrl($store).'/sitemap.xml']
-            : ($tenancy->zone() === Tenancy::PLATFORM ? ['User-agent: *', 'Disallow: /connexion'] : ['User-agent: *', 'Disallow: /']);
+            : ($tenancy->zone() === Tenancy::PLATFORM ? ['User-agent: *', 'Disallow: /connexion'] : ['User-agent: *', 'Disallow: /']));
 
         return response(implode("\n", $lines)."\n", 200, ['Content-Type' => 'text/plain']);
     }

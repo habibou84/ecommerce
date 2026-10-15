@@ -237,6 +237,19 @@ class StorefrontTest extends TestCase
             ->assertSee('cards-rounded')->assertSee('--brand: #c2410c', false)->assertSee('La mode wax');
     }
 
+    public function test_preproduction_is_never_indexed(): void
+    {
+        config(['platform.indexable' => false]);
+
+        $this->get($this->storeUrl($this->store, '/robots.txt'))->assertOk()->assertSee('Disallow: /')->assertDontSee('Sitemap')
+            ->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+        $this->get($this->platformUrl('/robots.txt'))->assertSee('Disallow: /')->assertDontSee('/connexion');
+        $this->get($this->platformUrl())->assertOk()->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+
+        config(['platform.indexable' => true]);
+        $this->get($this->platformUrl())->assertOk()->assertHeaderMissing('X-Robots-Tag');
+    }
+
     public function test_pages_menus_sitemap_and_robots(): void
     {
         Page::create(['store_id' => $this->store->id, 'title' => 'Livraison et retours', 'slug' => 'livraison', 'body' => "## Délais\n\nSous **24 h** à Abidjan.<script>alert(1)</script>"]);

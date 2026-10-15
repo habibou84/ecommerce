@@ -12,6 +12,12 @@
 return [
     'domain' => strtolower((string) env('PLATFORM_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST) ?: 'localhost')),
 
+    // Moteurs de recherche : seule la production est indexée (préproduction : en-tête noindex et robots.txt fermé)
+    'indexable' => (bool) env('SEARCH_INDEXING', env('APP_ENV') === 'production'),
+
+    // Préproduction fermée au public : code demandé avant toute page (vide = ouvert ; jamais actif en production)
+    'preprod_access_code' => (string) env('PREPROD_ACCESS_CODE', ''),
+
     // Console du super administrateur : admin.PLATFORM_DOMAIN
     'admin_subdomain' => env('PLATFORM_ADMIN_SUBDOMAIN', 'admin'),
 
