@@ -50,7 +50,14 @@ return [
 
     // SMS (vérification des numéros) : log = écrit dans le journal, sans envoi (développement)
     'sms' => [
-        'driver' => env('SMS_DRIVER', 'log'), // log | twilio | none
+        'driver' => env('SMS_DRIVER', 'log'), // log | orange | twilio | none
+        // Orange Developer, offre « SMS Côte d'Ivoire » : identifiants de l'application, numéro d'envoi, nom validé
+        'orange' => [
+            'client_id' => env('ORANGE_SMS_CLIENT_ID'),
+            'client_secret' => env('ORANGE_SMS_CLIENT_SECRET'),
+            'sender_address' => env('ORANGE_SMS_SENDER_ADDRESS', '+2250000'),
+            'sender_name' => env('ORANGE_SMS_SENDER_NAME', 'JIBIAT'),
+        ],
         'twilio' => [
             'sid' => env('TWILIO_SID'),
             'token' => env('TWILIO_TOKEN'),
