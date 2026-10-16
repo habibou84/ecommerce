@@ -50,6 +50,12 @@ async function call(request) {
 
 const setStatus = (status, extra = {}) => call(() => http.post(`/orders/${props.id}/status`, { status, ...extra }))
 const confirm = (outcome, extra = {}) => call(() => http.post(`/orders/${props.id}/confirmations`, { outcome, channel: 'call', ...extra }))
+// Demande par le WhatsApp de la boutique : le client répond avec les boutons, la commande se met à jour seule
+const waSent = ref(false)
+async function askOnWhatsApp() {
+  await call(() => http.post(`/orders/${props.id}/whatsapp-confirmation`))
+  waSent.value = !error.value
+}
 
 function openModal(name) {
   Object.assign(form, { reason: 'customer_refused', note: '', collect_payment: order.value.amount_due > 0, method: 'cash', restock: true, amount: order.value.amount_due, reference: '', callback_at: '' })
@@ -240,6 +246,16 @@ async function addNote() {
           <p v-if="order.scheduled_date" class="text-slate-500">Souhaitée le {{ new Date(order.scheduled_date).toLocaleDateString('fr-FR') }}</p>
           <p v-if="order.customer_note" class="mt-2 rounded bg-amber-50 p-2">« {{ order.customer_note }} »</p>
           <p v-if="order.internal_note" class="mt-2 rounded bg-slate-50 p-2 text-slate-600">Note : {{ order.internal_note }}</p>
+        </section>
+
+        <section v-if="canConfirm && order.whatsapp_confirmation" class="card space-y-2 p-4 text-sm">
+          <h3 class="font-semibold">Confirmation par WhatsApp</h3>
+          <p class="text-slate-600">
+            Le client reçoit le récapitulatif avec les boutons « Confirmer » et « Annuler » ; sa réponse met la commande à jour toute seule.
+            {{ order.whatsapp_confirmation === 'conversation' ? 'Gratuit : le client a écrit à la boutique il y a moins de 24 h.' : 'Par le modèle approuvé (message facturé par Meta).' }}
+          </p>
+          <button type="button" class="btn-secondary w-full justify-start" :disabled="busy" @click="askOnWhatsApp">📲 {{ waSent ? 'Renvoyer la demande' : 'Envoyer la demande de confirmation' }}</button>
+          <p v-if="waSent" class="text-emerald-700">Demande envoyée. La réponse apparaîtra aussi dans Ventes › Messages.</p>
         </section>
 
         <section v-if="order.messages.length" class="card space-y-2 p-4 text-sm">

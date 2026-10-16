@@ -154,9 +154,10 @@ class InboxTest extends TestCase
         $detail = $this->storeApi($this->store, 'GET', "conversations/{$conversation->id}")->assertOk()
             ->assertJsonPath('data.order.id', $order->json('data.id'))->assertJsonPath('data.order.reference', '#1001')
             ->assertJsonPath('data.customer.name', 'Fatou')->assertJsonPath('data.order_text', '');
-        // La demande de confirmation automatique apparaît dans le fil
+        // La demande de confirmation automatique apparaît dans le fil : boutons dans la conversation ouverte, sans modèle
         $this->assertSame('out', $detail->json('data.messages.1.direction'));
-        $this->assertStringStartsWith('🤖 Demande de confirmation · Fatou · #1001', $detail->json('data.messages.1.body'));
+        $this->assertStringStartsWith('🤖 Bonjour Fatou, merci pour votre commande #1001 chez Awa Mode', $detail->json('data.messages.1.body'));
+        $this->assertStringEndsWith('[Confirmer] [Annuler]', $detail->json('data.messages.1.body'));
         $this->storeApi($this->store, 'GET', 'conversations?filter=without_order')->assertJsonCount(0, 'data');
 
         // Nouveau message après la commande : seul lui est proposé pour la commande suivante

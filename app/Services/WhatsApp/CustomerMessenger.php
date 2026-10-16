@@ -6,6 +6,7 @@ use App\Enums\ConfirmationOutcome;
 use App\Enums\OrderStatus;
 use App\Jobs\SendWhatsAppMessage;
 use App\Models\Cart;
+use App\Models\Conversation;
 use App\Models\Order;
 use App\Models\OrderEvent;
 use App\Models\OutboundMessage;
@@ -54,8 +55,13 @@ class CustomerMessenger
             return;
         }
 
+        if ($event->type === 'created' && $order->status === OrderStatus::PendingConfirmation) {
+            $this->requestConfirmation($order, automatic: true);
+
+            return;
+        }
+
         $kind = match (true) {
-            $event->type === 'created' && $order->status === OrderStatus::PendingConfirmation => 'order_confirmation',
             $event->type === 'status_changed' && ($event->data['to'] ?? null) === OrderStatus::Shipped->value => 'order_shipped',
             $event->type === 'status_changed' && ($event->data['to'] ?? null) === OrderStatus::Completed->value => 'order_delivered',
             default => null,
@@ -82,6 +88,68 @@ class CustomerMessenger
         $buttons = $event === 'order_confirmation' ? ["confirm:{$order->id}", "cancel:{$order->id}"] : [];
 
         return $this->queue($account, $order->customer_phone, $event, $params, $buttons, 'order', $order->id);
+    }
+
+    /**
+     * Demande de confirmation par WhatsApp (boutons Confirmer / Annuler) : dans la conversation, gratuitement et sans
+     * modèle, si le client a écrit à la boutique depuis moins de 24 h ; sinon par le modèle approuvé.
+     * « automatic » : à la création de la commande, seulement si la boutique l'a activé dans ses réglages.
+     */
+    public function requestConfirmation(Order $order, bool $automatic = false): ?OutboundMessage
+    {
+        $channel = $this->confirmationChannel($order, $automatic);
+        if ($channel === null) {
+            return null;
+        }
+        $account = WhatsappAccount::forStore($order->store_id)->first();
+        $buttons = ["confirm:{$order->id}", "cancel:{$order->id}"];
+
+        if ($channel === 'template') {
+            $name = Str::before((string) ($order->customer_name ?: 'cher client'), ' ');
+
+            return $this->queue($account, $order->customer_phone, 'order_confirmation', [$name, $order->reference(), Money::format($order->total)], $buttons, 'order', $order->id);
+        }
+
+        $text = $this->confirmationText($order);
+        $message = OutboundMessage::create([
+            'store_id' => $account->store_id, 'channel' => 'whatsapp', 'to_phone' => $order->customer_phone, 'event' => 'order_confirmation',
+            'body' => $text, 'related_type' => 'order', 'related_id' => $order->id, 'status' => 'queued',
+        ]);
+        SendWhatsAppMessage::dispatch($message->id, [], array_combine($buttons, self::EVENTS['order_confirmation']['buttons']), $text)->afterCommit();
+        $this->inbox->logAutomatic($account->store_id, $order->customer_phone, '🤖 '.$text.' [Confirmer] [Annuler]');
+
+        return $message;
+    }
+
+    /**
+     * Comment demander la confirmation de cette commande : « conversation » (gratuit), « template », ou null (impossible).
+     */
+    public function confirmationChannel(Order $order, bool $automatic = false): ?string
+    {
+        $account = WhatsappAccount::forStore($order->store_id)->first();
+        if ($account === null || $account->status !== 'active' || blank($order->customer_phone) || $order->status !== OrderStatus::PendingConfirmation) {
+            return null;
+        }
+        if ($automatic && ! $account->automates('order_confirmation')) {
+            return null;
+        }
+
+        $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
+        if ($conversation?->canReply()) {
+            return 'conversation';
+        }
+
+        return filled($account->templates['order_confirmation'] ?? null) ? 'template' : null;
+    }
+
+    private function confirmationText(Order $order): string
+    {
+        $order->loadMissing(['items', 'store']);
+        $hello = 'Bonjour'.($order->customer_name ? ' '.Str::before($order->customer_name, ' ') : '');
+        $items = $order->items->map(fn ($i) => "• {$i->quantity} × {$i->label()}")->implode("\n");
+        $where = $order->delivery_method === 'pickup' ? 'à retirer en boutique' : 'à livrer à '.trim(($order->shipping_place_label ?? '').' '.($order->shipping_address ?? ''));
+
+        return "{$hello}, merci pour votre commande {$order->reference()} chez {$order->store->name} :\n{$items}\n\nTotal : ".Money::format($order->total)." ({$where}).\n\nConfirmez-vous la commande ?";
     }
 
     public function forCart(Cart $cart): ?OutboundMessage
