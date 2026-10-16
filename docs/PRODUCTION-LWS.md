@@ -81,7 +81,7 @@ bash /var/www/jibiat-marchand/deploy/install-apache.sh
 
 | Réglage | Valeur |
 |---|---|
-| `SMS_DRIVER` et les clés du fournisseur | fournisseur SMS réel |
+| `SMS_DRIVER=orange`, `ORANGE_SMS_CLIENT_ID`, `ORANGE_SMS_CLIENT_SECRET` (`ORANGE_SMS_SENDER_NAME=JIBIAT`) | SMS par Orange (voir ci-dessous) |
 | `BILLING_PROVIDER`, `BILLING_*` | comptes **de la plateforme** chez Wave, CinetPay ou PayDunya ; `BILLING_MODE=live` |
 | `META_APP_ID`, `META_APP_SECRET`, `META_WHATSAPP_CONFIG_ID`, `META_WEBHOOK_VERIFY_TOKEN` | mêmes valeurs que la préproduction (même application Meta) |
 | `FIREBASE_CREDENTIALS` | copier la clé : `cp /var/www/jibiat-marchand/storage/app/firebase.json /var/www/jibiat-production/storage/app/` puis `chown jibiat_production: …` |
@@ -93,6 +93,18 @@ Ne jamais mettre `PREPROD_ACCESS_CODE` en production (il y est de toute façon i
 
 **Accès à la console** : créez votre compte en ouvrant une boutique sur `https://jibiat-marchand.com`, puis
 `cd /var/www/jibiat-production && sudo -u jibiat_production php artisan platform:admin 07XXXXXXXX`.
+
+### SMS par Orange
+
+1. developer.orange.com › compte › **My apps** › nouvelle application avec l'API **« SMS Côte d'Ivoire »**.
+2. Acheter un forfait de SMS (bouton **Configure** de l'application) : sans crédit, Orange refuse les envois
+   (« Not enough credit »).
+3. Demander le nom d'expéditeur `JIBIAT` (11 caractères au plus, sans espace) à l'équipe locale d'Orange : jusqu'à
+   5 jours ouvrés. En attendant, laisser `ORANGE_SMS_SENDER_NAME` vide (les SMS partent sous le numéro d'Orange).
+4. Copier le **Client ID** et le **Client Secret** de l'application dans le `.env`, avec `SMS_DRIVER=orange`, puis
+   `php artisan optimize`.
+5. Essai : créer un compte avec son propre numéro. En cas d'échec, la raison donnée par Orange est dans
+   `storage/logs` (« SMS de vérification non envoyé »).
 
 ## 5. Points d'attention
 

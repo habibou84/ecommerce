@@ -3,12 +3,14 @@
 namespace Tests\Feature\Messaging;
 
 use App\Models\Conversation;
+use App\Models\ConversationMessage;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Services\WhatsApp\TemplateLibrary;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -130,5 +132,25 @@ class EmbeddedSignupTest extends TestCase
         $this->platformWebhook([['id' => '4444', 'changes' => [['field' => 'message_template_status_update', 'value' => ['event' => 'APPROVED', 'message_template_name' => 'jm_confirmation_commande']]]]])->assertOk();
         $this->storeApi($this->store, 'GET', 'whatsapp')->assertJsonPath('data.account.template_status.order_confirmation', 'APPROVED')
             ->assertJsonPath('data.account.template_status.order_shipped', 'PENDING');
+    }
+
+    public function test_manual_accounts_of_the_platform_app_receive_their_messages(): void
+    {
+        // Numéro de test de Meta, connecté à la main avec l'application de la plateforme
+        $manual = fn (Store $store) => WhatsappAccount::withoutGlobalScopes()->create(['store_id' => $store->id, 'phone_number_id' => '6666', 'waba_id' => '4444',
+            'access_token' => 'tok', 'verify_token' => Str::random(20), 'webhook_uuid' => (string) Str::uuid(), 'status' => 'active']);
+        $manual($this->store);
+
+        $message = fn (string $id) => ['id' => '4444', 'changes' => [['field' => 'messages', 'value' => [
+            'contacts' => [['wa_id' => '2250506070809', 'profile' => ['name' => 'Fatou']]],
+            'messages' => [['from' => '2250506070809', 'id' => $id, 'type' => 'text', 'text' => ['body' => 'Bonjour']]],
+        ]]]];
+        $this->platformWebhook([$message('wamid.1')])->assertOk();
+        $this->assertSame($this->store->id, Conversation::withoutGlobalScopes()->sole()->store_id);
+
+        // Deux boutiques déclarent le même compte WhatsApp à la main : le message ne va à aucune des deux
+        $manual($this->createStore(['slug' => 'autre']));
+        $this->platformWebhook([$message('wamid.2')])->assertOk();
+        $this->assertSame(1, ConversationMessage::withoutGlobalScopes()->count());
     }
 }
