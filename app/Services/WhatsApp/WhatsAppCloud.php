@@ -49,6 +49,23 @@ class WhatsAppCloud
     }
 
     /**
+     * Message à boutons de réponse (3 au plus), sans modèle : permis comme une réponse libre, dans les 24 h.
+     *
+     * @param  array<string, string>  $buttons  charge utile => libellé (20 caractères au plus)
+     */
+    public function sendButtons(WhatsappAccount $account, string $to, string $text, array $buttons): string
+    {
+        $replies = [];
+        foreach ($buttons as $payload => $title) {
+            $replies[] = ['type' => 'reply', 'reply' => ['id' => (string) $payload, 'title' => mb_substr($title, 0, 20)]];
+        }
+
+        return $this->send($account, $to, ['type' => 'interactive', 'interactive' => [
+            'type' => 'button', 'body' => ['text' => mb_substr($text, 0, 1024)], 'action' => ['buttons' => $replies],
+        ]]);
+    }
+
+    /**
      * @param  array<string, mixed>  $message
      */
     private function send(WhatsappAccount $account, string $to, array $message): string

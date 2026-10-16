@@ -192,6 +192,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware($confirm)->group(function () {
                 Route::get('orders/confirmation-queue', [OrderController::class, 'queue'])->name('orders.queue');
                 Route::post('orders/{order}/confirmations', [OrderController::class, 'confirmation'])->whereNumber('order')->name('orders.confirmations');
+                // Demande de confirmation par WhatsApp (boutons Confirmer / Annuler), depuis le numéro de la boutique
+                Route::post('orders/{order}/whatsapp-confirmation', [OrderController::class, 'whatsappConfirmation'])->whereNumber('order')->name('orders.whatsapp-confirmation');
             });
 
             // ── Clients ──

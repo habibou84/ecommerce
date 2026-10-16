@@ -22,9 +22,10 @@ class SendWhatsAppMessage implements ShouldQueue
 
     /**
      * @param  list<string>  $params
-     * @param  list<string>  $buttons
+     * @param  list<string>|array<string, string>  $buttons  modèle : charges utiles ; message libre : charge utile => libellé
+     * @param  string|null  $text  message libre à boutons (conversation ouverte depuis moins de 24 h) au lieu du modèle
      */
-    public function __construct(public int $messageId, public array $params, public array $buttons = []) {}
+    public function __construct(public int $messageId, public array $params, public array $buttons = [], public ?string $text = null) {}
 
     public function handle(WhatsAppCloud $cloud): void
     {
@@ -40,7 +41,9 @@ class SendWhatsAppMessage implements ShouldQueue
         }
 
         try {
-            $id = $cloud->sendTemplate($account, $message->to_phone, (string) ($account->templates[$message->event] ?? ''), $this->params, $this->buttons);
+            $id = $this->text !== null
+                ? $cloud->sendButtons($account, $message->to_phone, $this->text, $this->buttons)
+                : $cloud->sendTemplate($account, $message->to_phone, (string) ($account->templates[$message->event] ?? ''), $this->params, $this->buttons);
             $message->forceFill(['status' => 'sent', 'provider_message_id' => $id, 'sent_at' => now(), 'error' => null])->save();
         } catch (Throwable $e) {
             $message->forceFill(['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 250)])->save();
