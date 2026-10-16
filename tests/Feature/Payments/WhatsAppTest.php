@@ -130,6 +130,55 @@ class WhatsAppTest extends TestCase
         $this->assertSame(OrderStatus::Cancelled, $refused->fresh()->status);
     }
 
+    public function test_confirmation_buttons_in_the_open_conversation_need_no_template(): void
+    {
+        // Pas de modèle de confirmation : seulement l'envoi automatique coché
+        $this->storeApi($this->store, 'PUT', 'whatsapp', [
+            'phone_number_id' => '1098765', 'waba_id' => '2233', 'access_token' => 'EAAG-token', 'app_secret' => 'app-secret',
+            'automations' => ['order_confirmation' => true],
+        ])->assertOk();
+        $account = WhatsappAccount::sole();
+
+        // Le client n'a pas écrit : rien n'est envoyé, le lien vers le WhatsApp du téléphone reste proposé
+        $first = $this->order();
+        $this->assertSame(0, $this->sent);
+        $this->storeApi($this->store, 'GET', "orders/{$first->id}")->assertJsonPath('data.whatsapp_confirmation', null)
+            ->assertJsonPath('data.messages.0.key', 'confirm_request');
+        $this->storeApi($this->store, 'POST', "orders/{$first->id}/whatsapp-confirmation")->assertStatus(422);
+
+        // Le client écrit à la boutique : la commande suivante reçoit les boutons dans la conversation, gratuitement
+        $this->inbound($account, ['contacts' => [['wa_id' => '2250506070809', 'profile' => ['name' => 'Fatou']]],
+            'messages' => [['from' => '2250506070809', 'id' => 'wamid.in1', 'type' => 'text', 'text' => ['body' => 'Je veux 2 robes']]]])->assertOk();
+        $order = $this->order();
+        Http::assertSent(fn (HttpRequest $r) => ($r['type'] ?? null) === 'interactive' && $r['to'] === '2250506070809'
+            && str_contains($r['interactive']['body']['text'], '2 × Robe wax') && str_contains($r['interactive']['body']['text'], '#1002')
+            && $r['interactive']['action']['buttons'][0]['reply'] === ['id' => "confirm:{$order->id}", 'title' => 'Confirmer']
+            && $r['interactive']['action']['buttons'][1]['reply'] === ['id' => "cancel:{$order->id}", 'title' => 'Annuler']);
+        $this->assertSame('sent', OutboundMessage::where('related_id', $order->id)->sole()->status);
+
+        // Fiche de la commande : le lien manuel laisse la place au renvoi par la boutique
+        $this->storeApi($this->store, 'GET', "orders/{$first->id}")->assertJsonPath('data.whatsapp_confirmation', 'conversation')
+            ->assertJsonPath('data.messages', []);
+        $this->storeApi($this->store, 'POST', "orders/{$first->id}/whatsapp-confirmation")->assertOk();
+        $this->assertSame(2, OutboundMessage::count());
+
+        // Le client touche « Confirmer »
+        $this->inbound($account, ['messages' => [['from' => '2250506070809', 'id' => 'wamid.in2', 'type' => 'interactive',
+            'interactive' => ['type' => 'button_reply', 'button_reply' => ['id' => "confirm:{$order->id}", 'title' => 'Confirmer']]]]])->assertOk();
+        $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
+    }
+
+    public function test_confirmation_resent_by_template_even_without_automation(): void
+    {
+        $this->connect(['order_confirmation' => false]);
+        $order = $this->order();
+        $this->assertSame(0, $this->sent);
+
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.whatsapp_confirmation', 'template');
+        $this->storeApi($this->store, 'POST', "orders/{$order->id}/whatsapp-confirmation")->assertOk();
+        Http::assertSent(fn (HttpRequest $r) => ($r['template']['name'] ?? null) === 'confirmation_commande');
+    }
+
     public function test_shipping_and_delivery_messages_follow_automations(): void
     {
         $this->connect(['order_shipped' => true, 'order_delivered' => false]);

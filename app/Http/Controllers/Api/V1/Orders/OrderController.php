@@ -9,6 +9,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentKind;
 use App\Enums\PaymentMethod;
 use App\Enums\Permission;
+use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OrderRequest;
 use App\Http\Resources\OrderResource;
@@ -20,6 +21,7 @@ use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
 use App\Services\Orders\OrderMessageParser;
 use App\Services\Orders\OrderMessages;
+use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -107,7 +109,9 @@ class OrderController extends Controller
             ] : null,
             'duplicates' => $customer ? $customers->openDuplicates($customer, $model->id)
                 ->map(fn ($o) => ['id' => $o->id, 'reference' => $model->store->order_prefix.$o->number, 'total' => $o->total]) : [],
-            'messages' => $messages->suggestions($model),
+            // Confirmation par le WhatsApp de la boutique (API) : remplace le lien vers le WhatsApp du téléphone
+            'whatsapp_confirmation' => $channel = app(CustomerMessenger::class)->confirmationChannel($model),
+            'messages' => array_values(array_filter($messages->suggestions($model), fn ($m) => ! ($channel && $m['key'] === 'confirm_request'))),
             'call_url' => $model->customer_phone ? 'tel:'.$model->customer_phone : null,
         ]]);
     }
@@ -187,6 +191,16 @@ class OrderController extends Controller
 
         $this->desk->recordConfirmation(Order::findOrFail($order), ConfirmationOutcome::from($data['outcome']), $data['channel'],
             $data['note'] ?? null, isset($data['callback_at']) ? now()->parse($data['callback_at']) : null, $request->user());
+
+        return $this->show($order, app(CustomerBook::class), app(OrderMessages::class));
+    }
+
+    public function whatsappConfirmation(int $order, CustomerMessenger $messenger): JsonResponse
+    {
+        $model = Order::findOrFail($order);
+        if ($messenger->requestConfirmation($model) === null) {
+            throw new BusinessRuleException('Demande impossible par WhatsApp : le client doit avoir écrit à la boutique depuis moins de 24 h, ou le modèle de confirmation doit être enregistré dans Réglages › WhatsApp.');
+        }
 
         return $this->show($order, app(CustomerBook::class), app(OrderMessages::class));
     }
