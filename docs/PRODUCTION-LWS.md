@@ -27,6 +27,9 @@ travail ──(fusion)──► main ──► PRÉPRODUCTION : tests
 
 Chaque `update.sh` met à jour l'installation du dossier où il se trouve.
 
+Une fois la mise à jour automatique en place (`docs/MISE-A-JOUR-AUTOMATIQUE.md`), les étapes 1 et 3 se font toutes
+seules après chaque fusion ; la commande manuelle reste possible.
+
 ## 1. Avant l'installation
 
 - **Préproduction à jour** (elle contient le script d'installation qui gère plusieurs installations) :
