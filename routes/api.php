@@ -223,6 +223,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('conversations/unread', [ConversationController::class, 'unread'])->name('conversations.unread');
                 Route::get('conversations/{conversation}', [ConversationController::class, 'show'])->whereNumber('conversation')->name('conversations.show');
                 Route::post('conversations/{conversation}/messages', [ConversationController::class, 'reply'])->whereNumber('conversation')->name('conversations.reply');
+                Route::post('conversations/{conversation}/suggest', [ConversationController::class, 'suggest'])->whereNumber('conversation')->middleware('throttle:30,1')->name('conversations.suggest');
             });
             Route::middleware('permission:'.Permission::CustomersView->value)->group(function () {
                 Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');

@@ -2,12 +2,11 @@
 
 namespace App\Services\Orders;
 
-use App\Enums\ProductStatus;
 use App\Models\Product;
-use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Ai\Assistant;
+use App\Services\Ai\CatalogContext;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use Illuminate\Http\UploadedFile;
@@ -22,8 +21,6 @@ use Jibiat\Socle\PhoneNumber;
  */
 class OrderDrafter
 {
-    private const CATALOG_LIMIT = 300;
-
     private const SYSTEM = <<<'TXT'
     Tu aides des commerçants de Côte d'Ivoire à saisir les commandes reçues par WhatsApp, Facebook ou TikTok.
     On te donne une conversation avec un client (texte collé et/ou captures d'écran) et le catalogue de la boutique.
@@ -43,6 +40,7 @@ class OrderDrafter
         private readonly Assistant $assistant,
         private readonly PlaceMatcher $matcher,
         private readonly Places $places,
+        private readonly CatalogContext $catalog,
     ) {}
 
     /**
@@ -51,11 +49,11 @@ class OrderDrafter
      */
     public function draft(Store $store, User $user, ?string $text, array $screenshots = []): array
     {
-        $products = $this->catalog($store, (string) $text);
+        $products = $this->catalog->products($store, (string) $text);
 
         $content = array_map(fn (UploadedFile $shot) => $this->assistant->image($shot), $screenshots);
         $content[] = ['type' => 'text', 'text' => implode("\n\n", array_filter([
-            "Catalogue de {$store->name} :\n".$this->catalogText($products),
+            "Catalogue de {$store->name} :\n".$this->catalog->describe($store, $products),
             filled($text) ? "Conversation :\n".Str::limit(trim($text), 8000) : 'Conversation : voir les captures d\'écran.',
         ]))];
 
@@ -84,42 +82,6 @@ class OrderDrafter
             'items' => $items,
             'unmatched' => $unmatched,
         ];
-    }
-
-    /**
-     * Produits proposés au modèle : tout le catalogue actif s'il est petit, sinon ceux dont un mot du nom est cité.
-     *
-     * @return Collection<int, Product>
-     */
-    private function catalog(Store $store, string $text): Collection
-    {
-        $query = fn () => Product::forStore($store->id)->where('status', ProductStatus::Active->value)
-            ->with(['variants' => fn ($q) => $q->where('is_active', true)->orderBy('position')]);
-
-        if ((clone $query())->count() <= self::CATALOG_LIMIT || trim($text) === '') {
-            return $query()->latest('updated_at')->limit(self::CATALOG_LIMIT)->get();
-        }
-
-        $words = array_filter(explode(' ', PlaceMatcher::normalize($text)), fn ($w) => mb_strlen($w) >= 3);
-
-        return $query()->where(fn ($q) => collect($words)->take(40)->each(fn ($w) => $q->orWhere('title', 'ilike', '%'.$w.'%')))
-            ->limit(self::CATALOG_LIMIT)->get();
-    }
-
-    private function catalogText(Collection $products): string
-    {
-        if ($products->isEmpty()) {
-            return '(catalogue vide)';
-        }
-
-        return $products->map(function (Product $p) {
-            $price = fn (ProductVariant $v) => number_format($v->price, 0, ',', ' ').' F';
-            if (! $p->has_variants && $p->variants->count() === 1) {
-                return "V{$p->variants[0]->id} {$p->title} — {$price($p->variants[0])}";
-            }
-
-            return "P{$p->id} {$p->title} : ".$p->variants->map(fn ($v) => "V{$v->id} {$v->title} {$price($v)}")->implode(' ; ');
-        })->implode("\n");
     }
 
     /**
