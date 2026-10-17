@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\PreprodGate;
+use Illuminate\Foundation\Http\MaintenanceModeBypassCookie;
 use Tests\TestCase;
 
 class PreprodGateTest extends TestCase
@@ -65,5 +66,20 @@ class PreprodGateTest extends TestCase
         config(['platform.preprod_access_code' => 'mangue-2026']);
         $this->app->detectEnvironment(fn () => 'production');
         $this->get($this->platformUrl('/connexion'))->assertOk();
+    }
+
+    public function test_the_update_script_sees_the_site_during_maintenance(): void
+    {
+        $this->artisan('down', ['--secret' => 'secret-de-mise-a-jour'])->assertSuccessful();
+        try {
+            $cookie = MaintenanceModeBypassCookie::create('secret-de-mise-a-jour')->getValue();
+            $this->withUnencryptedCookie('laravel_maintenance', $cookie)->get($this->platformUrl('/connexion'))->assertOk();
+            $this->withUnencryptedCookie('laravel_maintenance', MaintenanceModeBypassCookie::create('autre')->getValue())->get($this->platformUrl('/connexion'))->assertStatus(503);
+        } finally {
+            $this->artisan('up');
+        }
+
+        // Hors maintenance, le cookie ne sert plus à rien
+        $this->withUnencryptedCookie('laravel_maintenance', $cookie)->get($this->platformUrl('/connexion'))->assertUnauthorized();
     }
 }

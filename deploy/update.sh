@@ -62,7 +62,8 @@ site_answers() {
         rm -f "$jar"
         info "https://$DOMAIN/up : $code, page d'accueil : $page"
         # « return » seul renverrait, depuis le nettoyage de sortie, le code d'erreur d'avant : codes explicites
-        [[ "$code" == "200" && "$page" =~ ^[23] ]] && return 0
+        # Page d'accueil : seule une erreur du serveur (5xx) compte ; la préproduction répond 401 sans son code d'accès
+        [[ "$code" == "200" && "$page" =~ ^[234] ]] && return 0
         return 1
     done
     rm -f "$jar"
