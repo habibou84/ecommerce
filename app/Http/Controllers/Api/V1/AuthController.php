@@ -9,6 +9,7 @@ use App\Models\SupportSession;
 use App\Models\User;
 use App\Services\Accounts\LoginHandoff;
 use App\Services\Accounts\StoreRoles;
+use App\Services\Ai\Assistant;
 use App\Services\Console\SupportSessions;
 use App\Services\Couriers\CourierRoster;
 use App\Support\Tenancy;
@@ -170,6 +171,8 @@ class AuthController extends Controller
                 ->values(),
             // Propriétaire de plusieurs boutiques (à cette adresse ou ailleurs) : accès à la vue d'ensemble
             'owns_several' => Store::where('owner_id', $user->id)->count() > 1,
+            // Assistant IA : activé sur la plateforme, actions utilisées et quota de l'offre ce mois-ci
+            'ai' => app(Assistant::class)->status($store),
         ];
     }
 }

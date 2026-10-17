@@ -384,6 +384,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             });
             Route::middleware('permission:'.Permission::ProductsManage->value)->group(function () {
                 Route::post('products', [ProductController::class, 'store'])->name('products.store');
+                Route::post('products/draft', [ProductController::class, 'draft'])->middleware('throttle:20,1')->name('products.draft');
                 Route::put('products/{product}', [ProductController::class, 'update'])->whereNumber('product')->name('products.update');
                 Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate'])->whereNumber('product')->name('products.duplicate');
                 Route::post('products/{product}/copy', [ProductController::class, 'copy'])->whereNumber('product')->name('products.copy');

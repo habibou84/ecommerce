@@ -218,8 +218,8 @@ class BillingTest extends TestCase
         $this->storeApi($this->store, 'POST', 'payments/accounts', ['provider' => 'wave', 'credentials' => ['api_key' => 'x', 'webhook_secret' => 'y']])->assertCreated();
 
         // Fonctions annoncées mais pas encore prêtes : signalées « bientôt »
-        $features = $this->storeApi($this->store, 'GET', 'billing')->assertJsonPath('data.coming_soon', ['ai_product', 'merchant_api'])->json('data.features');
+        $features = $this->storeApi($this->store, 'GET', 'billing')->assertJsonPath('data.coming_soon', ['merchant_api'])->json('data.features');
         $this->assertTrue($features['online_payment']['enabled']);
-        $this->assertTrue($features['ai_product']['soon']);
+        $this->assertTrue($features['merchant_api']['soon']);
     }
 }

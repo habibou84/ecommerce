@@ -14,17 +14,17 @@ class PlanSeeder extends Seeder
     {
         $plans = [
             ['code' => 'free', 'name' => 'Gratuit', 'sort' => 1, 'monthly_price' => 0, 'yearly_price' => 0,
-                'limits' => ['orders_per_month' => 30, 'products' => 20, 'members' => 1, 'couriers' => 1, 'carrier_connections' => 0, 'payment_accounts' => 0, 'stores' => 1],
+                'limits' => ['orders_per_month' => 30, 'products' => 20, 'members' => 1, 'couriers' => 1, 'carrier_connections' => 0, 'payment_accounts' => 0, 'stores' => 1, 'ai_actions_per_month' => 5],
                 'features' => []],
             ['code' => 'starter', 'name' => 'Starter', 'sort' => 2, 'monthly_price' => 5000, 'yearly_price' => 50000,
-                'limits' => ['orders_per_month' => null, 'products' => null, 'members' => 3, 'couriers' => 5, 'carrier_connections' => 1, 'payment_accounts' => 1, 'stores' => 1],
+                'limits' => ['orders_per_month' => null, 'products' => null, 'members' => 3, 'couriers' => 5, 'carrier_connections' => 1, 'payment_accounts' => 1, 'stores' => 1, 'ai_actions_per_month' => 50],
                 'features' => ['online_payment' => true]],
             ['code' => 'pro', 'name' => 'Pro', 'sort' => 3, 'monthly_price' => 15000, 'yearly_price' => 150000,
-                'limits' => ['orders_per_month' => null, 'products' => null, 'members' => 10, 'couriers' => null, 'carrier_connections' => null, 'payment_accounts' => null, 'stores' => 1],
-                'features' => ['custom_domain' => true, 'online_payment' => true, 'whatsapp_api' => true, 'ai_product' => true, 'advanced_stats' => true]],
+                'limits' => ['orders_per_month' => null, 'products' => null, 'members' => 10, 'couriers' => null, 'carrier_connections' => null, 'payment_accounts' => null, 'stores' => 1, 'ai_actions_per_month' => 300],
+                'features' => ['custom_domain' => true, 'online_payment' => true, 'whatsapp_api' => true, 'advanced_stats' => true]],
             ['code' => 'business', 'name' => 'Business', 'sort' => 4, 'monthly_price' => 35000, 'yearly_price' => 350000,
-                'limits' => ['orders_per_month' => null, 'products' => null, 'members' => null, 'couriers' => null, 'carrier_connections' => null, 'payment_accounts' => null, 'stores' => 3],
-                'features' => ['custom_domain' => true, 'online_payment' => true, 'whatsapp_api' => true, 'ai_product' => true, 'advanced_stats' => true, 'merchant_api' => true, 'multi_store' => true]],
+                'limits' => ['orders_per_month' => null, 'products' => null, 'members' => null, 'couriers' => null, 'carrier_connections' => null, 'payment_accounts' => null, 'stores' => 3, 'ai_actions_per_month' => 1000],
+                'features' => ['custom_domain' => true, 'online_payment' => true, 'whatsapp_api' => true, 'advanced_stats' => true, 'merchant_api' => true, 'multi_store' => true]],
         ];
 
         foreach ($plans as $plan) {
