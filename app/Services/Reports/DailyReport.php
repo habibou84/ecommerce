@@ -9,6 +9,7 @@ use App\Models\ScheduledReport;
 use App\Models\Shipment;
 use App\Models\Store;
 use App\Notifications\DailyReportMail;
+use App\Services\Accounts\StoreGroup;
 use App\Services\Shipping\CarrierBalances;
 use App\Services\WhatsApp\CustomerMessenger;
 use Carbon\CarbonImmutable;
@@ -74,15 +75,25 @@ class DailyReport
     {
         $report->loadMissing('store', 'user');
         $store = $report->store;
-        $figures = $this->figures($store, $day ?? CarbonImmutable::now());
+        $day ??= CarbonImmutable::now();
+
+        // Rapport commun : toutes les boutiques de l'abonnement commun, si la personne en est le propriétaire
+        $group = $report->all_stores && $store->owner_id === $report->user_id ? app(StoreGroup::class)->stores($store) : null;
+        if ($group !== null && $group->count() > 1) {
+            ['figures' => $figures, 'text' => $text, 'title' => $title] = app(GroupStats::class)->dailyReport($group, $day);
+        } else {
+            $figures = $this->figures($store, $day);
+            $text = $this->text($store, $figures);
+            $title = $store->name;
+        }
 
         try {
             $sent = match ($report->channel) {
                 'whatsapp' => $this->messenger->forTeam($store, (string) $report->user->phone, 'daily_report', [
-                    $store->name, (string) $figures['date'], (string) $figures['orders'], Money::format($figures['delivered_amount']),
+                    $title, (string) $figures['date'], (string) $figures['orders'], Money::format($figures['delivered_amount']),
                     (string) $figures['to_confirm'], (string) $figures['to_ship'],
                 ], 'report', $report->id) !== null,
-                'email' => filled($report->user->email) ? $this->mail($report, $this->text($store, $figures)) : false,
+                'email' => filled($report->user->email) ? $this->mail($report, $text) : false,
                 default => false,
             };
         } catch (Throwable $e) {

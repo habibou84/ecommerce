@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import Alert from '../../components/Alert.vue'
-import Field from '../../components/Field.vue'
-import http, { errorMessage, fieldErrors } from '../../lib/http'
-import { boot } from '../../lib/boot'
-import { money, slugify } from '../../lib/format'
+import Alert from '../../../components/Alert.vue'
+import Field from '../../../components/Field.vue'
+import GroupTabs from './GroupTabs.vue'
+import http, { errorMessage, fieldErrors } from '../../../lib/http'
+import { boot } from '../../../lib/boot'
+import { money, slugify } from '../../../lib/format'
 
 const data = ref(null)
 const error = ref('')
@@ -66,6 +67,7 @@ async function attach(store, value) {
 </script>
 
 <template>
+  <GroupTabs v-if="data?.group" class="mb-5" />
   <div v-if="data" class="space-y-5">
     <Alert v-if="error">{{ error }}</Alert>
 

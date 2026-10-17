@@ -191,11 +191,13 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
         <div class="rounded-lg border border-slate-200 p-3">
           <label class="flex items-center gap-2 font-medium"><input v-model="report.channels.whatsapp.is_active" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Par WhatsApp ({{ report.phone }})</label>
           <input v-model="report.channels.whatsapp.send_at" type="time" class="input mt-2 w-32" />
+          <label v-if="report.group_stores > 1" class="mt-2 flex items-center gap-2 text-slate-700"><input v-model="report.channels.whatsapp.all_stores" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Un seul rapport pour mes {{ report.group_stores }} boutiques</label>
           <p v-if="!report.whatsapp_ready" class="mt-2 text-xs text-amber-800">Connectez le WhatsApp de la boutique et indiquez le modèle « Rapport du jour » (Réglages › WhatsApp).</p>
         </div>
         <div class="rounded-lg border border-slate-200 p-3">
           <label class="flex items-center gap-2 font-medium"><input v-model="report.channels.email.is_active" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Par email {{ report.email ? `(${report.email})` : '' }}</label>
           <input v-model="report.channels.email.send_at" type="time" class="input mt-2 w-32" />
+          <label v-if="report.group_stores > 1" class="mt-2 flex items-center gap-2 text-slate-700"><input v-model="report.channels.email.all_stores" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Un seul rapport pour mes {{ report.group_stores }} boutiques</label>
           <p v-if="!report.email" class="mt-2 text-xs text-amber-800">Ajoutez d'abord votre adresse email dans <RouterLink to="/gestion/compte" class="underline">Mon compte</RouterLink>.</p>
           <p v-if="report.channels.email.last_sent_at" class="mt-2 text-xs text-slate-500">Dernier envoi : {{ formatDateTime(report.channels.email.last_sent_at) }}</p>
         </div>

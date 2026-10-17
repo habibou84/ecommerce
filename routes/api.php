@@ -143,6 +143,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
             // ── Boutiques du propriétaire ──
             Route::prefix('my-stores')->name('my-stores.')->group(function () {
                 Route::get('/', [StoreGroupController::class, 'index'])->name('index');
+                Route::get('stats', [StoreGroupController::class, 'stats'])->name('stats');
+                Route::get('cash', [StoreGroupController::class, 'cash'])->name('cash');
                 Route::post('/', [StoreGroupController::class, 'store'])->middleware('throttle:10,1')->name('store');
                 Route::post('{store}/attach', [StoreGroupController::class, 'attach'])->whereNumber('store')->name('attach');
                 Route::delete('{store}/attach', [StoreGroupController::class, 'detach'])->whereNumber('store')->name('detach');

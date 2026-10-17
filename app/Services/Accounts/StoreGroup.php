@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Billing\PlanLimits;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -34,6 +35,24 @@ class StoreGroup
         }
 
         return $this->limits->coveringStore($store);
+    }
+
+    /**
+     * Boutiques réunies sous l'abonnement commun (la principale d'abord), ou null sans abonnement commun.
+     *
+     * @return Collection<int, Store>|null
+     */
+    public function stores(Store $current): ?Collection
+    {
+        $main = $this->main($current);
+        if ($main === null) {
+            return null;
+        }
+
+        $covered = Store::where('billing_store_id', $main->id)->orderBy('id')->get()
+            ->filter(fn (Store $s) => $this->limits->coveringStore($s)?->id === $main->id);
+
+        return collect([$main])->concat($covered)->values();
     }
 
     /**
