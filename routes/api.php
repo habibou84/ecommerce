@@ -197,6 +197,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware($manage)->group(function () {
                 Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
                 Route::post('orders/parse', [OrderController::class, 'parse'])->name('orders.parse');
+                Route::post('orders/draft', [OrderController::class, 'draft'])->middleware('throttle:30,1')->name('orders.draft');
                 Route::post('orders/{order}/status', [OrderController::class, 'transition'])->whereNumber('order')->name('orders.status');
                 Route::post('orders/{order}/payments', [OrderController::class, 'payment'])->whereNumber('order')->name('orders.payments');
                 Route::post('places', [DeliveryController::class, 'addPlace'])->name('places.store');

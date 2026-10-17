@@ -133,12 +133,28 @@ const fee = computed(() => {
 const discount = computed(() => (form.discount_code ? codeDiscount.value : Number(form.discount_total || 0)))
 const total = computed(() => Math.max(0, subtotal.value - discount.value) + fee.value)
 
-async function analyse() {
+// Assistant IA : conversation mal écrite ou en plusieurs messages, captures d'écran
+const ai = computed(() => auth.profile?.ai ?? { enabled: false, used: 0, limit: 0 })
+const screenshots = ref([])
+function onScreenshots(event) {
+  screenshots.value = [...screenshots.value, ...event.target.files].slice(0, 3)
+  event.target.value = ''
+}
+
+async function analyse(withAssistant = false) {
   parsing.value = true
   parseInfo.value = ''
   try {
-    const { data } = await http.post('/orders/parse', { text: paste.value })
-    const r = data.data
+    let r
+    if (withAssistant) {
+      const body = new FormData()
+      if (paste.value.trim()) body.append('text', paste.value)
+      screenshots.value.forEach((f) => body.append('screenshots[]', f))
+      r = (await http.post('/orders/draft', body)).data.data
+      if (auth.profile?.ai) auth.profile.ai.used++
+    } else {
+      r = (await http.post('/orders/parse', { text: paste.value })).data.data
+    }
     if (r.phone) form.customer_phone = phoneDisplay(r.phone)
     if (r.phone2) form.shipping_phone2 = phoneDisplay(r.phone2)
     if (r.customer_name || r.customer?.name) form.customer_name = r.customer_name ?? r.customer.name
@@ -162,6 +178,9 @@ async function analyse() {
     const found = [r.phone && 'téléphone', r.place && 'quartier', r.items.length && `${r.items.length} produit(s)`].filter(Boolean)
     parseInfo.value = found.length ? `Trouvé : ${found.join(', ')}. Vérifiez avant d'enregistrer.` : 'Rien de reconnu : complétez à la main.'
     if (r.items.some((i) => i.needs_variant)) parseInfo.value += ' Choisissez la variante des produits signalés.'
+    if (r.unmatched?.length) parseInfo.value += ` Pas au catalogue : ${r.unmatched.join(', ')}.`
+    if (!r.place && r.place_text) parseInfo.value += ` Quartier « ${r.place_text} » à choisir dans la liste.`
+    if (withAssistant) screenshots.value = []
   } catch (e) {
     parseInfo.value = errorMessage(e)
   } finally {
@@ -258,7 +277,19 @@ async function save() {
       <h2 class="font-semibold">Saisie rapide</h2>
       <p class="text-sm text-slate-600">Collez le message du client (WhatsApp, Facebook…) : numéro, nom, quartier et produits se remplissent.</p>
       <textarea v-model="paste" class="input" rows="3" placeholder="Bonsoir, je veux 2 robes wax taille M. Je suis à Yop Siporex, 07 07 07 07 07…" />
-      <button type="button" class="btn-secondary" :disabled="parsing || paste.trim().length < 5" @click="analyse">{{ parsing ? 'Analyse…' : 'Analyser le message' }}</button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" class="btn-secondary" :disabled="parsing || paste.trim().length < 5" @click="analyse(false)">{{ parsing ? 'Analyse…' : 'Analyser le message' }}</button>
+        <template v-if="ai.enabled">
+          <label class="btn-secondary cursor-pointer px-3">
+            📷 Capture d'écran{{ screenshots.length ? ` (${screenshots.length})` : '' }}
+            <input type="file" accept="image/*" multiple class="hidden" @change="onScreenshots" />
+          </label>
+          <button type="button" class="btn-brand" :disabled="parsing || (paste.trim().length < 5 && !screenshots.length) || (ai.limit !== null && ai.used >= ai.limit)" @click="analyse(true)">
+            ✨ {{ parsing ? 'L\'assistant lit…' : 'Analyser avec l\'assistant' }}
+          </button>
+        </template>
+      </div>
+      <p v-if="ai.enabled" class="text-xs text-slate-500">L'assistant comprend les messages mal écrits, en plusieurs fois ou en capture d'écran ({{ ai.used }}{{ ai.limit !== null ? ` / ${ai.limit}` : '' }} action(s) ce mois-ci).</p>
       <Alert v-if="parseInfo" tone="info">{{ parseInfo }}</Alert>
     </section>
 
