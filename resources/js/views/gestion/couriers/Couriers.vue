@@ -6,6 +6,11 @@ import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
+import { useAuthStore } from '../../../stores/auth'
+
+const auth = useAuthStore()
+// Autres boutiques de l'adresse : le nouveau livreur peut y travailler aussi
+const otherStores = () => (auth.profile?.stores ?? []).filter((s) => s.id !== auth.store?.id)
 
 const data = ref(null)
 const error = ref('')
@@ -33,7 +38,7 @@ function open(courier) {
   error.value = ''
   editing.value = courier
     ? { ...courier, pay_rule_id: courier.pay_rule?.id ?? null, zone_ids: courier.zones.map((z) => z.id) }
-    : { name: '', phone: '', vehicle_type: 'moto', pay_rule_id: null, cash_limit: null, zone_ids: [], note: '' }
+    : { name: '', phone: '', vehicle_type: 'moto', pay_rule_id: null, cash_limit: null, zone_ids: [], note: '', store_ids: [] }
   modal.value = 'edit'
 }
 
@@ -206,6 +211,15 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
               <input v-model="editing.zone_ids" type="checkbox" :value="z.id" class="accent-emerald-700" /> {{ z.name }}
             </label>
           </div>
+        </fieldset>
+        <fieldset v-if="!editing.id && otherStores().length">
+          <legend class="label">Travaille aussi pour</legend>
+          <div class="flex flex-wrap gap-2">
+            <label v-for="st in otherStores()" :key="st.id" class="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 text-sm">
+              <input v-model="editing.store_ids" type="checkbox" :value="st.id" class="accent-emerald-700" /> {{ st.name }}
+            </label>
+          </div>
+          <p class="mt-1 text-xs text-slate-500">Une seule application pour toutes ses livraisons ; chaque boutique garde ses zones et sa paie pour lui.</p>
         </fieldset>
         <button class="btn-brand w-full" :disabled="busy">{{ editing.id ? 'Enregistrer' : 'Ajouter et créer le lien' }}</button>
       </form>

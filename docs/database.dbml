@@ -107,6 +107,7 @@ Table store_invitations {
   name varchar
   phone varchar(20) [not null]
   role varchar(30) [not null]
+  extra_stores json [note: 'autres boutiques de la même adresse rejointes avec l\'invitation : [{store_id, role}]']
   token_hash varchar(64) [unique, not null]
   invited_by bigint [ref: > users.id]
   accepted_by bigint [ref: > users.id]

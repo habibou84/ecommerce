@@ -29,9 +29,10 @@ class CourierRoster
 
     /**
      * @param  array{name: string, phone: string, vehicle_type?: string, pay_rule_id?: ?int, cash_limit?: ?int, zone_ids?: list<int>, note?: ?string}  $data
+     * @param  list<array{store_id: int, role: string}>  $extras  autres boutiques de l'adresse (rejointes avec l'invitation)
      * @return array{0: Courier, 1: ?string} livreur et lien d'invitation (null s'il a déjà un compte dans la boutique)
      */
-    public function add(Store $store, User $inviter, array $data): array
+    public function add(Store $store, User $inviter, array $data, array $extras = []): array
     {
         $phone = PhoneNumber::normalize($data['phone']) ?? throw new BusinessRuleException('Numéro de téléphone invalide.', 'phone');
         if (Courier::forStore($store->id)->where('phone', $phone)->exists()) {
@@ -42,7 +43,7 @@ class CourierRoster
         $member = User::where('phone', $phone)->first();
         $isMember = $member !== null && $member->activeMembershipIn($store) !== null;
 
-        return DB::transaction(function () use ($store, $inviter, $data, $phone, $member, $isMember) {
+        return DB::transaction(function () use ($store, $inviter, $data, $phone, $member, $isMember, $extras) {
             $courier = Courier::create([
                 'store_id' => $store->id,
                 'name' => $data['name'],
@@ -56,7 +57,7 @@ class CourierRoster
             ]);
             $this->syncZones($courier, $data['zone_ids'] ?? []);
 
-            $link = $isMember ? null : $this->invitations->invite($store, $inviter, $phone, Role::Courier, $data['name'])[1];
+            $link = $isMember ? null : $this->invitations->invite($store, $inviter, $phone, Role::Courier, $data['name'], $extras)[1];
 
             return [$courier, $link];
         });

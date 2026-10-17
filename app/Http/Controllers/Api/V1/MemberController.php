@@ -6,8 +6,10 @@ use App\Enums\Role;
 use App\Enums\UserStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
+use App\Models\Store;
 use App\Models\StoreUser;
 use App\Services\Accounts\StoreRoles;
+use App\Services\Accounts\TeamStores;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +21,34 @@ use Jibiat\Socle\PhoneNumber;
  */
 class MemberController extends Controller
 {
-    public function __construct(private readonly Tenancy $tenancy, private readonly StoreRoles $roles) {}
+    public function __construct(private readonly Tenancy $tenancy, private readonly StoreRoles $roles, private readonly TeamStores $team) {}
+
+    /**
+     * Boutiques de l'adresse dont la personne connectée gère l'équipe (choix des boutiques d'un membre).
+     */
+    public function stores(Request $request): JsonResponse
+    {
+        return response()->json(['data' => $this->team->manageable($request->user(), $this->tenancy->store())
+            ->map(fn (Store $s) => ['id' => $s->id, 'name' => $s->name, 'is_current' => $s->id === $this->tenancy->store()->id])->values()]);
+    }
+
+    /**
+     * Boutiques où travaille le membre : ajout, rôle, retrait (seulement dans les boutiques gérées).
+     */
+    public function updateStores(Request $request, int $member): JsonResponse
+    {
+        $membership = $this->find($member);
+        $this->ensureEditable($request, $membership);
+        $data = $request->validate(['stores' => ['required', 'array'], 'stores.*' => ['nullable', 'string']]);
+
+        $manageable = $this->team->manageable($request->user(), $this->tenancy->store())->keyBy('id');
+        foreach ($data['stores'] as $id => $role) {
+            $store = $manageable->get((int) $id) ?? throw new BusinessRuleException('Vous ne gérez pas l\'équipe de cette boutique.', 'stores');
+            $this->team->set($request->user(), $membership->user, $store, $role ?: null);
+        }
+
+        return response()->json(['data' => $this->present($membership->fresh('user'))]);
+    }
 
     public function index(): JsonResponse
     {
@@ -108,6 +137,8 @@ class MemberController extends Controller
             'is_owner' => $membership->user_id === $this->tenancy->store()->owner_id,
             'status' => $membership->status->value,
             'joined_at' => $membership->joined_at?->toIso8601String(),
+            // Boutiques de l'adresse où la personne travaille, avec son rôle dans chacune
+            'stores' => $this->team->of($membership->user, $this->tenancy->store()),
             'last_seen_at' => $membership->last_seen_at?->toIso8601String(),
         ];
     }
