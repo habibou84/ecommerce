@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Catalog\ImageStore;
+use App\Services\Catalog\StoreCatalog;
 use App\Services\Stock\StockLevels;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -122,6 +123,28 @@ class ProductController extends Controller
         ], $request->user());
 
         return ProductResource::make(ProductResource::load($copy))->response()->setStatusCode(201);
+    }
+
+    /**
+     * Autres boutiques de l'adresse : le produit y est-il déjà ? peut-on l'y copier ?
+     */
+    public function stores(Request $request, int $product, StoreCatalog $catalog): JsonResponse
+    {
+        return response()->json(['data' => $catalog->presence($request->user(), Product::findOrFail($product))]);
+    }
+
+    /**
+     * Copie dans une autre boutique de l'adresse (photos, options, variantes, prix ; stock à zéro).
+     */
+    public function copy(Request $request, int $product, StoreCatalog $catalog): JsonResponse
+    {
+        $data = $request->validate(['store_id' => ['required', 'integer']], [], ['store_id' => 'boutique']);
+        $copy = $catalog->copy($request->user(), Product::findOrFail($product), (int) $data['store_id']);
+
+        return response()->json([
+            'data' => ['id' => $copy->id, 'store_id' => $copy->store_id],
+            'message' => "« {$copy->title} » est maintenant aussi dans {$copy->store->name} (stock à zéro).",
+        ], 201);
     }
 
     public function destroy(Request $request, int $product): JsonResponse

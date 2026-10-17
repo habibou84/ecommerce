@@ -284,6 +284,29 @@ async function saveTiers() {
 }
 onMounted(loadTiers)
 
+// Autres boutiques de l'adresse : le produit y est-il ? copie (photos, variantes, prix ; stock à zéro)
+const otherStores = ref([])
+const copying = ref(null)
+const copied = ref('')
+async function loadOtherStores() {
+  if (props.id && (auth.profile?.stores?.length ?? 0) > 1) otherStores.value = (await http.get(`/products/${props.id}/stores`)).data.data
+}
+async function copyTo(store) {
+  copying.value = store.id
+  copied.value = ''
+  error.value = ''
+  try {
+    const { data } = await http.post(`/products/${props.id}/copy`, { store_id: store.id })
+    store.product_id = data.data.id
+    copied.value = data.message
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    copying.value = null
+  }
+}
+onMounted(loadOtherStores)
+
 // Partage sur les réseaux : lien court et image carrée
 const share = ref(null)
 const sharing = ref(false)
@@ -568,6 +591,27 @@ const margin = computed(() => {
         </div>
       </section>
     </fieldset>
+
+    <section v-if="otherStores.length" class="card space-y-3 p-4 sm:p-6">
+      <div>
+        <h2 class="font-semibold">Dans vos autres boutiques</h2>
+        <p class="text-sm text-slate-500">La copie reprend les photos, les variantes et les prix ; son stock part de zéro (envoyez-en depuis Stock › Transferts).</p>
+      </div>
+      <Alert v-if="copied" tone="success">{{ copied }}</Alert>
+      <ul class="divide-y divide-slate-100 text-sm">
+        <li v-for="s in otherStores" :key="s.id" class="flex items-center gap-3 py-2">
+          <span class="min-w-0 flex-1 truncate font-medium">{{ s.name }}</span>
+          <template v-if="s.product_id">
+            <span class="text-emerald-700">✓ Présent</span>
+            <button type="button" class="btn-secondary px-3 py-1.5" @click="auth.switchTo(s.id, `/gestion/catalogue/${s.product_id}`)">Ouvrir</button>
+          </template>
+          <button v-else-if="s.can_copy" type="button" class="btn-secondary px-3 py-1.5" :disabled="copying !== null" @click="copyTo(s)">
+            {{ copying === s.id ? 'Copie…' : 'Copier ici' }}
+          </button>
+          <span v-else class="text-slate-400">Absent</span>
+        </li>
+      </ul>
+    </section>
 
     <div v-if="canEdit" class="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:left-64">
       <div class="mx-auto flex max-w-5xl items-center gap-2">

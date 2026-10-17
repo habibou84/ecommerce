@@ -43,7 +43,27 @@ Les clés ne s'envoient à personne : ni par message, ni dans une conversation.
   de `AllowUsers`.
 - **« Host key verification failed »** : `DEPLOY_HOST_KEY` ne correspond pas au serveur (relancer le script et recopier
   la ligne `ssh-ed25519 …`).
-- **Erreur pendant la mise à jour** : le message est dans le journal de l'action ; le site sort du mode maintenance même
-  en cas d'échec. Relancer à la main sur le serveur si besoin.
+- **Erreur pendant la mise à jour** : le serveur revient de lui-même à la version précédente (voir ci-dessous) et
+  l'action se termine en rouge (GitHub prévient par courriel) ; le message est dans son journal.
 - **Changer les clés** : relancer `setup-auto-deploy.sh` (les anciennes cessent de fonctionner) et remplacer les secrets.
 - **Couper l'automatisme** : supprimer le secret `DEPLOY_HOST`, ou `rm /etc/sudoers.d/jibiat-deploy` sur le serveur.
+
+## Retour automatique à la version précédente
+
+`deploy/update.sh` (automatique ou à la main) travaille en mode maintenance :
+
+1. récupère la nouvelle version, installe les dépendances et compile l'interface ;
+2. copie la base (`/var/backups/<installation>/avant-mise-a-jour.dump`, remplacée à chaque mise à jour) ;
+3. applique les migrations, reconstruit les caches, redémarre les processus ;
+4. **vérifie le site avant de le rouvrir** : `/up` (application et base) et la page d'accueil, sur le serveur lui-même.
+
+Si une étape échoue ou si la vérification ne passe pas, le serveur revient à la version précédente : code, dépendances,
+et base remise exactement comme avant les migrations (en une seule transaction). Rien n'est perdu : pendant la
+maintenance, ni commande, ni file d'attente, ni tâche planifiée n'écrit dans la base. Le site rouvre sur l'ancienne
+version, le journal se termine par « Revenu à la version précédente » et l'action GitHub est en rouge.
+
+La version en échec reste sur GitHub : la fusion suivante (avec la correction) relance la mise à jour normalement.
+Si le retour lui-même échoue (« intervention nécessaire »), la copie de la base reste disponible pour une restauration
+à la main.
+
+Des fichiers modifiés à la main sur le serveur bloquent la mise à jour avant tout changement : rien n'est annulé.

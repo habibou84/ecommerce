@@ -4,12 +4,16 @@ namespace App\Services\Customers;
 
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
+use App\Enums\Permission;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
 use App\Models\Order;
 use App\Models\Store;
+use App\Models\User;
+use App\Services\Accounts\StoreRoles;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Jibiat\Socle\PhoneNumber;
 
 /**
  * Fichier clients : un client par numéro de téléphone et par boutique, ses adresses, ses compteurs et son
@@ -126,6 +130,49 @@ class CustomerBook
             ->where('created_at', '>=', now()->subDay())
             ->when($ignoreOrderId, fn ($q) => $q->whereKeyNot($ignoreOrderId))
             ->get(['id', 'number', 'total', 'created_at']);
+    }
+
+    /**
+     * Le même client (même numéro) dans les autres boutiques de l'adresse où l'on voit les clients :
+     * de quoi remplir la commande et juger du risque sans tout ressaisir.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function elsewhere(User $actor, Store $current, string $phone): array
+    {
+        $phone = PhoneNumber::normalize($phone) ?? $phone;
+        $stores = app(StoreRoles::class)->otherAddressStores($actor, $current, Permission::CustomersView)->keyBy('id');
+        if ($stores->isEmpty()) {
+            return [];
+        }
+
+        return Customer::withoutGlobalScopes()->whereNull('deleted_at')->whereIn('store_id', $stores->keys())->where('phone', $phone)
+            ->with(['addresses' => fn ($q) => $q->withoutGlobalScopes()->orderByDesc('is_default')->orderByDesc('id'), 'addresses.place.parent'])
+            ->get()
+            ->sortBy(fn (Customer $c) => $stores->keys()->search($c->store_id))
+            ->map(function (Customer $c) use ($stores) {
+                $address = $c->addresses->first();
+
+                return [
+                    'store_id' => $c->store_id,
+                    'store_name' => $stores[$c->store_id]->name,
+                    'customer_id' => $c->id,
+                    'name' => $c->name,
+                    'orders_count' => $c->orders_count,
+                    'delivered_count' => $c->delivered_count,
+                    'refused_count' => $c->refused_count,
+                    'total_spent' => $c->total_spent,
+                    'last_order_at' => $c->last_order_at?->toIso8601String(),
+                    'is_blacklisted' => $c->isBlacklisted(),
+                    'blacklist_reason' => $c->blacklist_reason,
+                    'address' => $address === null ? null : [
+                        'place_id' => $address->place_id,
+                        'place_label' => $address->place?->label(),
+                        'address_line' => $address->address_line,
+                        'landmark' => $address->landmark,
+                    ],
+                ];
+            })->values()->all();
     }
 
     public function blacklist(Customer $customer, string $reason): void
