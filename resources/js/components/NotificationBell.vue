@@ -49,7 +49,8 @@ async function readAll() {
       <span v-if="unread" class="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[11px] font-semibold text-white">{{ unread > 9 ? '9+' : unread }}</span>
     </button>
     <div v-if="open" class="fixed inset-0 z-30" @click="open = false" />
-    <div v-if="open" class="absolute right-0 z-40 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+    <!-- Téléphone : toute la largeur de l'écran (la cloche n'est pas au bord, le panneau débordait à gauche) -->
+    <div v-if="open" class="fixed inset-x-3 top-16 z-40 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80">
       <div class="flex items-center justify-between border-b border-slate-100 px-4 py-2">
         <span class="font-semibold">Notifications</span>
         <button v-if="unread" class="text-xs text-emerald-700 hover:underline" @click="readAll">Tout marquer comme lu</button>
