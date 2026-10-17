@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Models\Collection;
 use App\Models\Page;
+use App\Services\Marketing\ReviewBook;
 use App\Services\Promotions\Pricing;
 use App\Services\Storefront\CartService;
 use App\Services\Storefront\StorefrontCatalog;
@@ -125,6 +126,8 @@ class StorefrontController extends Controller
             'selected' => $first,
             'options' => $product->options->map(fn ($o) => ['name' => $o->name, 'values' => $o->values->pluck('value')->values()])->values(),
             'related' => $related,
+            // Avis publiés par le marchand : note moyenne et derniers avis
+            'reviews' => app(ReviewBook::class)->published($product),
             // Vente flash : fin la plus proche (compte à rebours) ; prix par quantité
             'flashEndsAt' => $flashEnds?->toIso8601String(),
             'volumePrices' => collect($pricing->tiers[$product->id] ?? [])->map(fn ($t) => ['quantity' => $t->min_quantity, 'price' => $t->price, 'unit' => (int) round($t->price / $t->min_quantity)])->values(),

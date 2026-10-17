@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\StoreStatus;
 use App\Enums\SubscriptionStatus;
 use App\Models\AdminAction;
+use App\Models\AiUsage;
 use App\Models\Store;
 use App\Models\SupportSession;
 use App\Models\User;
@@ -121,5 +122,34 @@ class ConsoleTest extends TestCase
         $again = SupportSession::create(['store_id' => $this->store->id, 'admin_id' => $this->admin->id, 'reason' => 'Test', 'started_at' => now()->subHour(), 'expires_at' => now()->subMinute()]);
         $this->artisan('support:expire')->expectsOutput('1 session(s) de support terminée(s)');
         $this->assertNotNull($again->fresh()->ended_at);
+    }
+
+    public function test_the_estimated_cost_of_the_ai_assistant(): void
+    {
+        $other = $this->createStore(['name' => 'Kids'], 'business');
+        $now = now();
+        foreach ([
+            [$this->store, 'claude-opus-5-5', 1_000_000, 100_000, true],
+            [$this->store, 'claude-haiku-5-5', 2_000_000, 200_000, true],
+            [$this->store, 'claude-haiku-5-5', 5000, 0, false],
+            [$other, 'claude-sonnet-5-5', 500_000, 50_000, true],
+        ] as [$store, $model, $in, $out, $ok]) {
+            AiUsage::create(['store_id' => $store->id, 'feature' => 'reply', 'model' => $model, 'input_tokens' => $in, 'output_tokens' => $out, 'succeeded' => $ok]);
+        }
+        // Mois précédent : pas compté
+        AiUsage::create(['store_id' => $other->id, 'feature' => 'reply', 'model' => 'claude-opus-5-5', 'input_tokens' => 9_000_000, 'output_tokens' => 0])
+            ->forceFill(['created_at' => $now->copy()->subMonthNoOverflow()->startOfMonth()->addDays(3)])->save();
+
+        $this->signIn();
+        // Opus : 4 $ + 2 $ ; Haiku : 0,20 $ + 0,10 $ + 0,0005 $ ; Sonnet : 1 $ + 0,50 $ ; 1 $ = 600 F
+        $this->console('GET', 'ai-usage')->assertOk()
+            ->assertJsonPath('data.total.actions', 3)->assertJsonPath('data.total.failures', 1)
+            ->assertJsonPath('data.total.cost', 4680)
+            ->assertJsonPath('data.stores.0.store.name', 'Awa Mode')->assertJsonPath('data.stores.0.cost', 3780)
+            ->assertJsonPath('data.stores.0.quota', 300)
+            ->assertJsonPath('data.stores.1.store.name', 'Kids')->assertJsonPath('data.stores.1.cost', 900);
+
+        $this->console('GET', 'ai-usage?month='.$now->copy()->subMonthNoOverflow()->format('Y-m'))->assertJsonPath('data.total.cost', 21600);
+        $this->console('GET', 'ai-usage?month=octobre')->assertStatus(422);
     }
 }

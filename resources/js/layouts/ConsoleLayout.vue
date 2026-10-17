@@ -9,6 +9,7 @@ const nav = [
   { to: '/console/boutiques', label: 'Boutiques' },
   { to: '/console/factures', label: 'Factures' },
   { to: '/console/offres', label: 'Offres' },
+  { to: '/console/ia', label: 'Assistant IA' },
 ]
 
 async function logout() {

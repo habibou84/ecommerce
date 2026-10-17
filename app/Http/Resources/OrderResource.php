@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Shipment;
@@ -84,6 +85,8 @@ class OrderResource extends JsonResource
             'cancel_note' => $this->cancel_note,
             'tracking_url' => $this->trackingUrl(),
             'receipt_url' => $this->receiptUrl(),
+            // Lien d'avis du client, une fois la commande livrée
+            'review_url' => $this->status === OrderStatus::Completed && filled($this->customer_phone) ? $this->store->url('/avis/'.$this->tracking_token) : null,
             'is_editable' => $this->status->isEditable(),
             'next_statuses' => array_map(fn ($s) => ['value' => $s->value, 'label' => $s->label()], $this->status->allowedTransitions()),
             'items' => $this->items->map(fn (OrderItem $i) => [

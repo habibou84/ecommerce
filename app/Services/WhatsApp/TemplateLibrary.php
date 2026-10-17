@@ -32,6 +32,11 @@ class TemplateLibrary
             'body' => 'Bonjour {{1}}, votre commande {{2}} a bien été livrée. Merci pour votre confiance et à bientôt !',
             'example' => ['Awa', '#1001'],
         ],
+        'review_request' => [
+            'name' => 'jm_demande_avis', 'category' => 'MARKETING',
+            'body' => 'Bonjour {{1}}, merci d\'avoir commandé chez {{2}} ! Votre avis sur les articles reçus nous aide beaucoup : {{3}} . Merci !',
+            'example' => ['Awa', 'Awa Mode', 'https://boutique.jibiat-marchand.com/avis/abc'],
+        ],
         'payment_link' => [
             'name' => 'jm_lien_paiement', 'category' => 'UTILITY',
             'body' => 'Bonjour {{1}}, voici le lien pour régler votre commande {{2}} ({{3}}) : {{4}} . Merci !',

@@ -1783,3 +1783,24 @@ Table ai_usages {
   }
   Note: 'Actions de l’assistant IA : quota mensuel de l’offre (plans.limits.ai_actions_per_month) et suivi du coût.'
 }
+
+Table product_reviews {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  product_id bigint [ref: > products.id, not null]
+  order_id bigint [ref: > orders.id]
+  customer_id bigint [ref: > customers.id]
+  author_name varchar(60) [not null, note: 'prénom et initiale']
+  rating smallint [not null, note: '1 à 5']
+  comment text
+  status varchar(20) [default: 'pending', note: 'pending, published, hidden']
+  published_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (order_id, product_id) [unique]
+    (store_id, status, created_at)
+    (product_id, status)
+  }
+  Note: 'Avis laissé par le lien de la commande livrée ; affiché sur la fiche produit une fois publié par le marchand.'
+}
