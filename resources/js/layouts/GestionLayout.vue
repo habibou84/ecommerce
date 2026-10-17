@@ -50,13 +50,13 @@ const groups = [
     { to: '/gestion/marketing', label: 'Promotions' },
   ] },
   { label: 'Réglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
-    { to: '/gestion/parametres', label: 'Ma boutique' },
+    { to: '/gestion/parametres', label: 'Informations de la boutique' },
     { to: '/gestion/compte', label: 'Mon compte' },
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/whatsapp', label: 'WhatsApp' },
     { to: '/gestion/abonnement', label: 'Abonnement' },
-    { to: '/gestion/mes-boutiques', label: 'Mes boutiques' },
+    { to: '/gestion/mes-boutiques', label: 'Ajouter une boutique', single: true },
   ] },
 ]
 
@@ -67,10 +67,13 @@ function canOpen(path) {
   return !meta.permission || auth.can(meta.permission)
 }
 
+// Propriétaire de plusieurs boutiques : vue d'ensemble en haut du menu (sinon « Ajouter une boutique » dans Réglages)
+const several = computed(() => !!auth.profile?.is_owner && ((auth.profile?.stores?.length ?? 0) > 1 || !!auth.profile?.owns_several))
 const nav = computed(() => [
   { to: '/gestion', label: 'Accueil', icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z', exact: true },
+  ...(several.value ? [{ to: '/gestion/mes-boutiques', label: 'Vue d\'ensemble', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' }] : []),
   ...groups.flatMap((group) => {
-    const items = group.items.filter((item) => canOpen(item.to))
+    const items = group.items.filter((item) => canOpen(item.to) && !(item.single && several.value))
     if (!items.length) return []
     return items.length === 1 ? [{ ...items[0], label: group.label, icon: group.icon }] : [{ ...group, items }]
   }),
@@ -126,14 +129,12 @@ async function logout() {
   router.replace('/gestion/connexion')
 }
 
+// Boutiques de cette adresse : on passe de l'une à l'autre sans changer d'adresse
 const addressStores = computed(() => auth.profile?.stores ?? [])
-function pickStore(value) {
-  // Vue d'ensemble : chiffres et livreurs de toutes les boutiques
-  if (value === 'all') {
-    router.push('/gestion/mes-boutiques/statistiques')
-    return
-  }
-  if (Number(value) !== auth.store?.id) auth.switchTo(Number(value))
+const storeMenu = ref(false)
+function pickStore(id) {
+  storeMenu.value = false
+  if (id !== auth.store?.id) auth.switchTo(id)
 }
 
 async function switchTo(store) {
@@ -154,13 +155,43 @@ async function switchTo(store) {
       class="fixed inset-y-0 left-0 z-30 w-64 -translate-x-full overflow-y-auto border-r border-slate-200 bg-white transition lg:static lg:translate-x-0"
       :class="{ 'translate-x-0': menuOpen }"
     >
-      <div class="flex h-16 items-center gap-2 border-b border-slate-100 px-4">
-        <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-700 font-semibold text-white">
-          {{ (auth.store?.name ?? '?').charAt(0).toUpperCase() }}
-        </span>
-        <div class="min-w-0">
-          <p class="truncate font-semibold">{{ auth.store?.name }}</p>
-          <a :href="auth.store?.url" target="_blank" class="block truncate text-xs text-slate-500 hover:text-emerald-700">Voir le site ↗</a>
+      <!-- Boutique ouverte ; avec plusieurs boutiques à cette adresse, c'est ici qu'on change de boutique -->
+      <div class="relative border-b border-slate-100">
+        <button
+          type="button"
+          class="flex h-16 w-full items-center gap-2 px-4 text-left"
+          :class="{ 'hover:bg-slate-50': addressStores.length > 1 }"
+          :disabled="addressStores.length < 2"
+          :aria-expanded="storeMenu"
+          @click="storeMenu = !storeMenu"
+        >
+          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-700 font-semibold text-white">
+            {{ (auth.store?.name ?? '?').charAt(0).toUpperCase() }}
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate font-semibold">{{ auth.store?.name }}</span>
+            <span v-if="addressStores.length > 1" class="block truncate text-xs text-slate-500">Changer de boutique</span>
+          </span>
+          <svg v-if="addressStores.length > 1" viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 10 5 5 5-5" /></svg>
+        </button>
+        <a v-if="addressStores.length < 2" :href="auth.store?.url" target="_blank" class="absolute bottom-3 left-14 text-xs text-slate-500 hover:text-emerald-700">Voir le site ↗</a>
+        <div v-if="storeMenu" class="absolute inset-x-2 top-14 z-40 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+          <button
+            v-for="s in addressStores"
+            :key="s.id"
+            type="button"
+            class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
+            :class="s.id === auth.store?.id ? 'font-semibold text-emerald-800' : 'text-slate-700'"
+            @click="pickStore(s.id)"
+          >
+            <span class="flex-1 truncate">{{ s.name }}</span>
+            <span v-if="s.id === auth.store?.id">✓</span>
+          </button>
+          <a :href="auth.store?.url" target="_blank" class="mt-1 block border-t border-slate-100 px-3 pb-2 pt-3 text-sm text-slate-700 hover:bg-slate-50">Voir le site de {{ auth.store?.name }} ↗</a>
+          <div v-if="auth.profile?.is_owner" class="border-t border-slate-100 pt-1">
+            <RouterLink to="/gestion/mes-boutiques/statistiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Vue d'ensemble</RouterLink>
+            <RouterLink to="/gestion/mes-boutiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Gérer mes boutiques</RouterLink>
+          </div>
         </div>
       </div>
 
@@ -210,7 +241,7 @@ async function switchTo(store) {
         <a :href="`${boot.platformUrl.replace(/\/$/, '')}/connexion?app=1&choisir=1`" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">⇄ Changer de boutique</a>
       </div>
       <div v-if="auth.profile?.other_stores?.length" class="border-t border-slate-100 p-3">
-        <p class="px-3 pb-1 text-xs font-medium uppercase text-slate-400">Mes autres boutiques</p>
+        <p class="px-3 pb-1 text-xs font-medium uppercase text-slate-400">Autres comptes</p>
         <button
           v-for="store in auth.profile.other_stores"
           :key="store.id"
@@ -229,18 +260,7 @@ async function switchTo(store) {
         <button class="btn-ghost -ml-2 px-2 lg:hidden" aria-label="Menu" @click="menuOpen = true">
           <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <!-- Boutiques de cette adresse : on passe de l'une à l'autre sans changer d'adresse -->
-        <select
-          v-if="addressStores.length > 1"
-          :value="auth.store?.id"
-          class="min-w-0 max-w-[10rem] truncate rounded-lg border border-slate-300 bg-white py-1.5 pl-2 pr-7 text-sm font-semibold sm:max-w-[14rem]"
-          aria-label="Boutique"
-          @change="pickStore($event.target.value)"
-        >
-          <option v-for="s in addressStores" :key="s.id" :value="s.id">{{ s.name }}</option>
-          <option v-if="auth.profile?.is_owner" value="all">Toutes les boutiques</option>
-        </select>
-        <h1 class="truncate text-lg font-semibold" :class="{ 'hidden sm:block': addressStores.length > 1 }">{{ route.meta.title }}</h1>
+        <h1 class="truncate text-lg font-semibold">{{ route.meta.title }}</h1>
         <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">
           <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="btn-ghost px-2 text-sm" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide">💬<span class="hidden sm:inline"> Aide</span></a>
           <NotificationBell />

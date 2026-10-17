@@ -92,6 +92,8 @@ class HostedStoresTest extends TestCase
     public function test_an_attached_store_moves_to_the_address_and_its_old_link_follows(): void
     {
         $shoes = $this->createStore(['slug' => 'awa-shoes', 'name' => 'Awa Shoes', 'owner_id' => $this->mode->owner_id]);
+        // Avant d'être réunie : pas dans « Autres comptes » (ses propres boutiques se réunissent depuis la vue d'ensemble)
+        $this->storeApi($this->mode, 'GET', 'auth/me')->assertJsonPath('data.other_stores', [])->assertJsonPath('data.owns_several', true);
         $this->storeApi($this->mode, 'POST', "my-stores/{$shoes->id}/attach")->assertOk();
         $shoes->refresh();
         $this->assertSame([$this->mode->id, 'shoes'], [$shoes->host_store_id, $shoes->path]);

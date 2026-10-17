@@ -66,14 +66,45 @@ async function create() {
   }
 }
 
-async function attach(store, value) {
-  const question = value
-    ? `Mettre ${store.name} sous l'abonnement ${group.value.plan} de ${group.value.main_name} ? Elle devient une page de l'adresse ${group.value.address.replace(/^https?:\/\//, '')} (son ancienne adresse y redirige) et son propre abonnement ne sera plus renouvelé.`
-    : `Retirer ${store.name} de l'abonnement commun ? Elle retrouve sa propre adresse et repasse à sa propre offre (gratuite sans abonnement).`
-  if (!window.confirm(question)) return
+// À cette adresse : la boutique principale et ses boutiques hébergées (sans abonnement commun : celle-ci)
+const here = computed(() => (data.value?.stores ?? []).filter((s) => (group.value ? s.is_main || s.is_hosted : s.is_current)))
+// Boutiques du propriétaire qui ont encore leur propre adresse
+const elsewhere = computed(() => (data.value?.stores ?? []).filter((s) => !here.value.includes(s)))
+const address = computed(() => (group.value?.address ?? '').replace(/^https?:\/\//, ''))
+
+async function join(store) {
+  if (!window.confirm(`Réunir ${store.name} à l'adresse ${address.value} ? Ses produits, commandes et équipe ne changent pas ; son ancienne adresse redirigera vers sa nouvelle page. Son propre abonnement ne sera plus renouvelé : elle est couverte par votre offre ${group.value.plan}.`)) return
   error.value = ''
   try {
-    data.value = (await http[value ? 'post' : 'delete'](`/my-stores/${store.id}/attach`)).data.data
+    data.value = (await http.post(`/my-stores/${store.id}/attach`)).data.data
+    await auth.fetch()
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
+async function joinAll() {
+  if (!window.confirm(`Réunir ces ${elsewhere.value.length} boutiques à l'adresse ${address.value} ? Leurs produits, commandes et équipes ne changent pas ; leurs anciennes adresses redirigeront vers leurs nouvelles pages.`)) return
+  busy.value = true
+  error.value = ''
+  try {
+    for (const store of elsewhere.value) {
+      data.value = (await http.post(`/my-stores/${store.id}/attach`)).data.data
+    }
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+    await auth.fetch()
+  }
+}
+
+async function separate(store) {
+  if (!window.confirm(`Séparer ${store.name} ? Elle retrouve sa propre adresse et sa propre offre (gratuite sans abonnement).`)) return
+  error.value = ''
+  try {
+    data.value = (await http.delete(`/my-stores/${store.id}/attach`)).data.data
+    await auth.fetch()
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -93,21 +124,44 @@ async function attach(store, value) {
     </section>
 
     <section class="card divide-y divide-slate-100">
-      <div v-for="s in data.stores" :key="s.id" class="flex flex-wrap items-center gap-3 p-4">
+      <h2 class="px-4 pb-2 pt-4 font-semibold">{{ group ? `À l'adresse ${address}` : 'Cette boutique' }}</h2>
+      <div v-for="s in here" :key="s.id" class="flex flex-wrap items-center gap-3 p-4">
         <div class="min-w-0 flex-1">
           <p class="font-medium">{{ s.name }}
-            <span v-if="s.is_current" class="ml-1 rounded bg-emerald-50 px-1.5 text-xs text-emerald-800">Ouverte ici</span>
-            <span v-if="s.is_main" class="ml-1 rounded bg-sky-50 px-1.5 text-xs text-sky-800">Abonnement principal</span>
+            <span v-if="s.is_current" class="ml-1 rounded bg-emerald-50 px-1.5 text-xs text-emerald-800">Ouverte</span>
+            <span v-if="s.is_main" class="ml-1 rounded bg-sky-50 px-1.5 text-xs text-sky-800">Principale</span>
           </p>
-          <p class="truncate text-xs text-slate-500">{{ s.url.replace(/^https?:\/\//, '').replace(/\/$/, '') }} · Offre {{ s.plan }}<template v-if="s.covered"> (abonnement commun)</template><template v-if="!s.is_open"> · {{ s.status_label }}</template></p>
+          <p class="truncate text-xs text-slate-500">{{ s.url.replace(/^https?:\/\//, '').replace(/\/$/, '') }} · Offre {{ s.plan }}<template v-if="!s.is_open"> · {{ s.status_label }}</template></p>
           <p class="mt-1 text-sm text-slate-600">{{ s.today_count }} commande{{ s.today_count > 1 ? 's' : '' }} aujourd'hui · {{ s.to_confirm }} à confirmer · {{ money(s.month_revenue) }} livrés ce mois-ci</p>
         </div>
         <div class="flex gap-2">
-          <button v-if="group && !s.is_main && (s.covered || s.attached)" class="btn-ghost px-2 text-sm" @click="attach(s, false)">Retirer de l'abonnement</button>
-          <button v-else-if="group && !s.is_main && room" class="btn-secondary px-2 text-sm" @click="attach(s, true)">Mettre sous l'abonnement</button>
+          <button v-if="s.is_hosted" class="btn-ghost px-2 text-sm" @click="separate(s)">Séparer</button>
           <button v-if="!s.is_current && s.is_open" class="btn-secondary px-3 text-sm" @click="open(s)">Ouvrir</button>
         </div>
       </div>
+    </section>
+
+    <section v-if="elsewhere.length" class="card space-y-3 p-4">
+      <div>
+        <h2 class="font-semibold">Ces boutiques ont encore leur propre adresse</h2>
+        <p v-if="group" class="text-sm text-slate-600">
+          Réunissez-les à l'adresse {{ address }} : vous passerez de l'une à l'autre avec le menu en haut, sans changer de lien.
+          Leurs produits, commandes et équipes ne changent pas, et leurs anciennes adresses redirigent vers leurs nouvelles pages.
+        </p>
+        <p v-else class="text-sm text-slate-600">
+          Pour les réunir à une seule adresse et passer de l'une à l'autre sans changer de lien, votre boutique principale doit avoir l'offre <strong>Business</strong>.
+          <RouterLink to="/gestion/abonnement" class="text-emerald-700 underline">Voir les offres</RouterLink>
+        </p>
+      </div>
+      <ul class="divide-y divide-slate-100">
+        <li v-for="s in elsewhere" :key="s.id" class="flex flex-wrap items-center gap-3 py-2">
+          <span class="min-w-0 flex-1"><span class="block font-medium">{{ s.name }}</span><span class="block truncate text-xs text-slate-500">{{ s.url.replace(/^https?:\/\//, '').replace(/\/$/, '') }}</span></span>
+          <button v-if="group" class="btn-secondary px-2 text-sm" :disabled="busy || !room" @click="join(s)">Réunir à cette adresse</button>
+          <button v-if="s.is_open" class="btn-ghost px-2 text-sm" @click="open(s)">Ouvrir</button>
+        </li>
+      </ul>
+      <button v-if="group && elsewhere.length > 1" class="btn-brand" :disabled="busy || !room" @click="joinAll">{{ busy ? 'Réunion en cours…' : 'Tout réunir ici' }}</button>
+      <p v-if="group && !room" class="text-xs text-amber-800">Votre offre couvre {{ group.limit }} boutiques au plus : séparez une boutique pour en réunir une autre.</p>
     </section>
 
     <Alert v-if="group" tone="info">
