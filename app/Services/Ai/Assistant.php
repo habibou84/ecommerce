@@ -46,17 +46,7 @@ class Assistant
      */
     public function run(Store $store, ?User $user, string $feature, string $system, array $content, array $schema, int $maxTokens = 8000): array
     {
-        if (! $this->enabled()) {
-            throw new BusinessRuleException('L\'assistant IA n\'est pas encore activé sur la plateforme.');
-        }
-        $limit = $this->limit($store);
-        if ($limit !== null && $this->limits->used($store, 'ai_actions_per_month') >= $limit) {
-            $plan = $this->limits->plan($store)?->name;
-
-            throw new QuotaExceededException($limit === 0
-                ? "L'assistant IA n'est pas compris dans l'offre {$plan}. Changez d'offre dans Réglages › Abonnement."
-                : "Les {$limit} actions de l'assistant IA de l'offre {$plan} sont utilisées ce mois-ci. Passez à une offre supérieure pour continuer.");
-        }
+        $this->ensureAvailable($store);
 
         try {
             $result = $this->client->json($system, $content, $schema, $maxTokens);
@@ -69,6 +59,27 @@ class Assistant
         $this->record($store, $user, $feature, $result['input_tokens'], $result['output_tokens'], true);
 
         return $result['data'];
+    }
+
+    /**
+     * Question avec des outils en lecture (mêmes vérifications et même comptage que run).
+     *
+     * @param  list<array<string, mixed>>  $tools
+     */
+    public function ask(Store $store, ?User $user, string $feature, string $system, string $question, array $tools, callable $run): string
+    {
+        $this->ensureAvailable($store);
+
+        try {
+            $result = $this->client->agent($system, $question, $tools, $run);
+        } catch (AiUnavailable $e) {
+            $this->record($store, $user, $feature, $e->inputTokens, $e->outputTokens, false);
+
+            throw new BusinessRuleException($e->getMessage());
+        }
+        $this->record($store, $user, $feature, $result['input_tokens'], $result['output_tokens'], true);
+
+        return $result['text'];
     }
 
     /**
@@ -86,6 +97,21 @@ class Assistant
         $image->scaleDown(width: 1200, height: 1200);
 
         return ['type' => 'image', 'source' => ['type' => 'base64', 'mediaType' => 'image/jpeg', 'data' => base64_encode((string) $image->toJpeg(80))]];
+    }
+
+    private function ensureAvailable(Store $store): void
+    {
+        if (! $this->enabled()) {
+            throw new BusinessRuleException('L\'assistant IA n\'est pas encore activé sur la plateforme.');
+        }
+        $limit = $this->limit($store);
+        if ($limit !== null && $this->limits->used($store, 'ai_actions_per_month') >= $limit) {
+            $plan = $this->limits->plan($store)?->name;
+
+            throw new QuotaExceededException($limit === 0
+                ? "L'assistant IA n'est pas compris dans l'offre {$plan}. Changez d'offre dans Réglages › Abonnement."
+                : "Les {$limit} actions de l'assistant IA de l'offre {$plan} sont utilisées ce mois-ci. Passez à une offre supérieure pour continuer.");
+        }
     }
 
     /**

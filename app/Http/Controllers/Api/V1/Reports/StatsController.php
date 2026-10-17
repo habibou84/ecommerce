@@ -7,6 +7,7 @@ use App\Models\ScheduledReport;
 use App\Services\Accounts\StoreGroup;
 use App\Services\Billing\PlanLimits;
 use App\Services\Reports\DailyReport;
+use App\Services\Reports\StatsQuestion;
 use App\Services\Reports\StoreStats;
 use App\Services\WhatsApp\CustomerMessenger;
 use Carbon\CarbonImmutable;
@@ -19,6 +20,20 @@ use Jibiat\Socle\PhoneNumber;
  */
 class StatsController extends Controller
 {
+    /**
+     * Question en langage courant sur les chiffres de la boutique (assistant IA).
+     */
+    public function ask(Request $request, StatsQuestion $questions, PlanLimits $limits): JsonResponse
+    {
+        $store = $this->currentStore();
+        if (! ($limits->plan($store)?->hasFeature('advanced_stats') ?? false)) {
+            return response()->json(['message' => 'Les statistiques avancées sont comprises dans l\'offre Pro.', 'upgrade' => true], 403);
+        }
+        $data = $request->validate(['question' => ['required', 'string', 'min:3', 'max:500']], [], ['question' => 'question']);
+
+        return response()->json(['data' => ['answer' => $questions->answer($store, $request->user(), $data['question'])]]);
+    }
+
     public function show(Request $request, StoreStats $stats, PlanLimits $limits): JsonResponse
     {
         $store = $this->currentStore();

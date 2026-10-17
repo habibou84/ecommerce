@@ -169,6 +169,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
             });
             Route::get('stats', [StatsController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('stats');
+            Route::post('stats/ask', [StatsController::class, 'ask'])->middleware(['permission:'.Permission::FinanceView->value, 'throttle:30,1'])->name('stats.ask');
             Route::get('cash-overview', [CashOverviewController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('cash.overview');
             Route::get('cash-register', [CashRegisterController::class, 'show'])->middleware('permission:'.Permission::CashManage->value.'|'.Permission::FinanceView->value)->name('cash-register.show');
             Route::middleware('permission:'.Permission::CashManage->value)->group(function () {
