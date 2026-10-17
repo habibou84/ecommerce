@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\V1\SignupController;
 use App\Http\Controllers\Api\V1\Stock\CountController;
 use App\Http\Controllers\Api\V1\Stock\LevelController;
 use App\Http\Controllers\Api\V1\Stock\LocationController;
+use App\Http\Controllers\Api\V1\Stock\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\Stock\ReceiptController;
 use App\Http\Controllers\Api\V1\Stock\StoreTransferController;
 use App\Http\Controllers\Api\V1\Stock\TransferController;
@@ -446,7 +447,18 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('receipts', [ReceiptController::class, 'index'])->name('receipts.index');
                 Route::post('receipts', [ReceiptController::class, 'store'])->name('receipts.store');
                 Route::get('receipts/{receipt}', [ReceiptController::class, 'show'])->whereNumber('receipt')->name('receipts.show');
-                Route::get('suppliers', [ReceiptController::class, 'suppliers'])->name('suppliers');
+                Route::get('suppliers', [PurchaseOrderController::class, 'suppliers'])->name('suppliers');
+                Route::post('suppliers', [PurchaseOrderController::class, 'storeSupplier'])->name('suppliers.store');
+                Route::put('suppliers/{supplier}', [PurchaseOrderController::class, 'updateSupplier'])->whereNumber('supplier')->name('suppliers.update');
+                Route::get('purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
+                Route::get('purchase-orders/suggestions', [PurchaseOrderController::class, 'suggestions'])->name('purchase-orders.suggestions');
+                Route::post('purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
+                Route::get('purchase-orders/{order}', [PurchaseOrderController::class, 'show'])->whereNumber('order')->name('purchase-orders.show');
+                Route::put('purchase-orders/{order}', [PurchaseOrderController::class, 'update'])->whereNumber('order')->name('purchase-orders.update');
+                Route::post('purchase-orders/{order}/send', [PurchaseOrderController::class, 'send'])->whereNumber('order')->name('purchase-orders.send');
+                Route::post('purchase-orders/{order}/receive', [PurchaseOrderController::class, 'receive'])->whereNumber('order')->name('purchase-orders.receive');
+                Route::post('purchase-orders/{order}/pay', [PurchaseOrderController::class, 'pay'])->whereNumber('order')->name('purchase-orders.pay');
+                Route::post('purchase-orders/{order}/cancel', [PurchaseOrderController::class, 'cancel'])->whereNumber('order')->name('purchase-orders.cancel');
 
                 Route::get('transfers', [TransferController::class, 'index'])->name('transfers.index');
                 Route::post('transfers', [TransferController::class, 'store'])->name('transfers.store');

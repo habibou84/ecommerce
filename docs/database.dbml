@@ -1877,3 +1877,35 @@ Table order_return_items {
   replacement_variant_id bigint [ref: > product_variants.id]
   replacement_quantity int [default: 0]
 }
+
+Table purchase_orders {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  number int [not null, note: 'BC-n par boutique']
+  supplier_id bigint [ref: > suppliers.id]
+  location_id bigint [ref: > stock_locations.id, not null]
+  status varchar(20) [default: 'draft', note: 'draft, sent, partial, received, cancelled']
+  expected_on date
+  note varchar(500)
+  total_cost int [default: 0]
+  paid_amount int [default: 0]
+  sent_at timestamp
+  received_at timestamp
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (store_id, number) [unique]
+    (store_id, status)
+  }
+  Note: 'Bon de commande fournisseur ; chaque réception est une stock_receipts (purchase_order_id), chaque paiement une dépense cash_movements « stock » (purchase_order_id).'
+}
+
+Table purchase_order_items {
+  id bigint [pk, increment]
+  purchase_order_id bigint [ref: > purchase_orders.id, not null]
+  variant_id bigint [ref: > product_variants.id, not null]
+  quantity int [not null]
+  received_quantity int [default: 0]
+  unit_cost int
+}

@@ -36,7 +36,7 @@ class CashMovement extends Model
         'online_store' => 'Site (Google…)',
     ];
 
-    protected $fillable = ['store_id', 'cash_session_id', 'recurring_expense_id', 'type', 'category', 'channel', 'amount', 'method', 'note', 'occurred_at', 'created_by'];
+    protected $fillable = ['store_id', 'cash_session_id', 'recurring_expense_id', 'purchase_order_id', 'type', 'category', 'channel', 'amount', 'method', 'note', 'occurred_at', 'created_by'];
 
     protected function casts(): array
     {

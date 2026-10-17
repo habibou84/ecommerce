@@ -10,6 +10,7 @@ use App\Models\OrderItem;
 use App\Models\OrderReturn;
 use App\Models\OrderReturnItem;
 use App\Models\ProductVariant;
+use App\Models\Store;
 use App\Models\User;
 use App\Services\Payments\PaymentDesk;
 use App\Services\Stock\StockKeeper;
@@ -86,6 +87,7 @@ class ReturnDesk
                 throw new BusinessRuleException('Choisissez au moins un article rendu.', 'items');
             }
 
+            Store::whereKey($order->store_id)->lockForUpdate()->first();
             $number = (int) OrderReturn::forStore($order->store_id)->max('number') + 1;
             $return = OrderReturn::create([
                 'store_id' => $order->store_id,

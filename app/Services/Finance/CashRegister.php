@@ -90,6 +90,7 @@ class CashRegister
             'amount' => $data['amount'],
             'method' => $method,
             'note' => $data['note'] ?? null,
+            'purchase_order_id' => $data['purchase_order_id'] ?? null,
             'occurred_at' => $occurredAt,
             'created_by' => $actor->id,
         ]);
