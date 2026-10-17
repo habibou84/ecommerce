@@ -522,6 +522,25 @@ Table stock_receipt_items {
   unit_cost int
 }
 
+Table store_transfers {
+  id bigint [pk, increment]
+  from_store_id bigint [ref: > stores.id, not null]
+  to_store_id bigint [ref: > stores.id, not null]
+  from_location_id bigint [ref: > stock_locations.id, not null]
+  to_location_id bigint [ref: > stock_locations.id, not null]
+  lines jsonb [not null, note: '[{from_variant_id, to_variant_id, title, quantity}]']
+  quantity int [not null, note: 'total des articles']
+  note varchar(200)
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (from_store_id, created_at)
+    (to_store_id, created_at)
+  }
+  Note: 'Stock envoyé d’une boutique à une autre de la même adresse (immédiat). Chaque côté a aussi ses mouvements (transfer_out / transfer_in) qui renvoient à ce transfert.'
+}
+
 Table stock_transfers {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]

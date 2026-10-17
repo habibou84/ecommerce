@@ -70,7 +70,18 @@ class CustomerController extends Controller
             ]),
             'orders' => OrderResource::collection($orders)->resolve(),
             'whatsapp_url' => 'https://wa.me/'.ltrim($model->phone, '+'),
+            'other_stores' => $this->book->elsewhere(request()->user(), $this->currentStore(), $model->phone),
         ]]);
+    }
+
+    /**
+     * Le numéro dans les autres boutiques de l'adresse (commande d'un client pas encore connu ici).
+     */
+    public function elsewhere(Request $request): JsonResponse
+    {
+        $data = $request->validate(['phone' => ['required', 'string', 'max:30']]);
+
+        return response()->json(['data' => $this->book->elsewhere($request->user(), $this->currentStore(), $data['phone'])]);
     }
 
     public function store(Request $request): JsonResponse

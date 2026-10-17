@@ -130,7 +130,7 @@ async function act(action) {
     <Pagination :meta="meta" @page="load" />
 
     <template v-if="otherStores.length">
-      <div class="flex items-center justify-between gap-3 pt-2">
+      <div class="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 class="font-semibold">Entre vos boutiques</h2>
           <p class="text-sm text-slate-600">Envoi immédiat vers une autre boutique de votre adresse : le stock baisse ici et monte là-bas.</p>

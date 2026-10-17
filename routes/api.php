@@ -226,6 +226,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::CustomersView->value)->group(function () {
                 Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
                 Route::get('customers/{customer}', [CustomerController::class, 'show'])->whereNumber('customer')->name('customers.show');
+                Route::get('customers/elsewhere', [CustomerController::class, 'elsewhere'])->name('customers.elsewhere');
             });
 
             // ── Transporteurs et expéditions ──
