@@ -69,6 +69,7 @@ async function step(status) {
     <section class="rounded-xl bg-white p-4 shadow-sm">
       <div class="flex items-center gap-2">
         <h1 class="text-lg font-bold">{{ mission.reference }}</h1>
+        <p v-if="mission.store" class="text-sm text-sky-800">Boutique {{ mission.store }}</p>
         <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[mission.status]">{{ mission.status_label }}</span>
       </div>
       <p class="mt-2 text-2xl font-bold">{{ money(mission.cod_amount) }}</p>

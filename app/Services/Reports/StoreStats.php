@@ -62,6 +62,9 @@ class StoreStats
         return [
             'orders' => (int) $row->orders,
             'cancelled' => (int) $row->cancelled,
+            // Commandes décidées (hors « à confirmer ») et confirmées : taux recalculables sur plusieurs boutiques
+            'decided' => $decided,
+            'confirmed' => (int) $row->confirmed,
             'delivered' => (int) $row->delivered,
             'returned' => (int) $row->returned,
             'revenue' => (int) $row->revenue,

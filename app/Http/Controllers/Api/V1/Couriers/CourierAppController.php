@@ -7,42 +7,56 @@ use App\Models\CashCollection;
 use App\Models\Courier;
 use App\Models\CourierEarning;
 use App\Models\CourierRemittance;
+use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Services\Couriers\CourierDesk;
 use App\Services\Couriers\CourierPayroll;
+use App\Services\Couriers\SharedCouriers;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Jibiat\Socle\PhoneNumber;
 
 /**
  * API de l'application livreur (/livreur) : ses missions, leurs étapes, son argent.
+ *
+ * Un livreur partagé entre plusieurs boutiques (abonnement commun) voit ici ses missions, ses espèces et ses gains
+ * de toutes ces boutiques, quelle que soit l'adresse depuis laquelle il ouvre l'application.
  */
 class CourierAppController extends Controller
 {
-    private const ACTIVE = ['awaiting_pickup', 'in_transit', 'out_for_delivery', 'failed', 'rescheduled', 'returning'];
+    private const ACTIVE = SharedCouriers::ACTIVE_MISSIONS;
+
+    public function __construct(private readonly SharedCouriers $shared) {}
 
     public function me(Request $request, CourierPayroll $payroll): JsonResponse
     {
         $courier = $this->courier($request);
-        $today = Shipment::where('courier_id', $courier->id)->whereDate('delivered_at', today());
+        $all = $this->couriers($request);
+        $ids = $all->pluck('id');
 
         return response()->json(['data' => [
             'id' => $courier->id,
             'name' => $courier->name,
             'is_available' => $courier->is_available,
             'store' => ['name' => $courier->store->name, 'phone' => $courier->store->phone],
-            'cash_held' => $courier->cashHeld(),
+            'stores' => $all->map(fn (Courier $c) => ['name' => $c->store->name, 'phone' => $c->store->phone])->values(),
+            'cash_held' => (int) $all->sum(fn (Courier $c) => $this->shared->held($c)),
             'cash_limit' => $courier->cash_limit,
-            'unpaid' => $payroll->unpaid($courier),
-            'today' => ['delivered' => (clone $today)->count(), 'collected' => (int) CashCollection::where('courier_id', $courier->id)->whereDate('collected_at', today())->sum('amount')],
+            'unpaid' => (int) $all->sum(fn (Courier $c) => $payroll->unpaid($c)),
+            'today' => [
+                'delivered' => $this->shipments()->whereIn('courier_id', $ids)->whereDate('delivered_at', today())->count(),
+                'collected' => (int) CashCollection::withoutGlobalScope(StoreScope::class)->whereIn('courier_id', $ids)->whereDate('collected_at', today())->sum('amount'),
+            ],
         ]]);
     }
 
     public function availability(Request $request): JsonResponse
     {
         $data = $request->validate(['is_available' => ['required', 'boolean']]);
-        $this->courier($request)->forceFill(['is_available' => $data['is_available']])->save();
+        Courier::withoutGlobalScope(StoreScope::class)->whereIn('id', $this->couriers($request)->pluck('id'))->update(['is_available' => $data['is_available']]);
 
         return response()->json(['data' => ['is_available' => $data['is_available']]]);
     }
@@ -52,21 +66,24 @@ class CourierAppController extends Controller
      */
     public function missions(Request $request): JsonResponse
     {
-        $courier = $this->courier($request);
-        $missions = Shipment::with('order')->where('courier_id', $courier->id)
+        $missions = $this->shipments()->with(['order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'order.store'])->whereIn('courier_id', $this->couriers($request)->pluck('id'))
             ->where(fn ($q) => $q->whereIn('status', self::ACTIVE)->orWhereDate('updated_at', today()))
             ->orderByRaw("CASE status WHEN 'out_for_delivery' THEN 0 WHEN 'in_transit' THEN 1 WHEN 'awaiting_pickup' THEN 2 WHEN 'rescheduled' THEN 3 WHEN 'failed' THEN 4 WHEN 'returning' THEN 5 ELSE 6 END")
             ->orderBy('requested_at')->get();
 
-        return response()->json(['data' => $missions->map(fn (Shipment $s) => $this->summary($s))]);
+        $several = $this->couriers($request)->count() > 1;
+
+        return response()->json(['data' => $missions->map(fn (Shipment $s) => $this->summary($s, $several))]);
     }
 
     public function show(Request $request, int $shipment): JsonResponse
     {
-        $model = $this->mission($request, $shipment)->load(['order.items', 'origin']);
+        $mission = $this->mission($request, $shipment);
+        $model = SharedCouriers::within($mission->order->store, fn () => $mission->load(['order.items', 'origin']));
         $order = $model->order;
 
-        return response()->json(['data' => $this->summary($model) + [
+        return response()->json(['data' => $this->summary($model, true) + [
+            'store_phone' => $order->store->phone,
             'customer_phone' => $order->shipping_phone ?? $order->customer_phone,
             'customer_phone_display' => PhoneNumber::display($order->shipping_phone ?? $order->customer_phone),
             'customer_phone2' => $order->shipping_phone2,
@@ -96,10 +113,12 @@ class CourierAppController extends Controller
             'photo' => ['nullable', 'file', 'image', 'max:8192'],
         ], [], ['code' => 'code', 'reason' => 'motif', 'photo' => 'photo']);
 
-        $courier = $this->courier($request);
-        $model = $desk->update($this->mission($request, $shipment), $courier, $data['status'], $data, $request->file('photo'));
+        // La mission peut appartenir à une autre de ses boutiques : elle avance dans le contexte de cette boutique
+        $mission = $this->mission($request, $shipment);
+        $courier = $this->couriers($request)->firstWhere('id', $mission->courier_id);
+        $model = SharedCouriers::within($mission->order->store, fn () => $desk->update($mission, $courier, $data['status'], $data, $request->file('photo')));
 
-        return response()->json(['data' => $this->summary($model)]);
+        return response()->json(['data' => $this->summary($model, true)]);
     }
 
     /**
@@ -107,26 +126,32 @@ class CourierAppController extends Controller
      */
     public function cash(Request $request): JsonResponse
     {
-        $courier = $this->courier($request);
+        $all = $this->couriers($request);
+        $ids = $all->pluck('id');
+        $several = $all->count() > 1;
 
         return response()->json(['data' => [
-            'held' => $courier->cashHeld(),
-            'collections' => CashCollection::with('shipment.order.store')->where('courier_id', $courier->id)->whereNull('remittance_id')
-                ->where('method', 'cash')->orderByDesc('collected_at')->get()
-                ->map(fn ($c) => ['reference' => $c->shipment->order->reference(), 'amount' => $c->amount, 'collected_at' => $c->collected_at->toIso8601String()]),
-            'remittances' => CourierRemittance::where('courier_id', $courier->id)->latest('received_at')->limit(10)->get()
+            'held' => (int) $all->sum(fn (Courier $c) => $this->shared->held($c)),
+            'collections' => CashCollection::withoutGlobalScope(StoreScope::class)->with(['shipment' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'shipment.order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'shipment.order.store'])
+                ->whereIn('courier_id', $ids)->whereNull('remittance_id')->where('method', 'cash')->orderByDesc('collected_at')->get()
+                ->map(fn ($c) => ['reference' => $c->shipment->order->reference(), 'store' => $several ? $c->shipment->order->store->name : null, 'amount' => $c->amount, 'collected_at' => $c->collected_at->toIso8601String()]),
+            'remittances' => CourierRemittance::withoutGlobalScope(StoreScope::class)->whereIn('courier_id', $ids)->latest('received_at')->limit(10)->get()
                 ->map(fn ($r) => ['received_amount' => $r->received_amount, 'difference' => $r->difference, 'received_at' => $r->received_at->toIso8601String()]),
         ]]);
     }
 
     public function earnings(Request $request, CourierPayroll $payroll): JsonResponse
     {
-        $courier = $this->courier($request);
+        $all = $this->couriers($request);
+        $names = $all->mapWithKeys(fn (Courier $c) => [$c->id => $c->store->name]);
+        $several = $all->count() > 1;
 
         return response()->json(['data' => [
-            'unpaid' => $payroll->unpaid($courier),
-            'lines' => CourierEarning::with('shipment.order.store')->where('courier_id', $courier->id)->whereNull('payout_id')->latest('id')->limit(100)->get()
-                ->map(fn ($e) => ['type_label' => CourierEarning::TYPES[$e->type] ?? $e->type, 'amount' => $e->amount, 'reference' => $e->shipment?->reference(), 'created_at' => $e->created_at->toIso8601String()]),
+            'unpaid' => (int) $all->sum(fn (Courier $c) => $payroll->unpaid($c)),
+            'lines' => CourierEarning::withoutGlobalScope(StoreScope::class)->with(['shipment' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'shipment.order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'shipment.order.store'])
+                ->whereIn('courier_id', $all->pluck('id'))->whereNull('payout_id')->latest('id')->limit(100)->get()
+                ->map(fn ($e) => ['type_label' => CourierEarning::TYPES[$e->type] ?? $e->type, 'amount' => $e->amount, 'reference' => $e->shipment?->reference(),
+                    'store' => $several ? $names[$e->courier_id] : null, 'created_at' => $e->created_at->toIso8601String()]),
         ]]);
     }
 
@@ -135,16 +160,40 @@ class CourierAppController extends Controller
         return $request->attributes->get('courier');
     }
 
-    private function mission(Request $request, int $id): Shipment
+    /**
+     * Ses fiches de livreur : celle de la boutique de l'adresse et, s'il est partagé, celles de ses autres boutiques.
+     *
+     * @return Collection<int, Courier>
+     */
+    private function couriers(Request $request): Collection
     {
-        return Shipment::with('order.store')->where('courier_id', $this->courier($request)->id)->findOrFail($id);
+        if (! $request->attributes->has('couriers')) {
+            $request->attributes->set('couriers', $this->shared->linked($this->courier($request)));
+        }
+
+        return $request->attributes->get('couriers');
     }
 
-    private function summary(Shipment $s): array
+    /**
+     * Livraisons de toutes ses boutiques (le filtre automatique sur la boutique de l'adresse est levé).
+     */
+    private function shipments(): Builder
+    {
+        return Shipment::withoutGlobalScope(StoreScope::class);
+    }
+
+    private function mission(Request $request, int $id): Shipment
+    {
+        return $this->shipments()->with(['order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'order.store'])
+            ->whereIn('courier_id', $this->couriers($request)->pluck('id'))->findOrFail($id);
+    }
+
+    private function summary(Shipment $s, bool $withStore = false): array
     {
         $order = $s->order;
 
         return [
+            'store' => $withStore ? $order->store->name : null,
             'id' => $s->id,
             'reference' => $s->reference(),
             'status' => $s->status->value,

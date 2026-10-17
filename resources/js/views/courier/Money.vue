@@ -19,7 +19,7 @@ onMounted(async () => {
       <p class="text-sm text-slate-500">Espèces à verser à la boutique</p>
       <p class="text-2xl font-bold">{{ money(cash.held) }}</p>
       <ul class="mt-2 divide-y divide-slate-100 text-sm">
-        <li v-for="(c, i) in cash.collections" :key="i" class="flex justify-between py-1.5"><span>{{ c.reference }} · {{ formatDateTime(c.collected_at) }}</span><span>{{ money(c.amount) }}</span></li>
+        <li v-for="(c, i) in cash.collections" :key="i" class="flex justify-between py-1.5"><span><template v-if="c.store">{{ c.store }} · </template>{{ c.reference }} · {{ formatDateTime(c.collected_at) }}</span><span>{{ money(c.amount) }}</span></li>
       </ul>
     </section>
     <section class="rounded-xl bg-white p-4 shadow-sm">
@@ -27,7 +27,7 @@ onMounted(async () => {
       <p class="text-2xl font-bold text-emerald-700">{{ money(earnings.unpaid) }}</p>
       <ul class="mt-2 divide-y divide-slate-100 text-sm">
         <li v-for="(l, i) in earnings.lines" :key="i" class="flex justify-between py-1.5">
-          <span>{{ l.type_label }}<template v-if="l.reference"> · {{ l.reference }}</template></span>
+          <span>{{ l.type_label }}<template v-if="l.reference"> · {{ l.reference }}</template><template v-if="l.store"> · {{ l.store }}</template></span>
           <span :class="{ 'text-red-600': l.amount < 0 }">{{ money(l.amount) }}</span>
         </li>
       </ul>

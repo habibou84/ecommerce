@@ -516,6 +516,11 @@ Caisse pour boutique physique, catalogue Meta / WhatsApp, prise de commande par 
 
 Règles des offres :
 - **Plusieurs boutiques** (« Mes boutiques », réservé au propriétaire) : créer une autre boutique depuis la gestion avec le même compte, voir les chiffres du jour de toutes ses boutiques et passer de l'une à l'autre. Avec l'offre Business, les boutiques rattachées (même propriétaire, 3 au plus avec la principale) ont l'offre de la boutique principale sans paiement séparé ; leur propre essai s'arrête et un abonnement payé en cours n'est plus renouvelé. Si l'abonnement Business s'arrête, chaque boutique reprend sa propre offre.
+- **Espace commun aux boutiques** (« Mes boutiques », propriétaire, abonnement Business) :
+  - *Statistiques* de la période pour l'ensemble et boutique par boutique (taux recalculés sur l'ensemble, bénéfice), chiffre d'affaires livré jour par jour, produits les plus vendus toutes boutiques confondues.
+  - *Caisse* : argent chez les livreurs, les entreprises de livraison et les clients à crédit, paie à verser, entrées et sorties de la période, par boutique et au total.
+  - *Rapport du soir* : option « un seul rapport pour mes boutiques » (une ligne par boutique, puis le total).
+  - *Livreurs partagés* : un livreur qui a activé son compte peut travailler pour plusieurs boutiques. Chaque boutique garde sa fiche (zones, règle de paie recopiée sans les montants par zone, plafond, missions, encaissements, gains) ; son application réunit ses missions, ses espèces et ses gains de toutes ces boutiques, et chaque étape d'une mission est enregistrée dans sa boutique. Un versement unique est réparti au prorata des espèces détenues pour chaque boutique (manquant compris, excédent sur la dernière) ; la paie se règle en une fois (un relevé payé par boutique).
 - **Changement d'offre** : la valeur des jours payés non utilisés de l'offre précédente est convertie en jours supplémentaires sur la nouvelle offre (au prix du jour de la nouvelle offre).
 - **Limite de commandes** : l'équipe est prévenue à 80 % de la limite, puis quand elle est atteinte (une fois par mois chaque fois).
 - **Fonctions annoncées « bientôt »** (fiche produit depuis une photo, API marchand) : affichées comme telles dans les offres tant qu'elles ne sont pas disponibles.

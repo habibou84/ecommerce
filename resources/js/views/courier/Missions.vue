@@ -48,14 +48,14 @@ const done = computed(() => (missions.value ?? []).filter((m) => FINAL.includes(
         <span class="font-semibold">{{ m.place || 'Quartier ?' }}</span>
         <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[m.status]">{{ m.status_label }}</span>
       </div>
-      <p class="mt-1 text-sm text-slate-600">{{ m.customer_name || 'Client' }} · {{ m.reference }}</p>
+      <p class="mt-1 text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }}</p>
       <p class="mt-1 text-sm">À encaisser : <strong>{{ money(m.cod_amount) }}</strong><span v-if="m.attempts_count" class="text-amber-700"> · {{ m.attempts_count }} tentative(s)</span></p>
     </RouterLink>
 
     <template v-if="done.length">
       <h2 class="pt-2 text-sm font-semibold text-slate-500">Terminées aujourd'hui</h2>
       <RouterLink v-for="m in done" :key="m.id" :to="`/livreur/missions/${m.id}`" class="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm opacity-70 shadow-sm">
-        <span class="flex-1">{{ m.place }} · {{ m.customer_name }}</span>
+        <span class="flex-1"><template v-if="m.store">{{ m.store }} · </template>{{ m.place }} · {{ m.customer_name }}</span>
         <span class="rounded-full px-2 py-0.5 text-xs" :class="SHIPMENT_TONES[m.status]">{{ m.status_label }}</span>
       </RouterLink>
     </template>
