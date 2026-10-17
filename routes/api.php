@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
+use App\Http\Controllers\Api\V1\Marketing\ReviewController;
 use App\Http\Controllers\Api\V1\Marketing\ShareController;
 use App\Http\Controllers\Api\V1\Marketing\TrackingController;
 use App\Http\Controllers\Api\V1\MemberController;
@@ -293,6 +294,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::patch('promotions/settings', [PromotionController::class, 'settings'])->name('promotions.settings');
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
+                Route::get('reviews', [ReviewController::class, 'index'])->name('reviews.index');
+                Route::post('reviews/{review}/publish', [ReviewController::class, 'publish'])->whereNumber('review')->name('reviews.publish');
+                Route::post('reviews/{review}/hide', [ReviewController::class, 'hide'])->whereNumber('review')->name('reviews.hide');
+                Route::delete('reviews/{review}', [ReviewController::class, 'destroy'])->whereNumber('review')->name('reviews.destroy');
             });
             Route::get('products/{product}/volume-prices', [PricingController::class, 'volumePrices'])->whereNumber('product')
                 ->middleware('permission:'.Permission::ProductsView->value)->name('products.volume-prices');

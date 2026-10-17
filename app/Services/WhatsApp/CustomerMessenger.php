@@ -30,6 +30,7 @@ class CustomerMessenger
         'order_confirmation' => ['label' => 'Demande de confirmation (boutons Confirmer / Annuler)', 'variables' => ['nom du client', 'n° de commande', 'montant'], 'buttons' => ['Confirmer', 'Annuler']],
         'order_shipped' => ['label' => 'Commande en route', 'variables' => ['nom du client', 'n° de commande', 'lien de suivi'], 'buttons' => []],
         'order_delivered' => ['label' => 'Commande livrée (remerciement)', 'variables' => ['nom du client', 'n° de commande'], 'buttons' => []],
+        'review_request' => ['label' => 'Demande d\'avis (24 h après la livraison)', 'variables' => ['nom du client', 'boutique', 'lien de l\'avis'], 'buttons' => []],
         'payment_link' => ['label' => 'Lien de paiement', 'variables' => ['nom du client', 'n° de commande', 'montant', 'lien'], 'buttons' => []],
         'cart_recovery' => ['label' => 'Relance de panier abandonné', 'variables' => ['nom du client', 'boutique', 'lien du panier'], 'buttons' => []],
         'daily_report' => ['label' => 'Rapport du jour (envoyé à l\'équipe)', 'variables' => ['boutique', 'date', 'commandes reçues', 'montant livré', 'à confirmer', 'à expédier'], 'buttons' => []],
@@ -69,9 +70,12 @@ class CustomerMessenger
         if ($kind) {
             $this->forOrder($order, $kind);
         }
+        if ($kind === 'order_delivered') {
+            $this->forOrder($order, 'review_request', delay: now()->addDay());
+        }
     }
 
-    public function forOrder(Order $order, string $event, array $extra = []): ?OutboundMessage
+    public function forOrder(Order $order, string $event, array $extra = [], ?\DateTimeInterface $delay = null): ?OutboundMessage
     {
         $account = $this->account($order->store_id, $event);
         if ($account === null || blank($order->customer_phone)) {
@@ -83,11 +87,12 @@ class CustomerMessenger
             'order_confirmation' => [$name, $order->reference(), Money::format($order->total)],
             'order_shipped' => [$name, $order->reference(), $order->trackingUrl()],
             'order_delivered' => [$name, $order->reference()],
+            'review_request' => [$name, $order->store->name, $order->store->url('/avis/'.$order->tracking_token)],
             'payment_link' => [$name, $order->reference(), Money::format($extra['amount']), $extra['url']],
         };
         $buttons = $event === 'order_confirmation' ? ["confirm:{$order->id}", "cancel:{$order->id}"] : [];
 
-        return $this->queue($account, $order->customer_phone, $event, $params, $buttons, 'order', $order->id);
+        return $this->queue($account, $order->customer_phone, $event, $params, $buttons, 'order', $order->id, $delay);
     }
 
     /**
@@ -177,7 +182,7 @@ class CustomerMessenger
         return $account && $phone !== '' ? $this->queue($account, $phone, $event, $params, [], $type, $id) : null;
     }
 
-    private function queue(WhatsappAccount $account, string $phone, string $event, array $params, array $buttons, string $type, int $id): OutboundMessage
+    private function queue(WhatsappAccount $account, string $phone, string $event, array $params, array $buttons, string $type, int $id, ?\DateTimeInterface $delay = null): OutboundMessage
     {
         $message = OutboundMessage::create([
             'store_id' => $account->store_id,
@@ -189,7 +194,7 @@ class CustomerMessenger
             'related_id' => $id,
             'status' => 'queued',
         ]);
-        SendWhatsAppMessage::dispatch($message->id, $params, $buttons)->afterCommit();
+        SendWhatsAppMessage::dispatch($message->id, $params, $buttons)->afterCommit()->delay($delay);
         if ($type !== 'report') {
             $this->inbox->logAutomatic($account->store_id, $phone, '🤖 '.Str::before(self::EVENTS[$event]['label'], ' (').' · '.implode(' · ', $params));
         }

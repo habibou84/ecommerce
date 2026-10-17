@@ -27,7 +27,7 @@ class OrderMessages
             OrderStatus::PendingConfirmation => ['confirm_request'],
             OrderStatus::Confirmed, OrderStatus::Processing => ['confirmed', 'payment_reminder'],
             OrderStatus::Shipped => ['shipped'],
-            OrderStatus::Completed => ['thanks'],
+            OrderStatus::Completed => ['thanks', 'review_request'],
             default => [],
         };
 
@@ -55,6 +55,7 @@ class OrderMessages
             'payment_reminder' => ['Rappel de paiement', "{$hello}, pour la commande {$order->reference()}, le reste à payer est de ".Money::format($order->amountDue()).'. Merci !'],
             'shipped' => ['Commande en route', "{$hello}, votre commande {$order->reference()} est en route 🚚\n".($order->amountDue() > 0 ? 'Montant à payer à la livraison : '.Money::format($order->amountDue())."\n" : '')."Suivi : {$order->trackingUrl()}"],
             'thanks' => ['Remerciement', "{$hello}, merci pour votre achat chez {$store} ! Nous espérons que vous êtes satisfait(e). À bientôt 🙏"],
+            'review_request' => ['Demander un avis', "{$hello}, merci d'avoir commandé chez {$store} ! Votre avis sur les articles reçus nous aide beaucoup ⭐\n{$order->store->url('/avis/'.$order->tracking_token)}"],
         };
 
         return ['key' => $key, 'label' => $label, 'text' => $text, 'url' => $this->whatsappUrl($order->customer_phone, $text)];

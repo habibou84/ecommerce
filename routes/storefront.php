@@ -5,6 +5,7 @@ use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\PaymentPageController;
+use App\Http\Controllers\Storefront\ReviewController;
 use App\Http\Controllers\Storefront\ShortLinkController;
 use App\Http\Controllers\Storefront\StorefrontController;
 use App\Http\Controllers\TrackingController;
@@ -30,6 +31,9 @@ Route::get('/_caddy/ask', CaddyAskController::class);
 Route::middleware('zone:store,custom_domain')->group(function () {
     // Suivi d'une commande par le client (lien envoyé par WhatsApp), même boutique en ligne fermée
     Route::get('/suivi/{token}', TrackingController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('tracking');
+    // Avis du client sur les produits reçus (lien envoyé après la livraison)
+    Route::get('/avis/{token}', [ReviewController::class, 'show'])->where('token', '[A-Za-z0-9]{16,32}')->name('review');
+    Route::post('/avis/{token}', [ReviewController::class, 'store'])->where('token', '[A-Za-z0-9]{16,32}')->middleware(['ajax', 'throttle:storefront-order']);
     // Ticket de caisse (vente au comptoir ou commande payée), à imprimer ou à envoyer par WhatsApp
     Route::get('/recu/{token}', ReceiptController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('receipt');
     // Application livreur : manifeste (installation sur l'écran d'accueil)
