@@ -49,7 +49,9 @@ Table stores {
   id bigint [pk, increment]
   owner_id bigint [ref: > users.id, not null]
   billing_store_id bigint [ref: > stores.id, note: 'boutique du même propriétaire dont l\'abonnement (offre Business) couvre celle-ci']
+  host_store_id bigint [ref: > stores.id, note: 'boutique dont l\'adresse héberge celle-ci (gestion commune, page {adresse}/{path}) ; son propre sous-domaine redirige']
   slug varchar(60) [unique, not null, note: 'sous-domaine : {slug}.jibiat-marchand.com ; liste de mots réservés côté code']
+  path varchar(40) [note: 'boutique hébergée : nom de sa page à l\'adresse de la boutique hôte (unique par hôte)']
   name varchar [not null]
   tagline varchar(160)
   logo_path varchar

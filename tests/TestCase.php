@@ -9,6 +9,7 @@ use App\Models\Plan;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\StoreRoles;
+use App\Support\Tenancy;
 use Database\Seeders\PlacesSeeder;
 use Database\Seeders\PlanSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -56,9 +57,16 @@ abstract class TestCase extends BaseTestCase
             ->json($method, rtrim($baseUrl, '/').'/api/v1/'.ltrim($path, '/'), $data);
     }
 
+    /**
+     * Appel de la gestion d'une boutique ; une boutique hébergée est choisie à l'adresse de sa boutique hôte.
+     */
     protected function storeApi(Store $store, string $method, string $path, array $data = []): TestResponse
     {
-        return $this->apiOn($this->storeUrl($store), $method, $path, $data);
+        if ($store->host_store_id !== null) {
+            return $this->withHeader(Tenancy::STORE_HEADER, (string) $store->id)->apiOn($this->storeUrl($store->host), $method, $path, $data);
+        }
+
+        return $this->withoutHeader(Tenancy::STORE_HEADER)->apiOn($this->storeUrl($store), $method, $path, $data);
     }
 
     protected function platformApi(string $method, string $path, array $data = []): TestResponse

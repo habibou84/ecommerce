@@ -126,6 +126,16 @@ async function logout() {
   router.replace('/gestion/connexion')
 }
 
+const addressStores = computed(() => auth.profile?.stores ?? [])
+function pickStore(value) {
+  // Vue d'ensemble : chiffres et livreurs de toutes les boutiques
+  if (value === 'all') {
+    router.push('/gestion/mes-boutiques/statistiques')
+    return
+  }
+  if (Number(value) !== auth.store?.id) auth.switchTo(Number(value))
+}
+
 async function switchTo(store) {
   switchError.value = ''
   try {
@@ -219,15 +229,29 @@ async function switchTo(store) {
         <button class="btn-ghost -ml-2 px-2 lg:hidden" aria-label="Menu" @click="menuOpen = true">
           <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <h1 class="truncate text-lg font-semibold">{{ route.meta.title }}</h1>
-        <div class="ml-auto flex items-center gap-3">
-          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="btn-ghost px-2 text-sm" title="Écrire au support Jibiat Marchand sur WhatsApp">💬 Aide</a>
+        <!-- Boutiques de cette adresse : on passe de l'une à l'autre sans changer d'adresse -->
+        <select
+          v-if="addressStores.length > 1"
+          :value="auth.store?.id"
+          class="min-w-0 max-w-[10rem] truncate rounded-lg border border-slate-300 bg-white py-1.5 pl-2 pr-7 text-sm font-semibold sm:max-w-[14rem]"
+          aria-label="Boutique"
+          @change="pickStore($event.target.value)"
+        >
+          <option v-for="s in addressStores" :key="s.id" :value="s.id">{{ s.name }}</option>
+          <option v-if="auth.profile?.is_owner" value="all">Toutes les boutiques</option>
+        </select>
+        <h1 class="truncate text-lg font-semibold" :class="{ 'hidden sm:block': addressStores.length > 1 }">{{ route.meta.title }}</h1>
+        <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">
+          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="btn-ghost px-2 text-sm" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide">💬<span class="hidden sm:inline"> Aide</span></a>
           <NotificationBell />
           <RouterLink to="/gestion/compte" class="hidden rounded-lg px-2 py-1 text-right text-sm hover:bg-slate-50 sm:block" title="Mon compte">
             <span class="block font-medium">{{ auth.user?.name }}</span>
             <span class="block text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
           </RouterLink>
-          <button class="btn-secondary px-3 py-2" @click="logout">Déconnexion</button>
+          <button class="btn-secondary px-2 py-2 sm:px-3" aria-label="Déconnexion" title="Déconnexion" @click="logout">
+            <span class="hidden sm:inline">Déconnexion</span>
+            <svg viewBox="0 0 24 24" class="h-5 w-5 sm:hidden" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3" /></svg>
+          </button>
         </div>
       </header>
 

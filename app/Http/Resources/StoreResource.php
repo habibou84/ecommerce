@@ -23,6 +23,9 @@ class StoreResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'url' => $this->url(),
+            // Boutique hébergée : sa page est {adresse de la boutique hôte}/{path}
+            'path' => $this->path,
+            'host_url' => $this->host_store_id !== null ? rtrim($this->host->url(), '/') : null,
             'tagline' => $this->tagline,
             'phone' => $this->phone,
             'whatsapp_phone' => $this->whatsapp_phone,

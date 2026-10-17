@@ -14,12 +14,14 @@ use App\Services\Couriers\CourierRoster;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Jibiat\Socle\PhoneNumber;
+use Spatie\Permission\PermissionRegistrar;
 
 /**
  * Connexion à la gestion d'une boutique ({slug}.jibiat-marchand.com/gestion), par session.
@@ -41,8 +43,14 @@ class AuthController extends Controller
             return response()->json(['message' => 'Compte suspendu.'], 403);
         }
 
+        // Boutique choisie, sinon la première boutique de l'adresse dont la personne fait partie
         if ($user->activeMembershipIn($this->tenancy->store()) === null) {
-            throw ValidationException::withMessages(['phone' => 'Ce compte ne fait pas partie de l\'équipe de '.$this->tenancy->store()->name.'.']);
+            $other = $this->addressStores($this->tenancy->store())->first(fn (Store $s) => $user->activeMembershipIn($s) !== null);
+            if ($other === null) {
+                throw ValidationException::withMessages(['phone' => 'Ce compte ne fait pas partie de l\'équipe de '.$this->tenancy->store()->name.'.']);
+            }
+            $this->tenancy->setStore($other);
+            app(PermissionRegistrar::class)->setPermissionsTeamId($other->id);
         }
 
         Auth::guard('web')->login($user, remember: true);
@@ -113,6 +121,18 @@ class AuthController extends Controller
     }
 
     /**
+     * Boutiques servies par la même adresse : la boutique hôte puis ses boutiques hébergées.
+     *
+     * @return Collection<int, Store>
+     */
+    private function addressStores(Store $store): Collection
+    {
+        $host = $store->host ?? $store;
+
+        return collect([$host])->concat($host->hostedStores()->orderBy('id')->get());
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function profile(User $user): array
@@ -140,9 +160,13 @@ class AuthController extends Controller
                 : (($open = SupportSession::forStore($store->id)->ongoing()->with('admin:id,name')->latest('id')->first())
                     ? ['self' => false, 'id' => $open->id, 'expires_at' => $open->expires_at->toIso8601String(), 'reason' => $open->reason, 'admin' => $open->admin?->name]
                     : null),
-            // Ses autres boutiques, pour passer de l'une à l'autre
+            // Boutiques de cette adresse (boutique hôte et boutiques hébergées) : choix sans changer d'adresse
+            'stores' => $address = $this->addressStores($store)->filter(fn (Store $s) => $s->isOpen() && $user->activeMembershipIn($s) !== null)
+                ->map(fn (Store $s) => ['id' => $s->id, 'name' => $s->name, 'is_host' => $s->host_store_id === null, 'url' => $s->url()])->values(),
+            // Ses boutiques à d'autres adresses, pour passer de l'une à l'autre
             'other_stores' => $user->stores()->wherePivot('status', 'active')->where('stores.id', '!=', $store->id)
-                ->orderBy('name')->get(['stores.id', 'stores.name', 'stores.slug', 'stores.status'])
+                ->whereNotIn('stores.id', $address->pluck('id'))
+                ->orderBy('name')->get(['stores.id', 'stores.name', 'stores.slug', 'stores.status', 'stores.host_store_id'])
                 ->filter(fn (Store $s) => $s->isOpen())
                 ->map(fn (Store $s) => ['id' => $s->id, 'name' => $s->name, 'slug' => $s->slug])
                 ->values(),

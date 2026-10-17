@@ -78,6 +78,22 @@ class Store extends Model
     }
 
     /**
+     * Boutique dont l'adresse héberge celle-ci (offre Business).
+     */
+    public function host(): BelongsTo
+    {
+        return $this->belongsTo(Store::class, 'host_store_id');
+    }
+
+    /**
+     * Boutiques hébergées à l'adresse de celle-ci.
+     */
+    public function hostedStores(): HasMany
+    {
+        return $this->hasMany(Store::class, 'host_store_id');
+    }
+
+    /**
      * Boutiques couvertes par l'abonnement de celle-ci.
      */
     public function coveredStores(): HasMany
@@ -135,8 +151,27 @@ class Store extends Model
     /**
      * Adresse sur le sous-domaine de la boutique : url('/gestion') → https://{slug}.jibiat-marchand.com/gestion
      */
+    /**
+     * Adresse d'une page de la boutique. Une boutique hébergée par une autre a sa boutique en ligne sous
+     * {adresse}/{path} ; sa gestion et l'application livreur sont celles de l'adresse, boutique choisie
+     * par le paramètre « boutique ».
+     */
     public function url(string $path = '/'): string
     {
+        if ($this->host_store_id !== null && ($host = $this->host) !== null) {
+            $path = '/'.ltrim($path, '/');
+            if (preg_match('#^/(gestion|livreur|auth|invitation)(/|\?|$)#', $path)) {
+                return $host->url($path.(str_contains($path, '?') ? '&' : '?').'boutique='.$this->id);
+            }
+
+            return $host->url('/'.$this->path.($path === '/' ? '' : $path));
+        }
+
         return Tenancy::storeUrl($this->slug, $path);
+    }
+
+    public function isHosted(): bool
+    {
+        return $this->host_store_id !== null;
     }
 }

@@ -6,16 +6,21 @@ import GroupTabs from './GroupTabs.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { boot } from '../../../lib/boot'
 import { money, slugify } from '../../../lib/format'
+import { useAuthStore } from '../../../stores/auth'
 
 const data = ref(null)
 const error = ref('')
 const busy = ref(false)
-const form = reactive({ name: '', slug: '' })
+const auth = useAuthStore()
+const form = reactive({ name: '', slug: '', path: '' })
 const errors = ref({})
 const slugTouched = ref(false)
 
 watch(() => form.name, (name) => {
-  if (!slugTouched.value) form.slug = slugify(name)
+  if (!slugTouched.value) {
+    form.slug = slugify(name)
+    form.path = slugify(name).slice(0, 30).replace(/-+$/, '')
+  }
 })
 
 async function load() {
@@ -30,8 +35,14 @@ onMounted(load)
 const group = computed(() => data.value?.group)
 const room = computed(() => group.value && (group.value.limit === null || group.value.used < group.value.limit))
 
+// Boutique de cette adresse : on la choisit sans changer d'adresse ; sinon lien de connexion vers son adresse
+const sameAddress = (store) => (auth.profile?.stores ?? []).some((s) => s.id === store.id)
 async function open(store) {
   error.value = ''
+  if (sameAddress(store)) {
+    auth.switchTo(store.id)
+    return
+  }
   try {
     window.location.assign((await http.post(`/auth/switch/${store.id}`)).data.redirect)
   } catch (e) {
@@ -44,7 +55,10 @@ async function create() {
   error.value = ''
   errors.value = {}
   try {
-    window.location.assign((await http.post('/my-stores', form)).data.redirect)
+    const next = data.value.next_address
+    const { data: res } = await http.post('/my-stores', next ? { name: form.name, path: form.path } : { name: form.name, slug: form.slug })
+    if (next) auth.switchTo(res.store_id, '/gestion?bienvenue=1')
+    else window.location.assign(res.redirect)
   } catch (e) {
     errors.value = fieldErrors(e)
     if (!Object.keys(errors.value).length) error.value = errorMessage(e)
@@ -54,8 +68,8 @@ async function create() {
 
 async function attach(store, value) {
   const question = value
-    ? `Mettre ${store.name} sous l'abonnement ${group.value.plan} de ${group.value.main_name} ? Son propre abonnement ne sera plus renouvelé.`
-    : `Retirer ${store.name} de l'abonnement commun ? Elle repassera à sa propre offre (gratuite sans abonnement).`
+    ? `Mettre ${store.name} sous l'abonnement ${group.value.plan} de ${group.value.main_name} ? Elle devient une page de l'adresse ${group.value.address.replace(/^https?:\/\//, '')} (son ancienne adresse y redirige) et son propre abonnement ne sera plus renouvelé.`
+    : `Retirer ${store.name} de l'abonnement commun ? Elle retrouve sa propre adresse et repasse à sa propre offre (gratuite sans abonnement).`
   if (!window.confirm(question)) return
   error.value = ''
   try {
@@ -110,15 +124,21 @@ async function attach(store, value) {
         <h2 class="font-semibold">Créer une autre boutique</h2>
         <p class="text-sm text-slate-600">
           Avec votre compte actuel, sans nouvelle inscription.
-          <template v-if="room">Elle sera couverte par votre abonnement {{ group.plan }}.</template>
-          <template v-else>Elle commence par l'essai gratuit, puis a sa propre offre.</template>
+          <template v-if="data.next_address">Elle reste à la même adresse : vous passez de l'une à l'autre avec le menu en haut de l'écran, et ses clients la trouvent sur sa page. Elle est couverte par votre abonnement {{ group.plan }}.</template>
+          <template v-else>Elle aura sa propre adresse, commence par l'essai gratuit puis a sa propre offre.</template>
           Produits, commandes et équipe sont séparés d'une boutique à l'autre.
         </p>
       </div>
       <Field id="new-name" label="Nom de la boutique" :error="errors.name">
         <input id="new-name" v-model="form.name" class="input" maxlength="80" required />
       </Field>
-      <Field id="new-slug" label="Adresse" :error="errors.slug">
+      <Field v-if="data.next_address" id="new-path" label="Adresse de sa page" :error="errors.path">
+        <div class="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-600">
+          <span class="flex max-w-[60%] items-center truncate bg-slate-50 px-3 text-sm text-slate-500">{{ data.next_address.replace(/^https?:\/\//, '') }}/</span>
+          <input id="new-path" v-model="form.path" class="min-w-0 flex-1 px-3 py-2.5 text-base outline-none sm:text-sm" maxlength="30" autocapitalize="off" spellcheck="false" required @input="slugTouched = true" />
+        </div>
+      </Field>
+      <Field v-else id="new-slug" label="Adresse" :error="errors.slug">
         <div class="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-600">
           <input id="new-slug" v-model="form.slug" class="min-w-0 flex-1 px-3 py-2.5 text-base outline-none sm:text-sm" maxlength="40" autocapitalize="off" spellcheck="false" required @input="slugTouched = true" />
           <span class="flex items-center bg-slate-50 px-3 text-sm text-slate-500">.{{ boot.domain }}</span>

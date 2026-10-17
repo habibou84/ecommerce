@@ -43,6 +43,17 @@ class Tenancy
     // Ancien sous-domaine : nouveau slug vers lequel rediriger
     private ?string $movedTo = null;
 
+    // Boutique hébergée : préfixe de sa page à l'adresse de la boutique hôte (« /kids »)
+    private ?string $basePath = null;
+
+    // Ancienne adresse d'une boutique désormais hébergée : adresse complète vers laquelle rediriger
+    private ?string $redirectTo = null;
+
+    /**
+     * En-tête par lequel la gestion désigne la boutique choisie parmi celles de l'adresse.
+     */
+    public const STORE_HEADER = 'X-Store-Id';
+
     public static function domain(): string
     {
         return ltrim((string) config('platform.domain'), '.');
@@ -54,6 +65,8 @@ class Tenancy
         $this->store = null;
         $this->problem = null;
         $this->movedTo = null;
+        $this->basePath = null;
+        $this->redirectTo = null;
 
         $host = strtolower($request->getHost());
         $domain = self::domain();
@@ -67,6 +80,7 @@ class Tenancy
         if (! str_ends_with($host, ".{$domain}")) {
             $this->zone = self::CUSTOM_DOMAIN;
             $this->resolveCustomDomain($host);
+            $this->resolveHosted($request);
 
             return;
         }
@@ -81,7 +95,25 @@ class Tenancy
 
         if ($this->zone === self::STORE) {
             $this->resolveSlug($slug);
+            $this->resolveHosted($request);
         }
+    }
+
+    /**
+     * Préfixe de la page de la boutique hébergée choisie par l'adresse (null : boutique de l'adresse).
+     */
+    public function basePath(): ?string
+    {
+        $this->ensureResolved();
+
+        return $this->basePath;
+    }
+
+    public function redirectTo(): ?string
+    {
+        $this->ensureResolved();
+
+        return $this->redirectTo;
     }
 
     public function zone(): string
@@ -125,6 +157,8 @@ class Tenancy
         $this->store = $store;
         $this->problem = null;
         $this->movedTo = null;
+        $this->basePath = null;
+        $this->redirectTo = null;
     }
 
     public static function storeUrl(string $slug, string $path = '/'): string
@@ -160,6 +194,44 @@ class Tenancy
         $port = parse_url($appUrl, PHP_URL_PORT);
 
         return $scheme.'://'.$host.($port ? ":{$port}" : '').'/'.ltrim($path, '/');
+    }
+
+    /**
+     * Boutique hébergée à cette adresse : page « /{path} » pour les clients, en-tête X-Store-Id pour la gestion.
+     * L'ancienne adresse d'une boutique désormais hébergée redirige vers sa nouvelle adresse.
+     */
+    private function resolveHosted(Request $request): void
+    {
+        $store = $this->store;
+        if ($store === null) {
+            return;
+        }
+
+        if ($store->host_store_id !== null) {
+            $this->redirectTo = $store->url($request->getRequestUri());
+
+            return;
+        }
+
+        if ($request->is('api/*')) {
+            $id = (int) $request->header(self::STORE_HEADER);
+            if ($id > 0 && $id !== $store->id && ($hosted = Store::query()->where('host_store_id', $store->id)->find($id)) !== null) {
+                $this->accept($hosted);
+            }
+
+            return;
+        }
+
+        $segment = strtolower(explode('/', ltrim($request->getPathInfo(), '/'))[0]);
+        if ($segment === '' || in_array($segment, HostedStores::reserved(), true)) {
+            return;
+        }
+        $hosted = Store::query()->where('host_store_id', $store->id)->where('path', $segment)->first();
+        if ($hosted !== null) {
+            $this->basePath = '/'.$segment;
+            $this->store = null;
+            $this->accept($hosted);
+        }
     }
 
     private function resolveSlug(string $slug): void

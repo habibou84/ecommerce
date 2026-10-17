@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { chosenStore } from './boutique'
 
 // Session par cookie, limitée au nom d'hôte (Sanctum) : jeton CSRF lu dans le cookie XSRF-TOKEN
 const http = axios.create({
@@ -21,6 +22,9 @@ export function ensureCsrf() {
 // Avant toute écriture : cookie CSRF. Jeton expiré (419) : on le renouvelle et on rejoue une fois.
 http.interceptors.request.use(async (config) => {
   if (config.method !== 'get') await ensureCsrf()
+  // Boutique choisie parmi celles de l'adresse
+  const store = chosenStore()
+  if (store) config.headers['X-Store-Id'] = String(store)
   return config
 })
 

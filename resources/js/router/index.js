@@ -167,7 +167,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  const store = boot.zone === 'console' ? 'Console Jibiat Marchand' : boot.store?.name
+  const store = boot.zone === 'console' ? 'Console Jibiat Marchand' : useAuthStore().store?.name ?? boot.store?.name
   document.title = [to.meta.title, store ?? 'Jibiat Marchand'].filter(Boolean).join(' · ')
 })
 

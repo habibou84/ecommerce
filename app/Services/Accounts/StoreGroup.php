@@ -9,9 +9,13 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
+use App\Rules\StoreSlug;
 use App\Services\Billing\PlanLimits;
+use App\Support\HostedStores;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 /**
  * Boutiques d'un même propriétaire : vue d'ensemble, création d'une nouvelle boutique depuis la gestion, et
@@ -74,6 +78,8 @@ class StoreGroup
                 'slug' => $s->slug,
                 'url' => $s->url(),
                 'is_current' => $s->id === $current->id,
+                'is_hosted' => $s->host_store_id !== null,
+                'path' => $s->path,
                 'is_open' => $s->isOpen(),
                 'status_label' => $s->status->label(),
                 'plan' => $this->limits->plan($s)?->name,
@@ -98,9 +104,12 @@ class StoreGroup
                 'to_confirm' => $rows->sum('to_confirm'),
                 'month_revenue' => $rows->sum('month_revenue'),
             ],
+            // Adresse sous laquelle la prochaine boutique sera créée (null : elle aura sa propre adresse)
+            'next_address' => ($next = $this->hostsNext($current)) ? rtrim($next->url(), '/') : null,
             'group' => $main ? [
                 'main_id' => $main->id,
                 'main_name' => $main->name,
+                'address' => rtrim($main->url(), '/'),
                 'plan' => $plan->name,
                 'limit' => $plan->limit('stores'),
                 'used' => $this->limits->used($main, 'stores'),
@@ -109,19 +118,39 @@ class StoreGroup
     }
 
     /**
-     * Nouvelle boutique du propriétaire. Si l'abonnement de la boutique courante couvre plusieurs boutiques et
-     * qu'il reste de la place, elle y est rattachée (sans essai) ; sinon elle a son propre essai.
+     * Le prochain ajout sera hébergé à l'adresse de la boutique principale (abonnement commun avec de la place).
      */
-    public function create(User $owner, Store $current, string $name, string $slug): Store
+    public function hostsNext(Store $current): ?Store
     {
         $main = $this->main($current);
-        $covered = $main !== null && $this->hasRoom($main);
 
-        return DB::transaction(function () use ($owner, $name, $slug, $main, $covered) {
-            $store = $this->signup->createStore($owner, $name, $slug, trial: ! $covered);
-            if ($covered) {
-                $store->forceFill(['billing_store_id' => $main->id, 'status' => StoreStatus::Active])->save();
+        return $main !== null && $this->hasRoom($main) ? $main : null;
+    }
+
+    /**
+     * Nouvelle boutique du propriétaire. Avec un abonnement commun qui a de la place, elle est hébergée à
+     * l'adresse de la boutique principale (page « /{path} », sans essai) ; sinon elle a sa propre adresse et
+     * son propre essai.
+     */
+    public function create(User $owner, Store $current, string $name, ?string $slug, ?string $path = null): Store
+    {
+        $main = $this->hostsNext($current);
+        if ($main === null) {
+            if ($slug === null) {
+                throw new BusinessRuleException('Choisissez l\'adresse de la nouvelle boutique.', 'slug');
             }
+
+            return $this->signup->createStore($owner, $name, $slug);
+        }
+
+        $path ??= HostedStores::freePath($name, $main);
+        if (($error = HostedStores::error($path, $main)) !== null) {
+            throw new BusinessRuleException($error, 'path');
+        }
+
+        return DB::transaction(function () use ($owner, $name, $main, $path) {
+            $store = $this->signup->createStore($owner, $name, $this->internalSlug($main, $path), trial: false);
+            $store->forceFill(['billing_store_id' => $main->id, 'host_store_id' => $main->id, 'path' => $path, 'status' => StoreStatus::Active])->save();
 
             return $store;
         });
@@ -137,10 +166,10 @@ class StoreGroup
             throw new BusinessRuleException('Votre offre ne couvre qu\'une boutique. L\'offre Business regroupe plusieurs boutiques sous un même abonnement.');
         }
         $this->ensureOwned($owner, $store);
-        if ($store->id === $main->id || $store->billing_store_id === $main->id) {
+        if ($store->id === $main->id || ($store->billing_store_id === $main->id && $store->host_store_id === $main->id)) {
             return;
         }
-        if (Store::where('billing_store_id', $store->id)->exists()) {
+        if (Store::where('billing_store_id', $store->id)->orWhere('host_store_id', $store->id)->exists()) {
             throw new BusinessRuleException("La boutique {$store->name} couvre déjà d'autres boutiques avec son abonnement.");
         }
         if (! $this->hasRoom($main)) {
@@ -150,7 +179,9 @@ class StoreGroup
         }
 
         DB::transaction(function () use ($store, $main) {
-            $store->forceFill(['billing_store_id' => $main->id])->save();
+            // Elle passe à l'adresse de la boutique principale ; son ancienne adresse y redirige
+            $path = $store->host_store_id === $main->id ? $store->path : HostedStores::freePath(Str::after($store->slug, $main->slug.'-'), $main);
+            $store->forceFill(['billing_store_id' => $main->id, 'host_store_id' => $main->id, 'path' => $path])->save();
             if (in_array($store->status, [StoreStatus::Trial, StoreStatus::PastDue], true)) {
                 $store->forceFill(['status' => StoreStatus::Active])->save();
             }
@@ -167,12 +198,28 @@ class StoreGroup
     }
 
     /**
-     * La boutique quitte l'abonnement commun : elle reprend sa propre offre (gratuite sans abonnement).
+     * La boutique quitte l'abonnement commun : elle retrouve sa propre adresse et sa propre offre (gratuite
+     * sans abonnement).
      */
     public function detach(User $owner, Store $store): void
     {
         $this->ensureOwned($owner, $store);
-        $store->forceFill(['billing_store_id' => null])->save();
+        $store->forceFill(['billing_store_id' => null, 'host_store_id' => null, 'path' => null])->save();
+    }
+
+    /**
+     * Sous-domaine interne d'une boutique hébergée (jamais affiché : son ancienne adresse redirige vers sa page).
+     */
+    private function internalSlug(Store $main, string $path): string
+    {
+        $base = Str::limit("{$main->slug}-{$path}", 34, '');
+        $base = rtrim($base, '-');
+        $slug = $base;
+        while (Validator::make(['slug' => $slug], ['slug' => [new StoreSlug]])->fails()) {
+            $slug = $base.'-'.Str::lower(Str::random(4));
+        }
+
+        return $slug;
     }
 
     private function hasRoom(Store $main): bool

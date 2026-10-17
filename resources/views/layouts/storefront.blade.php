@@ -8,7 +8,7 @@
     $tracking = $store->storefront_enabled && collect(['meta_pixel_id', 'tiktok_pixel_id', 'ga4_id'])->contains(fn ($k) => $store->marketingId($k));
 @endphp
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-base="{{ app(\App\Support\Tenancy::class)->basePath() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

@@ -15,9 +15,12 @@ class RequestError extends Error {
   }
 }
 
+// Boutique hébergée à l'adresse d'une autre : ses pages sont sous « /{nom} » (vide sinon)
+const BASE = document.documentElement.dataset.base || ''
+
 // Appels JSON de nos pages : l'en-tête X-Requested-With remplace le jeton CSRF (voir RequireAjax)
 async function api(method, url, body) {
-  const response = await fetch(url, {
+  const response = await fetch(url.startsWith('/') ? BASE + url : url, {
     method,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     body: body ? JSON.stringify(body) : undefined,
@@ -144,10 +147,10 @@ function productPage() {
       setCartCount(summary.count)
       window.jmTrack?.('add_to_cart', { value: variant.price * quantity, currency: data.currency, items: [{ id: data.id, name: data.title, price: variant.price, quantity }] })
       if (thenCheckout) {
-        window.location.href = '/commande'
+        window.location.href = `${BASE}/commande`
         return
       }
-      toast(`Ajouté au panier · <a href="/panier" class="underline font-medium">Voir le panier (${summary.count})</a>`)
+      toast(`Ajouté au panier · <a href="${BASE}/panier" class="underline font-medium">Voir le panier (${summary.count})</a>`)
     } catch (error) {
       toast(escapeHtml(firstError(error)))
     }

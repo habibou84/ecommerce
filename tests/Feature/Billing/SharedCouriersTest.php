@@ -44,7 +44,7 @@ class SharedCouriersTest extends TestCase
             'current_period_start' => now(), 'current_period_end' => now()->addMonth()]);
         $this->actingAs($this->mode->owner);
         $this->storeApi($this->mode, 'POST', 'my-stores', ['name' => 'Awa Kids', 'slug' => 'awa-kids'])->assertCreated();
-        $this->kids = Store::where('slug', 'awa-kids')->sole();
+        $this->kids = Store::where('path', 'awa-kids')->sole();
 
         $this->koffi = User::factory()->create(['name' => 'Koffi', 'phone' => '+2250102030405']);
         $this->addMember($this->mode, $this->koffi, Role::Courier);
