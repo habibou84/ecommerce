@@ -1841,3 +1841,39 @@ Table campaigns {
   updated_at timestamp
   Note: 'Relance WhatsApp des anciens clients. Messages : outbound_messages (related_type campaign). customers.marketing_opt_out_at (réponse STOP), customers.last_campaign_at (une relance par semaine au plus).'
 }
+
+Table order_returns {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  order_id bigint [ref: > orders.id, not null]
+  number int [not null, note: 'RET-n par boutique']
+  exchange_order_id bigint [ref: > orders.id, note: 'commande d\'échange (articles de remplacement)']
+  status varchar(20) [default: 'pending', note: 'pending, received, cancelled']
+  reason varchar
+  restock boolean [default: true]
+  returned_value int [note: 'prix payé des articles rendus']
+  refund_due int [note: 'valeur rendue moins le remplacement']
+  refunded_amount int
+  note varchar(500)
+  created_by bigint [ref: > users.id]
+  received_at timestamp
+  received_by bigint [ref: > users.id]
+  cancelled_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (store_id, number) [unique]
+    (store_id, status, created_at)
+  }
+}
+
+Table order_return_items {
+  id bigint [pk, increment]
+  order_return_id bigint [ref: > order_returns.id, not null]
+  order_item_id bigint [ref: > order_items.id, not null]
+  variant_id bigint [ref: > product_variants.id]
+  quantity int [not null]
+  unit_value int [not null]
+  replacement_variant_id bigint [ref: > product_variants.id]
+  replacement_quantity int [default: 0]
+}

@@ -123,6 +123,10 @@ async function step(status) {
       <ul class="space-y-1">
         <li v-for="(item, i) in mission.items" :key="i">{{ item.quantity }} × {{ item.label }}</li>
       </ul>
+      <div v-if="mission.take_back?.length" class="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2">
+        <p class="font-semibold text-amber-900">↩ Échange : reprenez au client</p>
+        <ul><li v-for="(item, i) in mission.take_back" :key="i">{{ item.quantity }} × {{ item.label }}</li></ul>
+      </div>
       <p v-if="mission.failure_reason" class="mt-2 text-amber-800">Dernier échec : {{ mission.failure_reason }}<template v-if="mission.rescheduled_to"> · reportée au {{ new Date(mission.rescheduled_to).toLocaleDateString('fr-FR') }}</template></p>
     </section>
 

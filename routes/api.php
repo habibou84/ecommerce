@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Orders\CustomerController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryController;
 use App\Http\Controllers\Api\V1\Orders\OrderController;
+use App\Http\Controllers\Api\V1\Orders\ReturnController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\Payments\OrderPaymentController;
 use App\Http\Controllers\Api\V1\Payments\PaymentSettingsController;
@@ -204,6 +205,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('delivery-zones', [DeliveryController::class, 'zones'])->name('zones.index');
             });
             Route::middleware($manage)->group(function () {
+                Route::get('returns', [ReturnController::class, 'index'])->name('returns.index');
+                Route::get('orders/{order}/returns', [ReturnController::class, 'forOrder'])->whereNumber('order')->name('orders.returns.index');
+                Route::post('orders/{order}/returns', [ReturnController::class, 'store'])->whereNumber('order')->name('orders.returns.store');
+                Route::post('returns/{return}/receive', [ReturnController::class, 'receive'])->whereNumber('return')->name('returns.receive');
+                Route::post('returns/{return}/cancel', [ReturnController::class, 'cancel'])->whereNumber('return')->name('returns.cancel');
                 Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
                 Route::post('orders/parse', [OrderController::class, 'parse'])->name('orders.parse');
                 Route::post('orders/draft', [OrderController::class, 'draft'])->middleware('throttle:30,1')->name('orders.draft');

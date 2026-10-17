@@ -8,6 +8,7 @@ use App\Models\CashCollection;
 use App\Models\Courier;
 use App\Models\CourierEarning;
 use App\Models\CourierRemittance;
+use App\Models\OrderReturn;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Services\Couriers\CourierDesk;
@@ -102,6 +103,10 @@ class CourierAppController extends Controller
             'failure_reason' => $model->failure_reason,
             'rescheduled_to' => $model->rescheduled_to?->toDateString(),
             'next_steps' => CourierDesk::nextSteps($model),
+            // Échange : articles à reprendre au client en lui remettant le colis
+            'take_back' => SharedCouriers::within($order->store, fn () => OrderReturn::forStore($order->store_id)->where('exchange_order_id', $order->id)
+                ->where('status', 'pending')->with('items.orderItem')->get()
+                ->flatMap(fn (OrderReturn $r) => $r->items->map(fn ($l) => ['label' => $l->orderItem?->label(), 'quantity' => $l->quantity]))->values()),
             // Reste à payer (0 si le client a payé en ligne, à la porte ou avant) et paiement à la porte possible
             'amount_due' => $order->amountDue(),
             'door_payment' => $order->amountDue() > 0 && SharedCouriers::within($order->store, fn () => app(PaymentDesk::class)->availableMethods($order->store)) !== [],

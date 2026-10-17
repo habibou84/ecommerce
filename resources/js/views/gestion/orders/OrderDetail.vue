@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
+import OrderReturns from '../../../components/OrderReturns.vue'
 import ShipmentPanel from '../../../components/ShipmentPanel.vue'
 import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
@@ -202,6 +203,8 @@ async function addNote() {
             </li>
           </ul>
         </section>
+
+        <OrderReturns :key="order.id" :order="order" @changed="load" />
 
         <section class="card p-4">
           <h3 class="mb-3 font-semibold">Historique</h3>
