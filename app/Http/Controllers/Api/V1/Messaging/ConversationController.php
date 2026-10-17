@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\WhatsappAccount;
+use App\Services\Messaging\ReplySuggester;
 use App\Services\WhatsApp\Inbox;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,6 +63,14 @@ class ConversationController extends Controller
         $this->inbox->reply($model, trim($data['body']), $request->user());
 
         return response()->json(['data' => $this->detail($model->fresh(['order.store', 'customer']))], 201);
+    }
+
+    /**
+     * Réponse proposée par l'assistant IA (jamais envoyée sans le marchand).
+     */
+    public function suggest(Request $request, int $conversation, ReplySuggester $suggester): JsonResponse
+    {
+        return response()->json(['data' => $suggester->suggest(Conversation::with(['store', 'order'])->findOrFail($conversation), $request->user())]);
     }
 
     private function unreadCount(): int

@@ -232,6 +232,36 @@ async function onFiles(event) {
   else pendingFiles.value.push(...files.map((file) => ({ file, url: URL.createObjectURL(file) })))
 }
 
+// Assistant IA : fiche proposée à partir des photos choisies (le marchand fixe le prix et valide)
+const ai = computed(() => auth.profile?.ai ?? { enabled: false, used: 0, limit: 0 })
+const aiNote = ref('')
+const drafting = ref(false)
+const aiNotice = ref('')
+async function draftFromPhotos() {
+  drafting.value = true
+  aiNotice.value = ''
+  error.value = ''
+  try {
+    const body = new FormData()
+    pendingFiles.value.slice(0, 3).forEach((p) => body.append('photos[]', p.file))
+    if (aiNote.value.trim()) body.append('note', aiNote.value.trim())
+    const d = (await http.post('/products/draft', body)).data.data
+    Object.assign(form, { title: d.title, description: d.description, brand: d.brand ?? '', seo_title: d.seo_title, seo_description: d.seo_description })
+    form.tags = [...new Set([...form.tags, ...d.tags])]
+    form.collection_ids = [...new Set([...form.collection_ids, ...d.collection_ids])]
+    if (d.options.length) {
+      hasVariants.value = true
+      options.value = d.options.map((o) => ({ name: o.name, values: [...o.values] }))
+    }
+    aiNotice.value = `Fiche proposée : relisez-la, puis indiquez le prix${d.options.length ? ' de chaque variante' : ''} et le stock. ${d.to_check ?? ''}`.trim()
+    if (auth.profile?.ai) auth.profile.ai.used++
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    drafting.value = false
+  }
+}
+
 async function moveImage(index, delta) {
   const list = [...images.value]
   const [item] = list.splice(index, 1)
@@ -348,6 +378,32 @@ const margin = computed(() => {
 
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="saved" tone="success">Produit enregistré.</Alert>
+
+    <section v-if="ai.enabled && !props.id && canEdit" class="card space-y-3 border-emerald-200 bg-emerald-50/60 p-4 sm:p-6">
+      <div>
+        <h2 class="font-semibold">✨ Remplir la fiche avec une photo</h2>
+        <p class="text-sm text-slate-600">Prenez le produit en photo : l'assistant propose le nom, la description, les tailles ou couleurs et les mots-clés. Vous fixez le prix et vérifiez avant d'enregistrer.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="btn-secondary cursor-pointer px-3 py-1.5">
+          📷 Photo
+          <input type="file" accept="image/*" capture="environment" class="hidden" @change="onFiles" />
+        </label>
+        <label class="btn-secondary cursor-pointer px-3 py-1.5">
+          + Galerie
+          <input type="file" accept="image/*" multiple class="hidden" @change="onFiles" />
+        </label>
+        <span class="text-sm text-slate-500">{{ pendingFiles.length ? `${Math.min(pendingFiles.length, 3)} photo(s) pour l'assistant` : 'Aucune photo choisie' }}</span>
+      </div>
+      <input v-model="aiNote" class="input" maxlength="1000" placeholder="Précision facultative : matière, tailles disponibles, marque…" />
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button" class="btn-brand" :disabled="drafting || !pendingFiles.length || (ai.limit !== null && ai.used >= ai.limit)" @click="draftFromPhotos">
+          {{ drafting ? 'L\'assistant regarde la photo…' : 'Proposer la fiche' }}
+        </button>
+        <span class="text-xs text-slate-500">{{ ai.used }}{{ ai.limit !== null ? ` / ${ai.limit}` : '' }} action(s) de l'assistant ce mois-ci</span>
+      </div>
+      <Alert v-if="aiNotice" tone="success">{{ aiNotice }}</Alert>
+    </section>
 
     <fieldset :disabled="!canEdit" class="space-y-5">
       <section class="card space-y-4 p-4 sm:p-6">

@@ -532,7 +532,11 @@ Règles des offres :
   - *Fichier clients commun* : à la saisie d'une commande, un numéro déjà client d'une autre boutique remplit le nom et l'adresse et affiche son historique (commandes, livrées, refusées, liste noire) ; la fiche client montre ses achats dans les autres boutiques. Chaque boutique garde sa propre fiche client.
 - **Changement d'offre** : la valeur des jours payés non utilisés de l'offre précédente est convertie en jours supplémentaires sur la nouvelle offre (au prix du jour de la nouvelle offre).
 - **Limite de commandes** : l'équipe est prévenue à 80 % de la limite, puis quand elle est atteinte (une fois par mois chaque fois).
-- **Fonctions annoncées « bientôt »** (fiche produit depuis une photo, API marchand) : affichées comme telles dans les offres tant qu'elles ne sont pas disponibles.
+- **Fonctions annoncées « bientôt »** (API marchand) : affichées comme telles dans les offres tant qu'elles ne sont pas disponibles.
+- **Assistant IA** (Claude, d'Anthropic, par le SDK PHP officiel ; activé par `ANTHROPIC_API_KEY`, modèle `AI_MODEL`) : quota mensuel d'actions par offre (`limits.ai_actions_per_month` : 5 / 50 / 300 / 1000 ; une offre sans cette clé n'a pas d'IA), chaque action notée dans `ai_usages` (jetons ; un échec n'est pas compté). Le marchand relit et valide toujours ; seules les données utiles sont envoyées (photos, conversation, catalogue de la boutique, zones de livraison).
+  - *Fiche produit depuis une photo* (nouveau produit) : nom, description, options visibles, étiquettes, collections existantes, référencement ; jamais de prix.
+  - *Commande depuis une conversation* (saisie rapide) : texte mal écrit, plusieurs messages ou captures d'écran ; articles rapprochés du catalogue par leurs codes (un code inconnu est ignoré et signalé), quartier par la recherche de lieux, même résultat que l'analyse par règles.
+  - *Réponse WhatsApp proposée* (boîte Messages) : avec les vrais prix, la disponibilité, les frais et délais de livraison et l'état de la commande liée ; à vérifier signalé ; jamais envoyée sans le marchand.
 
 Revenus complémentaires possibles : commission sur paiement en ligne, apport d'affaires facturé aux entreprises de livraison (par course créée via l'application), thèmes premium.
 

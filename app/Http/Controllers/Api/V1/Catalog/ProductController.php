@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Catalog\ImageStore;
+use App\Services\Catalog\ProductDrafter;
 use App\Services\Catalog\StoreCatalog;
 use App\Services\Stock\StockLevels;
 use Illuminate\Http\JsonResponse;
@@ -123,6 +124,20 @@ class ProductController extends Controller
         ], $request->user());
 
         return ProductResource::make(ProductResource::load($copy))->response()->setStatusCode(201);
+    }
+
+    /**
+     * Fiche proposée par l'assistant IA à partir de photos (rien n'est enregistré).
+     */
+    public function draft(Request $request, ProductDrafter $drafter): JsonResponse
+    {
+        $data = $request->validate([
+            'photos' => ['required', 'array', 'min:1', 'max:3'],
+            'photos.*' => ['file', 'image', 'max:'.ImageStore::MAX_UPLOAD_KB],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ], [], ['photos' => 'photos', 'note' => 'note']);
+
+        return response()->json(['data' => $drafter->draft($this->currentStore(), $request->user(), $data['photos'], $data['note'] ?? null)]);
     }
 
     /**

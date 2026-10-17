@@ -13,6 +13,8 @@ use App\Models\StockReceipt;
 use App\Models\StockTransfer;
 use App\Models\Store;
 use App\Models\StoreTransfer;
+use App\Services\Ai\AiClient;
+use App\Services\Ai\AnthropicAiClient;
 use App\Services\Places\Places;
 use App\Services\Sms\OrangeSmsGateway;
 use App\Services\WhatsApp\CustomerMessenger;
@@ -37,6 +39,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(Tenancy::class);
         // Lieux visibles d'une boutique : mis en cache le temps de la requête
         $this->app->scoped(Places::class);
+        // Assistant IA (Claude) ; remplacé par un faux dans les tests
+        $this->app->singleton(AiClient::class, fn () => new AnthropicAiClient(config('services.anthropic.key'), (string) config('services.anthropic.model')));
 
         // SMS par Orange (SMS_DRIVER=orange) ; les autres pilotes (log, twilio, none) viennent du paquet socle
         if (config('services.sms.driver') === 'orange') {

@@ -3,6 +3,7 @@
 namespace App\Services\Billing;
 
 use App\Exceptions\QuotaExceededException;
+use App\Models\AiUsage;
 use App\Models\CarrierConnection;
 use App\Models\Courier;
 use App\Models\Order;
@@ -29,13 +30,13 @@ class PlanLimits
         'carrier_connections' => 'entreprises de livraison connectées',
         'payment_accounts' => 'comptes de paiement en ligne',
         'stores' => 'boutiques sous cet abonnement',
+        'ai_actions_per_month' => 'actions de l\'assistant IA par mois',
     ];
 
     public const FEATURES = [
         'custom_domain' => 'Domaine personnalisé',
         'online_payment' => 'Paiement en ligne',
         'whatsapp_api' => 'WhatsApp automatique',
-        'ai_product' => 'Fiche produit depuis une photo',
         'advanced_stats' => 'Statistiques avancées',
         'merchant_api' => 'API marchand',
         'multi_store' => 'Plusieurs boutiques',
@@ -44,7 +45,7 @@ class PlanLimits
     /**
      * Fonctions annoncées mais pas encore disponibles : affichées « bientôt », jamais présentées comme acquises.
      */
-    public const COMING_SOON = ['ai_product', 'merchant_api'];
+    public const COMING_SOON = ['merchant_api'];
 
     /**
      * Part de la limite de commandes à partir de laquelle l'équipe est prévenue.
@@ -170,6 +171,8 @@ class PlanLimits
             'payment_accounts' => PaymentAccount::forStore($store->id)->count(),
             // La boutique elle-même et celles que son abonnement couvre
             'stores' => 1 + Store::where('billing_store_id', $store->id)->count(),
+            'ai_actions_per_month' => AiUsage::forStore($store->id)->where('succeeded', true)
+                ->where('created_at', '>=', CarbonImmutable::now($store->timezone)->startOfMonth()->utc())->count(),
             default => 0,
         };
     }

@@ -197,6 +197,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware($manage)->group(function () {
                 Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
                 Route::post('orders/parse', [OrderController::class, 'parse'])->name('orders.parse');
+                Route::post('orders/draft', [OrderController::class, 'draft'])->middleware('throttle:30,1')->name('orders.draft');
                 Route::post('orders/{order}/status', [OrderController::class, 'transition'])->whereNumber('order')->name('orders.status');
                 Route::post('orders/{order}/payments', [OrderController::class, 'payment'])->whereNumber('order')->name('orders.payments');
                 Route::post('places', [DeliveryController::class, 'addPlace'])->name('places.store');
@@ -222,6 +223,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('conversations/unread', [ConversationController::class, 'unread'])->name('conversations.unread');
                 Route::get('conversations/{conversation}', [ConversationController::class, 'show'])->whereNumber('conversation')->name('conversations.show');
                 Route::post('conversations/{conversation}/messages', [ConversationController::class, 'reply'])->whereNumber('conversation')->name('conversations.reply');
+                Route::post('conversations/{conversation}/suggest', [ConversationController::class, 'suggest'])->whereNumber('conversation')->middleware('throttle:30,1')->name('conversations.suggest');
             });
             Route::middleware('permission:'.Permission::CustomersView->value)->group(function () {
                 Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
@@ -384,6 +386,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             });
             Route::middleware('permission:'.Permission::ProductsManage->value)->group(function () {
                 Route::post('products', [ProductController::class, 'store'])->name('products.store');
+                Route::post('products/draft', [ProductController::class, 'draft'])->middleware('throttle:20,1')->name('products.draft');
                 Route::put('products/{product}', [ProductController::class, 'update'])->whereNumber('product')->name('products.update');
                 Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate'])->whereNumber('product')->name('products.duplicate');
                 Route::post('products/{product}/copy', [ProductController::class, 'copy'])->whereNumber('product')->name('products.copy');

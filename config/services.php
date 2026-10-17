@@ -48,6 +48,12 @@ return [
         'credentials' => env('FIREBASE_CREDENTIALS'),
     ],
 
+    // Assistant IA (fiche produit depuis une photo, commande depuis une conversation, réponses WhatsApp)
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('AI_MODEL', 'claude-opus-5-5'),
+    ],
+
     // SMS (vérification des numéros) : log = écrit dans le journal, sans envoi (développement)
     'sms' => [
         'driver' => env('SMS_DRIVER', 'log'), // log | orange | twilio | none

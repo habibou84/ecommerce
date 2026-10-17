@@ -19,6 +19,7 @@ use App\Models\Order;
 use App\Services\Customers\CustomerBook;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
+use App\Services\Orders\OrderDrafter;
 use App\Services\Orders\OrderMessageParser;
 use App\Services\Orders\OrderMessages;
 use App\Services\WhatsApp\CustomerMessenger;
@@ -219,9 +220,31 @@ class OrderController extends Controller
     public function parse(Request $request, OrderMessageParser $parser): JsonResponse
     {
         $data = $request->validate(['text' => ['required', 'string', 'max:5000']]);
-        $result = $parser->parse($this->currentStore(), $data['text']);
 
-        // Client déjà connu : son nom et sa dernière adresse
+        return $this->parsed($parser->parse($this->currentStore(), $data['text']));
+    }
+
+    /**
+     * Saisie rapide par l'assistant IA : conversation collée et/ou captures d'écran (même réponse que parse).
+     */
+    public function draft(Request $request, OrderDrafter $drafter): JsonResponse
+    {
+        $data = $request->validate([
+            'text' => ['nullable', 'required_without:screenshots', 'string', 'max:10000'],
+            'screenshots' => ['nullable', 'array', 'max:3'],
+            'screenshots.*' => ['file', 'image', 'max:10240'],
+        ], [], ['text' => 'conversation', 'screenshots' => 'captures d\'écran']);
+
+        return $this->parsed($drafter->draft($this->currentStore(), $request->user(), $data['text'] ?? null, $data['screenshots'] ?? []));
+    }
+
+    /**
+     * Résultat d'analyse complété du client déjà connu : son nom et sa dernière adresse.
+     *
+     * @param  array<string, mixed>  $result
+     */
+    private function parsed(array $result): JsonResponse
+    {
         $known = $result['phone'] ? Customer::where('phone', $result['phone'])->with('addresses.place.parent')->first() : null;
         $address = $known?->addresses->first();
 
