@@ -132,6 +132,17 @@ async function logout() {
 // Boutiques de cette adresse : on passe de l'une à l'autre sans changer d'adresse
 const addressStores = computed(() => auth.profile?.stores ?? [])
 const storeMenu = ref(false)
+// Confirmation du changement de boutique (quelques secondes)
+const switchNotice = ref('')
+let switchTimer
+watch(() => auth.switchedTo, (value) => {
+  if (!value) return
+  switchNotice.value = `Vous êtes maintenant dans ${value.name}`
+  clearTimeout(switchTimer)
+  switchTimer = setTimeout(() => (switchNotice.value = ''), 3500)
+  menuOpen.value = false
+  refreshBadges()
+})
 function pickStore(id) {
   storeMenu.value = false
   if (id !== auth.store?.id) auth.switchTo(id)
@@ -283,8 +294,14 @@ async function switchTo(store) {
         <button class="underline" @click="endSupport">Mettre fin</button>
       </div>
       <main class="mx-auto max-w-5xl p-4 sm:p-6">
-        <RouterView />
+        <!-- Changement de boutique : la page est recréée avec les données de la nouvelle boutique -->
+        <RouterView v-slot="{ Component }">
+          <component :is="Component" :key="auth.store?.id" />
+        </RouterView>
       </main>
+    </div>
+    <div v-if="switchNotice" class="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-center text-sm font-medium text-white shadow-lg" role="status">
+      {{ switchNotice }}
     </div>
   </div>
 </template>
