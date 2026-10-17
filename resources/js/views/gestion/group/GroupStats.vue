@@ -69,7 +69,7 @@ const shown = computed(() => hovered.value ?? chart.value.at(-1))
     <Alert v-if="error" :tone="upgrade ? 'warning' : 'error'">{{ error }}</Alert>
 
     <template v-if="stats">
-      <p class="text-sm text-slate-500">{{ stats.stores.length }} boutiques · commandes reçues du {{ day(stats.period.from) }} au {{ day(stats.period.to) }}.</p>
+      <p class="text-sm text-slate-500">{{ stats.stores.length }} boutiques · commandes reçues du {{ day(stats.period.from) }} au {{ day(stats.period.to) }}</p>
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div class="card p-4"><p class="text-sm text-slate-500">Commandes</p><p class="text-2xl font-semibold">{{ t.orders }}</p><p class="text-xs text-slate-500">{{ t.cancelled }} annulée(s)</p></div>
         <div class="card p-4"><p class="text-sm text-slate-500">Chiffre d'affaires livré</p><p class="text-2xl font-semibold">{{ money(t.revenue) }}</p><p class="text-xs text-slate-500">{{ money(t.in_progress) }} en cours</p></div>

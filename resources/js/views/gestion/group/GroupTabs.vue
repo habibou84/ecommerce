@@ -4,6 +4,7 @@ const TABS = [
   ['/gestion/mes-boutiques', 'Boutiques'],
   ['/gestion/mes-boutiques/statistiques', 'Statistiques'],
   ['/gestion/mes-boutiques/caisse', 'Caisse'],
+  ['/gestion/mes-boutiques/livreurs', 'Livreurs'],
 ]
 </script>
 

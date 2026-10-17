@@ -1522,6 +1522,7 @@ Table scheduled_reports {
   user_id bigint [ref: > users.id, not null]
   frequency varchar(10) [not null, note: 'daily | weekly | monthly']
   channel varchar(10) [not null, note: 'whatsapp (modèle « daily_report » du WhatsApp de la boutique) | email']
+  all_stores boolean [not null, default: false, note: 'rapport commun à toutes les boutiques de l\'abonnement Business (propriétaire)']
   send_at time [default: '20:00', note: 'heure de la boutique']
   last_sent_at timestamp
   is_active boolean [default: true]
