@@ -134,15 +134,24 @@ class StoreGroupController extends Controller
     public function store(Request $request, LoginHandoff $handoff): JsonResponse
     {
         $owner = $this->owner($request);
-        $request->merge(['slug' => strtolower(trim((string) $request->input('slug')))]);
+        $hosted = $this->group->hostsNext($this->currentStore()) !== null;
+        $request->merge([
+            'slug' => $hosted ? null : strtolower(trim((string) $request->input('slug'))),
+            'path' => $hosted && filled($request->input('path')) ? strtolower(trim((string) $request->input('path'))) : null,
+        ]);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:80'],
-            'slug' => ['required', new StoreSlug],
-        ], [], ['name' => 'nom de la boutique', 'slug' => 'adresse']);
+            'slug' => [Rule::requiredIf(! $hosted), 'nullable', new StoreSlug],
+            'path' => ['nullable', 'string', 'max:30'],
+        ], [], ['name' => 'nom de la boutique', 'slug' => 'adresse', 'path' => 'nom de la page']);
 
-        $store = $this->group->create($owner, $this->currentStore(), $data['name'], $data['slug']);
+        $store = $this->group->create($owner, $this->currentStore(), $data['name'], $data['slug'], $data['path']);
 
-        return response()->json(['redirect' => $handoff->url($owner, $store, '/gestion?bienvenue=1')], 201);
+        // Boutique hébergée : même adresse, même session ; sinon lien de connexion vers sa propre adresse
+        return response()->json([
+            'store_id' => $store->id,
+            'redirect' => $store->isHosted() ? $store->url('/gestion?bienvenue=1') : $handoff->url($owner, $store, '/gestion?bienvenue=1'),
+        ], 201);
     }
 
     public function attach(Request $request, int $store): JsonResponse

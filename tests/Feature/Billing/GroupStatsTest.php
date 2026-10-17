@@ -33,7 +33,7 @@ class GroupStatsTest extends TestCase
             'current_period_start' => now(), 'current_period_end' => now()->addMonth()]);
         $this->actingAs($this->mode->owner);
         $this->storeApi($this->mode, 'POST', 'my-stores', ['name' => 'Awa Kids', 'slug' => 'awa-kids'])->assertCreated();
-        $this->kids = Store::where('slug', 'awa-kids')->sole();
+        $this->kids = Store::where('path', 'awa-kids')->sole();
     }
 
     private function sell(Store $store, string $title, int $price, int $count, bool $delivered): void

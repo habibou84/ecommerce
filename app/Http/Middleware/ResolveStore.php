@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\HostedStores;
 use App\Support\Tenancy;
 use Closure;
 use Illuminate\Http\Request;
@@ -38,6 +39,13 @@ class ResolveStore
             return redirect()->away(Tenancy::storeUrl($slug, $request->getRequestUri()), 301);
         }
 
+        // Boutique désormais hébergée à l'adresse d'une autre : son ancienne adresse mène à la nouvelle
+        if (($to = $this->tenancy->redirectTo()) !== null) {
+            return $api
+                ? response()->json(['message' => 'Cette boutique est maintenant à l\'adresse '.$to.'.'], 404)
+                : redirect()->away($to, 301);
+        }
+
         if ($problem = $this->tenancy->problem()) {
             [$status, $message] = $problem === Tenancy::CLOSED
                 ? [403, 'Cette boutique est momentanément indisponible.']
@@ -54,6 +62,32 @@ class ResolveStore
                 : redirect()->away($this->tenancy->store()->url($request->getRequestUri()));
         }
 
+        // Page d'une boutique hébergée (« /kids/produits ») : servie comme « /produits », liens préfixés en retour
+        if (($base = $this->tenancy->basePath()) !== null) {
+            return $this->hosted($request, $next, $base);
+        }
+
         return $next($request);
+    }
+
+    private function hosted(Request $request, Closure $next, string $base): Response
+    {
+        $root = $request->getSchemeAndHttpHost();
+        $uri = $request->getRequestUri();
+        $rest = substr($uri, strlen($base));
+        $request->server->set('REQUEST_URI', ($rest === '' || $rest[0] === '?') ? '/'.$rest : $rest);
+        $request->initialize($request->query->all(), $request->request->all(), $request->attributes->all(), $request->cookies->all(),
+            $request->files->all(), $request->server->all(), $request->getContent());
+
+        $response = $next($request);
+
+        if ($response->headers->has('Location')) {
+            $response->headers->set('Location', HostedStores::prefixLocation((string) $response->headers->get('Location'), $base, $root));
+        }
+        if (str_contains((string) $response->headers->get('Content-Type'), 'text/html') && is_string($content = $response->getContent()) && $content !== '') {
+            $response->setContent(HostedStores::prefixHtml($content, $base));
+        }
+
+        return $response;
     }
 }

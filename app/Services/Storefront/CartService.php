@@ -8,6 +8,7 @@ use App\Models\CartItem;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Services\Promotions\Pricing;
+use App\Support\Tenancy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -25,9 +26,19 @@ class CartService
 
     public function __construct(private readonly StorefrontCatalog $catalog, private readonly Pricing $pricing) {}
 
+    /**
+     * Cookie du panier : un par boutique hébergée, ses pages partageant l'adresse de la boutique hôte.
+     */
+    public static function cookieName(): string
+    {
+        $store = app(Tenancy::class)->store();
+
+        return $store?->host_store_id !== null ? self::COOKIE.'_'.$store->path : self::COOKIE;
+    }
+
     public function find(Request $request, Store $store): ?Cart
     {
-        $token = $request->cookie(self::COOKIE);
+        $token = $request->cookie(self::cookieName());
 
         return is_string($token) && $token !== ''
             ? Cart::forStore($store->id)->where('token', $token)->where('status', 'active')->first()
@@ -47,7 +58,7 @@ class CartService
 
     public function cookie(Cart $cart): Cookie
     {
-        return cookie(self::COOKIE, $cart->token, self::COOKIE_DAYS * 24 * 60, '/', null, null, true, false, 'lax');
+        return cookie(self::cookieName(), $cart->token, self::COOKIE_DAYS * 24 * 60, '/', null, null, true, false, 'lax');
     }
 
     /**

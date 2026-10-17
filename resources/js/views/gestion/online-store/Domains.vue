@@ -55,7 +55,8 @@ const copy = (t) => navigator.clipboard?.writeText(t)
   <div class="space-y-5">
     <OnlineStoreTabs />
     <p class="text-sm text-slate-600">Votre boutique est toujours à <strong>{{ data?.subdomain?.replace(/^https?:\/\//, '') }}</strong>. Ajoutez votre propre nom de domaine (ex. www.maboutique.ci) : le site y sera servi, avec un certificat de sécurité (https) automatique. La gestion reste sur l'adresse Jibiat Marchand.</p>
-    <Alert v-if="data && !data.available" tone="warning">Le domaine personnalisé est compris dans l'offre Pro. <RouterLink to="/gestion/abonnement" class="underline">Voir les offres</RouterLink></Alert>
+    <Alert v-if="data?.hosted_by" tone="info">Cette boutique est une page de {{ data.hosted_by }} : ajoutez votre nom de domaine à {{ data.hosted_by }}, il servira aussi cette page ({{ data.subdomain.replace(/^https?:\/\//, '') }}).</Alert>
+    <Alert v-else-if="data && !data.available" tone="warning">Le domaine personnalisé est compris dans l'offre Pro. <RouterLink to="/gestion/abonnement" class="underline">Voir les offres</RouterLink></Alert>
     <Alert v-if="error">{{ error }}</Alert>
 
     <form v-if="data?.available" class="card flex flex-wrap items-end gap-3 p-4" @submit.prevent="add">

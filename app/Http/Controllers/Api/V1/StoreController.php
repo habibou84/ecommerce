@@ -7,10 +7,12 @@ use App\Http\Resources\StoreResource;
 use App\Models\SlugHistory;
 use App\Rules\StoreSlug;
 use App\Services\Accounts\LoginHandoff;
+use App\Support\HostedStores;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Jibiat\Socle\PhoneNumber;
 use Jibiat\Socle\Rules\PhoneNumber as PhoneRule;
 
@@ -60,6 +62,17 @@ class StoreController extends Controller
     {
         $store = $this->tenancy->store();
         $request->merge(['slug' => strtolower(trim((string) $request->input('slug')))]);
+
+        // Boutique hébergée : seul le nom de sa page change ({adresse}/{nom})
+        if ($store->isHosted()) {
+            if (($error = HostedStores::error($request->string('slug')->toString(), $store->host, $store->id)) !== null) {
+                throw ValidationException::withMessages(['slug' => $error]);
+            }
+            $store->forceFill(['path' => $request->string('slug')->toString()])->save();
+
+            return response()->json(['data' => StoreResource::make($store->load('currentSubscription.plan'))->resolve(), 'redirect' => null]);
+        }
+
         $request->validate(['slug' => ['required', new StoreSlug($store->id)]], [], ['slug' => 'adresse']);
 
         $new = $request->string('slug')->toString();

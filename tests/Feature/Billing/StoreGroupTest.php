@@ -52,7 +52,7 @@ class StoreGroupTest extends TestCase
 
         // Nouvelle boutique : couverte d'office, sans essai
         $this->storeApi($this->store, 'POST', 'my-stores', ['name' => 'Awa Kids', 'slug' => 'awa-kids'])->assertCreated();
-        $kids = Store::where('slug', 'awa-kids')->sole();
+        $kids = Store::where('path', 'awa-kids')->sole();
         $this->assertSame([$this->store->id, StoreStatus::Active, null], [$kids->billing_store_id, $kids->status, $kids->currentSubscription]);
         $this->assertSame('business', $limits->plan($kids)->code);
 

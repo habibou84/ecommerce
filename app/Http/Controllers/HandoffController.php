@@ -23,8 +23,8 @@ class HandoffController extends Controller
             return redirect('/gestion/connexion');
         }
 
-        [$user, $redirect] = $result;
-        $allowed = $user->activeMembershipIn($tenancy->store()) !== null || app(SupportSessions::class)->ongoingFor($user, $tenancy->store()) !== null;
+        [$user, $redirect, $store] = $result;
+        $allowed = $user->activeMembershipIn($store) !== null || app(SupportSessions::class)->ongoingFor($user, $store) !== null;
         if (! $user->isActive() || ! $allowed) {
             return redirect('/gestion/connexion');
         }
@@ -33,6 +33,12 @@ class HandoffController extends Controller
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();
 
-        return redirect(str_starts_with($redirect, '/') ? $redirect : '/gestion');
+        $redirect = str_starts_with($redirect, '/') ? $redirect : '/gestion';
+        // Boutique hébergée : la gestion de l'adresse s'ouvre sur elle
+        if ($store->id !== $tenancy->store()->id) {
+            $redirect .= (str_contains($redirect, '?') ? '&' : '?').'boutique='.$store->id;
+        }
+
+        return redirect($redirect);
     }
 }
