@@ -119,6 +119,7 @@ const consoleRoutes = [
       { path: 'boutiques/:id(\\d+)', component: () => import('../views/console/StoreDetail.vue'), props: true, meta: { title: 'Boutique' } },
       { path: 'factures', component: () => import('../views/console/Invoices.vue'), meta: { title: 'Factures' } },
       { path: 'offres', component: () => import('../views/console/Plans.vue'), meta: { title: 'Offres' } },
+      { path: 'ia', component: () => import('../views/console/AiUsage.vue'), meta: { title: 'Assistant IA' } },
     ],
   },
   { path: '/:any(.*)*', redirect: '/console' },

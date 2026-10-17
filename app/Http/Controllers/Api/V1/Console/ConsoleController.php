@@ -13,6 +13,7 @@ use App\Models\StoreDomain;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\SupportSession;
+use App\Services\Ai\AiCosts;
 use App\Services\Billing\Billing;
 use App\Services\Billing\PlanLimits;
 use App\Services\Console\SupportSessions;
@@ -217,6 +218,16 @@ class ConsoleController extends Controller
         $this->log($request, null, 'plan_updated', ['plan' => $model->code, 'before' => $before, 'after' => $model->only(array_keys($data))]);
 
         return response()->json(['data' => $model]);
+    }
+
+    /**
+     * Coût estimé de l'assistant IA sur un mois, par boutique et par modèle.
+     */
+    public function aiUsage(Request $request, AiCosts $costs): JsonResponse
+    {
+        $data = $request->validate(['month' => ['nullable', 'date_format:Y-m']]);
+
+        return response()->json(['data' => $costs->month($data['month'] ?? now('Africa/Abidjan')->format('Y-m'))]);
     }
 
     public function invoices(Request $request): JsonResponse

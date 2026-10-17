@@ -97,6 +97,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('plans', [ConsoleController::class, 'plans'])->name('plans');
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
+            Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
         });
     });
 

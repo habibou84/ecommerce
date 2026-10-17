@@ -52,6 +52,14 @@ return [
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
         'model' => env('AI_MODEL', 'claude-opus-5-5'),
+        // Prix publics en dollars par million de jetons (entrée, sortie) pour estimer le coût dans la console
+        'prices' => [
+            'claude-opus-5-5' => [4.0, 20.0],
+            'claude-sonnet-5-5' => [2.0, 10.0],
+            'claude-haiku-5-5' => [0.10, 0.50],
+        ],
+        // Francs CFA pour un dollar (estimation des coûts ; à ajuster)
+        'usd_rate' => (float) env('AI_USD_RATE', 600),
     ],
 
     // SMS (vérification des numéros) : log = écrit dans le journal, sans envoi (développement)
