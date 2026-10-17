@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 
 class Store extends Model
 {
@@ -168,6 +169,18 @@ class Store extends Model
         }
 
         return Tenancy::storeUrl($this->slug, $path);
+    }
+
+    /**
+     * Boutiques servies par la même adresse : la boutique hôte puis ses boutiques hébergées.
+     *
+     * @return Collection<int, Store>
+     */
+    public function addressStores(): Collection
+    {
+        $host = $this->host ?? $this;
+
+        return collect([$host])->concat($host->hostedStores()->orderBy('id')->get());
     }
 
     public function isHosted(): bool

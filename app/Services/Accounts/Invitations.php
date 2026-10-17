@@ -12,6 +12,7 @@ use App\Models\Store;
 use App\Models\StoreInvitation;
 use App\Models\User;
 use App\Services\Billing\PlanLimits;
+use App\Services\Couriers\SharedCouriers;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -31,9 +32,10 @@ class Invitations
     ) {}
 
     /**
+     * @param  list<array{store_id: int, role: string}>  $extras  autres boutiques de l'adresse (voir TeamStores::extras)
      * @return array{0: StoreInvitation, 1: string} invitation et lien à partager
      */
-    public function invite(Store $store, User $inviter, string $phone, Role $role, ?string $name = null): array
+    public function invite(Store $store, User $inviter, string $phone, Role $role, ?string $name = null, array $extras = []): array
     {
         // Les livreurs sont invités depuis l'écran Livreurs (CourierRoster), pas depuis l'équipe
         if (! in_array($role, [...Role::invitable(), Role::Courier], true)) {
@@ -53,7 +55,7 @@ class Invitations
 
         $token = Str::random(40);
 
-        $invitation = DB::transaction(function () use ($store, $inviter, $phone, $role, $name, $token) {
+        $invitation = DB::transaction(function () use ($store, $inviter, $phone, $role, $name, $token, $extras) {
             // Une nouvelle invitation remplace la précédente pour ce numéro
             StoreInvitation::forStore($store->id)->where('phone', $phone)->pending()->update(['revoked_at' => now()]);
 
@@ -62,6 +64,7 @@ class Invitations
                 'name' => $name,
                 'phone' => $phone,
                 'role' => $role,
+                'extra_stores' => $extras ?: null,
                 'token_hash' => StoreInvitation::hashToken($token),
                 'invited_by' => $inviter->id,
                 'expires_at' => now()->addDays(StoreInvitation::TTL_DAYS),
@@ -158,7 +161,39 @@ class Invitations
             // Livreur invité : sa fiche est reliée à son compte, il accède à l'application /livreur
             Courier::forStore($invitation->store_id)->where('phone', $invitation->phone)->where('status', 'invited')
                 ->update(['user_id' => $user->id, 'status' => 'active']);
+
+            $this->joinExtraStores($invitation, $user);
         });
+    }
+
+    /**
+     * Autres boutiques de l'adresse prévues par l'invitation : la personne les rejoint en même temps.
+     */
+    private function joinExtraStores(StoreInvitation $invitation, User $user): void
+    {
+        $address = $invitation->store->addressStores()->keyBy('id');
+        foreach ($invitation->extra_stores ?? [] as $extra) {
+            $store = $address->get((int) $extra['store_id']);
+            if ($store === null || ! $store->isOpen() || $store->members()->where('user_id', $user->id)->where('status', UserStatus::Active)->exists()) {
+                continue;
+            }
+
+            // Livreur : fiche partagée avec cette boutique (règle de paie recopiée, même compte)
+            if ($extra['role'] === Role::Courier->value) {
+                $source = Courier::forStore($invitation->store_id)->where('user_id', $user->id)->first();
+                if ($source !== null) {
+                    app(SharedCouriers::class)->share($source->setRelation('store', $invitation->store), $store);
+
+                    continue;
+                }
+            }
+
+            $store->members()->updateOrCreate(
+                ['user_id' => $user->id],
+                ['status' => UserStatus::Active, 'invited_by' => $invitation->invited_by, 'joined_at' => now()],
+            );
+            $this->roles->assign($user, $store, Role::from($extra['role']));
+        }
     }
 
     /**

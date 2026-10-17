@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers\Api\V1\Couriers;
 
+use App\Enums\Permission;
+use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Models\Courier;
 use App\Models\CourierPayRule;
 use App\Models\DeliveryZone;
+use App\Services\Accounts\StoreRoles;
 use App\Services\Couriers\CourierPayroll;
 use App\Services\Couriers\CourierRoster;
+use App\Services\Couriers\SharedCouriers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -35,10 +39,23 @@ class CourierController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, SharedCouriers $shared, StoreRoles $roles): JsonResponse
     {
         $data = $this->validated($request);
-        [$courier, $link] = $this->roster->add($this->currentStore(), $request->user(), $data);
+        $store = $this->currentStore();
+
+        // Autres boutiques de l'adresse pour lesquelles il travaillera aussi (celles où l'on gère les livreurs)
+        $others = $store->addressStores()->whereIn('id', array_map('intval', $request->input('store_ids', [])))->where('id', '!=', $store->id)
+            ->filter(fn ($s) => $s->owner_id === $request->user()->id || in_array(Permission::CouriersManage->value, $roles->permissionsOf($request->user(), $s), true))
+            ->values();
+
+        $extras = $others->map(fn ($s) => ['store_id' => $s->id, 'role' => Role::Courier->value])->all();
+        [$courier, $link] = $this->roster->add($store, $request->user(), $data, $extras);
+
+        // Déjà membre (compte actif) : partagé tout de suite ; sinon en acceptant l'invitation
+        if ($courier->user_id !== null) {
+            $others->each(fn ($s) => $shared->share($courier->setRelation('store', $store), $s));
+        }
 
         return response()->json(['data' => $this->present($courier->load(['zones:id,name', 'payRule:id,name'])), 'invitation_url' => $link], 201);
     }
@@ -104,6 +121,8 @@ class CourierController extends Controller
             'zone_ids' => ['sometimes', 'array'],
             'zone_ids.*' => ['integer'],
             'note' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'store_ids' => ['sometimes', 'array'],
+            'store_ids.*' => ['integer'],
         ], [], ['name' => 'nom', 'phone' => 'téléphone', 'cash_limit' => 'plafond']);
     }
 

@@ -128,6 +128,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::TeamManage->value)->group(function () {
                 Route::get('team/roles', [MemberController::class, 'roles'])->name('team.roles');
                 Route::get('team/members', [MemberController::class, 'index'])->name('team.members');
+                Route::get('team/stores', [MemberController::class, 'stores'])->name('team.stores');
+                Route::put('team/members/{member}/stores', [MemberController::class, 'updateStores'])->whereNumber('member')->name('team.members.stores');
                 Route::patch('team/members/{member}', [MemberController::class, 'update'])->whereNumber('member')->name('team.members.update');
                 Route::delete('team/members/{member}', [MemberController::class, 'destroy'])->whereNumber('member')->name('team.members.destroy');
                 Route::get('team/invitations', [InvitationController::class, 'index'])->name('team.invitations');

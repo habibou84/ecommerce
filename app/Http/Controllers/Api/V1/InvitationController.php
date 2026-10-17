@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
+use App\Models\Store;
 use App\Models\StoreInvitation;
 use App\Models\User;
 use App\Services\Accounts\Invitations;
 use App\Services\Accounts\PhoneVerifier;
+use App\Services\Accounts\TeamStores;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,19 +30,24 @@ class InvitationController extends Controller
         return response()->json(['data' => $invitations]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, TeamStores $team): JsonResponse
     {
         $data = $request->validate([
             'phone' => ['required', new PhoneRule],
             'role' => ['required', Rule::in(Role::invitableValues())],
             'name' => ['nullable', 'string', 'max:80'],
-        ], [], ['phone' => 'numéro de téléphone', 'role' => 'rôle', 'name' => 'nom']);
+            // Autres boutiques de l'adresse : [id de la boutique => rôle]
+            'stores' => ['nullable', 'array'],
+            'stores.*' => ['string'],
+        ], [], ['phone' => 'numéro de téléphone', 'role' => 'rôle', 'name' => 'nom', 'stores' => 'boutiques']);
 
         $store = $this->tenancy->store();
-        [$invitation, $link] = $this->invitations->invite($store, $request->user(), $data['phone'], Role::from($data['role']), $data['name'] ?? null);
+        $extras = $team->extras($request->user(), $store, $data['stores'] ?? []);
+        [$invitation, $link] = $this->invitations->invite($store, $request->user(), $data['phone'], Role::from($data['role']), $data['name'] ?? null, $extras);
 
-        $text = 'Bonjour'.($invitation->name ? ' '.$invitation->name : '').", vous êtes invité(e) à rejoindre l'équipe de {$store->name} "
-            ."sur Jibiat Marchand comme {$invitation->role->label()}. Ouvrez ce lien : {$link}";
+        $names = collect([$store->name])->concat(Store::whereIn('id', array_column($extras, 'store_id'))->pluck('name'));
+        $text = 'Bonjour'.($invitation->name ? ' '.$invitation->name : '').", vous êtes invité(e) à rejoindre l'équipe de "
+            .$names->join(', ', ' et ')." sur Jibiat Marchand comme {$invitation->role->label()}. Ouvrez ce lien : {$link}";
 
         return response()->json([
             'data' => $this->present($invitation),
@@ -71,6 +78,8 @@ class InvitationController extends Controller
             'phone' => PhoneNumber::display($invitation->phone),
             'role' => $invitation->role->label(),
             'inviter' => $invitation->inviter?->name,
+            // Autres boutiques rejointes en même temps
+            'other_stores' => $this->otherStores($invitation),
             // La personne a déjà un compte : son mot de passe suffit
             'has_account' => User::where('phone', $invitation->phone)->exists(),
         ]]);
@@ -120,7 +129,19 @@ class InvitationController extends Controller
             'role' => $invitation->role->value,
             'role_label' => $invitation->role->label(),
             'inviter' => $invitation->inviter?->name,
+            'other_stores' => $this->otherStores($invitation),
             'expires_at' => $invitation->expires_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * @return list<array{name: string, role: string}>
+     */
+    private function otherStores(StoreInvitation $invitation): array
+    {
+        $names = Store::whereIn('id', array_column($invitation->extra_stores ?? [], 'store_id'))->pluck('name', 'id');
+
+        return collect($invitation->extra_stores ?? [])->filter(fn ($e) => $names->has($e['store_id']))
+            ->map(fn ($e) => ['name' => $names[$e['store_id']], 'role' => Role::from($e['role'])->label()])->values()->all();
     }
 }
