@@ -121,15 +121,11 @@ class AuthController extends Controller
     }
 
     /**
-     * Boutiques servies par la même adresse : la boutique hôte puis ses boutiques hébergées.
-     *
      * @return Collection<int, Store>
      */
     private function addressStores(Store $store): Collection
     {
-        $host = $store->host ?? $store;
-
-        return collect([$host])->concat($host->hostedStores()->orderBy('id')->get());
+        return $store->addressStores();
     }
 
     /**

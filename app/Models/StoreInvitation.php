@@ -14,7 +14,7 @@ class StoreInvitation extends Model
 
     public const TTL_DAYS = 7;
 
-    protected $fillable = ['store_id', 'name', 'phone', 'role', 'token_hash', 'invited_by', 'expires_at'];
+    protected $fillable = ['store_id', 'name', 'phone', 'role', 'extra_stores', 'token_hash', 'invited_by', 'expires_at'];
 
     protected $hidden = ['token_hash'];
 
@@ -22,6 +22,7 @@ class StoreInvitation extends Model
     {
         return [
             'role' => Role::class,
+            'extra_stores' => 'array',
             'expires_at' => 'datetime',
             'accepted_at' => 'datetime',
             'revoked_at' => 'datetime',
