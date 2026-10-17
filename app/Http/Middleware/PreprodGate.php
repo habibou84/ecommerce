@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Support\Tenancy;
 use Closure;
+use Illuminate\Foundation\Http\MaintenanceModeBypassCookie;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -30,7 +31,7 @@ class PreprodGate
         }
 
         $pass = hash_hmac('sha256', $code, (string) config('app.key'));
-        if (hash_equals($pass, (string) $request->cookies->get(self::COOKIE))) {
+        if (hash_equals($pass, (string) $request->cookies->get(self::COOKIE)) || $this->maintenanceBypass($request)) {
             return $next($request);
         }
 
@@ -42,6 +43,21 @@ class PreprodGate
         }
 
         return $this->form($request->getRequestUri());
+    }
+
+    /**
+     * Pendant une mise à jour (mode maintenance), le script deploy/update.sh vérifie le site avec le cookie de
+     * passage de la maintenance (secret aléatoire, valable le temps de la mise à jour) : il voit les pages.
+     */
+    private function maintenanceBypass(Request $request): bool
+    {
+        $cookie = $request->cookies->get('laravel_maintenance');
+        if ($cookie === null || ! app()->isDownForMaintenance()) {
+            return false;
+        }
+        $secret = app()->maintenanceMode()->data()['secret'] ?? null;
+
+        return is_string($secret) && MaintenanceModeBypassCookie::isValid((string) $cookie, $secret);
     }
 
     private function check(Request $request, string $code, string $pass): Response
