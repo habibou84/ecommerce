@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DomainController;
 use App\Http\Controllers\Api\V1\Finance\CashOverviewController;
 use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
+use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
@@ -172,10 +173,14 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('stats/ask', [StatsController::class, 'ask'])->middleware(['permission:'.Permission::FinanceView->value, 'throttle:30,1'])->name('stats.ask');
             Route::get('cash-overview', [CashOverviewController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('cash.overview');
             Route::get('cash-register', [CashRegisterController::class, 'show'])->middleware('permission:'.Permission::CashManage->value.'|'.Permission::FinanceView->value)->name('cash-register.show');
+            Route::get('recurring-expenses', [RecurringExpenseController::class, 'index'])->middleware('permission:'.Permission::CashManage->value.'|'.Permission::FinanceView->value)->name('recurring-expenses.index');
             Route::middleware('permission:'.Permission::CashManage->value)->group(function () {
                 Route::post('cash-register/open', [CashRegisterController::class, 'open'])->name('cash-register.open');
                 Route::post('cash-register/close', [CashRegisterController::class, 'close'])->name('cash-register.close');
                 Route::post('cash-register/movements', [CashRegisterController::class, 'movement'])->name('cash-register.movements');
+                Route::post('recurring-expenses', [RecurringExpenseController::class, 'store'])->name('recurring-expenses.store');
+                Route::put('recurring-expenses/{expense}', [RecurringExpenseController::class, 'update'])->whereNumber('expense')->name('recurring-expenses.update');
+                Route::delete('recurring-expenses/{expense}', [RecurringExpenseController::class, 'destroy'])->whereNumber('expense')->name('recurring-expenses.destroy');
                 Route::post('counter-sales', [CashRegisterController::class, 'sell'])->middleware('throttle:60,1')->name('counter-sales.store');
                 Route::post('counter-sales/{order}/whatsapp', [CashRegisterController::class, 'receiptWhatsapp'])->whereNumber('order')->name('counter-sales.whatsapp');
             });

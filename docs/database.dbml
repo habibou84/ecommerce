@@ -1804,3 +1804,23 @@ Table product_reviews {
   }
   Note: 'Avis laissé par le lien de la commande livrée ; affiché sur la fiche produit une fois publié par le marchand.'
 }
+
+Table recurring_expenses {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  category varchar(20) [not null, note: 'catégories des dépenses de la caisse']
+  channel varchar(20) [note: 'publicité : canal de vente visé']
+  amount int [not null]
+  method varchar(20) [not null, note: 'jamais en espèces']
+  note varchar
+  day_of_month smallint [not null, note: '1 à 28']
+  is_active boolean [default: true]
+  last_run_on date
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (store_id, is_active)
+  }
+  Note: 'Dépense mensuelle (loyer, salaires…) enregistrée automatiquement dans cash_movements (recurring_expense_id) le jour choisi. cash_movements.channel : canal visé par une dépense de publicité.'
+}

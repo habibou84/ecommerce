@@ -84,6 +84,7 @@ onMounted(() => {
 
 const o = computed(() => stats.value?.overview)
 const p = computed(() => stats.value?.profit)
+const hasAds = computed(() => (stats.value?.by_source ?? []).some((r) => r.ad_spend !== null))
 const pct = (v) => (v === null || v === undefined ? '—' : `${String(v).replace('.', ',')} %`)
 const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h / 24).toFixed(1).replace('.', ',')} j`)
 </script>
@@ -154,6 +155,7 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
           <div class="flex justify-between border-t border-slate-200 pt-1 text-base font-semibold" :class="p.profit < 0 ? 'text-red-700' : 'text-emerald-800'">
             <dt>Bénéfice</dt><dd>{{ money(p.profit) }}</dd>
           </div>
+          <div v-if="p.per_delivered !== null" class="flex justify-between text-slate-600"><dt>Soit par commande livrée</dt><dd>{{ money(p.per_delivered) }}</dd></div>
         </dl>
         <p v-if="p.stock_purchases" class="mt-2 text-xs text-slate-500">
           Achats de marchandises de la période : {{ money(p.stock_purchases) }}. Ils ne sont pas retirés ici : le prix d'achat des produits vendus est déjà compté dans la marge.
@@ -165,11 +167,17 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
         <section class="card overflow-x-auto p-4 text-sm">
           <h3 class="mb-2 font-semibold">Par canal de vente</h3>
           <table class="w-full">
-            <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Canal</th><th class="text-right">Commandes</th><th class="text-right">Livrées</th><th class="text-right">Réussite</th><th class="text-right">Ventes</th></tr></thead>
+            <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Canal</th><th class="text-right">Commandes</th><th class="text-right">Livrées</th><th class="text-right">Réussite</th><th class="text-right">Ventes</th><th v-if="hasAds" class="text-right">Pub / livrée</th></tr></thead>
             <tbody class="divide-y divide-slate-100">
-              <tr v-for="r in stats.by_source" :key="r.source"><td class="py-1.5">{{ r.label }}</td><td class="text-right">{{ r.orders }}</td><td class="text-right">{{ r.delivered }}</td><td class="text-right">{{ pct(r.delivery_rate) }}</td><td class="text-right font-medium">{{ money(r.revenue) }}</td></tr>
+              <tr v-for="r in stats.by_source" :key="r.source">
+                <td class="py-1.5">{{ r.label }}</td><td class="text-right">{{ r.orders }}</td><td class="text-right">{{ r.delivered }}</td><td class="text-right">{{ pct(r.delivery_rate) }}</td><td class="text-right font-medium">{{ money(r.revenue) }}</td>
+                <td v-if="hasAds" class="text-right" :class="r.margin_after_ads < 0 ? 'text-red-700' : ''" :title="r.ad_spend !== null ? `Publicité : ${money(r.ad_spend)} · marge après publicité : ${money(r.margin_after_ads)}` : ''">
+                  {{ r.ad_spend === null ? '—' : r.ad_cost_per_delivered !== null ? money(r.ad_cost_per_delivered) : money(r.ad_spend) + ' sans vente' }}
+                </td>
+              </tr>
             </tbody>
           </table>
+          <p v-if="hasAds" class="mt-2 text-xs text-slate-500">Pub / livrée : publicité notée pour ce canal (Caisse › Dépense › Publicité) divisée par ses commandes livrées. En rouge, la publicité coûte plus que la marge de ces commandes.</p>
         </section>
 
         <section class="card overflow-x-auto p-4 text-sm">

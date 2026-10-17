@@ -24,7 +24,7 @@ class StoreStats
         return [
             'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
             'overview' => $overview = $this->overview($store, $from, $to),
-            'profit' => $this->profit($store, $from, $to, $overview['net_margin']),
+            'profit' => $this->profit($store, $from, $to, $overview['net_margin'], $overview['delivered']),
             'by_source' => $this->bySource($store, $from, $to),
             'by_product' => $this->byProduct($store, $from, $to),
             'by_zone' => $this->byZone($store, $from, $to),
@@ -83,26 +83,47 @@ class StoreStats
     }
 
     /**
+     * Par canal de vente, avec la publicité notée pour ce canal (dépenses « Publicité » de la période) : coût
+     * de la publicité par commande livrée et ce qui reste une fois la publicité payée.
+     *
      * @return list<array<string, mixed>>
      */
     private function bySource(Store $store, CarbonImmutable $from, CarbonImmutable $to): array
     {
-        return $this->orders($store, $from, $to)->groupBy('source')->selectRaw("source,
+        $ads = DB::table('cash_movements')->where('store_id', $store->id)->where('type', 'expense')->where('category', 'marketing')
+            ->whereNotNull('channel')->whereBetween('occurred_at', [$from, $to])->groupBy('channel')
+            ->selectRaw('channel, SUM(amount) AS total')->pluck('total', 'channel')->map(fn ($v) => (int) $v);
+
+        $rows = $this->orders($store, $from, $to)->groupBy('source')->selectRaw("source,
             COUNT(*) AS orders,
             SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS delivered,
             SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS returned,
             SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
-            SUM(CASE WHEN status = 'completed' THEN total ELSE 0 END) AS revenue")
-            ->orderByDesc('revenue')->orderByDesc('orders')->get()
-            ->map(fn ($r) => [
-                'source' => $r->source,
-                'label' => OrderSource::tryFrom($r->source)?->label() ?? $r->source,
-                'orders' => (int) $r->orders,
-                'delivered' => (int) $r->delivered,
-                'cancelled' => (int) $r->cancelled,
-                'revenue' => (int) $r->revenue,
-                'delivery_rate' => $this->rate((int) $r->delivered, (int) $r->delivered + (int) $r->returned),
-            ])->all();
+            SUM(CASE WHEN status = 'completed' THEN total ELSE 0 END) AS revenue,
+            SUM(CASE WHEN status = 'completed' AND cost_total IS NOT NULL THEN subtotal - discount_total - cost_total ELSE 0 END) AS margin")
+            ->get()->keyBy('source');
+
+        return $rows->keys()->merge($ads->keys())->unique()
+            ->map(function (string $source) use ($rows, $ads) {
+                $r = $rows->get($source);
+                $delivered = (int) ($r->delivered ?? 0);
+                $adSpend = $ads->get($source);
+
+                return [
+                    'source' => $source,
+                    'label' => OrderSource::tryFrom($source)?->label() ?? $source,
+                    'orders' => (int) ($r->orders ?? 0),
+                    'delivered' => $delivered,
+                    'cancelled' => (int) ($r->cancelled ?? 0),
+                    'revenue' => (int) ($r->revenue ?? 0),
+                    'delivery_rate' => $this->rate($delivered, $delivered + (int) ($r->returned ?? 0)),
+                    'ad_spend' => $adSpend,
+                    'ad_cost_per_delivered' => $adSpend !== null && $delivered > 0 ? (int) round($adSpend / $delivered) : null,
+                    // Marge des produits livrés moins la publicité du canal
+                    'margin_after_ads' => $adSpend !== null ? (int) ($r->margin ?? 0) - $adSpend : null,
+                ];
+            })
+            ->sortBy([['revenue', 'desc'], ['orders', 'desc']])->values()->all();
     }
 
     /**
@@ -215,7 +236,7 @@ class StoreStats
      *
      * @return array<string, mixed>
      */
-    public function profit(Store $store, CarbonImmutable $from, CarbonImmutable $to, int $netMargin): array
+    public function profit(Store $store, CarbonImmutable $from, CarbonImmutable $to, int $netMargin, ?int $delivered = null): array
     {
         $orders = fn (string $status) => fn (Builder $q) => $q->select('id')->from('orders')->where('store_id', $store->id)
             ->whereBetween('created_at', [$from, $to])->where('status', $status);
@@ -239,6 +260,7 @@ class StoreStats
             ->map(fn (int $total, ?string $category) => ['category' => $category, 'label' => CashMovement::CATEGORIES[$category] ?? 'Autre', 'total' => $total])
             ->values();
         $expensesTotal = (int) $byCategory->sum('total');
+        $profit = $netMargin - $paymentFees - $returnCosts - $courierExtras - $expensesTotal;
 
         return [
             'net_margin' => $netMargin,
@@ -248,7 +270,10 @@ class StoreStats
             'expenses' => $expensesTotal,
             'expenses_by_category' => $byCategory->all(),
             'stock_purchases' => $stockPurchases,
-            'profit' => $netMargin - $paymentFees - $returnCosts - $courierExtras - $expensesTotal,
+            'ad_spend' => (int) ($expenses['marketing'] ?? 0),
+            'profit' => $profit,
+            // Ce que rapporte vraiment une commande livrée, toutes charges payées
+            'per_delivered' => $delivered ? (int) round($profit / $delivered) : null,
         ];
     }
 

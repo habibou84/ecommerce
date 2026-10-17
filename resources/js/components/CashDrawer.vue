@@ -17,7 +17,7 @@ const register = ref(null)
 const error = ref('')
 const openingFloat = ref(0)
 
-const moveForm = reactive({ open: false, type: 'expense', category: 'stock', amount: null, method: 'cash', note: '', error: '' })
+const moveForm = reactive({ open: false, type: 'expense', category: 'stock', channel: '', amount: null, method: 'cash', occurredOn: '', note: '', error: '' })
 const closeForm = reactive({ open: false, counted: null, note: '', error: '', result: null })
 
 const TYPES = { expense: 'Dépense', withdrawal: 'Retrait', deposit: 'Apport' }
@@ -48,7 +48,7 @@ async function openRegister() {
 }
 
 function startMove(type) {
-  Object.assign(moveForm, { open: true, type, category: 'stock', amount: null, method: 'cash', note: '', error: '' })
+  Object.assign(moveForm, { open: true, type, category: 'stock', channel: '', amount: null, method: 'cash', occurredOn: '', note: '', error: '' })
 }
 
 async function saveMove() {
@@ -59,6 +59,8 @@ async function saveMove() {
       category: moveForm.type === 'expense' ? moveForm.category : null,
       amount: moveForm.amount,
       method: moveForm.type === 'expense' ? moveForm.method : 'cash',
+      channel: moveForm.type === 'expense' && moveForm.category === 'marketing' ? moveForm.channel || null : null,
+      occurred_on: moveForm.type === 'expense' && moveForm.method !== 'cash' ? moveForm.occurredOn || null : null,
       note: moveForm.note || null,
     })
     moveForm.open = false
@@ -123,7 +125,7 @@ function gap(difference) {
       <ul v-if="register.movements.length" class="divide-y divide-slate-100 border-t border-slate-100 text-sm">
         <li v-for="m in register.movements" :key="m.id" class="flex items-center gap-2 py-1.5">
           <span class="flex-1 truncate">
-            {{ TYPES[m.type] }}<template v-if="m.category_label"> · {{ m.category_label }}</template><template v-if="m.note"> · {{ m.note }}</template>
+            {{ TYPES[m.type] }}<template v-if="m.category_label"> · {{ m.category_label }}</template><template v-if="m.channel_label"> {{ m.channel_label }}</template><template v-if="m.note"> · {{ m.note }}</template>
             <span class="text-xs text-slate-500"> · {{ formatDateTime(m.occurred_at) }}<template v-if="m.method !== 'cash'"> · {{ m.method }}</template></span>
           </span>
           <span class="whitespace-nowrap font-medium" :class="m.type === 'deposit' ? 'text-emerald-800' : 'text-red-700'">{{ m.type === 'deposit' ? '+' : '−' }}{{ money(m.amount) }}</span>
@@ -153,9 +155,15 @@ function gap(difference) {
         <Field v-if="moveForm.type === 'expense'" id="mv-cat" label="Catégorie">
           <select id="mv-cat" v-model="moveForm.category" class="input"><option v-for="c in register.categories" :key="c.value" :value="c.value">{{ c.label }}</option></select>
         </Field>
+        <Field v-if="moveForm.type === 'expense' && moveForm.category === 'marketing'" id="mv-channel" label="Publicité pour" hint="Pour savoir combien vous coûte chaque commande livrée de ce canal (Statistiques).">
+          <select id="mv-channel" v-model="moveForm.channel" class="input"><option value="">Plusieurs canaux / autre</option><option v-for="c in register.channels" :key="c.value" :value="c.value">{{ c.label }}</option></select>
+        </Field>
         <Field id="mv-amount" label="Montant"><input id="mv-amount" v-model.number="moveForm.amount" type="number" min="1" class="input text-lg" required /></Field>
         <Field v-if="moveForm.type === 'expense'" id="mv-method" label="Payé en">
           <select id="mv-method" v-model="moveForm.method" class="input"><option v-for="m in PAYMENT_METHODS" :key="m.value" :value="m.value">{{ m.label }}</option></select>
+        </Field>
+        <Field v-if="moveForm.type === 'expense' && moveForm.method !== 'cash'" id="mv-date" label="Date de la dépense" hint="Laissez vide pour aujourd'hui.">
+          <input id="mv-date" v-model="moveForm.occurredOn" type="date" class="input" />
         </Field>
         <Field id="mv-note" label="Note"><input id="mv-note" v-model="moveForm.note" class="input" maxlength="255" /></Field>
         <button class="btn-brand w-full">Enregistrer</button>
