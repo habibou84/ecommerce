@@ -21,6 +21,26 @@ const replyError = ref('')
 const sending = ref(false)
 const thread = ref(null)
 
+// Assistant IA : réponse proposée avec les vrais prix, stock et frais de livraison ; le marchand relit et envoie
+const ai = computed(() => auth.profile?.ai ?? { enabled: false, used: 0, limit: 0 })
+const suggesting = ref(false)
+const suggestionCheck = ref('')
+async function suggest() {
+  suggesting.value = true
+  replyError.value = ''
+  suggestionCheck.value = ''
+  try {
+    const { data } = await http.post(`/conversations/${props.id}/suggest`)
+    reply.value = data.data.reply
+    suggestionCheck.value = data.data.to_check ?? ''
+    if (auth.profile?.ai) auth.profile.ai.used++
+  } catch (e) {
+    replyError.value = errorMessage(e)
+  } finally {
+    suggesting.value = false
+  }
+}
+
 async function loadList() {
   const { data } = await http.get('/conversations', { params: { filter: filter.value, q: search.value || undefined } })
   conversations.value = data.data
@@ -49,6 +69,7 @@ async function send() {
     const { data } = await http.post(`/conversations/${props.id}/messages`, { body: reply.value })
     current.value = data.data
     reply.value = ''
+    suggestionCheck.value = ''
     scrollDown()
     loadList()
   } catch (e) {
@@ -74,6 +95,7 @@ onBeforeUnmount(() => clearInterval(timer))
 watch(() => props.id, () => {
   reply.value = ''
   replyError.value = ''
+  suggestionCheck.value = ''
   loadCurrent(true)
 })
 let searchTimer
@@ -185,6 +207,13 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
 
         <form v-if="current.can_reply" class="space-y-2 border-t border-slate-100 p-3" @submit.prevent="send">
           <p v-if="replyError" class="text-sm text-red-600">{{ replyError }}</p>
+          <div v-if="ai.enabled" class="flex flex-wrap items-center gap-2">
+            <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="suggesting || (ai.limit !== null && ai.used >= ai.limit)" @click="suggest">
+              ✨ {{ suggesting ? 'L\'assistant écrit…' : 'Proposer une réponse' }}
+            </button>
+            <span class="text-xs text-slate-500">Avec vos prix, votre stock et vos frais de livraison. Relisez avant d'envoyer.</span>
+          </div>
+          <p v-if="suggestionCheck" class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">À vérifier : {{ suggestionCheck }}</p>
           <div class="flex items-end gap-2">
             <textarea v-model="reply" class="input min-h-[2.75rem]" rows="2" maxlength="4000" placeholder="Votre réponse…" @keydown.enter.exact.prevent="reply.trim() && !sending && send()" />
             <button class="btn-brand" :disabled="sending || !reply.trim()">{{ sending ? '…' : 'Envoyer' }}</button>

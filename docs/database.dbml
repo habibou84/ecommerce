@@ -1767,3 +1767,19 @@ TableGroup integrations {
   webhook_deliveries
   phone_trust_scores
 }
+
+Table ai_usages {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  user_id bigint [ref: > users.id]
+  feature varchar(30) [not null, note: 'product_draft, order_draft, reply']
+  model varchar(60) [not null]
+  input_tokens int [default: 0]
+  output_tokens int [default: 0]
+  succeeded boolean [default: true, note: 'un échec n’est pas compté dans le quota']
+  created_at timestamp
+  indexes {
+    (store_id, created_at)
+  }
+  Note: 'Actions de l’assistant IA : quota mensuel de l’offre (plans.limits.ai_actions_per_month) et suivi du coût.'
+}

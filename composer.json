@@ -6,6 +6,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "anthropic-ai/sdk": "^0.59.0",
         "barryvdh/laravel-dompdf": "^3",
         "chillerlan/php-qrcode": "^5",
         "habibou84/socle": "^1.0@dev",

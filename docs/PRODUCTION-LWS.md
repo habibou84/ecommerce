@@ -89,6 +89,7 @@ bash /var/www/jibiat-marchand/deploy/install-apache.sh
 | `BILLING_PROVIDER`, `BILLING_*` | comptes **de la plateforme** chez Wave, CinetPay ou PayDunya ; `BILLING_MODE=live` |
 | `META_APP_ID`, `META_APP_SECRET`, `META_WHATSAPP_CONFIG_ID`, `META_WEBHOOK_VERIFY_TOKEN` | mêmes valeurs que la préproduction (même application Meta) |
 | `FIREBASE_CREDENTIALS` | copier la clé : `cp /var/www/jibiat-marchand/storage/app/firebase.json /var/www/jibiat-production/storage/app/` puis `chown jibiat_production: …` |
+| `ANTHROPIC_API_KEY` (`AI_MODEL`, facultatif) | assistant IA : clé créée sur console.anthropic.com › API Keys (une par installation de préférence) ; vide = assistant désactivé |
 | `SUPPORT_WHATSAPP` | numéro de l'équipe (bouton « Aide ») |
 | `LEGAL_COMPANY`, `LEGAL_PRIVACY_EMAIL` | identité de l'éditeur, contact données personnelles |
 | `SENTRY_LARAVEL_DSN` | supervision des erreurs |
