@@ -51,11 +51,9 @@ const groups = [
   ] },
   { label: 'Réglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
     { to: '/gestion/parametres', label: 'Informations de la boutique' },
-    { to: '/gestion/compte', label: 'Mon compte' },
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/whatsapp', label: 'WhatsApp' },
-    { to: '/gestion/abonnement', label: 'Abonnement' },
     { to: '/gestion/mes-boutiques', label: 'Ajouter une boutique', single: true },
   ] },
 ]
@@ -132,6 +130,7 @@ async function logout() {
 // Boutiques de cette adresse : on passe de l'une à l'autre sans changer d'adresse
 const addressStores = computed(() => auth.profile?.stores ?? [])
 const storeMenu = ref(false)
+const profileMenu = ref(false)
 // Confirmation du changement de boutique (quelques secondes)
 const switchNotice = ref('')
 let switchTimer
@@ -163,7 +162,7 @@ async function switchTo(store) {
   <div class="min-h-screen lg:flex">
     <!-- Barre latérale (ordinateur) / menu déroulant (téléphone) -->
     <aside
-      class="fixed inset-y-0 left-0 z-30 w-64 -translate-x-full overflow-y-auto border-r border-slate-200 bg-white transition lg:static lg:translate-x-0"
+      class="fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col overflow-y-auto border-r border-slate-200 bg-white transition lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
       :class="{ 'translate-x-0': menuOpen }"
     >
       <!-- Boutique ouverte ; avec plusieurs boutiques à cette adresse, c'est ici qu'on change de boutique -->
@@ -263,6 +262,25 @@ async function switchTo(store) {
         </button>
         <p v-if="switchError" class="px-3 text-sm text-red-600">{{ switchError }}</p>
       </div>
+
+      <!-- Personne connectée, tout en bas : son compte, l'abonnement, la déconnexion -->
+      <div class="relative mt-auto border-t border-slate-100 p-3">
+        <div v-if="profileMenu" class="absolute inset-x-3 bottom-full mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+          <RouterLink to="/gestion/compte" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">Mon compte</RouterLink>
+          <RouterLink v-if="auth.can('billing.manage')" to="/gestion/abonnement" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">
+            Abonnement<span v-if="auth.store?.subscription" class="block text-xs text-slate-500">Offre {{ auth.store.subscription.plan }}<template v-if="auth.store.subscription.status === 'trialing'"> · essai</template></span>
+          </RouterLink>
+          <button type="button" class="block w-full rounded-lg border-t border-slate-100 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50" @click="logout">Déconnexion</button>
+        </div>
+        <button type="button" class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-50" :aria-expanded="profileMenu" @click="profileMenu = !profileMenu">
+          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">{{ (auth.user?.name ?? '?').charAt(0).toUpperCase() }}</span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-medium">{{ auth.user?.name }}</span>
+            <span class="block truncate text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
+          </span>
+          <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400 transition" :class="{ 'rotate-180': profileMenu }" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 14 5-5 5 5" /></svg>
+        </button>
+      </div>
     </aside>
     <div v-if="menuOpen" class="fixed inset-0 z-20 bg-slate-900/30 lg:hidden" @click="menuOpen = false" />
 
@@ -275,14 +293,6 @@ async function switchTo(store) {
         <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">
           <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="btn-ghost px-2 text-sm" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide">💬<span class="hidden sm:inline"> Aide</span></a>
           <NotificationBell />
-          <RouterLink to="/gestion/compte" class="hidden rounded-lg px-2 py-1 text-right text-sm hover:bg-slate-50 sm:block" title="Mon compte">
-            <span class="block font-medium">{{ auth.user?.name }}</span>
-            <span class="block text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
-          </RouterLink>
-          <button class="btn-secondary px-2 py-2 sm:px-3" aria-label="Déconnexion" title="Déconnexion" @click="logout">
-            <span class="hidden sm:inline">Déconnexion</span>
-            <svg viewBox="0 0 24 24" class="h-5 w-5 sm:hidden" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3" /></svg>
-          </button>
         </div>
       </header>
 
