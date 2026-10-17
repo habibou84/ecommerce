@@ -94,6 +94,7 @@ const storeRoutes = [
       { path: 'paiements', component: () => import('../views/gestion/payments/Payments.vue'), meta: { title: 'Paiement en ligne', permission: 'payments.manage' } },
       { path: 'whatsapp', component: () => import('../views/gestion/messaging/WhatsApp.vue'), meta: { title: 'WhatsApp', permission: 'store.manage' } },
       { path: 'abonnement', component: () => import('../views/gestion/Billing.vue'), meta: { title: 'Abonnement', permission: 'billing.manage' } },
+      { path: 'mes-boutiques', component: () => import('../views/gestion/MyStores.vue'), meta: { title: 'Mes boutiques', owner: true } },
       { path: 'equipe', component: () => import('../views/gestion/Team.vue'), meta: { title: 'Équipe', permission: 'team.manage' } },
       { path: 'parametres', component: () => import('../views/gestion/Settings.vue'), meta: { title: 'Ma boutique' } },
       { path: 'compte', component: () => import('../views/gestion/Account.vue'), meta: { title: 'Mon compte' } },
@@ -158,6 +159,7 @@ router.beforeEach(async (to) => {
   if (to.meta.permission && !auth.can(to.meta.permission)) {
     return '/gestion'
   }
+  if (to.meta.owner && !auth.profile?.is_owner) return '/gestion'
   return true
 })
 

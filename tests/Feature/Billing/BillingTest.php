@@ -11,6 +11,7 @@ use App\Models\Store;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Notifications\BillingNotice;
+use App\Services\Billing\Billing;
 use App\Services\Billing\PlanLimits;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Places\Places;
@@ -18,6 +19,7 @@ use App\Services\Storefront\CartService;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class BillingTest extends TestCase
@@ -148,10 +150,76 @@ class BillingTest extends TestCase
         $this->storeApi($this->store, 'POST', 'carriers/manual', ['name' => 'Moto'])->assertStatus(422);
         $this->storeApi($this->store, 'POST', 'payments/accounts', ['provider' => 'wave', 'credentials' => ['api_key' => 'x', 'webhook_secret' => 'y']])->assertStatus(422);
         $this->storeApi($this->store, 'PUT', 'whatsapp', ['phone_number_id' => '1', 'access_token' => 't', 'app_secret' => 's'])
-            ->assertStatus(422)->assertJsonPath('message', 'WhatsApp automatique : fonction comprise dans l\'offre Pro. Passez à l\'offre supérieure (Réglages › Abonnement).');
+            ->assertStatus(422)->assertJsonPath('message', 'WhatsApp automatique : fonction comprise à partir de l\'offre Pro. Changez d\'offre dans Réglages › Abonnement.');
 
         $usage = $this->storeApi($this->store, 'GET', 'billing')->json('data.usage');
         $this->assertSame(['used' => 2, 'limit' => 2], array_intersect_key($usage['orders_per_month'], array_flip(['used', 'limit'])));
         $this->assertSame(1, Product::count());
+    }
+
+    public function test_changing_plan_turns_unused_paid_days_into_extra_days(): void
+    {
+        // Offre Starter payée 5 000 F pour 30 jours, dont 16 restants : environ 2 666 F non utilisés
+        Subscription::query()->delete();
+        $starter = $this->store->subscriptions()->create(['plan_id' => Plan::where('code', 'starter')->value('id'), 'status' => 'active', 'billing_cycle' => 'monthly',
+            'current_period_start' => now()->subDays(14), 'current_period_end' => now()->addDays(16)]);
+        SubscriptionInvoice::create(['store_id' => $this->store->id, 'subscription_id' => $starter->id, 'plan_id' => $starter->plan_id, 'number' => 'JM-2026-900001',
+            'billing_cycle' => 'monthly', 'amount' => 5000, 'status' => 'paid', 'idempotency_key' => (string) Str::uuid(),
+            'period_start' => now()->subDays(14), 'period_end' => now()->addDays(16), 'paid_at' => now()->subDays(14)]);
+
+        $credit = $this->storeApi($this->store, 'GET', 'billing')->json('data.credit');
+        $this->assertEqualsWithDelta(2666, $credit, 2);
+
+        // Passage au Pro (15 000 F par mois, soit 500 F par jour) : 5 jours en plus
+        $number = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'monthly', 'method' => 'wave'])->assertCreated()->json('data.number');
+        $this->waveStatus = 'succeeded';
+        $this->storeApi($this->store, 'POST', "billing/invoices/{$number}/check")->assertJsonPath('data.status', 'paid')->assertJsonPath('data.credit_days', 5);
+
+        $pro = $this->store->currentSubscription()->first();
+        $this->assertSame('pro', $pro->plan->code);
+        $this->assertTrue($pro->current_period_end->between(now()->addMonth()->addDays(5)->subMinute(), now()->addMonth()->addDays(5)->addMinute()));
+        $this->assertSame(SubscriptionStatus::Cancelled, $starter->fresh()->status);
+
+        // Plus rien à reporter sur l'offre remplacée ; un essai n'a jamais de crédit
+        $this->assertSame(0, app(Billing::class)->unusedCredit($starter->fresh()));
+    }
+
+    public function test_the_team_is_warned_before_the_order_limit(): void
+    {
+        Notification::fake();
+        Subscription::query()->delete();
+        Plan::where('code', 'free')->update(['limits' => json_encode(['orders_per_month' => 5])]);
+        app(Places::class)->provisionDefaultZone($this->store);
+        $robe = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Robe', 'variants' => [['price' => 10000, 'on_hand' => 20]]]);
+        $order = fn (int $i) => ['source' => 'whatsapp', 'customer_phone' => '010203040'.$i, 'delivery_method' => 'pickup', 'items' => [['variant_id' => $robe->variants[0]->id, 'quantity' => 1]]];
+
+        // 4 commandes sur 5 (80 %) : un avertissement, une seule fois dans le mois
+        foreach (range(1, 3) as $i) {
+            $this->storeApi($this->store, 'POST', 'orders', $order($i))->assertCreated();
+        }
+        Notification::assertNothingSent();
+        $this->storeApi($this->store, 'POST', 'orders', $order(4))->assertCreated();
+        $this->storeApi($this->store, 'POST', 'orders', $order(5))->assertCreated();
+        Notification::assertSentToTimes($this->store->owner, BillingNotice::class, 1);
+        Notification::assertSentTo($this->store->owner, BillingNotice::class, fn ($n) => $n->toArray($this->store->owner)['title'] === 'Limite de commandes bientôt atteinte'
+            && str_contains($n->toArray($this->store->owner)['body'], '4 commandes sur 5'));
+
+        // Limite dépassée : refus et second avis
+        $this->storeApi($this->store, 'POST', 'orders', $order(6))->assertStatus(422);
+        Notification::assertSentToTimes($this->store->owner, BillingNotice::class, 2);
+    }
+
+    public function test_online_payment_is_included_from_the_starter_plan(): void
+    {
+        Subscription::query()->delete();
+        $this->store->subscriptions()->create(['plan_id' => Plan::where('code', 'starter')->value('id'), 'status' => 'active', 'billing_cycle' => 'monthly',
+            'current_period_start' => now(), 'current_period_end' => now()->addMonth()]);
+
+        $this->storeApi($this->store, 'POST', 'payments/accounts', ['provider' => 'wave', 'credentials' => ['api_key' => 'x', 'webhook_secret' => 'y']])->assertCreated();
+
+        // Fonctions annoncées mais pas encore prêtes : signalées « bientôt »
+        $features = $this->storeApi($this->store, 'GET', 'billing')->assertJsonPath('data.coming_soon', ['ai_product', 'merchant_api'])->json('data.features');
+        $this->assertTrue($features['online_payment']['enabled']);
+        $this->assertTrue($features['ai_product']['soon']);
     }
 }

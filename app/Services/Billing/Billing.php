@@ -75,9 +75,14 @@ class Billing
     {
         $subscription = $store->currentSubscription()->with('plan')->first();
         $plan = $this->limits->plan($store);
+        $covering = $this->limits->coveringStore($store);
 
         return [
             'plan' => ['code' => $plan->code, 'name' => $plan->name],
+            // Abonnement d'une autre boutique du propriétaire qui couvre celle-ci
+            'covered_by' => $covering ? ['id' => $covering->id, 'name' => $covering->name, 'url' => $covering->url('/gestion/abonnement')] : null,
+            // Jours payés non utilisés, convertis en jours supplémentaires en cas de changement d'offre
+            'credit' => $subscription && ! $covering ? $this->unusedCredit($subscription) : 0,
             'store_status' => $store->status->value,
             'subscription' => $subscription ? [
                 'status' => $subscription->status->value,
@@ -88,7 +93,8 @@ class Billing
                 'grace_ends_at' => $subscription->status === SubscriptionStatus::PastDue ? $subscription->current_period_end?->addDays(config('platform.billing.grace_days'))->toIso8601String() : null,
             ] : null,
             'usage' => $this->limits->usage($store),
-            'features' => collect(PlanLimits::FEATURES)->map(fn ($label, $key) => ['label' => $label, 'enabled' => $plan->hasFeature($key)])->all(),
+            'features' => collect(PlanLimits::FEATURES)->map(fn ($label, $key) => ['label' => $label, 'enabled' => $plan->hasFeature($key), 'soon' => in_array($key, PlanLimits::COMING_SOON, true)])->all(),
+            'coming_soon' => PlanLimits::COMING_SOON,
             'plans' => Plan::where('is_public', true)->orderBy('sort')->get()->map(fn (Plan $p) => [
                 'code' => $p->code, 'name' => $p->name, 'monthly_price' => $p->monthly_price, 'yearly_price' => $p->yearly_price,
                 'limits' => $p->limits, 'features' => array_keys(array_filter($p->features ?? [])),
@@ -104,6 +110,9 @@ class Billing
      */
     public function checkout(Store $store, Plan $plan, string $cycle, string $method, User $user): SubscriptionInvoice
     {
+        if (($covering = $this->limits->coveringStore($store)) !== null) {
+            throw new BusinessRuleException("Cette boutique est couverte par l'abonnement de {$covering->name}. Retirez-la de cet abonnement (Mes boutiques) pour prendre une offre séparée.", 'plan');
+        }
         $amount = $cycle === 'yearly' ? $plan->yearly_price : $plan->monthly_price;
         if (! $amount) {
             throw new BusinessRuleException('Cette offre ne se paie pas en ligne.', 'plan');
@@ -238,6 +247,15 @@ class Billing
             }
             $end = $sub->current_period_end;
 
+            // Boutique couverte par l'abonnement d'une autre : son propre abonnement s'éteint sans rappel
+            if ($this->limits->coveringStore($store) !== null) {
+                if (($sub->status === SubscriptionStatus::Trialing && $sub->trial_ends_at?->isPast()) || $end?->isPast()) {
+                    $sub->update(['status' => SubscriptionStatus::Expired]);
+                }
+
+                continue;
+            }
+
             if ($sub->status === SubscriptionStatus::Trialing) {
                 if ($sub->trial_ends_at?->isPast()) {
                     $this->expire($sub, 'Fin de l\'essai', "Votre essai de l'offre {$sub->plan->name} est terminé : la boutique passe à l'offre gratuite. Choisissez une offre pour retrouver toutes les fonctions.");
@@ -290,6 +308,7 @@ class Billing
             'billing_cycle' => $i->billing_cycle,
             'cycle_label' => $this->cycleLabel($i->billing_cycle),
             'amount' => $i->amount,
+            'credit_days' => $i->credit_days,
             'status' => $i->status,
             'status_label' => SubscriptionInvoice::STATUSES[$i->status] ?? $i->status,
             'method' => $i->method ? (PaymentDesk::METHODS[$i->method] ?? $i->method) : null,
@@ -325,12 +344,18 @@ class Billing
                 ]);
                 $subscription = $current;
             } else {
+                // Changement d'offre : les jours payés non utilisés de l'offre précédente deviennent des jours en plus
+                $credit = $current ? $this->unusedCredit($current) : 0;
+                $days = $this->creditDays($credit, $invoice->plan, $invoice->billing_cycle);
                 $current?->update(['status' => SubscriptionStatus::Cancelled, 'cancelled_at' => now()]);
                 $start = CarbonImmutable::now();
                 $subscription = $store->subscriptions()->create([
                     'plan_id' => $invoice->plan_id, 'status' => SubscriptionStatus::Active, 'billing_cycle' => $invoice->billing_cycle,
-                    'current_period_start' => $start, 'current_period_end' => $start->addMonths($months),
+                    'current_period_start' => $start, 'current_period_end' => $start->addMonths($months)->addDays($days),
                 ]);
+                if ($days > 0) {
+                    $invoice->update(['credit_amount' => $credit, 'credit_days' => $days]);
+                }
             }
 
             $invoice->update([
@@ -351,10 +376,44 @@ class Billing
         });
     }
 
+    /**
+     * Valeur des jours payés et non encore utilisés de l'abonnement (périodes payées en cours ou à venir).
+     */
+    public function unusedCredit(Subscription $subscription): int
+    {
+        if ($subscription->status !== SubscriptionStatus::Active) {
+            return 0;
+        }
+
+        $now = CarbonImmutable::now();
+
+        return (int) SubscriptionInvoice::withoutGlobalScopes()->where('subscription_id', $subscription->id)
+            ->where('status', 'paid')->where('amount', '>', 0)->where('period_end', '>', $now)->get()
+            ->sum(function (SubscriptionInvoice $i) use ($now) {
+                $length = $i->period_start->diffInSeconds($i->period_end);
+                $left = max($now, CarbonImmutable::instance($i->period_start))->diffInSeconds($i->period_end);
+
+                return $length > 0 ? intdiv((int) ($i->amount * $left), (int) $length) : 0;
+            });
+    }
+
+    /**
+     * Jours de la nouvelle offre achetés par le crédit (au prix du jour de cette offre et de ce rythme).
+     */
+    private function creditDays(int $credit, Plan $plan, string $cycle): int
+    {
+        $perDay = $cycle === 'yearly' ? $plan->yearly_price / 365 : $plan->monthly_price / 30;
+
+        return $credit > 0 && $perDay > 0 ? min(366, (int) floor($credit / $perDay)) : 0;
+    }
+
     private function expire(Subscription $sub, string $title, string $body): void
     {
         $sub->update(['status' => SubscriptionStatus::Expired]);
         $store = $sub->store;
+        if ($sub->plan?->hasFeature('multi_store') && Store::where('billing_store_id', $store->id)->exists()) {
+            $body .= ' Vos autres boutiques qui partageaient cet abonnement repassent aussi à leur propre offre.';
+        }
         if (in_array($store->status, [StoreStatus::Trial, StoreStatus::PastDue], true)) {
             $store->forceFill(['status' => StoreStatus::Active])->save();
         }

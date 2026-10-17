@@ -90,7 +90,10 @@ class StoreSignup
         });
     }
 
-    private function createStore(User $owner, string $name, string $slug): Store
+    /**
+     * Nouvelle boutique du propriétaire, avec l'essai de l'offre (sauf si un abonnement existant la couvre).
+     */
+    public function createStore(User $owner, string $name, string $slug, bool $trial = true): Store
     {
         // Adresse prise entre la saisie et la vérification du numéro
         $validator = Validator::make(['slug' => $slug], ['slug' => [new StoreSlug]]);
@@ -98,7 +101,7 @@ class StoreSignup
             throw new BusinessRuleException($validator->errors()->first('slug').' Choisissez une autre adresse.', 'slug');
         }
 
-        return DB::transaction(function () use ($owner, $name, $slug) {
+        return DB::transaction(function () use ($owner, $name, $slug, $trial) {
             $store = Store::create([
                 'owner_id' => $owner->id,
                 'slug' => $slug,
@@ -113,7 +116,7 @@ class StoreSignup
             app(Places::class)->provisionDefaultZone($store);
 
             $plan = Plan::where('code', config('platform.trial_plan'))->first();
-            if ($plan !== null) {
+            if ($trial && $plan !== null) {
                 $store->subscriptions()->create([
                     'plan_id' => $plan->id,
                     'status' => SubscriptionStatus::Trialing,
