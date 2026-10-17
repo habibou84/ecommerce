@@ -31,9 +31,7 @@ class TeamStores
      */
     public function manageable(User $actor, Store $current): Collection
     {
-        return $current->addressStores()->filter(fn (Store $s) => $s->owner_id === $actor->id
-            || ($actor->activeMembershipIn($s) !== null && in_array(Permission::TeamManage->value, $this->roles->permissionsOf($actor, $s), true)))
-            ->values();
+        return $current->addressStores()->filter(fn (Store $s) => $this->roles->can($actor, $s, Permission::TeamManage))->values();
     }
 
     /**

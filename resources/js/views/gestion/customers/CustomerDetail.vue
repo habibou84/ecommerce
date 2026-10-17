@@ -96,6 +96,20 @@ async function toggleBlacklist() {
           </div>
         </form>
 
+        <section v-if="customer.other_stores?.length" class="card p-4 text-sm">
+          <h3 class="mb-2 font-semibold">Dans vos autres boutiques</h3>
+          <ul class="space-y-3">
+            <li v-for="o in customer.other_stores" :key="o.store_id">
+              <span class="font-medium">{{ o.store_name }}</span>
+              <span class="block text-slate-500">
+                {{ o.orders_count }} commande(s), {{ o.delivered_count }} livrée(s)<template v-if="o.refused_count">, {{ o.refused_count }} refusée(s)</template> · {{ money(o.total_spent) }}
+              </span>
+              <span v-if="o.is_blacklisted" class="block text-red-600">Sur liste noire{{ o.blacklist_reason ? ` : ${o.blacklist_reason}` : '' }}</span>
+              <button class="text-emerald-700 hover:underline" @click="auth.switchTo(o.store_id, `/gestion/clients/${o.customer_id}`)">Voir sa fiche →</button>
+            </li>
+          </ul>
+        </section>
+
         <section v-if="customer.addresses.length" class="card p-4 text-sm">
           <h3 class="mb-2 font-semibold">Adresses</h3>
           <ul class="space-y-2">

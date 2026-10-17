@@ -291,6 +291,7 @@ Table delivery_zone_places {
 Table products {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
+  origin_product_id bigint [ref: > products.id, note: 'produit d’origine si copié d’une autre boutique de l’adresse']
   title varchar [not null]
   slug varchar [not null]
   description text [note: 'HTML assaini']
@@ -341,6 +342,7 @@ Table product_variants {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
   product_id bigint [ref: > products.id, not null]
+  origin_variant_id bigint [ref: > product_variants.id, note: 'variante d’origine si le produit a été copié d’une autre boutique de l’adresse (la première de la chaîne)']
   option1_value_id bigint [ref: > product_option_values.id]
   option2_value_id bigint [ref: > product_option_values.id]
   option3_value_id bigint [ref: > product_option_values.id]
@@ -518,6 +520,25 @@ Table stock_receipt_items {
   variant_id bigint [ref: > product_variants.id, not null]
   quantity int [not null]
   unit_cost int
+}
+
+Table store_transfers {
+  id bigint [pk, increment]
+  from_store_id bigint [ref: > stores.id, not null]
+  to_store_id bigint [ref: > stores.id, not null]
+  from_location_id bigint [ref: > stock_locations.id, not null]
+  to_location_id bigint [ref: > stock_locations.id, not null]
+  lines jsonb [not null, note: '[{from_variant_id, to_variant_id, title, quantity}]']
+  quantity int [not null, note: 'total des articles']
+  note varchar(200)
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (from_store_id, created_at)
+    (to_store_id, created_at)
+  }
+  Note: 'Stock envoyé d’une boutique à une autre de la même adresse (immédiat). Chaque côté a aussi ses mouvements (transfer_out / transfer_in) qui renvoient à ce transfert.'
 }
 
 Table stock_transfers {

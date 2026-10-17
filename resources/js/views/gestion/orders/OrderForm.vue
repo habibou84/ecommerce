@@ -8,6 +8,7 @@ import ProductPicker from '../../../components/ProductPicker.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
 import { SOURCES } from '../../../lib/orders'
+import { useAuthStore } from '../../../stores/auth'
 
 const props = defineProps({ id: { type: String, default: null } })
 const router = useRouter()
@@ -39,7 +40,9 @@ const zones = ref([])
 const paste = ref('')
 const parsing = ref(false)
 const parseInfo = ref('')
+const auth = useAuthStore()
 const known = ref(null) // client déjà connu
+const elsewhere = ref([]) // le même numéro dans les autres boutiques de l'adresse
 const errors = ref({})
 const error = ref('')
 const saving = ref(false)
@@ -179,14 +182,19 @@ async function lookupCustomer() {
   if (digits.length < 8 || editing.value) return
   const { data } = await http.get('/customers', { params: { search: digits.slice(-8) } })
   const match = data.data.find((c) => c.phone.replace(/\D/g, '').endsWith(digits.slice(-10)))
-  if (!match) return (known.value = null)
-  const detail = (await http.get(`/customers/${match.id}`)).data.data
-  known.value = { ...detail, address: detail.addresses[0] }
-  form.customer_name ||= detail.name ?? ''
-  if (!place.value && detail.addresses[0]?.place_id) {
-    place.value = { id: detail.addresses[0].place_id, label: detail.addresses[0].place_label, ancestor_ids: [] }
-    form.shipping_address ||= detail.addresses[0].address_line ?? ''
-    form.shipping_landmark ||= detail.addresses[0].landmark ?? ''
+  const detail = match ? (await http.get(`/customers/${match.id}`)).data.data : null
+  known.value = detail ? { ...detail, address: detail.addresses[0] } : null
+  // Pas encore client ici mais déjà dans une autre boutique de l'adresse : son nom et son adresse servent aussi
+  elsewhere.value = detail ? detail.other_stores ?? [] : (auth.profile?.stores?.length ?? 0) > 1
+    ? (await http.get('/customers/elsewhere', { params: { phone: form.customer_phone } })).data.data
+    : []
+  const name = detail?.name || elsewhere.value.find((o) => o.name)?.name
+  const address = detail?.addresses[0] ?? elsewhere.value.find((o) => o.address?.place_id)?.address
+  form.customer_name ||= name ?? ''
+  if (!place.value && address?.place_id) {
+    place.value = { id: address.place_id, label: address.place_label, ancestor_ids: [] }
+    form.shipping_address ||= address.address_line ?? ''
+    form.shipping_landmark ||= address.landmark ?? ''
     await refreshPlace()
   }
 }
@@ -278,6 +286,12 @@ async function save() {
           <p v-else-if="known" class="text-sm text-slate-600">
             Client connu : {{ known.orders_count }} commande(s)<template v-if="known.delivery_rate !== null && known.delivery_rate !== undefined">, {{ known.delivery_rate }} % livrées</template>.
           </p>
+          <template v-for="o in elsewhere" :key="o.store_id">
+            <Alert v-if="o.is_blacklisted" tone="error">Sur liste noire dans {{ o.store_name }}{{ o.blacklist_reason ? ` : ${o.blacklist_reason}` : '' }}.</Alert>
+            <p v-else class="text-sm text-slate-600">
+              Client de {{ o.store_name }} : {{ o.orders_count }} commande(s), {{ o.delivered_count }} livrée(s)<template v-if="o.refused_count">, {{ o.refused_count }} refusée(s)</template>.
+            </p>
+          </template>
         </section>
 
         <section class="card space-y-4 p-4 sm:p-6">

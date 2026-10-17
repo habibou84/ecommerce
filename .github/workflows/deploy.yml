@@ -53,9 +53,24 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         run: |
           # La clé lance d'elle-même deploy/update.sh sur le serveur (commande imposée côté serveur)
+          set +e
           ssh -T -i ~/.ssh/deploy -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=10 "$USER_NAME@$HOST" | tee deploy.log
-          grep -q "Terminé" deploy.log || { echo "::error::La mise à jour ne s'est pas terminée."; exit 1; }
+          status="${PIPESTATUS[0]}"
+          set -e
+          # En cas d'échec, le serveur revient de lui-même à la version précédente (deploy/update.sh)
+          if grep -q "Revenu à la version précédente" deploy.log; then
+            echo "::error::Mise à jour en échec : le site est revenu à la version précédente et fonctionne. Voir le journal ci-dessus."
+            exit 1
+          fi
+          if grep -q "Le retour à la version précédente a aussi échoué" deploy.log; then
+            echo "::error::Mise à jour en échec et retour à la version précédente impossible : intervention nécessaire sur le serveur."
+            exit 1
+          fi
+          if [ "$status" != "0" ] || ! grep -q "Terminé" deploy.log; then
+            echo "::error::La mise à jour ne s'est pas terminée (code $status)."
+            exit 1
+          fi
           deployed="$(grep 'Terminé' deploy.log | tail -n1 | sed 's/\x1b\[[0-9;]*m//g')"
           echo "::notice::${deployed#==> }"
           case "$deployed" in
