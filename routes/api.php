@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\V1\Stock\CountController;
 use App\Http\Controllers\Api\V1\Stock\LevelController;
 use App\Http\Controllers\Api\V1\Stock\LocationController;
 use App\Http\Controllers\Api\V1\Stock\ReceiptController;
+use App\Http\Controllers\Api\V1\Stock\StoreTransferController;
 use App\Http\Controllers\Api\V1\Stock\TransferController;
 use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\Storefront\MenuController;
@@ -375,6 +376,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::ProductsView->value)->group(function () {
                 Route::get('products', [ProductController::class, 'index'])->name('products.index');
                 Route::get('products/{product}', [ProductController::class, 'show'])->whereNumber('product')->name('products.show');
+                Route::get('products/{product}/stores', [ProductController::class, 'stores'])->whereNumber('product')->name('products.stores');
                 Route::get('collections', [CollectionController::class, 'index'])->name('collections.index');
                 Route::get('collections/{collection}', [CollectionController::class, 'show'])->whereNumber('collection')->name('collections.show');
                 Route::get('tags', [TagController::class, 'index'])->name('tags.index');
@@ -383,6 +385,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('products', [ProductController::class, 'store'])->name('products.store');
                 Route::put('products/{product}', [ProductController::class, 'update'])->whereNumber('product')->name('products.update');
                 Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate'])->whereNumber('product')->name('products.duplicate');
+                Route::post('products/{product}/copy', [ProductController::class, 'copy'])->whereNumber('product')->name('products.copy');
                 Route::delete('products/{product}', [ProductController::class, 'destroy'])->whereNumber('product')->name('products.destroy');
                 Route::post('products/{product}/images', [ProductImageController::class, 'store'])->whereNumber('product')->name('products.images.store');
                 Route::put('products/{product}/images/order', [ProductImageController::class, 'reorder'])->whereNumber('product')->name('products.images.order');
@@ -420,6 +423,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('transfers/{transfer}', [TransferController::class, 'show'])->whereNumber('transfer')->name('transfers.show');
                 Route::post('transfers/{transfer}/receive', [TransferController::class, 'receive'])->whereNumber('transfer')->name('transfers.receive');
                 Route::post('transfers/{transfer}/cancel', [TransferController::class, 'cancel'])->whereNumber('transfer')->name('transfers.cancel');
+
+                Route::get('store-transfers', [StoreTransferController::class, 'index'])->name('store-transfers.index');
+                Route::post('store-transfers', [StoreTransferController::class, 'store'])->name('store-transfers.store');
 
                 Route::get('counts', [CountController::class, 'index'])->name('counts.index');
                 Route::post('counts', [CountController::class, 'store'])->name('counts.store');

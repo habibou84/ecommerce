@@ -2,9 +2,11 @@
 
 namespace App\Services\Accounts;
 
+use App\Enums\Permission;
 use App\Enums\Role;
 use App\Models\Store;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -36,6 +38,26 @@ class StoreRoles
     public function permissionsOf(User $user, Store $store): array
     {
         return $this->within($store, $user, fn () => $user->getAllPermissions()->pluck('name')->sort()->values()->all());
+    }
+
+    /**
+     * La personne a-t-elle ce droit dans la boutique ? (propriétaire, ou membre actif dont le rôle le donne)
+     */
+    public function can(User $user, Store $store, Permission $permission): bool
+    {
+        return $store->owner_id === $user->id
+            || ($user->activeMembershipIn($store) !== null && in_array($permission->value, $this->permissionsOf($user, $store), true));
+    }
+
+    /**
+     * Autres boutiques de la même adresse où la personne a ce droit.
+     *
+     * @return Collection<int, Store>
+     */
+    public function otherAddressStores(User $user, Store $current, Permission $permission): Collection
+    {
+        return $current->addressStores()->reject(fn (Store $s) => $s->id === $current->id)
+            ->filter(fn (Store $s) => $this->can($user, $s, $permission))->values();
     }
 
     /**

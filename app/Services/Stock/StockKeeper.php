@@ -153,6 +153,34 @@ class StockKeeper
     }
 
     /**
+     * Sortie immédiate vers une autre boutique de l'adresse (StoreCatalog::transfer).
+     */
+    public function sendToStore(?User $actor, ProductVariant $variant, StockLocation $location, int $quantity, Model $reference, string $note): StockMovement
+    {
+        $this->ensurePositive($quantity);
+
+        return $this->move($variant, $location, StockMovementType::TransferOut, -$quantity, 0, $actor, $reference, $note,
+            check: function (StockLevel $level) use ($variant, $quantity) {
+                if ($level->available() < $quantity) {
+                    throw new BusinessRuleException("Stock insuffisant pour « {$variant->fullTitle()} » : {$level->available()} disponible(s).", 'items');
+                }
+            });
+    }
+
+    /**
+     * Entrée venant d'une autre boutique de l'adresse, au coût de la boutique de départ (coût moyen mis à jour).
+     */
+    public function receiveFromStore(?User $actor, ProductVariant $variant, StockLocation $location, int $quantity, Model $reference, string $note, ?int $unitCost): StockMovement
+    {
+        $this->ensurePositive($quantity);
+        if ($unitCost !== null) {
+            $this->updateAverageCost($variant, $quantity, $unitCost);
+        }
+
+        return $this->move($variant, $location, StockMovementType::TransferIn, $quantity, 0, $actor, $reference, $note, unitCost: $unitCost);
+    }
+
+    /**
      * Réception d'un transfert. Quantités reçues par variante (par défaut : tout ce qui a été envoyé) ;
      * un manque reste visible sur le transfert.
      *

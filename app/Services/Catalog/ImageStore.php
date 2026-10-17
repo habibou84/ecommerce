@@ -54,6 +54,22 @@ class ImageStore
         return array_map(fn (string $name) => $this->disk()->url("{$path}/{$name}.webp"), array_combine(array_keys(self::SIZES), array_keys(self::SIZES)));
     }
 
+    /**
+     * Copie indépendante d'une photo pour une autre boutique (la supprimer d'un côté ne touche pas l'autre).
+     */
+    public function copy(string $path, int $storeId, string $folder = 'products'): string
+    {
+        $copy = "stores/{$storeId}/{$folder}/".Str::uuid();
+        foreach (array_keys(self::SIZES) as $name) {
+            if ($this->disk()->exists("{$path}/{$name}.webp")) {
+                $this->disk()->copy("{$path}/{$name}.webp", "{$copy}/{$name}.webp");
+                $this->disk()->setVisibility("{$copy}/{$name}.webp", 'public');
+            }
+        }
+
+        return $copy;
+    }
+
     public function delete(string $path): void
     {
         $this->disk()->deleteDirectory($path);

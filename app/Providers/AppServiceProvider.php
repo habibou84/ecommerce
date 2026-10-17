@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\StockReceipt;
 use App\Models\StockTransfer;
 use App\Models\Store;
+use App\Models\StoreTransfer;
 use App\Services\Places\Places;
 use App\Services\Sms\OrangeSmsGateway;
 use App\Services\WhatsApp\CustomerMessenger;
@@ -71,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
             'product' => Product::class,
             'stock_receipt' => StockReceipt::class,
             'stock_transfer' => StockTransfer::class,
+            'store_transfer' => StoreTransfer::class,
             'inventory_count' => InventoryCount::class,
             'order' => Order::class,
             'customer' => Customer::class,

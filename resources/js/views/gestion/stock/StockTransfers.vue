@@ -24,9 +24,43 @@ async function load(page = 1) {
   meta.value = data.meta
 }
 
+// Autres boutiques de la même adresse : envoi immédiat
+const storeTransfers = ref([])
+const otherStores = ref([])
+const sending = ref(null)
+const sent = ref('')
+const openedStoreTransfer = ref(null)
+
+async function loadStoreTransfers() {
+  const { data } = await http.get('/stock/store-transfers')
+  storeTransfers.value = data.data
+  otherStores.value = data.stores
+}
+
+function createStoreTransfer() {
+  error.value = ''
+  sent.value = ''
+  sending.value = reactive({ store_id: otherStores.value[0]?.id, location_id: locations.value[0]?.id, note: '', items: [] })
+}
+
+async function sendToStore() {
+  busy.value = true
+  error.value = ''
+  try {
+    const { data } = await http.post('/stock/store-transfers', { ...sending.value, items: sending.value.items.map((i) => ({ variant_id: i.variant_id, quantity: i.quantity })) })
+    sending.value = null
+    sent.value = data.message
+    await loadStoreTransfers()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 onMounted(async () => {
   locations.value = (await http.get('/stock/locations')).data.data.filter((x) => x.is_active)
-  await load()
+  await Promise.all([load(), loadStoreTransfers()])
 })
 
 function create() {
@@ -94,6 +128,64 @@ async function act(action) {
       </ul>
     </div>
     <Pagination :meta="meta" @page="load" />
+
+    <template v-if="otherStores.length">
+      <div class="flex items-center justify-between gap-3 pt-2">
+        <div>
+          <h2 class="font-semibold">Entre vos boutiques</h2>
+          <p class="text-sm text-slate-600">Envoi immédiat vers une autre boutique de votre adresse : le stock baisse ici et monte là-bas.</p>
+        </div>
+        <button class="btn-brand shrink-0" @click="createStoreTransfer">+ Envoyer à une boutique</button>
+      </div>
+      <Alert v-if="sent" tone="success">{{ sent }}</Alert>
+      <div class="card">
+        <ul class="divide-y divide-slate-100">
+          <li v-for="t in storeTransfers" :key="t.id">
+            <button class="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-slate-50" @click="openedStoreTransfer = t">
+              <span class="min-w-0 flex-1">
+                <span class="block font-medium">{{ t.direction === 'out' ? `Envoyé à ${t.to}` : `Reçu de ${t.from}` }}</span>
+                <span class="block text-slate-500">{{ formatDateTime(t.created_at) }} · {{ t.quantity }} article(s){{ t.note ? ` · ${t.note}` : '' }}</span>
+              </span>
+              <span :class="t.direction === 'out' ? 'text-red-600' : 'text-emerald-700'" class="font-medium">{{ t.direction === 'out' ? '−' : '+' }}{{ t.quantity }}</span>
+            </button>
+          </li>
+          <li v-if="!storeTransfers.length" class="px-4 py-6 text-center text-sm text-slate-500">Aucun envoi entre vos boutiques.</li>
+        </ul>
+      </div>
+    </template>
+
+    <Modal v-if="sending" title="Envoyer à une autre boutique" wide @close="sending = null">
+      <form class="space-y-4" @submit.prevent="sendToStore">
+        <Alert v-if="error">{{ error }}</Alert>
+        <div class="grid gap-4 sm:grid-cols-3">
+          <Field id="st-store" label="Vers la boutique">
+            <select id="st-store" v-model="sending.store_id" class="input">
+              <option v-for="s in otherStores" :key="s.id" :value="s.id">{{ s.name }}</option>
+            </select>
+          </Field>
+          <Field v-if="locations.length > 1" id="st-from" label="Depuis l'emplacement">
+            <select id="st-from" v-model="sending.location_id" class="input">
+              <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
+            </select>
+          </Field>
+          <Field id="st-note" label="Note (facultatif)">
+            <input id="st-note" v-model="sending.note" class="input" maxlength="200" />
+          </Field>
+        </div>
+        <p class="text-sm text-slate-500">Un article doit exister dans l'autre boutique : copiez-le d'abord depuis sa fiche produit (« Dans vos autres boutiques »).</p>
+        <VariantLines :lines="sending.items" :location-id="sending.location_id" />
+        <button class="btn-brand w-full" :disabled="busy || !sending.items.length">Envoyer</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="openedStoreTransfer" :title="openedStoreTransfer.direction === 'out' ? `Envoyé à ${openedStoreTransfer.to}` : `Reçu de ${openedStoreTransfer.from}`" @close="openedStoreTransfer = null">
+      <p class="text-sm text-slate-600">{{ formatDateTime(openedStoreTransfer.created_at) }}{{ openedStoreTransfer.author ? ` · par ${openedStoreTransfer.author}` : '' }}{{ openedStoreTransfer.note ? ` · ${openedStoreTransfer.note}` : '' }}</p>
+      <ul class="mt-3 divide-y divide-slate-100 text-sm">
+        <li v-for="(line, i) in openedStoreTransfer.lines" :key="i" class="flex justify-between gap-3 py-2">
+          <span>{{ line.title }}</span><span>{{ line.quantity }}</span>
+        </li>
+      </ul>
+    </Modal>
 
     <Modal v-if="creating" title="Nouveau transfert" wide @close="creating = null">
       <form class="space-y-4" @submit.prevent="save">
