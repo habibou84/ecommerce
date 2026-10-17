@@ -3,6 +3,8 @@
 namespace Tests\Feature\Couriers;
 
 use App\Enums\OrderStatus;
+use App\Enums\PaymentKind;
+use App\Enums\PaymentMethod;
 use App\Enums\Role;
 use App\Models\CashCollection;
 use App\Models\Courier;
@@ -10,6 +12,8 @@ use App\Models\CourierEarning;
 use App\Models\CourierPayRule;
 use App\Models\DeliveryZone;
 use App\Models\Order;
+use App\Models\PaymentAccount;
+use App\Models\PaymentLink;
 use App\Models\Place;
 use App\Models\Plan;
 use App\Models\Product;
@@ -124,6 +128,40 @@ class CourierTest extends TestCase
 
         $this->storeApi($this->store, 'PATCH', 'courier/availability', ['is_available' => false])->assertOk();
         $this->assertFalse($courier->fresh()->is_available);
+    }
+
+    public function test_payment_at_the_door_by_mobile_money(): void
+    {
+        [$courier, $user] = $this->onboardCourier();
+        $order = $this->order();
+        $shipment = $this->assign($order, $courier);
+
+        $this->asCourier($user);
+        $this->step($shipment, ['status' => 'in_transit'])->assertOk();
+        // Pas de compte de paiement en ligne : pas de paiement à la porte
+        $this->storeApi($this->store, 'GET', "courier/missions/{$shipment->id}")->assertJsonPath('data.door_payment', false)->assertJsonPath('data.amount_due', $order->total);
+        $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/door-payment")->assertStatus(422);
+
+        PaymentAccount::create(['store_id' => $this->store->id, 'provider' => 'wave', 'credentials' => ['api_key' => 'k', 'webhook_secret' => 's'], 'status' => 'active'])
+            ->routes()->create(['store_id' => $this->store->id, 'method' => 'wave', 'priority' => 1]);
+        $this->storeApi($this->store, 'GET', "courier/missions/{$shipment->id}")->assertJsonPath('data.door_payment', true);
+        $door = $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/door-payment")->assertCreated()
+            ->assertJsonPath('data.amount', $order->total)->json('data');
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $door['qr']);
+        $this->assertStringStartsWith('https://wa.me/2250506070809?text=', $door['whatsapp_url']);
+        $link = PaymentLink::sole();
+        $this->assertSame([$this->store->url('/payer/'.$link->token), 'open', $user->id], [$door['url'], $link->status, $link->created_by]);
+        $this->get($door['url'])->assertOk();
+
+        // Le client paie par Wave (confirmé par le prestataire) : plus rien à encaisser, pas d'espèces chez le livreur
+        app(OrderDesk::class)->recordPayment($order->fresh(), ['amount' => $order->total, 'method' => PaymentMethod::Wave, 'kind' => PaymentKind::Online], null);
+        $this->storeApi($this->store, 'GET', "courier/missions/{$shipment->id}")->assertJsonPath('data.amount_due', 0)->assertJsonPath('data.door_payment', false);
+        $this->step($shipment, ['status' => 'out_for_delivery'])->assertOk();
+        $this->step($shipment, ['status' => 'delivered', 'collected_amount' => 0])->assertOk();
+
+        $this->assertSame(OrderStatus::Completed, $order->fresh()->status);
+        $this->assertSame(0, CashCollection::count());
+        $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.cash_held', 0);
     }
 
     public function test_the_free_plan_allows_one_courier(): void

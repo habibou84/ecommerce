@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { money } from '../../lib/format'
@@ -19,12 +19,34 @@ const METHODS = [['cash', 'Espèces'], ['wave', 'Wave'], ['orange_money', 'Orang
 async function load() {
   try {
     mission.value = (await http.get(`/courier/missions/${props.id}`)).data.data
-    form.collected_amount = mission.value.cod_amount
+    form.collected_amount = Math.min(mission.value.cod_amount, mission.value.amount_due)
   } catch (e) {
     error.value = errorMessage(e)
   }
 }
 onMounted(load)
+
+// Paiement à la porte : QR code mobile money, puis attente de la confirmation du prestataire
+const door = ref(null)
+let poll = null
+async function startDoorPayment() {
+  error.value = ''
+  busy.value = true
+  try {
+    door.value = (await http.post(`/courier/missions/${props.id}/door-payment`)).data.data
+    clearInterval(poll)
+    poll = setInterval(async () => {
+      await load()
+      if (mission.value.amount_due === 0) clearInterval(poll)
+    }, 4000)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+onUnmounted(() => clearInterval(poll))
+const paidAtDoor = computed(() => door.value && mission.value?.amount_due === 0)
 
 const can = (step) => mission.value?.next_steps.includes(step)
 const mapsUrl = computed(() => {
@@ -43,7 +65,7 @@ async function step(status) {
     if (status === 'delivered') {
       if (mission.value.requires_code) body.append('code', form.code)
       body.append('payment_method', form.payment_method)
-      body.append('collected_amount', form.collected_amount)
+      body.append('collected_amount', mission.value.amount_due > 0 ? form.collected_amount : 0)
     }
     if (status === 'failed') {
       body.append('reason', form.reason)
@@ -72,8 +94,14 @@ async function step(status) {
         <p v-if="mission.store" class="text-sm text-sky-800">Boutique {{ mission.store }}</p>
         <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[mission.status]">{{ mission.status_label }}</span>
       </div>
-      <p class="mt-2 text-2xl font-bold">{{ money(mission.cod_amount) }}</p>
-      <p class="text-sm text-slate-500">à encaisser auprès du client</p>
+      <template v-if="mission.amount_due > 0">
+        <p class="mt-2 text-2xl font-bold">{{ money(Math.min(mission.cod_amount, mission.amount_due)) }}</p>
+        <p class="text-sm text-slate-500">à encaisser auprès du client</p>
+      </template>
+      <template v-else>
+        <p class="mt-2 text-2xl font-bold text-emerald-700">Déjà payé ✓</p>
+        <p class="text-sm text-slate-500">Rien à encaisser : remettez le colis.</p>
+      </template>
     </section>
 
     <section class="space-y-2 rounded-xl bg-white p-4 shadow-sm">
@@ -115,14 +143,30 @@ async function step(status) {
         <input id="code" v-model="form.code" inputmode="numeric" maxlength="6" class="input text-center text-2xl tracking-widest" required />
         <p v-if="errors.code" class="mt-1 text-sm text-red-600">{{ errors.code }}</p>
       </div>
-      <div>
+      <div v-if="mission.door_payment && !paidAtDoor" class="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm">
+        <template v-if="!door">
+          <p class="mb-2">Le client préfère payer par Wave, Orange Money, MTN ou Moov ? Il scanne le code ou ouvre le lien, et la commande est payée sans espèces.</p>
+          <button type="button" class="btn-secondary w-full" :disabled="busy" @click="startDoorPayment">📱 Paiement mobile money (QR code)</button>
+        </template>
+        <div v-else class="space-y-2 text-center">
+          <p class="font-medium">Faites scanner ce code au client ({{ money(door.amount) }})</p>
+          <img :src="door.qr" alt="QR code de paiement" class="mx-auto h-56 w-56 bg-white p-2" />
+          <div class="grid grid-cols-2 gap-2">
+            <a :href="door.whatsapp_url" target="_blank" class="btn-secondary px-1 text-sm">💬 Envoyer le lien</a>
+            <a :href="door.sms_url" class="btn-secondary px-1 text-sm">✉️ Par SMS</a>
+          </div>
+          <p class="text-slate-600">En attente du paiement… la page se met à jour toute seule.</p>
+        </div>
+      </div>
+      <Alert v-if="paidAtDoor" tone="success">Paiement reçu ✓ Vous n'avez rien à encaisser : confirmez la livraison.</Alert>
+      <div v-if="mission.amount_due > 0">
         <p class="label">Payé en</p>
         <div class="grid grid-cols-3 gap-2">
           <button v-for="[value, label] in METHODS" :key="value" type="button" class="rounded-lg border px-2 py-2 text-sm"
                   :class="form.payment_method === value ? 'border-emerald-600 bg-emerald-50 font-medium' : 'border-slate-200'" @click="form.payment_method = value">{{ label }}</button>
         </div>
       </div>
-      <div>
+      <div v-if="mission.amount_due > 0">
         <label for="collected" class="label">Montant reçu</label>
         <input id="collected" v-model.number="form.collected_amount" type="number" min="0" :max="mission.cod_amount" class="input" />
       </div>

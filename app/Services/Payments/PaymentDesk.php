@@ -60,6 +60,31 @@ class PaymentDesk
     }
 
     /**
+     * Lien de paiement d'une commande (un seul ouvert à la fois : le précédent est remplacé).
+     */
+    public function createLink(Order $order, ?int $amount, ?string $description, ?User $actor, int $validHours = 168): PaymentLink
+    {
+        if ($this->availableMethods($order->store) === []) {
+            throw new BusinessRuleException('Ajoutez d\'abord un compte de paiement (Réglages › Paiement en ligne).');
+        }
+        if (in_array($order->status->value, ['cancelled', 'returned'], true) || $order->amountDue() <= 0) {
+            throw new BusinessRuleException('Il n\'y a rien à payer pour cette commande.');
+        }
+
+        PaymentLink::forStore($order->store_id)->where('order_id', $order->id)->where('status', 'open')->update(['status' => 'cancelled']);
+
+        return PaymentLink::create([
+            'store_id' => $order->store_id,
+            'order_id' => $order->id,
+            'token' => Str::random(24),
+            'amount' => min($amount ?? $order->amountDue(), $order->amountDue()),
+            'description' => $description,
+            'expires_at' => now()->addHours($validHours),
+            'created_by' => $actor?->id,
+        ]);
+    }
+
+    /**
      * Ouvre le paiement chez le premier prestataire disponible pour ce moyen ; en cas d'échec, le suivant.
      */
     public function startCheckout(Order $order, int $amount, string $method, PaymentKind $kind, ?PaymentLink $link = null): Payment
