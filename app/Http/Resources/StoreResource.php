@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Store;
+use App\Services\Billing\PlanLimits;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -13,7 +14,9 @@ class StoreResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $subscription = $this->currentSubscription;
+        // Boutique couverte par l'abonnement d'une autre boutique du propriétaire : c'est cet abonnement qui compte
+        $covering = app(PlanLimits::class)->coveringStore($this->resource);
+        $subscription = $covering?->currentSubscription ?? $this->currentSubscription;
 
         return [
             'id' => $this->id,
@@ -37,6 +40,7 @@ class StoreResource extends JsonResource
                 'status' => $subscription->status->value,
                 'trial_ends_at' => $subscription->trial_ends_at?->toIso8601String(),
                 'current_period_end' => $subscription->current_period_end?->toIso8601String(),
+                'covered_by' => $covering?->name,
             ] : null,
         ];
     }

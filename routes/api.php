@@ -50,6 +50,7 @@ use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\Storefront\MenuController;
 use App\Http\Controllers\Api\V1\Storefront\OnlineStoreController;
 use App\Http\Controllers\Api\V1\Storefront\PageController as StorePageController;
+use App\Http\Controllers\Api\V1\StoreGroupController;
 use App\Http\Controllers\Api\V1\SupportSessionController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use Illuminate\Support\Facades\Route;
@@ -138,6 +139,14 @@ Route::prefix('v1')->name('v1.')->group(function () {
             // La boutique met fin à un accès du support de la plateforme
             Route::post('support-sessions/{session}/end', SupportSessionController::class)->whereNumber('session')
                 ->middleware('permission:'.Permission::TeamManage->value)->name('support.end');
+
+            // ── Boutiques du propriétaire ──
+            Route::prefix('my-stores')->name('my-stores.')->group(function () {
+                Route::get('/', [StoreGroupController::class, 'index'])->name('index');
+                Route::post('/', [StoreGroupController::class, 'store'])->middleware('throttle:10,1')->name('store');
+                Route::post('{store}/attach', [StoreGroupController::class, 'attach'])->whereNumber('store')->name('attach');
+                Route::delete('{store}/attach', [StoreGroupController::class, 'detach'])->whereNumber('store')->name('detach');
+            });
 
             // ── Abonnement de la boutique ──
             Route::middleware('permission:'.Permission::BillingManage->value)->prefix('billing')->name('billing.')->group(function () {

@@ -16,7 +16,7 @@ class SubscriptionInvoice extends Model
     public const STATUSES = ['pending' => 'En attente', 'paid' => 'Payée', 'failed' => 'Échouée', 'cancelled' => 'Annulée', 'offered' => 'Offerte'];
 
     protected $fillable = [
-        'store_id', 'subscription_id', 'plan_id', 'number', 'billing_cycle', 'amount', 'status', 'period_start', 'period_end',
+        'store_id', 'subscription_id', 'plan_id', 'number', 'billing_cycle', 'amount', 'credit_amount', 'credit_days', 'status', 'period_start', 'period_end',
         'provider', 'method', 'idempotency_key', 'provider_reference', 'checkout_url', 'raw', 'created_by', 'paid_at',
     ];
 

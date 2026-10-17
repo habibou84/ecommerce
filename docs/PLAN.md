@@ -510,9 +510,15 @@ Caisse pour boutique physique, catalogue Meta / WhatsApp, prise de commande par 
 | Offre | Pour qui | Contenu indicatif |
 |---|---|---|
 | **Gratuit** | Démarrer | 30 commandes / mois, 20 produits, sous-domaine, 1 livreur |
-| **Starter** | Petit vendeur réseaux sociaux | Commandes illimitées, 3 membres, 5 livreurs, 1 transporteur connecté |
-| **Pro** | Boutique établie | Domaine personnalisé, paiement en ligne, WhatsApp API, transporteurs illimités, statistiques avancées |
-| **Business** | Plusieurs boutiques / entrepôts | Multi-boutique, API marchand, support prioritaire |
+| **Starter** | Petit vendeur réseaux sociaux | Commandes illimitées, 3 membres, 5 livreurs, 1 transporteur connecté, paiement en ligne (1 compte) |
+| **Pro** | Boutique établie | Domaine personnalisé, WhatsApp API, transporteurs et comptes de paiement illimités, statistiques avancées |
+| **Business** | Plusieurs boutiques / entrepôts | Jusqu'à 3 boutiques sous un seul abonnement, API marchand (bientôt), support prioritaire |
+
+Règles des offres :
+- **Plusieurs boutiques** (« Mes boutiques », réservé au propriétaire) : créer une autre boutique depuis la gestion avec le même compte, voir les chiffres du jour de toutes ses boutiques et passer de l'une à l'autre. Avec l'offre Business, les boutiques rattachées (même propriétaire, 3 au plus avec la principale) ont l'offre de la boutique principale sans paiement séparé ; leur propre essai s'arrête et un abonnement payé en cours n'est plus renouvelé. Si l'abonnement Business s'arrête, chaque boutique reprend sa propre offre.
+- **Changement d'offre** : la valeur des jours payés non utilisés de l'offre précédente est convertie en jours supplémentaires sur la nouvelle offre (au prix du jour de la nouvelle offre).
+- **Limite de commandes** : l'équipe est prévenue à 80 % de la limite, puis quand elle est atteinte (une fois par mois chaque fois).
+- **Fonctions annoncées « bientôt »** (fiche produit depuis une photo, API marchand) : affichées comme telles dans les offres tant qu'elles ne sont pas disponibles.
 
 Revenus complémentaires possibles : commission sur paiement en ligne, apport d'affaires facturé aux entreprises de livraison (par course créée via l'application), thèmes premium.
 

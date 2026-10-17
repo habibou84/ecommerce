@@ -69,6 +69,22 @@ class Store extends Model
         return $this->belongsTo(User::class, 'owner_id');
     }
 
+    /**
+     * Boutique dont l'abonnement Business couvre celle-ci.
+     */
+    public function billingStore(): BelongsTo
+    {
+        return $this->belongsTo(Store::class, 'billing_store_id');
+    }
+
+    /**
+     * Boutiques couvertes par l'abonnement de celle-ci.
+     */
+    public function coveredStores(): HasMany
+    {
+        return $this->hasMany(Store::class, 'billing_store_id');
+    }
+
     public function members(): HasMany
     {
         return $this->hasMany(StoreUser::class);

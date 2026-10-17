@@ -56,11 +56,13 @@ const groups = [
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/whatsapp', label: 'WhatsApp' },
     { to: '/gestion/abonnement', label: 'Abonnement' },
+    { to: '/gestion/mes-boutiques', label: 'Mes boutiques' },
   ] },
 ]
 
 function canOpen(path) {
   const { meta } = router.resolve(path)
+  if (meta.owner && !auth.profile?.is_owner) return false
   if (meta.permissionAny) return meta.permissionAny.some((p) => auth.can(p))
   return !meta.permission || auth.can(meta.permission)
 }
