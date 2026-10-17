@@ -164,12 +164,16 @@ class AuthController extends Controller
             'stores' => $address = $this->addressStores($store)->filter(fn (Store $s) => $s->isOpen() && $user->activeMembershipIn($s) !== null)
                 ->map(fn (Store $s) => ['id' => $s->id, 'name' => $s->name, 'is_host' => $s->host_store_id === null, 'url' => $s->url()])->values(),
             // Ses boutiques à d'autres adresses, pour passer de l'une à l'autre
+            // Boutiques d'autres marchands pour lesquels la personne travaille aussi (« Autres comptes ») ; ses propres
+            // boutiques à d'autres adresses se réunissent depuis la vue d'ensemble
             'other_stores' => $user->stores()->wherePivot('status', 'active')->where('stores.id', '!=', $store->id)
-                ->whereNotIn('stores.id', $address->pluck('id'))
+                ->whereNotIn('stores.id', $address->pluck('id'))->where('stores.owner_id', '!=', $user->id)
                 ->orderBy('name')->get(['stores.id', 'stores.name', 'stores.slug', 'stores.status', 'stores.host_store_id'])
                 ->filter(fn (Store $s) => $s->isOpen())
                 ->map(fn (Store $s) => ['id' => $s->id, 'name' => $s->name, 'slug' => $s->slug])
                 ->values(),
+            // Propriétaire de plusieurs boutiques (à cette adresse ou ailleurs) : accès à la vue d'ensemble
+            'owns_several' => Store::where('owner_id', $user->id)->count() > 1,
         ];
     }
 }
