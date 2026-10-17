@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ScheduledReport;
 use App\Services\Accounts\StoreGroup;
 use App\Services\Billing\PlanLimits;
+use App\Services\Reports\DailyAdvice;
 use App\Services\Reports\DailyReport;
 use App\Services\Reports\StatsQuestion;
 use App\Services\Reports\StoreStats;
@@ -71,7 +72,7 @@ class StatsController extends Controller
             'phone' => PhoneNumber::display($request->user()->phone),
             'email' => $request->user()->email,
             'whatsapp_ready' => app(CustomerMessenger::class)->account($store->id, 'daily_report') !== null,
-            'preview' => $reports->text($store, $figures),
+            'preview' => $reports->text($store, $figures, app(DailyAdvice::class)->tips($store)),
             // Propriétaire de plusieurs boutiques sous un abonnement commun : rapport commun possible
             'group_stores' => $store->owner_id === $request->user()->id ? app(StoreGroup::class)->stores($store)?->count() : null,
         ]]);

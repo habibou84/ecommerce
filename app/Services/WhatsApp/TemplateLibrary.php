@@ -47,6 +47,11 @@ class TemplateLibrary
             'body' => 'Bonjour {{1}}, vous avez laissé des articles dans votre panier chez {{2}}. Retrouvez-le ici : {{3}} . À bientôt !',
             'example' => ['Awa', 'Awa Mode', 'https://boutique.jibiat-marchand.com/panier/abc'],
         ],
+        'daily_tips' => [
+            'name' => 'jm_conseils_du_soir', 'category' => 'UTILITY',
+            'body' => 'Conseils du soir pour {{1}} : {{2}} Bonne soirée !',
+            'example' => ['Awa Mode', '1) Réapprovisionnez « Robe wax » : 8 vendus cette semaine, plus que 2 en stock. 2) 3 commandes attendent une confirmation depuis plus d\'un jour.'],
+        ],
         'daily_report' => [
             'name' => 'jm_rapport_du_jour', 'category' => 'UTILITY',
             'body' => 'Rapport de {{1}} du {{2}} : {{3}} commande(s) reçue(s), {{4}} livré, {{5}} à confirmer, {{6}} à faire livrer. Bonne journée !',

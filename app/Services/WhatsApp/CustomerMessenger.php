@@ -33,6 +33,7 @@ class CustomerMessenger
         'review_request' => ['label' => 'Demande d\'avis (24 h après la livraison)', 'variables' => ['nom du client', 'boutique', 'lien de l\'avis'], 'buttons' => []],
         'payment_link' => ['label' => 'Lien de paiement', 'variables' => ['nom du client', 'n° de commande', 'montant', 'lien'], 'buttons' => []],
         'cart_recovery' => ['label' => 'Relance de panier abandonné', 'variables' => ['nom du client', 'boutique', 'lien du panier'], 'buttons' => []],
+        'daily_tips' => ['label' => 'Conseils du soir (envoyés à l\'équipe après le rapport)', 'variables' => ['boutique', 'conseils'], 'buttons' => []],
         'daily_report' => ['label' => 'Rapport du jour (envoyé à l\'équipe)', 'variables' => ['boutique', 'date', 'commandes reçues', 'montant livré', 'à confirmer', 'à expédier'], 'buttons' => []],
     ];
 
