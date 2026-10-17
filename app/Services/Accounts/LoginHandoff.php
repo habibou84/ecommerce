@@ -21,26 +21,28 @@ class LoginHandoff
         $nonce = Str::random(48);
         Cache::put(self::key($nonce), ['user_id' => $user->id, 'store_id' => $store->id, 'redirect' => $redirect], self::TTL_SECONDS);
 
-        return $store->url('/auth/relais?'.http_build_query(['jeton' => $nonce]));
+        return ($store->host ?? $store)->url('/auth/relais?'.http_build_query(['jeton' => $nonce]));
     }
 
     /**
      * Consomme le lien (une seule fois). Renvoie la personne et la page de destination si le lien est valable
      * pour cette boutique.
      *
-     * @return array{0: User, 1: string}|null
+     * Le lien d'une boutique hébergée est consommé à l'adresse de la boutique hôte.
+     *
+     * @return array{0: User, 1: string, 2: Store}|null
      */
     public function consume(string $nonce, Store $store): ?array
     {
         $data = Cache::pull(self::key($nonce));
-
-        if (! is_array($data) || $data['store_id'] !== $store->id) {
+        if (! is_array($data)) {
             return null;
         }
 
+        $target = $data['store_id'] === $store->id ? $store : Store::where('host_store_id', $store->id)->find($data['store_id']);
         $user = User::find($data['user_id']);
 
-        return $user ? [$user, $data['redirect']] : null;
+        return $user && $target ? [$user, $data['redirect'], $target] : null;
     }
 
     private static function key(string $nonce): string

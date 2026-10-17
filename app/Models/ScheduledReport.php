@@ -13,11 +13,11 @@ class ScheduledReport extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'user_id', 'frequency', 'channel', 'send_at', 'is_active'];
+    protected $fillable = ['store_id', 'user_id', 'frequency', 'channel', 'all_stores', 'send_at', 'is_active'];
 
     protected function casts(): array
     {
-        return ['last_sent_at' => 'datetime', 'is_active' => 'boolean'];
+        return ['last_sent_at' => 'datetime', 'is_active' => 'boolean', 'all_stores' => 'boolean'];
     }
 
     public function user(): BelongsTo

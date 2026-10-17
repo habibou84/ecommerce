@@ -48,7 +48,10 @@ Table users {
 Table stores {
   id bigint [pk, increment]
   owner_id bigint [ref: > users.id, not null]
+  billing_store_id bigint [ref: > stores.id, note: 'boutique du même propriétaire dont l\'abonnement (offre Business) couvre celle-ci']
+  host_store_id bigint [ref: > stores.id, note: 'boutique dont l\'adresse héberge celle-ci (gestion commune, page {adresse}/{path}) ; son propre sous-domaine redirige']
   slug varchar(60) [unique, not null, note: 'sous-domaine : {slug}.jibiat-marchand.com ; liste de mots réservés côté code']
+  path varchar(40) [note: 'boutique hébergée : nom de sa page à l\'adresse de la boutique hôte (unique par hôte)']
   name varchar [not null]
   tagline varchar(160)
   logo_path varchar
@@ -155,6 +158,8 @@ Table subscription_invoices {
   plan_id bigint [ref: > plans.id, not null]
   number varchar(20) [unique, not null, note: 'JM-2026-000123']
   billing_cycle varchar(10) [not null, note: 'monthly | yearly']
+  credit_amount int [note: 'valeur des jours payés non utilisés de l\'offre précédente (changement d\'offre)']
+  credit_days smallint [note: 'jours ajoutés à la nouvelle offre grâce à ce crédit']
   amount int [not null, note: '0 pour des mois offerts par la console']
   status varchar(20) [not null, note: 'pending | paid | failed | cancelled | offered']
   period_start timestamp
@@ -1519,6 +1524,7 @@ Table scheduled_reports {
   user_id bigint [ref: > users.id, not null]
   frequency varchar(10) [not null, note: 'daily | weekly | monthly']
   channel varchar(10) [not null, note: 'whatsapp (modèle « daily_report » du WhatsApp de la boutique) | email']
+  all_stores boolean [not null, default: false, note: 'rapport commun à toutes les boutiques de l\'abonnement Business (propriétaire)']
   send_at time [default: '20:00', note: 'heure de la boutique']
   last_sent_at timestamp
   is_active boolean [default: true]

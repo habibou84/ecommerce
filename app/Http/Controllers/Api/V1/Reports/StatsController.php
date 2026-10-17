@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Models\ScheduledReport;
+use App\Services\Accounts\StoreGroup;
 use App\Services\Billing\PlanLimits;
 use App\Services\Reports\DailyReport;
 use App\Services\Reports\StoreStats;
@@ -48,6 +49,7 @@ class StatsController extends Controller
         return response()->json(['data' => [
             'channels' => collect(['whatsapp', 'email'])->mapWithKeys(fn ($channel) => [$channel => [
                 'is_active' => (bool) $mine->get($channel)?->is_active,
+                'all_stores' => (bool) $mine->get($channel)?->all_stores,
                 'send_at' => substr((string) ($mine->get($channel)?->send_at ?? '20:00'), 0, 5),
                 'last_sent_at' => $mine->get($channel)?->last_sent_at?->toIso8601String(),
             ]]),
@@ -55,6 +57,8 @@ class StatsController extends Controller
             'email' => $request->user()->email,
             'whatsapp_ready' => app(CustomerMessenger::class)->account($store->id, 'daily_report') !== null,
             'preview' => $reports->text($store, $figures),
+            // Propriétaire de plusieurs boutiques sous un abonnement commun : rapport commun possible
+            'group_stores' => $store->owner_id === $request->user()->id ? app(StoreGroup::class)->stores($store)?->count() : null,
         ]]);
     }
 
@@ -64,6 +68,8 @@ class StatsController extends Controller
             'channels' => ['required', 'array'],
             'channels.whatsapp.is_active' => ['sometimes', 'boolean'],
             'channels.whatsapp.send_at' => ['sometimes', 'date_format:H:i'],
+            'channels.whatsapp.all_stores' => ['sometimes', 'boolean'],
+            'channels.email.all_stores' => ['sometimes', 'boolean'],
             'channels.email.is_active' => ['sometimes', 'boolean'],
             'channels.email.send_at' => ['sometimes', 'date_format:H:i'],
         ]);
@@ -77,7 +83,7 @@ class StatsController extends Controller
             }
             ScheduledReport::updateOrCreate(
                 ['store_id' => $this->currentStore()->id, 'user_id' => $request->user()->id, 'frequency' => 'daily', 'channel' => $channel],
-                array_filter(['is_active' => $settings['is_active'] ?? null, 'send_at' => $settings['send_at'] ?? null], fn ($v) => $v !== null),
+                array_filter(['is_active' => $settings['is_active'] ?? null, 'send_at' => $settings['send_at'] ?? null, 'all_stores' => $settings['all_stores'] ?? null], fn ($v) => $v !== null),
             );
         }
 

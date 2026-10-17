@@ -510,9 +510,24 @@ Caisse pour boutique physique, catalogue Meta / WhatsApp, prise de commande par 
 | Offre | Pour qui | Contenu indicatif |
 |---|---|---|
 | **Gratuit** | Démarrer | 30 commandes / mois, 20 produits, sous-domaine, 1 livreur |
-| **Starter** | Petit vendeur réseaux sociaux | Commandes illimitées, 3 membres, 5 livreurs, 1 transporteur connecté |
-| **Pro** | Boutique établie | Domaine personnalisé, paiement en ligne, WhatsApp API, transporteurs illimités, statistiques avancées |
-| **Business** | Plusieurs boutiques / entrepôts | Multi-boutique, API marchand, support prioritaire |
+| **Starter** | Petit vendeur réseaux sociaux | Commandes illimitées, 3 membres, 5 livreurs, 1 transporteur connecté, paiement en ligne (1 compte) |
+| **Pro** | Boutique établie | Domaine personnalisé, WhatsApp API, transporteurs et comptes de paiement illimités, statistiques avancées |
+| **Business** | Plusieurs boutiques / entrepôts | Jusqu'à 3 boutiques sous un seul abonnement, API marchand (bientôt), support prioritaire |
+
+Règles des offres :
+- **Plusieurs boutiques** (« Mes boutiques », réservé au propriétaire) : créer une autre boutique depuis la gestion avec le même compte, voir les chiffres du jour de toutes ses boutiques et passer de l'une à l'autre. Avec l'offre Business, les boutiques rattachées (même propriétaire, 3 au plus avec la principale) ont l'offre de la boutique principale sans paiement séparé ; leur propre essai s'arrête et un abonnement payé en cours n'est plus renouvelé. Si l'abonnement Business s'arrête, chaque boutique reprend sa propre offre.
+- **Une seule adresse pour plusieurs boutiques** (offre Business) : les boutiques créées depuis « Mes boutiques » (ou rattachées à l'abonnement commun) n'ont pas d'adresse propre. Elles sont hébergées à l'adresse de la boutique principale (`stores.host_store_id`, `stores.path`) :
+  - *gestion* : même adresse et même session ; un sélecteur en haut de l'écran choisit la boutique (en-tête `X-Store-Id`, mémorisé sur l'appareil ; lien `?boutique=ID` depuis une notification) ; « Toutes les boutiques » ouvre les chiffres communs ; une personne qui ne travaille que pour une boutique hébergée se connecte à l'adresse et arrive sur elle ;
+  - *boutique en ligne* : page `{adresse}/{nom}` (ex. `ballstyle.jibiat-marchand.com/kids`) servie comme une boutique à part (liens et redirections préfixés, panier propre) ; la boutique principale reste à la racine ; le nom de la page se change dans Réglages › Ma boutique ;
+  - une boutique rattachée quitte son ancienne adresse, qui redirige vers sa page ; retirée de l'abonnement commun, elle retrouve sa propre adresse ; un nom de domaine s'ajoute à la boutique principale et sert aussi ses pages.
+- **Espace commun aux boutiques** (« Mes boutiques », propriétaire, abonnement Business) :
+  - *Statistiques* de la période pour l'ensemble et boutique par boutique (taux recalculés sur l'ensemble, bénéfice), chiffre d'affaires livré jour par jour, produits les plus vendus toutes boutiques confondues.
+  - *Caisse* : argent chez les livreurs, les entreprises de livraison et les clients à crédit, paie à verser, entrées et sorties de la période, par boutique et au total.
+  - *Rapport du soir* : option « un seul rapport pour mes boutiques » (une ligne par boutique, puis le total).
+  - *Livreurs partagés* : un livreur qui a activé son compte peut travailler pour plusieurs boutiques. Chaque boutique garde sa fiche (zones, règle de paie recopiée sans les montants par zone, plafond, missions, encaissements, gains) ; son application réunit ses missions, ses espèces et ses gains de toutes ces boutiques, et chaque étape d'une mission est enregistrée dans sa boutique. Un versement unique est réparti au prorata des espèces détenues pour chaque boutique (manquant compris, excédent sur la dernière) ; la paie se règle en une fois (un relevé payé par boutique).
+- **Changement d'offre** : la valeur des jours payés non utilisés de l'offre précédente est convertie en jours supplémentaires sur la nouvelle offre (au prix du jour de la nouvelle offre).
+- **Limite de commandes** : l'équipe est prévenue à 80 % de la limite, puis quand elle est atteinte (une fois par mois chaque fois).
+- **Fonctions annoncées « bientôt »** (fiche produit depuis une photo, API marchand) : affichées comme telles dans les offres tant qu'elles ne sont pas disponibles.
 
 Revenus complémentaires possibles : commission sur paiement en ligne, apport d'affaires facturé aux entreprises de livraison (par course créée via l'application), thèmes premium.
 

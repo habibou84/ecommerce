@@ -25,6 +25,9 @@ class CustomDomains
     public function add(Store $store, string $input): StoreDomain
     {
         $this->limits->ensureFeature($store, 'custom_domain');
+        if ($store->isHosted()) {
+            throw new BusinessRuleException('Cette boutique est une page de '.$store->host->name.' : ajoutez le nom de domaine à '.$store->host->name.', il servira aussi sa page.');
+        }
         $hostname = $this->normalize($input);
 
         if (StoreDomain::where('store_id', $store->id)->count() >= self::MAX_PER_STORE) {

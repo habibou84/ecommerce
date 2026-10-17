@@ -40,19 +40,28 @@ async function save() {
 }
 
 // Adresse de la boutique
-const slug = ref(auth.store?.slug ?? '')
+// Boutique hébergée : seul le nom de sa page change ({adresse}/{nom})
+const hosted = computed(() => !!auth.store?.host_url)
+const currentSlug = computed(() => (hosted.value ? auth.store?.path : auth.store?.slug) ?? '')
+const slug = ref(currentSlug.value)
 const slugError = ref('')
 const slugBusy = ref(false)
 watch(slug, (v) => (slug.value = v.toLowerCase()))
 
 async function changeSlug() {
-  if (!confirm(`Votre boutique passera à l'adresse ${slug.value}.${boot.domain}. L'ancienne adresse redirigera vers la nouvelle pendant 90 jours. Continuer ?`)) return
+  const target = hosted.value ? `${auth.store.host_url}/${slug.value}` : `${slug.value}.${boot.domain}`
+  const warning = hosted.value ? 'Les anciens liens vers cette page ne fonctionneront plus.' : 'L\'ancienne adresse redirigera vers la nouvelle pendant 90 jours.'
+  if (!confirm(`Votre boutique passera à l'adresse ${target}. ${warning} Continuer ?`)) return
   slugBusy.value = true
   slugError.value = ''
   try {
     const { data } = await http.put('/store/slug', { slug: slug.value })
-    // La session est liée à l'adresse : on rejoint la nouvelle avec un lien de connexion
-    window.location.assign(data.redirect)
+    // La session est liée à l'adresse : on rejoint la nouvelle avec un lien de connexion (boutique hébergée : même adresse)
+    if (data.redirect) window.location.assign(data.redirect)
+    else {
+      auth.setStore(data.data)
+      slugBusy.value = false
+    }
   } catch (e) {
     slugError.value = fieldErrors(e).slug ?? errorMessage(e)
     slugBusy.value = false
@@ -95,23 +104,26 @@ async function changeSlug() {
     <form v-if="canEdit" class="card space-y-4 p-4 sm:p-6" @submit.prevent="changeSlug">
       <div>
         <h2 class="font-semibold">Adresse de la boutique</h2>
-        <p class="mt-1 text-sm text-slate-600">L'ancienne adresse redirige vers la nouvelle pendant 90 jours.</p>
+        <p v-if="hosted" class="mt-1 text-sm text-slate-600">Cette boutique est une page de votre adresse principale : vous choisissez le nom de la page.</p>
+        <p v-else class="mt-1 text-sm text-slate-600">L'ancienne adresse redirige vers la nouvelle pendant 90 jours.</p>
       </div>
-      <Field id="slug" label="Adresse" :error="slugError">
+      <Field id="slug" :label="hosted ? 'Nom de la page' : 'Adresse'" :error="slugError">
         <div class="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-600">
-          <input id="slug" v-model="slug" class="min-w-0 flex-1 px-3 py-2.5 text-base outline-none sm:text-sm" maxlength="40" autocapitalize="off" spellcheck="false" />
-          <span class="flex items-center bg-slate-50 px-3 text-sm text-slate-500">.{{ boot.domain }}</span>
+          <span v-if="hosted" class="flex max-w-[55%] items-center truncate bg-slate-50 px-3 text-sm text-slate-500">{{ auth.store.host_url.replace(/^https?:\/\//, '') }}/</span>
+          <input id="slug" v-model="slug" class="min-w-0 flex-1 px-3 py-2.5 text-base outline-none sm:text-sm" :maxlength="hosted ? 30 : 40" autocapitalize="off" spellcheck="false" />
+          <span v-if="!hosted" class="flex items-center bg-slate-50 px-3 text-sm text-slate-500">.{{ boot.domain }}</span>
         </div>
       </Field>
-      <button class="btn-secondary" :disabled="slugBusy || slug === auth.store?.slug">Changer l'adresse</button>
+      <button class="btn-secondary" :disabled="slugBusy || slug === currentSlug">Changer l'adresse</button>
     </form>
 
     <section v-if="auth.store?.subscription" class="card p-4 sm:p-6">
       <h2 class="font-semibold">Abonnement</h2>
       <p class="mt-1 text-sm text-slate-600">
         Offre {{ auth.store.subscription.plan }}
-        <template v-if="auth.store.subscription.status === 'trialing'"> (essai gratuit)</template>.
-        Le paiement des abonnements arrive en phase 8.
+        <template v-if="auth.store.subscription.covered_by"> (abonnement de {{ auth.store.subscription.covered_by }})</template>
+        <template v-else-if="auth.store.subscription.status === 'trialing'"> (essai gratuit)</template>.
+        <RouterLink v-if="auth.can('billing.manage')" to="/gestion/abonnement" class="text-emerald-700 underline">Gérer l'abonnement</RouterLink>
       </p>
     </section>
   </div>

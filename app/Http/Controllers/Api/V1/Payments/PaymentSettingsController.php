@@ -57,6 +57,7 @@ class PaymentSettingsController extends Controller
     public function storeAccount(Request $request): JsonResponse
     {
         $data = $this->validatedAccount($request);
+        app(PlanLimits::class)->ensureFeature($this->currentStore(), 'online_payment');
         app(PlanLimits::class)->ensureCanAdd($this->currentStore(), 'payment_accounts');
         $account = PaymentAccount::create($data + ['store_id' => $this->currentStore()->id, 'status' => 'active']);
 

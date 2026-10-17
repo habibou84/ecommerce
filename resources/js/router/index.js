@@ -94,8 +94,12 @@ const storeRoutes = [
       { path: 'paiements', component: () => import('../views/gestion/payments/Payments.vue'), meta: { title: 'Paiement en ligne', permission: 'payments.manage' } },
       { path: 'whatsapp', component: () => import('../views/gestion/messaging/WhatsApp.vue'), meta: { title: 'WhatsApp', permission: 'store.manage' } },
       { path: 'abonnement', component: () => import('../views/gestion/Billing.vue'), meta: { title: 'Abonnement', permission: 'billing.manage' } },
+      { path: 'mes-boutiques', component: () => import('../views/gestion/group/MyStores.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },
+      { path: 'mes-boutiques/statistiques', component: () => import('../views/gestion/group/GroupStats.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },
+      { path: 'mes-boutiques/caisse', component: () => import('../views/gestion/group/GroupCash.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },
+      { path: 'mes-boutiques/livreurs', component: () => import('../views/gestion/group/GroupCouriers.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },
       { path: 'equipe', component: () => import('../views/gestion/Team.vue'), meta: { title: 'Équipe', permission: 'team.manage' } },
-      { path: 'parametres', component: () => import('../views/gestion/Settings.vue'), meta: { title: 'Ma boutique' } },
+      { path: 'parametres', component: () => import('../views/gestion/Settings.vue'), meta: { title: 'Informations de la boutique' } },
       { path: 'compte', component: () => import('../views/gestion/Account.vue'), meta: { title: 'Mon compte' } },
     ],
   },
@@ -158,11 +162,12 @@ router.beforeEach(async (to) => {
   if (to.meta.permission && !auth.can(to.meta.permission)) {
     return '/gestion'
   }
+  if (to.meta.owner && !auth.profile?.is_owner) return '/gestion'
   return true
 })
 
 router.afterEach((to) => {
-  const store = boot.zone === 'console' ? 'Console Jibiat Marchand' : boot.store?.name
+  const store = boot.zone === 'console' ? 'Console Jibiat Marchand' : useAuthStore().store?.name ?? boot.store?.name
   document.title = [to.meta.title, store ?? 'Jibiat Marchand'].filter(Boolean).join(' · ')
 })
 

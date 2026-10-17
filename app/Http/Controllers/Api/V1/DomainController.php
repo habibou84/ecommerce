@@ -22,7 +22,8 @@ class DomainController extends Controller
 
         return response()->json([
             'data' => StoreDomain::where('store_id', $store->id)->orderByDesc('is_primary')->orderBy('id')->get()->map(fn ($d) => $this->present($d)),
-            'available' => $limits->hasFeature($store, 'custom_domain'),
+            'available' => $limits->hasFeature($store, 'custom_domain') && ! $store->isHosted(),
+            'hosted_by' => $store->isHosted() ? $store->host->name : null,
             'subdomain' => rtrim($store->url(), '/'),
         ]);
     }
