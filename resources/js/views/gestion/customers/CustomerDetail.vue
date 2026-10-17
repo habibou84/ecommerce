@@ -18,7 +18,7 @@ const saved = ref(false)
 
 async function load() {
   customer.value = (await http.get(`/customers/${props.id}`)).data.data
-  form.value = { name: customer.value.name ?? '', phone2: customer.value.phone2 ?? '', email: customer.value.email ?? '', note: customer.value.note ?? '', tags: [...customer.value.tags] }
+  form.value = { name: customer.value.name ?? '', phone2: customer.value.phone2 ?? '', email: customer.value.email ?? '', note: customer.value.note ?? '', accepts_marketing: !!customer.value.accepts_marketing, tags: [...customer.value.tags] }
 }
 onMounted(load)
 
@@ -89,6 +89,10 @@ async function toggleBlacklist() {
             <Field id="c-email" label="E-mail"><input id="c-email" v-model="form.email" class="input" type="email" /></Field>
             <Field id="c-tags" label="Étiquettes"><ChipsInput id="c-tags" v-model="form.tags" placeholder="VIP, revendeur…" /></Field>
             <Field id="c-note" label="Note"><textarea id="c-note" v-model="form.note" class="input" rows="2" /></Field>
+            <label class="flex items-start gap-2 text-sm">
+              <input v-model="form.accepts_marketing" type="checkbox" class="mt-0.5" />
+              <span>Accepte de recevoir vos nouveautés et offres sur WhatsApp<span v-if="customer.marketing_opt_out_at" class="block text-xs text-amber-700">A répondu STOP le {{ new Date(customer.marketing_opt_out_at).toLocaleDateString('fr-FR') }} : ne cochez que s'il vous a redonné son accord.</span></span>
+            </label>
           </fieldset>
           <div v-if="auth.can('orders.manage')" class="flex gap-2">
             <button type="button" class="btn-ghost text-red-600" @click="toggleBlacklist">{{ customer.is_blacklisted ? 'Retirer de la liste noire' : 'Liste noire' }}</button>

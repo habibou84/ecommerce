@@ -86,6 +86,7 @@ const storeRoutes = [
       { path: 'boutique-en-ligne/menus', component: () => import('../views/gestion/online-store/Menus.vue'), meta: { title: 'Boutique en ligne', permission: 'store.manage' } },
       { path: 'marketing', component: () => import('../views/gestion/marketing/Promotions.vue'), meta: { title: 'Promotions', permission: 'store.manage' } },
       { path: 'marketing/suivi', component: () => import('../views/gestion/marketing/Tracking.vue'), meta: { title: 'Marketing', permission: 'store.manage' } },
+      { path: 'marketing/relances', component: () => import('../views/gestion/marketing/Campaigns.vue'), meta: { title: 'Relances WhatsApp', permission: 'store.manage' } },
       { path: 'marketing/avis', component: () => import('../views/gestion/marketing/Reviews.vue'), meta: { title: 'Avis clients', permission: 'store.manage' } },
       { path: 'caisse', component: () => import('../views/gestion/Cash.vue'), meta: { title: 'Caisse', permissionAny: ['finance.view', 'cash.manage'] } },
       { path: 'caisse/vente', component: () => import('../views/gestion/CounterSale.vue'), meta: { title: 'Vente au comptoir', permission: 'cash.manage' } },

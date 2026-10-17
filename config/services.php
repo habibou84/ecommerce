@@ -41,6 +41,8 @@ return [
         'app_secret' => env('META_APP_SECRET'),
         'whatsapp_config_id' => env('META_WHATSAPP_CONFIG_ID'), // Facebook Login for Business › Configurations
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
+        // Prix d'un message marketing WhatsApp facturé par Meta au marchand (F CFA, estimation affichée avant une relance)
+        'marketing_message_price' => (int) env('WHATSAPP_MARKETING_PRICE', 15),
     ],
 
     // Notifications push de l'application (Firebase Cloud Messaging) : chemin du fichier JSON du compte de service

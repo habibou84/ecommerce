@@ -75,6 +75,10 @@
                         <label for="note" class="field-label">Précisions pour la boutique <span class="font-normal text-slate-400">(facultatif)</span></label>
                         <textarea id="note" name="note" rows="2" class="field"></textarea>
                     </div>
+                    <label class="flex items-start gap-2 text-sm text-slate-700">
+                        <input type="checkbox" name="accepts_marketing" value="1" class="mt-0.5">
+                        <span>Recevoir les nouveautés et offres de {{ $store->name }} sur WhatsApp (vous pouvez arrêter à tout moment en répondant STOP).</span>
+                    </label>
                     {{-- Champ piège pour les robots, invisible pour les visiteurs --}}
                     <div class="absolute -left-[9999px]" aria-hidden="true">
                         <label for="website">Ne pas remplir</label>

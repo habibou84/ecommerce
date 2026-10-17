@@ -59,6 +59,7 @@ class CustomerController extends Controller
             'email' => $model->email,
             'note' => $model->note,
             'accepts_marketing' => $model->accepts_marketing,
+            'marketing_opt_out_at' => $model->marketing_opt_out_at?->toIso8601String(),
             'blacklist_reason' => $model->blacklist_reason,
             'addresses' => $model->addresses->map(fn ($a) => [
                 'id' => $a->id,
@@ -140,6 +141,10 @@ class CustomerController extends Controller
     private function fill(Customer $customer, array $data): void
     {
         $customer->update(collect($data)->only(['name', 'phone2', 'email', 'note', 'accepts_marketing'])->all());
+        // Le client a redonné son accord (au marchand) après avoir répondu STOP
+        if (($data['accepts_marketing'] ?? false) && $customer->marketing_opt_out_at) {
+            $customer->forceFill(['marketing_opt_out_at' => null])->save();
+        }
 
         if (array_key_exists('tags', $data)) {
             $ids = collect($data['tags'])->map(fn ($n) => trim($n))->filter()->unique(fn ($n) => mb_strtolower($n))

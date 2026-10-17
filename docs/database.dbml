@@ -1824,3 +1824,20 @@ Table recurring_expenses {
   }
   Note: 'Dépense mensuelle (loyer, salaires…) enregistrée automatiquement dans cash_movements (recurring_expense_id) le jour choisi. cash_movements.channel : canal visé par une dépense de publicité.'
 }
+
+Table campaigns {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  title varchar(120) [not null]
+  message varchar(300) [not null, note: 'variable {{3}} du modèle jm_nouveautes, sur une ligne']
+  link varchar(500)
+  audience json [not null, note: '{type: inactive|product|all, days, product_id, include_buyers}']
+  status varchar(20) [default: 'draft', note: 'draft, sent']
+  recipients int [default: 0]
+  estimated_cost int [default: 0, note: 'F CFA facturés par Meta (estimation)']
+  sent_at timestamp
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Relance WhatsApp des anciens clients. Messages : outbound_messages (related_type campaign). customers.marketing_opt_out_at (réponse STOP), customers.last_campaign_at (une relance par semaine au plus).'
+}

@@ -104,6 +104,7 @@ class CheckoutController extends Controller
             'note' => ['nullable', 'string', 'max:1000'],
             'payment' => ['nullable', Rule::in(['cod', 'online'])],
             'payment_method' => ['nullable', Rule::in(array_keys(PaymentDesk::METHODS))],
+            'accepts_marketing' => ['nullable', 'boolean'],
         ], [], ['name' => 'nom', 'phone' => 'téléphone', 'place_id' => 'quartier', 'payment_method' => 'moyen de paiement']);
 
         $store = $this->currentStore();
@@ -117,6 +118,10 @@ class CheckoutController extends Controller
         }
 
         $order = $this->checkout->place($store, $cart, $data);
+        // Accord du client pour les nouveautés par WhatsApp (relances) ; une case non cochée ne retire pas un accord donné
+        if (! empty($data['accepts_marketing']) && $order->customer) {
+            $order->customer->forceFill(['accepts_marketing' => true, 'marketing_opt_out_at' => null])->save();
+        }
         $thanks = '/commande/merci/'.$order->tracking_token;
 
         // Achat envoyé à Meta par le serveur (API Conversions), si la boutique l'a configurée
