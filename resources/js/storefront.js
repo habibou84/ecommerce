@@ -419,6 +419,45 @@ function paymentForms() {
   )
 }
 
+/* ---------- Avis client ---------- */
+
+function reviewForm() {
+  const form = $('[data-review-form]')
+  if (!form) return
+  // Étoiles : celles jusqu'à la note choisie s'allument
+  $$('[data-review-product]', form).forEach((group) => {
+    const paint = () => {
+      const value = Number($('input:checked', group)?.value || 0)
+      $$('[data-star]', group).forEach((star) => (star.style.color = Number(star.dataset.star) <= value ? '#f59e0b' : '#cbd5e1'))
+    }
+    $$('input', group).forEach((input) => input.addEventListener('change', paint))
+    paint()
+  })
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    const data = new FormData(form)
+    const button = $('button', form)
+    const error = $('[data-review-error]', form)
+    const ratings = {}
+    $$('[data-review-product]', form).forEach((group) => {
+      const id = group.dataset.reviewProduct
+      ratings[id] = { rating: Number(data.get(`rating-${id}`)) || null, comment: data.get(`comment-${id}`) || null }
+    })
+    button.disabled = true
+    error.hidden = true
+    try {
+      const { message } = await api('POST', form.getAttribute('action'), { name: data.get('name'), ratings })
+      form.hidden = true
+      $('[data-review-message]').textContent = message
+      $('[data-review-thanks]').hidden = false
+    } catch (e) {
+      error.textContent = firstError(e)
+      error.hidden = false
+      button.disabled = false
+    }
+  })
+}
+
 /* ---------- Commun ---------- */
 
 $$('[data-autosubmit]').forEach((el) => el.addEventListener('change', () => el.form.submit()))
@@ -427,5 +466,6 @@ productPage()
 cartPage()
 checkoutPage()
 paymentForms()
+reviewForm()
 promoCode()
 countdowns()

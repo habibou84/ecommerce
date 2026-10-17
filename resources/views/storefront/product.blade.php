@@ -23,6 +23,7 @@
             'availability' => $variants->contains($inStock) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
             'url' => $productUrl,
         ],
+        'aggregateRating' => $reviews['count'] ? ['@type' => 'AggregateRating', 'ratingValue' => $reviews['average'], 'reviewCount' => $reviews['count']] : null,
     ];
 @endphp
 
@@ -135,6 +136,23 @@
                 <div class="mt-8 border-t border-slate-200 pt-6">
                     <h2 class="mb-2 text-lg font-semibold">Description</h2>
                     <div class="whitespace-pre-line leading-relaxed text-slate-700">{{ $description }}</div>
+                </div>
+            @endif
+
+            @if ($reviews['count'])
+                <div class="mt-8 border-t border-slate-200 pt-6" id="avis">
+                    <h2 class="mb-1 text-lg font-semibold">Avis clients</h2>
+                    <p class="mb-4 text-sm text-slate-600"><span class="text-amber-500">{{ str_repeat('★', (int) round($reviews['average'])) }}</span><span class="text-slate-300">{{ str_repeat('★', 5 - (int) round($reviews['average'])) }}</span> {{ number_format($reviews['average'], 1, ',', '') }} / 5 · {{ $reviews['count'] }} avis</p>
+                    <ul class="space-y-4">
+                        @foreach ($reviews['reviews'] as $review)
+                            <li>
+                                <p class="text-sm"><span class="text-amber-500">{{ str_repeat('★', $review->rating) }}</span><span class="text-slate-300">{{ str_repeat('★', 5 - $review->rating) }}</span> <span class="font-medium">{{ $review->author_name }}</span> <span class="text-slate-400">· {{ $review->published_at?->format('d/m/Y') }}</span></p>
+                                @if ($review->comment)
+                                    <p class="mt-1 whitespace-pre-line text-slate-700">{{ $review->comment }}</p>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
                 </div>
             @endif
         </div>

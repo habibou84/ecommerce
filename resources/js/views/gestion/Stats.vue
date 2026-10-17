@@ -16,6 +16,29 @@ const report = ref(null)
 const reportSaved = ref(false)
 const reportError = ref('')
 
+// Question en langage courant à l'assistant IA (réponse tirée des vrais chiffres de la boutique)
+const ai = computed(() => auth.profile?.ai ?? { enabled: false, used: 0, limit: 0 })
+const question = ref('')
+const answer = ref('')
+const asking = ref(false)
+const askError = ref('')
+const EXAMPLES = ['Combien de commandes livrées cette semaine ?', 'Quel est mon produit le plus vendu ce mois-ci ?', 'Quel livreur a le plus de retours ce mois-ci ?', 'Quels articles sont bientôt épuisés ?']
+async function ask(text = null) {
+  if (text) question.value = text
+  if (question.value.trim().length < 3) return
+  asking.value = true
+  askError.value = ''
+  answer.value = ''
+  try {
+    answer.value = (await http.post('/stats/ask', { question: question.value })).data.data.answer
+    if (auth.profile?.ai) auth.profile.ai.used++
+  } catch (e) {
+    askError.value = errorMessage(e)
+  } finally {
+    asking.value = false
+  }
+}
+
 const PRESETS = [['7', '7 jours'], ['30', '30 jours'], ['90', '90 jours'], ['month', 'Ce mois'], ['custom', 'Dates…']]
 
 function range() {
@@ -78,6 +101,21 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
       </template>
       <span v-if="loading" class="text-sm text-slate-500">Chargement…</span>
     </div>
+
+    <section v-if="ai.enabled && auth.can('finance.view') && !upgrade" class="card space-y-3 border-emerald-200 bg-emerald-50/60 p-4">
+      <h2 class="font-semibold">✨ Posez une question sur vos chiffres</h2>
+      <form class="flex gap-2" @submit.prevent="ask()">
+        <input v-model="question" class="input" maxlength="500" placeholder="Ex. Combien de robes j'ai vendu cette semaine ?" />
+        <button class="btn-brand shrink-0" :disabled="asking || question.trim().length < 3 || (ai.limit !== null && ai.used >= ai.limit)">{{ asking ? '…' : 'Demander' }}</button>
+      </form>
+      <div v-if="!answer && !asking" class="flex flex-wrap gap-2">
+        <button v-for="ex in EXAMPLES" :key="ex" type="button" class="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs text-emerald-900" @click="ask(ex)">{{ ex }}</button>
+      </div>
+      <p v-if="asking" class="text-sm text-slate-500">L'assistant regarde vos chiffres…</p>
+      <p v-if="answer" class="whitespace-pre-line rounded-lg bg-white p-3 text-sm">{{ answer }}</p>
+      <p v-if="askError" class="text-sm text-red-600">{{ askError }}</p>
+      <p class="text-xs text-slate-500">{{ ai.used }}{{ ai.limit !== null ? ` / ${ai.limit}` : '' }} action(s) de l'assistant ce mois-ci.</p>
+    </section>
 
     <Alert v-if="error" :tone="upgrade ? 'warning' : 'error'">
       {{ error }}

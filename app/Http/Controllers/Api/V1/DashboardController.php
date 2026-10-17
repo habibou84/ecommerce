@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\Reports\DailyAdvice;
 use App\Services\Stock\StockLevels;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +33,11 @@ class DashboardController extends Controller
                 'month_revenue' => (int) (clone $month)->sum('total'),
                 'month_delivered' => (clone $month)->count(),
             ];
+        }
+
+        // Conseils du jour (les mêmes que ceux du rapport du soir) pour qui voit les finances
+        if ($user->can(Permission::FinanceView->value)) {
+            $data['tips'] = app(DailyAdvice::class)->tips($this->currentStore());
         }
 
         if ($user->can(Permission::StockManage->value)) {

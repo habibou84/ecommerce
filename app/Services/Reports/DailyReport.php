@@ -53,9 +53,12 @@ class DailyReport
 
     /**
      * @param  array<string, int|string>  $f
+     * @param  list<string>  $tips  conseils du soir (DailyAdvice)
      */
-    public function text(Store $store, array $f): string
+    public function text(Store $store, array $f, array $tips = []): string
     {
+        $advice = $tips === [] ? null : "\n💡 Conseils :\n".implode("\n", array_map(fn ($t, $i) => ($i + 1).". {$t}", $tips, array_keys($tips)));
+
         return implode("\n", array_filter([
             "📊 {$store->name} — {$f['date']}",
             "Commandes reçues : {$f['orders']} (".Money::format($f['orders_amount']).')',
@@ -65,7 +68,24 @@ class DailyReport
             $f['courier_cash'] ? 'Espèces chez les livreurs : '.Money::format($f['courier_cash']) : null,
             $f['carrier_due'] ? 'À recevoir des entreprises de livraison : '.Money::format($f['carrier_due'])
                 .($f['carrier_due_overdue'] ? ' (dont '.Money::format($f['carrier_due_overdue']).' en retard)' : '') : null,
+            $advice,
         ]));
+    }
+
+    /**
+     * Conseils du soir par WhatsApp, juste après le rapport, si la boutique a le modèle « Conseils du soir »
+     * (un modèle Meta n'accepte ni retour à la ligne ni texte libre : les conseils tiennent sur une ligne).
+     *
+     * @param  list<string>  $tips
+     */
+    private function sendTips(Store $store, ScheduledReport $report, array $tips): bool
+    {
+        if ($tips !== []) {
+            $line = implode(' ', array_map(fn ($t, $i) => ($i + 1).') '.rtrim($t, '.').'.', $tips, array_keys($tips)));
+            $this->messenger->forTeam($store, (string) $report->user->phone, 'daily_tips', [$store->name, $line], 'report', $report->id);
+        }
+
+        return true;
     }
 
     /**
@@ -83,7 +103,8 @@ class DailyReport
             ['figures' => $figures, 'text' => $text, 'title' => $title] = app(GroupStats::class)->dailyReport($group, $day);
         } else {
             $figures = $this->figures($store, $day);
-            $text = $this->text($store, $figures);
+            $tips = app(DailyAdvice::class)->tips($store, $day);
+            $text = $this->text($store, $figures, $tips);
             $title = $store->name;
         }
 
@@ -92,7 +113,7 @@ class DailyReport
                 'whatsapp' => $this->messenger->forTeam($store, (string) $report->user->phone, 'daily_report', [
                     $title, (string) $figures['date'], (string) $figures['orders'], Money::format($figures['delivered_amount']),
                     (string) $figures['to_confirm'], (string) $figures['to_ship'],
-                ], 'report', $report->id) !== null,
+                ], 'report', $report->id) !== null && $this->sendTips($store, $report, $tips ?? []),
                 'email' => filled($report->user->email) ? $this->mail($report, $text) : false,
                 default => false,
             };

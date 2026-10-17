@@ -46,6 +46,39 @@ class FakeAiClient implements AiClient
         return ['data' => $response, 'input_tokens' => 1200, 'output_tokens' => 300];
     }
 
+    /** @var list<array{calls: list<array{0: string, 1: array}>, text: string}> */
+    private array $agentScripts = [];
+
+    /** @var list<mixed> résultats des outils appelés */
+    public array $toolResults = [];
+
+    public ?string $lastQuestion = null;
+
+    public ?string $lastSystem = null;
+
+    /**
+     * Prochaine réponse avec outils : les outils appelés (nom, paramètres), puis le texte final.
+     */
+    public function agentWill(array $calls, string $text): self
+    {
+        $this->agentScripts[] = compact('calls', 'text');
+
+        return $this;
+    }
+
+    public function agent(string $system, string $question, array $tools, callable $run, int $maxTurns = 6): array
+    {
+        $this->lastSystem = $system;
+        $this->lastQuestion = $question;
+        $this->calls[] = ['system' => $system, 'content' => [['type' => 'text', 'text' => $question]], 'schema' => ['tools' => array_column($tools, 'name')]];
+        $script = array_shift($this->agentScripts) ?? throw new \LogicException('Aucune réponse préparée.');
+        foreach ($script['calls'] as [$name, $input]) {
+            $this->toolResults[] = $run($name, $input);
+        }
+
+        return ['text' => $script['text'], 'input_tokens' => 2000, 'output_tokens' => 150];
+    }
+
     /**
      * Texte envoyé au modèle (tous les blocs texte du dernier appel).
      */

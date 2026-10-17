@@ -32,6 +32,11 @@ class TemplateLibrary
             'body' => 'Bonjour {{1}}, votre commande {{2}} a bien été livrée. Merci pour votre confiance et à bientôt !',
             'example' => ['Awa', '#1001'],
         ],
+        'review_request' => [
+            'name' => 'jm_demande_avis', 'category' => 'MARKETING',
+            'body' => 'Bonjour {{1}}, merci d\'avoir commandé chez {{2}} ! Votre avis sur les articles reçus nous aide beaucoup : {{3}} . Merci !',
+            'example' => ['Awa', 'Awa Mode', 'https://boutique.jibiat-marchand.com/avis/abc'],
+        ],
         'payment_link' => [
             'name' => 'jm_lien_paiement', 'category' => 'UTILITY',
             'body' => 'Bonjour {{1}}, voici le lien pour régler votre commande {{2}} ({{3}}) : {{4}} . Merci !',
@@ -41,6 +46,11 @@ class TemplateLibrary
             'name' => 'jm_panier_en_attente', 'category' => 'MARKETING',
             'body' => 'Bonjour {{1}}, vous avez laissé des articles dans votre panier chez {{2}}. Retrouvez-le ici : {{3}} . À bientôt !',
             'example' => ['Awa', 'Awa Mode', 'https://boutique.jibiat-marchand.com/panier/abc'],
+        ],
+        'daily_tips' => [
+            'name' => 'jm_conseils_du_soir', 'category' => 'UTILITY',
+            'body' => 'Conseils du soir pour {{1}} : {{2}} Bonne soirée !',
+            'example' => ['Awa Mode', '1) Réapprovisionnez « Robe wax » : 8 vendus cette semaine, plus que 2 en stock. 2) 3 commandes attendent une confirmation depuis plus d\'un jour.'],
         ],
         'daily_report' => [
             'name' => 'jm_rapport_du_jour', 'category' => 'UTILITY',

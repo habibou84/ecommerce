@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
+use App\Http\Controllers\Api\V1\Marketing\ReviewController;
 use App\Http\Controllers\Api\V1\Marketing\ShareController;
 use App\Http\Controllers\Api\V1\Marketing\TrackingController;
 use App\Http\Controllers\Api\V1\MemberController;
@@ -97,6 +98,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('plans', [ConsoleController::class, 'plans'])->name('plans');
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
+            Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
         });
     });
 
@@ -167,6 +169,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
             });
             Route::get('stats', [StatsController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('stats');
+            Route::post('stats/ask', [StatsController::class, 'ask'])->middleware(['permission:'.Permission::FinanceView->value, 'throttle:30,1'])->name('stats.ask');
             Route::get('cash-overview', [CashOverviewController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('cash.overview');
             Route::get('cash-register', [CashRegisterController::class, 'show'])->middleware('permission:'.Permission::CashManage->value.'|'.Permission::FinanceView->value)->name('cash-register.show');
             Route::middleware('permission:'.Permission::CashManage->value)->group(function () {
@@ -292,6 +295,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::patch('promotions/settings', [PromotionController::class, 'settings'])->name('promotions.settings');
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
+                Route::get('reviews', [ReviewController::class, 'index'])->name('reviews.index');
+                Route::post('reviews/{review}/publish', [ReviewController::class, 'publish'])->whereNumber('review')->name('reviews.publish');
+                Route::post('reviews/{review}/hide', [ReviewController::class, 'hide'])->whereNumber('review')->name('reviews.hide');
+                Route::delete('reviews/{review}', [ReviewController::class, 'destroy'])->whereNumber('review')->name('reviews.destroy');
             });
             Route::get('products/{product}/volume-prices', [PricingController::class, 'volumePrices'])->whereNumber('product')
                 ->middleware('permission:'.Permission::ProductsView->value)->name('products.volume-prices');

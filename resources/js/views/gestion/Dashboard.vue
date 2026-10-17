@@ -86,6 +86,14 @@ const steps = computed(() => [
       </Alert>
     </RouterLink>
 
+    <section v-if="stats?.tips?.length" class="card space-y-2 p-4">
+      <h3 class="font-semibold">💡 Conseils du jour</h3>
+      <ol class="list-decimal space-y-1 pl-5 text-sm text-slate-700">
+        <li v-for="(tip, i) in stats.tips" :key="i">{{ tip }}</li>
+      </ol>
+      <p class="text-xs text-slate-500">Tirés de vos chiffres : ventes, stock, confirmations et livraisons. Ils sont aussi dans le rapport du soir.</p>
+    </section>
+
     <section>
       <h3 class="mb-3 font-semibold">Pour bien démarrer</h3>
       <ol class="space-y-3">
