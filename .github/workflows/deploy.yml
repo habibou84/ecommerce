@@ -1,0 +1,79 @@
+name: Mise à jour des serveurs
+
+# Fusion dans main → préproduction ; fusion dans production → production.
+# Connexion SSH avec une clé qui ne peut lancer que deploy/update.sh (voir docs/MISE-A-JOUR-AUTOMATIQUE.md).
+# Tant que les secrets ne sont pas enregistrés, la mise à jour est simplement sautée.
+on:
+  push:
+    branches: [main, production]
+    paths-ignore:
+      - 'mobile/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+# Une mise à jour à la fois par serveur ; une fusion arrivée entre-temps passe ensuite (jamais annulée en cours)
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ github.ref_name == 'production' && 'Production' || 'Préproduction' }}
+    if: github.ref_name == 'main' || github.ref_name == 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HOST: ${{ secrets.DEPLOY_HOST }}
+      PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      USER_NAME: ${{ secrets.DEPLOY_USER || 'jmdeploy' }}
+      HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
+      KEY: ${{ github.ref_name == 'production' && secrets.DEPLOY_KEY_PRODUCTION || secrets.DEPLOY_KEY_PREPROD }}
+      SITE: ${{ github.ref_name == 'production' && 'https://jibiat-marchand.com' || 'https://preprod.jibiat-marchand.com' }}
+    steps:
+      - name: Secrets
+        id: secrets
+        run: |
+          if [ -z "$HOST" ] || [ -z "$HOST_KEY" ] || [ -z "$KEY" ]; then
+            echo "::notice::Mise à jour automatique pas encore configurée (secrets DEPLOY_*) : rien à faire."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Connexion
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          # Empreinte du serveur enregistrée dans les secrets : on ne se connecte qu'à lui
+          if [ "$PORT" = "22" ]; then echo "$HOST $HOST_KEY"; else echo "[$HOST]:$PORT $HOST_KEY"; fi > ~/.ssh/known_hosts
+
+      - name: Mise à jour
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          # La clé lance d'elle-même deploy/update.sh sur le serveur (commande imposée côté serveur)
+          ssh -T -i ~/.ssh/deploy -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=10 "$USER_NAME@$HOST" | tee deploy.log
+          grep -q "Terminé" deploy.log || { echo "::error::La mise à jour ne s'est pas terminée."; exit 1; }
+          deployed="$(grep 'Terminé' deploy.log | tail -n1 | sed 's/\x1b\[[0-9;]*m//g')"
+          echo "::notice::${deployed#==> }"
+          case "$deployed" in
+            *"${GITHUB_SHA:0:7}"*) ;;
+            *) echo "::warning::Le serveur affiche une autre version que ${GITHUB_SHA:0:7} (une fusion plus récente est peut-être déjà passée)." ;;
+          esac
+
+      - name: Vérification
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          for i in 1 2 3 4 5; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "$SITE/up" || true)"
+            [ "$code" = "200" ] && { echo "::notice::$SITE répond (200)."; exit 0; }
+            sleep 10
+          done
+          echo "::error::$SITE/up ne répond pas 200 (dernier code : $code)."
+          exit 1
+
+      - name: Nettoyage
+        if: always()
+        run: rm -f ~/.ssh/deploy
