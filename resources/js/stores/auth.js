@@ -7,6 +7,8 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     profile: null, // { user, store, role, permissions, is_owner, other_stores }
     loaded: false,
+    // Dernier changement de boutique (message de confirmation)
+    switchedTo: null,
   }),
 
   getters: {
@@ -42,10 +44,20 @@ export const useAuthStore = defineStore('auth', {
       this.loaded = true
     },
 
-    // Changer de boutique sans changer d'adresse
-    switchTo(id, path = '/gestion') {
+    // Changer de boutique sans changer d'adresse ni recharger l'application : même rubrique dans la nouvelle
+    // boutique (une page propre à l'ancienne, comme une commande, ramène à sa liste)
+    async switchTo(id, path = null) {
+      const { default: router } = await import('../router')
+      const current = router.currentRoute.value
       chooseStore(id)
-      window.location.assign(path)
+      await this.fetch()
+      if (!this.profile) return router.replace('/gestion/connexion')
+      this.switchedTo = { name: this.store?.name, at: Date.now() }
+      const target = path ?? (Object.values(current.params).some((v) => v !== '' && v !== undefined)
+        ? current.path.replace(/\/\d+(\/.*)?$/, '')
+        : current.path)
+      // Le garde du routeur ramène à l'accueil si la personne n'a pas accès à cette rubrique dans la nouvelle boutique
+      return router.replace(target)
     },
 
     async logout() {
