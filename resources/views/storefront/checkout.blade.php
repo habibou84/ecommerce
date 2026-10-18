@@ -75,6 +75,13 @@
                         <label for="note" class="field-label">Précisions pour la boutique <span class="font-normal text-slate-400">(facultatif)</span></label>
                         <textarea id="note" name="note" rows="2" class="field"></textarea>
                     </div>
+                    @if ($referral)
+                        <div>
+                            <label for="referral_code" class="field-label">Code de parrainage <span class="font-normal text-slate-400">(facultatif)</span></label>
+                            <input id="referral_code" name="referral_code" maxlength="12" class="field uppercase" autocomplete="off" data-referral-code>
+                            <p class="mt-1 text-sm text-slate-500">Un ami vous a donné son code ? @money($referral) de réduction sur votre première commande.</p>
+                        </div>
+                    @endif
                     <label class="flex items-start gap-2 text-sm text-slate-700">
                         <input type="checkbox" name="accepts_marketing" value="1" class="mt-0.5">
                         <span>Recevoir les nouveautés et offres de {{ $store->name }} sur WhatsApp (vous pouvez arrêter à tout moment en répondant STOP).</span>

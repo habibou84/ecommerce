@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\CampaignController;
+use App\Http\Controllers\Api\V1\Marketing\LoyaltyController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
 use App\Http\Controllers\Api\V1\Marketing\ReviewController;
@@ -219,6 +220,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('places', [DeliveryController::class, 'addPlace'])->name('places.store');
                 Route::post('customers', [CustomerController::class, 'store'])->name('customers.store');
                 Route::put('customers/{customer}', [CustomerController::class, 'update'])->whereNumber('customer')->name('customers.update');
+                Route::post('customers/{customer}/loyalty', [LoyaltyController::class, 'adjust'])->whereNumber('customer')->name('customers.loyalty');
                 Route::post('customers/{customer}/blacklist', [CustomerController::class, 'blacklist'])->whereNumber('customer')->name('customers.blacklist');
                 Route::delete('customers/{customer}/blacklist', [CustomerController::class, 'unblacklist'])->whereNumber('customer')->name('customers.unblacklist');
             });
@@ -308,6 +310,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::patch('promotions/settings', [PromotionController::class, 'settings'])->name('promotions.settings');
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
+                Route::get('loyalty', [LoyaltyController::class, 'show'])->name('loyalty.show');
+                Route::put('loyalty', [LoyaltyController::class, 'update'])->name('loyalty.update');
                 Route::get('campaigns', [CampaignController::class, 'index'])->name('campaigns.index');
                 Route::post('campaigns/preview', [CampaignController::class, 'preview'])->name('campaigns.preview');
                 Route::post('campaigns', [CampaignController::class, 'store'])->name('campaigns.store');

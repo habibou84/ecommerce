@@ -6,6 +6,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendPurchaseConversion;
 use App\Models\Order;
+use App\Services\Customers\Loyalty;
 use App\Services\Payments\PaymentDesk;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
@@ -47,6 +48,7 @@ class CheckoutController extends Controller
             'cart' => $cart,
             'pickupPoints' => $this->checkout->pickupPoints($store),
             'payment' => $this->onlinePayment->options($store, $summary['subtotal']),
+            'referral' => ($loyalty = app(Loyalty::class)->settings($store))['referral_enabled'] ? $loyalty['referral_discount'] : null,
             'meta' => ['title' => 'Commande · '.$store->name, 'description' => '', 'path' => '/commande', 'noindex' => true],
         ]);
     }
@@ -105,6 +107,7 @@ class CheckoutController extends Controller
             'payment' => ['nullable', Rule::in(['cod', 'online'])],
             'payment_method' => ['nullable', Rule::in(array_keys(PaymentDesk::METHODS))],
             'accepts_marketing' => ['nullable', 'boolean'],
+            'referral_code' => ['nullable', 'string', 'max:12'],
         ], [], ['name' => 'nom', 'phone' => 'téléphone', 'place_id' => 'quartier', 'payment_method' => 'moyen de paiement']);
 
         $store = $this->currentStore();

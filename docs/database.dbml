@@ -1909,3 +1909,16 @@ Table purchase_order_items {
   received_quantity int [default: 0]
   unit_cost int
 }
+
+Table loyalty_entries {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  customer_id bigint [ref: > customers.id, not null]
+  points int [not null, note: '+ gagnés, − utilisés']
+  type varchar(20) [not null, note: 'earned, redeemed, refunded, reversed, referral, adjustment']
+  order_id bigint [ref: > orders.id]
+  note varchar
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  Note: 'Journal des points de fidélité ; solde dans customers.loyalty_points. customers.referral_code / referred_by_id ; orders.points_used, points_discount, referral_discount, referred_by_customer_id ; stores.loyalty_settings (json).'
+}

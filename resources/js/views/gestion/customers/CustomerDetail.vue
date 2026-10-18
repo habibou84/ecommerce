@@ -8,6 +8,17 @@ import { formatDateTime, money } from '../../../lib/format'
 import { STATUS_TONES } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
 
+const adjust = ref({ points: null, note: '', error: '' })
+async function adjustPoints() {
+  adjust.value.error = ''
+  try {
+    customer.value.loyalty = (await http.post(`/customers/${props.id}/loyalty`, { points: adjust.value.points, note: adjust.value.note || null })).data.data
+    adjust.value = { points: null, note: '', error: '' }
+  } catch (e) {
+    adjust.value.error = errorMessage(e)
+  }
+}
+
 const props = defineProps({ id: { type: String, required: true } })
 const auth = useAuthStore()
 
@@ -99,6 +110,24 @@ async function toggleBlacklist() {
             <button class="btn-brand ml-auto">Enregistrer</button>
           </div>
         </form>
+
+        <section v-if="customer.loyalty" class="card space-y-2 p-4 text-sm">
+          <h3 class="font-semibold">Fidélité</h3>
+          <p><strong class="text-lg">{{ customer.loyalty.points }}</strong> point(s) · {{ money(customer.loyalty.value) }} de réduction possible</p>
+          <p v-if="customer.loyalty.referral_code">Code de parrainage : <strong class="font-mono">{{ customer.loyalty.referral_code }}</strong> · {{ customer.loyalty.referrals }} filleul(s)</p>
+          <form v-if="auth.can('orders.manage')" class="flex gap-2" @submit.prevent="adjustPoints">
+            <input v-model.number="adjust.points" type="number" class="input w-24 py-1" placeholder="± pts" required />
+            <input v-model="adjust.note" class="input py-1" placeholder="Motif" maxlength="255" />
+            <button class="btn-secondary px-3 py-1">Ajuster</button>
+          </form>
+          <p v-if="adjust.error" class="text-xs text-red-600">{{ adjust.error }}</p>
+          <ul v-if="customer.loyalty.history.length" class="divide-y divide-slate-100 text-xs">
+            <li v-for="(h, i) in customer.loyalty.history" :key="i" class="flex justify-between py-1">
+              <span>{{ new Date(h.created_at).toLocaleDateString('fr-FR') }} · {{ h.label }}<template v-if="h.note"> · {{ h.note }}</template></span>
+              <span :class="h.points < 0 ? 'text-red-700' : 'text-emerald-700'">{{ h.points > 0 ? '+' : '' }}{{ h.points }}</span>
+            </li>
+          </ul>
+        </section>
 
         <section v-if="customer.other_stores?.length" class="card p-4 text-sm">
           <h3 class="mb-2 font-semibold">Dans vos autres boutiques</h3>

@@ -23,6 +23,9 @@
                 @if ($order->discount_total)
                     <div class="flex justify-between text-brand"><dt>Remise{{ $order->discount_code ? ' ('.$order->discount_code.')' : '' }}</dt><dd>− @money($order->discount_total)</dd></div>
                 @endif
+                @if ($order->referral_discount)
+                    <div class="flex justify-between text-brand"><dt>Réduction de parrainage</dt><dd>− @money($order->referral_discount)</dd></div>
+                @endif
                 <div class="flex justify-between"><dt>Livraison</dt><dd>{{ $order->shipping_fee ? \Jibiat\Socle\Money::format($order->shipping_fee) : ($order->delivery_method === 'pickup' ? 'Retrait' : ($order->internal_note ? 'À confirmer' : 'Offerte')) }}</dd></div>
                 @if ($order->amount_paid)
                     <div class="flex justify-between text-emerald-800"><dt>Déjà payé</dt><dd>@money($order->amount_paid)</dd></div>

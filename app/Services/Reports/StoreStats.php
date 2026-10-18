@@ -51,7 +51,7 @@ class StoreStats
             AVG(CASE WHEN status != 'cancelled' THEN total END) AS avg_basket,
             SUM(CASE WHEN status = 'completed' THEN discount_total ELSE 0 END) AS discounts,
             SUM(CASE WHEN status = 'completed' THEN shipping_fee ELSE 0 END) AS shipping_income,
-            SUM(CASE WHEN status = 'completed' AND cost_total IS NOT NULL THEN subtotal - discount_total - cost_total ELSE 0 END) AS product_margin,
+            SUM(CASE WHEN status = 'completed' AND cost_total IS NOT NULL THEN subtotal - discount_total - points_discount - referral_discount - cost_total ELSE 0 END) AS product_margin,
             SUM(CASE WHEN status = 'completed' AND cost_total IS NULL THEN 1 ELSE 0 END) AS without_cost
         ")->first();
 
@@ -100,7 +100,7 @@ class StoreStats
             SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS returned,
             SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
             SUM(CASE WHEN status = 'completed' THEN total ELSE 0 END) AS revenue,
-            SUM(CASE WHEN status = 'completed' AND cost_total IS NOT NULL THEN subtotal - discount_total - cost_total ELSE 0 END) AS margin")
+            SUM(CASE WHEN status = 'completed' AND cost_total IS NOT NULL THEN subtotal - discount_total - points_discount - referral_discount - cost_total ELSE 0 END) AS margin")
             ->get()->keyBy('source');
 
         return $rows->keys()->merge($ads->keys())->unique()

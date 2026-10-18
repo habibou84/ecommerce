@@ -27,6 +27,7 @@ use App\Notifications\OrderPlaced;
 use App\Services\Accounts\TeamNotifier;
 use App\Services\Billing\PlanLimits;
 use App\Services\Customers\CustomerBook;
+use App\Services\Customers\Loyalty;
 use App\Services\Places\Places;
 use App\Services\Promotions\Pricing;
 use App\Services\Stock\StockKeeper;
@@ -56,6 +57,7 @@ class OrderDesk
         private readonly TeamNotifier $notifier,
         private readonly Pricing $pricing,
         private readonly PlanLimits $limits,
+        private readonly Loyalty $loyalty,
     ) {}
 
     /**
@@ -94,12 +96,15 @@ class OrderDesk
                 'created_by' => $actor?->id,
             ]);
             $this->applyPlace($store, $order);
+            // Fidélité : points utilisés et réduction de parrainage (avant le calcul du total)
+            $this->loyalty->prepare($store, $order, $customer, $data);
             $order->save();
 
             $this->replaceItems($order, $data['items'], $actor);
             $this->recalculate($order, $data['shipping_fee'] ?? null, true);
             $order->save();
             $this->pricing->recordUsages($order);
+            $this->loyalty->commit($order, $actor);
 
             $this->log($order, 'created', ['source' => $order->source->value, 'total' => $order->total], $actor, $actorType);
 
@@ -490,7 +495,10 @@ class OrderDesk
         }
 
         $order->discount_total = min($order->discount_total, $order->subtotal);
-        $order->total = $order->subtotal - $order->discount_total + $order->shipping_fee;
+        // Réductions de fidélité, dans la limite de ce qui reste à payer pour les articles
+        $order->referral_discount = min((int) $order->referral_discount, $order->subtotal - $order->discount_total);
+        $order->points_discount = min((int) $order->points_discount, $order->subtotal - $order->discount_total - $order->referral_discount);
+        $order->total = $order->subtotal - $order->discount_total - $order->referral_discount - $order->points_discount + $order->shipping_fee;
     }
 
     /**

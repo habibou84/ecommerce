@@ -7,6 +7,7 @@ use App\Http\Resources\OrderResource;
 use App\Models\Customer;
 use App\Models\Tag;
 use App\Services\Customers\CustomerBook;
+use App\Services\Customers\Loyalty;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Jibiat\Socle\PhoneNumber;
@@ -60,6 +61,7 @@ class CustomerController extends Controller
             'note' => $model->note,
             'accepts_marketing' => $model->accepts_marketing,
             'marketing_opt_out_at' => $model->marketing_opt_out_at?->toIso8601String(),
+            'loyalty' => app(Loyalty::class)->forCustomer($model, true),
             'blacklist_reason' => $model->blacklist_reason,
             'addresses' => $model->addresses->map(fn ($a) => [
                 'id' => $a->id,
