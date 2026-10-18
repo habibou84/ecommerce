@@ -54,6 +54,7 @@ const groups = [
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/whatsapp', label: 'WhatsApp' },
+    { to: '/gestion/textes-messages', label: 'Textes des messages' },
     { to: '/gestion/mes-boutiques', label: 'Ajouter une boutique', single: true },
   ] },
 ]

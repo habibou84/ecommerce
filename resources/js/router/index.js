@@ -98,6 +98,7 @@ const storeRoutes = [
       { path: 'statistiques', component: () => import('../views/gestion/Stats.vue'), meta: { title: 'Statistiques', permissionAny: ['finance.view', 'orders.view'] } },
       { path: 'paiements', component: () => import('../views/gestion/payments/Payments.vue'), meta: { title: 'Paiement en ligne', permission: 'payments.manage' } },
       { path: 'whatsapp', component: () => import('../views/gestion/messaging/WhatsApp.vue'), meta: { title: 'WhatsApp', permission: 'store.manage' } },
+      { path: 'textes-messages', component: () => import('../views/gestion/messaging/MessageTexts.vue'), meta: { title: 'Textes des messages', permission: 'store.manage' } },
       { path: 'abonnement', component: () => import('../views/gestion/Billing.vue'), meta: { title: 'Abonnement', permission: 'billing.manage' } },
       { path: 'mes-boutiques', component: () => import('../views/gestion/group/MyStores.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },
       { path: 'mes-boutiques/statistiques', component: () => import('../views/gestion/group/GroupStats.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },

@@ -13,6 +13,7 @@ use App\Models\OrderEvent;
 use App\Models\OutboundMessage;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
+use App\Services\Orders\MessageTexts;
 use App\Services\Orders\OrderDesk;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
@@ -152,12 +153,7 @@ class CustomerMessenger
 
     private function confirmationText(Order $order): string
     {
-        $order->loadMissing(['items', 'store']);
-        $hello = 'Bonjour'.($order->customer_name ? ' '.Str::before($order->customer_name, ' ') : '');
-        $items = $order->items->map(fn ($i) => "• {$i->quantity} × {$i->label()}")->implode("\n");
-        $where = $order->delivery_method === 'pickup' ? 'à retirer en boutique' : 'à livrer à '.trim(($order->shipping_place_label ?? '').' '.($order->shipping_address ?? ''));
-
-        return "{$hello}, merci pour votre commande {$order->reference()} chez {$order->store->name} :\n{$items}\n\nTotal : ".Money::format($order->total)." ({$where}).\n\nConfirmez-vous la commande ?";
+        return app(MessageTexts::class)->render($order, 'whatsapp_confirmation');
     }
 
     public function forCart(Cart $cart): ?OutboundMessage

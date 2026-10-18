@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Orders\CustomerController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryController;
+use App\Http\Controllers\Api\V1\Orders\MessageTextController;
 use App\Http\Controllers\Api\V1\Orders\OrderController;
 use App\Http\Controllers\Api\V1\Orders\ReturnController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
@@ -312,6 +313,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
                 Route::post('marketing/catalog-feed/renew', [TrackingController::class, 'renewFeed'])->name('catalog-feed.renew');
+                Route::get('message-texts', [MessageTextController::class, 'index'])->name('message-texts.index');
+                Route::put('message-texts', [MessageTextController::class, 'update'])->name('message-texts.update');
+                Route::post('message-texts/preview', [MessageTextController::class, 'preview'])->name('message-texts.preview');
                 Route::get('loyalty', [LoyaltyController::class, 'show'])->name('loyalty.show');
                 Route::put('loyalty', [LoyaltyController::class, 'update'])->name('loyalty.update');
                 Route::get('campaigns', [CampaignController::class, 'index'])->name('campaigns.index');
