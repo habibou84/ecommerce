@@ -4,9 +4,11 @@ namespace App\Services\Orders;
 
 use App\Exceptions\BusinessRuleException;
 use App\Models\Order;
+use App\Models\Shipment;
 use App\Models\Store;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
+use Jibiat\Socle\PhoneNumber;
 
 /**
  * Textes des messages au client, modifiables par le marchand, avec des mots entre accolades remplacés par les
@@ -23,6 +25,10 @@ class MessageTexts
         'whatsapp_confirmation' => [
             'label' => 'Demande de confirmation automatique (boutons Confirmer / Annuler, dans la conversation)',
             'text' => "Bonjour {prenom}, merci pour votre commande {commande} chez {boutique} :\n{articles}\n\nTotal : {total} ({adresse}).\n\nConfirmez-vous la commande ?",
+        ],
+        'courier_on_the_way' => [
+            'label' => 'Livreur en route (au départ du livreur ; boutons J\'attends / Pas disponible)',
+            'text' => "Bonjour {prenom}, votre commande {commande} de {boutique} arrive ! 🛵\nVotre livreur {livreur} est en route, joignable au {tel_livreur}.\nMontant à payer : {reste}\nMerci de rester joignable.",
         ],
         'confirmed' => [
             'label' => 'Commande confirmée',
@@ -56,6 +62,8 @@ class MessageTexts
         'adresse' => 'livraison ou retrait',
         'suivi' => 'lien de suivi',
         'lien_avis' => 'lien pour donner son avis',
+        'livreur' => 'prénom du livreur',
+        'tel_livreur' => 'téléphone du livreur',
     ];
 
     public function text(Store $store, string $key): string
@@ -110,6 +118,10 @@ class MessageTexts
      */
     private function values(Order $order): array
     {
+        // Livreur de la livraison en cours (message « livreur en route »)
+        $courier = $order->exists ? Shipment::forStore($order->store_id)->where('order_id', $order->id)->whereNotNull('courier_id')
+            ->whereNotIn('status', ['cancelled', 'rejected'])->latest('id')->first()?->courier : null;
+
         return [
             'prenom' => $order->customer_name ? (string) strtok($order->customer_name, ' ') : 'cher client',
             'boutique' => $order->store->name,
@@ -120,6 +132,8 @@ class MessageTexts
             'adresse' => $order->delivery_method === 'pickup' ? 'à retirer en boutique' : 'à livrer à '.trim(($order->shipping_place_label ?? '').' '.($order->shipping_address ?? '')),
             'suivi' => $order->trackingUrl(),
             'lien_avis' => $order->store->url('/avis/'.$order->tracking_token),
+            'livreur' => $courier ? (string) strtok($courier->name, ' ') : '',
+            'tel_livreur' => $courier?->phone ? PhoneNumber::display($courier->phone) : '',
         ];
     }
 }

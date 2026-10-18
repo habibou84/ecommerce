@@ -22,6 +22,12 @@ class TemplateLibrary
             'example' => ['Awa', '#1001', '15 000 F'],
             'buttons' => ['Confirmer', 'Annuler'],
         ],
+        'courier_on_the_way' => [
+            'name' => 'jm_livreur_en_route', 'category' => 'UTILITY',
+            'body' => 'Bonjour {{1}}, votre commande {{2}} de {{3}} arrive ! Votre livreur {{4}} est en route, joignable au {{5}}. Montant à payer : {{6}}. Merci de rester joignable.',
+            'example' => ['Awa', '#1001', 'Awa Mode', 'Koffi', '01 02 03 04 05', '15 000 F'],
+            'buttons' => ['J\'attends', 'Pas disponible'],
+        ],
         'order_shipped' => [
             'name' => 'jm_commande_en_route', 'category' => 'UTILITY',
             'body' => 'Bonjour {{1}}, votre commande {{2}} est en route ! Suivez-la ici : {{3}} . Merci de rester joignable.',

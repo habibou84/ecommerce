@@ -22,13 +22,19 @@ use App\Models\StockLevel;
 use App\Models\Store;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Models\WhatsappAccount;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
+use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Jibiat\Socle\Money;
+use Jibiat\Socle\PhoneNumber;
 use Tests\TestCase;
 
 class CourierTest extends TestCase
@@ -162,6 +168,49 @@ class CourierTest extends TestCase
         $this->assertSame(OrderStatus::Completed, $order->fresh()->status);
         $this->assertSame(0, CashCollection::count());
         $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.cash_held', 0);
+    }
+
+    public function test_the_customer_is_told_when_the_courier_leaves(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.1']]])]);
+        $account = WhatsappAccount::create(['store_id' => $this->store->id, 'phone_number_id' => '123', 'access_token' => 'tok', 'app_secret' => 's', 'verify_token' => Str::random(20),
+            'webhook_uuid' => (string) Str::uuid(), 'templates' => ['courier_on_the_way' => 'jm_livreur_en_route'], 'automations' => ['courier_on_the_way' => true], 'status' => 'active']);
+        [$courier, $user] = $this->onboardCourier();
+        $order = $this->order();
+        $shipment = $this->assign($order, $courier);
+
+        $this->asCourier($user);
+        $this->step($shipment, ['status' => 'in_transit'])->assertOk();
+        Http::assertNothingSent();
+        $this->step($shipment, ['status' => 'out_for_delivery'])->assertOk();
+
+        Http::assertSent(fn ($r) => ($r['template']['name'] ?? null) === 'jm_livreur_en_route' && $r['to'] === '2250506070809'
+            && array_column($r['template']['components'][0]['parameters'], 'text') === ['Fatou', $order->reference(), 'Awa Mode', 'Koffi', PhoneNumber::display($courier->phone), Money::format($order->total)]
+            && $r['template']['components'][2]['parameters'][0]['payload'] === "eta_ko:{$shipment->id}");
+        $mission = $this->storeApi($this->store, 'GET', "courier/missions/{$shipment->id}")->assertOk()->json('data');
+        $this->assertNotNull($mission['customer_notified_at']);
+        $this->assertNull($mission['customer_response']);
+        $this->assertStringContainsString(rawurlencode('Votre livreur Koffi est en route'), $mission['notify_url']);
+
+        // Le client répond « Pas disponible » : le livreur et l'équipe sont prévenus
+        app(CustomerMessenger::class)->handleInbound($account, ['entry' => [['changes' => [['value' => [
+            'contacts' => [['wa_id' => '2250506070809', 'profile' => ['name' => 'Fatou']]],
+            'messages' => [['from' => '2250506070809', 'id' => 'wamid.r', 'timestamp' => (string) time(), 'type' => 'button', 'button' => ['payload' => "eta_ko:{$shipment->id}", 'text' => 'Pas disponible']]],
+        ]]]]]]);
+        $this->assertSame('unavailable', $shipment->fresh()->customer_response);
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $user->id)->get()->contains(fn ($n) => ($n->data['kind'] ?? null) === 'courier_alert'));
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Client pas disponible')));
+        $this->storeApi($this->store, 'GET', 'courier/missions')->assertJsonPath('data.0.customer_response', 'unavailable');
+
+        // Une réponse d'un autre numéro est ignorée ; « J'attends » remplace la réponse
+        app(CustomerMessenger::class)->handleInbound($account, ['entry' => [['changes' => [['value' => [
+            'messages' => [['from' => '2250101010101', 'id' => 'wamid.x', 'timestamp' => (string) time(), 'type' => 'button', 'button' => ['payload' => "eta_ok:{$shipment->id}"]]],
+        ]]]]]]);
+        $this->assertSame('unavailable', $shipment->fresh()->customer_response);
+        app(CustomerMessenger::class)->handleInbound($account, ['entry' => [['changes' => [['value' => [
+            'messages' => [['from' => '2250506070809', 'id' => 'wamid.y', 'timestamp' => (string) time(), 'type' => 'button', 'button' => ['payload' => "eta_ok:{$shipment->id}"]]],
+        ]]]]]]);
+        $this->assertSame('available', $shipment->fresh()->customer_response);
     }
 
     public function test_the_free_plan_allows_one_courier(): void

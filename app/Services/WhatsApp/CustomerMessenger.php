@@ -4,6 +4,7 @@ namespace App\Services\WhatsApp;
 
 use App\Enums\ConfirmationOutcome;
 use App\Enums\OrderStatus;
+use App\Enums\Permission;
 use App\Jobs\SendWhatsAppMessage;
 use App\Models\Cart;
 use App\Models\Conversation;
@@ -11,12 +12,17 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderEvent;
 use App\Models\OutboundMessage;
+use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
+use App\Notifications\CourierAlert;
+use App\Notifications\ShipmentAlert;
+use App\Services\Accounts\TeamNotifier;
 use App\Services\Orders\MessageTexts;
 use App\Services\Orders\OrderDesk;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
+use Jibiat\Socle\PhoneNumber;
 use Throwable;
 
 /**
@@ -30,6 +36,7 @@ class CustomerMessenger
      */
     public const EVENTS = [
         'order_confirmation' => ['label' => 'Demande de confirmation (boutons Confirmer / Annuler)', 'variables' => ['nom du client', 'n° de commande', 'montant'], 'buttons' => ['Confirmer', 'Annuler']],
+        'courier_on_the_way' => ['label' => 'Livreur en route (quand votre livreur part livrer : nom, numéro, montant ; boutons J\'attends / Pas disponible)', 'variables' => ['nom du client', 'n° de commande', 'boutique', 'nom du livreur', 'téléphone du livreur', 'montant à payer'], 'buttons' => ['J\'attends', 'Pas disponible']],
         'order_shipped' => ['label' => 'Commande en route', 'variables' => ['nom du client', 'n° de commande', 'lien de suivi'], 'buttons' => []],
         'order_delivered' => ['label' => 'Commande livrée (remerciement)', 'variables' => ['nom du client', 'n° de commande'], 'buttons' => []],
         'review_request' => ['label' => 'Demande d\'avis (24 h après la livraison)', 'variables' => ['nom du client', 'boutique', 'lien de l\'avis'], 'buttons' => []],
@@ -239,8 +246,72 @@ class CustomerMessenger
                     if (is_string($reply) && preg_match('/^(confirm|cancel):(\d+)$/', $reply, $m)) {
                         $this->answer($account, (int) $m[2], $m[1], (string) ($message['from'] ?? ''));
                     }
+                    if (is_string($reply) && preg_match('/^eta_(ok|ko):(\d+)$/', $reply, $m)) {
+                        $this->etaReply($account, (int) $m[2], $m[1], (string) ($message['from'] ?? ''));
+                    }
                 }
             }
+        }
+    }
+
+    /**
+     * Votre livreur part livrer : le client est prévenu (nom et numéro du livreur, montant à payer) et peut répondre
+     * « J'attends » ou « Pas disponible ». Gratuit dans la conversation si le client a écrit depuis moins de 24 h,
+     * sinon par le modèle approuvé ; rien si la boutique ne l'a pas activé.
+     */
+    public function courierOnTheWay(Shipment $shipment): ?OutboundMessage
+    {
+        $shipment->loadMissing('order.store', 'courier');
+        $order = $shipment->order;
+        $account = WhatsappAccount::forStore($shipment->store_id)->first();
+        if ($account === null || ! $account->automates('courier_on_the_way') || blank($order->customer_phone) || $shipment->courier === null) {
+            return null;
+        }
+        $phone = $order->shipping_phone ?: $order->customer_phone;
+        $buttons = ["eta_ok:{$shipment->id}", "eta_ko:{$shipment->id}"];
+        $conversation = Conversation::forStore($shipment->store_id)->where('channel', 'whatsapp')->where('contact', $phone)->first();
+
+        if ($conversation?->canReply()) {
+            $text = app(MessageTexts::class)->render($order, 'courier_on_the_way');
+            $message = OutboundMessage::create([
+                'store_id' => $account->store_id, 'channel' => 'whatsapp', 'to_phone' => $phone, 'event' => 'courier_on_the_way',
+                'body' => $text, 'related_type' => 'shipment', 'related_id' => $shipment->id, 'status' => 'queued',
+            ]);
+            SendWhatsAppMessage::dispatch($message->id, [], array_combine($buttons, self::EVENTS['courier_on_the_way']['buttons']), $text)->afterCommit();
+            $this->inbox->logAutomatic($account->store_id, $phone, '🤖 '.$text.' [J\'attends] [Pas disponible]');
+        } elseif (filled($account->templates['courier_on_the_way'] ?? null)) {
+            $message = $this->queue($account, $phone, 'courier_on_the_way', [
+                Str::before((string) ($order->customer_name ?: 'cher client'), ' '), $order->reference(), $order->store->name,
+                $shipment->courier->name, PhoneNumber::display($shipment->courier->phone), $order->amountDue() > 0 ? Money::format($order->amountDue()) : 'déjà payé',
+            ], $buttons, 'shipment', $shipment->id);
+        } else {
+            return null;
+        }
+        $shipment->forceFill(['customer_notified_at' => now(), 'customer_response' => null, 'customer_response_at' => null])->save();
+
+        return $message;
+    }
+
+    /**
+     * Le client répond au message du livreur en route : noté sur la livraison ; « Pas disponible » prévient le
+     * livreur et l'équipe tout de suite.
+     */
+    private function etaReply(WhatsappAccount $account, int $shipmentId, string $choice, string $from): void
+    {
+        $shipment = Shipment::forStore($account->store_id)->with('order', 'courier.user')->find($shipmentId);
+        $order = $shipment?->order;
+        if ($shipment === null || $order === null || ltrim((string) ($order->shipping_phone ?: $order->customer_phone), '+') !== ltrim($from, '+')
+            || ! in_array($shipment->status->value, ['in_transit', 'out_for_delivery', 'rescheduled', 'failed'], true)) {
+            return;
+        }
+        $response = $choice === 'ok' ? 'available' : 'unavailable';
+        $shipment->forceFill(['customer_response' => $response, 'customer_response_at' => now()])->save();
+        $this->orders->log($order, 'customer_eta_reply', ['response' => $response, 'shipment' => $shipment->reference()], null, 'customer');
+
+        if ($response === 'unavailable') {
+            $shipment->courier?->user?->notify(new CourierAlert($shipment, 'Client pas disponible', 'Appelez-le avant de vous déplacer.'));
+            app(TeamNotifier::class)->notify($order->store ?? $shipment->store, Permission::OrdersView->value,
+                new ShipmentAlert($shipment, 'Client pas disponible pour la livraison', 'Il a répondu au message « livreur en route ».'));
         }
     }
 

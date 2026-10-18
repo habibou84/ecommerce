@@ -14,6 +14,7 @@ use App\Models\Shipment;
 use App\Services\Couriers\CourierDesk;
 use App\Services\Couriers\CourierPayroll;
 use App\Services\Couriers\SharedCouriers;
+use App\Services\Orders\MessageTexts;
 use App\Services\Payments\PaymentDesk;
 use chillerlan\QRCode\QRCode;
 use Illuminate\Database\Eloquent\Builder;
@@ -107,6 +108,12 @@ class CourierAppController extends Controller
             'take_back' => SharedCouriers::within($order->store, fn () => OrderReturn::forStore($order->store_id)->where('exchange_order_id', $order->id)
                 ->where('status', 'pending')->with('items.orderItem')->get()
                 ->flatMap(fn (OrderReturn $r) => $r->items->map(fn ($l) => ['label' => $l->orderItem?->label(), 'quantity' => $l->quantity]))->values()),
+            // Message « livreur en route » : envoyé par la boutique, réponse du client, ou à envoyer soi-même
+            'customer_notified_at' => $model->customer_notified_at?->toIso8601String(),
+            'customer_response' => $model->customer_response,
+            'customer_response_at' => $model->customer_response_at?->toIso8601String(),
+            'notify_url' => 'https://wa.me/'.ltrim((string) ($order->shipping_phone ?? $order->customer_phone), '+').'?text='
+                .rawurlencode(SharedCouriers::within($order->store, fn () => app(MessageTexts::class)->render($order, 'courier_on_the_way'))),
             // Reste à payer (0 si le client a payé en ligne, à la porte ou avant) et paiement à la porte possible
             'amount_due' => $order->amountDue(),
             'door_payment' => $order->amountDue() > 0 && SharedCouriers::within($order->store, fn () => app(PaymentDesk::class)->availableMethods($order->store)) !== [],
@@ -240,6 +247,7 @@ class CourierAppController extends Controller
             'customer_name' => $order->shipping_name ?? $order->customer_name,
             'place' => $order->shipping_place_label,
             'cod_amount' => $s->cod_amount,
+            'customer_response' => $s->customer_response,
             'collected_amount' => $s->collected_amount,
             'attempts_count' => $s->attempts_count,
             'scheduled_date' => $order->scheduled_date?->toDateString(),
