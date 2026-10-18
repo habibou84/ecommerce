@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
+import { hasPendingSteps, isOffline, loadMission, offline, queueStep, shrinkPhoto } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
 import { SHIPMENT_TONES } from '../../lib/shipping'
 
@@ -10,6 +11,7 @@ const mission = ref(null)
 const error = ref('')
 const errors = ref({})
 const busy = ref(false)
+const queued = ref(false) // dernière étape gardée sur le téléphone, pas encore envoyée
 const panel = ref(null) // 'delivered' | 'failed'
 const form = reactive({ code: '', payment_method: 'cash', collected_amount: 0, reason: '', rescheduled_to: '', photo: null })
 
@@ -18,13 +20,16 @@ const METHODS = [['cash', 'Espèces'], ['wave', 'Wave'], ['orange_money', 'Orang
 
 async function load() {
   try {
-    mission.value = (await http.get(`/courier/missions/${props.id}`)).data.data
+    mission.value = await loadMission(Number(props.id))
     form.collected_amount = Math.min(mission.value.cod_amount, mission.value.amount_due)
   } catch (e) {
     error.value = errorMessage(e)
   }
 }
 onMounted(load)
+watch(() => offline.synced, load)
+// Sans réseau, rien ne peut se vérifier ou se payer en ligne : le paiement à la porte attend le réseau
+const noNetwork = computed(() => !offline.online || offline.savedAt !== null)
 
 // Paiement à la porte : QR code mobile money, puis attente de la confirmation du prestataire
 const door = ref(null)
@@ -59,20 +64,37 @@ async function step(status) {
   busy.value = true
   error.value = ''
   errors.value = {}
+  queued.value = false
+  const fields = {}
+  if (status === 'delivered') {
+    if (mission.value.requires_code) fields.code = form.code
+    fields.payment_method = form.payment_method
+    fields.collected_amount = mission.value.amount_due > 0 ? form.collected_amount : 0
+  }
+  if (status === 'failed') {
+    fields.reason = form.reason
+    if (form.rescheduled_to) fields.rescheduled_to = form.rescheduled_to
+  }
+  const photo = form.photo && ['delivered', 'failed'].includes(status) ? await shrinkPhoto(form.photo) : null
   try {
-    const body = new FormData()
-    body.append('status', status)
-    if (status === 'delivered') {
-      if (mission.value.requires_code) body.append('code', form.code)
-      body.append('payment_method', form.payment_method)
-      body.append('collected_amount', mission.value.amount_due > 0 ? form.collected_amount : 0)
+    // Pas de réseau, ou des étapes de cette mission déjà en attente (l'ordre compte) : l'étape attend sur le téléphone
+    if (noNetwork.value || await hasPendingSteps(mission.value.id)) {
+      await queueStep(mission.value, status, fields, photo)
+      queued.value = true
+    } else {
+      const body = new FormData()
+      body.append('status', status)
+      Object.entries(fields).forEach(([k, v]) => body.append(k, v))
+      if (photo) body.append('photo', photo, 'photo.jpg')
+      try {
+        await http.post(`/courier/missions/${props.id}/steps`, body)
+      } catch (e) {
+        if (!isOffline(e)) throw e
+        // Le réseau a lâché pendant l'envoi
+        await queueStep(mission.value, status, fields, photo)
+        queued.value = true
+      }
     }
-    if (status === 'failed') {
-      body.append('reason', form.reason)
-      if (form.rescheduled_to) body.append('rescheduled_to', form.rescheduled_to)
-    }
-    if (form.photo && ['delivered', 'failed'].includes(status)) body.append('photo', form.photo)
-    await http.post(`/courier/missions/${props.id}/steps`, body)
     panel.value = null
     form.photo = null
     await load()
@@ -94,7 +116,11 @@ async function step(status) {
         <p v-if="mission.store" class="text-sm text-sky-800">Boutique {{ mission.store }}</p>
         <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[mission.status]">{{ mission.status_label }}</span>
       </div>
-      <template v-if="mission.amount_due > 0">
+      <template v-if="mission.pending_sync && mission.status === 'delivered'">
+        <p class="mt-2 text-2xl font-bold">{{ money(mission.collected_amount) }}</p>
+        <p class="text-sm text-slate-500">encaissé · pas encore envoyé à la boutique</p>
+      </template>
+      <template v-else-if="mission.amount_due > 0">
         <p class="mt-2 text-2xl font-bold">{{ money(Math.min(mission.cod_amount, mission.amount_due)) }}</p>
         <p class="text-sm text-slate-500">à encaisser auprès du client</p>
       </template>
@@ -138,6 +164,8 @@ async function step(status) {
     </section>
 
     <Alert v-if="error">{{ error }}</Alert>
+    <Alert v-if="queued" tone="warning">Étape gardée sur le téléphone : elle sera envoyée à la boutique dès que le réseau revient, avec l'heure où vous l'avez faite.</Alert>
+    <p v-else-if="mission.pending_sync" class="text-sm text-amber-800">⏳ Des étapes de cette livraison ne sont pas encore envoyées.</p>
 
     <div class="space-y-2">
       <button v-if="can('in_transit')" class="btn-brand w-full py-4 text-base" :disabled="busy" @click="step('in_transit')">📦 J'ai récupéré le colis</button>
@@ -153,8 +181,9 @@ async function step(status) {
         <label for="code" class="label">Code donné par le client</label>
         <input id="code" v-model="form.code" inputmode="numeric" maxlength="6" class="input text-center text-2xl tracking-widest" required />
         <p v-if="errors.code" class="mt-1 text-sm text-red-600">{{ errors.code }}</p>
+        <p v-else-if="noNetwork" class="mt-1 text-xs text-slate-500">Sans réseau, le code sera vérifié à l'envoi : demandez bien le bon code au client.</p>
       </div>
-      <div v-if="mission.door_payment && !paidAtDoor" class="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm">
+      <div v-if="mission.door_payment && !paidAtDoor && !noNetwork" class="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm">
         <template v-if="!door">
           <p class="mb-2">Le client préfère payer par Wave, Orange Money, MTN ou Moov ? Il scanne le code ou ouvre le lien, et la commande est payée sans espèces.</p>
           <button type="button" class="btn-secondary w-full" :disabled="busy" @click="startDoorPayment">📱 Paiement mobile money (QR code)</button>

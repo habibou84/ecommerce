@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
-import http, { errorMessage } from '../../lib/http'
+import { errorMessage } from '../../lib/http'
+import { cachedGet, loadMissions, offline } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
 import { SHIPMENT_TONES } from '../../lib/shipping'
 
@@ -12,9 +13,9 @@ let timer
 
 async function load() {
   try {
-    const [m, p] = await Promise.all([http.get('/courier/missions'), http.get('/courier/me')])
-    missions.value = m.data.data
-    me.value = p.data.data
+    const [m, p] = await Promise.all([loadMissions(), cachedGet('/courier/me', 'me')])
+    missions.value = m
+    me.value = p
     error.value = ''
   } catch (e) {
     error.value = errorMessage(e)
@@ -25,6 +26,7 @@ onMounted(() => {
   timer = setInterval(load, 60000) // nouvelles missions
 })
 onUnmounted(() => clearInterval(timer))
+watch(() => offline.synced, load)
 
 const FINAL = ['delivered', 'returned', 'cancelled', 'lost']
 const active = computed(() => (missions.value ?? []).filter((m) => !FINAL.includes(m.status)))
@@ -49,6 +51,7 @@ const done = computed(() => (missions.value ?? []).filter((m) => FINAL.includes(
         <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[m.status]">{{ m.status_label }}</span>
       </div>
       <p class="mt-1 text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }}</p>
+      <p v-if="m.pending_sync" class="mt-1 text-xs text-amber-800">⏳ Pas encore envoyé</p>
       <p class="mt-1 text-sm">À encaisser : <strong>{{ money(m.cod_amount) }}</strong><span v-if="m.attempts_count" class="text-amber-700"> · {{ m.attempts_count }} tentative(s)</span></p>
       <p v-if="m.customer_response === 'unavailable'" class="mt-1 text-sm font-medium text-amber-800">⚠ Client pas disponible : appelez-le</p>
     </RouterLink>
