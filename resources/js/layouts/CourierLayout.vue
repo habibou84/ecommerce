@@ -1,13 +1,11 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import http from '../lib/http'
-import { cachedGet, dismissFailed, flush, forgetAll, offline, startOfflineSync } from '../lib/courierOffline'
-import { registerDevice, unregisterDevice } from '../lib/push'
+import { cachedGet, dismissFailed, flush, offline, startOfflineSync } from '../lib/courierOffline'
+import { registerDevice } from '../lib/push'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
-const router = useRouter()
 const available = ref(true)
 const tracking = ref(false) // la boutique voit sa position pendant la tournée
 const savedAt = (at) => new Date(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
@@ -23,6 +21,7 @@ onMounted(async () => {
       import('../views/courier/Missions.vue')
       import('../views/courier/Mission.vue')
       import('../views/courier/Money.vue')
+      import('../views/courier/Account.vue')
     })
   }
   try {
@@ -62,13 +61,11 @@ async function toggle() {
   }
 }
 
-async function logout() {
-  if (offline.pending && !confirm(`${offline.pending} étape(s) pas encore envoyée(s) seront perdues. Sortir quand même ?`)) return
-  await unregisterDevice()
-  await auth.logout().catch(() => {})
-  await forgetAll()
-  router.replace('/livreur/connexion')
-}
+const TABS = [
+  { to: '/livreur', icon: '📦', label: 'Ma tournée', active: (path) => path === '/livreur' || path.startsWith('/livreur/missions') },
+  { to: '/livreur/caisse', icon: '💰', label: 'Ma caisse', active: (path) => path === '/livreur/caisse' },
+  { to: '/livreur/compte', icon: '👤', label: 'Mon compte', active: (path) => path === '/livreur/compte' },
+]
 </script>
 
 <template>
@@ -103,10 +100,12 @@ async function logout() {
       <RouterView />
     </main>
 
+    <!-- Menu du bas : la sortie du compte est dans « Mon compte », jamais à portée d'un appui par erreur -->
     <nav class="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-lg border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
-      <RouterLink to="/livreur" class="flex-1 py-3 text-center text-sm" :class="$route.path === '/livreur' || $route.path.startsWith('/livreur/missions') ? 'font-semibold text-emerald-700' : 'text-slate-500'">📦 Livraisons</RouterLink>
-      <RouterLink to="/livreur/argent" class="flex-1 py-3 text-center text-sm" :class="$route.path === '/livreur/argent' ? 'font-semibold text-emerald-700' : 'text-slate-500'">💰 Mon argent</RouterLink>
-      <button class="flex-1 py-3 text-center text-sm text-slate-500" @click="logout">↩ Sortir</button>
+      <RouterLink v-for="tab in TABS" :key="tab.to" :to="tab.to" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs"
+                  :class="tab.active($route.path) ? 'font-semibold text-emerald-700' : 'text-slate-500'">
+        <span class="text-xl leading-none">{{ tab.icon }}</span>{{ tab.label }}
+      </RouterLink>
     </nav>
   </div>
 </template>

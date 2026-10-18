@@ -28,7 +28,7 @@ class RemittanceDecided extends StoreNotification
             'body' => $d->status === 'confirmed'
                 ? ($difference ? ($difference < 0 ? 'Manque ' : 'Excédent ').Money::format(abs($difference)) : 'Aucun écart ✓')
                 : ($d->reject_reason ?? 'Voyez avec la boutique.'),
-            'url' => '/livreur/argent',
+            'url' => '/livreur/caisse',
         ];
     }
 }
