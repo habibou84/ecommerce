@@ -378,6 +378,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('cash', [CashController::class, 'index'])->name('cash.index');
                 Route::get('cash/couriers/{courier}', [CashController::class, 'collections'])->whereNumber('courier')->name('cash.collections');
                 Route::post('cash/couriers/{courier}/remittances', [CashController::class, 'remit'])->whereNumber('courier')->name('cash.remit');
+                Route::post('cash/declarations/{declaration}/confirm', [CashController::class, 'confirmDeclaration'])->whereNumber('declaration')->name('cash.declarations.confirm');
+                Route::post('cash/declarations/{declaration}/reject', [CashController::class, 'rejectDeclaration'])->whereNumber('declaration')->name('cash.declarations.reject');
+                Route::get('cash/declarations/{declaration}/proof', [CashController::class, 'declarationProof'])->whereNumber('declaration')->name('cash.declarations.proof');
             });
 
             // ── Application livreur (/livreur) ──
@@ -391,6 +394,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('route', [CourierAppController::class, 'route'])->name('route');
                 Route::post('location', [CourierAppController::class, 'location'])->middleware('throttle:30,1')->name('location');
                 Route::get('cash', [CourierAppController::class, 'cash'])->name('cash');
+                Route::post('remittances', [CourierAppController::class, 'declareRemittance'])->middleware('throttle:10,1')->name('remittances.declare');
                 Route::get('earnings', [CourierAppController::class, 'earnings'])->name('earnings');
             });
 

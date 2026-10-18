@@ -8,11 +8,13 @@ use App\Models\CashCollection;
 use App\Models\Courier;
 use App\Models\CourierEarning;
 use App\Models\CourierRemittance;
+use App\Models\CourierRemittanceDeclaration;
 use App\Models\OrderReturn;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Services\Couriers\CourierDesk;
 use App\Services\Couriers\CourierPayroll;
+use App\Services\Couriers\RemittanceDeclarations;
 use App\Services\Couriers\SharedCouriers;
 use App\Services\Orders\MessageTexts;
 use App\Services\Payments\PaymentDesk;
@@ -249,7 +251,32 @@ class CourierAppController extends Controller
                 ->map(fn ($c) => ['reference' => $c->shipment->order->reference(), 'store' => $several ? $c->shipment->order->store->name : null, 'amount' => $c->amount, 'collected_at' => $c->collected_at->toIso8601String()]),
             'remittances' => CourierRemittance::withoutGlobalScope(StoreScope::class)->whereIn('courier_id', $ids)->latest('received_at')->limit(10)->get()
                 ->map(fn ($r) => ['received_amount' => $r->received_amount, 'difference' => $r->difference, 'received_at' => $r->received_at->toIso8601String()]),
+            // Espèces par boutique (à qui verser) et versements déclarés
+            'stores' => $all->map(fn (Courier $c) => ['courier_id' => $c->id, 'store' => $c->store->name, 'held' => $this->shared->held($c)])->values(),
+            'declarations' => CourierRemittanceDeclaration::withoutGlobalScope(StoreScope::class)->with(['courier.store', 'remittance'])->whereIn('courier_id', $ids)
+                ->latest('id')->limit(10)->get()->map(fn ($d) => $this->declaration($d, $several)),
         ]]);
+    }
+
+    /**
+     * Le livreur déclare un versement à une de ses boutiques (espèces remises, ou envoi mobile money avec la référence).
+     */
+    public function declareRemittance(Request $request, RemittanceDeclarations $declarations): JsonResponse
+    {
+        $all = $this->couriers($request);
+        $data = $request->validate([
+            'courier_id' => ['nullable', 'integer', Rule::in($all->pluck('id')->all())],
+            'amount' => ['required', 'integer', 'min:1', 'max:100000000'],
+            'method' => ['required', Rule::in(array_keys(CourierRemittanceDeclaration::METHODS))],
+            'reference' => ['nullable', 'string', 'max:80'],
+            'note' => ['nullable', 'string', 'max:255'],
+            'photo' => ['nullable', 'file', 'image', 'max:8192'],
+        ], [], ['amount' => 'montant', 'reference' => 'référence', 'photo' => 'photo']);
+
+        $courier = $all->firstWhere('id', $data['courier_id'] ?? $this->courier($request)->id);
+        $declaration = SharedCouriers::within($courier->store, fn () => $declarations->declare($courier, $data, $request->file('photo')));
+
+        return response()->json(['data' => $this->declaration($declaration->setRelation('courier', $courier), true)], 201);
     }
 
     public function earnings(Request $request, CourierPayroll $payroll): JsonResponse
@@ -265,6 +292,23 @@ class CourierAppController extends Controller
                 ->map(fn ($e) => ['type_label' => CourierEarning::TYPES[$e->type] ?? $e->type, 'amount' => $e->amount, 'reference' => $e->shipment?->reference(),
                     'store' => $several ? $names[$e->courier_id] : null, 'created_at' => $e->created_at->toIso8601String()]),
         ]]);
+    }
+
+    private function declaration(CourierRemittanceDeclaration $d, bool $withStore): array
+    {
+        return [
+            'id' => $d->id,
+            'store' => $withStore ? $d->courier->store->name : null,
+            'amount' => $d->amount,
+            'method' => $d->method,
+            'method_label' => CourierRemittanceDeclaration::METHODS[$d->method],
+            'reference' => $d->reference,
+            'status' => $d->status,
+            'received_amount' => $d->remittance?->received_amount,
+            'difference' => $d->remittance?->difference,
+            'reject_reason' => $d->reject_reason,
+            'created_at' => $d->created_at->toIso8601String(),
+        ];
     }
 
     private function courier(Request $request): Courier

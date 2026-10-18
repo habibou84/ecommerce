@@ -396,6 +396,64 @@ class CourierTest extends TestCase
         $this->storeApi($this->store, 'GET', 'couriers')->assertJsonPath('data.0.location', null);
     }
 
+    public function test_the_courier_declares_a_remittance_and_the_shop_confirms_it(): void
+    {
+        [$courier, $user] = $this->onboardCourier();
+        $shipment = $this->assign($this->order(), $courier);
+        $this->asCourier($user);
+
+        // Rien à verser : refusé
+        $this->storeApi($this->store, 'POST', 'courier/remittances', ['amount' => 1000, 'method' => 'cash'])->assertStatus(422);
+
+        $this->step($shipment, ['status' => 'in_transit'])->assertOk();
+        $this->step($shipment, ['status' => 'delivered', 'payment_method' => 'cash'])->assertOk();
+        $this->storeApi($this->store, 'GET', 'courier/cash')->assertJsonPath('data.stores.0.held', 31500);
+
+        // Wave sans référence : refusé ; avec la référence et la photo du reçu : déclaré, la boutique est prévenue
+        $this->storeApi($this->store, 'POST', 'courier/remittances', ['amount' => 30000, 'method' => 'wave'])->assertStatus(422)->assertJsonValidationErrors('reference');
+        $this->storeApi($this->store, 'POST', 'courier/remittances', ['amount' => 30000, 'method' => 'wave', 'reference' => 'T-123ABC', 'photo' => UploadedFile::fake()->image('recu.jpg')])
+            ->assertCreated()->assertJsonPath('data.status', 'pending');
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()->contains(fn ($n) => ($n->data['kind'] ?? null) === 'remittance_declared'));
+        // Un seul versement en attente à la fois
+        $this->storeApi($this->store, 'POST', 'courier/remittances', ['amount' => 1500, 'method' => 'cash'])->assertStatus(422);
+
+        // La boutique confirme : versement enregistré avec le manque, le livreur est prévenu
+        $this->asCourier($this->store->owner);
+        $pending = $this->storeApi($this->store, 'GET', 'cash')->assertOk()->assertJsonPath('declarations.0.reference', 'T-123ABC')
+            ->assertJsonPath('declarations.0.held', 31500)->json('declarations.0');
+        $this->storeApi($this->store, 'GET', substr($pending['proof_url'], strlen('/api/v1/')))->assertOk();
+        $this->storeApi($this->store, 'POST', "cash/declarations/{$pending['id']}/confirm")->assertOk()
+            ->assertJsonPath('data.received_amount', 30000)->assertJsonPath('data.difference', -1500);
+        $this->storeApi($this->store, 'POST', "cash/declarations/{$pending['id']}/confirm")->assertStatus(422);
+        $this->assertSame(0, $courier->fresh()->cashHeld());
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $user->id)->get()->contains(fn ($n) => ($n->data['kind'] ?? null) === 'remittance_confirmed'));
+
+        $this->asCourier($user);
+        $this->storeApi($this->store, 'GET', 'courier/cash')->assertJsonPath('data.held', 0)
+            ->assertJsonPath('data.declarations.0.status', 'confirmed')->assertJsonPath('data.declarations.0.difference', -1500);
+    }
+
+    public function test_the_shop_can_reject_a_declared_remittance(): void
+    {
+        [$courier, $user] = $this->onboardCourier();
+        $shipment = $this->assign($this->order(), $courier);
+        $this->asCourier($user);
+        $this->step($shipment, ['status' => 'in_transit'])->assertOk();
+        $this->step($shipment, ['status' => 'delivered', 'payment_method' => 'cash'])->assertOk();
+        $id = $this->storeApi($this->store, 'POST', 'courier/remittances', ['amount' => 31500, 'method' => 'cash'])->assertCreated()->json('data.id');
+
+        $this->asCourier($this->store->owner);
+        $this->storeApi($this->store, 'POST', "cash/declarations/{$id}/reject")->assertStatus(422);
+        $this->storeApi($this->store, 'POST', "cash/declarations/{$id}/reject", ['reason' => 'Rien reçu à la caisse'])->assertOk();
+        $this->assertSame(31500, $courier->fresh()->cashHeld());
+
+        $this->asCourier($user);
+        $this->storeApi($this->store, 'GET', 'courier/cash')->assertJsonPath('data.declarations.0.status', 'rejected')
+            ->assertJsonPath('data.declarations.0.reject_reason', 'Rien reçu à la caisse');
+        // Refusé : il peut en déclarer un nouveau
+        $this->storeApi($this->store, 'POST', 'courier/remittances', ['amount' => 31500, 'method' => 'cash'])->assertCreated();
+    }
+
     public function test_reassignment_and_cancellation(): void
     {
         [$koffi, $koffiUser] = $this->onboardCourier();
