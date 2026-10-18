@@ -1071,11 +1071,16 @@ Table courier_assignments {
   store_id bigint [ref: > stores.id, not null]
   shipment_id bigint [ref: > shipments.id, not null]
   courier_id bigint [ref: > couriers.id, not null]
-  status varchar(20) [not null, note: 'assigned | completed | cancelled | reassigned']
+  status varchar(20) [not null, note: 'assigned | completed | cancelled | reassigned | declined']
   assigned_by bigint [ref: > users.id]
   assigned_at timestamp [not null]
   completed_at timestamp
-  Note: 'Historique de toutes les missions, y compris réassignées.'
+  seen_at timestamp [note: 'mission affichée dans l\'application du livreur']
+  accepted_at timestamp [note: 'acceptée (ou colis récupéré)']
+  declined_at timestamp
+  decline_reason varchar [note: 'motif du refus donné par le livreur']
+  reminded_at timestamp [note: 'rappel envoyé après 15 minutes sans réponse']
+  Note: 'Historique de toutes les missions, y compris réassignées et refusées (status declined).'
 }
 
 Table delivery_runs {

@@ -16,11 +16,16 @@ class CourierAssignment extends Model
 
     protected function casts(): array
     {
-        return ['assigned_at' => 'datetime', 'completed_at' => 'datetime'];
+        return ['assigned_at' => 'datetime', 'completed_at' => 'datetime', 'seen_at' => 'datetime', 'accepted_at' => 'datetime', 'declined_at' => 'datetime', 'reminded_at' => 'datetime'];
     }
 
     public function courier(): BelongsTo
     {
         return $this->belongsTo(Courier::class);
+    }
+
+    public function shipment(): BelongsTo
+    {
+        return $this->belongsTo(Shipment::class);
     }
 }

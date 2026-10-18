@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { loadMission, offline, sendStep, shrinkPhoto } from '../../lib/courierOffline'
@@ -59,6 +60,28 @@ const mapsUrl = computed(() => {
   return m ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([m.address, m.landmark, m.place, 'Côte d\'Ivoire'].filter(Boolean).join(', '))}` : '#'
 })
 const whatsapp = computed(() => mission.value ? `https://wa.me/${mission.value.customer_phone.replace('+', '')}` : '#')
+
+// Réponse à une nouvelle mission (il faut du réseau)
+const declining = ref(false)
+const declineReason = ref('')
+const router = useRouter()
+async function respond(action) {
+  busy.value = true
+  error.value = ''
+  try {
+    if (action === 'accept') {
+      await http.post(`/courier/missions/${props.id}/accept`)
+      await load()
+    } else {
+      await http.post(`/courier/missions/${props.id}/decline`, { reason: declineReason.value })
+      router.replace('/livreur')
+    }
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
 
 async function step(status) {
   busy.value = true
@@ -147,6 +170,20 @@ async function step(status) {
     </section>
 
     <Alert v-if="error">{{ error }}</Alert>
+    <section v-if="mission.acceptance === 'pending' && mission.status === 'awaiting_pickup'" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
+      <p class="font-semibold text-amber-900">🔔 Nouvelle mission : acceptez-la ou refusez-la</p>
+      <template v-if="declining">
+        <input v-model="declineReason" class="input" maxlength="255" placeholder="Motif (trop loin, trop de colis…)" />
+        <div class="grid grid-cols-2 gap-2">
+          <button class="btn-secondary" @click="declining = false">Annuler</button>
+          <button class="btn-danger" :disabled="busy || !declineReason || noNetwork" @click="respond('decline')">Refuser</button>
+        </div>
+      </template>
+      <div v-else class="grid grid-cols-2 gap-2">
+        <button class="btn-secondary" :disabled="busy || noNetwork" @click="declining = true">✕ Refuser</button>
+        <button class="btn-brand" :disabled="busy || noNetwork" @click="respond('accept')">✓ Accepter</button>
+      </div>
+    </section>
     <Alert v-if="queued" tone="warning">Étape gardée sur le téléphone : elle sera envoyée à la boutique dès que le réseau revient, avec l'heure où vous l'avez faite.</Alert>
     <p v-else-if="mission.pending_sync" class="text-sm text-amber-800">⏳ Des étapes de cette livraison ne sont pas encore envoyées.</p>
 

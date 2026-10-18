@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\Accounts\StoreDataExport;
 use App\Services\Billing\Billing;
 use App\Services\Console\SupportSessions;
+use App\Services\Couriers\MissionResponses;
 use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
 use App\Services\Reports\DailyReport;
@@ -31,6 +32,15 @@ Artisan::command('shipping:sync', function (CarrierEvents $events) {
 })->purpose('Synchronise les expéditions avec les entreprises de livraison');
 
 Schedule::command('shipping:sync')->everyTenMinutes()->withoutOverlapping();
+
+/*
+ * Missions confiées aux livreurs et toujours sans réponse après un quart d'heure : rappel à l'équipe et au livreur.
+ */
+Artisan::command('couriers:remind', function (MissionResponses $responses) {
+    $this->line($responses->remindUnanswered().' mission(s) sans réponse signalée(s)');
+})->purpose('Rappel des missions pas encore acceptées par les livreurs');
+
+Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping();
 
 /*
  * Paniers abandonnés : un client a laissé son numéro et des articles sans commander depuis plus d'une heure (et moins
