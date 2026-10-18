@@ -36,6 +36,8 @@ class Shipment extends Model
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'last_synced_at' => 'datetime',
+            'customer_notified_at' => 'datetime',
+            'customer_response_at' => 'datetime',
         ];
     }
 

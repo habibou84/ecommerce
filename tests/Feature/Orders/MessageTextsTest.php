@@ -28,7 +28,7 @@ class MessageTextsTest extends TestCase
     {
         // Sans commande : aperçu sur une commande d'exemple
         $list = $this->storeApi($this->store, 'GET', 'message-texts')->assertOk()->json('data');
-        $this->assertCount(7, $list['messages']);
+        $this->assertCount(8, $list['messages']);
         $this->assertStringStartsWith('Bonjour Awa, votre commande', collect($list['messages'])->firstWhere('key', 'confirmed')['preview']);
 
         $robe = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Robe wax', 'variants' => [['price' => 15000, 'on_hand' => 5]]]);
@@ -40,7 +40,7 @@ class MessageTextsTest extends TestCase
 
         $this->storeApi($this->store, 'PUT', 'message-texts', ['texts' => ['confirmed' => 'Salut {prénom} {inconnu}']])->assertStatus(422);
         $this->storeApi($this->store, 'PUT', 'message-texts', ['texts' => ['confirmed' => "Salut {prenom} 👋 ta commande {commande} est validée.\nReste à payer : {reste}\nÀ très vite chez {boutique} !"]])
-            ->assertOk()->assertJsonPath('data.messages.2.custom', true);
+            ->assertOk()->assertJsonPath('data.messages.3.custom', true);
 
         $message = fn () => collect($this->storeApi($this->store, 'GET', "orders/{$order->id}")->json('data.messages'))->firstWhere('key', 'confirmed');
         $this->assertSame("Salut Fatou 👋 ta commande {$order->reference()} est validée.\nReste à payer : 16 500 F\nÀ très vite chez Awa Mode !", str_replace("\u{202F}", ' ', $message()['text']));
@@ -52,7 +52,7 @@ class MessageTextsTest extends TestCase
 
         // Aperçu pendant la saisie, puis retour au texte d'origine
         $this->storeApi($this->store, 'POST', 'message-texts/preview', ['key' => 'thanks', 'text' => 'Merci {prenom} !'])->assertOk()->assertJsonPath('data.preview', 'Merci Fatou !');
-        $this->storeApi($this->store, 'PUT', 'message-texts', ['texts' => ['confirmed' => null]])->assertOk()->assertJsonPath('data.messages.2.custom', false);
+        $this->storeApi($this->store, 'PUT', 'message-texts', ['texts' => ['confirmed' => null]])->assertOk()->assertJsonPath('data.messages.3.custom', false);
         $this->assertStringStartsWith('Bonjour Fatou, votre commande', $message()['text']);
     }
 }

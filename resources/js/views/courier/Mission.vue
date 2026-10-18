@@ -104,6 +104,11 @@ async function step(status) {
       </template>
     </section>
 
+    <Alert v-if="mission.customer_response === 'unavailable'" tone="warning">
+      Le client a répondu « Pas disponible » {{ new Date(mission.customer_response_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }} : appelez-le avant de vous déplacer.
+    </Alert>
+    <Alert v-else-if="mission.customer_response === 'available'" tone="success">Le client vous attend ✓</Alert>
+
     <section class="space-y-2 rounded-xl bg-white p-4 shadow-sm">
       <p class="font-semibold">{{ mission.customer_name || 'Client' }}</p>
       <p class="text-sm">{{ mission.place }}<template v-if="mission.address"> · {{ mission.address }}</template></p>
@@ -115,6 +120,8 @@ async function step(status) {
         <a :href="whatsapp" target="_blank" class="btn-secondary whitespace-nowrap px-1 text-sm">💬 WhatsApp</a>
         <a :href="mapsUrl" target="_blank" class="btn-secondary whitespace-nowrap px-1 text-sm">🗺️ Carte</a>
       </div>
+      <p v-if="mission.customer_notified_at && !mission.customer_response" class="text-xs text-emerald-700">✓ Client prévenu par la boutique que vous êtes en route.</p>
+      <a v-else-if="!mission.customer_notified_at && ['in_transit', 'out_for_delivery'].includes(mission.status)" :href="mission.notify_url" target="_blank" class="btn-secondary w-full text-sm">💬 Prévenir le client que j'arrive</a>
       <p class="text-xs text-slate-500">{{ mission.customer_phone_display }}<template v-if="mission.customer_phone2"> · autre : {{ mission.customer_phone2 }}</template></p>
     </section>
 

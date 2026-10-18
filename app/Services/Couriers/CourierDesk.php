@@ -9,7 +9,9 @@ use App\Models\Courier;
 use App\Models\Shipment;
 use App\Services\Shipping\Drivers\RemoteShipment;
 use App\Services\Shipping\ShipmentDesk;
+use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
+use Throwable;
 
 /**
  * Ce que fait le livreur dans son application : colis récupéré, en route, livré (code du client ou photo,
@@ -59,8 +61,18 @@ class CourierDesk
         };
 
         $this->shipments->apply($shipment, $remote, 'courier', $data['note'] ?? ($step === 'failed' ? $data['reason'] : null), $courier->user);
+        $shipment = $shipment->fresh(['order', 'courier']);
 
-        return $shipment->fresh(['order', 'courier']);
+        // Le livreur part : le client est prévenu (nom et numéro du livreur), un échec d'envoi ne bloque pas l'étape
+        if ($step === 'out_for_delivery') {
+            try {
+                app(CustomerMessenger::class)->courierOnTheWay($shipment);
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+
+        return $shipment;
     }
 
     private function delivered(Shipment $shipment, array $data, ?string $photoPath): RemoteShipment
