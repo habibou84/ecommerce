@@ -134,6 +134,7 @@ async function addNote() {
     <div class="flex flex-wrap items-center gap-3">
       <h2 class="text-2xl font-bold">{{ order.reference }}</h2>
       <span class="rounded-full px-2.5 py-0.5 text-sm font-medium" :class="STATUS_TONES[order.status]">{{ order.status_label }}</span>
+      <span v-if="order.is_preorder" class="rounded-full bg-amber-100 px-2.5 py-0.5 text-sm text-amber-800">Précommande</span>
       <span class="text-sm font-medium" :class="PAYMENT_TONES[order.payment_status]">{{ order.payment_status_label }}</span>
       <span v-if="riskLabel(order.risk_score)" class="rounded-full px-2 py-0.5 text-xs" :class="riskLabel(order.risk_score).tone">{{ riskLabel(order.risk_score).label }}</span>
       <span class="text-sm text-slate-500">{{ order.source_label }} · {{ formatDateTime(order.created_at) }}</span>

@@ -34,6 +34,7 @@ class Order extends Model
             'cancel_reason' => CancelReason::class,
             'scheduled_date' => 'date',
             'utm' => 'array',
+            'is_preorder' => 'boolean',
             'confirmed_at' => 'datetime',
             'callback_at' => 'datetime',
             'shipped_at' => 'datetime',

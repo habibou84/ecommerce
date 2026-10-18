@@ -3,6 +3,7 @@
 use App\Enums\Permission;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingController;
+use App\Http\Controllers\Api\V1\Catalog\BundleController;
 use App\Http\Controllers\Api\V1\Catalog\CatalogTransferController;
 use App\Http\Controllers\Api\V1\Catalog\CollectionController;
 use App\Http\Controllers\Api\V1\Catalog\ProductController;
@@ -423,6 +424,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate'])->whereNumber('product')->name('products.duplicate');
                 Route::post('products/{product}/copy', [ProductController::class, 'copy'])->whereNumber('product')->name('products.copy');
                 Route::delete('products/{product}', [ProductController::class, 'destroy'])->whereNumber('product')->name('products.destroy');
+                Route::get('products/{product}/bundle', [BundleController::class, 'show'])->whereNumber('product')->name('products.bundle.show');
+                Route::put('products/{product}/bundle', [BundleController::class, 'update'])->whereNumber('product')->name('products.bundle.update');
                 Route::post('products/{product}/images', [ProductImageController::class, 'store'])->whereNumber('product')->name('products.images.store');
                 Route::put('products/{product}/images/order', [ProductImageController::class, 'reorder'])->whereNumber('product')->name('products.images.order');
                 Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy'])->whereNumber(['product', 'image'])->name('products.images.destroy');

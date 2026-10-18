@@ -102,6 +102,7 @@ class OrderDesk
 
             $this->replaceItems($order, $data['items'], $actor);
             $this->recalculate($order, $data['shipping_fee'] ?? null, true);
+            $this->preorder($order, array_key_exists('deposit_required', $data));
             $order->save();
             $this->pricing->recordUsages($order);
             $this->loyalty->commit($order, $actor);
@@ -400,9 +401,20 @@ class OrderDesk
                 'stock_location_id' => $variant ? $location->id : null,
             ]);
 
-            if ($variant && $variant->product->track_inventory) {
+            // Lot : le stock de chaque article du lot est réservé (contenu noté sur la ligne)
+            if ($variant && $variant->product->is_bundle) {
+                $components = $variant->components()->get(['component_variant_id', 'quantity']);
+                $item->forceFill(['bundle_components' => $components->map(fn ($c) => ['variant_id' => $c->component_variant_id, 'quantity' => $c->quantity])->all()])->save();
+                // Prix d'achat du lot : somme de celui de ses articles (s'ils sont tous connus)
+                $costs = collect($item->stockLines())->map(fn ($l) => $l['variant']->cost_price === null ? null : $l['variant']->cost_price * $l['quantity']);
+                $item->forceFill(['unit_cost' => $costs->contains(null) ? $variant->cost_price : intdiv((int) $costs->sum(), max(1, $quantity))])->save();
+            }
+            $stockLines = $variant ? array_filter($item->stockLines(), fn ($l) => $l['variant']->product?->track_inventory) : [];
+            if ($stockLines !== []) {
                 try {
-                    $this->stock->reserve($actor, $variant, $location, $quantity, $order);
+                    foreach ($stockLines as $line) {
+                        $this->stock->reserve($actor, $line['variant'], $location, $line['quantity'], $order);
+                    }
                 } catch (BusinessRuleException $e) {
                     throw new BusinessRuleException($e->getMessage(), "items.{$index}.quantity");
                 }
@@ -413,10 +425,29 @@ class OrderDesk
         $order->unsetRelation('items');
     }
 
+    /**
+     * Précommande : commande marquée, et acompte des articles en précommande (pourcentage du produit) si la
+     * commande n'en fixe pas déjà un.
+     */
+    private function preorder(Order $order, bool $depositGiven): void
+    {
+        $items = $order->items()->with('product')->get()->filter(fn ($i) => $i->product?->preorder_enabled);
+        if ($items->isEmpty()) {
+            return;
+        }
+        $order->is_preorder = true;
+        if (! $depositGiven && $order->deposit_required === null) {
+            $deposit = (int) $items->sum(fn ($i) => $i->product->preorder_deposit_percent ? (int) (ceil($i->total * $i->product->preorder_deposit_percent / 100 / 5) * 5) : 0);
+            $order->deposit_required = $deposit > 0 ? min($deposit, $order->total) : null;
+        }
+    }
+
     private function releaseItems(Order $order, ?User $actor, string $note): Order
     {
         foreach ($order->items()->where('stock_state', 'reserved')->with(['variant.product', 'location'])->get() as $item) {
-            $this->stock->release($actor, $item->variant, $item->location, $item->quantity, $order, $note);
+            foreach ($item->stockLines() as $line) {
+                $this->stock->release($actor, $line['variant'], $item->location, $line['quantity'], $order, $note);
+            }
             $item->forceFill(['stock_state' => 'released'])->save();
         }
 
@@ -434,7 +465,9 @@ class OrderDesk
     {
         foreach ($order->items()->with(['variant.product', 'location'])->get() as $item) {
             if ($item->stock_state === 'reserved') {
-                $this->stock->ship($actor, $item->variant, $item->location, $item->quantity, $order);
+                foreach ($item->stockLines() as $line) {
+                    $this->stock->ship($actor, $line['variant'], $item->location, $line['quantity'], $order);
+                }
                 $item->stock_state = 'shipped';
             }
             $item->fulfilled_quantity = $item->quantity;
@@ -450,7 +483,9 @@ class OrderDesk
     {
         foreach ($order->items()->with(['variant.product', 'location'])->get() as $item) {
             if ($restock && $item->stock_state === 'shipped' && $item->variant && $item->location) {
-                $this->stock->returnToStock($actor, $item->variant, $item->location, $item->quantity, $order);
+                foreach ($item->stockLines() as $line) {
+                    $this->stock->returnToStock($actor, $line['variant'], $item->location, $line['quantity'], $order);
+                }
                 $item->stock_state = 'returned';
             }
             $item->returned_quantity = $item->quantity;

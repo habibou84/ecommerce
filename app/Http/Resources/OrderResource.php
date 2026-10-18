@@ -74,6 +74,7 @@ class OrderResource extends JsonResource
             'time_slot' => $this->time_slot,
             'subtotal' => $this->subtotal,
             'discount_total' => $this->discount_total,
+            'is_preorder' => $this->is_preorder,
             'points_used' => $this->points_used,
             'points_discount' => $this->points_discount,
             'referral_discount' => $this->referral_discount,

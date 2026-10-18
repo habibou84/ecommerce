@@ -131,10 +131,13 @@ class ReturnDesk
 
             if ($return->restock) {
                 foreach ($return->items as $line) {
-                    $variant = $line->variant_id ? ProductVariant::forStore($return->store_id)->find($line->variant_id) : null;
                     $location = $line->orderItem?->location ?? $order->location ?? $this->stock->defaultLocation($order->store);
-                    if ($variant !== null) {
-                        $this->stock->returnToStock($actor, $variant, $location, $line->quantity, $return, 'Retour '.$return->reference());
+                    // Lot : chaque article du lot revient en stock
+                    $perUnit = $line->orderItem ? array_map(fn ($l) => ['variant' => $l['variant'], 'quantity' => intdiv($l['quantity'], max(1, $line->orderItem->quantity))], $line->orderItem->stockLines()) : [];
+                    foreach ($perUnit as $entry) {
+                        if ($entry['variant']->product?->track_inventory) {
+                            $this->stock->returnToStock($actor, $entry['variant'], $location, $entry['quantity'] * $line->quantity, $return, 'Retour '.$return->reference());
+                        }
                     }
                 }
             }
