@@ -151,6 +151,43 @@ export async function queueStep(mission, status, fields, photo) {
 }
 
 /**
+ * Étape d'une mission : envoyée tout de suite, ou gardée dans la file sans réseau (ou derrière des étapes de la même
+ * mission déjà en attente : l'ordre compte). Renvoie true si elle attend sur le téléphone.
+ */
+export async function sendStep(mission, status, fields = {}, photo = null) {
+  if (!offline.online || offline.savedAt !== null || await hasPendingSteps(mission.id)) {
+    await queueStep(mission, status, fields, photo)
+    return true
+  }
+  const body = new FormData()
+  body.append('status', status)
+  Object.entries(fields).forEach(([k, v]) => body.append(k, v))
+  if (photo) body.append('photo', photo, 'photo.jpg')
+  try {
+    await http.post(`/courier/missions/${mission.id}/steps`, body)
+    return false
+  } catch (e) {
+    if (!isNetworkError(e)) throw e
+    // Le réseau a lâché pendant l'envoi
+    await queueStep(mission, status, fields, photo)
+    return true
+  }
+}
+
+/**
+ * Ordre de la tournée choisi par le livreur : gardé sur le téléphone pour la journée, envoyé à la boutique si possible.
+ */
+export function saveRoute(ids) {
+  save('route', { day: new Date().toLocaleDateString('sv-SE'), ids })
+  http.put('/courier/route', { ids }).catch(() => {})
+}
+
+export function savedRoute() {
+  const route = saved('route')?.value
+  return route?.day === new Date().toLocaleDateString('sv-SE') ? route.ids : null
+}
+
+/**
  * Envoie la file dans l'ordre. Plus de réseau : on s'arrête et on réessaiera. Étape refusée (mission annulée,
  * code faux…) : elle reste affichée avec le motif, et les étapes suivantes de la même mission attendent.
  */
