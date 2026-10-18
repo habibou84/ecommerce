@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import CashDrawer from '../../components/CashDrawer.vue'
 import CashTabs from '../../components/CashTabs.vue'
+import RecurringExpenses from '../../components/RecurringExpenses.vue'
 import http, { errorMessage } from '../../lib/http'
 import { formatDate, money } from '../../lib/format'
 import { useAuthStore } from '../../stores/auth'
@@ -45,6 +46,7 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
     <Alert v-if="error">{{ error }}</Alert>
 
     <CashDrawer @changed="load" />
+    <RecurringExpenses v-if="auth.can('cash.manage') || auth.can('finance.view')" />
 
     <!-- Où est l'argent en ce moment -->
     <section v-if="auth.can('finance.view')" class="space-y-3">

@@ -184,7 +184,7 @@ class StorefrontTest extends TestCase
 
         $response = $this->ajax('POST', '/commande', [
             'name' => 'Fatou Diallo', 'phone' => '05 06 07 08 09', 'delivery_method' => 'delivery',
-            'place_id' => $angre->id, 'address' => 'Cité Arcades', 'landmark' => 'Face pharmacie', 'note' => 'Après 17 h',
+            'place_id' => $angre->id, 'address' => 'Cité Arcades', 'landmark' => 'Face pharmacie', 'note' => 'Après 17 h', 'accepts_marketing' => '1',
         ], $token)->assertCreated();
 
         $order = Order::with('items')->sole();
@@ -194,6 +194,8 @@ class StorefrontTest extends TestCase
         $this->assertSame([30000, 1500, 31500], [$order->subtotal, $order->shipping_fee, $order->total]);
         $this->assertSame(['Fatou Diallo', '+2250506070809', 'Après 17 h'], [$order->customer_name, $order->customer_phone, $order->customer_note]);
         $this->assertSame(2, StockLevel::where('variant_id', $sRouge->id)->value('reserved'));
+        // Case « recevoir les nouveautés » cochée : accord pour les relances WhatsApp
+        $this->assertTrue($order->customer->accepts_marketing);
 
         $cart = Cart::first();
         $this->assertSame(['converted', $order->id], [$cart->status, $cart->order_id]);

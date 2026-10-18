@@ -3,6 +3,7 @@
 use App\Http\Controllers\CaddyAskController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\Storefront\CartController;
+use App\Http\Controllers\Storefront\CatalogFeedController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\PaymentPageController;
 use App\Http\Controllers\Storefront\ReviewController;
@@ -71,6 +72,7 @@ Route::middleware('zone:store,custom_domain')->group(function () {
         Route::get('/collections/{slug}', [StorefrontController::class, 'collection'])->name('storefront.collection');
         Route::get('/pages/{slug}', [StorefrontController::class, 'page'])->name('storefront.page');
         Route::get('/sitemap.xml', [StorefrontController::class, 'sitemap']);
+        Route::get('/flux/catalogue/{token}.csv', CatalogFeedController::class)->where('token', '[A-Za-z0-9]{32}')->name('storefront.catalog-feed');
         Route::get('/panier', [CartController::class, 'show'])->name('storefront.cart');
         Route::get('/panier/reprendre/{token}', [CartController::class, 'resume'])->where('token', '[A-Za-z0-9]{40}');
         Route::get('/commande', [CheckoutController::class, 'show'])->name('storefront.checkout');

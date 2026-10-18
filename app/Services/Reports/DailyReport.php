@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Enums\OrderStatus;
+use App\Enums\Permission;
 use App\Models\CashCollection;
 use App\Models\Order;
 use App\Models\ScheduledReport;
@@ -10,6 +11,7 @@ use App\Models\Shipment;
 use App\Models\Store;
 use App\Notifications\DailyReportMail;
 use App\Services\Accounts\StoreGroup;
+use App\Services\Accounts\StoreRoles;
 use App\Services\Shipping\CarrierBalances;
 use App\Services\WhatsApp\CustomerMessenger;
 use Carbon\CarbonImmutable;
@@ -52,10 +54,33 @@ class DailyReport
     }
 
     /**
+     * Bénéfice réel depuis le 1er du mois (commandes reçues ce mois-ci), pour les personnes qui voient les finances.
+     *
+     * @return array{profit: int, per_delivered: ?int}
+     */
+    public function monthProfit(Store $store, CarbonImmutable $day): array
+    {
+        $local = $day->setTimezone($store->timezone);
+        $from = $local->startOfMonth()->utc();
+        $to = $local->endOfDay()->utc();
+        $stats = app(StoreStats::class);
+        $overview = $stats->overview($store, $from, $to);
+        $profit = $stats->profit($store, $from, $to, $overview['net_margin'], $overview['delivered']);
+
+        return ['profit' => $profit['profit'], 'per_delivered' => $profit['per_delivered']];
+    }
+
+    public function seesFinance(ScheduledReport $report): bool
+    {
+        return app(StoreRoles::class)->can($report->user, $report->store, Permission::FinanceView);
+    }
+
+    /**
      * @param  array<string, int|string>  $f
      * @param  list<string>  $tips  conseils du soir (DailyAdvice)
+     * @param  array{profit: int, per_delivered: ?int}|null  $month  bénéfice du mois (monthProfit)
      */
-    public function text(Store $store, array $f, array $tips = []): string
+    public function text(Store $store, array $f, array $tips = [], ?array $month = null): string
     {
         $advice = $tips === [] ? null : "\n💡 Conseils :\n".implode("\n", array_map(fn ($t, $i) => ($i + 1).". {$t}", $tips, array_keys($tips)));
 
@@ -68,6 +93,8 @@ class DailyReport
             $f['courier_cash'] ? 'Espèces chez les livreurs : '.Money::format($f['courier_cash']) : null,
             $f['carrier_due'] ? 'À recevoir des entreprises de livraison : '.Money::format($f['carrier_due'])
                 .($f['carrier_due_overdue'] ? ' (dont '.Money::format($f['carrier_due_overdue']).' en retard)' : '') : null,
+            $month ? 'Bénéfice depuis le 1er du mois : '.Money::format($month['profit'])
+                .($month['per_delivered'] !== null ? ' (soit '.Money::format($month['per_delivered']).' par commande livrée)' : '') : null,
             $advice,
         ]));
     }
@@ -104,7 +131,7 @@ class DailyReport
         } else {
             $figures = $this->figures($store, $day);
             $tips = app(DailyAdvice::class)->tips($store, $day);
-            $text = $this->text($store, $figures, $tips);
+            $text = $this->text($store, $figures, $tips, $this->seesFinance($report) ? $this->monthProfit($store, $day) : null);
             $title = $store->name;
         }
 

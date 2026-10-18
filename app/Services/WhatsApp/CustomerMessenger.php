@@ -7,11 +7,13 @@ use App\Enums\OrderStatus;
 use App\Jobs\SendWhatsAppMessage;
 use App\Models\Cart;
 use App\Models\Conversation;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderEvent;
 use App\Models\OutboundMessage;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
+use App\Services\Orders\MessageTexts;
 use App\Services\Orders\OrderDesk;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
@@ -32,6 +34,7 @@ class CustomerMessenger
         'order_delivered' => ['label' => 'Commande livrée (remerciement)', 'variables' => ['nom du client', 'n° de commande'], 'buttons' => []],
         'review_request' => ['label' => 'Demande d\'avis (24 h après la livraison)', 'variables' => ['nom du client', 'boutique', 'lien de l\'avis'], 'buttons' => []],
         'payment_link' => ['label' => 'Lien de paiement', 'variables' => ['nom du client', 'n° de commande', 'montant', 'lien'], 'buttons' => []],
+        'campaign' => ['label' => 'Relance des clients (nouveautés, offres)', 'variables' => ['nom du client', 'boutique', 'message', 'lien'], 'buttons' => [], 'manual' => true],
         'cart_recovery' => ['label' => 'Relance de panier abandonné', 'variables' => ['nom du client', 'boutique', 'lien du panier'], 'buttons' => []],
         'daily_tips' => ['label' => 'Conseils du soir (envoyés à l\'équipe après le rapport)', 'variables' => ['boutique', 'conseils'], 'buttons' => []],
         'daily_report' => ['label' => 'Rapport du jour (envoyé à l\'équipe)', 'variables' => ['boutique', 'date', 'commandes reçues', 'montant livré', 'à confirmer', 'à expédier'], 'buttons' => []],
@@ -150,12 +153,7 @@ class CustomerMessenger
 
     private function confirmationText(Order $order): string
     {
-        $order->loadMissing(['items', 'store']);
-        $hello = 'Bonjour'.($order->customer_name ? ' '.Str::before($order->customer_name, ' ') : '');
-        $items = $order->items->map(fn ($i) => "• {$i->quantity} × {$i->label()}")->implode("\n");
-        $where = $order->delivery_method === 'pickup' ? 'à retirer en boutique' : 'à livrer à '.trim(($order->shipping_place_label ?? '').' '.($order->shipping_address ?? ''));
-
-        return "{$hello}, merci pour votre commande {$order->reference()} chez {$order->store->name} :\n{$items}\n\nTotal : ".Money::format($order->total)." ({$where}).\n\nConfirmez-vous la commande ?";
+        return app(MessageTexts::class)->render($order, 'whatsapp_confirmation');
     }
 
     public function forCart(Cart $cart): ?OutboundMessage
@@ -176,6 +174,16 @@ class CustomerMessenger
      *
      * @param  list<string>  $params
      */
+    /**
+     * Message d'une relance (campagne) à un client, étalé dans le temps par $delay.
+     *
+     * @param  list<string>  $params
+     */
+    public function forCampaign(WhatsappAccount $account, string $phone, array $params, int $campaignId, ?\DateTimeInterface $delay = null): OutboundMessage
+    {
+        return $this->queue($account, $phone, 'campaign', $params, [], 'campaign', $campaignId, $delay);
+    }
+
     public function forTeam(Store $store, string $phone, string $event, array $params, string $type, int $id): ?OutboundMessage
     {
         $account = $this->account($store->id, $event);
@@ -226,6 +234,7 @@ class CustomerMessenger
 
                 foreach ($value['messages'] ?? [] as $message) {
                     $this->inbox->receive($account, $message, $value['contacts'] ?? []);
+                    $this->optOut($account, $message);
                     $reply = $message['button']['payload'] ?? $message['interactive']['button_reply']['id'] ?? null;
                     if (is_string($reply) && preg_match('/^(confirm|cancel):(\d+)$/', $reply, $m)) {
                         $this->answer($account, (int) $m[2], $m[1], (string) ($message['from'] ?? ''));
@@ -233,6 +242,21 @@ class CustomerMessenger
                 }
             }
         }
+    }
+
+    /**
+     * « STOP » (ou « arrêt ») : le client ne reçoit plus de relances de la boutique.
+     *
+     * @param  array<string, mixed>  $message
+     */
+    private function optOut(WhatsappAccount $account, array $message): void
+    {
+        $text = mb_strtolower(trim((string) ($message['text']['body'] ?? $message['button']['text'] ?? '')));
+        if (! in_array($text, ['stop', 'arret', 'arrêt', 'arreter', 'arrêter', 'stop pub'], true)) {
+            return;
+        }
+        Customer::forStore($account->store_id)->where('phone', '+'.ltrim((string) ($message['from'] ?? ''), '+'))
+            ->update(['accepts_marketing' => false, 'marketing_opt_out_at' => now()]);
     }
 
     /**

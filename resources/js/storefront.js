@@ -465,6 +465,16 @@ $$('[data-autosubmit]').forEach((el) => el.addEventListener('change', () => el.f
 productPage()
 cartPage()
 checkoutPage()
+
+// Lien de parrainage (?parrain=CODE) : code gardé sur le téléphone et proposé à la commande
+try {
+  const code = new URLSearchParams(location.search).get('parrain')
+  if (code) localStorage.setItem('jm_referral', code.slice(0, 12).toUpperCase())
+  const field = document.querySelector('[data-referral-code]')
+  if (field && !field.value) field.value = localStorage.getItem('jm_referral') ?? ''
+} catch {
+  // stockage indisponible (navigation privée) : le client tape le code
+}
 paymentForms()
 reviewForm()
 promoCode()

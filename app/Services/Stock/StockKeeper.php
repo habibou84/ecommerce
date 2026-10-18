@@ -287,7 +287,8 @@ class StockKeeper
     public function reserve(?User $actor, ProductVariant $variant, StockLocation $location, int $quantity, Model $reference): StockMovement
     {
         $this->ensurePositive($quantity);
-        $allowBackorder = (bool) $variant->product?->allow_backorder || ! $variant->product?->track_inventory;
+        // Vente en rupture permise, précommande (l'article arrive plus tard) ou stock non suivi
+        $allowBackorder = (bool) $variant->product?->allow_backorder || (bool) $variant->product?->preorder_enabled || ! $variant->product?->track_inventory;
 
         return $this->move($variant, $location, StockMovementType::Reservation, 0, $quantity, $actor, $reference, null, function (StockLevel $level) use ($quantity, $variant, $allowBackorder) {
             if (! $allowBackorder && $level->available() < $quantity) {

@@ -69,6 +69,9 @@ export function eventLabel(event) {
     case 'refund': return `Remboursement de ${new Intl.NumberFormat('fr-FR').format(d.amount)} F${d.method === 'manual' ? ' (à la main)' : ''}${d.reason ? ` : ${d.reason}` : ''}`
     case 'auto_assigned': return `Confiée automatiquement à ${d.to} (${d.reason})`
     case 'auto_assignment_failed': return `Affectation automatique impossible (${d.to}) : ${d.error}`
+    case 'return_created': return `${d.exchange ? 'Échange' : 'Retour'} ${d.return} : ${new Intl.NumberFormat('fr-FR').format(d.value)} F d'articles rendus`
+    case 'return_received': return `${d.return} : articles reçus${d.restocked ? ' et remis en stock' : ''}${d.refunded ? `, ${new Intl.NumberFormat('fr-FR').format(d.refunded)} F remboursés` : ''}`
+    case 'return_cancelled': return `${d.return} annulé`
     case 'shipment_created': return `Livraison demandée à ${d.carrier}${d.tracking_code ? ` (n° ${d.tracking_code})` : ''}`
     default: return event.type
   }

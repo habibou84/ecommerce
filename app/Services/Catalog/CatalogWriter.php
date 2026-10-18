@@ -37,6 +37,7 @@ class CatalogWriter
 {
     private const PRODUCT_FIELDS = [
         'title', 'description', 'brand', 'status', 'is_visible_online', 'track_inventory', 'allow_backorder',
+        'preorder_enabled', 'preorder_ship_date', 'preorder_deposit_percent',
         'requires_shipping', 'is_fragile', 'low_stock_threshold', 'seo_title', 'seo_description',
     ];
 
@@ -62,6 +63,10 @@ class CatalogWriter
 
             $product->fill(Arr::only($data, self::PRODUCT_FIELDS));
             $product->store_id = $store->id;
+            // Un lot n'a pas de stock à lui : ce sont ses articles qui sont suivis
+            if ($product->is_bundle) {
+                $product->track_inventory = false;
+            }
             $product->status ??= ProductStatus::Active;
             if (isset($data['slug']) || $isNew) {
                 $product->slug = $this->uniqueSlug($store, $data['slug'] ?? $data['title'] ?? $product->title, $product->id);

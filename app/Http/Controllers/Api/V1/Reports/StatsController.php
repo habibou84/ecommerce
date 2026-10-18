@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Reports;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\ScheduledReport;
 use App\Services\Accounts\StoreGroup;
@@ -72,7 +73,8 @@ class StatsController extends Controller
             'phone' => PhoneNumber::display($request->user()->phone),
             'email' => $request->user()->email,
             'whatsapp_ready' => app(CustomerMessenger::class)->account($store->id, 'daily_report') !== null,
-            'preview' => $reports->text($store, $figures, app(DailyAdvice::class)->tips($store)),
+            'preview' => $reports->text($store, $figures, app(DailyAdvice::class)->tips($store),
+                $request->user()->can(Permission::FinanceView->value) ? $reports->monthProfit($store, CarbonImmutable::now()) : null),
             // Propriétaire de plusieurs boutiques sous un abonnement commun : rapport commun possible
             'group_stores' => $store->owner_id === $request->user()->id ? app(StoreGroup::class)->stores($store)?->count() : null,
         ]]);

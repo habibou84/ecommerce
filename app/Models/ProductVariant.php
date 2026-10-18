@@ -34,6 +34,14 @@ class ProductVariant extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /**
+     * Contenu du lot, si cette variante est celle d'un lot.
+     */
+    public function components(): HasMany
+    {
+        return $this->hasMany(BundleComponent::class, 'bundle_variant_id');
+    }
+
     public function image(): BelongsTo
     {
         return $this->belongsTo(ProductImage::class, 'image_id');

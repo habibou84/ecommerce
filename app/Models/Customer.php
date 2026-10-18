@@ -21,6 +21,8 @@ class Customer extends Model
     {
         return [
             'accepts_marketing' => 'boolean',
+            'marketing_opt_out_at' => 'datetime',
+            'last_campaign_at' => 'datetime',
             'verified_at' => 'datetime',
             'blacklisted_at' => 'datetime',
             'last_order_at' => 'datetime',

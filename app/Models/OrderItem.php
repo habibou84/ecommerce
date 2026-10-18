@@ -16,11 +16,12 @@ class OrderItem extends Model
     protected $fillable = [
         'store_id', 'order_id', 'variant_id', 'product_id', 'title', 'variant_title', 'sku', 'image_path', 'quantity',
         'unit_price', 'compare_at_price', 'unit_cost', 'discount_amount', 'discount_id', 'total', 'weight_g', 'requires_shipping', 'stock_location_id',
+        'bundle_components',
     ];
 
     protected function casts(): array
     {
-        return ['requires_shipping' => 'boolean', 'quantity' => 'integer', 'unit_price' => 'integer', 'total' => 'integer'];
+        return ['requires_shipping' => 'boolean', 'quantity' => 'integer', 'unit_price' => 'integer', 'total' => 'integer', 'bundle_components' => 'array'];
     }
 
     public function variant(): BelongsTo
@@ -36,6 +37,22 @@ class OrderItem extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(StockLocation::class, 'stock_location_id');
+    }
+
+    /**
+     * Articles dont le stock bouge pour cette ligne : la variante, ou le contenu d'un lot (noté à la commande).
+     *
+     * @return list<array{variant: ProductVariant, quantity: int}>
+     */
+    public function stockLines(): array
+    {
+        if (empty($this->bundle_components)) {
+            return $this->variant ? [['variant' => $this->variant, 'quantity' => $this->quantity]] : [];
+        }
+        $variants = ProductVariant::withTrashed()->with('product')->whereIn('id', array_column($this->bundle_components, 'variant_id'))->get()->keyBy('id');
+
+        return array_values(array_filter(array_map(fn ($c) => $variants->has($c['variant_id'])
+            ? ['variant' => $variants[$c['variant_id']], 'quantity' => $c['quantity'] * $this->quantity] : null, $this->bundle_components)));
     }
 
     public function label(): string

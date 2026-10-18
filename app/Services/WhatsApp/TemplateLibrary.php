@@ -47,6 +47,11 @@ class TemplateLibrary
             'body' => 'Bonjour {{1}}, vous avez laissé des articles dans votre panier chez {{2}}. Retrouvez-le ici : {{3}} . À bientôt !',
             'example' => ['Awa', 'Awa Mode', 'https://boutique.jibiat-marchand.com/panier/abc'],
         ],
+        'campaign' => [
+            'name' => 'jm_nouveautes', 'category' => 'MARKETING',
+            'body' => 'Bonjour {{1}}, {{2}} a du nouveau pour vous : {{3}} Découvrez-le ici : {{4}} . Répondez STOP pour ne plus recevoir nos offres.',
+            'example' => ['Awa', 'Awa Mode', 'la nouvelle collection de robes wax est arrivée, -10 % jusqu\'à dimanche.', 'https://boutique.jibiat-marchand.com'],
+        ],
         'daily_tips' => [
             'name' => 'jm_conseils_du_soir', 'category' => 'UTILITY',
             'body' => 'Conseils du soir pour {{1}} : {{2}} Bonne soirée !',

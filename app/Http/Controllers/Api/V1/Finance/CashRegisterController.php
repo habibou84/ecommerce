@@ -38,6 +38,7 @@ class CashRegisterController extends Controller
                     'type' => $m->type,
                     'category' => $m->category,
                     'category_label' => $m->category ? CashMovement::CATEGORIES[$m->category] ?? $m->category : null,
+                    'channel_label' => $m->channel ? CashMovement::CHANNELS[$m->channel] ?? $m->channel : null,
                     'amount' => $m->amount,
                     'method' => $m->method,
                     'note' => $m->note,
@@ -47,6 +48,7 @@ class CashRegisterController extends Controller
             'closings' => CashSession::forStore($store->id)->whereNotNull('closed_at')->latest('closed_at')->limit(10)->get()
                 ->map(fn (CashSession $s) => $this->register->present($store, $s)),
             'categories' => collect(CashMovement::CATEGORIES)->map(fn ($label, $value) => ['value' => $value, 'label' => $label])->values(),
+            'channels' => collect(CashMovement::CHANNELS)->map(fn ($label, $value) => ['value' => $value, 'label' => $label])->values(),
         ]]);
     }
 
@@ -76,8 +78,10 @@ class CashRegisterController extends Controller
             'category' => ['nullable', Rule::in(array_keys(CashMovement::CATEGORIES))],
             'amount' => ['required', 'integer', 'min:1', 'max:100000000'],
             'method' => ['nullable', Rule::enum(PaymentMethod::class)],
+            'channel' => ['nullable', Rule::in(array_keys(CashMovement::CHANNELS))],
+            'occurred_on' => ['nullable', 'date_format:Y-m-d'],
             'note' => ['nullable', 'string', 'max:255'],
-        ], [], ['amount' => 'montant', 'category' => 'catégorie', 'method' => 'moyen']);
+        ], [], ['amount' => 'montant', 'category' => 'catégorie', 'method' => 'moyen', 'channel' => 'canal', 'occurred_on' => 'date']);
 
         $movement = $this->register->record($this->currentStore(), $data, $request->user());
 

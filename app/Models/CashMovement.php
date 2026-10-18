@@ -27,7 +27,16 @@ class CashMovement extends Model
         'other' => 'Autre',
     ];
 
-    protected $fillable = ['store_id', 'cash_session_id', 'type', 'category', 'amount', 'method', 'note', 'occurred_at', 'created_by'];
+    /** Canal de vente visé par une dépense de publicité (valeurs des canaux de commande) */
+    public const CHANNELS = [
+        'facebook' => 'Facebook',
+        'instagram' => 'Instagram',
+        'tiktok' => 'TikTok',
+        'whatsapp' => 'WhatsApp',
+        'online_store' => 'Site (Google…)',
+    ];
+
+    protected $fillable = ['store_id', 'cash_session_id', 'recurring_expense_id', 'purchase_order_id', 'type', 'category', 'channel', 'amount', 'method', 'note', 'occurred_at', 'created_by'];
 
     protected function casts(): array
     {

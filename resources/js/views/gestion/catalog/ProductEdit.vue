@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
+import BundleEditor from '../../../components/BundleEditor.vue'
 import ChipsInput from '../../../components/ChipsInput.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
@@ -37,6 +38,9 @@ const form = reactive({
   is_visible_online: true,
   track_inventory: true,
   allow_backorder: false,
+  preorder_enabled: false,
+  preorder_ship_date: '',
+  preorder_deposit_percent: null,
   requires_shipping: true,
   is_fragile: false,
   low_stock_threshold: null,
@@ -187,6 +191,8 @@ async function save() {
     const payload = {
       ...form,
       low_stock_threshold: num(form.low_stock_threshold),
+      preorder_ship_date: form.preorder_ship_date || null,
+      preorder_deposit_percent: num(form.preorder_deposit_percent),
       options: hasVariants.value ? activeOptions.value : [],
       variants: hasVariants.value ? variantRows.value.filter((r) => r.include).map(variantPayload) : [variantPayload(simple)],
       location_id: locationId.value,
@@ -607,8 +613,20 @@ const margin = computed(() => {
             <input v-model="form.is_fragile" type="checkbox" class="h-4 w-4 accent-emerald-700" />
             Colis fragile
           </label>
+          <label class="flex items-center gap-2 text-sm">
+            <input v-model="form.preorder_enabled" type="checkbox" class="h-4 w-4 accent-emerald-700" />
+            En précommande (vendu avant son arrivée)
+          </label>
+          <div v-if="form.preorder_enabled" class="grid gap-3 sm:grid-cols-2">
+            <Field id="po-ship" label="Expédition prévue vers le"><input id="po-ship" v-model="form.preorder_ship_date" type="date" class="input" /></Field>
+            <Field id="po-dep" label="Acompte demandé (%)" hint="Vide : pas d'acompte. Payé en ligne à la commande si vous avez un compte de paiement.">
+              <input id="po-dep" v-model="form.preorder_deposit_percent" type="number" min="1" max="100" class="input" />
+            </Field>
+          </div>
         </div>
       </section>
+
+      <BundleEditor v-if="props.id && !hasVariants" :product-id="props.id" />
 
       <section v-if="props.id" class="card space-y-3 p-4 sm:p-6">
         <div>
