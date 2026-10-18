@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import http from '../lib/http'
 import { cachedGet, dismissFailed, flush, forgetAll, offline, startOfflineSync } from '../lib/courierOffline'
@@ -9,6 +9,7 @@ import { useAuthStore } from '../stores/auth'
 const auth = useAuthStore()
 const router = useRouter()
 const available = ref(true)
+const tracking = ref(false) // la boutique voit sa position pendant la tournée
 const savedAt = (at) => new Date(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
 onMounted(async () => {
@@ -25,11 +26,32 @@ onMounted(async () => {
     })
   }
   try {
-    available.value = (await cachedGet('/courier/me', 'me')).is_available
+    const me = await cachedGet('/courier/me', 'me')
+    available.value = me.is_available
+    tracking.value = me.tracking
   } catch {
     // affiché par les pages
   }
 })
+
+// Position partagée avec la boutique (si elle l'a activé) tant que le livreur est disponible, toutes les deux minutes
+// au plus, et seulement application ouverte
+let watcher = null
+let lastSent = 0
+function stopSharing() {
+  if (watcher !== null) navigator.geolocation.clearWatch(watcher)
+  watcher = null
+}
+watch([tracking, available], ([on, free]) => {
+  stopSharing()
+  if (!on || !free || !navigator.geolocation) return
+  watcher = navigator.geolocation.watchPosition(({ coords }) => {
+    if (Date.now() - lastSent < 120000 || !offline.online) return
+    lastSent = Date.now()
+    http.post('/courier/location', { latitude: coords.latitude, longitude: coords.longitude }).catch(() => {})
+  }, () => {}, { enableHighAccuracy: false, maximumAge: 60000 })
+})
+onUnmounted(stopSharing)
 
 async function toggle() {
   available.value = !available.value
@@ -74,6 +96,8 @@ async function logout() {
         <button class="font-semibold underline" @click="dismissFailed(f.id)">OK</button>
       </p>
     </div>
+
+    <p v-if="tracking && available" class="px-4 pt-2 text-xs text-slate-500">📍 Votre position est partagée avec la boutique pendant votre tournée.</p>
 
     <main class="flex-1 px-4 pt-4 pb-24">
       <RouterView />

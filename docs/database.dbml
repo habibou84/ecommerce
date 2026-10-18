@@ -77,6 +77,7 @@ Table stores {
   next_order_number int [not null, default: 1001, note: 'incrémenté sous verrou (SELECT … FOR UPDATE)']
   require_order_confirmation boolean [default: true, note: 'les commandes passent par la file « à confirmer »']
   require_delivery_code boolean [default: false, note: 'code remis au client, saisi par le livreur']
+  courier_tracking boolean [default: false, note: 'position des livreurs pendant la tournée visible par la boutique']
   default_fee_payer varchar(20) [default: 'customer', note: 'customer | store']
   allow_backorder boolean [default: false, note: 'valeur par défaut des nouveaux produits']
   low_stock_threshold int [default: 3]
@@ -963,6 +964,7 @@ Table shipments {
   attempts_count smallint [default: 0]
   failure_reason varchar
   rescheduled_to date
+  route_position smallint [note: 'place dans la tournée du jour, choisie par le livreur']
   note varchar
   requested_at timestamp
   picked_up_at timestamp
@@ -1046,6 +1048,9 @@ Table couriers {
   pay_rule_id bigint [ref: > courier_pay_rules.id]
   cash_limit int [note: 'alerte au-delà de ce montant détenu']
   is_available boolean [default: true]
+  last_latitude decimal(9,6) [note: 'dernière position pendant la tournée (stores.courier_tracking)']
+  last_longitude decimal(9,6)
+  last_located_at timestamp
   status varchar(20) [default: 'invited', note: 'invited | active | inactive']
   note text
   indexes {

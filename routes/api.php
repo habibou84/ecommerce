@@ -360,6 +360,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::CouriersManage->value)->group(function () {
                 Route::get('couriers', [CourierController::class, 'index'])->name('couriers.index');
                 Route::post('couriers', [CourierController::class, 'store'])->name('couriers.store');
+                Route::patch('couriers/settings', [CourierController::class, 'settings'])->name('couriers.settings');
                 Route::patch('couriers/{courier}', [CourierController::class, 'update'])->whereNumber('courier')->name('couriers.update');
                 Route::post('couriers/{courier}/invitation', [CourierController::class, 'reinvite'])->whereNumber('courier')->name('couriers.reinvite');
                 Route::post('couriers/{courier}/deactivate', [CourierController::class, 'deactivate'])->whereNumber('courier')->name('couriers.deactivate');
@@ -387,6 +388,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('missions/{shipment}', [CourierAppController::class, 'show'])->whereNumber('shipment')->name('missions.show');
                 Route::post('missions/{shipment}/door-payment', [CourierAppController::class, 'doorPayment'])->whereNumber('shipment')->middleware('throttle:20,1')->name('missions.door-payment');
                 Route::post('missions/{shipment}/steps', [CourierAppController::class, 'step'])->whereNumber('shipment')->middleware('throttle:60,1')->name('missions.step');
+                Route::put('route', [CourierAppController::class, 'route'])->name('route');
+                Route::post('location', [CourierAppController::class, 'location'])->middleware('throttle:30,1')->name('location');
                 Route::get('cash', [CourierAppController::class, 'cash'])->name('cash');
                 Route::get('earnings', [CourierAppController::class, 'earnings'])->name('earnings');
             });

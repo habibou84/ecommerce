@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
-import { hasPendingSteps, isOffline, loadMission, offline, queueStep, shrinkPhoto } from '../../lib/courierOffline'
+import { loadMission, offline, sendStep, shrinkPhoto } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
 import { SHIPMENT_TONES } from '../../lib/shipping'
 
@@ -77,24 +77,7 @@ async function step(status) {
   }
   const photo = form.photo && ['delivered', 'failed'].includes(status) ? await shrinkPhoto(form.photo) : null
   try {
-    // Pas de réseau, ou des étapes de cette mission déjà en attente (l'ordre compte) : l'étape attend sur le téléphone
-    if (noNetwork.value || await hasPendingSteps(mission.value.id)) {
-      await queueStep(mission.value, status, fields, photo)
-      queued.value = true
-    } else {
-      const body = new FormData()
-      body.append('status', status)
-      Object.entries(fields).forEach(([k, v]) => body.append(k, v))
-      if (photo) body.append('photo', photo, 'photo.jpg')
-      try {
-        await http.post(`/courier/missions/${props.id}/steps`, body)
-      } catch (e) {
-        if (!isOffline(e)) throw e
-        // Le réseau a lâché pendant l'envoi
-        await queueStep(mission.value, status, fields, photo)
-        queued.value = true
-      }
-    }
+    queued.value = await sendStep(mission.value, status, fields, photo)
     panel.value = null
     form.photo = null
     await load()
