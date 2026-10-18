@@ -89,6 +89,7 @@ const storeRoutes = [
       { path: 'boutique-en-ligne/domaine', component: () => import('../views/gestion/online-store/Domains.vue'), meta: { title: 'Boutique en ligne', permission: 'store.manage' } },
       { path: 'boutique-en-ligne/menus', component: () => import('../views/gestion/online-store/Menus.vue'), meta: { title: 'Boutique en ligne', permission: 'store.manage' } },
       { path: 'marketing', component: () => import('../views/gestion/marketing/Promotions.vue'), meta: { title: 'Promotions', permission: 'store.manage' } },
+      { path: 'marketing/reseaux', component: () => import('../views/gestion/marketing/Social.vue'), meta: { title: 'Réseaux sociaux', permission: 'store.manage' } },
       { path: 'marketing/suivi', component: () => import('../views/gestion/marketing/Tracking.vue'), meta: { title: 'Marketing', permission: 'store.manage' } },
       { path: 'marketing/relances', component: () => import('../views/gestion/marketing/Campaigns.vue'), meta: { title: 'Relances WhatsApp', permission: 'store.manage' } },
       { path: 'marketing/fidelite', component: () => import('../views/gestion/marketing/Loyalty.vue'), meta: { title: 'Fidélité', permission: 'store.manage' } },

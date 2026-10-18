@@ -12,5 +12,5 @@ class ShortLink extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'code', 'target_type', 'target_id', 'share_image_path'];
+    protected $fillable = ['store_id', 'code', 'target_type', 'target_id', 'share_image_path', 'social_post_id', 'network'];
 }

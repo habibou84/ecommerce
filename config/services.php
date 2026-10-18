@@ -41,6 +41,9 @@ return [
         'app_secret' => env('META_APP_SECRET'),
         'whatsapp_config_id' => env('META_WHATSAPP_CONFIG_ID'), // Facebook Login for Business › Configurations
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
+        // Connexion de la page Facebook et du compte Instagram (Facebook Login for Business › Configurations ;
+        // sans configuration, les autorisations sont demandées une à une)
+        'social_config_id' => env('META_SOCIAL_CONFIG_ID'),
         // Prix d'un message marketing WhatsApp facturé par Meta au marchand (F CFA, estimation affichée avant une relance)
         'marketing_message_price' => (int) env('WHATSAPP_MARKETING_PRICE', 15),
     ],
@@ -51,6 +54,12 @@ return [
     ],
 
     // Assistant IA (fiche produit depuis une photo, commande depuis une conversation, réponses WhatsApp)
+    // Publication sur TikTok (Login Kit + Content Posting API)
+    'tiktok' => [
+        'client_key' => env('TIKTOK_CLIENT_KEY'),
+        'client_secret' => env('TIKTOK_CLIENT_SECRET'),
+    ],
+
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
         'model' => env('AI_MODEL', 'claude-opus-5-5'),
