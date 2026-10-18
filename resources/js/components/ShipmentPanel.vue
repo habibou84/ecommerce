@@ -146,6 +146,11 @@ async function whatsapp(s) {
         </li>
       </ol>
       <p v-if="s.courier" class="text-slate-600">Livreur : <strong>{{ s.courier.name }}</strong> · <a :href="`tel:${s.courier.phone}`" class="text-emerald-700 underline">appeler</a></p>
+      <p v-if="s.courier && !s.is_final" class="text-xs" :class="s.courier.accepted_at ? 'text-emerald-700' : 'text-amber-700'">
+        <template v-if="s.courier.accepted_at">✓ Mission acceptée à {{ new Date(s.courier.accepted_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</template>
+        <template v-else-if="s.courier.seen_at">Vue à {{ new Date(s.courier.seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}, pas encore acceptée</template>
+        <template v-else-if="s.status === 'awaiting_pickup'">Pas encore vue par le livreur</template>
+      </p>
       <div v-if="!s.is_final" class="flex flex-wrap gap-2 pt-1">
         <template v-if="s.mode === 'own_courier'">
           <button v-if="s.status === 'returning'" class="btn-brand px-2 py-1" :disabled="busy" @click="received(s)">Colis reçu à la boutique</button>
