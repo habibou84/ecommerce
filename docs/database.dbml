@@ -1442,6 +1442,42 @@ Table short_links {
   target_id bigint [not null]
   share_image_path varchar [note: 'image carrée prête pour les statuts WhatsApp']
   clicks int [default: 0]
+  social_post_id bigint [ref: > social_posts.id, note: 'lien d\'une publication sur un réseau (sinon : lien de partage, un par produit)']
+  network varchar(20) [note: 'facebook | instagram | tiktok']
+}
+
+Table social_accounts {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  network varchar(20) [not null, note: 'facebook | instagram | tiktok']
+  external_id varchar(64) [not null, note: 'page Facebook, compte Instagram professionnel, open_id TikTok']
+  name varchar
+  access_token text [not null, note: 'chiffré ; Instagram : jeton de la page liée']
+  refresh_token text [note: 'chiffré (TikTok)']
+  token_expires_at timestamp
+  page_id varchar(64) [note: 'Instagram : page Facebook liée (messages)']
+  status varchar(20) [default: 'active']
+  last_error varchar
+  connected_by bigint [ref: > users.id]
+  indexes {
+    (store_id, network) [unique]
+    (network, external_id)
+  }
+}
+
+Table social_posts {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  product_id bigint [ref: > products.id]
+  caption text [not null, note: '{lien} remplacé par le lien du réseau']
+  networks jsonb [not null]
+  square_path varchar [note: 'visuel 1080 × 1080']
+  vertical_path varchar [note: 'visuel 1080 × 1920']
+  results jsonb [note: '{réseau: {status, id, url, error, at}}']
+  status varchar(20) [default: 'scheduled', note: 'scheduled | publishing | published | partial | failed']
+  scheduled_at timestamp
+  published_at timestamp
+  created_by bigint [ref: > users.id]
 }
 
 // ═════════════════════════════ MESSAGES ET NOTIFICATIONS ═════════════════════════════
@@ -1508,7 +1544,7 @@ Table outbound_messages {
 Table conversations {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
-  channel varchar(20) [not null, note: 'whatsapp (puis messenger, instagram)']
+  channel varchar(20) [not null, note: 'whatsapp | messenger | instagram']
   contact varchar(64) [not null, note: 'numéro +225… pour WhatsApp']
   contact_name varchar(120) [note: 'nom du profil WhatsApp']
   customer_id bigint [ref: > customers.id]

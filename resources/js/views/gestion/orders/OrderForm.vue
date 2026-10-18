@@ -79,13 +79,16 @@ async function fromConversation(id) {
     return
   }
   const c = conversation.value
-  form.source = 'whatsapp'
+  form.source = { messenger: 'facebook', instagram: 'instagram' }[c.channel] ?? 'whatsapp'
   paste.value = c.order_text
   if (paste.value.trim().length >= 5) await analyse()
-  // Un autre numéro cité dans le message devient le second numéro de livraison
-  const parsed = form.customer_phone.replace(/\D/g, '')
-  if (parsed && !c.phone.endsWith(parsed.slice(-10))) form.shipping_phone2 ||= form.customer_phone
-  form.customer_phone = c.phone_display
+  // WhatsApp : le numéro de la conversation ; un autre numéro cité devient le second numéro de livraison.
+  // Messenger et Instagram : le numéro est celui que le client a donné dans ses messages.
+  if (c.phone) {
+    const parsed = form.customer_phone.replace(/\D/g, '')
+    if (parsed && !c.phone.endsWith(parsed.slice(-10))) form.shipping_phone2 ||= form.customer_phone
+    form.customer_phone = c.phone_display
+  }
   form.customer_name ||= c.customer?.name ?? c.name ?? ''
   await lookupCustomer()
 }

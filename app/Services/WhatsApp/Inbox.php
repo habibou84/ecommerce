@@ -7,10 +7,12 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\Customer;
+use App\Models\SocialAccount;
 use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Notifications\CustomerMessage;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Social\MetaSocial;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,7 +24,63 @@ use RuntimeException;
  */
 class Inbox
 {
-    public function __construct(private readonly WhatsAppCloud $cloud, private readonly TeamNotifier $team) {}
+    public function __construct(private readonly WhatsAppCloud $cloud, private readonly TeamNotifier $team, private readonly MetaSocial $social) {}
+
+    /**
+     * Message Messenger (page Facebook) ou Instagram reçu d'un client : même boîte que WhatsApp, un fil par client.
+     *
+     * @param  array<string, mixed>  $event  évènement « messaging » de Meta
+     */
+    public function receiveSocial(SocialAccount $account, array $event): ?ConversationMessage
+    {
+        $message = $event['message'] ?? null;
+        $from = (string) ($event['sender']['id'] ?? '');
+        if (! is_array($message) || ! empty($message['is_echo']) || $from === '' || $from === $account->external_id) {
+            return null;
+        }
+        $providerId = $message['mid'] ?? null;
+        if ($providerId && ConversationMessage::forStore($account->store_id)->where('provider_message_id', $providerId)->exists()) {
+            return null;
+        }
+        $attachment = $message['attachments'][0]['type'] ?? null;
+        $body = trim((string) ($message['text'] ?? '')) ?: match ($attachment) {
+            'image' => '📷 Photo', 'video' => '🎬 Vidéo', 'audio' => '🎤 Message vocal', 'file' => '📄 Document',
+            null => null, default => 'Message non affichable ici : ouvrez '.SocialAccount::NETWORKS[$account->network].' pour le voir.',
+        };
+        if ($body === null) {
+            return null;
+        }
+        $channel = $account->network === 'facebook' ? 'messenger' : 'instagram';
+        $sentAt = isset($event['timestamp']) ? Carbon::createFromTimestampMs((int) $event['timestamp']) : now();
+        $known = Conversation::forStore($account->store_id)->where('channel', $channel)->where('contact', $from)->value('contact_name');
+        $name = $known ?? $this->social->profileName($account, $from);
+
+        [$created, $conversation, $alert] = DB::transaction(function () use ($account, $channel, $from, $name, $body, $providerId, $sentAt, $attachment) {
+            $conversation = Conversation::forStore($account->store_id)->lockForUpdate()->firstOrNew(['channel' => $channel, 'contact' => $from]);
+            $alert = $conversation->unread_count === 0 || $conversation->last_inbound_at === null || $conversation->last_inbound_at->lt($sentAt->copy()->subMinutes(10));
+            $conversation->fill([
+                'store_id' => $account->store_id,
+                'contact_name' => $name ? Str::limit($name, 117) : $conversation->contact_name,
+                'last_preview' => Str::limit($body, 197),
+                'last_message_at' => $sentAt,
+                'last_inbound_at' => $sentAt,
+                'unread_count' => $conversation->unread_count + 1,
+            ])->save();
+
+            $created = $conversation->messages()->create([
+                'store_id' => $account->store_id, 'direction' => 'in', 'type' => $attachment ? (in_array($attachment, ['image', 'video', 'audio'], true) ? $attachment : 'other') : 'text',
+                'body' => $body, 'provider_message_id' => $providerId, 'status' => 'received', 'sent_at' => $sentAt,
+            ]);
+
+            return [$created, $conversation, $alert];
+        });
+
+        if ($alert && $account->store) {
+            $this->team->notify($account->store, Permission::OrdersConfirm->value, new CustomerMessage($conversation, $body));
+        }
+
+        return $created;
+    }
 
     /**
      * Message reçu d'un client (notification de Meta). Une notification rejouée n'est enregistrée qu'une fois.
@@ -87,7 +145,18 @@ class Inbox
     public function reply(Conversation $conversation, string $text, User $user): ConversationMessage
     {
         if (! $conversation->canReply()) {
-            throw new BusinessRuleException('Le client n\'a pas écrit depuis plus de 24 h : WhatsApp n\'autorise plus de réponse libre. Répondez depuis votre téléphone ou attendez son prochain message.', 'body');
+            throw new BusinessRuleException('Le client n\'a pas écrit depuis plus de 24 h : '.$this->label($conversation).' n\'autorise plus de réponse libre. Répondez depuis votre téléphone ou attendez son prochain message.', 'body');
+        }
+        if ($conversation->channel !== 'whatsapp') {
+            $account = SocialAccount::forStore($conversation->store_id)->where('network', $conversation->channel === 'messenger' ? 'facebook' : 'instagram')->first()
+                ?? throw new BusinessRuleException($this->label($conversation).' n\'est plus connecté (Marketing › Réseaux sociaux).', 'body');
+            try {
+                $id = $this->social->send($account, $conversation->contact, $text);
+            } catch (RuntimeException $e) {
+                throw new BusinessRuleException($e->getMessage(), 'body');
+            }
+
+            return $this->record($conversation, 'text', $text, 'sent', $id, $user);
         }
         $account = WhatsappAccount::forStore($conversation->store_id)->first();
         if ($account === null) {
@@ -124,6 +193,11 @@ class Inbox
         }
         ConversationMessage::forStore($storeId)->where('provider_message_id', $providerId)->where('direction', 'out')
             ->update(array_filter(['status' => $status, 'error' => $error]));
+    }
+
+    private function label(Conversation $conversation): string
+    {
+        return ['messenger' => 'Messenger', 'instagram' => 'Instagram'][$conversation->channel] ?? 'WhatsApp';
     }
 
     public function markRead(Conversation $conversation): void

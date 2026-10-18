@@ -22,7 +22,11 @@ class ShortLinkController extends Controller
         }
 
         $link->increment('clicks');
+        // Lien d'une publication sur un réseau : la commande sera rattachée au réseau et à la publication
+        $origin = $link->network
+            ? ['utm_source' => $link->network, 'utm_medium' => 'social', 'utm_campaign' => 'post-'.$link->social_post_id]
+            : ['utm_source' => 'partage', 'utm_medium' => 'lien_court', 'utm_campaign' => $code];
 
-        return redirect('/produits/'.$product->slug.'?'.http_build_query(['utm_source' => 'partage', 'utm_medium' => 'lien_court', 'utm_campaign' => $code]));
+        return redirect('/produits/'.$product->slug.'?'.http_build_query($origin));
     }
 }

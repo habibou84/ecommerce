@@ -3,6 +3,7 @@
 use App\Http\Controllers\HandoffController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\SocialCallbackController;
 use Illuminate\Support\Facades\Route;
 
 // La racine, la boutique en ligne et le suivi des commandes sont dans routes/storefront.php (sans session)
@@ -14,6 +15,8 @@ Route::middleware('zone:platform')->group(function () {
     Route::get('/mot-de-passe-oublie', [PageController::class, 'spa']);
     // Fenêtre Facebook de la connexion WhatsApp des boutiques (Meta n'accepte que des domaines déclarés un par un)
     Route::get('/whatsapp/facebook', [PageController::class, 'spa'])->name('whatsapp.facebook');
+    // Retour des fenêtres de connexion Facebook / Instagram et TikTok (adresses déclarées chez eux)
+    Route::get('/reseaux/{provider}/retour', SocialCallbackController::class)->whereIn('provider', ['meta', 'tiktok'])->name('social.callback');
     Route::get('/cgu', [LegalController::class, 'terms'])->name('legal.terms');
     Route::get('/confidentialite', [LegalController::class, 'privacy'])->name('legal.privacy');
 });
