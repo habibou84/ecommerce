@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import http from '../lib/http'
 import { chooseStore, chosenStore } from '../lib/boutique'
+import { savedProfile, saveProfile } from '../lib/courierOffline'
 
 // Session de gestion de la boutique de l'adresse
 export const useAuthStore = defineStore('auth', {
@@ -23,7 +24,13 @@ export const useAuthStore = defineStore('auth', {
       try {
         const { data } = await http.get('/auth/me')
         this.profile = data.data
+        if (this.profile?.courier) saveProfile(this.profile)
       } catch (error) {
+        // Livreur sans réseau : l'application s'ouvre avec son dernier profil
+        if (error.isAxiosError && !error.response && location.pathname.startsWith('/livreur') && savedProfile()) {
+          this.profile = savedProfile()
+          return
+        }
         if (![401, 403].includes(error.response?.status)) throw error
         // Boutique choisie qui n'est plus accessible : retour à la boutique de l'adresse
         if (error.response?.status === 403 && chosenStore()) {

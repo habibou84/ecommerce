@@ -11,6 +11,7 @@ use App\Services\Shipping\Drivers\RemoteShipment;
 use App\Services\Shipping\ShipmentDesk;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Throwable;
 
 /**
@@ -41,7 +42,7 @@ class CourierDesk
     }
 
     /**
-     * @param  array{code?: ?string, payment_method?: ?string, collected_amount?: ?int, reason?: ?string, rescheduled_to?: ?string, note?: ?string}  $data
+     * @param  array{code?: ?string, payment_method?: ?string, collected_amount?: ?int, reason?: ?string, rescheduled_to?: ?string, note?: ?string, occurred_at?: ?string}  $data
      */
     public function update(Shipment $shipment, Courier $courier, string $step, array $data, ?UploadedFile $photo = null): Shipment
     {
@@ -57,14 +58,16 @@ class CourierDesk
         $remote = match ($step) {
             'delivered' => $this->delivered($shipment, $data, $photoPath),
             'failed' => $this->failed($shipment, $data, $photoPath),
-            default => new RemoteShipment(trackingCode: '', status: ShipmentStatus::from($step), rawStatus: $step),
+            default => new RemoteShipment(trackingCode: '', status: ShipmentStatus::from($step), rawStatus: $step, occurredAt: $data['occurred_at'] ?? null),
         };
 
         $this->shipments->apply($shipment, $remote, 'courier', $data['note'] ?? ($step === 'failed' ? $data['reason'] : null), $courier->user);
         $shipment = $shipment->fresh(['order', 'courier']);
 
-        // Le livreur part : le client est prévenu (nom et numéro du livreur), un échec d'envoi ne bloque pas l'étape
-        if ($step === 'out_for_delivery') {
+        // Le livreur part : le client est prévenu (nom et numéro du livreur), un échec d'envoi ne bloque pas l'étape.
+        // Étape faite sans réseau et envoyée bien plus tard : le message arriverait trop tard, il ne part pas.
+        $late = isset($data['occurred_at']) && Carbon::parse($data['occurred_at'])->lt(now()->subMinutes(15));
+        if ($step === 'out_for_delivery' && ! $late) {
             try {
                 app(CustomerMessenger::class)->courierOnTheWay($shipment);
             } catch (Throwable $e) {
@@ -97,6 +100,7 @@ class CourierDesk
             collected: $collected,
             paymentMethod: PaymentMethod::from($method)->value,
             proofPhotoPath: $photoPath,
+            occurredAt: $data['occurred_at'] ?? null,
         );
     }
 
@@ -107,7 +111,9 @@ class CourierDesk
             throw new BusinessRuleException('Indiquez le motif.', 'reason');
         }
         $date = $data['rescheduled_to'] ?? null;
-        if ($date !== null && $date < today()->toDateString()) {
+        // Jour de l'étape (une étape faite sans réseau la veille garde son jour)
+        $day = isset($data['occurred_at']) ? Carbon::parse($data['occurred_at'])->toDateString() : today()->toDateString();
+        if ($date !== null && $date < $day) {
             throw new BusinessRuleException('La nouvelle date doit être aujourd\'hui ou plus tard.', 'rescheduled_to');
         }
 
@@ -119,6 +125,7 @@ class CourierDesk
             attempts: $shipment->attempts_count + 1,
             proofPhotoPath: $photoPath,
             rescheduledTo: $date,
+            occurredAt: $data['occurred_at'] ?? null,
         );
     }
 }
