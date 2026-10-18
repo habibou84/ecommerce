@@ -61,7 +61,7 @@ class RecurringExpenses
         RecurringExpense::withoutGlobalScopes()->where('is_active', true)->with('store')->get()
             ->each(function (RecurringExpense $expense) use ($now, &$count) {
                 $store = $expense->store;
-                if ($store === null) {
+                if ($store === null || ! $store->isOpen()) {
                     return;
                 }
                 $today = ($now ?? CarbonImmutable::now())->setTimezone($store->timezone)->startOfDay();

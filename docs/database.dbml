@@ -1934,3 +1934,18 @@ Table bundle_components {
   }
   Note: 'Contenu d\'un lot (products.is_bundle). order_items.bundle_components garde le contenu au moment de la commande. Précommandes : products.preorder_enabled, preorder_ship_date, preorder_deposit_percent ; orders.is_preorder.'
 }
+
+Table store_exports {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  user_id bigint [ref: > users.id]
+  status varchar(20) [default: 'pending', note: 'pending, ready, failed']
+  path varchar [note: 'disque privé : exports/{store}/…zip']
+  size bigint
+  error varchar
+  completed_at timestamp
+  expires_at timestamp [note: '7 jours, puis supprimé (exports:purge)']
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Export complet des données (archive ZIP de CSV). stores.closed_reason : motif donné à la fermeture en libre-service.'
+}

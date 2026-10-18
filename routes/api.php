@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\V1\Stock\ReceiptController;
 use App\Http\Controllers\Api\V1\Stock\StoreTransferController;
 use App\Http\Controllers\Api\V1\Stock\TransferController;
 use App\Http\Controllers\Api\V1\StoreController;
+use App\Http\Controllers\Api\V1\StoreDataController;
 use App\Http\Controllers\Api\V1\Storefront\MenuController;
 use App\Http\Controllers\Api\V1\Storefront\OnlineStoreController;
 use App\Http\Controllers\Api\V1\Storefront\PageController as StorePageController;
@@ -192,6 +193,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
             });
             Route::get('reports/schedule', [StatsController::class, 'schedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule');
             Route::put('reports/schedule', [StatsController::class, 'updateSchedule'])->middleware('permission:'.Permission::OrdersView->value)->name('reports.schedule.update');
+            // ── Données de la boutique : export complet et fermeture (propriétaire, contrôle dans le contrôleur) ──
+            Route::get('store-data/exports', [StoreDataController::class, 'index'])->name('store-data.exports');
+            Route::post('store-data/exports', [StoreDataController::class, 'export'])->middleware('throttle:5,1')->name('store-data.export');
+            Route::get('store-data/exports/{export}/download', [StoreDataController::class, 'download'])->whereNumber('export')->name('store-data.download');
+            Route::post('store-data/close', [StoreDataController::class, 'close'])->middleware('throttle:5,1')->name('store-data.close');
             Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
             Route::post('notifications/read', [NotificationController::class, 'read'])->name('notifications.read');
             Route::get('places', [DeliveryController::class, 'places'])->name('places.index');
