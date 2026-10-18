@@ -6,6 +6,7 @@ import BundleEditor from '../../../components/BundleEditor.vue'
 import ChipsInput from '../../../components/ChipsInput.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
+import SocialPublish from '../../../components/SocialPublish.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { combinations, money } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
@@ -345,6 +346,7 @@ onMounted(loadOtherStores)
 
 // Partage sur les réseaux : lien court et image carrée
 const share = ref(null)
+const publishing = ref(false)
 const sharing = ref(false)
 async function openShare() {
   sharing.value = true
@@ -380,6 +382,7 @@ const margin = computed(() => {
       <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
       <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare">📣 Partager</button>
+      <button v-if="product && form.status === 'active' && form.is_visible_online && auth.can('store.manage')" type="button" class="btn-secondary px-3 py-1.5" @click="publishing = true">📢 Publier sur les réseaux</button>
     </div>
 
     <Alert v-if="error">{{ error }}</Alert>
@@ -700,6 +703,7 @@ const margin = computed(() => {
       </div>
     </div>
 
+    <SocialPublish v-if="publishing" :product="{ id: product.id, title: form.title }" @close="publishing = false" />
     <Modal v-if="share" title="Partager le produit" @close="share = null">
       <div class="space-y-3 text-sm">
         <img :src="share.image_url" alt="Image de partage" class="w-full rounded-lg border border-slate-200" width="1080" height="1080" />

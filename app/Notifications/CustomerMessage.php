@@ -19,7 +19,7 @@ class CustomerMessage extends StoreNotification
     {
         return [
             'kind' => 'customer_message',
-            'title' => '💬 '.($this->conversation->contact_name ?: 'Message WhatsApp'),
+            'title' => '💬 '.($this->conversation->contact_name ?: 'Message '.(['messenger' => 'Messenger', 'instagram' => 'Instagram'][$this->conversation->channel] ?? 'WhatsApp')),
             'body' => Str::limit($this->text, 140),
             'url' => '/gestion/messages/'.$this->conversation->id,
         ];

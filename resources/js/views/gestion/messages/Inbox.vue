@@ -5,7 +5,7 @@ import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
 
-// Boîte « Messages » : conversations WhatsApp des clients, réponses, et commande créée depuis la conversation
+// Boîte « Messages » : conversations WhatsApp, Messenger et Instagram des clients, réponses, et commande créée depuis la conversation
 const props = defineProps({ id: { type: String, default: null } })
 const auth = useAuthStore()
 
@@ -105,7 +105,9 @@ watch([filter, search], () => {
 })
 
 const replyUntil = computed(() => (current.value?.reply_until ? formatDateTime(current.value.reply_until) : ''))
-const waLink = computed(() => (current.value ? `https://wa.me/${current.value.phone.replace(/\D/g, '')}` : ''))
+const waLink = computed(() => (current.value?.phone ? `https://wa.me/${current.value.phone.replace(/\D/g, '')}` : ''))
+const CHANNELS = { whatsapp: ['WhatsApp', '🟢'], messenger: ['Messenger', '🔵'], instagram: ['Instagram', '🟣'] }
+const channelLabel = (c) => CHANNELS[c?.channel]?.[0] ?? 'WhatsApp'
 const filters = [
   { value: 'all', label: 'Toutes' },
   { value: 'unread', label: 'Non lues' },
@@ -122,8 +124,9 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
 <template>
   <div class="space-y-4">
     <Alert v-if="listLoaded && !connected" tone="warning">
-      Les messages des clients arrivent ici quand le WhatsApp de la boutique est connecté.
+      Les messages des clients arrivent ici quand le WhatsApp, la page Facebook ou l'Instagram de la boutique sont connectés.
       <RouterLink v-if="auth.can('store.manage')" to="/gestion/whatsapp" class="font-medium underline">Connecter WhatsApp</RouterLink>
+      <RouterLink v-if="auth.can('store.manage')" to="/gestion/marketing/reseaux" class="ml-2 font-medium underline">Connecter Facebook et Instagram</RouterLink>
     </Alert>
 
     <div class="card grid grid-cols-1 overflow-hidden lg:grid-cols-[20rem_1fr]" style="height: calc(100vh - 9rem); min-height: 28rem">
@@ -154,6 +157,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
             :class="{ 'bg-emerald-50': String(c.id) === id }"
           >
             <div class="flex items-baseline gap-2">
+              <span class="shrink-0 text-xs" :title="channelLabel(c)">{{ CHANNELS[c.channel]?.[1] ?? '🟢' }}</span>
               <span class="truncate text-sm" :class="c.unread ? 'font-semibold' : 'font-medium'">{{ c.name || c.phone_display }}</span>
               <span class="ml-auto shrink-0 text-xs text-slate-400">{{ time(c.last_message_at) }}</span>
             </div>
@@ -173,7 +177,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
           <div class="min-w-0">
             <p class="truncate font-semibold">{{ current.name || current.phone_display }}</p>
             <p class="text-xs text-slate-500">
-              WhatsApp · {{ current.phone_display }}
+              {{ channelLabel(current) }}<template v-if="current.phone"> · {{ current.phone_display }}</template>
               <RouterLink v-if="current.customer && auth.can('customers.view')" :to="`/gestion/clients/${current.customer.id}`" class="ml-1 text-emerald-700 hover:underline">Fiche client</RouterLink>
             </p>
           </div>
@@ -221,15 +225,15 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
           <p class="text-xs text-slate-500">Réponse possible jusqu'au {{ replyUntil }} (24 h après le dernier message du client). Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
         </form>
         <div v-else class="border-t border-slate-100 p-3 text-sm text-slate-600">
-          Le dernier message du client date de plus de 24 h : WhatsApp ne permet plus d'y répondre d'ici.
-          <a :href="waLink" target="_blank" rel="noopener" class="font-medium text-emerald-700 underline">Écrire depuis WhatsApp</a>
+          Le dernier message du client date de plus de 24 h : {{ channelLabel(current) }} ne permet plus d'y répondre d'ici.
+          <a v-if="waLink" :href="waLink" target="_blank" rel="noopener" class="font-medium text-emerald-700 underline">Écrire depuis WhatsApp</a>
         </div>
       </section>
       <section v-else class="hidden place-items-center p-6 text-center text-sm text-slate-500 lg:grid">
         <div>
           <p class="text-3xl">💬</p>
           <p class="mt-2">Choisissez une conversation.</p>
-          <p class="mt-1">Les messages des clients arrivent ici dès qu'ils écrivent sur le WhatsApp de la boutique.</p>
+          <p class="mt-1">Les messages des clients arrivent ici dès qu'ils écrivent sur le WhatsApp, la page Facebook ou l'Instagram de la boutique.</p>
         </div>
       </section>
     </div>

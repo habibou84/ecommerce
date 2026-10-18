@@ -23,6 +23,11 @@ class ShareImages
 
     private const PHOTO_HEIGHT = 760;
 
+    /** Format vertical des stories Instagram et de TikTok (9:16) */
+    private const VERTICAL_HEIGHT = 1920;
+
+    private const VERTICAL_PHOTO_HEIGHT = 1380;
+
     public function __construct(private readonly Pricing $pricing, private readonly ThemeSettings $themes) {}
 
     /**
@@ -31,7 +36,7 @@ class ShareImages
     public function forProduct(Store $store, Product $product): array
     {
         $link = ShortLink::forStore($store->id)->firstOrCreate(
-            ['store_id' => $store->id, 'target_type' => 'product', 'target_id' => $product->id],
+            ['store_id' => $store->id, 'target_type' => 'product', 'target_id' => $product->id, 'social_post_id' => null],
             ['code' => $this->newCode()],
         );
         $url = $store->url('/p/'.$link->code);
@@ -41,7 +46,7 @@ class ShareImages
 
         // Image refaite à chaque partage : prix et vente flash du moment
         $path = "stores/{$store->id}/share/product-{$product->id}.jpg";
-        $this->disk()->put($path, $this->render($store, $product, $price, $url), 'public');
+        $this->disk()->put($path, $this->render($store, $product, $price, $url, self::SIZE, self::PHOTO_HEIGHT), 'public');
         $link->forceFill(['share_image_path' => $path])->save();
 
         $text = $product->title.' — '.Money::format($price['price'])
@@ -54,6 +59,38 @@ class ShareImages
             'text' => $text,
             'clicks' => (int) $link->clicks,
         ];
+    }
+
+    /**
+     * Visuels d'une publication sur les réseaux : carré (fil Facebook, Instagram) et vertical (stories, TikTok),
+     * avec le prix du moment et le lien de commande.
+     *
+     * @return array{square: string, vertical: string}
+     */
+    public function visuals(Store $store, Product $product, string $url, string $basePath): array
+    {
+        $product->loadMissing(['images' => fn ($q) => $q->orderBy('position'), 'variants' => fn ($q) => $q->where('is_active', true)]);
+        $price = $this->price($store, $product);
+        $paths = ['square' => "{$basePath}-square.jpg", 'vertical' => "{$basePath}-vertical.jpg"];
+        $this->disk()->put($paths['square'], $this->render($store, $product, $price, $url, self::SIZE, self::PHOTO_HEIGHT), 'public');
+        $this->disk()->put($paths['vertical'], $this->render($store, $product, $price, $url, self::VERTICAL_HEIGHT, self::VERTICAL_PHOTO_HEIGHT), 'public');
+
+        return $paths;
+    }
+
+    public function publicUrl(string $path): string
+    {
+        return $this->disk()->url($path);
+    }
+
+    /**
+     * Lien court vers un produit, mesuré à part pour un réseau et une publication.
+     */
+    public function linkFor(Store $store, Product $product, int $postId, string $network): string
+    {
+        $link = ShortLink::create(['store_id' => $store->id, 'target_type' => 'product', 'target_id' => $product->id, 'social_post_id' => $postId, 'network' => $network, 'code' => $this->newCode()]);
+
+        return $store->url('/p/'.$link->code);
     }
 
     /**
@@ -78,13 +115,13 @@ class ShareImages
     /**
      * @param  array{price: int, compare_at: ?int, flash: bool, from: bool}  $price
      */
-    private function render(Store $store, Product $product, array $price, string $url): string
+    private function render(Store $store, Product $product, array $price, string $url, int $height, int $photoHeight): string
     {
         $theme = $this->themes->resolve($store)['settings'];
         [$r, $g, $b] = $this->rgb((string) ($theme['primary_color'] ?? '#047857'));
         $dark = (0.299 * $r + 0.587 * $g + 0.114 * $b) < 150;
 
-        $canvas = imagecreatetruecolor(self::SIZE, self::SIZE);
+        $canvas = imagecreatetruecolor(self::SIZE, $height);
         $brand = imagecolorallocate($canvas, $r, $g, $b);
         $text = $dark ? imagecolorallocate($canvas, 255, 255, 255) : imagecolorallocate($canvas, 17, 24, 39);
         $muted = $dark ? imagecolorallocatealpha($canvas, 255, 255, 255, 40) : imagecolorallocatealpha($canvas, 17, 24, 39, 40);
@@ -92,9 +129,9 @@ class ShareImages
 
         $photo = $this->photo($product);
         if ($photo !== null) {
-            $this->cover($canvas, $photo, 0, 0, self::SIZE, self::PHOTO_HEIGHT);
+            $this->cover($canvas, $photo, 0, 0, self::SIZE, $photoHeight);
         }
-        $top = $photo !== null ? self::PHOTO_HEIGHT : 280;
+        $top = $photo !== null ? $photoHeight : (int) ($height * 0.26);
 
         // Badge de promotion sur la photo
         if ($price['compare_at']) {
@@ -123,7 +160,11 @@ class ShareImages
             imageline($canvas, $x - 4, $priceY - 14, $x + $this->textWidth($old, 38, 'Medium') + 4, $priceY - 14, $muted);
         }
         $footer = $store->name.'  ·  '.preg_replace('#^https?://#', '', $url);
-        imagettftext($canvas, 28, 0, 60, self::SIZE - 40, $muted, $this->font('Medium'), Str::limit($footer, 60));
+        // Format vertical : appel à commander, la place ne manque pas
+        if ($height > self::SIZE) {
+            imagettftext($canvas, 36, 0, 60, $height - 130, $text, $this->font('Bold'), 'Commandez en un clic · livraison rapide');
+        }
+        imagettftext($canvas, 28, 0, 60, $height - 40, $muted, $this->font('Medium'), Str::limit($footer, 60));
 
         ob_start();
         imagejpeg($canvas, null, 85);

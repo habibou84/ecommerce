@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Messaging;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
+use App\Models\SocialAccount;
 use App\Models\WhatsappAccount;
 use App\Services\Messaging\ReplySuggester;
 use App\Services\WhatsApp\Inbox;
@@ -39,7 +40,7 @@ class ConversationController extends Controller
         return response()->json([
             'data' => collect($page->items())->map(fn (Conversation $c) => $this->summary($c))->values(),
             'meta' => ['total' => $page->total(), 'last_page' => $page->lastPage(), 'unread' => $this->unreadCount()],
-            'connected' => WhatsappAccount::query()->exists(),
+            'connected' => WhatsappAccount::query()->exists() || SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists(),
         ]);
     }
 
@@ -87,8 +88,9 @@ class ConversationController extends Controller
             'id' => $c->id,
             'channel' => $c->channel,
             'name' => $c->contact_name,
-            'phone' => $c->contact,
-            'phone_display' => PhoneNumber::display($c->contact),
+            // Messenger et Instagram : identifiant du client chez Meta, pas un numéro
+            'phone' => $c->channel === 'whatsapp' ? $c->contact : null,
+            'phone_display' => $c->channel === 'whatsapp' ? PhoneNumber::display($c->contact) : (['messenger' => 'Messenger', 'instagram' => 'Instagram'][$c->channel] ?? $c->channel),
             'preview' => $c->last_preview,
             'last_message_at' => $c->last_message_at?->toIso8601String(),
             'unread' => $c->unread_count,

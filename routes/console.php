@@ -12,6 +12,7 @@ use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierEvents;
+use App\Services\Social\SocialPublisher;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Artisan;
@@ -41,6 +42,15 @@ Artisan::command('couriers:remind', function (MissionResponses $responses) {
 })->purpose('Rappel des missions pas encore acceptées par les livreurs');
 
 Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping();
+
+/*
+ * Publications programmées sur les réseaux sociaux, arrivées à l'heure.
+ */
+Artisan::command('social:publish', function (SocialPublisher $publisher) {
+    $this->line($publisher->publishDue().' publication(s) programmée(s) publiée(s)');
+})->purpose('Publie sur les réseaux les produits programmés');
+
+Schedule::command('social:publish')->everyMinute()->withoutOverlapping();
 
 /*
  * Paniers abandonnés : un client a laissé son numéro et des articles sans commander depuis plus d'une heure (et moins

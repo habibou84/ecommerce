@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
+use App\Models\SocialAccount;
 use App\Models\WhatsappAccount;
 use App\Services\WhatsApp\CustomerMessenger;
+use App\Services\WhatsApp\Inbox;
 use App\Services\WhatsApp\TemplateLibrary;
 use App\Services\WhatsApp\WhatsAppCloud;
 use App\Support\Tenancy;
@@ -32,6 +34,12 @@ class MetaWhatsAppWebhookController extends Controller
         if (! WhatsAppCloud::signatureMatches($request, config('services.meta.app_secret'))) {
             return response('Signature invalide.', 401);
         }
+        // Même adresse pour les messages Messenger (page) et Instagram : boîte Messages de la boutique
+        if (in_array($request->json('object'), ['page', 'instagram'], true)) {
+            $this->social($request, $tenancy);
+
+            return response('OK');
+        }
 
         foreach ($request->json('entry') ?? [] as $entry) {
             $account = $this->account((string) ($entry['id'] ?? ''));
@@ -49,6 +57,21 @@ class MetaWhatsAppWebhookController extends Controller
         }
 
         return response('OK');
+    }
+
+    private function social(Request $request, Tenancy $tenancy): void
+    {
+        $network = $request->json('object') === 'page' ? 'facebook' : 'instagram';
+        foreach ($request->json('entry') ?? [] as $entry) {
+            $account = SocialAccount::withoutGlobalScopes()->with('store')->where('network', $network)->where('external_id', (string) ($entry['id'] ?? ''))->first();
+            if ($account === null || $account->store === null) {
+                continue;
+            }
+            $tenancy->setStore($account->store);
+            foreach ($entry['messaging'] ?? [] as $event) {
+                app(Inbox::class)->receiveSocial($account, $event);
+            }
+        }
     }
 
     /**
