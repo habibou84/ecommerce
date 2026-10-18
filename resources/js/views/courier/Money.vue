@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { seenDecision } from '../../lib/courierPrefs'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { cachedGet, offline, shrinkPhoto } from '../../lib/courierOffline'
@@ -7,6 +8,9 @@ import { formatDateTime, money } from '../../lib/format'
 
 const cash = ref(null)
 const earnings = ref(null)
+const me = ref(null)
+// Onglets : espèces à verser, versements, paie
+const tab = ref('cash')
 const declaring = ref(false)
 const busy = ref(false)
 const error = ref('')
@@ -17,10 +21,24 @@ const METHODS = [['cash', 'Espèces à la caisse'], ['wave', 'Wave'], ['orange_m
 const STATUS = { pending: ['En attente de la boutique', 'bg-amber-100 text-amber-900'], confirmed: ['Confirmé', 'bg-emerald-100 text-emerald-800'], rejected: ['Refusé', 'bg-red-100 text-red-800'] }
 
 async function load() {
-  const [c, e] = await Promise.all([cachedGet('/courier/cash', 'cash'), cachedGet('/courier/earnings', 'earnings')])
+  const [c, e, m] = await Promise.all([cachedGet('/courier/cash', 'cash'), cachedGet('/courier/earnings', 'earnings'), cachedGet('/courier/me', 'me')])
   cash.value = c
   earnings.value = e
+  me.value = m
+  seenDecision(m.remittance_decided_at)
 }
+
+// Plafond d'espèces : jauge (au-delà, la boutique peut ne plus confier de mission)
+const limitShare = computed(() => (me.value?.cash_limit ? Math.min(100, Math.round((cash.value.held * 100) / me.value.cash_limit)) : null))
+
+// Résumé de la journée, à envoyer à la boutique par WhatsApp
+const summary = computed(() => {
+  const t = me.value?.today
+  if (!t) return ''
+  return [`Ma journée du ${new Date().toLocaleDateString('fr-FR')} (${me.value.name}) :`, `✅ ${t.delivered} livrée(s) · ❌ ${t.failed} échec(s)`,
+    `💵 Encaissé : ${money(t.collected)} · Versé : ${money(t.remitted)}`, `💰 Reste à verser : ${money(cash.value?.held ?? 0)}`, `🧾 Ma paie du jour : ${money(t.earned)}`].join('\n')
+})
+const storePhone = computed(() => (me.value?.store?.phone ?? '').replace(/\D/g, ''))
 onMounted(load)
 
 // Boutiques à qui il doit des espèces (plusieurs s'il livre pour plusieurs boutiques)
@@ -63,16 +81,44 @@ async function declare() {
 
 <template>
   <div v-if="cash && earnings" class="space-y-4">
-    <section class="rounded-xl bg-white p-4 shadow-sm">
-      <p class="text-sm text-slate-500">Espèces à verser à la boutique</p>
-      <p class="text-2xl font-bold">{{ money(cash.held) }}</p>
-      <button v-if="owed.length && !declaring" class="btn-brand mt-3 w-full" :disabled="!offline.online" @click="startDeclare">💸 J'ai versé l'argent</button>
+    <!-- Un seul gros chiffre : ce qu'il reste à verser, avec le plafond -->
+    <section class="rounded-xl bg-white p-4 text-center shadow-sm">
+      <p class="text-sm text-slate-500">À verser à la boutique</p>
+      <p class="text-4xl font-extrabold" :class="limitShare > 100 || (me?.cash_limit && cash.held > me.cash_limit) ? 'text-amber-700' : ''">{{ money(cash.held) }}</p>
+      <template v-if="limitShare !== null">
+        <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full" :class="cash.held > me.cash_limit ? 'bg-amber-500' : 'bg-emerald-600'" :style="{ width: limitShare + '%' }" /></div>
+        <p class="mt-1 text-xs" :class="cash.held > me.cash_limit ? 'font-semibold text-amber-800' : 'text-slate-500'">
+          {{ cash.held > me.cash_limit ? '⚠ Plafond dépassé : versez vite à la boutique' : `Plafond : ${money(me.cash_limit)}` }}
+        </p>
+      </template>
+      <button v-if="owed.length && !declaring" class="btn-brand mt-3 w-full py-3" :disabled="!offline.online" @click="startDeclare(); tab = 'cash'">💸 J'ai versé l'argent</button>
       <p v-if="owed.length && !offline.online" class="mt-1 text-xs text-slate-500">Il faut du réseau pour déclarer un versement.</p>
-      <ul class="mt-2 divide-y divide-slate-100 text-sm">
-        <li v-for="(c, i) in cash.collections" :key="i" class="flex justify-between py-1.5"><span><template v-if="c.store">{{ c.store }} · </template>{{ c.reference }} · {{ formatDateTime(c.collected_at) }}</span><span>{{ money(c.amount) }}</span></li>
-      </ul>
     </section>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
+
+    <!-- Ma journée : à montrer ou envoyer à la boutique le soir -->
+    <section v-if="me?.today" class="rounded-xl bg-white p-4 shadow-sm">
+      <p class="mb-2 text-sm font-semibold">Ma journée</p>
+      <div class="grid grid-cols-3 gap-2 text-center text-sm">
+        <div class="rounded-lg bg-emerald-50 p-2"><p class="text-xl font-bold">{{ me.today.delivered }}</p><p class="text-xs text-slate-500">livrée(s)</p></div>
+        <div class="rounded-lg bg-red-50 p-2"><p class="text-xl font-bold">{{ me.today.failed }}</p><p class="text-xs text-slate-500">échec(s)</p></div>
+        <div class="rounded-lg bg-slate-50 p-2"><p class="text-base font-bold">{{ money(me.today.earned) }}</p><p class="text-xs text-slate-500">ma paie</p></div>
+      </div>
+      <p class="mt-2 text-sm text-slate-600">Encaissé : <strong>{{ money(me.today.collected) }}</strong> · Versé : <strong>{{ money(me.today.remitted) }}</strong></p>
+      <a v-if="storePhone" :href="`https://wa.me/${storePhone}?text=${encodeURIComponent(summary)}`" target="_blank" rel="noopener" class="btn-secondary mt-2 w-full text-sm">💬 Envoyer mon résumé à la boutique</a>
+    </section>
+
+    <nav class="grid grid-cols-3 gap-1 rounded-xl bg-slate-200 p-1 text-sm">
+      <button v-for="[key, label] in [['cash', 'À verser'], ['remittances', 'Mes versements'], ['pay', 'Ma paie']]" :key="key"
+              class="rounded-lg py-2" :class="tab === key ? 'bg-white font-semibold shadow-sm' : 'text-slate-600'" @click="tab = key">{{ label }}</button>
+    </nav>
+
+    <section v-if="tab === 'cash'" class="rounded-xl bg-white p-4 shadow-sm">
+      <p v-if="!cash.collections.length" class="text-sm text-slate-500">Aucune espèce à verser.</p>
+      <ul class="divide-y divide-slate-100 text-sm">
+        <li v-for="(c, i) in cash.collections" :key="i" class="flex justify-between py-2"><span><template v-if="c.store">{{ c.store }} · </template>{{ c.reference }} · {{ formatDateTime(c.collected_at) }}</span><span class="font-medium">{{ money(c.amount) }}</span></li>
+      </ul>
+    </section>
 
     <form v-if="declaring" class="space-y-3 rounded-xl bg-white p-4 shadow-sm" @submit.prevent="declare">
       <h2 class="font-semibold">Déclarer un versement</h2>
@@ -114,7 +160,7 @@ async function declare() {
       </div>
     </form>
 
-    <section v-if="cash.declarations?.length" class="rounded-xl bg-white p-4 shadow-sm">
+    <section v-if="tab === 'remittances' && cash.declarations?.length" class="rounded-xl bg-white p-4 shadow-sm">
       <p class="mb-1 text-sm font-semibold">Mes versements déclarés</p>
       <ul class="divide-y divide-slate-100 text-sm">
         <li v-for="d in cash.declarations" :key="d.id" class="py-2">
@@ -131,7 +177,7 @@ async function declare() {
       </ul>
     </section>
 
-    <section class="rounded-xl bg-white p-4 shadow-sm">
+    <section v-if="tab === 'pay'" class="rounded-xl bg-white p-4 shadow-sm">
       <p class="text-sm text-slate-500">Ma paie à recevoir</p>
       <p class="text-2xl font-bold text-emerald-700">{{ money(earnings.unpaid) }}</p>
       <ul class="mt-2 divide-y divide-slate-100 text-sm">
@@ -141,8 +187,9 @@ async function declare() {
         </li>
       </ul>
     </section>
-    <section v-if="cash.remittances.length" class="rounded-xl bg-white p-4 shadow-sm">
-      <p class="mb-1 text-sm font-semibold">Mes derniers versements</p>
+    <section v-if="tab === 'remittances'" class="rounded-xl bg-white p-4 shadow-sm">
+      <p class="mb-1 text-sm font-semibold">Versements reçus par la boutique</p>
+      <p v-if="!cash.remittances.length" class="text-sm text-slate-500">Aucun versement enregistré pour l'instant.</p>
       <ul class="divide-y divide-slate-100 text-sm">
         <li v-for="(r, i) in cash.remittances" :key="i" class="flex justify-between py-1.5">
           <span>{{ formatDateTime(r.received_at) }}</span>

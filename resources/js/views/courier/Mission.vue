@@ -83,6 +83,38 @@ async function respond(action) {
   }
 }
 
+// Action principale du moment (bouton fixé en bas)
+const primary = computed(() => {
+  if (!mission.value || panel.value) return null
+  if (can('in_transit')) return { label: '📦 J\'ai récupéré le colis', run: () => step('in_transit') }
+  if (can('out_for_delivery')) return { label: '🛵 Je pars livrer', run: () => step('out_for_delivery') }
+  if (can('delivered')) return { label: '✓ Livré', run: () => (panel.value = 'delivered') }
+  return null
+})
+
+// Code du client : une case par chiffre, le curseur avance tout seul
+const CODE_LENGTH = 4
+const digits = ref(Array(CODE_LENGTH).fill(''))
+const boxes = []
+function typeDigit(i, event) {
+  const typed = event.target.value.replace(/\D/g, '')
+  // Code collé ou dicté d'un coup : réparti dans les cases
+  typed.split('').slice(0, CODE_LENGTH - i).forEach((c, k) => (digits.value[i + k] = c))
+  if (!typed) digits.value[i] = ''
+  event.target.value = digits.value[i]
+  form.code = digits.value.join('')
+  errors.value = { ...errors.value, code: undefined }
+  if (typed) boxes[Math.min(i + typed.length, CODE_LENGTH - 1)]?.focus()
+}
+function backDigit(i, event) {
+  if (!digits.value[i] && i > 0) {
+    event.preventDefault()
+    digits.value[i - 1] = ''
+    form.code = digits.value.join('')
+    boxes[i - 1]?.focus()
+  }
+}
+
 async function step(status) {
   busy.value = true
   error.value = ''
@@ -107,6 +139,13 @@ async function step(status) {
   } catch (e) {
     errors.value = fieldErrors(e)
     error.value = errorMessage(e)
+    // Code faux : vibration, cases vidées pour ressaisir
+    if (errors.value.code) {
+      navigator.vibrate?.([200, 100, 200])
+      digits.value = Array(CODE_LENGTH).fill('')
+      form.code = ''
+      boxes[0]?.focus()
+    }
   } finally {
     busy.value = false
   }
@@ -187,10 +226,11 @@ async function step(status) {
     <Alert v-if="queued" tone="warning">Étape gardée sur le téléphone : elle sera envoyée à la boutique dès que le réseau revient, avec l'heure où vous l'avez faite.</Alert>
     <p v-else-if="mission.pending_sync" class="text-sm text-amber-800">⏳ Des étapes de cette livraison ne sont pas encore envoyées.</p>
 
+    <!-- Action suivante : gros bouton fixé en bas de l'écran, facile à toucher d'une main ou avec des gants -->
+    <div v-if="primary" class="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-10 mx-auto max-w-lg bg-gradient-to-t from-slate-50 px-4 pt-3 pb-2">
+      <button class="btn-brand w-full py-5 text-lg shadow-lg" :disabled="busy" @click="primary.run">{{ primary.label }}</button>
+    </div>
     <div class="space-y-2">
-      <button v-if="can('in_transit')" class="btn-brand w-full py-4 text-base" :disabled="busy" @click="step('in_transit')">📦 J'ai récupéré le colis</button>
-      <button v-if="can('out_for_delivery')" class="btn-brand w-full py-4 text-base" :disabled="busy" @click="step('out_for_delivery')">🛵 Je pars livrer</button>
-      <button v-if="can('delivered') && panel !== 'delivered'" class="btn-brand w-full py-4 text-base" @click="panel = 'delivered'">✓ Livré</button>
       <button v-if="can('failed') && panel !== 'failed'" class="btn-secondary w-full py-3" @click="panel = 'failed'">✕ Pas livré</button>
       <button v-if="can('returning')" class="btn-secondary w-full py-3" :disabled="busy" @click="step('returning')">↩ Je rapporte le colis à la boutique</button>
     </div>
@@ -198,8 +238,12 @@ async function step(status) {
     <form v-if="panel === 'delivered'" class="space-y-3 rounded-xl bg-white p-4 shadow-sm" @submit.prevent="step('delivered')">
       <h2 class="font-semibold">Livraison</h2>
       <div v-if="mission.requires_code">
-        <label for="code" class="label">Code donné par le client</label>
-        <input id="code" v-model="form.code" inputmode="numeric" maxlength="6" class="input text-center text-2xl tracking-widest" required />
+        <p class="label">Code donné par le client</p>
+        <div class="flex justify-center gap-2">
+          <input v-for="(d, i) in digits" :key="i" :ref="(el) => (boxes[i] = el)" :value="d" inputmode="numeric" maxlength="1" :aria-label="`Chiffre ${i + 1} du code`"
+                 class="h-16 w-14 rounded-xl border-2 text-center text-3xl font-bold" :class="errors.code ? 'border-red-500 bg-red-50' : 'border-slate-300 focus:border-emerald-600'"
+                 @input="typeDigit(i, $event)" @keydown.backspace="backDigit(i, $event)" />
+        </div>
         <p v-if="errors.code" class="mt-1 text-sm text-red-600">{{ errors.code }}</p>
         <p v-else-if="noNetwork" class="mt-1 text-xs text-slate-500">Sans réseau, le code sera vérifié à l'envoi : demandez bien le bon code au client.</p>
       </div>
@@ -249,6 +293,7 @@ async function step(status) {
       </div>
       <button class="btn-danger w-full py-3" :disabled="busy">Enregistrer l'échec</button>
     </form>
+    <div v-if="primary" class="h-24" aria-hidden="true" />
   </div>
   <Alert v-else-if="error">{{ error }}</Alert>
 </template>

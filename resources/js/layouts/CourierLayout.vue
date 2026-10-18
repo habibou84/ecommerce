@@ -1,13 +1,16 @@
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import http from '../lib/http'
 import { cachedGet, dismissFailed, flush, offline, startOfflineSync } from '../lib/courierOffline'
 import { registerDevice } from '../lib/push'
+import { prefs, unseenDecision } from '../lib/courierPrefs'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const available = ref(true)
 const tracking = ref(false) // la boutique voit sa position pendant la tournée
+const me = ref(null)
 const savedAt = (at) => new Date(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
 onMounted(async () => {
@@ -25,9 +28,9 @@ onMounted(async () => {
     })
   }
   try {
-    const me = await cachedGet('/courier/me', 'me')
-    available.value = me.is_available
-    tracking.value = me.tracking
+    me.value = await cachedGet('/courier/me', 'me')
+    available.value = me.value.is_available
+    tracking.value = me.value.tracking
   } catch {
     // affiché par les pages
   }
@@ -51,6 +54,14 @@ watch([tracking, available], ([on, free]) => {
   }, () => {}, { enableHighAccuracy: false, maximumAge: 60000 })
 })
 onUnmounted(stopSharing)
+// Données du livreur à jour quand il change d'onglet (point de la caisse)
+watch(() => offline.synced + offline.offers, async () => {
+  try {
+    me.value = await cachedGet('/courier/me', 'me')
+  } catch {
+    // gardé
+  }
+})
 
 async function toggle() {
   available.value = !available.value
@@ -66,10 +77,14 @@ const TABS = [
   { to: '/livreur/caisse', icon: '💰', label: 'Ma caisse', active: (path) => path === '/livreur/caisse' },
   { to: '/livreur/compte', icon: '👤', label: 'Mon compte', active: (path) => path === '/livreur/compte' },
 ]
+// Pastilles : nouvelles missions à accepter ; point orange sur la caisse (plafond dépassé, réponse de la boutique)
+const route = useRoute()
+const cashAlert = computed(() => route.path !== '/livreur/caisse' && !!me.value && ((me.value.cash_limit && me.value.cash_held > me.value.cash_limit) || unseenDecision(me.value.remittance_decided_at)))
+const badge = (tab) => (tab.to === '/livreur' ? offline.offers : 0)
 </script>
 
 <template>
-  <div class="mx-auto flex min-h-screen max-w-lg flex-col bg-slate-50">
+  <div class="mx-auto flex min-h-screen max-w-lg flex-col bg-slate-50" :class="{ 'courier-night': prefs.night }">
     <header class="sticky top-0 z-20 flex items-center gap-3 bg-emerald-700 px-4 py-3 text-white">
       <div class="min-w-0 flex-1">
         <p class="truncate font-semibold">{{ auth.store?.name }}</p>
@@ -104,7 +119,10 @@ const TABS = [
     <nav class="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-lg border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
       <RouterLink v-for="tab in TABS" :key="tab.to" :to="tab.to" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs"
                   :class="tab.active($route.path) ? 'font-semibold text-emerald-700' : 'text-slate-500'">
-        <span class="text-xl leading-none">{{ tab.icon }}</span>{{ tab.label }}
+        <span class="relative text-xl leading-none">{{ tab.icon }}
+          <span v-if="badge(tab)" class="absolute -top-1.5 -right-3 min-w-5 rounded-full bg-red-600 px-1 text-[11px] font-bold leading-5 text-white">{{ badge(tab) }}</span>
+          <span v-else-if="tab.to === '/livreur/caisse' && cashAlert" class="absolute -top-1 -right-1.5 h-3 w-3 rounded-full bg-amber-500 ring-2 ring-white" />
+        </span>{{ tab.label }}
       </RouterLink>
     </nav>
   </div>

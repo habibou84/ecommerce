@@ -49,3 +49,13 @@
 @utility card {
     @apply rounded-xl border border-slate-200 bg-white;
 }
+
+/* Application livreur, mode nuit : couleurs inversées (lecture le soir), photos et cartes gardées telles quelles */
+.courier-night {
+  filter: invert(1) hue-rotate(180deg);
+  background: #fff;
+}
+.courier-night img,
+.courier-night video {
+  filter: invert(1) hue-rotate(180deg);
+}
