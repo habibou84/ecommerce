@@ -195,3 +195,20 @@ Points à vérifier si l'installation échoue :
 
 Production sur ce même serveur, à côté de la préproduction : voir `docs/PRODUCTION-LWS.md` (installation
 `INSTANCE=jibiat-production`, branche `production`). Plus tard, un serveur dédié : `docs/LANCEMENT.md`.
+
+## Données fictives pour essayer une boutique
+
+Pour essayer une boutique en conditions réelles, on la remplit de données fictives (préproduction seulement : la
+commande refuse de tourner quand `APP_ENV=production`) :
+
+```bash
+sudo -u jibiat php /var/www/jibiat-marchand/artisan demo:fill "Bold Style"
+```
+
+Le nom ou l'adresse (slug) de la boutique suffit. Ajoute 11 produits (variantes, un lot, une précommande), un
+fournisseur et un bon de commande reçu et payé, 25 clients fictifs (+225 07 99 00 00 01 à 25), 60 commandes sur
+deux mois (livrées et payées, retournées, annulées, en route, à confirmer, à faire livrer), des avis, des dépenses
+(publicité Facebook et TikTok, transport, emballages, loyer mensuel) et active la fidélité. Aucun message n'est envoyé
+(WhatsApp, notifications) ; les commandes fictives ne sont pas bloquées par le quota de l'offre et presque toutes
+datent des mois précédents. Relancer la commande ajoute des commandes sans recréer le catalogue (`--orders=20` pour
+en choisir le nombre).
