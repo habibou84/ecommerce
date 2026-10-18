@@ -310,6 +310,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::patch('promotions/settings', [PromotionController::class, 'settings'])->name('promotions.settings');
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
+                Route::post('marketing/catalog-feed/renew', [TrackingController::class, 'renewFeed'])->name('catalog-feed.renew');
                 Route::get('loyalty', [LoyaltyController::class, 'show'])->name('loyalty.show');
                 Route::put('loyalty', [LoyaltyController::class, 'update'])->name('loyalty.update');
                 Route::get('campaigns', [CampaignController::class, 'index'])->name('campaigns.index');

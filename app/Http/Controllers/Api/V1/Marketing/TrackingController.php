@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Marketing;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\Marketing\CatalogFeed;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,7 +24,20 @@ class TrackingController extends Controller
             'has_capi_token' => filled($store->meta_capi_token),
             // Achats envoyés par le serveur ces 30 derniers jours
             'conversions_sent' => Order::where('conversion_sent_at', '>=', now()->subDays(30))->count(),
+            // Flux du catalogue pour Meta (Facebook, Instagram, WhatsApp) et Google Merchant
+            'catalog_feed_url' => app(CatalogFeed::class)->url($store),
+            'catalog_items' => count(app(CatalogFeed::class)->rows($store)),
         ]]);
+    }
+
+    /**
+     * Nouveau lien du flux (l'ancien ne marche plus : à remplacer chez Meta).
+     */
+    public function renewFeed(CatalogFeed $feed): JsonResponse
+    {
+        $feed->token($this->currentStore(), true);
+
+        return $this->show();
     }
 
     public function update(Request $request): JsonResponse

@@ -24,6 +24,17 @@ onMounted(async () => {
   }
 })
 
+const copied = ref(false)
+async function copyFeed() {
+  await navigator.clipboard?.writeText(data.value.catalog_feed_url).catch(() => {})
+  copied.value = true
+}
+
+async function renewFeed() {
+  if (!confirm('Créer un nouveau lien ? L\'ancien ne marchera plus : remplacez-le dans le gestionnaire de catalogue de Meta.')) return
+  fill((await http.post('/marketing/catalog-feed/renew')).data.data)
+}
+
 async function save(extra = {}) {
   errors.value = {}
   error.value = ''
@@ -83,5 +94,19 @@ async function save(extra = {}) {
       </section>
       <button class="btn-brand">Enregistrer</button>
     </form>
+
+    <section v-if="data?.catalog_feed_url" class="card space-y-3 p-4 text-sm">
+      <h3 class="font-semibold">Catalogue Facebook, Instagram et WhatsApp</h3>
+      <p class="text-slate-600">
+        Vos produits en vente ({{ data.catalog_items }} article(s) avec photo), avec leurs prix, promotions et disponibilité, dans le format de Meta.
+        Dans le gestionnaire de catalogue de Meta (Commerce Manager) : Catalogue › Sources de données › Ajouter des articles › Flux de données › « Utiliser une URL », collez ce lien et choisissez une mise à jour toutes les heures.
+        Le même lien marche pour Google Merchant Center.
+      </p>
+      <div class="flex items-center gap-2">
+        <code class="min-w-0 flex-1 truncate rounded bg-slate-100 px-2 py-1">{{ data.catalog_feed_url }}</code>
+        <button type="button" class="btn-secondary px-3 py-1" @click="copyFeed">{{ copied ? 'Copié ✓' : 'Copier' }}</button>
+      </div>
+      <p class="text-xs text-slate-500">Le lien est secret. <button type="button" class="text-red-600 underline" @click="renewFeed">Créer un nouveau lien</button></p>
+    </section>
   </div>
 </template>
