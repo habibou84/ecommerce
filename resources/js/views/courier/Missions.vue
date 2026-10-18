@@ -141,7 +141,7 @@ function saveOrder() {
     <div v-if="me" class="grid grid-cols-3 gap-2 text-center">
       <div class="rounded-xl bg-white p-3 shadow-sm"><p class="text-xl font-bold">{{ stops.length }}</p><p class="text-xs text-slate-500">arrêts aujourd'hui</p></div>
       <div class="rounded-xl bg-white p-3 shadow-sm"><p class="text-xl font-bold">{{ me.today.delivered }}</p><p class="text-xs text-slate-500">livrées aujourd'hui</p></div>
-      <RouterLink to="/livreur/argent" class="rounded-xl bg-white p-3 shadow-sm" :class="{ 'ring-2 ring-amber-400': me.cash_limit && me.cash_held > me.cash_limit }">
+      <RouterLink to="/livreur/caisse" class="rounded-xl bg-white p-3 shadow-sm" :class="{ 'ring-2 ring-amber-400': me.cash_limit && me.cash_held > me.cash_limit }">
         <p class="text-base font-bold">{{ money(me.cash_held) }}</p><p class="text-xs text-slate-500">à verser</p>
       </RouterLink>
     </div>

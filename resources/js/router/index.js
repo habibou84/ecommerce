@@ -36,7 +36,9 @@ const storeRoutes = [
     children: [
       { path: '', component: () => import('../views/courier/Missions.vue'), meta: { title: 'Mes livraisons' } },
       { path: 'missions/:id(\\d+)', component: () => import('../views/courier/Mission.vue'), props: true, meta: { title: 'Livraison' } },
-      { path: 'argent', component: () => import('../views/courier/Money.vue'), meta: { title: 'Mon argent' } },
+      { path: 'caisse', component: () => import('../views/courier/Money.vue'), meta: { title: 'Ma caisse' } },
+      { path: 'argent', redirect: '/livreur/caisse' },
+      { path: 'compte', component: () => import('../views/courier/Account.vue'), meta: { title: 'Mon compte' } },
     ],
   },
   { path: '/livreur/:any(.*)*', redirect: '/livreur' },
