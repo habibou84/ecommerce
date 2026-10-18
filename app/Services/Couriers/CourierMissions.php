@@ -32,7 +32,8 @@ class CourierMissions
             'assigned_by' => $actor?->id,
             'assigned_at' => now(),
         ]);
-        $shipment->forceFill(['courier_id' => $courier->id])->save();
+        // Nouveau livreur : la mission entre dans sa tournée sans place choisie
+        $shipment->forceFill(['courier_id' => $courier->id, 'route_position' => null])->save();
 
         $courier->user?->notify(new CourierMission($shipment->setRelation('courier', $courier)));
     }

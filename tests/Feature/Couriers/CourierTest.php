@@ -360,6 +360,42 @@ class CourierTest extends TestCase
         $this->assertTrue($shipment->fresh()->picked_up_at->lte(now()));
     }
 
+    public function test_day_route_order_and_position_shared_with_the_shop(): void
+    {
+        [$courier, $user] = $this->onboardCourier();
+        $first = $this->assign($this->order(), $courier);
+        $second = $this->assign($this->order(), $courier);
+        $second->order->forceFill(['shipping_latitude' => 5.3954, 'shipping_longitude' => -3.9885])->save();
+
+        $this->asCourier($user);
+        $missions = $this->storeApi($this->store, 'GET', 'courier/missions?full=1')->assertOk()->json('data');
+        $this->assertSame(['Cocody', 'Cocody'], array_column($missions, 'commune'));
+        $this->assertSame([null, 5.3954], array_column($missions, 'latitude'));
+        $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.tracking', false);
+
+        // Le livreur choisit l'ordre de sa tournée ; une mission qui n'est pas à lui est ignorée
+        $this->storeApi($this->store, 'PUT', 'courier/route', ['ids' => [$second->id, 999999, $first->id]])->assertOk()->assertJsonPath('data.saved', 2);
+        $this->assertSame([2, 1], [$first->fresh()->route_position, $second->fresh()->route_position]);
+
+        // Position : gardée seulement si la boutique l'a activé
+        $this->storeApi($this->store, 'POST', 'courier/location', ['latitude' => 5.36, 'longitude' => -3.98])->assertOk()->assertJsonPath('data.shared', false);
+        $this->assertNull($courier->fresh()->last_located_at);
+
+        $this->asCourier($this->store->owner);
+        $this->storeApi($this->store, 'PATCH', 'couriers/settings', ['courier_tracking' => true])->assertOk()->assertJsonPath('data.courier_tracking', true);
+        $this->asCourier($user);
+        $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.tracking', true);
+        $this->storeApi($this->store, 'POST', 'courier/location', ['latitude' => 5.36, 'longitude' => -3.98])->assertOk()->assertJsonPath('data.shared', true);
+
+        $this->asCourier($this->store->owner);
+        $this->storeApi($this->store, 'GET', 'couriers')->assertJsonPath('settings.courier_tracking', true)
+            ->assertJsonPath('data.0.location.latitude', 5.36);
+        // Désactivée : la position est effacée
+        $this->storeApi($this->store, 'PATCH', 'couriers/settings', ['courier_tracking' => false])->assertOk();
+        $this->assertNull($courier->fresh()->last_latitude);
+        $this->storeApi($this->store, 'GET', 'couriers')->assertJsonPath('data.0.location', null);
+    }
+
     public function test_reassignment_and_cancellation(): void
     {
         [$koffi, $koffiUser] = $this->onboardCourier();

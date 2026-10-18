@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Courier;
 use App\Models\CourierPayRule;
 use App\Models\DeliveryZone;
+use App\Models\Store;
 use App\Services\Accounts\StoreRoles;
 use App\Services\Couriers\CourierPayroll;
 use App\Services\Couriers\CourierRoster;
@@ -36,7 +37,29 @@ class CourierController extends Controller
             'zones' => DeliveryZone::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'pay_rules' => CourierPayRule::orderBy('name')->get(),
             'vehicles' => Courier::VEHICLES,
+            'settings' => $this->settingsOf($this->currentStore()),
         ]);
+    }
+
+    /**
+     * Réglages des livreurs : code du client à la livraison, position pendant la tournée.
+     */
+    public function settings(Request $request): JsonResponse
+    {
+        $data = $request->validate(['require_delivery_code' => ['sometimes', 'boolean'], 'courier_tracking' => ['sometimes', 'boolean']]);
+        $store = $this->currentStore();
+        $store->forceFill($data)->save();
+        // Position désactivée : on n'en garde aucune
+        if (! $store->courier_tracking) {
+            Courier::where('store_id', $store->id)->update(['last_latitude' => null, 'last_longitude' => null, 'last_located_at' => null]);
+        }
+
+        return response()->json(['data' => $this->settingsOf($store)]);
+    }
+
+    private function settingsOf(Store $store): array
+    {
+        return ['require_delivery_code' => (bool) $store->require_delivery_code, 'courier_tracking' => (bool) $store->courier_tracking];
     }
 
     public function store(Request $request, SharedCouriers $shared, StoreRoles $roles): JsonResponse
@@ -152,6 +175,9 @@ class CourierController extends Controller
             'pay_rule' => $c->payRule ? ['id' => $c->payRule->id, 'name' => $c->payRule->name] : null,
             'zones' => $c->zones->map(fn ($z) => ['id' => $z->id, 'name' => $z->name])->values(),
             'active_missions' => $c->active_missions ?? 0,
+            // Dernière position pendant la tournée (si la boutique l'a activé), de moins de douze heures
+            'location' => $c->last_located_at?->gt(now()->subHours(12)) && $this->currentStore()->courier_tracking
+                ? ['latitude' => $c->last_latitude, 'longitude' => $c->last_longitude, 'at' => $c->last_located_at->toIso8601String()] : null,
             'note' => $c->note,
         ];
     }

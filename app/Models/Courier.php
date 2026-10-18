@@ -23,7 +23,7 @@ class Courier extends Model
 
     protected function casts(): array
     {
-        return ['is_available' => 'boolean', 'cash_limit' => 'integer'];
+        return ['is_available' => 'boolean', 'cash_limit' => 'integer', 'last_latitude' => 'float', 'last_longitude' => 'float', 'last_located_at' => 'datetime'];
     }
 
     public function user(): BelongsTo

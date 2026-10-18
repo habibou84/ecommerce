@@ -54,6 +54,8 @@ class CourierAppController extends Controller
             'stores' => $all->map(fn (Courier $c) => ['name' => $c->store->name, 'phone' => $c->store->phone])->values(),
             'cash_held' => (int) $all->sum(fn (Courier $c) => $this->shared->held($c)),
             'cash_limit' => $courier->cash_limit,
+            // Position envoyée pendant la tournée : une de ses boutiques l'a demandé
+            'tracking' => $all->contains(fn (Courier $c) => $c->store->courier_tracking),
             'unpaid' => (int) $all->sum(fn (Courier $c) => $payroll->unpaid($c)),
             'today' => [
                 'delivered' => $this->shipments()->whereIn('courier_id', $ids)->whereDate('delivered_at', today())->count(),
@@ -75,7 +77,7 @@ class CourierAppController extends Controller
      */
     public function missions(Request $request): JsonResponse
     {
-        $missions = $this->shipments()->with(['order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'order.store'])->whereIn('courier_id', $this->couriers($request)->pluck('id'))
+        $missions = $this->shipments()->with(['order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'order.store', 'order.place.parent'])->whereIn('courier_id', $this->couriers($request)->pluck('id'))
             ->where(fn ($q) => $q->whereIn('status', self::ACTIVE)->orWhereDate('updated_at', today()))
             ->orderByRaw("CASE status WHEN 'out_for_delivery' THEN 0 WHEN 'in_transit' THEN 1 WHEN 'awaiting_pickup' THEN 2 WHEN 'rescheduled' THEN 3 WHEN 'failed' THEN 4 WHEN 'returning' THEN 5 ELSE 6 END")
             ->orderBy('requested_at')->get();
@@ -101,7 +103,7 @@ class CourierAppController extends Controller
      */
     private function detail(Shipment $mission): array
     {
-        $model = SharedCouriers::within($mission->order->store, fn () => $mission->load(['order.items', 'origin']));
+        $model = SharedCouriers::within($mission->order->store, fn () => $mission->load(['order.items', 'order.place.parent', 'origin']));
         $order = $model->order;
 
         return $this->summary($model, true) + [
@@ -111,6 +113,9 @@ class CourierAppController extends Controller
             'customer_phone2' => $order->shipping_phone2,
             'address' => $order->shipping_address,
             'landmark' => $order->shipping_landmark,
+            // Point GPS donné par le client (commande en ligne) : itinéraire et ordre de la tournée
+            'latitude' => $order->shipping_latitude !== null ? (float) $order->shipping_latitude : null,
+            'longitude' => $order->shipping_longitude !== null ? (float) $order->shipping_longitude : null,
             'customer_note' => $order->customer_note,
             'note' => $model->note,
             'pickup' => $model->origin ? ['name' => $model->origin->name, 'address' => $model->origin->address] : null,
@@ -133,6 +138,35 @@ class CourierAppController extends Controller
             'amount_due' => $order->amountDue(),
             'door_payment' => $order->amountDue() > 0 && SharedCouriers::within($order->store, fn () => app(PaymentDesk::class)->availableMethods($order->store)) !== [],
         ];
+    }
+
+    /**
+     * Tournée du jour : ordre des arrêts choisi par le livreur (ses missions en cours, dans l'ordre donné).
+     */
+    public function route(Request $request): JsonResponse
+    {
+        $data = $request->validate(['ids' => ['required', 'array', 'max:200'], 'ids.*' => ['integer', 'distinct']]);
+        $missions = $this->shipments()->whereIn('courier_id', $this->couriers($request)->pluck('id'))->whereIn('status', self::ACTIVE)
+            ->whereIn('id', $data['ids'])->pluck('id')->all();
+
+        foreach (array_values(array_intersect($data['ids'], $missions)) as $i => $id) {
+            $this->shipments()->whereKey($id)->update(['route_position' => $i + 1]);
+        }
+
+        return response()->json(['data' => ['saved' => count($missions)]]);
+    }
+
+    /**
+     * Position du livreur pendant sa tournée, gardée pour les boutiques qui l'ont activé (la dernière seulement).
+     */
+    public function location(Request $request): JsonResponse
+    {
+        $data = $request->validate(['latitude' => ['required', 'numeric', 'between:-90,90'], 'longitude' => ['required', 'numeric', 'between:-180,180']]);
+        $ids = $this->couriers($request)->filter(fn (Courier $c) => $c->store->courier_tracking)->pluck('id');
+        Courier::withoutGlobalScope(StoreScope::class)->whereIn('id', $ids)
+            ->update(['last_latitude' => $data['latitude'], 'last_longitude' => $data['longitude'], 'last_located_at' => now()]);
+
+        return response()->json(['data' => ['shared' => $ids->isNotEmpty()]]);
     }
 
     /**
@@ -283,6 +317,10 @@ class CourierAppController extends Controller
             'collected_amount' => $s->collected_amount,
             'attempts_count' => $s->attempts_count,
             'scheduled_date' => $order->scheduled_date?->toDateString(),
+            'rescheduled_to' => $s->rescheduled_to?->toDateString(),
+            // Tournée : commune et quartier pour regrouper les arrêts, ordre choisi par le livreur
+            'commune' => $order->place ? ($order->place->type === 'neighborhood' ? $order->place->parent?->name : $order->place->name) : null,
+            'route_position' => $s->route_position,
         ];
     }
 }

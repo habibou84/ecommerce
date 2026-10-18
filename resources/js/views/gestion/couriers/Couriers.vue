@@ -65,6 +65,20 @@ async function save() {
   }
 }
 
+async function setting(key, value) {
+  try {
+    data.value.settings = (await http.patch('/couriers/settings', { [key]: value })).data.data
+    if (key === 'courier_tracking') await load()
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+const mapUrl = (l) => `https://www.google.com/maps/search/?api=1&query=${l.latitude},${l.longitude}`
+const ago = (at) => {
+  const minutes = Math.round((Date.now() - new Date(at)) / 60000)
+  return minutes < 1 ? 'à l\'instant' : minutes < 60 ? `il y a ${minutes} min` : `à ${new Date(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+}
+
 async function reinvite(courier) {
   const { data: res } = await http.post(`/couriers/${courier.id}/invitation`)
   link.value = { name: courier.name, phone: courier.phone, url: res.invitation_url }
@@ -160,6 +174,7 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
               {{ c.zones.map((z) => z.name).join(', ') || 'Toutes zones' }} · {{ c.pay_rule?.name ?? 'sans règle de paie' }}
               <template v-if="c.active_missions"> · {{ c.active_missions }} mission(s) en cours</template>
             </span>
+            <a v-if="c.location" :href="mapUrl(c.location)" target="_blank" class="block text-emerald-700 hover:underline">📍 Position {{ ago(c.location.at) }}</a>
           </span>
           <span v-if="c.status === 'invited'" class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Invité</span>
           <span v-else-if="c.status === 'inactive'" class="rounded bg-slate-100 px-2 py-0.5 text-xs">Désactivé</span>
@@ -176,6 +191,18 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
         </li>
       </ul>
     </div>
+
+    <section v-if="data" class="card space-y-3 p-4 text-sm">
+      <h3 class="font-semibold">Réglages des livraisons</h3>
+      <label class="flex items-start gap-2">
+        <input type="checkbox" class="mt-0.5" :checked="data.settings.require_delivery_code" @change="setting('require_delivery_code', $event.target.checked)" />
+        <span>Code du client à la livraison <span class="block text-slate-500">Le client reçoit un code sur sa page de suivi et le donne au livreur : la livraison ne se valide qu'avec ce code.</span></span>
+      </label>
+      <label class="flex items-start gap-2">
+        <input type="checkbox" class="mt-0.5" :checked="data.settings.courier_tracking" @change="setting('courier_tracking', $event.target.checked)" />
+        <span>Voir la position des livreurs pendant leur tournée <span class="block text-slate-500">Leur dernière position s'affiche ici, quand ils sont disponibles et que l'application est ouverte. Prévenez-les : l'application le leur indique.</span></span>
+      </label>
+    </section>
 
     <section v-if="data" class="card p-4 text-sm">
       <div class="mb-2 flex items-center">
