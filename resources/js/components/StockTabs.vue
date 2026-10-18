@@ -1,6 +1,7 @@
 <script setup>
 const tabs = [
   { to: '/gestion/stock', label: 'Niveaux', exact: true },
+  { to: '/gestion/stock/commandes', label: 'Commandes fournisseurs' },
   { to: '/gestion/stock/receptions', label: 'Réceptions' },
   { to: '/gestion/stock/transferts', label: 'Transferts' },
   { to: '/gestion/stock/inventaires', label: 'Inventaires' },

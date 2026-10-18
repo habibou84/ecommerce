@@ -48,7 +48,8 @@ class OnlinePayment
     {
         $order->loadMissing('store');
         if ($deposit) {
-            $amount = min($order->amountDue(), self::deposit($order->total, (int) ($order->store->deposit_percent ?? 30)));
+            // Acompte déjà fixé (précommande), sinon celui de la boutique
+            $amount = min($order->amountDue(), $order->deposit_required ?: self::deposit($order->total, (int) ($order->store->deposit_percent ?? 30)));
             $order->forceFill(['deposit_required' => $amount])->save();
         }
 

@@ -79,9 +79,4 @@ class ReceiptController extends Controller
 
         return response()->json(['data' => ['id' => $receipt->id]], 201);
     }
-
-    public function suppliers(): JsonResponse
-    {
-        return response()->json(['data' => Supplier::orderBy('name')->get(['id', 'name', 'phone'])]);
-    }
 }

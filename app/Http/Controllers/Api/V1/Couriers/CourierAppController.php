@@ -2,21 +2,28 @@
 
 namespace App\Http\Controllers\Api\V1\Couriers;
 
+use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Models\CashCollection;
 use App\Models\Courier;
 use App\Models\CourierEarning;
 use App\Models\CourierRemittance;
+use App\Models\OrderReturn;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Services\Couriers\CourierDesk;
 use App\Services\Couriers\CourierPayroll;
 use App\Services\Couriers\SharedCouriers;
+use App\Services\Orders\MessageTexts;
+use App\Services\Payments\PaymentDesk;
+use chillerlan\QRCode\QRCode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Jibiat\Socle\Money;
 use Jibiat\Socle\PhoneNumber;
 
 /**
@@ -97,7 +104,46 @@ class CourierAppController extends Controller
             'failure_reason' => $model->failure_reason,
             'rescheduled_to' => $model->rescheduled_to?->toDateString(),
             'next_steps' => CourierDesk::nextSteps($model),
+            // Échange : articles à reprendre au client en lui remettant le colis
+            'take_back' => SharedCouriers::within($order->store, fn () => OrderReturn::forStore($order->store_id)->where('exchange_order_id', $order->id)
+                ->where('status', 'pending')->with('items.orderItem')->get()
+                ->flatMap(fn (OrderReturn $r) => $r->items->map(fn ($l) => ['label' => $l->orderItem?->label(), 'quantity' => $l->quantity]))->values()),
+            // Message « livreur en route » : envoyé par la boutique, réponse du client, ou à envoyer soi-même
+            'customer_notified_at' => $model->customer_notified_at?->toIso8601String(),
+            'customer_response' => $model->customer_response,
+            'customer_response_at' => $model->customer_response_at?->toIso8601String(),
+            'notify_url' => 'https://wa.me/'.ltrim((string) ($order->shipping_phone ?? $order->customer_phone), '+').'?text='
+                .rawurlencode(SharedCouriers::within($order->store, fn () => app(MessageTexts::class)->render($order, 'courier_on_the_way'))),
+            // Reste à payer (0 si le client a payé en ligne, à la porte ou avant) et paiement à la porte possible
+            'amount_due' => $order->amountDue(),
+            'door_payment' => $order->amountDue() > 0 && SharedCouriers::within($order->store, fn () => app(PaymentDesk::class)->availableMethods($order->store)) !== [],
         ]]);
+    }
+
+    /**
+     * Paiement à la porte : lien de paiement mobile money (Wave, Orange Money…) à faire scanner au client (QR code)
+     * ou à lui envoyer ; la commande passe à « payée » dès que le prestataire confirme, sans espèces à rapporter.
+     */
+    public function doorPayment(Request $request, int $shipment, PaymentDesk $payments): JsonResponse
+    {
+        $mission = $this->mission($request, $shipment);
+        if (! in_array($mission->status->value, ['in_transit', 'out_for_delivery', 'rescheduled', 'failed'], true)) {
+            throw new BusinessRuleException('Le paiement à la porte se fait pendant la livraison.');
+        }
+        $order = $mission->order;
+        $courier = $this->couriers($request)->firstWhere('id', $mission->courier_id);
+        $link = SharedCouriers::within($order->store, fn () => $payments->createLink($order, null, 'Paiement à la livraison', $courier->user, 24));
+        $url = $order->store->url('/payer/'.$link->token);
+        $text = 'Bonjour'.($order->customer_name ? ' '.Str::before($order->customer_name, ' ') : '').", voici le lien pour payer votre commande {$order->reference()} chez {$order->store->name} (".Money::format($link->amount).") : {$url}";
+        $phone = ltrim((string) ($order->shipping_phone ?? $order->customer_phone), '+');
+
+        return response()->json(['data' => [
+            'url' => $url,
+            'amount' => $link->amount,
+            'qr' => (new QRCode)->render($url),
+            'whatsapp_url' => 'https://wa.me/'.$phone.'?text='.rawurlencode($text),
+            'sms_url' => 'sms:+'.$phone.'?body='.rawurlencode($text),
+        ]], 201);
     }
 
     public function step(Request $request, int $shipment, CourierDesk $desk): JsonResponse
@@ -201,6 +247,7 @@ class CourierAppController extends Controller
             'customer_name' => $order->shipping_name ?? $order->customer_name,
             'place' => $order->shipping_place_label,
             'cod_amount' => $s->cod_amount,
+            'customer_response' => $s->customer_response,
             'collected_amount' => $s->collected_amount,
             'attempts_count' => $s->attempts_count,
             'scheduled_date' => $order->scheduled_date?->toDateString(),

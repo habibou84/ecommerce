@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
+import StoreData from '../../components/StoreData.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { boot } from '../../lib/boot'
 import { useAuthStore } from '../../stores/auth'
@@ -126,5 +127,7 @@ async function changeSlug() {
         <RouterLink v-if="auth.can('billing.manage')" to="/gestion/abonnement" class="text-emerald-700 underline">Gérer l'abonnement</RouterLink>
       </p>
     </section>
+
+    <StoreData v-if="auth.profile?.is_owner" />
   </div>
 </template>

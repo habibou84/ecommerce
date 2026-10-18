@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockLevel;
 use App\Models\Store;
+use App\Services\Catalog\Bundles;
 use App\Services\Promotions\Pricing;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -47,13 +48,18 @@ class StorefrontCatalog
             return [];
         }
 
-        return StockLevel::forStore($store->id)->whereIn('variant_id', $variantIds)
+        $levels = fn (array $ids) => StockLevel::forStore($store->id)->whereIn('variant_id', $ids)
             ->whereHas('location', fn ($q) => $q->where('is_active', true)->where('fulfills_online_orders', true))
             ->groupBy('variant_id')
             ->select('variant_id', DB::raw('SUM(on_hand - reserved) AS available'))
             ->pluck('available', 'variant_id')
             ->map(fn ($v) => max(0, (int) $v))
             ->all();
+
+        // Lots : disponibles autant de fois que l'article le plus juste le permet
+        $bundles = ProductVariant::forStore($store->id)->whereIn('id', $variantIds)->whereHas('product', fn ($q) => $q->where('is_bundle', true))->pluck('id')->all();
+
+        return app(Bundles::class)->availability($bundles, $levels) + $levels($variantIds);
     }
 
     /**
@@ -62,7 +68,12 @@ class StorefrontCatalog
     public function sellable(ProductVariant $variant, array $availability): ?int
     {
         $product = $variant->product;
-        if (! $product->track_inventory || $product->allow_backorder) {
+        if ($product->is_bundle) {
+            $available = $availability[$variant->id] ?? 0;
+
+            return $available === PHP_INT_MAX ? null : $available;
+        }
+        if (! $product->track_inventory || $product->allow_backorder || $product->preorder_enabled) {
             return null;
         }
 

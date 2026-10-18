@@ -117,8 +117,29 @@
                 </div>
             </div>
 
+            @if ($bundle !== [])
+                <div class="mt-5 rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                    <p class="font-medium">Ce lot contient :</p>
+                    <ul class="mt-1 list-inside list-disc text-slate-700">
+                        @foreach ($bundle as $component)
+                            <li>{{ $component['quantity'] }} × {{ $component['title'] }}</li>
+                        @endforeach
+                    </ul>
+                    @php($separately = collect($bundle)->sum(fn ($c) => $c['price'] * $c['quantity']))
+                    @if ($separately > ($selected['price'] ?? 0))
+                        <p class="mt-1 text-emerald-700">Vous économisez {{ \Jibiat\Socle\Money::format($separately - $selected['price']) }} par rapport aux articles achetés séparément.</p>
+                    @endif
+                </div>
+            @endif
+            @if ($product->preorder_enabled)
+                <p class="mt-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                    Précommande{{ $product->preorder_ship_date ? ' : expédition prévue vers le '.$product->preorder_ship_date->locale('fr')->isoFormat('D MMMM') : '' }}.
+                    @if ($product->preorder_deposit_percent) Un acompte de {{ $product->preorder_deposit_percent }} % est demandé à la commande. @endif
+                </p>
+            @endif
+
             <div class="mt-6 grid gap-3">
-                <button type="button" data-add-to-cart class="btn-store w-full" @disabled(! $inStock($selected))>Ajouter au panier</button>
+                <button type="button" data-add-to-cart class="btn-store w-full" @disabled(! $inStock($selected))>{{ $product->preorder_enabled ? 'Précommander' : 'Ajouter au panier' }}</button>
                 <button type="button" data-buy-now class="btn-outline w-full" @disabled(! $inStock($selected))>Commander maintenant</button>
                 @if ($showWhatsapp)
                     <a data-whatsapp href="{{ $whatsapp }}" target="_blank" rel="noopener" class="btn-whatsapp w-full">

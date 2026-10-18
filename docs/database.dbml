@@ -1804,3 +1804,148 @@ Table product_reviews {
   }
   Note: 'Avis laissé par le lien de la commande livrée ; affiché sur la fiche produit une fois publié par le marchand.'
 }
+
+Table recurring_expenses {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  category varchar(20) [not null, note: 'catégories des dépenses de la caisse']
+  channel varchar(20) [note: 'publicité : canal de vente visé']
+  amount int [not null]
+  method varchar(20) [not null, note: 'jamais en espèces']
+  note varchar
+  day_of_month smallint [not null, note: '1 à 28']
+  is_active boolean [default: true]
+  last_run_on date
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (store_id, is_active)
+  }
+  Note: 'Dépense mensuelle (loyer, salaires…) enregistrée automatiquement dans cash_movements (recurring_expense_id) le jour choisi. cash_movements.channel : canal visé par une dépense de publicité.'
+}
+
+Table campaigns {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  title varchar(120) [not null]
+  message varchar(300) [not null, note: 'variable {{3}} du modèle jm_nouveautes, sur une ligne']
+  link varchar(500)
+  audience json [not null, note: '{type: inactive|product|all, days, product_id, include_buyers}']
+  status varchar(20) [default: 'draft', note: 'draft, sent']
+  recipients int [default: 0]
+  estimated_cost int [default: 0, note: 'F CFA facturés par Meta (estimation)']
+  sent_at timestamp
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Relance WhatsApp des anciens clients. Messages : outbound_messages (related_type campaign). customers.marketing_opt_out_at (réponse STOP), customers.last_campaign_at (une relance par semaine au plus).'
+}
+
+Table order_returns {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  order_id bigint [ref: > orders.id, not null]
+  number int [not null, note: 'RET-n par boutique']
+  exchange_order_id bigint [ref: > orders.id, note: 'commande d\'échange (articles de remplacement)']
+  status varchar(20) [default: 'pending', note: 'pending, received, cancelled']
+  reason varchar
+  restock boolean [default: true]
+  returned_value int [note: 'prix payé des articles rendus']
+  refund_due int [note: 'valeur rendue moins le remplacement']
+  refunded_amount int
+  note varchar(500)
+  created_by bigint [ref: > users.id]
+  received_at timestamp
+  received_by bigint [ref: > users.id]
+  cancelled_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (store_id, number) [unique]
+    (store_id, status, created_at)
+  }
+}
+
+Table order_return_items {
+  id bigint [pk, increment]
+  order_return_id bigint [ref: > order_returns.id, not null]
+  order_item_id bigint [ref: > order_items.id, not null]
+  variant_id bigint [ref: > product_variants.id]
+  quantity int [not null]
+  unit_value int [not null]
+  replacement_variant_id bigint [ref: > product_variants.id]
+  replacement_quantity int [default: 0]
+}
+
+Table purchase_orders {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  number int [not null, note: 'BC-n par boutique']
+  supplier_id bigint [ref: > suppliers.id]
+  location_id bigint [ref: > stock_locations.id, not null]
+  status varchar(20) [default: 'draft', note: 'draft, sent, partial, received, cancelled']
+  expected_on date
+  note varchar(500)
+  total_cost int [default: 0]
+  paid_amount int [default: 0]
+  sent_at timestamp
+  received_at timestamp
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (store_id, number) [unique]
+    (store_id, status)
+  }
+  Note: 'Bon de commande fournisseur ; chaque réception est une stock_receipts (purchase_order_id), chaque paiement une dépense cash_movements « stock » (purchase_order_id).'
+}
+
+Table purchase_order_items {
+  id bigint [pk, increment]
+  purchase_order_id bigint [ref: > purchase_orders.id, not null]
+  variant_id bigint [ref: > product_variants.id, not null]
+  quantity int [not null]
+  received_quantity int [default: 0]
+  unit_cost int
+}
+
+Table loyalty_entries {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  customer_id bigint [ref: > customers.id, not null]
+  points int [not null, note: '+ gagnés, − utilisés']
+  type varchar(20) [not null, note: 'earned, redeemed, refunded, reversed, referral, adjustment']
+  order_id bigint [ref: > orders.id]
+  note varchar
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  Note: 'Journal des points de fidélité ; solde dans customers.loyalty_points. customers.referral_code / referred_by_id ; orders.points_used, points_discount, referral_discount, referred_by_customer_id ; stores.loyalty_settings (json).'
+}
+
+Table bundle_components {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  bundle_variant_id bigint [ref: > product_variants.id, not null, note: 'variante du lot']
+  component_variant_id bigint [ref: > product_variants.id, not null]
+  quantity int [not null]
+  indexes {
+    (bundle_variant_id, component_variant_id) [unique]
+  }
+  Note: 'Contenu d\'un lot (products.is_bundle). order_items.bundle_components garde le contenu au moment de la commande. Précommandes : products.preorder_enabled, preorder_ship_date, preorder_deposit_percent ; orders.is_preorder.'
+}
+
+Table store_exports {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  user_id bigint [ref: > users.id]
+  status varchar(20) [default: 'pending', note: 'pending, ready, failed']
+  path varchar [note: 'disque privé : exports/{store}/…zip']
+  size bigint
+  error varchar
+  completed_at timestamp
+  expires_at timestamp [note: '7 jours, puis supprimé (exports:purge)']
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Export complet des données (archive ZIP de CSV). stores.closed_reason : motif donné à la fermeture en libre-service.'
+}

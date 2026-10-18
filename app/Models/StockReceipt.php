@@ -14,7 +14,7 @@ class StockReceipt extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'location_id', 'supplier_id', 'reference', 'total_cost', 'received_at', 'created_by'];
+    protected $fillable = ['store_id', 'location_id', 'supplier_id', 'purchase_order_id', 'reference', 'total_cost', 'received_at', 'created_by'];
 
     protected function casts(): array
     {

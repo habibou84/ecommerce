@@ -15,6 +15,7 @@ use App\Models\Store;
 use App\Models\StoreTransfer;
 use App\Services\Ai\AiClient;
 use App\Services\Ai\AnthropicAiClient;
+use App\Services\Customers\Loyalty;
 use App\Services\Places\Places;
 use App\Services\Sms\OrangeSmsGateway;
 use App\Services\WhatsApp\CustomerMessenger;
@@ -57,6 +58,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // Messages WhatsApp automatiques aux clients (confirmation, expédition, livraison), une fois l'opération validée
         OrderEvent::created(fn (OrderEvent $event) => DB::afterCommit(fn () => app(CustomerMessenger::class)->onOrderEvent($event)));
+        // Fidélité : points gagnés à la livraison, rendus ou retirés si la commande est annulée ou retournée
+        OrderEvent::created(fn (OrderEvent $event) => app(Loyalty::class)->onOrderEvent($event));
         // Affectation automatique (mode « auto ») : livreur ou transporteur choisi par les règles dès la confirmation
         OrderEvent::created(function (OrderEvent $event) {
             if ($event->type === 'status_changed' && ($event->data['to'] ?? null) === OrderStatus::Confirmed->value

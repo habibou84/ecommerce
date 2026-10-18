@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Models\Collection;
 use App\Models\Page;
+use App\Services\Catalog\Bundles;
 use App\Services\Marketing\ReviewBook;
 use App\Services\Promotions\Pricing;
 use App\Services\Storefront\CartService;
@@ -126,6 +127,8 @@ class StorefrontController extends Controller
             'selected' => $first,
             'options' => $product->options->map(fn ($o) => ['name' => $o->name, 'values' => $o->values->pluck('value')->values()])->values(),
             'related' => $related,
+            // Lot : articles contenus
+            'bundle' => $product->is_bundle ? app(Bundles::class)->components($product) : [],
             // Avis publiés par le marchand : note moyenne et derniers avis
             'reviews' => app(ReviewBook::class)->published($product),
             // Vente flash : fin la plus proche (compte à rebours) ; prix par quantité

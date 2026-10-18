@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\OrderStatus;
 use App\Enums\ShipmentStatus;
 use App\Models\Order;
+use App\Services\Customers\Loyalty;
 use Illuminate\View\View;
 
 /**
@@ -13,7 +14,7 @@ use Illuminate\View\View;
  */
 class TrackingController extends Controller
 {
-    public function __invoke(string $token): View
+    public function __invoke(string $token, Loyalty $loyalty): View
     {
         $order = Order::where('tracking_token', $token)->with(['items', 'store', 'shipments.connection', 'shipments.courier'])->firstOrFail();
         // Expédition en cours (ou la dernière) : transporteur, numéro et lien de suivi
@@ -26,6 +27,11 @@ class TrackingController extends Controller
             ['label' => $order->delivery_method === 'pickup' ? 'Retirée' : 'Livrée', 'done' => $order->status === OrderStatus::Completed],
         ];
 
-        return view('storefront.tracking', ['order' => $order, 'store' => $order->store, 'steps' => $steps, 'shipment' => $shipment]);
+        // Fidélité : points du client et son code de parrainage à partager
+        $settings = $loyalty->settings($order->store);
+        $rewards = $order->customer ? $loyalty->forCustomer($order->customer) : null;
+
+        return view('storefront.tracking', ['order' => $order, 'store' => $order->store, 'steps' => $steps, 'shipment' => $shipment,
+            'rewards' => $rewards, 'loyalty' => $settings]);
     }
 }

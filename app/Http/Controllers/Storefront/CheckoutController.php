@@ -5,7 +5,11 @@ namespace App\Http\Controllers\Storefront;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendPurchaseConversion;
+use App\Models\Cart;
 use App\Models\Order;
+use App\Models\Product;
+use App\Models\Store;
+use App\Services\Customers\Loyalty;
 use App\Services\Payments\PaymentDesk;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
@@ -47,6 +51,7 @@ class CheckoutController extends Controller
             'cart' => $cart,
             'pickupPoints' => $this->checkout->pickupPoints($store),
             'payment' => $this->onlinePayment->options($store, $summary['subtotal']),
+            'referral' => ($loyalty = app(Loyalty::class)->settings($store))['referral_enabled'] ? $loyalty['referral_discount'] : null,
             'meta' => ['title' => 'Commande · '.$store->name, 'description' => '', 'path' => '/commande', 'noindex' => true],
         ]);
     }
@@ -104,6 +109,8 @@ class CheckoutController extends Controller
             'note' => ['nullable', 'string', 'max:1000'],
             'payment' => ['nullable', Rule::in(['cod', 'online'])],
             'payment_method' => ['nullable', Rule::in(array_keys(PaymentDesk::METHODS))],
+            'accepts_marketing' => ['nullable', 'boolean'],
+            'referral_code' => ['nullable', 'string', 'max:12'],
         ], [], ['name' => 'nom', 'phone' => 'téléphone', 'place_id' => 'quartier', 'payment_method' => 'moyen de paiement']);
 
         $store = $this->currentStore();
@@ -112,11 +119,20 @@ class CheckoutController extends Controller
         // Paiement en ligne : au choix du client, ou exigé (total ou acompte) par la boutique
         $options = $this->onlinePayment->options($store);
         $online = $options['mode'] === 'required' || $options['mode'] === 'deposit' || ($options['mode'] === 'optional' && ($data['payment'] ?? 'cod') === 'online');
+        // Précommande avec acompte : payé en ligne dès que la boutique le permet
+        $preorderDeposit = $options['mode'] !== 'off' && $this->hasPreorderDeposit($store, $cart);
+        if ($preorderDeposit && ! $online) {
+            $online = true;
+        }
         if ($online && ! array_key_exists($data['payment_method'] ?? '', $options['methods'])) {
-            throw new BusinessRuleException('Choisissez votre moyen de paiement.', 'payment_method');
+            throw new BusinessRuleException($preorderDeposit ? 'Choisissez votre moyen de paiement pour l\'acompte de la précommande.' : 'Choisissez votre moyen de paiement.', 'payment_method');
         }
 
         $order = $this->checkout->place($store, $cart, $data);
+        // Accord du client pour les nouveautés par WhatsApp (relances) ; une case non cochée ne retire pas un accord donné
+        if (! empty($data['accepts_marketing']) && $order->customer) {
+            $order->customer->forceFill(['accepts_marketing' => true, 'marketing_opt_out_at' => null])->save();
+        }
         $thanks = '/commande/merci/'.$order->tracking_token;
 
         // Achat envoyé à Meta par le serveur (API Conversions), si la boutique l'a configurée
@@ -134,13 +150,21 @@ class CheckoutController extends Controller
         }
 
         try {
-            $payment = $this->onlinePayment->payOrder($order, $data['payment_method'], $options['mode'] === 'deposit');
+            $payment = $this->onlinePayment->payOrder($order, $data['payment_method'], $options['mode'] === 'deposit' || ($preorderDeposit && $order->deposit_required > 0));
         } catch (BusinessRuleException) {
             // Commande enregistrée ; le client pourra payer depuis la page de remerciement
             return response()->json(['redirect' => $thanks.'?paiement=indisponible'], 201);
         }
 
         return response()->json(['redirect' => $payment->checkout_url], 201);
+    }
+
+    private function hasPreorderDeposit(Store $store, Cart $cart): bool
+    {
+        $variantIds = array_column($this->carts->summary($store, $cart)['lines'], 'variant_id');
+
+        return Product::forStore($store->id)->where('preorder_enabled', true)->whereNotNull('preorder_deposit_percent')
+            ->whereHas('variants', fn ($q) => $q->whereIn('id', $variantIds))->exists();
     }
 
     public function thanks(Request $request, string $token): View

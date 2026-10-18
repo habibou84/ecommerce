@@ -4,9 +4,11 @@ use App\Models\CarrierConnection;
 use App\Models\Cart;
 use App\Models\StoreDomain;
 use App\Models\User;
+use App\Services\Accounts\StoreDataExport;
 use App\Services\Billing\Billing;
 use App\Services\Console\SupportSessions;
 use App\Services\Domains\CustomDomains;
+use App\Services\Finance\RecurringExpenses;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierEvents;
 use App\Services\WhatsApp\CustomerMessenger;
@@ -56,6 +58,16 @@ Artisan::command('reports:send', function (DailyReport $reports) {
 })->purpose('Rapports quotidiens à l\'équipe (WhatsApp ou email), à l\'heure choisie');
 
 Schedule::command('reports:send')->everyFifteenMinutes()->withoutOverlapping();
+
+Artisan::command('expenses:recurring', function (RecurringExpenses $expenses) {
+    $this->info($expenses->run().' dépense(s) mensuelle(s) enregistrée(s).');
+})->purpose('Enregistrer les dépenses mensuelles arrivées à échéance');
+Schedule::command('expenses:recurring')->hourly()->withoutOverlapping();
+
+Artisan::command('exports:purge', function (StoreDataExport $exports) {
+    $this->info($exports->purge().' export(s) expiré(s) supprimé(s).');
+})->purpose('Supprimer les exports de données de plus de 7 jours');
+Schedule::command('exports:purge')->dailyAt('04:10');
 
 Artisan::command('billing:run', function (Billing $billing) {
     $counts = $billing->run();

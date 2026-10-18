@@ -22,6 +22,12 @@ class TemplateLibrary
             'example' => ['Awa', '#1001', '15 000 F'],
             'buttons' => ['Confirmer', 'Annuler'],
         ],
+        'courier_on_the_way' => [
+            'name' => 'jm_livreur_en_route', 'category' => 'UTILITY',
+            'body' => 'Bonjour {{1}}, votre commande {{2}} de {{3}} arrive ! Votre livreur {{4}} est en route, joignable au {{5}}. Montant à payer : {{6}}. Merci de rester joignable.',
+            'example' => ['Awa', '#1001', 'Awa Mode', 'Koffi', '01 02 03 04 05', '15 000 F'],
+            'buttons' => ['J\'attends', 'Pas disponible'],
+        ],
         'order_shipped' => [
             'name' => 'jm_commande_en_route', 'category' => 'UTILITY',
             'body' => 'Bonjour {{1}}, votre commande {{2}} est en route ! Suivez-la ici : {{3}} . Merci de rester joignable.',
@@ -46,6 +52,11 @@ class TemplateLibrary
             'name' => 'jm_panier_en_attente', 'category' => 'MARKETING',
             'body' => 'Bonjour {{1}}, vous avez laissé des articles dans votre panier chez {{2}}. Retrouvez-le ici : {{3}} . À bientôt !',
             'example' => ['Awa', 'Awa Mode', 'https://boutique.jibiat-marchand.com/panier/abc'],
+        ],
+        'campaign' => [
+            'name' => 'jm_nouveautes', 'category' => 'MARKETING',
+            'body' => 'Bonjour {{1}}, {{2}} a du nouveau pour vous : {{3}} Découvrez-le ici : {{4}} . Répondez STOP pour ne plus recevoir nos offres.',
+            'example' => ['Awa', 'Awa Mode', 'la nouvelle collection de robes wax est arrivée, -10 % jusqu\'à dimanche.', 'https://boutique.jibiat-marchand.com'],
         ],
         'daily_tips' => [
             'name' => 'jm_conseils_du_soir', 'category' => 'UTILITY',

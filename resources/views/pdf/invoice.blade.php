@@ -65,6 +65,8 @@
     <table class="totals" style="margin-top: 12px; width: 45%; margin-left: 55%">
         <tr><td>Sous-total</td><td class="right">{{ $money($order->subtotal) }}</td></tr>
         @if ($order->discount_total)<tr><td>Remise{{ $order->discount_code ? ' ('.$order->discount_code.')' : '' }}</td><td class="right">− {{ $money($order->discount_total) }}</td></tr>@endif
+        @if ($order->referral_discount)<tr><td>Réduction de parrainage</td><td class="right">− {{ $money($order->referral_discount) }}</td></tr>@endif
+        @if ($order->points_discount)<tr><td>Points de fidélité ({{ $order->points_used }})</td><td class="right">− {{ $money($order->points_discount) }}</td></tr>@endif
         <tr><td>Livraison</td><td class="right">{{ $order->shipping_fee ? $money($order->shipping_fee) : 'Offerte' }}</td></tr>
         <tr class="total"><td>Total</td><td class="right">{{ $money($order->total) }}</td></tr>
         @if ($order->amount_paid)

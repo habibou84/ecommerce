@@ -50,6 +50,7 @@ const done = computed(() => (missions.value ?? []).filter((m) => FINAL.includes(
       </div>
       <p class="mt-1 text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }}</p>
       <p class="mt-1 text-sm">À encaisser : <strong>{{ money(m.cod_amount) }}</strong><span v-if="m.attempts_count" class="text-amber-700"> · {{ m.attempts_count }} tentative(s)</span></p>
+      <p v-if="m.customer_response === 'unavailable'" class="mt-1 text-sm font-medium text-amber-800">⚠ Client pas disponible : appelez-le</p>
     </RouterLink>
 
     <template v-if="done.length">

@@ -49,7 +49,9 @@ class CashRegister
     }
 
     /**
-     * @param  array{type: string, amount: int, method?: string, category?: ?string, note?: ?string}  $data
+     * Une dépense payée autrement qu'en espèces peut être datée dans le passé (publicité de la semaine dernière…).
+     *
+     * @param  array{type: string, amount: int, method?: string, category?: ?string, channel?: ?string, occurred_on?: ?string, note?: ?string}  $data
      */
     public function record(Store $store, array $data, User $actor): CashMovement
     {
@@ -57,6 +59,20 @@ class CashRegister
         if ($data['type'] !== 'expense' && $method !== 'cash') {
             throw new BusinessRuleException('Un retrait ou un apport se fait en espèces.', 'method');
         }
+        $occurredAt = now();
+        if (filled($data['occurred_on'] ?? null)) {
+            $day = CarbonImmutable::parse($data['occurred_on'], $store->timezone);
+            if (! $day->isToday()) {
+                if ($method === 'cash') {
+                    throw new BusinessRuleException('Une dépense en espèces se note le jour même : elle sort du tiroir-caisse.', 'occurred_on');
+                }
+                if ($day->isFuture() || $day->lt(CarbonImmutable::now($store->timezone)->subYear()->startOfDay())) {
+                    throw new BusinessRuleException('Choisissez une date dans les douze derniers mois.', 'occurred_on');
+                }
+                $occurredAt = $day->setTime(12, 0)->utc();
+            }
+        }
+        $category = $data['type'] === 'expense' ? ($data['category'] ?? 'other') : null;
         $session = $this->current($store);
         if ($method === 'cash' && $session === null) {
             throw new BusinessRuleException('Ouvrez la caisse avant de sortir ou d\'ajouter des espèces.');
@@ -69,11 +85,13 @@ class CashRegister
             'store_id' => $store->id,
             'cash_session_id' => $method === 'cash' ? $session?->id : null,
             'type' => $data['type'],
-            'category' => $data['type'] === 'expense' ? ($data['category'] ?? 'other') : null,
+            'category' => $category,
+            'channel' => $category === 'marketing' ? ($data['channel'] ?? null) : null,
             'amount' => $data['amount'],
             'method' => $method,
             'note' => $data['note'] ?? null,
-            'occurred_at' => now(),
+            'purchase_order_id' => $data['purchase_order_id'] ?? null,
+            'occurred_at' => $occurredAt,
             'created_by' => $actor->id,
         ]);
     }

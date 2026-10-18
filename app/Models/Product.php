@@ -22,7 +22,7 @@ class Product extends Model
     protected $fillable = [
         'store_id', 'title', 'slug', 'description', 'brand', 'status', 'is_visible_online', 'has_variants',
         'track_inventory', 'allow_backorder', 'requires_shipping', 'is_fragile', 'low_stock_threshold',
-        'seo_title', 'seo_description', 'published_at',
+        'seo_title', 'seo_description', 'published_at', 'preorder_enabled', 'preorder_ship_date', 'preorder_deposit_percent',
     ];
 
     protected function casts(): array
@@ -35,6 +35,9 @@ class Product extends Model
             'allow_backorder' => 'boolean',
             'requires_shipping' => 'boolean',
             'is_fragile' => 'boolean',
+            'is_bundle' => 'boolean',
+            'preorder_enabled' => 'boolean',
+            'preorder_ship_date' => 'date',
             'published_at' => 'datetime',
         ];
     }

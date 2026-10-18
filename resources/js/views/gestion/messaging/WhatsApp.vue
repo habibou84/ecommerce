@@ -259,10 +259,11 @@ const META_STEPS = [
         <ul class="divide-y divide-slate-100">
           <li v-for="(event, key) in data.events" :key="key" class="grid gap-3 py-3 sm:grid-cols-[1fr_16rem] sm:items-start">
             <div class="text-sm">
-              <label class="flex items-center gap-2 font-medium">
+              <label v-if="!event.manual" class="flex items-center gap-2 font-medium">
                 <input v-model="form.automations[key]" type="checkbox" class="h-4 w-4 accent-emerald-700" />
                 {{ event.label }}
               </label>
+              <p v-else class="font-medium">{{ event.label }} <span class="font-normal text-slate-500">· envoyée depuis Marketing › Relances WhatsApp</span></p>
               <p class="mt-1 text-xs text-slate-500">
                 Variables : <span v-for="(v, i) in event.variables" :key="v">{{ '{' + '{' + (i + 1) + '}' + '}' }} {{ v }}<template v-if="i < event.variables.length - 1">, </template></span>
                 <template v-if="event.buttons.length"> · Boutons de réponse rapide : {{ event.buttons.join(', ') }}</template>

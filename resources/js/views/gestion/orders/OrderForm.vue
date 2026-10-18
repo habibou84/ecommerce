@@ -131,7 +131,11 @@ const fee = computed(() => {
   return zone.value.free_above !== null && subtotal.value >= zone.value.free_above ? 0 : zone.value.fee
 })
 const discount = computed(() => (form.discount_code ? codeDiscount.value : Number(form.discount_total || 0)))
-const total = computed(() => Math.max(0, subtotal.value - discount.value) + fee.value)
+// Points de fidélité du client (nouvelle commande) : réduction = points × valeur d'un point
+const rewardPoints = ref(0)
+const loyalty = computed(() => (!editing.value && known.value?.loyalty?.usable ? known.value.loyalty : null))
+const pointsDiscount = computed(() => (loyalty.value && rewardPoints.value > 0 ? Math.round(rewardPoints.value * loyalty.value.value / Math.max(1, loyalty.value.points)) : 0))
+const total = computed(() => Math.max(0, subtotal.value - discount.value - pointsDiscount.value) + fee.value)
 
 // Assistant IA : conversation mal écrite ou en plusieurs messages, captures d'écran
 const ai = computed(() => auth.profile?.ai ?? { enabled: false, used: 0, limit: 0 })
@@ -243,6 +247,7 @@ async function save() {
       deposit_required: form.deposit_required === '' ? null : Number(form.deposit_required),
       scheduled_date: form.scheduled_date || null,
       discount_code: form.discount_code || null,
+      reward_points: loyalty.value && rewardPoints.value > 0 ? Number(rewardPoints.value) : null,
       items: items.value.map((i) => ({ variant_id: i.variant_id ?? null, title: i.variant_id ? undefined : i.title, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
     }
     if (form.discount_code) delete payload.discount_total
@@ -416,6 +421,14 @@ async function save() {
             <span>Remise</span>
             <span v-if="form.discount_code" class="text-emerald-700">{{ codeDiscount ? `− ${money(codeDiscount)}` : promo?.free_shipping ? 'Livraison offerte' : '—' }}</span>
             <input v-else v-model.number="form.discount_total" type="number" min="0" class="input w-28 py-1 text-right" />
+          </div>
+          <div v-if="loyalty" class="space-y-1 rounded-lg bg-emerald-50 p-2">
+            <div class="flex items-center justify-between gap-2">
+              <span>Points de fidélité <span class="text-xs text-slate-500">({{ loyalty.points }} dispo.)</span></span>
+              <input v-model.number="rewardPoints" type="number" min="0" :max="loyalty.points" class="input w-24 py-1 text-right" />
+            </div>
+            <p v-if="pointsDiscount" class="text-right text-emerald-700">− {{ money(pointsDiscount) }}</p>
+            <p v-if="errors.reward_points" class="text-xs text-red-600">{{ errors.reward_points }}</p>
           </div>
           <div class="flex justify-between"><span>Livraison</span><span>{{ fee ? money(fee) : 'Offerte' }}</span></div>
           <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold"><span>Total</span><span>{{ money(total) }}</span></div>

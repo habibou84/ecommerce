@@ -119,6 +119,7 @@ class Checkout
                 'internal_note' => ! $pickup && $quote['fee'] === null ? 'Quartier hors des zones de livraison : frais à confirmer avec le client.' : null,
                 'utm' => $cart->utm,
                 'discount_code' => $summary['discount']['code'] ?? null,
+                'referral_code' => $data['referral_code'] ?? null,
                 'items' => array_map(fn ($line) => ['variant_id' => $line['variant_id'], 'quantity' => $line['quantity']], $summary['lines']),
             ], null, 'customer');
 

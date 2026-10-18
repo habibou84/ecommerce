@@ -4,14 +4,24 @@ namespace App\Services\Orders;
 
 use App\Enums\OrderStatus;
 use App\Models\Order;
-use Jibiat\Socle\Money;
 
 /**
- * Messages au client, envoyés par le marchand depuis son WhatsApp (lien wa.me prérempli, gratuit).
- * L'envoi automatique par l'API WhatsApp Business arrive en phase 6, avec des modèles modifiables.
+ * Messages au client, envoyés par le marchand depuis son WhatsApp (lien wa.me prérempli, gratuit), avec les
+ * textes de la boutique (MessageTexts, modifiables dans Réglages › Textes des messages).
  */
 class OrderMessages
 {
+    private const LABELS = [
+        'confirm_request' => 'Demander la confirmation',
+        'confirmed' => 'Commande confirmée',
+        'payment_reminder' => 'Rappel de paiement',
+        'shipped' => 'Commande en route',
+        'thanks' => 'Remerciement',
+        'review_request' => 'Demander un avis',
+    ];
+
+    public function __construct(private readonly MessageTexts $texts) {}
+
     /**
      * Messages utiles selon le statut de la commande.
      *
@@ -44,21 +54,9 @@ class OrderMessages
     public function message(Order $order, string $key): array
     {
         $order->loadMissing(['items', 'store']);
-        $store = $order->store->name;
-        $hello = 'Bonjour'.($order->customer_name ? ' '.strtok($order->customer_name, ' ') : '');
-        $items = $order->items->map(fn ($i) => "• {$i->quantity} × {$i->label()}")->implode("\n");
-        $where = $order->delivery_method === 'pickup' ? 'à retirer en boutique' : 'à livrer à '.trim(($order->shipping_place_label ?? '').' '.($order->shipping_address ?? ''));
+        $text = $this->texts->render($order, $key);
 
-        [$label, $text] = match ($key) {
-            'confirm_request' => ['Demander la confirmation', "{$hello}, merci pour votre commande {$order->reference()} chez {$store} :\n{$items}\n\nTotal : ".Money::format($order->total)." ({$where}).\n\nPouvez-vous nous confirmer la commande et votre disponibilité ? Répondez « OUI » pour confirmer."],
-            'confirmed' => ['Commande confirmée', "{$hello}, votre commande {$order->reference()} est confirmée ✅\nTotal : ".Money::format($order->total).($order->amountDue() < $order->total ? ' (reste à payer : '.Money::format($order->amountDue()).')' : '')."\nSuivez-la ici : {$order->trackingUrl()}"],
-            'payment_reminder' => ['Rappel de paiement', "{$hello}, pour la commande {$order->reference()}, le reste à payer est de ".Money::format($order->amountDue()).'. Merci !'],
-            'shipped' => ['Commande en route', "{$hello}, votre commande {$order->reference()} est en route 🚚\n".($order->amountDue() > 0 ? 'Montant à payer à la livraison : '.Money::format($order->amountDue())."\n" : '')."Suivi : {$order->trackingUrl()}"],
-            'thanks' => ['Remerciement', "{$hello}, merci pour votre achat chez {$store} ! Nous espérons que vous êtes satisfait(e). À bientôt 🙏"],
-            'review_request' => ['Demander un avis', "{$hello}, merci d'avoir commandé chez {$store} ! Votre avis sur les articles reçus nous aide beaucoup ⭐\n{$order->store->url('/avis/'.$order->tracking_token)}"],
-        };
-
-        return ['key' => $key, 'label' => $label, 'text' => $text, 'url' => $this->whatsappUrl($order->customer_phone, $text)];
+        return ['key' => $key, 'label' => self::LABELS[$key], 'text' => $text, 'url' => $this->whatsappUrl($order->customer_phone, $text)];
     }
 
     public function whatsappUrl(string $phone, string $text = ''): string

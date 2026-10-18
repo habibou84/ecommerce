@@ -32,10 +32,12 @@ class DailyAdvice
     public function tips(Store $store, ?CarbonImmutable $day = null): array
     {
         $now = ($day ?? CarbonImmutable::now())->setTimezone($store->timezone);
+        $month = $this->stats->report($store, $now->subDays(30)->startOfDay()->utc(), $now->endOfDay()->utc());
         $candidates = array_filter([
             $this->runningOut($store, $now),
             $this->waitingConfirmation($store, $now),
-            ...$this->failingDeliveries($store, $now),
+            ...$this->failingDeliveries($month),
+            $this->costlyAds($month),
             $this->sleepingStock($store, $now),
             $this->trend($store, $now),
             $this->moneyToCollect($store),
@@ -94,12 +96,11 @@ class DailyAdvice
     /**
      * Zone ou livreur où beaucoup de colis reviennent (30 derniers jours, au moins 5 livraisons terminées).
      *
+     * @param  array<string, mixed>  $report  statistiques des 30 derniers jours
      * @return list<array{0: int, 1: string}>
      */
-    private function failingDeliveries(Store $store, CarbonImmutable $now): array
+    private function failingDeliveries(array $report): array
     {
-        $from = $now->subDays(30)->startOfDay()->utc();
-        $report = $this->stats->report($store, $from, $now->endOfDay()->utc());
         $tips = [];
 
         $zone = collect($report['by_zone'])->filter(fn ($z) => $z['delivered'] + $z['returned'] >= 5 && $z['delivery_rate'] !== null && $z['delivery_rate'] <= 70)
@@ -117,6 +118,27 @@ class DailyAdvice
         }
 
         return $tips;
+    }
+
+    /**
+     * Publicité notée pour un canal (30 derniers jours, au moins 10 000 F) qui ne ramène aucune commande livrée,
+     * ou qui coûte plus que la marge des commandes livrées de ce canal.
+     *
+     * @param  array<string, mixed>  $report  statistiques des 30 derniers jours
+     * @return array{0: int, 1: string}|null
+     */
+    private function costlyAds(array $report): ?array
+    {
+        $channel = collect($report['by_source'])->filter(fn ($c) => ($c['ad_spend'] ?? 0) >= 10000 && $c['margin_after_ads'] < 0)
+            ->sortBy('margin_after_ads')->first();
+        if ($channel === null) {
+            return null;
+        }
+        if ($channel['delivered'] === 0) {
+            return [78, Money::format($channel['ad_spend'])." de publicité {$channel['label']} ce mois-ci sans aucune commande livrée venue de {$channel['label']} : vérifiez le canal noté sur vos commandes, ou revoyez cette publicité."];
+        }
+
+        return [74, "Votre publicité {$channel['label']} coûte ".Money::format($channel['ad_cost_per_delivered']).' par commande livrée, plus que ce que ces commandes vous laissent : ciblez mieux, mettez en avant des articles plus rentables ou ajustez vos prix.'];
     }
 
     /**

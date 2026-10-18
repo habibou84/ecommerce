@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1\Payments;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
-use App\Models\PaymentLink;
 use App\Services\Payments\PaymentDesk;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\JsonResponse;
@@ -23,21 +22,8 @@ class OrderPaymentController extends Controller
         $model = Order::with('store')->findOrFail($order);
         $store = $model->store;
 
-        abort_if($payments->availableMethods($store) === [], 422, 'Ajoutez d\'abord un compte de paiement (Réglages › Paiement en ligne).');
-        abort_if(in_array($model->status->value, ['cancelled', 'returned'], true) || $model->amountDue() <= 0, 422, 'Il n\'y a rien à payer pour cette commande.');
-        $amount = min($data['amount'] ?? $model->amountDue(), $model->amountDue());
-
-        // Un seul lien ouvert par commande : le précédent est remplacé
-        PaymentLink::where('order_id', $model->id)->where('status', 'open')->update(['status' => 'cancelled']);
-        $link = PaymentLink::create([
-            'store_id' => $store->id,
-            'order_id' => $model->id,
-            'token' => Str::random(24),
-            'amount' => $amount,
-            'description' => $data['description'] ?? null,
-            'expires_at' => now()->addDays(7),
-            'created_by' => $request->user()->id,
-        ]);
+        $link = $payments->createLink($model, $data['amount'] ?? null, $data['description'] ?? null, $request->user());
+        $amount = $link->amount;
         $url = $store->url('/payer/'.$link->token);
         $text = 'Bonjour'.($model->customer_name ? ' '.Str::before($model->customer_name, ' ') : '').", voici le lien pour payer votre commande {$model->reference()} chez {$store->name} (".Money::format($amount).") : {$url}";
 
