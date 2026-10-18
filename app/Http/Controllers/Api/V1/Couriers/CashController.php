@@ -6,10 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\CashCollection;
 use App\Models\Courier;
 use App\Models\CourierRemittance;
+use App\Models\CourierRemittanceDeclaration;
 use App\Services\Couriers\CashDesk;
+use App\Services\Couriers\RemittanceDeclarations;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Caisse : espèces détenues par les livreurs, versements, écarts.
@@ -34,7 +38,53 @@ class CashController extends Controller
                     'note' => $r->note,
                     'received_at' => $r->received_at->toIso8601String(),
                 ]),
+            // Versements déclarés par les livreurs, à confirmer
+            'declarations' => CourierRemittanceDeclaration::with('courier')->where('status', 'pending')->oldest()->get()
+                ->map(fn (CourierRemittanceDeclaration $d) => [
+                    'id' => $d->id,
+                    'courier_id' => $d->courier_id,
+                    'courier' => $d->courier->name,
+                    'amount' => $d->amount,
+                    'method' => $d->method,
+                    'method_label' => CourierRemittanceDeclaration::METHODS[$d->method],
+                    'reference' => $d->reference,
+                    'note' => $d->note,
+                    'held' => $d->courier->cashHeld(),
+                    'proof_url' => $d->proof_path ? "/api/v1/cash/declarations/{$d->id}/proof" : null,
+                    'created_at' => $d->created_at->toIso8601String(),
+                ]),
         ]);
+    }
+
+    /**
+     * Versement déclaré par le livreur : reçu (montant réellement reçu, sinon celui déclaré).
+     */
+    public function confirmDeclaration(Request $request, int $declaration, RemittanceDeclarations $declarations): JsonResponse
+    {
+        $data = $request->validate(['received_amount' => ['nullable', 'integer', 'min:0', 'max:100000000']], [], ['received_amount' => 'montant reçu']);
+        $remittance = $declarations->confirm(CourierRemittanceDeclaration::findOrFail($declaration), $data['received_amount'] ?? null, $request->user())->remittance;
+
+        return response()->json(['data' => [
+            'id' => $remittance->id,
+            'expected_amount' => $remittance->expected_amount,
+            'received_amount' => $remittance->received_amount,
+            'difference' => $remittance->difference,
+        ]]);
+    }
+
+    public function rejectDeclaration(Request $request, int $declaration, RemittanceDeclarations $declarations): JsonResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'max:255']], [], ['reason' => 'motif']);
+        $declarations->reject(CourierRemittanceDeclaration::with('courier')->findOrFail($declaration), $data['reason'], $request->user());
+
+        return response()->json(['message' => 'Versement refusé : le livreur est prévenu.']);
+    }
+
+    public function declarationProof(int $declaration): StreamedResponse
+    {
+        $path = CourierRemittanceDeclaration::whereNotNull('proof_path')->findOrFail($declaration)->proof_path;
+
+        return Storage::disk('local')->response($path);
     }
 
     /**

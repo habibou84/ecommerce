@@ -1125,6 +1125,30 @@ Table courier_remittances {
   received_at timestamp [not null]
 }
 
+Table courier_remittance_declarations {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  courier_id bigint [ref: > couriers.id, not null]
+  amount int [not null, note: 'montant déclaré par le livreur']
+  method varchar(20) [not null, note: 'cash | wave | orange_money | mtn_momo | moov_money']
+  reference varchar(80) [note: 'référence de l\'envoi mobile money (obligatoire hors espèces)']
+  note varchar
+  proof_path varchar [note: 'photo du reçu (stockage privé)']
+  held_amount int [not null, note: 'espèces détenues au moment de la déclaration']
+  status varchar(20) [default: 'pending', note: 'pending | confirmed | rejected']
+  remittance_id bigint [ref: > courier_remittances.id, note: 'versement créé à la confirmation']
+  decided_by bigint [ref: > users.id]
+  decided_at timestamp
+  reject_reason varchar
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (store_id, status)
+    (courier_id, status)
+  }
+  Note: 'Versement déclaré par le livreur, confirmé ou refusé par la boutique.'
+}
+
 Table courier_pay_rules {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]
