@@ -6,12 +6,14 @@ use App\Enums\PaymentMethod;
 use App\Enums\ShipmentStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Courier;
+use App\Models\CourierAssignment;
 use App\Models\Shipment;
 use App\Services\Shipping\Drivers\RemoteShipment;
 use App\Services\Shipping\ShipmentDesk;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -62,6 +64,11 @@ class CourierDesk
         };
 
         $this->shipments->apply($shipment, $remote, 'courier', $data['note'] ?? ($step === 'failed' ? $data['reason'] : null), $courier->user);
+        // Colis récupéré : la mission est acceptée de fait
+        if ($step === 'in_transit') {
+            CourierAssignment::forStore($shipment->store_id)->where('shipment_id', $shipment->id)->where('courier_id', $courier->id)
+                ->where('status', 'assigned')->whereNull('accepted_at')->update(['accepted_at' => now(), 'seen_at' => DB::raw('COALESCE(seen_at, CURRENT_TIMESTAMP)')]);
+        }
         $shipment = $shipment->fresh(['order', 'courier']);
 
         // Le livreur part : le client est prévenu (nom et numéro du livreur), un échec d'envoi ne bloque pas l'étape.

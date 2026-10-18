@@ -5,6 +5,7 @@ namespace App\Services\Shipping;
 use App\Enums\OrderStatus;
 use App\Models\CarrierConnection;
 use App\Models\Courier;
+use App\Models\CourierAssignment;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\ShippingRule;
@@ -34,6 +35,10 @@ class DeliveryAdvisor
         $order->loadMissing('items.product');
         $zoneId = $order->delivery_zone_id;
 
+        // Livreurs qui ont déjà refusé cette commande : on ne la leur propose plus
+        $declined = CourierAssignment::forStore($order->store_id)->where('status', 'declined')
+            ->whereIn('shipment_id', Shipment::forStore($order->store_id)->where('order_id', $order->id)->select('id'))->pluck('courier_id')->all();
+
         $couriers = Courier::forStore($order->store_id)->where('status', 'active')->with(['zones:id', 'payRule'])
             ->withCount(['shipments as active_missions' => fn ($q) => $q->whereIn('status', ['awaiting_pickup', 'in_transit', 'out_for_delivery'])])
             ->get()
@@ -43,6 +48,7 @@ class DeliveryAdvisor
                 'is_available' => $c->is_available,
                 'active_missions' => $c->active_missions,
                 'covers_zone' => $zoneId !== null && $c->zones->contains('id', $zoneId),
+                'declined' => in_array($c->id, $declined, true),
                 'cost' => $c->payRule?->amountFor($zoneId),
                 'stats' => $this->stats($order->store_id, 'courier_id', $c->id, $zoneId),
             ])
@@ -126,7 +132,7 @@ class DeliveryAdvisor
      */
     private function pick(string $action, array $options, ?int $connectionId = null): ?array
     {
-        $couriers = array_values(array_filter($options['couriers'], fn ($c) => $c['covers_zone'] && $c['is_available']));
+        $couriers = array_values(array_filter($options['couriers'], fn ($c) => $c['covers_zone'] && $c['is_available'] && ! ($c['declined'] ?? false)));
         // Transporteur utilisable : devis obtenu (ou transporteur sans API, prévenu par WhatsApp)
         $carriers = array_values(array_filter($options['carriers'], fn ($c) => $c['error'] === null && ($c['fee'] !== null || ! $c['is_api'])));
         $courier = fn ($c) => ['type' => 'courier', 'id' => $c['id'], 'name' => $c['name'], 'cost' => $c['cost'], 'hours' => $c['stats']['avg_hours']];

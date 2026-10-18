@@ -454,6 +454,66 @@ class CourierTest extends TestCase
         $this->storeApi($this->store, 'POST', 'courier/remittances', ['amount' => 31500, 'method' => 'cash'])->assertCreated();
     }
 
+    public function test_the_courier_accepts_or_declines_a_mission(): void
+    {
+        [$koffi, $koffiUser] = $this->onboardCourier();
+        [$yao, $yaoUser] = $this->onboardCourier('0102030499', 'Yao');
+        $order = $this->order();
+        $shipment = $this->assign($order, $koffi);
+
+        // La boutique voit que la mission n'est ni vue ni acceptée
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.shipments.0.courier.seen_at', null)
+            ->assertJsonPath('data.shipments.0.courier.accepted_at', null);
+
+        $this->asCourier($koffiUser);
+        $this->storeApi($this->store, 'GET', 'courier/missions')->assertJsonPath('data.0.acceptance', 'pending');
+        $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/accept")->assertOk()->assertJsonPath('data.acceptance', 'accepted');
+
+        $this->asCourier($this->store->owner);
+        $courier = $this->storeApi($this->store, 'GET', "orders/{$order->id}")->json('data.shipments.0.courier');
+        $this->assertNotNull($courier['seen_at']);
+        $this->assertNotNull($courier['accepted_at']);
+
+        // Refus avec motif : mission annulée, commande à reconfier, équipe prévenue
+        $this->asCourier($koffiUser);
+        $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/decline")->assertStatus(422)->assertJsonValidationErrors('reason');
+        $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/decline", ['reason' => 'Trop loin'])->assertOk();
+        $this->assertSame(['cancelled', OrderStatus::Confirmed], [$shipment->fresh()->status->value, $order->fresh()->status]);
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()
+            ->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Mission refusée par Koffi') && str_contains($n->data['body'], 'Trop loin')));
+        $this->assertSame([['cancelled', null]], array_map(fn ($m) => [$m['status'], $m['acceptance']], $this->storeApi($this->store, 'GET', 'courier/missions')->json('data')));
+
+        // Affectation automatique : la commande refusée part vers un autre livreur, jamais vers celui qui a refusé
+        $this->asCourier($this->store->owner);
+        $this->store->forceFill(['assignment_mode' => 'auto'])->save();
+        $second = $this->assign($order->fresh(), $koffi);
+        $this->asCourier($koffiUser);
+        $this->storeApi($this->store, 'POST', "courier/missions/{$second->id}/decline", ['reason' => 'Plus de place'])->assertOk();
+        $next = Shipment::where('order_id', $order->id)->latest('id')->first();
+        $this->assertSame([$yao->id, 'awaiting_pickup'], [$next->courier_id, $next->status->value]);
+
+        // Récupérer le colis vaut acceptation ; ensuite on ne peut plus refuser
+        $this->asCourier($yaoUser);
+        $this->step($next, ['status' => 'in_transit'])->assertOk();
+        $this->storeApi($this->store, 'GET', "courier/missions/{$next->id}")->assertJsonPath('data.acceptance', 'accepted');
+        $this->storeApi($this->store, 'POST', "courier/missions/{$next->id}/decline", ['reason' => 'Trop loin'])->assertStatus(422);
+    }
+
+    public function test_unanswered_missions_are_reminded_once(): void
+    {
+        [$courier, $user] = $this->onboardCourier();
+        $shipment = $this->assign($this->order(), $courier);
+
+        $this->artisan('couriers:remind')->assertSuccessful();
+        $this->assertFalse(DatabaseNotification::all()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'pas encore acceptée')));
+
+        $this->travel(16)->minutes();
+        $this->artisan('couriers:remind')->expectsOutputToContain('1 mission(s)')->assertSuccessful();
+        $this->artisan('couriers:remind')->expectsOutputToContain('0 mission(s)')->assertSuccessful();
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Mission pas encore acceptée')));
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $user->id)->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'en attente de votre réponse')));
+    }
+
     public function test_reassignment_and_cancellation(): void
     {
         [$koffi, $koffiUser] = $this->onboardCourier();

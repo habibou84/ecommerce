@@ -6,6 +6,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Models\CashCollection;
 use App\Models\Courier;
+use App\Models\CourierAssignment;
 use App\Models\CourierEarning;
 use App\Models\CourierRemittance;
 use App\Models\CourierRemittanceDeclaration;
@@ -14,6 +15,7 @@ use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Services\Couriers\CourierDesk;
 use App\Services\Couriers\CourierPayroll;
+use App\Services\Couriers\MissionResponses;
 use App\Services\Couriers\RemittanceDeclarations;
 use App\Services\Couriers\SharedCouriers;
 use App\Services\Orders\MessageTexts;
@@ -40,7 +42,10 @@ class CourierAppController extends Controller
 {
     private const ACTIVE = SharedCouriers::ACTIVE_MISSIONS;
 
-    public function __construct(private readonly SharedCouriers $shared) {}
+    /** Affectations en cours des missions affichées (vue, acceptée) */
+    private array $assignments = [];
+
+    public function __construct(private readonly SharedCouriers $shared, private readonly MissionResponses $responses) {}
 
     public function me(Request $request, CourierPayroll $payroll): JsonResponse
     {
@@ -85,6 +90,8 @@ class CourierAppController extends Controller
             ->orderBy('requested_at')->get();
 
         $several = $this->couriers($request)->count() > 1;
+        $this->responses->markSeen($missions);
+        $this->loadAssignments($missions);
 
         // Avec full=1, le détail de chaque mission en cours : le téléphone le garde pour travailler sans réseau
         if ($request->boolean('full')) {
@@ -97,7 +104,37 @@ class CourierAppController extends Controller
 
     public function show(Request $request, int $shipment): JsonResponse
     {
-        return response()->json(['data' => $this->detail($this->mission($request, $shipment))]);
+        $mission = $this->mission($request, $shipment);
+        $this->responses->markSeen(collect([$mission]));
+        $this->loadAssignments(collect([$mission]));
+
+        return response()->json(['data' => $this->detail($mission)]);
+    }
+
+    /**
+     * Le livreur accepte la mission : la boutique le voit.
+     */
+    public function accept(Request $request, int $shipment): JsonResponse
+    {
+        $mission = $this->mission($request, $shipment);
+        $courier = $this->couriers($request)->firstWhere('id', $mission->courier_id);
+        SharedCouriers::within($mission->order->store, fn () => $this->responses->accept($mission, $courier));
+        $this->loadAssignments(collect([$mission]));
+
+        return response()->json(['data' => $this->summary($mission, true)]);
+    }
+
+    /**
+     * Le livreur refuse la mission (avant le ramassage), avec un motif : elle repart vers un autre livreur.
+     */
+    public function decline(Request $request, int $shipment): JsonResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'max:255']], [], ['reason' => 'motif']);
+        $mission = $this->mission($request, $shipment);
+        $courier = $this->couriers($request)->firstWhere('id', $mission->courier_id);
+        SharedCouriers::within($mission->order->store, fn () => $this->responses->decline($mission, $courier, $data['reason']));
+
+        return response()->json(['message' => 'Mission refusée : la boutique est prévenue.']);
     }
 
     /**
@@ -294,6 +331,15 @@ class CourierAppController extends Controller
         ]]);
     }
 
+    /**
+     * @param  Collection<int, Shipment>  $missions
+     */
+    private function loadAssignments(Collection $missions): void
+    {
+        $this->assignments = CourierAssignment::withoutGlobalScope(StoreScope::class)->whereIn('shipment_id', $missions->pluck('id'))
+            ->where('status', 'assigned')->get()->keyBy('shipment_id')->all();
+    }
+
     private function declaration(CourierRemittanceDeclaration $d, bool $withStore): array
     {
         return [
@@ -365,6 +411,9 @@ class CourierAppController extends Controller
             // Tournée : commune et quartier pour regrouper les arrêts, ordre choisi par le livreur
             'commune' => $order->place ? ($order->place->type === 'neighborhood' ? $order->place->parent?->name : $order->place->name) : null,
             'route_position' => $s->route_position,
+            // Réponse du livreur : à accepter tant qu'il n'a ni accepté ni récupéré le colis
+            'acceptance' => isset($this->assignments[$s->id]) ? ($this->assignments[$s->id]->accepted_at ? 'accepted' : 'pending') : null,
+            'assigned_at' => isset($this->assignments[$s->id]) ? $this->assignments[$s->id]->assigned_at->toIso8601String() : null,
         ];
     }
 }
