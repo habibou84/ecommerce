@@ -72,7 +72,8 @@ class CourierMissions
             'payment_id' => $payment->id,
             'amount' => $payment->amount,
             'method' => $method->value,
-            'collected_at' => now(),
+            // Livraison faite sans réseau : l'argent a été reçu à l'heure de la livraison
+            'collected_at' => $shipment->delivered_at ?? now(),
         ]);
     }
 

@@ -20,7 +20,9 @@ use chillerlan\QRCode\QRCode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Jibiat\Socle\Money;
@@ -80,16 +82,29 @@ class CourierAppController extends Controller
 
         $several = $this->couriers($request)->count() > 1;
 
+        // Avec full=1, le détail de chaque mission en cours : le téléphone le garde pour travailler sans réseau
+        if ($request->boolean('full')) {
+            return response()->json(['data' => $missions->map(fn (Shipment $s) => in_array($s->status->value, self::ACTIVE, true)
+                ? $this->detail($s) : $this->summary($s, $several))]);
+        }
+
         return response()->json(['data' => $missions->map(fn (Shipment $s) => $this->summary($s, $several))]);
     }
 
     public function show(Request $request, int $shipment): JsonResponse
     {
-        $mission = $this->mission($request, $shipment);
+        return response()->json(['data' => $this->detail($this->mission($request, $shipment))]);
+    }
+
+    /**
+     * Tout ce qu'il faut pour livrer : client, adresse, articles, montant, étapes possibles.
+     */
+    private function detail(Shipment $mission): array
+    {
         $model = SharedCouriers::within($mission->order->store, fn () => $mission->load(['order.items', 'origin']));
         $order = $model->order;
 
-        return response()->json(['data' => $this->summary($model, true) + [
+        return $this->summary($model, true) + [
             'store_phone' => $order->store->phone,
             'customer_phone' => $order->shipping_phone ?? $order->customer_phone,
             'customer_phone_display' => PhoneNumber::display($order->shipping_phone ?? $order->customer_phone),
@@ -117,7 +132,7 @@ class CourierAppController extends Controller
             // Reste à payer (0 si le client a payé en ligne, à la porte ou avant) et paiement à la porte possible
             'amount_due' => $order->amountDue(),
             'door_payment' => $order->amountDue() > 0 && SharedCouriers::within($order->store, fn () => app(PaymentDesk::class)->availableMethods($order->store)) !== [],
-        ]]);
+        ];
     }
 
     /**
@@ -157,12 +172,29 @@ class CourierAppController extends Controller
             'rescheduled_to' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:255'],
             'photo' => ['nullable', 'file', 'image', 'max:8192'],
+            // Étape faite sans réseau : identifiant donné par le téléphone et heure réelle de l'étape
+            'offline_id' => ['nullable', 'uuid'],
+            'occurred_at' => ['nullable', 'date'],
         ], [], ['code' => 'code', 'reason' => 'motif', 'photo' => 'photo']);
 
         // La mission peut appartenir à une autre de ses boutiques : elle avance dans le contexte de cette boutique
         $mission = $this->mission($request, $shipment);
         $courier = $this->couriers($request)->firstWhere('id', $mission->courier_id);
+
+        // Étape renvoyée par le téléphone (réponse perdue en route) : déjà enregistrée, rien ne se refait
+        $replay = isset($data['offline_id']) ? 'courier-step:'.$courier->user_id.':'.$data['offline_id'] : null;
+        if ($replay !== null && Cache::has($replay)) {
+            return response()->json(['data' => $this->summary($mission, true)]);
+        }
+        // Heure réelle de l'étape, jamais dans le futur ni plus de trois jours en arrière
+        if (isset($data['occurred_at'])) {
+            $data['occurred_at'] = Carbon::parse($data['occurred_at'])->max(now()->subDays(3))->min(now())->toIso8601String();
+        }
+
         $model = SharedCouriers::within($mission->order->store, fn () => $desk->update($mission, $courier, $data['status'], $data, $request->file('photo')));
+        if ($replay !== null) {
+            Cache::put($replay, $model->id, now()->addDays(7));
+        }
 
         return response()->json(['data' => $this->summary($model, true)]);
     }

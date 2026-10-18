@@ -315,6 +315,51 @@ class CourierTest extends TestCase
         $this->assertSame([OrderStatus::Returned, [5, 0]], [$order->fresh()->status, $this->stock()]);
     }
 
+    public function test_steps_done_without_network_are_sent_later_with_their_real_time(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.1']]])]);
+        WhatsappAccount::create(['store_id' => $this->store->id, 'phone_number_id' => '123', 'access_token' => 'tok', 'app_secret' => 's', 'verify_token' => Str::random(20),
+            'webhook_uuid' => (string) Str::uuid(), 'templates' => ['courier_on_the_way' => 'jm_livreur_en_route'], 'automations' => ['courier_on_the_way' => true], 'status' => 'active']);
+        [$courier, $user] = $this->onboardCourier();
+        $order = $this->order();
+        $shipment = $this->assign($order, $courier);
+        $this->asCourier($user);
+
+        // Le téléphone garde le détail des missions en cours
+        $this->storeApi($this->store, 'GET', 'courier/missions?full=1')->assertOk()
+            ->assertJsonPath('data.0.customer_phone', '+2250506070809')->assertJsonPath('data.0.next_steps', ['in_transit'])->assertJsonPath('data.0.items.0.quantity', 2);
+
+        // Étapes faites dans la matinée sans réseau, envoyées à midi dans l'ordre
+        $this->travelTo(today()->setTime(12, 0));
+        $pickup = (string) Str::uuid();
+        $this->step($shipment, ['status' => 'in_transit', 'offline_id' => $pickup, 'occurred_at' => today()->setTime(9, 0)->toIso8601String()])->assertOk();
+        $this->step($shipment, ['status' => 'out_for_delivery', 'offline_id' => (string) Str::uuid(), 'occurred_at' => today()->setTime(9, 30)->toIso8601String()])->assertOk();
+        // Message « livreur en route » trop tardif : il ne part pas
+        Http::assertNothingSent();
+        $this->step($shipment, ['status' => 'delivered', 'payment_method' => 'cash', 'offline_id' => (string) Str::uuid(),
+            'occurred_at' => today()->setTime(10, 15)->toIso8601String()])->assertOk()->assertJsonPath('data.status', 'delivered');
+
+        $shipment->refresh();
+        $this->assertSame(['09:00', '10:15'], [$shipment->picked_up_at->format('H:i'), $shipment->delivered_at->format('H:i')]);
+        $this->assertSame('10:15', CashCollection::where('shipment_id', $shipment->id)->sole()->collected_at->format('H:i'));
+
+        // Réponse perdue, le téléphone renvoie la même étape : déjà faite, pas d'erreur
+        $this->step($shipment, ['status' => 'in_transit', 'offline_id' => $pickup, 'occurred_at' => today()->setTime(9, 0)->toIso8601String()])
+            ->assertOk()->assertJsonPath('data.status', 'delivered');
+        // Sans identifiant, la même étape est refusée
+        $this->step($shipment, ['status' => 'in_transit'])->assertStatus(422);
+    }
+
+    public function test_an_offline_time_is_never_in_the_future(): void
+    {
+        [$courier, $user] = $this->onboardCourier();
+        $shipment = $this->assign($this->order(), $courier);
+        $this->asCourier($user);
+
+        $this->step($shipment, ['status' => 'in_transit', 'offline_id' => (string) Str::uuid(), 'occurred_at' => now()->addDay()->toIso8601String()])->assertOk();
+        $this->assertTrue($shipment->fresh()->picked_up_at->lte(now()));
+    }
+
     public function test_reassignment_and_cancellation(): void
     {
         [$koffi, $koffiUser] = $this->onboardCourier();

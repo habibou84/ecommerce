@@ -1,15 +1,15 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import http from '../../lib/http'
+import { cachedGet } from '../../lib/courierOffline'
 import { formatDateTime, money } from '../../lib/format'
 
 const cash = ref(null)
 const earnings = ref(null)
 
 onMounted(async () => {
-  const [c, e] = await Promise.all([http.get('/courier/cash'), http.get('/courier/earnings')])
-  cash.value = c.data.data
-  earnings.value = e.data.data
+  const [c, e] = await Promise.all([cachedGet('/courier/cash', 'cash'), cachedGet('/courier/earnings', 'earnings')])
+  cash.value = c
+  earnings.value = e
 })
 </script>
 
