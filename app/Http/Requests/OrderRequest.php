@@ -54,6 +54,9 @@ class OrderRequest extends FormRequest
             'shipping_fee' => ['nullable', 'integer', 'min:0', 'max:10000000'],
             'deposit_required' => ['nullable', 'integer', 'min:0', 'max:100000000'],
             'confirmed' => ['sometimes', 'boolean'],
+            // Qui livre (facultatif) : un livreur de la boutique ou une entreprise de livraison, pas les deux
+            'planned_courier_id' => ['sometimes', 'nullable', 'integer', 'prohibits:planned_carrier_connection_id'],
+            'planned_carrier_connection_id' => ['sometimes', 'nullable', 'integer'],
 
             'items' => [$required, 'array', 'min:1', 'max:50'],
             'items.*.variant_id' => ['nullable', 'integer'],
@@ -72,6 +75,7 @@ class OrderRequest extends FormRequest
             'discount_code' => 'code promo',
             'reward_points' => 'points de fidélité',
             'referral_code' => 'code de parrainage',
+            'planned_courier_id' => 'livreur', 'planned_carrier_connection_id' => 'entreprise de livraison',
         ];
     }
 

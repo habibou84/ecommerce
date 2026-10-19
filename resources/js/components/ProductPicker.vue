@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import Icon from './Icon.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
 
@@ -47,13 +48,22 @@ function add(product, variant) {
 
 <template>
   <div class="space-y-2">
-    <input v-model="search" class="input" placeholder="Ajouter un produit : nom, SKU ou code-barres" @input="find" />
+    <div class="relative">
+      <Icon name="search" :size="18" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <input v-model="search" type="search" class="input pl-10" placeholder="Ajouter un produit (nom, SKU, code-barres)" @input="find" />
+    </div>
     <ul v-if="results.length && !choosing" class="divide-y divide-slate-100 rounded-lg border border-slate-200">
       <li v-for="p in results" :key="p.id">
         <button type="button" class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-emerald-50" @click="pick(p)">
-          <img v-if="p.thumb" :src="p.thumb" alt="" class="h-9 w-9 rounded object-cover" />
-          <span class="min-w-0 flex-1">{{ p.title }} <span v-if="p.has_variants" class="text-slate-400">· {{ p.variants_count }} variantes</span></span>
-          <span class="text-slate-500">{{ money(p.price_min) }}</span>
+          <img v-if="p.thumb" :src="p.thumb" alt="" class="h-10 w-10 rounded-lg object-cover" />
+          <span v-else class="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-slate-400"><Icon name="image" :size="18" /></span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate font-medium">{{ p.title }}</span>
+            <span class="block text-xs" :class="p.track_inventory && p.available <= 0 ? 'text-red-600' : 'text-slate-500'">
+              <template v-if="p.track_inventory">{{ p.available }} en stock</template><template v-else>Stock non suivi</template><template v-if="p.has_variants"> · {{ p.variants_count }} variantes</template>
+            </span>
+          </span>
+          <span class="font-medium tabular-nums">{{ money(p.price_min) }}</span>
         </button>
       </li>
     </ul>

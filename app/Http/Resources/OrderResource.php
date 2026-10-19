@@ -69,6 +69,9 @@ class OrderResource extends JsonResource
             'shipping_address' => $this->shipping_address,
             'shipping_landmark' => $this->shipping_landmark,
             'delivery_zone' => $this->zone?->only(['id', 'name', 'fee', 'eta_label']),
+            // Qui livre, choisi à la saisie (l'expédition est créée à la confirmation)
+            'planned_courier' => $this->plannedCourier?->only(['id', 'name']),
+            'planned_carrier' => $this->plannedCarrier?->only(['id', 'name']),
             'location_id' => $this->location_id,
             'scheduled_date' => $this->scheduled_date?->toDateString(),
             'time_slot' => $this->time_slot,
@@ -138,6 +141,6 @@ class OrderResource extends JsonResource
 
     public static function loadDetail(Order $order): Order
     {
-        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store', 'shipments.connection', 'shipments.courier', 'shipments.events', 'shipments.origin']);
+        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store', 'shipments.connection', 'shipments.courier', 'shipments.events', 'shipments.origin', 'plannedCourier', 'plannedCarrier']);
     }
 }
