@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
@@ -381,8 +382,8 @@ const margin = computed(() => {
     <div class="flex flex-wrap items-center gap-2">
       <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
-      <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare">📣 Partager</button>
-      <button v-if="product && form.status === 'active' && form.is_visible_online && auth.can('store.manage')" type="button" class="btn-secondary px-3 py-1.5" @click="publishing = true">📢 Publier sur les réseaux</button>
+      <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare"><Icon name="share" :size="16" class="mr-1 inline-block align-[-3px]" />Partager</button>
+      <button v-if="product && form.status === 'active' && form.is_visible_online && auth.can('store.manage')" type="button" class="btn-secondary px-3 py-1.5" @click="publishing = true"><Icon name="megaphone" :size="16" class="mr-1 inline-block align-[-3px]" />Publier sur les réseaux</button>
     </div>
 
     <Alert v-if="error">{{ error }}</Alert>
@@ -390,12 +391,12 @@ const margin = computed(() => {
 
     <section v-if="ai.enabled && !props.id && canEdit" class="card space-y-3 border-emerald-200 bg-emerald-50/60 p-4 sm:p-6">
       <div>
-        <h2 class="font-semibold">✨ Remplir la fiche avec une photo</h2>
+        <h2 class="font-semibold"><Icon name="sparkles" :size="18" class="mr-1 inline-block align-[-3px]" />Remplir la fiche avec une photo</h2>
         <p class="text-sm text-slate-600">Prenez le produit en photo : l'assistant propose le nom, la description, les tailles ou couleurs et les mots-clés. Vous fixez le prix et vérifiez avant d'enregistrer.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <label class="btn-secondary cursor-pointer px-3 py-1.5">
-          📷 Photo
+          <Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Photo
           <input type="file" accept="image/*" capture="environment" class="hidden" @change="onFiles" />
         </label>
         <label class="btn-secondary cursor-pointer px-3 py-1.5">
@@ -433,7 +434,7 @@ const margin = computed(() => {
           <div v-if="canEdit" class="flex gap-2">
             <!-- Sur téléphone, le choix de fichier n'ouvre que la galerie : l'appareil photo a son propre bouton -->
             <label class="btn-secondary cursor-pointer px-3 py-1.5" :class="{ 'opacity-60': uploading }">
-              📷 Photo
+              <Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Photo
               <input type="file" accept="image/*" capture="environment" class="hidden" :disabled="uploading" @change="onFiles" />
             </label>
             <label class="btn-secondary cursor-pointer px-3 py-1.5">
@@ -714,7 +715,7 @@ const margin = computed(() => {
         </div>
         <div class="grid grid-cols-2 gap-2">
           <a :href="share.image_url" download class="btn-brand">⬇ Télécharger l'image</a>
-          <a :href="`https://wa.me/?text=${encodeURIComponent(share.text)}`" target="_blank" rel="noopener" class="btn-secondary">💬 Envoyer le lien</a>
+          <a :href="`https://wa.me/?text=${encodeURIComponent(share.text)}`" target="_blank" rel="noopener" class="btn-secondary"><Icon name="messages" :size="16" class="mr-1 inline-block align-[-3px]" />Envoyer le lien</a>
         </div>
       </div>
     </Modal>

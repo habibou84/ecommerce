@@ -503,6 +503,11 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 ### Après le lancement (V2)
 Caisse pour boutique physique, catalogue Meta / WhatsApp, prise de commande par conversation WhatsApp, fidélité, multi-devise et multilingue, éditeur de thème, autres connecteurs transporteurs, application native (Capacitor).
 
+### Interface marchand (refonte)
+- **Design unifié** : un seul jeu d'icônes au trait (`components/Icon.vue`, pastilles de réseau `NetworkMark.vue`) à la place des émojis ; petits textes agrandis et gris clair plus foncé (contraste) ; une seule action principale par écran, les autres discrètes, les gestes délicats (modifier, rembourser, retour, annuler) dans « Plus ». Contenu plus large sur ordinateur, onglets qui défilent avec un fondu et amènent l'onglet ouvert à l'écran (`lib/tabStrip.js`), heures du rapport en 24 h.
+- **Téléphone** : barre du bas (Accueil, Commandes, gros bouton Nouvelle commande, Messages avec pastille, Plus qui ouvre le menu) ; filtres des commandes dans un panneau ; action principale de la commande fixée en bas ; stock en cartes avec « Ajuster » toujours visible ; filtres produits sur deux colonnes.
+- **Accueil en tableau de bord** : ventes et commandes du jour comparées à hier à la même heure (flèche verte ou rouge), ventes des 7 derniers jours (barres, détail au survol ou au toucher), liste « À faire maintenant » (à confirmer, à faire livrer, messages non lus, épuisés), « Pour bien démarrer » repliable et masquable.
+
 ---
 
 ## 9. Modèle économique

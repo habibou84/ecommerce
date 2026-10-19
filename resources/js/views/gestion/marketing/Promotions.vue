@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
 import { computed, onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
@@ -131,7 +132,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
     <section class="card p-4">
       <div class="mb-3 flex items-center">
         <div>
-          <h3 class="font-semibold">⚡ Ventes flash</h3>
+          <h3 class="font-semibold"><Icon name="bolt" :size="18" class="mr-1 inline-block align-[-3px]" />Ventes flash</h3>
           <p class="text-sm text-slate-500">Prix barré et compte à rebours sur les produits visés, sans code.</p>
         </div>
         <button class="btn-secondary ml-auto px-3 py-1.5" @click="open('flash')">+ Vente flash</button>
@@ -152,7 +153,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
     <section class="card p-4">
       <div class="mb-3 flex items-center">
         <div>
-          <h3 class="font-semibold">🏷️ Codes promo</h3>
+          <h3 class="font-semibold"><Icon name="tag" :size="18" class="mr-1 inline-block align-[-3px]" />Codes promo</h3>
           <p class="text-sm text-slate-500">Le client saisit le code au panier ; vous pouvez aussi l'appliquer à une commande saisie à la main.</p>
         </div>
         <button class="btn-secondary ml-auto px-3 py-1.5" @click="open('code')">+ Code promo</button>

@@ -1,4 +1,6 @@
 <script setup>
+import NetworkMark from './NetworkMark.vue'
+import Icon from './Icon.vue'
 import { computed, onMounted, ref } from 'vue'
 import Alert from './Alert.vue'
 import Modal from './Modal.vue'
@@ -20,7 +22,6 @@ const busy = ref(false)
 const error = ref('')
 const result = ref(null)
 
-const ICONS = { facebook: '📘', instagram: '📸', tiktok: '🎵' }
 const LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok' }
 
 onMounted(async () => {
@@ -68,7 +69,7 @@ async function publish() {
       <Alert v-if="result.status === 'scheduled'" tone="success">Publication programmée ✓ Elle partira toute seule à l'heure choisie.</Alert>
       <template v-else>
         <p v-for="(r, n) in result.results" :key="n" class="flex items-center gap-2">
-          <span>{{ ICONS[n] }} {{ LABELS[n] }}</span>
+          <span class="inline-flex items-center gap-1.5"><NetworkMark :network="n" />{{ LABELS[n] }}</span>
           <span v-if="r.status === 'published'" class="text-emerald-700">publié ✓ <a v-if="r.url" :href="r.url" target="_blank" rel="noopener" class="underline">voir</a></span>
           <span v-else class="text-red-700">échec : {{ r.error }}</span>
         </p>
@@ -91,14 +92,14 @@ async function publish() {
           <label v-for="a in accounts" :key="a.network" class="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2"
                  :class="networks.includes(a.network) ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
             <input v-model="networks" type="checkbox" :value="a.network" class="accent-emerald-700" />
-            {{ ICONS[a.network] }} {{ a.label }}
+            <NetworkMark :network="a.network" class="mr-1" />{{ a.label }}
           </label>
         </div>
       </div>
 
       <div class="space-y-2 rounded-lg border border-slate-200 p-3">
         <div class="flex flex-wrap items-center gap-2">
-          <p class="font-medium">✨ Textes proposés</p>
+          <p class="font-medium"><Icon name="sparkles" :size="16" class="mr-1 inline-block align-[-3px]" />Textes proposés</p>
           <select v-model="tone" class="input ml-auto w-auto py-1">
             <option value="simple">Français simple</option>
             <option value="nouchi">Nouchi léger</option>
@@ -116,7 +117,7 @@ async function publish() {
         <p class="mt-1 text-xs text-slate-500">« {lien} » est remplacé par le lien de commande, différent pour chaque réseau : vous saurez d'où viennent les commandes.</p>
       </div>
 
-      <p class="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">🖼️ L'application crée les visuels avec la photo, le prix du moment et le nom de la boutique : carré pour Facebook et Instagram, vertical pour TikTok.</p>
+      <p class="rounded-lg bg-slate-50 p-2 text-xs text-slate-600"><Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />L'application crée les visuels avec la photo, le prix du moment et le nom de la boutique : carré pour Facebook et Instagram, vertical pour TikTok.</p>
 
       <div class="space-y-2">
         <label class="flex items-center gap-2"><input v-model="when" type="radio" value="now" class="accent-emerald-700" /> Publier maintenant</label>

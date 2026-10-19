@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
 import { onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import ChipsInput from '../../../components/ChipsInput.vue'
@@ -61,7 +62,7 @@ async function toggleBlacklist() {
       <h2 class="text-2xl font-bold">{{ customer.name || 'Sans nom' }}</h2>
       <span v-if="customer.is_blacklisted" class="rounded-full bg-red-100 px-2.5 py-0.5 text-sm text-red-700">Liste noire</span>
       <div class="ml-auto flex gap-2">
-        <a :href="`tel:${customer.phone}`" class="btn-secondary">📞 {{ customer.phone_display }}</a>
+        <a :href="`tel:${customer.phone}`" class="btn-secondary"><Icon name="phone" :size="16" class="mr-1 inline-block align-[-3px]" />{{ customer.phone_display }}</a>
         <a :href="customer.whatsapp_url" target="_blank" class="btn-secondary">WhatsApp</a>
       </div>
     </div>

@@ -8,6 +8,10 @@
 @theme {
     --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji';
+    /* Lisibilité : petits textes un peu plus grands, gris clair plus foncé (contraste sur fond blanc) */
+    --text-xs: 0.8125rem;
+    --text-xs--line-height: 1.15rem;
+    --color-slate-400: #748196;
 }
 
 /* Tailwind 4 colore les bordures en « currentColor » : on retrouve le gris clair */
@@ -58,4 +62,21 @@
 .courier-night img,
 .courier-night video {
   filter: invert(1) hue-rotate(180deg);
+}
+
+/* Onglets qui débordent : fondu du côté où il en reste (voir lib/tabStrip.js) */
+.tab-strip {
+  scrollbar-width: none;
+}
+.tab-strip::-webkit-scrollbar {
+  display: none;
+}
+.tab-strip[data-more-right='1'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+.tab-strip[data-more-left='1'] {
+  mask-image: linear-gradient(to right, transparent, #000 40px);
+}
+.tab-strip[data-more-left='1'][data-more-right='1'] {
+  mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
 }

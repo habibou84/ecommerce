@@ -1,4 +1,6 @@
 <script setup>
+import NetworkMark from '../../../components/NetworkMark.vue'
+import Icon from '../../../components/Icon.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
@@ -106,7 +108,7 @@ watch([filter, search], () => {
 
 const replyUntil = computed(() => (current.value?.reply_until ? formatDateTime(current.value.reply_until) : ''))
 const waLink = computed(() => (current.value?.phone ? `https://wa.me/${current.value.phone.replace(/\D/g, '')}` : ''))
-const CHANNELS = { whatsapp: ['WhatsApp', '🟢'], messenger: ['Messenger', '🔵'], instagram: ['Instagram', '🟣'] }
+const CHANNELS = { whatsapp: ['WhatsApp'], messenger: ['Messenger'], instagram: ['Instagram'] }
 const channelLabel = (c) => CHANNELS[c?.channel]?.[0] ?? 'WhatsApp'
 const filters = [
   { value: 'all', label: 'Toutes' },
@@ -157,7 +159,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
             :class="{ 'bg-emerald-50': String(c.id) === id }"
           >
             <div class="flex items-baseline gap-2">
-              <span class="shrink-0 text-xs" :title="channelLabel(c)">{{ CHANNELS[c.channel]?.[1] ?? '🟢' }}</span>
+              <NetworkMark :network="c.channel ?? 'whatsapp'" :title="channelLabel(c)" />
               <span class="truncate text-sm" :class="c.unread ? 'font-semibold' : 'font-medium'">{{ c.name || c.phone_display }}</span>
               <span class="ml-auto shrink-0 text-xs text-slate-400">{{ time(c.last_message_at) }}</span>
             </div>
@@ -213,7 +215,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
           <p v-if="replyError" class="text-sm text-red-600">{{ replyError }}</p>
           <div v-if="ai.enabled" class="flex flex-wrap items-center gap-2">
             <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="suggesting || (ai.limit !== null && ai.used >= ai.limit)" @click="suggest">
-              ✨ {{ suggesting ? 'L\'assistant écrit…' : 'Proposer une réponse' }}
+              <Icon name="sparkles" :size="16" class="mr-1 inline-block align-[-3px]" />{{ suggesting ? 'L\'assistant écrit…' : 'Proposer une réponse' }}
             </button>
             <span class="text-xs text-slate-500">Avec vos prix, votre stock et vos frais de livraison. Relisez avant d'envoyer.</span>
           </div>
@@ -231,7 +233,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
       </section>
       <section v-else class="hidden place-items-center p-6 text-center text-sm text-slate-500 lg:grid">
         <div>
-          <p class="text-3xl">💬</p>
+          <Icon name="messages" :size="36" class="mx-auto text-slate-400" />
           <p class="mt-2">Choisissez une conversation.</p>
           <p class="mt-1">Les messages des clients arrivent ici dès qu'ils écrivent sur le WhatsApp, la page Facebook ou l'Instagram de la boutique.</p>
         </div>
