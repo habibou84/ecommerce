@@ -97,17 +97,21 @@ class DeliveryAdvisor
     }
 
     /**
-     * Mode automatique : expédition créée dès la confirmation. Un échec est noté au journal de la commande.
+     * Dès la confirmation : expédition confiée à qui a été choisi à la saisie de la commande, sinon (mode automatique)
+     * à qui désignent les règles. Un échec est noté au journal de la commande.
      */
     public function autoAssign(Order $order): ?Shipment
     {
-        $order = $order->fresh(['store', 'items.product', 'shipments']);
-        if ($order->store->assignment_mode !== 'auto' || $order->status !== OrderStatus::Confirmed || $order->delivery_method === 'pickup'
+        $order = $order->fresh(['store', 'items.product', 'shipments', 'plannedCourier', 'plannedCarrier']);
+        if ($order->status !== OrderStatus::Confirmed || $order->delivery_method === 'pickup'
             || $order->shipments->contains(fn (Shipment $s) => ! $s->status->isFinal())) {
             return null;
         }
 
-        $suggestion = $this->suggest($order);
+        $suggestion = $this->planned($order);
+        if ($suggestion === null && $order->store->assignment_mode === 'auto') {
+            $suggestion = $this->suggest($order);
+        }
         if ($suggestion === null) {
             return null;
         }
@@ -124,6 +128,26 @@ class DeliveryAdvisor
         $this->orders->log($order->fresh(), 'auto_assigned', ['to' => $suggestion['name'], 'reason' => $suggestion['reason']], null, 'system');
 
         return $shipment;
+    }
+
+    /**
+     * Choix fait à la saisie de la commande (seulement à la première expédition : après un échec, on choisit à nouveau).
+     *
+     * @return array{type: string, id: int, name: string, reason: string, rule_id: null}|null
+     */
+    private function planned(Order $order): ?array
+    {
+        if ($order->shipments->isNotEmpty()) {
+            return null;
+        }
+        if ($order->plannedCourier) {
+            return ['type' => 'courier', 'id' => $order->plannedCourier->id, 'name' => $order->plannedCourier->name, 'reason' => 'Choisi à la saisie', 'rule_id' => null];
+        }
+        if ($order->plannedCarrier) {
+            return ['type' => 'carrier', 'id' => $order->plannedCarrier->id, 'name' => $order->plannedCarrier->name, 'reason' => 'Choisi à la saisie', 'rule_id' => null];
+        }
+
+        return null;
     }
 
     /**

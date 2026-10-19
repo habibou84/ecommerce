@@ -79,6 +79,17 @@ class Order extends Model
         return $this->belongsTo(DeliveryZone::class, 'delivery_zone_id');
     }
 
+    // Qui livre, choisi à la saisie : l'expédition est créée à la confirmation
+    public function plannedCourier(): BelongsTo
+    {
+        return $this->belongsTo(Courier::class, 'planned_courier_id');
+    }
+
+    public function plannedCarrier(): BelongsTo
+    {
+        return $this->belongsTo(CarrierConnection::class, 'planned_carrier_connection_id');
+    }
+
     public function location(): BelongsTo
     {
         return $this->belongsTo(StockLocation::class, 'location_id');

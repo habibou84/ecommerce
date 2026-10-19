@@ -11,6 +11,7 @@ use App\Enums\StockLocationType;
 use App\Exceptions\BusinessRuleException;
 use App\Models\CarrierConnection;
 use App\Models\CarrierProductMapping;
+use App\Models\CarrierZone;
 use App\Models\Courier;
 use App\Models\Order;
 use App\Models\Shipment;
@@ -49,24 +50,37 @@ class ShipmentDesk
      */
     public function quotes(Order $order): array
     {
-        $quotes = [];
-        foreach (CarrierConnection::forStore($order->store_id)->where('status', 'active')->orderBy('name')->get() as $connection) {
-            $zone = $this->connections->zoneForPlace($connection, $order->shipping_place_id);
-            $quote = ['connection_id' => $connection->id, 'name' => $connection->name, 'driver' => $connection->driver, 'fee' => null, 'zone' => $zone?->label(), 'error' => null];
+        $fragile = $order->items->contains(fn ($i) => $i->product?->is_fragile);
 
-            if ($connection->isApi()) {
-                if ($zone === null) {
-                    $quote['error'] = 'Quartier non couvert (ou sans correspondance de zone).';
-                } else {
-                    try {
-                        $quote['fee'] = $this->connections->driver($connection)->quote($connection, [
-                            'zone_id' => $zone->remote_id,
-                            'is_fragile' => $order->items->contains(fn ($i) => $i->product?->is_fragile),
-                            'weight_kg' => $this->weightKg($order),
-                        ]);
-                    } catch (CarrierException $e) {
-                        $quote['error'] = $e->getMessage();
-                    }
+        return $this->quotesFor($order->store_id, $order->shipping_place_id, $fragile, $this->weightKg($order));
+    }
+
+    /**
+     * Devis de chaque transporteur connecté pour un lieu de livraison, avant même que la commande existe
+     * (formulaire de saisie). Entreprise sans API : son tarif pour la zone, saisi par le marchand.
+     *
+     * @return list<array{connection_id: int, name: string, driver: string, fee: ?int, zone: ?string, error: ?string}>
+     */
+    public function quotesFor(int $storeId, ?int $placeId, bool $fragile, ?float $weightKg): array
+    {
+        $quotes = [];
+        foreach (CarrierConnection::forStore($storeId)->where('status', 'active')->orderBy('name')->get() as $connection) {
+            $zone = $this->connections->zoneForPlace($connection, $placeId);
+            $quote = ['connection_id' => $connection->id, 'name' => $connection->name, 'driver' => $connection->driver, 'fee' => $zone?->fee, 'zone' => $zone?->label(), 'error' => null];
+
+            // Entreprise sans API et sans grille de zones : elle livre partout, à un prix non renseigné
+            $hasZones = $connection->isApi() || CarrierZone::where('connection_id', $connection->id)->where('is_active', true)->exists();
+            if ($zone === null) {
+                $quote['error'] = $placeId === null || ! $hasZones ? null : 'Quartier non couvert (ou sans correspondance de zone).';
+            } elseif ($connection->isApi()) {
+                try {
+                    $quote['fee'] = $this->connections->driver($connection)->quote($connection, [
+                        'zone_id' => $zone->remote_id,
+                        'is_fragile' => $fragile,
+                        'weight_kg' => $weightKg,
+                    ]) ?? $zone->fee;
+                } catch (CarrierException $e) {
+                    $quote['error'] = $quote['fee'] === null ? $e->getMessage() : null;
                 }
             }
             $quotes[] = $quote;

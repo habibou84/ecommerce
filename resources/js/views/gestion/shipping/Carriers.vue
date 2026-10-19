@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
+import Icon from '../../../components/Icon.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
 import DeliveryTabs from '../../../components/DeliveryTabs.vue'
@@ -98,6 +99,34 @@ async function openZones(carrier) {
   modal.value = 'zones'
   zones.value = (await http.get(`/carriers/${carrier.id}/zones`)).data.data
 }
+// Grille de tarifs : prix payé par le client pour chaque zone (entreprise sans API : zones créées ici)
+const newZone = ref({ name: '', fee: '' })
+async function addZone() {
+  busy.value = true
+  error.value = ''
+  try {
+    await http.post(`/carriers/${current.value.id}/tariff-zones`, { name: newZone.value.name, fee: Number(newZone.value.fee) })
+    newZone.value = { name: '', fee: '' }
+    zones.value = (await http.get(`/carriers/${current.value.id}/zones`)).data.data
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+async function saveZone(zone, changes) {
+  error.value = ''
+  try {
+    Object.assign(zone, (await http.patch(`/carrier-zones/${zone.id}`, changes)).data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+async function removeZone(zone) {
+  if (!confirm(`Supprimer la zone « ${zone.label} » ? Ses quartiers ne seront plus couverts.`)) return
+  await http.delete(`/carrier-zones/${zone.id}`)
+  zones.value = (await http.get(`/carriers/${current.value.id}/zones`)).data.data
+}
 const shownPlaces = computed(() => (zones.value?.places ?? []).filter((p) => zoneFilter.value === 'all' || !p.carrier_zone_id))
 
 async function saveZones() {
@@ -189,7 +218,8 @@ const copy = (text) => navigator.clipboard?.writeText(text)
           </select>
         </Field>
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
+        <button class="btn-secondary px-3 py-1.5" @click="openZones(c)">Zones et tarifs</button>
         <button v-if="c.driver === 'delivery_app'" class="btn-secondary px-3 py-1.5" :disabled="busy" @click="sync(c)">Synchroniser</button>
         <button class="btn-ghost ml-auto px-3 py-1.5 text-red-600" @click="disconnect(c)">Déconnecter</button>
       </div>
@@ -223,9 +253,32 @@ const copy = (text) => navigator.clipboard?.writeText(text)
       </form>
     </Modal>
 
-    <Modal v-if="modal === 'zones'" :title="`Zones de ${current.name}`" wide @close="modal = null">
+    <Modal v-if="modal === 'zones'" :title="`Zones et tarifs de ${current.name}`" wide @close="modal = null">
       <p v-if="!zones" class="text-sm text-slate-500">Chargement…</p>
       <template v-else>
+        <Alert v-if="error" class="mb-3">{{ error }}</Alert>
+        <h4 class="mb-1 text-sm font-semibold">Tarifs</h4>
+        <p class="mb-2 text-sm text-slate-600">
+          {{ current.driver === 'delivery_app'
+            ? 'Le prix de chaque course est demandé à l\'entreprise au moment de la commande. Le tarif saisi ici sert seulement si elle ne répond pas.'
+            : 'Prix payé par le client pour chaque zone. Il est repris tel quel dans le formulaire de commande quand vous choisissez cette entreprise.' }}
+        </p>
+        <ul class="mb-3 max-h-[30vh] divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 text-sm">
+          <li v-for="z in zones.zones" :key="z.id" class="flex items-center gap-2 px-3 py-2">
+            <input v-if="current.driver !== 'delivery_app'" :value="z.name" class="input min-w-0 flex-1 py-1.5" :aria-label="`Nom de la zone ${z.label}`" @change="saveZone(z, { name: $event.target.value })" />
+            <span v-else class="min-w-0 flex-1">{{ z.label }}</span>
+            <input :value="z.fee" type="number" min="0" class="input w-28 py-1.5 text-right" placeholder="—" :aria-label="`Tarif de ${z.label}`" @change="saveZone(z, { fee: $event.target.value === '' ? null : Number($event.target.value) })" />
+            <span class="text-slate-500">F</span>
+            <button v-if="current.driver !== 'delivery_app'" type="button" class="btn-ghost px-2 text-red-600" :aria-label="`Supprimer ${z.label}`" @click="removeZone(z)"><Icon name="close" :size="16" /></button>
+          </li>
+          <li v-if="!zones.zones.length" class="px-3 py-3 text-slate-500">Pas encore de zone : sans grille, l'entreprise est proposée partout, aux frais de vos propres zones.</li>
+        </ul>
+        <form v-if="current.driver !== 'delivery_app'" class="mb-5 flex flex-wrap gap-2" @submit.prevent="addZone">
+          <input v-model="newZone.name" class="input min-w-0 flex-1" placeholder="Zone (ex. Cocody, Yopougon…)" required maxlength="120" />
+          <input v-model="newZone.fee" class="input w-32" type="number" min="0" placeholder="Tarif (F)" required />
+          <button class="btn-secondary" :disabled="busy"><Icon name="plus" :size="16" />Ajouter</button>
+        </form>
+        <h4 class="mb-1 text-sm font-semibold">Quartiers couverts</h4>
         <p class="mb-3 text-sm text-slate-600">Pour chaque commune ou quartier de vos clients, la zone de l'entreprise de livraison. Sans zone : l'entreprise n'y livre pas.</p>
         <div class="mb-3 flex gap-2 text-sm">
           <button class="rounded-full px-3 py-1" :class="zoneFilter === 'unmapped' ? 'bg-emerald-700 text-white' : 'bg-slate-100'" @click="zoneFilter = 'unmapped'">Sans zone</button>

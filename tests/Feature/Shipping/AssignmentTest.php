@@ -102,6 +102,49 @@ class AssignmentTest extends TestCase
         $this->assertSame([OrderStatus::Confirmed, 0], [$other->status, $other->shipments->count()]);
     }
 
+    public function test_delivery_chosen_when_the_order_is_entered(): void
+    {
+        $angre = Place::whereNull('store_id')->where('name', 'Angré')->value('id');
+        $yopougon = Place::whereNull('store_id')->where('name', 'Yopougon')->value('id');
+        $items = [['variant_id' => $this->vase->variants[0]->id, 'quantity' => 1]];
+
+        // Entreprise sans API : sans grille, elle livre partout à un prix non renseigné
+        $options = $this->storeApi($this->store, 'POST', 'orders/delivery-options', ['place_id' => $angre, 'items' => $items])->assertOk();
+        $options->assertJsonPath('data.zone.fee', $this->zone()->fee)->assertJsonPath('data.couriers.0.name', 'Koffi')->assertJsonPath('data.couriers.0.covers_zone', true)
+            ->assertJsonPath('data.carriers.0.fee', null)->assertJsonPath('data.carriers.0.covered', true);
+
+        // Grille de tarifs : « Cocody » à 2 000 F couvre Angré, pas Yopougon
+        $this->storeApi($this->store, 'POST', "carriers/{$this->moto->id}/tariff-zones", ['name' => 'Cocody', 'fee' => 2000])->assertCreated();
+        $this->storeApi($this->store, 'POST', 'orders/delivery-options', ['place_id' => $angre, 'items' => $items])
+            ->assertJsonPath('data.carriers.0.fee', 2000)->assertJsonPath('data.carriers.0.zone', 'Cocody')->assertJsonPath('data.carriers.0.covered', true);
+        $this->storeApi($this->store, 'POST', 'orders/delivery-options', ['place_id' => $yopougon, 'items' => $items])
+            ->assertJsonPath('data.carriers.0.covered', false)->assertJsonPath('data.carriers.0.fee', null);
+        $tariffs = $this->storeApi($this->store, 'GET', "orders/delivery-options/carriers/{$this->moto->id}")->assertOk()->json('data');
+        $this->assertSame([['Cocody', 2000]], array_map(fn ($z) => [$z['label'], $z['fee']], $tariffs['zones']));
+        $this->assertContains('Angré, Cocody', $tariffs['zones'][0]['places']);
+
+        // Commande confirmée à la saisie avec l'entreprise choisie : course demandée tout de suite, au tarif affiché
+        $payload = ['source' => 'whatsapp', 'customer_phone' => '0506070809', 'delivery_method' => 'delivery', 'shipping_place_id' => $angre, 'items' => $items];
+        $id = $this->storeApi($this->store, 'POST', 'orders', $payload + ['confirmed' => true, 'planned_carrier_connection_id' => $this->moto->id, 'shipping_fee' => 2000])
+            ->assertCreated()->json('data.id');
+        $this->storeApi($this->store, 'GET', "orders/{$id}")->assertJsonPath('data.planned_carrier.name', 'Moto Express');
+        $order = Order::with(['shipments', 'events'])->findOrFail($id);
+        $this->assertSame([2000, 17000, $this->moto->id], [$order->shipping_fee, $order->total, $order->shipments->sole()->carrier_connection_id]);
+        $this->assertTrue($order->events->contains(fn ($e) => $e->type === 'auto_assigned' && $e->data['reason'] === 'Choisi à la saisie'));
+
+        // Livreur choisi, commande à confirmer : la mission part à la confirmation
+        $id = $this->storeApi($this->store, 'POST', 'orders', $payload + ['planned_courier_id' => $this->koffi->id])->assertCreated()->json('data.id');
+        $this->assertCount(0, Order::findOrFail($id)->shipments);
+        $this->storeApi($this->store, 'POST', "orders/{$id}/confirmations", ['outcome' => 'confirmed', 'channel' => 'call'])->assertOk();
+        $this->assertSame($this->koffi->id, Order::findOrFail($id)->shipments->sole()->courier_id);
+
+        // Pas les deux à la fois, pas de livreur inactif
+        $this->storeApi($this->store, 'POST', 'orders', $payload + ['planned_courier_id' => $this->koffi->id, 'planned_carrier_connection_id' => $this->moto->id])
+            ->assertStatus(422)->assertJsonValidationErrors('planned_courier_id');
+        $this->koffi->update(['status' => 'inactive']);
+        $this->storeApi($this->store, 'POST', 'orders', $payload + ['planned_courier_id' => $this->koffi->id])->assertStatus(422)->assertJsonValidationErrors('planned_courier_id');
+    }
+
     public function test_history_stats(): void
     {
         $desk = app(ShipmentDesk::class);
