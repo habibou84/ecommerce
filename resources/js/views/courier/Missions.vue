@@ -7,7 +7,9 @@ import { cachedGet, loadMissions, offline, savedRoute, saveRoute, sendStep } fro
 import { money } from '../../lib/format'
 import { autoOrder, currentPosition, isLater, itineraryUrl, routeOrder } from '../../lib/route'
 import { SHIPMENT_TONES } from '../../lib/shipping'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const missions = ref(null)
 const me = ref(null)
 const error = ref('')
@@ -22,9 +24,10 @@ let known = null
 async function load() {
   try {
     const [m, p] = await Promise.all([loadMissions(), cachedGet('/courier/me', 'me')])
-    const incoming = m.filter((x) => x.acceptance === 'pending').map((x) => x.id)
+    const incoming = m.filter((x) => x.acceptance === 'pending' && x.status === 'awaiting_pickup').map((x) => x.id)
     if (known && incoming.some((id) => !known.has(id))) newMissionAlert()
     known = new Set([...(known ?? []), ...incoming])
+    offline.offers = incoming.length
     missions.value = m
     me.value = p
     error.value = ''
@@ -187,7 +190,7 @@ function saveOrder() {
     <p v-if="missions && !stops.length && !offers.length" class="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm">Aucune livraison en attente. Les nouvelles missions apparaissent ici.</p>
     <template v-for="(m, i) in shown" :key="m.id">
       <h2 v-if="startsArea(shown, i)" class="pt-1 text-sm font-semibold text-slate-500">{{ m.status === 'returning' ? 'À rapporter' : m.commune || 'Autres quartiers' }}</h2>
-      <component :is="editing ? 'div' : 'RouterLink'" :to="editing ? undefined : `/livreur/missions/${m.id}`" class="flex gap-3 rounded-xl bg-white p-4 shadow-sm active:bg-slate-50">
+      <div class="flex gap-3 rounded-xl bg-white p-4 shadow-sm active:bg-slate-50" :class="{ 'cursor-pointer': !editing }" @click="!editing && router.push(`/livreur/missions/${m.id}`)">
         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-sm font-bold text-white">{{ i + 1 }}</span>
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-2">
@@ -204,7 +207,10 @@ function saveOrder() {
           <button class="btn-secondary px-3 py-1" :disabled="i === 0" aria-label="Monter" @click="move(i, -1)">↑</button>
           <button class="btn-secondary px-3 py-1" :disabled="i === shown.length - 1" aria-label="Descendre" @click="move(i, 1)">↓</button>
         </span>
-      </component>
+        <!-- Appel direct du client, sans ouvrir la livraison -->
+        <a v-else-if="m.customer_phone" :href="`tel:${m.customer_phone}`" class="flex h-12 w-12 shrink-0 items-center justify-center self-center rounded-full bg-emerald-50 text-xl"
+           :aria-label="`Appeler ${m.customer_name || 'le client'}`" @click.stop>📞</a>
+      </div>
     </template>
 
     <template v-if="later.length && !editing">

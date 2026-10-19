@@ -2,6 +2,8 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
+import Icon from '../../../components/Icon.vue'
+import Modal from '../../../components/Modal.vue'
 import Pagination from '../../../components/Pagination.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
@@ -27,6 +29,7 @@ const orders = ref([])
 const counts = ref({})
 const meta = ref(null)
 const error = ref('')
+const filtersOpen = ref(false)
 
 async function load() {
   const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '' && v !== null))
@@ -54,19 +57,41 @@ const total = (c) => Object.entries(c).filter(([k]) => k !== 'to_ship').reduce((
 
 <template>
   <div class="space-y-4">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <input v-model="filters.search" type="search" class="input sm:max-w-xs" placeholder="N°, nom ou téléphone" />
-      <select v-model="filters.source" class="input w-auto">
+    <div class="flex items-center gap-2 sm:gap-3">
+      <input v-model="filters.search" type="search" class="input min-w-0 flex-1 sm:max-w-xs" placeholder="N°, nom ou téléphone" />
+      <!-- Téléphone : les filtres et les pages voisines dans un panneau -->
+      <button type="button" class="btn-secondary relative shrink-0 px-3 sm:hidden" aria-label="Filtres" @click="filtersOpen = true">
+        <Icon name="filter" :size="18" />Filtres
+        <span v-if="filters.source" class="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-emerald-600 ring-2 ring-white" />
+      </button>
+      <select v-model="filters.source" class="input hidden w-auto sm:block">
         <option value="">Tous les canaux</option>
         <option value="online_store">Site</option>
         <option v-for="s in SOURCES" :key="s.value" :value="s.value">{{ s.label }}</option>
       </select>
-      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/commandes/retours" class="btn-ghost sm:ml-auto">Retours</RouterLink>
-      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/paniers-abandonnes" class="btn-ghost">Paniers abandonnés</RouterLink>
-      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/commandes/nouvelle" class="btn-brand">+ Commande</RouterLink>
+      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/commandes/retours" class="btn-ghost hidden sm:ml-auto sm:inline-flex">Retours</RouterLink>
+      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/paniers-abandonnes" class="btn-ghost hidden sm:inline-flex">Paniers abandonnés</RouterLink>
+      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/commandes/nouvelle" class="btn-brand hidden lg:inline-flex"><Icon name="plus" :size="18" />Commande</RouterLink>
     </div>
+    <Modal v-if="filtersOpen" title="Filtres" @close="filtersOpen = false">
+      <div class="space-y-4">
+        <div>
+          <label class="label" for="order-source">Canal</label>
+          <select id="order-source" v-model="filters.source" class="input">
+            <option value="">Tous les canaux</option>
+            <option value="online_store">Site</option>
+            <option v-for="s in SOURCES" :key="s.value" :value="s.value">{{ s.label }}</option>
+          </select>
+        </div>
+        <div v-if="auth.can('orders.manage')" class="grid grid-cols-2 gap-2">
+          <RouterLink to="/gestion/commandes/retours" class="btn-secondary">Retours</RouterLink>
+          <RouterLink to="/gestion/paniers-abandonnes" class="btn-secondary">Paniers abandonnés</RouterLink>
+        </div>
+        <button type="button" class="btn-brand w-full py-3" @click="filtersOpen = false">Voir les commandes</button>
+      </div>
+    </Modal>
 
-    <nav class="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">
+    <nav v-tab-strip class="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">
       <button
         v-for="tab in TABS"
         :key="tab.value"

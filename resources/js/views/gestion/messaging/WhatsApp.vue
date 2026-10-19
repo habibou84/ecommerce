@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
@@ -174,7 +175,7 @@ const META_STEPS = [
     </p>
     <section v-if="data.embedded && (!data.account || embeddedAccount())" class="card space-y-3 border-emerald-200 p-4">
       <template v-if="embeddedAccount()">
-        <h3 class="font-semibold">✅ WhatsApp connecté : {{ data.account.display_phone || data.account.phone_number_id }}</h3>
+        <h3 class="font-semibold"><Icon name="check" :size="18" class="mr-1 inline-block align-[-3px]" />WhatsApp connecté : {{ data.account.display_phone || data.account.phone_number_id }}</h3>
         <p class="text-sm text-slate-600">Connecté avec Facebook. Les modèles de messages ont été créés pour vous et vérifiés par Meta (en général en quelques minutes).</p>
         <button type="button" class="btn-secondary" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Reconnecter avec Facebook' }}</button>
       </template>

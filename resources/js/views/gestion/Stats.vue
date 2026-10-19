@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../components/Icon.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage } from '../../lib/http'
@@ -15,6 +16,9 @@ const period = reactive({ preset: '30', from: '', to: iso(new Date()) })
 const report = ref(null)
 const reportSaved = ref(false)
 const reportError = ref('')
+// Heures d'envoi du rapport : liste en 24 h (le champ « heure » du navigateur affiche parfois AM/PM)
+const TIMES = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`)
+const timesWith = (current) => (current && !TIMES.includes(current) ? [...TIMES, current].sort() : TIMES)
 
 // Question en langage courant à l'assistant IA (réponse tirée des vrais chiffres de la boutique)
 const ai = computed(() => auth.profile?.ai ?? { enabled: false, used: 0, limit: 0 })
@@ -104,7 +108,7 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
     </div>
 
     <section v-if="ai.enabled && auth.can('finance.view') && !upgrade" class="card space-y-3 border-emerald-200 bg-emerald-50/60 p-4">
-      <h2 class="font-semibold">✨ Posez une question sur vos chiffres</h2>
+      <h2 class="font-semibold"><Icon name="sparkles" :size="18" class="mr-1 inline-block align-[-3px]" />Posez une question sur vos chiffres</h2>
       <form class="flex gap-2" @submit.prevent="ask()">
         <input v-model="question" class="input" maxlength="500" placeholder="Ex. Combien de robes j'ai vendu cette semaine ?" />
         <button class="btn-brand shrink-0" :disabled="asking || question.trim().length < 3 || (ai.limit !== null && ai.used >= ai.limit)">{{ asking ? '…' : 'Demander' }}</button>
@@ -223,26 +227,30 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
         <table class="w-full">
           <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Promotion</th><th class="text-right">Commandes</th><th class="text-right">Remises</th><th class="text-right">Ventes livrées</th></tr></thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="r in stats.by_promotion" :key="r.id"><td class="py-1.5">{{ r.kind === 'flash' ? '⚡ ' : '' }}{{ r.name }}</td><td class="text-right">{{ r.orders }}</td><td class="text-right">{{ money(r.discounted) }}</td><td class="text-right font-medium">{{ money(r.revenue) }}</td></tr>
+            <tr v-for="r in stats.by_promotion" :key="r.id"><td class="py-1.5">{{ r.name }}<span v-if="r.kind === 'flash'" class="ml-1 text-xs text-slate-500">(vente flash)</span></td><td class="text-right">{{ r.orders }}</td><td class="text-right">{{ money(r.discounted) }}</td><td class="text-right font-medium">{{ money(r.revenue) }}</td></tr>
           </tbody>
         </table>
       </section>
     </template>
 
     <section v-if="report" class="card space-y-3 p-4 text-sm">
-      <h3 class="font-semibold">📬 Mon rapport du jour</h3>
+      <h3 class="font-semibold"><Icon name="send" :size="18" class="mr-1 inline-block align-[-3px]" />Mon rapport du jour</h3>
       <p class="text-slate-600">Chaque jour à l'heure choisie : ventes du jour, commandes à confirmer et à faire livrer, espèces chez les livreurs.</p>
       <Alert v-if="reportError">{{ reportError }}</Alert>
       <div class="grid gap-3 sm:grid-cols-2">
         <div class="rounded-lg border border-slate-200 p-3">
           <label class="flex items-center gap-2 font-medium"><input v-model="report.channels.whatsapp.is_active" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Par WhatsApp ({{ report.phone }})</label>
-          <input v-model="report.channels.whatsapp.send_at" type="time" class="input mt-2 w-32" />
+          <select v-model="report.channels.whatsapp.send_at" class="input mt-2 w-32">
+            <option v-for="t in timesWith(report.channels.whatsapp.send_at)" :key="t" :value="t">{{ t.replace(':', ' h ') }}</option>
+          </select>
           <label v-if="report.group_stores > 1" class="mt-2 flex items-center gap-2 text-slate-700"><input v-model="report.channels.whatsapp.all_stores" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Un seul rapport pour mes {{ report.group_stores }} boutiques</label>
           <p v-if="!report.whatsapp_ready" class="mt-2 text-xs text-amber-800">Connectez le WhatsApp de la boutique et indiquez le modèle « Rapport du jour » (Réglages › WhatsApp).</p>
         </div>
         <div class="rounded-lg border border-slate-200 p-3">
           <label class="flex items-center gap-2 font-medium"><input v-model="report.channels.email.is_active" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Par email {{ report.email ? `(${report.email})` : '' }}</label>
-          <input v-model="report.channels.email.send_at" type="time" class="input mt-2 w-32" />
+          <select v-model="report.channels.email.send_at" class="input mt-2 w-32">
+            <option v-for="t in timesWith(report.channels.email.send_at)" :key="t" :value="t">{{ t.replace(':', ' h ') }}</option>
+          </select>
           <label v-if="report.group_stores > 1" class="mt-2 flex items-center gap-2 text-slate-700"><input v-model="report.channels.email.all_stores" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Un seul rapport pour mes {{ report.group_stores }} boutiques</label>
           <p v-if="!report.email" class="mt-2 text-xs text-amber-800">Ajoutez d'abord votre adresse email dans <RouterLink to="/gestion/compte" class="underline">Mon compte</RouterLink>.</p>
           <p v-if="report.channels.email.last_sent_at" class="mt-2 text-xs text-slate-500">Dernier envoi : {{ formatDateTime(report.channels.email.last_sent_at) }}</p>

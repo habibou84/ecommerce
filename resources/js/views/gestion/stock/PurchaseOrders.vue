@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
@@ -193,7 +194,7 @@ const editingTotal = computed(() => (editing.value?.items ?? []).reduce((s, i) =
           </Field>
           <Field id="po-date" label="Livraison souhaitée"><input id="po-date" v-model="editing.expected_on" type="date" class="input" /></Field>
         </div>
-        <button type="button" class="btn-secondary" @click="suggest">✨ Ajouter les articles à recommander</button>
+        <button type="button" class="btn-secondary" @click="suggest"><Icon name="sparkles" :size="16" class="mr-1 inline-block align-[-3px]" />Ajouter les articles à recommander</button>
         <VariantLines :lines="editing.items" show-cost />
         <Field id="po-note" label="Note pour le fournisseur"><input id="po-note" v-model="editing.note" class="input" maxlength="500" /></Field>
         <p class="text-sm">Total : <strong>{{ money(editingTotal) }}</strong></p>
@@ -216,7 +217,7 @@ const editingTotal = computed(() => (editing.value?.items ?? []).reduce((s, i) =
           <p v-if="detail.note" class="text-slate-600">{{ detail.note }}</p>
           <div class="flex flex-wrap gap-2">
             <button v-if="['draft', 'sent'].includes(detail.status)" class="btn-secondary" @click="edit(detail)">Modifier</button>
-            <button v-if="['draft', 'sent', 'partial'].includes(detail.status)" class="btn-secondary" :disabled="busy" @click="act('send')">{{ detail.supplier?.phone ? '💬 Envoyer par WhatsApp' : 'Copier le texte' }}</button>
+            <button v-if="['draft', 'sent', 'partial'].includes(detail.status)" class="btn-secondary" :disabled="busy" @click="act('send')">{{ detail.supplier?.phone ? 'Envoyer par WhatsApp' : 'Copier le texte' }}</button>
             <button v-if="['draft', 'sent', 'partial'].includes(detail.status)" class="btn-brand" @click="startReceive">Réceptionner</button>
             <button v-if="detail.status !== 'cancelled' && detail.paid_amount < detail.total_cost" class="btn-secondary" @click="startPay">Payer</button>
             <button v-if="['draft', 'sent'].includes(detail.status)" class="btn-ghost text-red-600" :disabled="busy" @click="act('cancel')">Annuler</button>

@@ -1,4 +1,6 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
+import NetworkMark from '../../../components/NetworkMark.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
@@ -18,7 +20,6 @@ const busy = ref(false)
 const pages = ref(null) // pages Facebook à choisir après la connexion
 const pagesKey = ref('')
 
-const ICONS = { facebook: '📘', instagram: '📸', tiktok: '🎵' }
 const LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok' }
 const STATUS = {
   published: ['Publié', 'bg-emerald-100 text-emerald-800'],
@@ -111,7 +112,7 @@ async function cancel(post) {
       <h3 class="font-semibold">Comptes connectés</h3>
       <div class="grid gap-3 sm:grid-cols-3">
         <div v-for="a in data.accounts" :key="a.network" class="rounded-lg border p-3" :class="a.connected ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200'">
-          <p class="font-medium">{{ ICONS[a.network] }} {{ a.label }}</p>
+          <p class="flex items-center gap-1.5 font-medium"><NetworkMark :network="a.network" />{{ a.label }}</p>
           <p v-if="a.connected" class="text-slate-600">{{ a.network === 'instagram' ? '@' : '' }}{{ a.name }}</p>
           <p v-else class="text-slate-500">Pas connecté</p>
           <p v-if="a.error" class="mt-1 text-xs text-red-700">Dernière erreur : {{ a.error }}</p>
@@ -146,7 +147,7 @@ async function cancel(post) {
       </div>
       <div class="grid gap-3 sm:grid-cols-3">
         <div v-for="n in ['facebook', 'instagram', 'tiktok']" :key="n" class="rounded-lg border border-slate-200 p-3">
-          <p class="font-medium">{{ ICONS[n] }} {{ LABELS[n] }}</p>
+          <p class="flex items-center gap-1.5 font-medium"><NetworkMark :network="n" />{{ LABELS[n] }}</p>
           <p class="mt-1 text-2xl font-bold">{{ money(networks[n]?.revenue ?? 0) }}</p>
           <p class="text-slate-500">{{ networks[n]?.orders ?? 0 }} commande(s) · {{ networks[n]?.clicks ?? 0 }} clic(s) · {{ networks[n]?.posts ?? 0 }} publication(s)</p>
         </div>
@@ -168,11 +169,11 @@ async function cancel(post) {
           </div>
           <div class="flex flex-wrap gap-2">
             <span v-for="n in p.networks" :key="n.network" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs">
-              {{ ICONS[n.network] }}
+              <NetworkMark :network="n.network" />
               <span class="rounded-full px-1.5" :class="STATUS[n.status]?.[1]">{{ STATUS[n.status]?.[0] ?? n.status }}</span>
               {{ n.clicks }} clic(s) · {{ n.orders }} cde · {{ money(n.revenue) }}
               <a v-if="n.url" :href="n.url" target="_blank" rel="noopener" class="text-emerald-700 underline">voir</a>
-              <span v-if="n.error" class="text-red-700" :title="n.error">⚠</span>
+              <span v-if="n.error" class="text-red-700" :title="n.error"><Icon name="alert" :size="14" /></span>
             </span>
           </div>
         </li>
@@ -183,8 +184,8 @@ async function cancel(post) {
       <ul class="space-y-2 text-sm">
         <li v-for="p in pages" :key="p.id">
           <button class="w-full rounded-lg border border-slate-200 p-3 text-left hover:border-emerald-600" :disabled="busy" @click="choose(p)">
-            <span class="block font-medium">📘 {{ p.name }}</span>
-            <span class="block text-slate-500">{{ p.instagram ? `📸 Instagram @${p.instagram.name}` : 'Pas de compte Instagram professionnel lié' }}</span>
+            <span class="flex items-center gap-1.5 font-medium"><NetworkMark network="facebook" />{{ p.name }}</span>
+            <span class="block text-slate-500">{{ p.instagram ? `Instagram @${p.instagram.name}` : 'Pas de compte Instagram professionnel lié' }}</span>
           </button>
         </li>
       </ul>

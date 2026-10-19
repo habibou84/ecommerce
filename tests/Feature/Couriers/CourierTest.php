@@ -281,7 +281,8 @@ class CourierTest extends TestCase
         Storage::disk('local')->assertExists($shipment->fresh()->proof_photo_path);
 
         $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.cash_held', 31500)->assertJsonPath('data.unpaid', 1000)
-            ->assertJsonPath('data.today.delivered', 1);
+            ->assertJsonPath('data.today.delivered', 1)->assertJsonPath('data.today.collected', 31500)->assertJsonPath('data.today.earned', 1000)
+            ->assertJsonPath('data.today.failed', 0)->assertJsonPath('data.today.remitted', 0);
 
         // La gestion voit la preuve
         $this->asCourier($this->store->owner);
@@ -308,6 +309,7 @@ class CourierTest extends TestCase
         $this->step($shipment, ['status' => 'failed', 'reason' => 'Refus du client'])->assertOk()->assertJsonPath('data.status', 'failed');
         $this->step($shipment, ['status' => 'returning'])->assertOk();
         $this->assertSame(600, (int) CourierEarning::where('courier_id', $courier->id)->sum('amount'));
+        $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.today.failed', 2)->assertJsonPath('data.today.earned', 600);
 
         // Le gérant réceptionne le colis : remise en stock
         $this->asCourier($this->store->owner);

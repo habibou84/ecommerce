@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import Icon from '../components/Icon.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 import { inApp } from '../lib/app'
 import { registerDevice, unregisterDevice } from '../lib/push'
@@ -113,6 +114,13 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(badgeTimer))
 watch(() => route.path, refreshBadges)
 
+// Barre du bas (téléphone) : accueil, commandes, nouvelle commande, messages, le reste du menu
+const bottomTabs = computed(() => [
+  { to: '/gestion', label: 'Accueil', icon: 'home', exact: true },
+  { to: '/gestion/commandes', label: 'Commandes', icon: 'orders' },
+])
+const canOrder = computed(() => canOpen('/gestion/commandes/nouvelle'))
+
 // Session de support de la plateforme : bandeau pour le support (lui-même) et pour la boutique
 const support = computed(() => auth.profile?.support ?? null)
 const supportUntil = computed(() => support.value ? new Date(support.value.expires_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '')
@@ -182,10 +190,12 @@ async function switchTo(store) {
           <span class="min-w-0 flex-1">
             <span class="block truncate font-semibold">{{ auth.store?.name }}</span>
             <span v-if="addressStores.length > 1" class="block truncate text-xs text-slate-500">Changer de boutique</span>
+            <span v-else class="block h-4" />
           </span>
           <svg v-if="addressStores.length > 1" viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 10 5 5 5-5" /></svg>
         </button>
-        <a v-if="addressStores.length < 2" :href="auth.store?.url" target="_blank" class="absolute bottom-3 left-14 text-xs text-slate-500 hover:text-emerald-700">Voir le site ↗</a>
+        <!-- Sous le nom, à sa place (plus de chevauchement) -->
+        <a v-if="addressStores.length < 2" :href="auth.store?.url" target="_blank" class="absolute bottom-2.5 left-14 inline-flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-700">Voir le site <Icon name="external" :size="12" /></a>
         <div v-if="storeMenu" class="absolute inset-x-2 top-14 z-40 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
           <button
             v-for="s in addressStores"
@@ -198,7 +208,7 @@ async function switchTo(store) {
             <span class="flex-1 truncate">{{ s.name }}</span>
             <span v-if="s.id === auth.store?.id">✓</span>
           </button>
-          <a :href="auth.store?.url" target="_blank" class="mt-1 block border-t border-slate-100 px-3 pb-2 pt-3 text-sm text-slate-700 hover:bg-slate-50">Voir le site de {{ auth.store?.name }} ↗</a>
+          <a :href="auth.store?.url" target="_blank" class="mt-1 flex items-center gap-1.5 border-t border-slate-100 px-3 pb-2 pt-3 text-sm text-slate-700 hover:bg-slate-50">Voir le site de {{ auth.store?.name }} <Icon name="external" :size="14" /></a>
           <div v-if="auth.profile?.is_owner" class="border-t border-slate-100 pt-1">
             <RouterLink to="/gestion/mes-boutiques/statistiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Vue d'ensemble</RouterLink>
             <RouterLink to="/gestion/mes-boutiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Gérer mes boutiques</RouterLink>
@@ -290,28 +300,49 @@ async function switchTo(store) {
         <button class="btn-ghost -ml-2 px-2 lg:hidden" aria-label="Menu" @click="menuOpen = true">
           <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <h1 class="truncate text-lg font-semibold">{{ route.meta.title }}</h1>
+        <h1 class="min-w-0 truncate text-base font-semibold sm:text-lg">{{ route.meta.title }}</h1>
         <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">
-          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="btn-ghost px-2 text-sm" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide">💬<span class="hidden sm:inline"> Aide</span></a>
+          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="btn-ghost gap-1.5 px-2 text-sm" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide"><Icon name="help" /><span class="hidden sm:inline">Aide</span></a>
           <NotificationBell />
         </div>
       </header>
 
       <div v-if="support?.self" class="bg-amber-400 px-4 py-2 text-center text-sm font-medium text-slate-900">
-        🛟 Session de support jusqu'à {{ supportUntil }} — vous agissez dans la boutique d'un marchand : « {{ support.reason }} »
+        <Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Session de support jusqu'à {{ supportUntil }} — vous agissez dans la boutique d'un marchand : « {{ support.reason }} »
       </div>
       <div v-else-if="support && auth.can('team.manage')" class="flex flex-wrap items-center justify-center gap-3 bg-sky-50 px-4 py-2 text-sm text-sky-900">
-        <span>🛟 Le support Jibiat Marchand ({{ support.admin }}) a accès à votre gestion jusqu'à {{ supportUntil }} : « {{ support.reason }} »</span>
+        <span><Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Le support Jibiat Marchand ({{ support.admin }}) a accès à votre gestion jusqu'à {{ supportUntil }} : « {{ support.reason }} »</span>
         <button class="underline" @click="endSupport">Mettre fin</button>
       </div>
-      <main class="mx-auto max-w-5xl p-4 sm:p-6">
+      <main class="mx-auto max-w-6xl p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
         <!-- Changement de boutique : la page est recréée avec les données de la nouvelle boutique -->
         <RouterView v-slot="{ Component }">
           <component :is="Component" :key="auth.store?.id" />
         </RouterView>
       </main>
     </div>
-    <div v-if="switchNotice" class="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-center text-sm font-medium text-white shadow-lg" role="status">
+    <!-- Téléphone : les gestes de tous les jours sous le pouce -->
+    <nav class="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
+      <div class="mx-auto grid max-w-md grid-cols-5 items-end">
+        <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
+          <Icon :name="tab.icon" :size="22" />{{ tab.label }}
+        </RouterLink>
+        <div class="flex justify-center">
+          <RouterLink v-if="canOrder" to="/gestion/commandes/nouvelle" class="-mt-5 mb-1 grid h-14 w-14 place-items-center rounded-full bg-emerald-700 text-white shadow-lg ring-4 ring-white active:scale-95" aria-label="Nouvelle commande">
+            <Icon name="plus" :size="26" />
+          </RouterLink>
+        </div>
+        <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium" :class="isActive({ to: '/gestion/messages' }) ? 'text-emerald-700' : 'text-slate-600'">
+          <Icon name="messages" :size="22" />Messages
+          <span v-if="badges.messages" class="absolute right-[calc(50%-20px)] top-1 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-semibold leading-[18px] text-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
+        </RouterLink>
+        <span v-else />
+        <button type="button" class="flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium text-slate-600" @click="menuOpen = true">
+          <Icon name="menu" :size="22" />Plus
+        </button>
+      </div>
+    </nav>
+    <div v-if="switchNotice" class="fixed inset-x-4 bottom-20 lg:bottom-4 z-50 mx-auto max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-center text-sm font-medium text-white shadow-lg" role="status">
       {{ switchNotice }}
     </div>
   </div>

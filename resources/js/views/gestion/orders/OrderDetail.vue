@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
+import Icon from '../../../components/Icon.vue'
 import Modal from '../../../components/Modal.vue'
 import OrderReturns from '../../../components/OrderReturns.vue'
 import ShipmentPanel from '../../../components/ShipmentPanel.vue'
@@ -33,6 +34,39 @@ onMounted(load)
 const canManage = computed(() => auth.can('orders.manage'))
 const canConfirm = computed(() => auth.can('orders.confirm') && order.value?.status === 'pending_confirmation')
 const nextStatuses = computed(() => (order.value?.next_statuses ?? []).map((s) => s.value))
+
+// Boutons de la commande : l'étape suivante en avant, le reste discret ; modifier, annuler, retour… dans « Plus »
+const moreOpen = ref(false)
+const sheetOpen = ref(false)
+const actions = computed(() => {
+  const o = order.value
+  const list = { primary: null, secondary: [], more: [] }
+  if (!o) return list
+  const edit = o.is_editable ? { key: 'edit', label: 'Modifier', to: `/gestion/commandes/${o.id}/modifier` } : null
+  if (canConfirm.value) {
+    list.primary = { key: 'confirmed', label: 'Client a confirmé', icon: 'check', run: () => confirm('confirmed') }
+    list.secondary.push({ key: 'no_answer', label: 'Injoignable', run: () => confirm('no_answer') }, { key: 'callback', label: 'À rappeler…', run: () => openModal('callback') })
+  }
+  if (canManage.value) {
+    const steps = [
+      { key: 'shipped', label: 'En route', icon: 'truck', run: () => setStatus('shipped') },
+      { key: 'completed', label: 'Livrée', icon: 'check', run: () => openModal('complete') },
+      { key: 'processing', label: 'En préparation', icon: 'box', run: () => setStatus('processing') },
+    ].filter((a) => nextStatuses.value.includes(a.key))
+    if (!list.primary) list.primary = steps.shift() ?? null
+    list.secondary.push(...steps)
+    const unpaid = o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status)
+    if (unpaid) list.secondary.push({ key: 'payment', label: 'Paiement reçu', run: () => openModal('payment') })
+    if (unpaid) list.more.push({ key: 'link', label: 'Lien de paiement', run: openPayLink })
+    if (edit) list.more.push(edit)
+    if (canRefund.value) list.more.push({ key: 'refund', label: 'Rembourser', run: openRefund })
+    if (nextStatuses.value.includes('returned')) list.more.push({ key: 'return', label: 'Retour', danger: true, run: () => openModal('return') })
+    if (nextStatuses.value.includes('cancelled')) list.more.push({ key: 'cancel', label: 'Annuler la commande', danger: true, run: () => openModal('cancel') })
+  } else if (canConfirm.value && edit) {
+    list.more.push(edit)
+  }
+  return list
+})
 
 async function call(request) {
   busy.value = true
@@ -128,7 +162,7 @@ async function addNote() {
 </script>
 
 <template>
-  <div v-if="order" class="space-y-5">
+  <div v-if="order" class="space-y-5 pb-16 sm:pb-0">
     <RouterLink to="/gestion/commandes" class="text-sm text-slate-500 hover:text-emerald-700">← Commandes</RouterLink>
 
     <div class="flex flex-wrap items-center gap-3">
@@ -148,26 +182,33 @@ async function addNote() {
     <Alert v-if="order.customer?.is_blacklisted" tone="error">Client sur liste noire{{ order.customer.blacklist_reason ? ` : ${order.customer.blacklist_reason}` : '' }}.</Alert>
     <Alert v-if="order.status === 'cancelled'" tone="info">Annulée : {{ order.cancel_reason_label }}{{ order.cancel_note ? ` — ${order.cancel_note}` : '' }}</Alert>
 
-    <!-- Actions -->
-    <div class="flex flex-wrap gap-2">
-      <template v-if="canConfirm">
-        <button class="btn-brand" :disabled="busy" @click="confirm('confirmed')">✓ Client a confirmé</button>
-        <button class="btn-secondary" :disabled="busy" @click="confirm('no_answer')">Injoignable</button>
-        <button class="btn-secondary" :disabled="busy" @click="openModal('callback')">À rappeler…</button>
-      </template>
-      <template v-if="canManage">
-        <button v-if="nextStatuses.includes('processing')" class="btn-secondary" :disabled="busy" @click="setStatus('processing')">En préparation</button>
-        <button v-if="nextStatuses.includes('shipped')" class="btn-brand" :disabled="busy" @click="setStatus('shipped')">En route</button>
-        <button v-if="nextStatuses.includes('completed')" class="btn-secondary" :disabled="busy" @click="openModal('complete')">Livrée</button>
-        <button v-if="order.amount_due > 0 && !['cancelled', 'returned'].includes(order.status)" class="btn-secondary" @click="openModal('payment')">+ Paiement</button>
-        <button v-if="order.amount_due > 0 && !['cancelled', 'returned'].includes(order.status)" class="btn-secondary" @click="openPayLink">Lien de paiement</button>
-        <button v-if="canRefund" class="btn-ghost" @click="openRefund">Rembourser</button>
-        <RouterLink v-if="order.is_editable" :to="`/gestion/commandes/${order.id}/modifier`" class="btn-secondary">Modifier</RouterLink>
-        <button v-if="nextStatuses.includes('returned')" class="btn-ghost text-red-600" @click="openModal('return')">Retour</button>
-        <button v-if="nextStatuses.includes('cancelled')" class="btn-ghost text-red-600" @click="openModal('cancel')">Annuler</button>
-      </template>
-      <RouterLink v-else-if="canConfirm && order.is_editable" :to="`/gestion/commandes/${order.id}/modifier`" class="btn-secondary">Modifier</RouterLink>
+    <!-- Actions : une seule action principale, les autres discrètes, les gestes délicats dans « Plus » -->
+    <div v-if="actions.primary || actions.secondary.length || actions.more.length" class="hidden flex-wrap items-center gap-2 sm:flex">
+      <component :is="actions.primary.to ? 'RouterLink' : 'button'" v-if="actions.primary" :to="actions.primary.to" class="btn-brand" :disabled="busy" @click="actions.primary.run?.()">
+        <Icon v-if="actions.primary.icon" :name="actions.primary.icon" :size="18" />{{ actions.primary.label }}
+      </component>
+      <component :is="a.to ? 'RouterLink' : 'button'" v-for="a in actions.secondary" :key="a.key" :to="a.to" class="btn-secondary" :disabled="busy" @click="a.run?.()">{{ a.label }}</component>
+      <div v-if="actions.more.length" class="relative">
+        <button type="button" class="btn-ghost" :aria-expanded="moreOpen" @click="moreOpen = !moreOpen"><Icon name="more" :size="18" />Plus</button>
+        <div v-if="moreOpen" class="absolute left-0 top-full z-20 mt-1 w-56 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+          <component :is="a.to ? 'RouterLink' : 'button'" v-for="a in actions.more" :key="a.key" :to="a.to" type="button" class="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50" :class="a.danger ? 'text-red-700' : 'text-slate-700'" @click="moreOpen = false; a.run?.()">{{ a.label }}</component>
+        </div>
+      </div>
     </div>
+    <div v-if="moreOpen" class="fixed inset-0 z-10 hidden sm:block" @click="moreOpen = false" />
+
+    <!-- Téléphone : l'action principale reste sous le pouce, au-dessus de la barre de navigation -->
+    <div v-if="actions.primary || actions.secondary.length || actions.more.length" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 flex gap-2 border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur sm:hidden">
+      <component :is="actions.primary.to ? 'RouterLink' : 'button'" v-if="actions.primary" :to="actions.primary.to" class="btn-brand flex-1 py-3" :disabled="busy" @click="actions.primary.run?.()">
+        <Icon v-if="actions.primary.icon" :name="actions.primary.icon" :size="18" />{{ actions.primary.label }}
+      </component>
+      <button type="button" class="btn-secondary py-3" :class="{ 'flex-1': !actions.primary }" @click="sheetOpen = true"><Icon name="more" :size="18" />{{ actions.primary ? 'Plus' : 'Actions' }}</button>
+    </div>
+    <Modal v-if="sheetOpen" title="Actions" @close="sheetOpen = false">
+      <div class="space-y-2">
+        <component :is="a.to ? 'RouterLink' : 'button'" v-for="a in [...actions.secondary, ...actions.more]" :key="a.key" :to="a.to" type="button" class="btn-secondary w-full justify-start py-3" :class="{ 'text-red-700': a.danger }" :disabled="busy" @click="sheetOpen = false; a.run?.()">{{ a.label }}</component>
+      </div>
+    </Modal>
 
     <div class="grid gap-5 lg:grid-cols-[1fr_20rem]">
       <div class="space-y-5">
@@ -232,7 +273,7 @@ async function addNote() {
             {{ order.customer.orders_count }} commande(s)<template v-if="order.customer.delivery_rate !== null"> · {{ order.customer.delivery_rate }} % livrées</template>
           </p>
           <div v-if="order.customer_phone" class="flex gap-2 pt-1">
-            <a :href="order.call_url" class="btn-secondary flex-1 px-2 py-1.5">📞 Appeler</a>
+            <a :href="order.call_url" class="btn-secondary flex-1 px-2 py-1.5"><Icon name="phone" :size="16" />Appeler</a>
             <a :href="`https://wa.me/${order.customer_phone.replace('+', '')}`" target="_blank" class="btn-secondary flex-1 px-2 py-1.5">WhatsApp</a>
           </div>
         </section>
@@ -258,21 +299,21 @@ async function addNote() {
             Le client reçoit le récapitulatif avec les boutons « Confirmer » et « Annuler » ; sa réponse met la commande à jour toute seule.
             {{ order.whatsapp_confirmation === 'conversation' ? 'Gratuit : le client a écrit à la boutique il y a moins de 24 h.' : 'Par le modèle approuvé (message facturé par Meta).' }}
           </p>
-          <button type="button" class="btn-secondary w-full justify-start" :disabled="busy" @click="askOnWhatsApp">📲 {{ waSent ? 'Renvoyer la demande' : 'Envoyer la demande de confirmation' }}</button>
+          <button type="button" class="btn-secondary w-full justify-start gap-2" :disabled="busy" @click="askOnWhatsApp"><Icon name="send" :size="16" />{{ waSent ? 'Renvoyer la demande' : 'Envoyer la demande de confirmation' }}</button>
           <p v-if="waSent" class="text-emerald-700">Demande envoyée. La réponse apparaîtra aussi dans Ventes › Messages.</p>
         </section>
 
         <section v-if="order.messages.length" class="card space-y-2 p-4 text-sm">
           <h3 class="font-semibold">Message WhatsApp au client</h3>
-          <a v-for="m in order.messages" :key="m.key" :href="m.url" target="_blank" rel="noopener" class="btn-secondary w-full justify-start">💬 {{ m.label }}</a>
+          <a v-for="m in order.messages" :key="m.key" :href="m.url" target="_blank" rel="noopener" class="btn-secondary w-full justify-start gap-2"><Icon name="messages" :size="16" />{{ m.label }}</a>
         </section>
 
         <section class="card space-y-2 p-4 text-sm">
           <h3 class="font-semibold">Documents</h3>
-          <button class="btn-secondary w-full justify-start" @click="download(`/orders/${order.id}/invoice`, 'facture.pdf')">📄 Facture</button>
-          <a v-if="order.amount_paid > 0" :href="order.receipt_url" target="_blank" class="btn-secondary w-full justify-start">🧾 Ticket de caisse</a>
-          <button class="btn-secondary w-full justify-start" @click="download(`/orders/${order.id}/label`, 'etiquette.pdf')">🏷️ Étiquette colis</button>
-          <a :href="order.tracking_url" target="_blank" class="btn-ghost w-full justify-start">Page de suivi du client ↗</a>
+          <button class="btn-secondary w-full justify-start gap-2" @click="download(`/orders/${order.id}/invoice`, 'facture.pdf')"><Icon name="file" :size="16" />Facture</button>
+          <a v-if="order.amount_paid > 0" :href="order.receipt_url" target="_blank" class="btn-secondary w-full justify-start gap-2"><Icon name="receipt" :size="16" />Ticket de caisse</a>
+          <button class="btn-secondary w-full justify-start gap-2" @click="download(`/orders/${order.id}/label`, 'etiquette.pdf')"><Icon name="tag" :size="16" />Étiquette colis</button>
+          <a :href="order.tracking_url" target="_blank" class="btn-ghost w-full justify-start">Page de suivi du client <Icon name="external" :size="14" /></a>
         </section>
 
         <section v-if="order.confirmations.length" class="card p-4 text-sm">
@@ -360,7 +401,7 @@ async function addNote() {
           <template v-if="payLink.sent_by_whatsapp"> Il a été envoyé au client par le WhatsApp de la boutique.</template>
         </Alert>
         <input class="input text-xs" :value="payLink.url" readonly @focus="$event.target.select()" />
-        <a v-if="!payLink.sent_by_whatsapp" :href="payLink.whatsapp_url" target="_blank" rel="noopener" class="btn-brand w-full">💬 Envoyer par WhatsApp</a>
+        <a v-if="!payLink.sent_by_whatsapp" :href="payLink.whatsapp_url" target="_blank" rel="noopener" class="btn-brand w-full"><Icon name="messages" :size="16" />Envoyer par WhatsApp</a>
         <button class="btn-secondary w-full" @click="modal = null">Fermer</button>
       </div>
       <form v-else class="space-y-4" @submit.prevent="createPayLink">

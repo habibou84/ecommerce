@@ -5,6 +5,7 @@ import Modal from '../../components/Modal.vue'
 import { cachedGet, forgetAll, offline } from '../../lib/courierOffline'
 import { phoneDisplay } from '../../lib/format'
 import { unregisterDevice } from '../../lib/push'
+import { prefs } from '../../lib/courierPrefs'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
@@ -48,6 +49,18 @@ async function logout() {
           <a v-if="s.phone" :href="`tel:${s.phone}`" class="btn-secondary px-3 py-1.5 text-sm">📞 Appeler</a>
         </li>
       </ul>
+    </section>
+
+    <section class="space-y-3 rounded-xl bg-white p-4 text-sm shadow-sm">
+      <p class="font-semibold">Affichage</p>
+      <label class="flex items-center justify-between gap-3">
+        <span>🌙 Mode nuit <span class="block text-xs text-slate-500">Écran sombre, plus reposant le soir</span></span>
+        <input v-model="prefs.night" type="checkbox" class="h-6 w-6 accent-emerald-700" />
+      </label>
+      <label class="flex items-center justify-between gap-3">
+        <span>🔠 Grands caractères <span class="block text-xs text-slate-500">Tout est plus gros, plus facile à lire en roulant au soleil</span></span>
+        <input v-model="prefs.big" type="checkbox" class="h-6 w-6 accent-emerald-700" />
+      </label>
     </section>
 
     <section class="rounded-xl bg-white p-4 shadow-sm text-sm text-slate-600">

@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
+import Icon from '../../../components/Icon.vue'
 import Pagination from '../../../components/Pagination.vue'
 import StatusBadge from '../../../components/StatusBadge.vue'
 import http, { errorMessage } from '../../../lib/http'
@@ -67,28 +68,29 @@ function stockLabel(p) {
 
 <template>
   <div class="space-y-4">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <input v-model="filters.search" type="search" class="input sm:max-w-xs" placeholder="Rechercher (nom, SKU, code-barres)" />
-      <div class="flex flex-1 gap-2 overflow-x-auto">
-        <select v-model="filters.status" class="input w-auto">
+    <div class="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+      <input v-model="filters.search" type="search" class="input lg:max-w-xs" placeholder="Rechercher (nom, SKU, code-barres)" />
+      <!-- Filtres : deux par ligne sur téléphone, à la suite sur ordinateur, jamais coupés -->
+      <div class="grid flex-1 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <select v-model="filters.status" class="input sm:w-auto">
           <option value="">Tous les statuts</option>
           <option value="active">Actifs</option>
           <option value="draft">Brouillons</option>
           <option value="archived">Archivés</option>
         </select>
-        <select v-model="filters.stock" class="input w-auto">
+        <select v-model="filters.stock" class="input sm:w-auto">
           <option value="">Tout le stock</option>
           <option value="low">Stock bas</option>
           <option value="out">Épuisés</option>
         </select>
-        <select v-if="collections.length" v-model="filters.collection_id" class="input w-auto">
+        <select v-if="collections.length" v-model="filters.collection_id" class="input col-span-2 sm:w-auto sm:min-w-52">
           <option value="">Toutes les collections</option>
           <option v-for="c in collections" :key="c.id" :value="c.id">{{ c.title }}</option>
         </select>
       </div>
-      <div v-if="auth.can('products.manage')" class="flex gap-2">
-        <RouterLink to="/gestion/catalogue/import" class="btn-secondary">Importer</RouterLink>
-        <RouterLink to="/gestion/catalogue/nouveau" class="btn-brand">+ Produit</RouterLink>
+      <div v-if="auth.can('products.manage')" class="flex gap-2 lg:ml-auto">
+        <RouterLink to="/gestion/catalogue/import" class="btn-ghost">Importer</RouterLink>
+        <RouterLink to="/gestion/catalogue/nouveau" class="btn-brand flex-1 sm:flex-none"><Icon name="plus" :size="18" />Produit</RouterLink>
       </div>
     </div>
 
@@ -106,7 +108,7 @@ function stockLabel(p) {
         <li v-for="p in products" :key="p.id">
           <RouterLink :to="`/gestion/catalogue/${p.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
             <img v-if="p.thumb" :src="p.thumb" alt="" class="h-12 w-12 shrink-0 rounded-lg object-cover" loading="lazy" />
-            <span v-else class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400">📷</span>
+            <span v-else class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400"><Icon name="image" /></span>
             <span class="min-w-0 flex-1">
               <span class="block truncate font-medium">{{ p.title }}</span>
               <span class="block text-sm" :class="p.track_inventory && p.available <= 0 ? 'text-red-600' : p.low_variants ? 'text-amber-700' : 'text-slate-500'">

@@ -15,6 +15,7 @@ export const offline = reactive({
   syncing: false,
   savedAt: null, // heure des données affichées quand elles viennent du téléphone
   synced: 0, // augmente à chaque étape envoyée : les pages se rechargent
+  offers: 0, // nouvelles missions à accepter (pastille du menu)
 })
 
 // Étapes possibles depuis chaque statut (comme CourierDesk::NEXT côté serveur)
