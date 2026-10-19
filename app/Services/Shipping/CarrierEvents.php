@@ -9,6 +9,7 @@ use App\Models\Shipment;
 use App\Services\Shipping\Drivers\RemoteShipment;
 use App\Support\Tenancy;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Jibiat\Socle\Webhooks\WebhookSignature;
 use Throwable;
 
@@ -69,7 +70,7 @@ class CarrierEvents
     public function handle(CarrierConnection $connection, string $event, array $data, ?string $occurredAt = null): void
     {
         match ($event) {
-            'order.created', 'order.status_changed', 'order.incident' => isset($data['order']['tracking_code'])
+            'order.created', 'order.status_changed', 'order.incident', 'order.updated' => isset($data['order']['tracking_code'])
                 ? $this->applyOrder($connection, RemoteShipment::fromDeliveryApp($data['order'], $occurredAt), 'carrier_webhook', $data['change']['note'] ?? null)
                 : null,
             'payout.paid' => isset($data['payout']['reference']) ? $this->payouts->import($connection, (string) $data['payout']['reference']) : null,
@@ -95,6 +96,8 @@ class CarrierEvents
             return 0;
         }
 
+        $this->connections->refreshWebhook($connection);
+
         $applied = 0;
         foreach ($changed as $remote) {
             $applied += $this->applyOrder($connection, $remote, 'carrier_sync') ? 1 : 0;
@@ -116,8 +119,12 @@ class CarrierEvents
         }
 
         try {
-            $known = CarrierPayout::forStore($connection->store_id)->where('connection_id', $connection->id)->pluck('remote_id')->all();
-            foreach (array_diff($this->connections->driver($connection)->paidPayouts($connection), $known) as $reference) {
+            $payouts = CarrierPayout::forStore($connection->store_id)->where('connection_id', $connection->id);
+            $known = (clone $payouts)->pluck('remote_id')->all();
+            // Depuis le dernier reversement reçu (marge de deux jours), pas seulement les derniers de la liste
+            $lastPaidAt = (clone $payouts)->max('paid_at');
+            $since = $lastPaidAt ? Carbon::parse($lastPaidAt)->subDays(2) : null;
+            foreach (array_diff($this->connections->driver($connection)->paidPayouts($connection, $since), $known) as $reference) {
                 $this->payouts->import($connection, $reference);
             }
         } catch (CarrierException) {

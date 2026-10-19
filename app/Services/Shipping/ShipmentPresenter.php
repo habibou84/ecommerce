@@ -49,8 +49,12 @@ class ShipmentPresenter
             'carrier_fee' => $s->carrier_fee,
             'fee_payer' => $s->fee_payer,
             'delivery_code' => $s->delivery_code,
-            'proof_photo_url' => $s->proof_photo_path ? '/api/v1/shipments/'.$s->id.'/proof' : $s->proof_photo_url,
+            // Toujours par la boutique : le lien du transporteur expire, il est redemandé au besoin
+            'proof_photo_url' => $s->proof_photo_path || $s->proof_photo_url ? '/api/v1/shipments/'.$s->id.'/proof' : null,
             'rescheduled_to' => $s->rescheduled_to?->toDateString(),
+            'scheduled_date' => $s->scheduled_date?->toDateString(),
+            'needs_decision' => $s->needs_decision,
+            'return_requested' => $s->return_requested,
             'attempts_count' => $s->attempts_count,
             'failure_reason' => $s->failure_reason,
             'requested_at' => $s->requested_at?->toIso8601String(),

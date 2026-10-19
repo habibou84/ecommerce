@@ -20,7 +20,7 @@ class Shipment extends Model
         'store_id', 'order_id', 'sequence', 'mode', 'status', 'origin_location_id', 'carrier_connection_id', 'courier_id',
         'carrier_tracking_code', 'carrier_tracking_url', 'carrier_status', 'idempotency_key', 'cod_amount', 'collected_amount',
         'carrier_fee', 'fee_payer', 'weight_g', 'is_fragile', 'delivery_code', 'proof_photo_url', 'proof_photo_path', 'attempts_count',
-        'failure_reason', 'rescheduled_to', 'note', 'requested_at', 'picked_up_at', 'delivered_at', 'returned_at', 'cancelled_at',
+        'failure_reason', 'rescheduled_to', 'scheduled_date', 'needs_decision', 'return_requested', 'note', 'requested_at', 'picked_up_at', 'delivered_at', 'returned_at', 'cancelled_at',
         'last_synced_at', 'created_by',
     ];
 
@@ -30,6 +30,9 @@ class Shipment extends Model
             'status' => ShipmentStatus::class,
             'is_fragile' => 'boolean',
             'rescheduled_to' => 'date',
+            'scheduled_date' => 'date',
+            'needs_decision' => 'boolean',
+            'return_requested' => 'boolean',
             'requested_at' => 'datetime',
             'picked_up_at' => 'datetime',
             'delivered_at' => 'datetime',

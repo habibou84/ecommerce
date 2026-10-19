@@ -8,6 +8,17 @@ import http, { errorMessage } from '../lib/http'
 import { formatDateTime, money } from '../lib/format'
 import { MANUAL_STATUSES, SHIPMENT_TONES, SOURCE_LABELS } from '../lib/shipping'
 
+// « aujourd'hui », « demain » ou « le lundi 23 novembre »
+function dayLabel(iso) {
+  const day = new Date(`${iso}T00:00:00`)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diff = Math.round((day - today) / 86400000)
+  if (diff === 0) return 'aujourd\'hui'
+  if (diff === 1) return 'demain'
+  return 'le ' + day.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
 const props = defineProps({ order: { type: Object, required: true } })
 const emit = defineEmits(['changed'])
 
@@ -138,6 +149,9 @@ async function whatsapp(s) {
         À encaisser {{ money(s.cod_amount) }}<template v-if="s.carrier_fee !== null"> · tarif {{ money(s.carrier_fee) }}</template>
         <template v-if="s.collected_amount !== null"> · encaissé {{ money(s.collected_amount) }}</template>
       </p>
+      <p v-if="s.scheduled_date && !s.is_final" class="text-slate-600">Livraison prévue <strong>{{ dayLabel(s.scheduled_date) }}</strong></p>
+      <p v-if="s.needs_decision && !s.is_final" class="rounded bg-rose-50 p-2 font-medium text-rose-900">L'entreprise de livraison attend votre décision (nouvelle date ou retour) : appelez-la ou répondez dans son application.</p>
+      <p v-else-if="s.return_requested && !s.is_final" class="rounded bg-violet-50 p-2 text-violet-900">Retour du colis demandé.</p>
       <p v-if="s.failure_reason" class="rounded bg-amber-50 p-2 text-amber-900">{{ s.failure_reason }}<template v-if="s.attempts_count"> ({{ s.attempts_count }} tentative{{ s.attempts_count > 1 ? 's' : '' }})</template></p>
       <a v-if="s.proof_photo_url" :href="s.proof_photo_url" target="_blank" rel="noopener" class="text-emerald-700 underline">Photo de livraison</a>
       <ol class="space-y-1 border-l-2 border-slate-100 pl-3 text-xs text-slate-600">
@@ -198,6 +212,7 @@ async function whatsapp(s) {
               <span class="min-w-0 flex-1">
                 <span class="block font-medium">{{ q.name }}</span>
                 <span class="block text-xs" :class="q.error ? 'text-amber-800' : 'text-slate-500'">{{ q.error || q.zone || (q.driver === 'manual' ? 'Course demandée par WhatsApp' : '') }}</span>
+                <span v-if="q.earliest_date && !q.error" class="block text-xs text-slate-500">Livrable {{ dayLabel(q.earliest_date) }}<template v-if="q.day_message"> · {{ q.day_message }}</template></span>
                 <span v-if="q.stats" class="block text-xs text-slate-400">{{ history(q.stats) }}</span>
               </span>
               <span v-if="q.fee !== null" class="font-semibold">{{ money(q.fee) }}</span>

@@ -78,9 +78,9 @@ interface CarrierDriver
     public function payout(CarrierConnection $connection, string $reference): array;
 
     /**
-     * Références des derniers reversements payés (rattrapage d'un webhook payout.paid perdu).
+     * Références des reversements payés depuis une date (sinon les derniers) : rattrapage d'un webhook payout.paid perdu.
      *
      * @return list<string>
      */
-    public function paidPayouts(CarrierConnection $connection): array;
+    public function paidPayouts(CarrierConnection $connection, ?\DateTimeInterface $since = null): array;
 }
