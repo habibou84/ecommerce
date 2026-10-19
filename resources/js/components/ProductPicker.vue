@@ -49,8 +49,8 @@ function add(product, variant) {
 <template>
   <div class="space-y-2">
     <div class="relative">
-      <Icon name="search" :size="18" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-      <input v-model="search" type="search" class="input pl-10" placeholder="Ajouter un produit (nom, SKU, code-barres)" @input="find" />
+      <Icon name="search" :size="18" class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+      <input v-model="search" type="search" class="input-lg pl-12" placeholder="Ajouter un produit (nom, SKU, code-barres)" @input="find" />
     </div>
     <ul v-if="results.length && !choosing" class="divide-y divide-slate-100 rounded-lg border border-slate-200">
       <li v-for="p in results" :key="p.id">

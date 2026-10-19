@@ -119,6 +119,13 @@ class AssignmentTest extends TestCase
             ->assertJsonPath('data.carriers.0.fee', 2000)->assertJsonPath('data.carriers.0.zone', 'Cocody')->assertJsonPath('data.carriers.0.covered', true);
         $this->storeApi($this->store, 'POST', 'orders/delivery-options', ['place_id' => $yopougon, 'items' => $items])
             ->assertJsonPath('data.carriers.0.covered', false)->assertJsonPath('data.carriers.0.fee', null);
+        // Recherche du quartier : seulement ceux que l'entreprise dessert, avec son tarif ; sinon ceux de la boutique
+        $found = $this->storeApi($this->store, 'GET', "orders/delivery-options/places?carrier_connection_id={$this->moto->id}&search=angre")->assertOk()->json('data');
+        $this->assertSame(['Angré, Cocody', 'Cocody', 2000], [$found[0]['label'], $found[0]['zone'], $found[0]['fee']]);
+        $this->assertSame([], $this->storeApi($this->store, 'GET', "orders/delivery-options/places?carrier_connection_id={$this->moto->id}&search=yopougon")->json('data'));
+        $this->assertNotEmpty($this->storeApi($this->store, 'GET', "orders/delivery-options/places?carrier_connection_id={$this->moto->id}")->json('data'));
+        $own = $this->storeApi($this->store, 'GET', 'orders/delivery-options/places?search=angre')->json('data.0');
+        $this->assertSame(['Angré, Cocody', $this->zone()->fee], [$own['label'], $own['fee']]);
         $tariffs = $this->storeApi($this->store, 'GET', "orders/delivery-options/carriers/{$this->moto->id}")->assertOk()->json('data');
         $this->assertSame([['Cocody', 2000]], array_map(fn ($z) => [$z['label'], $z['fee']], $tariffs['zones']));
         $this->assertContains('Angré, Cocody', $tariffs['zones'][0]['places']);
@@ -137,6 +144,8 @@ class AssignmentTest extends TestCase
         $this->assertCount(0, Order::findOrFail($id)->shipments);
         $this->storeApi($this->store, 'POST', "orders/{$id}/confirmations", ['outcome' => 'confirmed', 'channel' => 'call'])->assertOk();
         $this->assertSame($this->koffi->id, Order::findOrFail($id)->shipments->sole()->courier_id);
+        $this->storeApi($this->store, 'POST', 'orders/delivery-options', ['place_id' => $angre])->assertJsonPath('data.recent.0', "courier:{$this->koffi->id}")
+            ->assertJsonPath('data.recent.1', "carrier:{$this->moto->id}");
 
         // Pas les deux à la fois, pas de livreur inactif
         $this->storeApi($this->store, 'POST', 'orders', $payload + ['planned_courier_id' => $this->koffi->id, 'planned_carrier_connection_id' => $this->moto->id])

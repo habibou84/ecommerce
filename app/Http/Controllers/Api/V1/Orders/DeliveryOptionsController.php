@@ -9,6 +9,8 @@ use App\Models\CarrierZoneMapping;
 use App\Models\Courier;
 use App\Models\Place;
 use App\Models\ProductVariant;
+use App\Models\Shipment;
+use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\Shipping\ShipmentDesk;
 use Illuminate\Http\JsonResponse;
@@ -50,22 +52,97 @@ class DeliveryOptionsController extends Controller
             ])
             ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['active_missions']])->values();
 
-        $connections = CarrierConnection::where('status', 'active')->get()->keyBy('id');
+        $connections = CarrierConnection::where('status', 'active')->withCount(['zones' => fn ($q) => $q->where('is_active', true)])->get()->keyBy('id');
         $carriers = array_map(fn (array $q) => [
             'id' => $q['connection_id'],
             'name' => $q['name'],
             'is_api' => $connections->get($q['connection_id'])?->isApi() ?? false,
+            'zones_count' => $connections->get($q['connection_id'])?->zones_count ?? 0,
             'zone' => $q['zone'],
             'fee' => $q['fee'],
             'covered' => $q['error'] === null,
             'error' => $q['error'],
+            'earliest_date' => $q['earliest_date'] ?? null,
+            'day_message' => $q['day_message'] ?? null,
         ], $shipments->quotesFor($store->id, $place?->id, $fragile, $grams ? round($grams / 1000, 2) : null));
+
+        // Récemment utilisés : les derniers livreurs et entreprises à qui la boutique a confié une course
+        $recent = Shipment::latest('id')->limit(50)->get(['courier_id', 'carrier_connection_id'])
+            ->map(fn (Shipment $s) => $s->courier_id ? "courier:{$s->courier_id}" : "carrier:{$s->carrier_connection_id}")
+            ->unique()->take(3)->values();
 
         return response()->json(['data' => [
             'zone' => $zone ? ['id' => $zone->id, 'name' => $zone->name, 'fee' => $zone->fee, 'free_above' => $zone->free_above, 'eta_label' => $zone->eta_label] : null,
             'couriers' => $couriers,
             'carriers' => $carriers,
+            'recent' => $recent,
         ]]);
+    }
+
+    /**
+     * Recherche du quartier de livraison. Entreprise de livraison choisie : seulement les quartiers qu'elle dessert,
+     * avec sa zone et son tarif ; sinon les lieux de la boutique, avec la zone de la boutique et ses frais.
+     */
+    public function places(Request $request, Places $places, PlaceMatcher $matcher): JsonResponse
+    {
+        $data = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'carrier_connection_id' => ['nullable', 'integer'],
+        ]);
+        $store = $this->currentStore();
+        $all = $places->forStore($store);
+        $search = trim((string) ($data['search'] ?? ''));
+
+        if (! empty($data['carrier_connection_id'])) {
+            $connection = CarrierConnection::where('status', 'active')->findOrFail($data['carrier_connection_id']);
+            $mappings = CarrierZoneMapping::where('connection_id', $connection->id)->get()->keyBy('place_id');
+            $zones = CarrierZone::where('connection_id', $connection->id)->where('is_active', true)->get()->keyBy('id');
+            // Même règle que la course : le lieu, sinon son quartier parent, sa commune ; « non couvert » à la main l'emporte
+            $zoneOf = function (Place $place) use ($mappings, $zones): ?CarrierZone {
+                for ($current = $place; $current !== null; $current = $current->parent) {
+                    $mapping = $mappings->get($current->id);
+                    if ($mapping?->carrier_zone_id) {
+                        return $zones->get($mapping->carrier_zone_id);
+                    }
+                    if ($mapping && $mapping->matched_by === 'manual') {
+                        return null;
+                    }
+                }
+
+                return null;
+            };
+            $covered = $all->filter(fn (Place $p) => in_array($p->type, ['commune', 'neighborhood'], true) && $zoneOf($p) !== null)->values();
+            $found = $search === '' ? $covered->sortBy(fn (Place $p) => $p->label())->take(200)->values() : $matcher->search($search, $covered, 40);
+
+            return response()->json(['data' => $found->map(function (Place $p) use ($zoneOf) {
+                $zone = $zoneOf($p);
+
+                return $this->place($p) + ['zone' => $zone->label(), 'zone_id' => $zone->id, 'fee' => $zone->fee];
+            })->sortBy(fn ($p) => [$p['zone'], $p['label']])->values()]);
+        }
+
+        if (mb_strlen($search) < 2) {
+            return response()->json(['data' => []]);
+        }
+
+        return response()->json(['data' => $matcher->search($search, $all, 20)->map(function (Place $p) use ($places, $store) {
+            $zone = $places->zoneFor($store, $p);
+
+            return $this->place($p) + ['zone' => $zone?->name, 'zone_id' => $zone?->id, 'fee' => $zone?->fee];
+        })->values()]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function place(Place $p): array
+    {
+        return [
+            'id' => $p->id,
+            'label' => $p->label(),
+            'type' => $p->type,
+            'ancestor_ids' => array_values(array_filter([$p->parent_id, $p->parent?->parent_id])),
+        ];
     }
 
     /**
