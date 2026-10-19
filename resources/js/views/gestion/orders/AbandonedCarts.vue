@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
 import { onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import http, { errorMessage } from '../../../lib/http'
@@ -45,7 +46,7 @@ async function remind(cart) {
             </span>
           </span>
           <span class="w-24 text-right font-semibold">{{ money(cart.subtotal) }}</span>
-          <button class="btn-secondary px-3 py-1.5" @click="remind(cart)">💬 {{ cart.recovery_sent_at ? 'Relancer encore' : 'Relancer' }}</button>
+          <button class="btn-secondary px-3 py-1.5" @click="remind(cart)"><Icon name="messages" :size="16" class="mr-1 inline-block align-[-3px]" />{{ cart.recovery_sent_at ? 'Relancer encore' : 'Relancer' }}</button>
         </li>
         <li v-if="!carts.length" class="px-4 py-6 text-sm text-slate-500">Aucun panier abandonné.</li>
       </ul>

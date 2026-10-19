@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../components/Icon.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
@@ -135,7 +136,7 @@ async function cancel(value) {
         <li v-for="i in data.invoices" :key="i.id" class="flex flex-wrap items-center gap-3 py-2">
           <span class="flex-1">{{ i.number }} · {{ i.plan }} ({{ i.cycle_label }})<span class="block text-xs text-slate-500">{{ i.status_label }}<template v-if="i.period_end"> · jusqu'au {{ formatDateTime(i.period_end) }}</template><template v-if="i.credit_days"> · dont {{ i.credit_days }} jours reportés de l'offre précédente</template></span></span>
           <span class="font-medium">{{ money(i.amount) }}</span>
-          <button v-if="['paid', 'offered'].includes(i.status)" class="btn-ghost px-2" @click="download(`/billing/invoices/${i.id}/receipt`, `facture-${i.number}.pdf`)">📄 PDF</button>
+          <button v-if="['paid', 'offered'].includes(i.status)" class="btn-ghost px-2" @click="download(`/billing/invoices/${i.id}/receipt`, `facture-${i.number}.pdf`)"><Icon name="file" :size="16" class="mr-1 inline-block align-[-3px]" />PDF</button>
           <a v-else-if="i.checkout_url" :href="i.checkout_url" class="btn-ghost px-2">Payer</a>
         </li>
       </ul>

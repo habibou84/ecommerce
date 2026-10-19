@@ -13,6 +13,7 @@ use App\Models\CourierRemittanceDeclaration;
 use App\Models\OrderReturn;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
+use App\Models\ShipmentEvent;
 use App\Services\Couriers\CourierDesk;
 use App\Services\Couriers\CourierPayroll;
 use App\Services\Couriers\MissionResponses;
@@ -61,12 +62,19 @@ class CourierAppController extends Controller
             'stores' => $all->map(fn (Courier $c) => ['name' => $c->store->name, 'phone' => $c->store->phone])->values(),
             'cash_held' => (int) $all->sum(fn (Courier $c) => $this->shared->held($c)),
             'cash_limit' => $courier->cash_limit,
+            // Dernière réponse de la boutique à un versement déclaré (point sur « Ma caisse » tant qu'il ne l'a pas vue)
+            'remittance_decided_at' => CourierRemittanceDeclaration::withoutGlobalScope(StoreScope::class)->whereIn('courier_id', $ids)->max('decided_at'),
             // Position envoyée pendant la tournée : une de ses boutiques l'a demandé
             'tracking' => $all->contains(fn (Courier $c) => $c->store->courier_tracking),
             'unpaid' => (int) $all->sum(fn (Courier $c) => $payroll->unpaid($c)),
             'today' => [
                 'delivered' => $this->shipments()->whereIn('courier_id', $ids)->whereDate('delivered_at', today())->count(),
                 'collected' => (int) CashCollection::withoutGlobalScope(StoreScope::class)->whereIn('courier_id', $ids)->whereDate('collected_at', today())->sum('amount'),
+                // Résumé de fin de journée : échecs, argent versé, paie gagnée aujourd'hui
+                'failed' => ShipmentEvent::withoutGlobalScope(StoreScope::class)->where('source', 'courier')->whereIn('status', ['failed', 'rescheduled'])
+                    ->whereDate('occurred_at', today())->whereIn('shipment_id', $this->shipments()->whereIn('courier_id', $ids)->select('id'))->count(),
+                'remitted' => (int) CourierRemittance::withoutGlobalScope(StoreScope::class)->whereIn('courier_id', $ids)->whereDate('received_at', today())->sum('received_amount'),
+                'earned' => (int) CourierEarning::withoutGlobalScope(StoreScope::class)->whereIn('courier_id', $ids)->whereDate('created_at', today())->sum('amount'),
             ],
         ]]);
     }

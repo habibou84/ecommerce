@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
@@ -289,11 +290,11 @@ async function save() {
         <button type="button" class="btn-secondary" :disabled="parsing || paste.trim().length < 5" @click="analyse(false)">{{ parsing ? 'Analyse…' : 'Analyser le message' }}</button>
         <template v-if="ai.enabled">
           <label class="btn-secondary cursor-pointer px-3">
-            📷 Capture d'écran{{ screenshots.length ? ` (${screenshots.length})` : '' }}
+            <Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Capture d'écran{{ screenshots.length ? ` (${screenshots.length})` : '' }}
             <input type="file" accept="image/*" multiple class="hidden" @change="onScreenshots" />
           </label>
           <button type="button" class="btn-brand" :disabled="parsing || (paste.trim().length < 5 && !screenshots.length) || (ai.limit !== null && ai.used >= ai.limit)" @click="analyse(true)">
-            ✨ {{ parsing ? 'L\'assistant lit…' : 'Analyser avec l\'assistant' }}
+            <Icon name="sparkles" :size="16" class="mr-1 inline-block align-[-3px]" />{{ parsing ? 'L\'assistant lit…' : 'Analyser avec l\'assistant' }}
           </button>
         </template>
       </div>
@@ -350,7 +351,7 @@ async function save() {
                 <button type="button" class="btn-ghost px-1.5 text-red-600" @click="items.splice(index, 1)">✕</button>
               </div>
               <p v-if="!item.price_edited && (item.flash || item.volume)" class="text-xs text-emerald-700">
-                {{ item.flash ? '⚡ Prix de vente flash' : 'Prix par quantité' }}<template v-if="item.compare_at"> (au lieu de {{ money(item.compare_at) }})</template><template v-if="item.volume"> · {{ money(item.line_total) }} pour {{ item.quantity }}</template>
+                {{ item.flash ? 'Prix de vente flash' : 'Prix par quantité' }}<template v-if="item.compare_at"> (au lieu de {{ money(item.compare_at) }})</template><template v-if="item.volume"> · {{ money(item.line_total) }} pour {{ item.quantity }}</template>
               </p>
               <p v-if="errors[`items.${index}.quantity`] || errors[`items.${index}.title`]" class="text-sm text-red-600">{{ errors[`items.${index}.quantity`] || errors[`items.${index}.title`] }}</p>
               <div v-if="item.needs_variant" class="flex flex-wrap items-center gap-2 text-sm">

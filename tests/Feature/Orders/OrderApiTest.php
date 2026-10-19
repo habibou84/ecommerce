@@ -183,6 +183,17 @@ class OrderApiTest extends TestCase
         $dashboard = $this->api('GET', 'dashboard')->assertOk()->json('data');
         $this->assertSame([1, 1, 10500], [$dashboard['orders']['today_count'], $dashboard['orders']['to_confirm'], $dashboard['orders']['today_amount']]);
         $this->assertArrayHasKey('stock', $dashboard);
+        // Comparaison avec hier, ventes des 7 jours (aujourd'hui en dernier), messages non lus
+        $this->assertSame([0, 0], [$dashboard['orders']['yesterday_count'], $dashboard['orders']['yesterday_amount']]);
+        $this->assertCount(7, $dashboard['week']);
+        $this->assertSame(['date' => now()->toDateString(), 'amount' => 10500, 'count' => 1], $dashboard['week'][6]);
+        $this->assertSame(0, $dashboard['unread_messages']);
+
+        Order::find($order['id'])->forceFill(['created_at' => now()->subDay()->startOfDay()])->save();
+        $dashboard = $this->api('GET', 'dashboard')->json('data');
+        $this->assertSame([0, 1, 10500], [$dashboard['orders']['today_count'], $dashboard['orders']['yesterday_count'], $dashboard['orders']['yesterday_amount']]);
+        $this->assertSame(10500, $dashboard['week'][5]['amount']);
+        Order::find($order['id'])->forceFill(['created_at' => now()])->save();
 
         $token = Order::find($order['id'])->tracking_token;
         $this->get($this->storeUrl($this->store, "/suivi/{$token}"))->assertOk()->assertSee('Commande #1001')->assertSee('Sac pagne')->assertDontSee('0506070809');

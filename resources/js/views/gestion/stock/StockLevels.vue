@@ -100,13 +100,13 @@ const levelIn = (row, locationId) => row.levels.find((l) => l.location_id === lo
       </div>
     </div>
 
-    <div class="flex flex-col gap-2 sm:flex-row">
-      <input v-model="filters.search" type="search" class="input sm:max-w-xs" placeholder="Rechercher un article" />
-      <select v-if="locations.length > 1" v-model="filters.location_id" class="input w-auto">
+    <div class="grid grid-cols-2 gap-2 sm:flex">
+      <input v-model="filters.search" type="search" class="input col-span-2 sm:max-w-xs" placeholder="Rechercher un article" />
+      <select v-if="locations.length > 1" v-model="filters.location_id" class="input sm:w-auto">
         <option value="">Tous les emplacements</option>
         <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
       </select>
-      <select v-model="filters.filter" class="input w-auto">
+      <select v-model="filters.filter" class="input sm:w-auto" :class="{ 'col-span-2': locations.length < 2 }">
         <option value="">Tous les articles</option>
         <option value="low">Stock bas</option>
         <option value="out">Épuisés</option>
@@ -115,7 +115,25 @@ const levelIn = (row, locationId) => row.levels.find((l) => l.location_id === lo
 
     <Alert v-if="error">{{ error }}</Alert>
 
-    <div class="card overflow-x-auto">
+    <!-- Téléphone : une carte par article, le bouton « Ajuster » toujours visible -->
+    <ul class="space-y-2 sm:hidden">
+      <li v-for="row in levels" :key="row.variant_id" class="card flex items-center gap-3 p-3">
+        <div class="min-w-0 flex-1">
+          <RouterLink :to="`/gestion/catalogue/${row.product_id}`" class="block font-medium leading-snug">{{ row.title }}</RouterLink>
+          <p class="mt-0.5 text-xs text-slate-500">
+            <template v-if="row.sku">{{ row.sku }} · </template>{{ row.reserved }} réservé(s)
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="text-lg font-semibold leading-none tabular-nums" :class="row.total_available <= 0 ? 'text-red-600' : row.total_available <= row.threshold ? 'text-amber-700' : ''">{{ row.available }}</p>
+          <p class="text-xs text-slate-500">dispo.</p>
+        </div>
+        <button class="btn-secondary shrink-0 px-3 py-2" @click="openAdjust(row)">Ajuster</button>
+      </li>
+      <li v-if="!levels.length" class="card p-6 text-center text-sm text-slate-500">Aucun article.</li>
+    </ul>
+
+    <div class="card hidden overflow-x-auto sm:block">
       <table class="w-full text-sm">
         <thead class="border-b border-slate-100 text-left text-xs uppercase text-slate-500">
           <tr>

@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { computed, reactive, ref } from 'vue'
 import Alert from './Alert.vue'
 import Field from './Field.vue'
@@ -115,7 +116,7 @@ async function whatsapp(s) {
   <section class="card space-y-3 p-4 text-sm">
     <div class="flex items-center gap-2">
       <h3 class="font-semibold">Livraison</h3>
-      <button v-if="canShip" class="btn-brand ml-auto px-3 py-1.5" @click="openShip">🚚 Faire livrer</button>
+      <button v-if="canShip" class="btn-brand ml-auto px-3 py-1.5" @click="openShip"><Icon name="truck" :size="16" class="mr-1 inline-block align-[-3px]" />Faire livrer</button>
     </div>
     <p v-if="!shipments.length && !canShip" class="text-slate-500">
       {{ order.delivery_method === 'pickup' ? 'Retrait en boutique.' : 'Confirmez la commande pour la faire livrer.' }}
@@ -157,7 +158,7 @@ async function whatsapp(s) {
           <button v-else-if="!['in_transit', 'out_for_delivery'].includes(s.status)" class="btn-secondary px-2 py-1" @click="openReassign(s)">Autre livreur</button>
         </template>
         <template v-else-if="s.carrier?.driver === 'manual'">
-          <button class="btn-secondary px-2 py-1" @click="whatsapp(s)">💬 Envoyer la course</button>
+          <button class="btn-secondary px-2 py-1" @click="whatsapp(s)"><Icon name="messages" :size="16" class="mr-1 inline-block align-[-3px]" />Envoyer la course</button>
           <button class="btn-secondary px-2 py-1" @click="openModal('status', s)">Mettre à jour</button>
         </template>
         <button v-else class="btn-secondary px-2 py-1" :disabled="busy" @click="refresh(s)">Actualiser</button>
@@ -175,7 +176,7 @@ async function whatsapp(s) {
           <RouterLink to="/gestion/livraisons/entreprises" class="btn-secondary">Connecter une entreprise de livraison</RouterLink>
         </template>
         <template v-else>
-          <p v-if="suggestion" class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">💡 Suggestion : <strong>{{ suggestion.name }}</strong> <span class="text-emerald-700">({{ suggestion.reason }})</span></p>
+          <p v-if="suggestion" class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><Icon name="lightbulb" :size="16" class="mr-1 inline-block align-[-3px]" />Suggestion : <strong>{{ suggestion.name }}</strong> <span class="text-emerald-700">({{ suggestion.reason }})</span></p>
           <fieldset v-if="couriers.length" class="space-y-2">
             <legend class="label">Mes livreurs</legend>
             <label v-for="c in couriers" :key="c.id" class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm"

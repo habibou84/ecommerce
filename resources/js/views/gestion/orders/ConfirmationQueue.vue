@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
 import { onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import http, { errorMessage } from '../../../lib/http'
@@ -60,7 +61,7 @@ function later(order, hours) {
     <Alert v-if="error">{{ error }}</Alert>
     <p v-if="loading && !orders.length" class="text-sm text-slate-500">Chargement…</p>
     <div v-else-if="!orders.length" class="card p-8 text-center">
-      <p class="text-lg font-medium">🎉 Rien à confirmer</p>
+      <p class="text-lg font-medium"><Icon name="check" :size="18" class="mr-1 inline-block align-[-3px]" />Rien à confirmer</p>
       <p class="text-sm text-slate-500">Les nouvelles commandes apparaîtront ici.</p>
     </div>
 
@@ -79,8 +80,8 @@ function later(order, hours) {
         <span v-if="o.callback_at" class="rounded-full px-2 py-0.5" :class="due(o) ? 'bg-amber-100 text-amber-900' : 'bg-slate-100'">Rappel {{ formatDateTime(o.callback_at) }}</span>
       </div>
       <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        <a :href="`tel:${o.customer_phone}`" class="btn-secondary">📞 Appeler</a>
-        <a :href="o.whatsapp" target="_blank" rel="noopener" class="btn-secondary">💬 WhatsApp</a>
+        <a :href="`tel:${o.customer_phone}`" class="btn-secondary"><Icon name="phone" :size="16" class="mr-1 inline-block align-[-3px]" />Appeler</a>
+        <a :href="o.whatsapp" target="_blank" rel="noopener" class="btn-secondary"><Icon name="messages" :size="16" class="mr-1 inline-block align-[-3px]" />WhatsApp</a>
         <button class="btn-brand col-span-2 sm:col-span-1" :disabled="busy === o.id" @click="answer(o, 'confirmed', 'call')">✓ Confirmée</button>
         <button class="btn-secondary" :disabled="busy === o.id" @click="answer(o, 'no_answer', 'call')">Injoignable</button>
         <button class="btn-secondary" :disabled="busy === o.id" @click="later(o, 3)">Rappeler dans 3 h</button>

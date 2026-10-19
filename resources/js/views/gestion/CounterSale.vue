@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../components/Icon.vue'
 import { computed, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
@@ -99,7 +100,7 @@ function reset() {
       <p v-if="done.change" class="rounded-lg bg-amber-50 p-3 text-lg font-semibold text-amber-900">Monnaie à rendre : {{ money(done.change) }}</p>
       <p v-if="done.amount_due" class="text-sm text-red-700">Reste à payer par le client : {{ money(done.amount_due) }}</p>
       <div class="grid grid-cols-2 gap-2">
-        <a :href="`${done.receipt_url}?imprimer=1`" target="_blank" class="btn-secondary">🧾 Imprimer le ticket</a>
+        <a :href="`${done.receipt_url}?imprimer=1`" target="_blank" class="btn-secondary"><Icon name="receipt" :size="16" class="mr-1 inline-block align-[-3px]" />Imprimer le ticket</a>
         <a v-if="done.whatsapp_url" :href="done.whatsapp_url" target="_blank" class="btn-secondary">Ticket par WhatsApp</a>
         <RouterLink v-else :to="`/gestion/commandes/${done.id}`" class="btn-secondary">Voir la commande</RouterLink>
       </div>

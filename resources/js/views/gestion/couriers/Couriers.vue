@@ -1,4 +1,5 @@
 <script setup>
+import Icon from '../../../components/Icon.vue'
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import DeliveryTabs from '../../../components/DeliveryTabs.vue'
@@ -174,7 +175,7 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
               {{ c.zones.map((z) => z.name).join(', ') || 'Toutes zones' }} · {{ c.pay_rule?.name ?? 'sans règle de paie' }}
               <template v-if="c.active_missions"> · {{ c.active_missions }} mission(s) en cours</template>
             </span>
-            <a v-if="c.location" :href="mapUrl(c.location)" target="_blank" class="block text-emerald-700 hover:underline">📍 Position {{ ago(c.location.at) }}</a>
+            <a v-if="c.location" :href="mapUrl(c.location)" target="_blank" class="block text-emerald-700 hover:underline"><Icon name="pin" :size="16" class="mr-1 inline-block align-[-3px]" />Position {{ ago(c.location.at) }}</a>
           </span>
           <span v-if="c.status === 'invited'" class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Invité</span>
           <span v-else-if="c.status === 'inactive'" class="rounded bg-slate-100 px-2 py-0.5 text-xs">Désactivé</span>
