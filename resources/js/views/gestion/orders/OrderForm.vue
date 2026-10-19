@@ -5,7 +5,8 @@ import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Icon from '../../../components/Icon.vue'
 import Modal from '../../../components/Modal.vue'
-import PlacePicker from '../../../components/PlacePicker.vue'
+import DelivererPicker from '../../../components/DelivererPicker.vue'
+import DeliveryPlacePicker from '../../../components/DeliveryPlacePicker.vue'
 import ProductPicker from '../../../components/ProductPicker.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
@@ -59,7 +60,7 @@ onMounted(async () => {
     const o = data.data
     Object.assign(form, {
       customer_phone: o.customer_phone_display, customer_name: o.customer_name ?? '', delivery_method: o.delivery_method,
-      shipping_phone2: o.shipping_phone2 ?? '', shipping_address: o.shipping_address ?? '', shipping_landmark: o.shipping_landmark ?? '',
+      shipping_phone2: o.shipping_phone2 ?? '', shipping_address: joinAddress(o.shipping_address, o.shipping_landmark), shipping_landmark: '',
       scheduled_date: o.scheduled_date ?? '', discount_total: o.discount_total, discount_code: o.discount_code ?? '', deposit_required: o.deposit_required ?? '',
       customer_note: o.customer_note ?? '', internal_note: o.internal_note ?? '',
     })
@@ -205,6 +206,33 @@ const isoDay = (offset) => {
 }
 const pickDate = ref(false)
 
+// Adresse précise et point de repère : un seul champ (les anciennes commandes réunissent les deux)
+function joinAddress(address, landmark) {
+  return [address, landmark].map((v) => String(v ?? '').trim()).filter(Boolean).join(' — ')
+}
+
+const pickerOpen = ref(false)
+const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+// Quartiers limités à ceux de l'entreprise choisie (si elle a des zones)
+const placeCarrier = computed(() => (chosenCarrier.value && chosenCarrier.value.zones_count > 0 ? chosenCarrier.value : null))
+const delivererName = computed(() => chosenCarrier.value?.name ?? chosenCourier.value?.name ?? '')
+// Sous le quartier : zone et prix de qui livre
+const placeHint = computed(() => {
+  if (!place.value || form.delivery_method !== 'delivery') return null
+  const c = chosenCarrier.value
+  if (c) {
+    if (!c.covered) return { tone: 'text-red-700', text: `${c.name} ne livre pas ce quartier.` }
+    const parts = [c.zone ? `Zone ${c.zone} de ${c.name}` : c.name, c.fee !== null ? money(c.fee) : 'tarif non renseigné', c.day_message].filter(Boolean)
+    return { tone: 'text-emerald-800', text: `✓ ${parts.join(' · ')}` }
+  }
+  if (zone.value) return { tone: 'text-emerald-800', text: `✓ Votre zone ${zone.value.name} · ${money(zone.value.fee)}${zone.value.eta_label ? ` · ${zone.value.eta_label}` : ''}` }
+  return { tone: 'text-amber-800', text: 'Hors de vos zones de livraison : indiquez les frais.' }
+})
+function removePhone2() {
+  form.shipping_phone2 = ''
+  showPhone2.value = false
+}
+
 const showPhone2 = ref(false)
 const showNotes = ref(false)
 const showDiscount = ref(false)
@@ -262,8 +290,7 @@ async function analyse(withAssistant = false) {
     }
     if (r.customer_name || r.customer?.name) form.customer_name = r.customer_name ?? r.customer.name
     if (r.place) place.value = { ...r.place, ancestor_ids: [] }
-    if (r.address) form.shipping_address = r.address
-    if (r.landmark) form.shipping_landmark = r.landmark
+    if (r.address || r.landmark) form.shipping_address = joinAddress(r.address, r.landmark)
     if (r.note) {
       form.customer_note = r.note
       showNotes.value = true
@@ -271,10 +298,10 @@ async function analyse(withAssistant = false) {
     // Adresse habituelle du client connu, si le message n'en donne pas
     if (r.customer?.address && !r.place) {
       place.value = r.customer.address.place_id ? { id: r.customer.address.place_id, label: r.customer.address.place_label, ancestor_ids: [] } : null
-      form.shipping_address ||= r.customer.address.address_line ?? ''
-      form.shipping_landmark ||= r.customer.address.landmark ?? ''
+      form.shipping_address ||= joinAddress(r.customer.address.address_line, r.customer.address.landmark)
     }
     known.value = r.customer
+    lastAddress.value = r.customer?.address?.place_id ? r.customer.address : lastAddress.value
     for (const item of r.items) {
       if (!items.value.some((i) => i.variant_id && i.variant_id === item.variant_id)) {
         items.value.push({ ...item, needs_variant: item.needs_variant })
@@ -302,6 +329,33 @@ async function refreshPlace() {
   if (match) place.value = match
 }
 
+// Adresse habituelle du client connu : quartier et adresse remplis d'un geste
+const lastAddress = ref(null)
+const lastAddressText = computed(() => (lastAddress.value ? [lastAddress.value.place_label, joinAddress(lastAddress.value.address_line, lastAddress.value.landmark)].filter(Boolean).join(' · ') : ''))
+async function useLastAddress() {
+  const a = lastAddress.value
+  if (!a) return
+  place.value = { id: a.place_id, label: a.place_label, ancestor_ids: [] }
+  form.shipping_address = joinAddress(a.address_line, a.landmark) || form.shipping_address
+  await refreshPlace()
+}
+
+// Téléphone mis en forme pendant la frappe (07 99 00 08 71), numéro incomplet signalé
+function formatPhone(value) {
+  const raw = String(value ?? '')
+  if (raw.trim().startsWith('+')) return raw
+  const digits = raw.replace(/\D/g, '').slice(0, 10)
+  return digits.replace(/(\d{2})(?=\d)/g, '$1 ')
+}
+const phoneTouched = ref(false)
+const phoneIncomplete = computed(() => {
+  const raw = form.customer_phone.trim()
+  return !editing.value && phoneTouched.value && raw !== '' && !raw.startsWith('+') && raw.replace(/\D/g, '').length < 10
+})
+function onPhoneInput() {
+  form.customer_phone = formatPhone(form.customer_phone)
+}
+
 async function lookupCustomer() {
   const digits = form.customer_phone.replace(/\D/g, '')
   if (digits.length < 8 || editing.value) return
@@ -316,12 +370,8 @@ async function lookupCustomer() {
   const name = detail?.name || elsewhere.value.find((o) => o.name)?.name
   const address = detail?.addresses[0] ?? elsewhere.value.find((o) => o.address?.place_id)?.address
   form.customer_name ||= name ?? ''
-  if (!place.value && address?.place_id) {
-    place.value = { id: address.place_id, label: address.place_label, ancestor_ids: [] }
-    form.shipping_address ||= address.address_line ?? ''
-    form.shipping_landmark ||= address.landmark ?? ''
-    await refreshPlace()
-  }
+  lastAddress.value = address?.place_id ? address : null
+  if (!place.value && address?.place_id) await useLastAddress()
 }
 
 async function chooseVariantFor(item) {
@@ -347,6 +397,7 @@ async function save() {
       shipping_place_id: form.delivery_method === 'delivery' ? place.value?.id ?? null : null,
       deposit_required: form.deposit_required === '' ? null : Number(form.deposit_required),
       scheduled_date: form.scheduled_date || null,
+      shipping_landmark: null,
       discount_code: form.discount_code || null,
       reward_points: loyalty.value && rewardPoints.value > 0 ? Number(rewardPoints.value) : null,
       items: items.value.map((i) => ({ variant_id: i.variant_id ?? null, title: i.variant_id ? undefined : i.title, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
@@ -417,21 +468,21 @@ async function save() {
 
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div class="min-w-0 space-y-5">
-        <!-- 1. Client et livraison -->
+        <!-- 1. Client -->
         <section class="card space-y-5 p-4 sm:p-6">
-          <h2 class="flex items-center gap-2 font-semibold">
-            <span class="grid h-6 w-6 place-items-center rounded-full bg-slate-900 text-xs text-white">1</span>Client et livraison
+          <h2 class="flex items-center gap-2.5 text-lg font-bold">
+            <span class="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-sm text-white">1</span>Client
           </h2>
 
           <div v-if="!editing">
-            <p class="label">Canal de vente</p>
+            <p class="label-lg">Canal de vente</p>
             <div class="flex flex-wrap gap-2">
               <button
                 v-for="s in SOURCES"
                 :key="s.value"
                 type="button"
-                class="rounded-full border px-3 py-1.5 text-sm"
-                :class="form.source === s.value ? 'border-emerald-700 bg-emerald-50 font-medium text-emerald-800' : 'border-slate-300 text-slate-700 hover:border-slate-400'"
+                class="rounded-full border px-4 py-2 text-[15px]"
+                :class="form.source === s.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700 hover:border-slate-400'"
                 :aria-pressed="form.source === s.value"
                 @click="form.source = s.value"
               >
@@ -441,26 +492,31 @@ async function save() {
           </div>
 
           <div class="grid gap-4 sm:grid-cols-2">
-            <Field id="phone" label="Téléphone *" :error="errors.customer_phone">
-              <input id="phone" v-model="form.customer_phone" class="input" type="tel" inputmode="tel" autocomplete="off" :disabled="editing" @blur="lookupCustomer" />
+            <Field id="phone" label="Téléphone" large :error="errors.customer_phone || (phoneIncomplete ? 'Numéro incomplet : 10 chiffres attendus.' : '')">
+              <template #after-label><span class="text-red-600"> *</span></template>
+              <input id="phone" v-model="form.customer_phone" class="input-lg" type="tel" inputmode="tel" autocomplete="off" placeholder="07 00 00 00 00" :disabled="editing" @input="onPhoneInput" @blur="phoneTouched = true; lookupCustomer()" />
             </Field>
-            <Field id="name" label="Nom" :error="errors.customer_name">
-              <input id="name" v-model="form.customer_name" class="input" maxlength="120" autocomplete="off" />
+            <Field id="name" label="Nom du client" large :error="errors.customer_name">
+              <input id="name" v-model="form.customer_name" class="input-lg" maxlength="120" autocomplete="off" />
             </Field>
           </div>
-          <Field v-if="showPhone2" id="phone2" label="Autre numéro" :error="errors.shipping_phone2">
-            <input id="phone2" v-model="form.shipping_phone2" class="input sm:max-w-xs" type="tel" inputmode="tel" />
+          <Field v-if="showPhone2" id="phone2" label="Autre numéro" large :error="errors.shipping_phone2">
+            <div class="flex gap-2">
+              <input id="phone2" v-model="form.shipping_phone2" class="input-lg sm:max-w-xs" type="tel" inputmode="tel" placeholder="07 00 00 00 00" @input="form.shipping_phone2 = formatPhone(form.shipping_phone2)" />
+              <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-300 px-3 text-sm font-medium text-slate-600 hover:bg-slate-50" @click="removePhone2"><Icon name="close" :size="18" />Retirer</button>
+            </div>
           </Field>
-          <button v-else type="button" class="-mt-2 text-sm text-emerald-700 hover:underline" @click="showPhone2 = true">+ Ajouter un autre numéro</button>
+          <button v-else type="button" class="-mt-1 text-[15px] font-medium text-emerald-700 hover:underline" @click="showPhone2 = true">+ Ajouter un autre numéro</button>
 
-          <!-- Client connu : fiche résumée -->
+          <!-- Client connu : fiche résumée et son adresse habituelle -->
           <Alert v-if="known?.is_blacklisted" tone="error">Ce client est sur liste noire{{ known.blacklist_reason ? ` : ${known.blacklist_reason}` : '' }}.</Alert>
-          <div v-else-if="known" class="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-100 font-semibold text-emerald-800">{{ (known.name ?? '?').charAt(0).toUpperCase() }}</span>
-            <span class="min-w-0 flex-1">
-              <span class="block font-medium">Client connu</span>
-              <span class="block text-slate-600">{{ known.orders_count }} commande(s)<template v-if="known.delivery_rate !== null && known.delivery_rate !== undefined"> · {{ known.delivery_rate }} % livrées</template></span>
-            </span>
+          <div v-else-if="known" class="flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3">
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-600 font-bold text-white">{{ (known.name ?? '?').charAt(0).toUpperCase() }}</span>
+            <div class="min-w-[12rem] flex-1">
+              <p class="font-semibold">Client connu · {{ known.orders_count }} commande(s)<template v-if="known.delivery_rate !== null && known.delivery_rate !== undefined"> · {{ known.delivery_rate }} % livrées</template></p>
+              <p v-if="lastAddressText" class="text-sm text-slate-600">Dernière adresse : {{ lastAddressText }}</p>
+            </div>
+            <button v-if="lastAddress && form.delivery_method === 'delivery'" type="button" class="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-800 shadow-sm max-sm:w-full" @click="useLastAddress">Reprendre l'adresse</button>
           </div>
           <template v-for="o in elsewhere" :key="o.store_id">
             <Alert v-if="o.is_blacklisted" tone="error">Sur liste noire dans {{ o.store_name }}{{ o.blacklist_reason ? ` : ${o.blacklist_reason}` : '' }}.</Alert>
@@ -468,95 +524,97 @@ async function save() {
               Client de {{ o.store_name }} : {{ o.orders_count }} commande(s), {{ o.delivered_count }} livrée(s)<template v-if="o.refused_count">, {{ o.refused_count }} refusée(s)</template>.
             </p>
           </template>
+        </section>
 
-          <div class="border-t border-slate-100 pt-5">
-            <div class="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 text-sm sm:inline-grid sm:w-96">
-              <button type="button" class="rounded-md px-3 py-1.5 font-medium" :class="form.delivery_method === 'delivery' ? 'bg-white shadow-sm' : 'text-slate-600'" @click="form.delivery_method = 'delivery'">Livraison</button>
-              <button type="button" class="rounded-md px-3 py-1.5 font-medium" :class="form.delivery_method === 'pickup' ? 'bg-white shadow-sm' : 'text-slate-600'" @click="form.delivery_method = 'pickup'">Retrait au magasin</button>
-            </div>
+        <!-- 2. Livraison : qui livre d'abord, puis le quartier (limité aux zones de l'entreprise choisie) -->
+        <section class="card space-y-5 p-4 sm:p-6">
+          <h2 class="flex items-center gap-2.5 text-lg font-bold">
+            <span class="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-sm text-white">2</span>Livraison
+          </h2>
+          <div class="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-base font-semibold sm:w-96">
+            <button type="button" class="rounded-lg py-2.5" :class="form.delivery_method === 'delivery' ? 'bg-white shadow-sm' : 'text-slate-600'" @click="form.delivery_method = 'delivery'">Livraison</button>
+            <button type="button" class="rounded-lg py-2.5" :class="form.delivery_method === 'pickup' ? 'bg-white shadow-sm' : 'text-slate-600'" @click="form.delivery_method = 'pickup'">Retrait au magasin</button>
           </div>
 
           <template v-if="form.delivery_method === 'delivery'">
-            <Field id="place" label="Quartier / commune" :error="errors.shipping_place_id">
-              <PlacePicker id="place" v-model="place" />
-            </Field>
             <div>
-              <p class="label">Adresse précise</p>
-              <div class="grid gap-2 sm:grid-cols-2">
-                <input id="address" v-model="form.shipping_address" class="input" maxlength="255" placeholder="Rue, immeuble, porte…" aria-label="Adresse" />
-                <input id="landmark" v-model="form.shipping_landmark" class="input" maxlength="255" placeholder="Point de repère : face pharmacie…" aria-label="Point de repère" />
-              </div>
+              <p class="label-lg">Qui livre ?</p>
+              <button type="button" class="flex min-h-14 w-full items-center gap-3 rounded-xl border-2 bg-white px-4 py-2.5 text-left" :class="chosen ? 'border-emerald-600' : 'border-slate-300 border-dashed'" @click="pickerOpen = true">
+                <template v-if="chosenCarrier || chosenCourier">
+                  <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-bold" :class="chosenCarrier ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-emerald-800'">{{ initials(delivererName) }}</span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-base font-semibold">{{ delivererName }}</span>
+                    <span class="block text-sm text-slate-500">
+                      <template v-if="chosenCarrier">Entreprise de livraison{{ chosenCarrier.is_api ? ' · Delivery App' : chosenCarrier.zones_count ? ` · ${chosenCarrier.zones_count} zone(s)` : '' }}</template>
+                      <template v-else>Mon livreur · {{ chosenCourier.is_available ? 'disponible' : 'indisponible' }}{{ chosenCourier.active_missions ? ` · ${chosenCourier.active_missions} course(s) en cours` : '' }}</template>
+                    </span>
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500"><Icon name="truck" :size="18" /></span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-base font-semibold">{{ chosen ? 'Chargement…' : 'Décider plus tard' }}</span>
+                    <span class="block text-sm text-slate-500">Choisir un livreur ou une entreprise de livraison</span>
+                  </span>
+                </template>
+                <span class="text-sm font-semibold text-emerald-700">{{ chosen ? 'Changer' : 'Choisir' }}</span>
+              </button>
+              <p v-if="errors.planned_courier_id || errors.planned_carrier_connection_id" class="mt-1 text-sm text-red-600">{{ errors.planned_courier_id || errors.planned_carrier_connection_id }}</p>
+              <p v-else-if="chosenCourier && place && !chosenCourier.covers_zone" class="mt-1.5 text-sm text-amber-800">{{ chosenCourier.name }} ne couvre pas ce quartier d'habitude.</p>
+              <button v-if="chosenCarrier" type="button" class="mt-1.5 text-sm font-medium text-emerald-700 hover:underline" @click="openTariffs">Voir toutes ses zones et tarifs</button>
             </div>
 
-            <!-- Qui livre : mes livreurs, entreprises de livraison (zones et tarifs lus pour le quartier) -->
-            <Field id="carrier" label="Qui livre ?" :error="errors.planned_courier_id || errors.planned_carrier_connection_id">
-              <select id="carrier" v-model="chosen" class="input">
-                <option value="">Décider plus tard{{ options?.couriers.length || options?.carriers.length ? ' (à la confirmation, ou selon vos règles)' : '' }}</option>
-                <optgroup v-if="options?.couriers.length" label="Mes livreurs">
-                  <option v-for="c in options.couriers" :key="`courier:${c.id}`" :value="`courier:${c.id}`">
-                    {{ c.name }}{{ c.covers_zone ? ' · couvre ce quartier' : '' }}{{ c.is_available ? '' : ' · indisponible' }}{{ c.active_missions ? ` · ${c.active_missions} course(s) en cours` : '' }}
-                  </option>
-                </optgroup>
-                <optgroup v-if="options?.carriers.length" label="Entreprises de livraison">
-                  <option v-for="c in options.carriers" :key="`carrier:${c.id}`" :value="`carrier:${c.id}`" :disabled="!c.covered && chosen !== `carrier:${c.id}`">
-                    {{ c.name }}{{ !c.covered ? ' · ne livre pas ce quartier' : c.fee !== null ? ` · ${money(c.fee)}` : ' · tarif non renseigné' }}
-                  </option>
-                </optgroup>
-              </select>
+            <Field id="place" label="Quartier / commune" large :error="errors.shipping_place_id">
+              <DeliveryPlacePicker id="place" v-model="place" :carrier-id="placeCarrier?.id ?? null" :carrier-name="placeCarrier?.name ?? ''" @change-deliverer="pickerOpen = true" />
+              <p v-if="placeHint && !errors.shipping_place_id" class="mt-1.5 text-sm" :class="placeHint.tone">{{ placeHint.text }}</p>
             </Field>
-            <div v-if="chosenCarrier || chosenCourier" class="-mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-              <template v-if="chosenCarrier">
-                <span v-if="!chosenCarrier.covered" class="text-red-700">{{ chosenCarrier.error || 'Ce quartier n\'est pas desservi.' }}</span>
-                <span v-else-if="chosenCarrier.zone" class="text-slate-600">Zone {{ chosenCarrier.zone }}</span>
-                <span v-else-if="!place" class="text-slate-600">Choisissez le quartier pour voir son tarif.</span>
-                <button type="button" class="text-emerald-700 hover:underline" @click="openTariffs">Voir ses zones et tarifs</button>
-              </template>
-              <span v-else-if="chosenCourier && !chosenCourier.covers_zone && place" class="text-amber-800">{{ chosenCourier.name }} ne couvre pas ce quartier d'habitude.</span>
-              <span v-else-if="chosenCourier && !chosenCourier.is_available" class="text-amber-800">{{ chosenCourier.name }} est indiqué indisponible.</span>
-            </div>
 
-            <!-- Frais : calculés, modifiables d'un geste -->
-            <div class="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-              <Icon name="truck" :size="18" class="text-slate-500" />
-              <span class="font-medium">Frais de livraison</span>
-              <template v-if="manualFee">
-                <input v-model="shippingFee" class="input w-28 py-1 text-right" type="number" min="0" aria-label="Frais de livraison" />
-                <span>F</span>
-                <button type="button" class="text-emerald-700 hover:underline" @click="manualFee = false">Recalculer</button>
-              </template>
-              <template v-else>
-                <span class="tabular-nums">{{ fee ? money(fee) : 'Offerts' }}</span>
-                <span v-if="feeSource" class="text-slate-500">· {{ feeSource }}</span>
-                <span v-if="optionsLoading" class="text-slate-400">…</span>
-                <button type="button" class="ml-auto text-emerald-700 hover:underline" @click="editFee">Modifier</button>
-              </template>
-            </div>
+            <Field id="address" label="Adresse précise et point de repère" large>
+              <textarea id="address" v-model="form.shipping_address" class="input-lg" rows="3" maxlength="255" placeholder="Rue, immeuble, étage… et un repère : face pharmacie, à côté de l'école…" />
+            </Field>
 
             <div>
-              <p class="label">Date souhaitée</p>
+              <p class="label-lg">Quand ?</p>
               <div class="flex flex-wrap items-center gap-2">
                 <button
                   v-for="d in [{ label: 'Dès que possible', value: '' }, { label: 'Aujourd\'hui', value: isoDay(0) }, { label: 'Demain', value: isoDay(1) }]"
                   :key="d.label"
                   type="button"
-                  class="rounded-full border px-3 py-1.5 text-sm"
-                  :class="!pickDate && form.scheduled_date === d.value ? 'border-emerald-700 bg-emerald-50 font-medium text-emerald-800' : 'border-slate-300 text-slate-700'"
+                  class="rounded-full border px-4 py-2 text-[15px]"
+                  :class="!pickDate && form.scheduled_date === d.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700'"
                   @click="pickDate = false; form.scheduled_date = d.value"
                 >
                   {{ d.label }}
                 </button>
-                <button type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="pickDate ? 'border-emerald-700 bg-emerald-50 font-medium text-emerald-800' : 'border-slate-300 text-slate-700'" @click="pickDate = true">Autre date</button>
-                <input v-if="pickDate || (form.scheduled_date && ![isoDay(0), isoDay(1)].includes(form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto py-1.5" type="date" aria-label="Date souhaitée" />
+                <button type="button" class="rounded-full border px-4 py-2 text-[15px]" :class="pickDate ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700'" @click="pickDate = true">Autre date</button>
+                <input v-if="pickDate || (form.scheduled_date && ![isoDay(0), isoDay(1)].includes(form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto" type="date" aria-label="Date souhaitée" />
               </div>
             </div>
+
+            <!-- Frais : calculés, modifiables d'un geste -->
+            <div class="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-base">
+              <Icon name="truck" :size="20" class="text-slate-500" />
+              <span class="font-semibold">Frais de livraison</span>
+              <template v-if="manualFee">
+                <input v-model="shippingFee" class="input w-28 py-1 text-right" type="number" min="0" aria-label="Frais de livraison" />
+                <span>F</span>
+                <button type="button" class="font-medium text-emerald-700 hover:underline" @click="manualFee = false">Recalculer</button>
+              </template>
+              <template v-else>
+                <span class="font-semibold tabular-nums">{{ fee ? money(fee) : 'Offerts' }}</span>
+                <span v-if="feeSource" class="text-slate-500">· {{ feeSource }}</span>
+                <span v-if="optionsLoading" class="text-slate-400">…</span>
+                <button type="button" class="ml-auto font-medium text-emerald-700 hover:underline" @click="editFee">Modifier</button>
+              </template>
+            </div>
           </template>
-          <p v-else class="text-sm text-slate-600">Le client vient chercher sa commande : pas de frais de livraison.</p>
+          <p v-else class="text-base text-slate-600">Le client vient chercher sa commande : pas de frais de livraison.</p>
         </section>
 
         <!-- 2. Articles -->
         <section class="card space-y-4 p-4 sm:p-6">
-          <h2 class="flex items-center gap-2 font-semibold">
-            <span class="grid h-6 w-6 place-items-center rounded-full bg-slate-900 text-xs text-white">2</span>Articles
+          <h2 class="flex items-center gap-2.5 text-lg font-bold">
+            <span class="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-sm text-white">3</span>Articles
             <span v-if="items.length" class="text-sm font-normal text-slate-500">· {{ items.length }}</span>
           </h2>
           <p v-if="errors.items" class="text-sm text-red-600">{{ errors.items }}</p>
@@ -620,12 +678,12 @@ async function save() {
 
       <!-- 3. Paiement et validation -->
       <aside class="space-y-4 lg:sticky lg:top-20 lg:self-start">
-        <section class="card space-y-3 p-4 text-sm sm:p-5">
-          <h2 class="flex items-center gap-2 text-base font-semibold">
-            <span class="grid h-6 w-6 place-items-center rounded-full bg-slate-900 text-xs text-white">3</span>Paiement
+        <section class="card space-y-3 p-4 text-[15px] sm:p-5">
+          <h2 class="flex items-center gap-2.5 text-lg font-bold">
+            <span class="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-sm text-white">4</span>Paiement
           </h2>
           <div class="flex justify-between"><span class="text-slate-600">Articles</span><span class="tabular-nums">{{ money(subtotal) }}</span></div>
-          <div class="flex justify-between"><span class="text-slate-600">Livraison</span><span class="tabular-nums">{{ form.delivery_method === 'pickup' ? '—' : fee ? money(fee) : 'Offerte' }}</span></div>
+          <div class="flex justify-between gap-2"><span class="text-slate-600">Livraison<template v-if="delivererName && form.delivery_method === 'delivery'"> · {{ delivererName }}</template></span><span class="tabular-nums">{{ form.delivery_method === 'pickup' ? '—' : fee ? money(fee) : 'Offerte' }}</span></div>
           <div v-if="discount || pointsDiscount" class="flex justify-between text-emerald-700"><span>Remise</span><span class="tabular-nums">− {{ money(discount + pointsDiscount) }}</span></div>
 
           <!-- Une seule entrée pour toutes les remises -->
@@ -690,6 +748,8 @@ async function save() {
       </div>
       <p v-if="blocker" class="text-center text-xs text-amber-800">{{ blocker }}</p>
     </div>
+
+    <DelivererPicker v-if="pickerOpen" v-model="chosen" :options="options" :place-label="place?.label ?? ''" @close="pickerOpen = false" />
 
     <!-- Zones et tarifs de l'entreprise choisie -->
     <Modal v-if="tariffs" :title="`Zones et tarifs de ${tariffs.name}`" @close="tariffs = null">
