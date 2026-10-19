@@ -69,7 +69,7 @@ class ManualDriver implements CarrierDriver
         throw new CarrierException('Cette entreprise de livraison n\'a pas d\'API.');
     }
 
-    public function paidPayouts(CarrierConnection $connection): array
+    public function paidPayouts(CarrierConnection $connection, ?\DateTimeInterface $since = null): array
     {
         return [];
     }

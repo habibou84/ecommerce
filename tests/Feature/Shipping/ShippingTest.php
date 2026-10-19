@@ -18,6 +18,7 @@ use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
 use App\Services\Reports\DailyReport;
+use App\Services\Shipping\CarrierConnections;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Notifications\DatabaseNotification;
@@ -422,7 +423,7 @@ class ShippingTest extends TestCase
 
         $this->stub([
             self::API.'/payouts/RV-9' => Http::response(['data' => [
-                'reference' => 'RV-9', 'net_amount' => 30300, 'total_collected' => 31500, 'total_fees' => 1200,
+                'reference' => 'RV-9', 'net_amount' => 30300, 'total_collected' => 31500, 'total_fees' => 1200, 'paid_at' => now()->toIso8601String(),
                 'entries' => [['type' => 'cod_credit', 'amount' => 31500, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']], ['type' => 'delivery_fee', 'amount' => -1200, 'order' => ['tracking_code' => 'LV-7K2M-QX9P']]],
             ]]),
             self::API.'/payouts?*' => Http::response(['data' => [['reference' => 'RV-9', 'status' => 'paid']]]),
@@ -433,8 +434,100 @@ class ShippingTest extends TestCase
         $this->artisan('shipping:sync')->assertSuccessful();
 
         $this->assertSame(['RV-9', 'matched'], [CarrierPayout::sole()->remote_id, CarrierPayout::sole()->reconciliation_status]);
-        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API.'/payouts?status=paid&per_page=20');
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API.'/payouts?status=paid&per_page=100&page=1');
+        // Une fois un reversement reçu : seulement ceux payés depuis (marge de deux jours)
+        Http::assertSent(fn (HttpRequest $r) => str_starts_with($r->url(), self::API.'/payouts?status=paid&paid_since='));
         $this->storeApi($this->store, 'GET', 'carrier-balances')->assertJsonPath('total', 0);
+    }
+
+    public function test_dates_decisions_and_returns_follow_the_carrier_without_status_change(): void
+    {
+        $connection = $this->connect();
+        $shipment = $this->ship($this->confirmedOrder(), $connection);
+        // La boutique prévient elle-même son équipe : l'entreprise de livraison n'envoie pas ses alertes en double
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API.'/orders' && $r->method() === 'POST' && $r['notify_merchant'] === false);
+
+        $in2 = now()->addDays(2)->toDateString();
+        $in3 = now()->addDays(3)->toDateString();
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('rescheduled', ['delivery' => ['scheduled_date' => $in2], 'last_incident' => 'Client absent'])], 'evt-1')->assertOk();
+        $shipment->refresh();
+        $this->assertSame(['rescheduled', $in2, $in2], [$shipment->status->value, $shipment->rescheduled_to->toDateString(), $shipment->scheduled_date->toDateString()]);
+        $this->assertStringContainsString('nouvelle date le '.now()->addDays(2)->format('d/m/Y'), DatabaseNotification::all()->firstWhere('data.kind', 'shipment_rescheduled')->data['body']);
+
+        // Reportée de nouveau, sans changement de statut : date suivie, équipe prévenue, ligne dans l'historique
+        $this->webhook($connection, 'order.updated', ['order' => $this->remoteOrder('rescheduled', ['delivery' => ['scheduled_date' => $in3]]), 'change' => ['fields' => ['delivery_scheduled_date']]], 'evt-2')->assertOk();
+        $shipment->refresh();
+        $this->assertSame([$in3, $in3], [$shipment->scheduled_date->toDateString(), $shipment->rescheduled_to->toDateString()]);
+        $this->assertSame(1, DatabaseNotification::all()->filter(fn ($n) => str_starts_with($n->data['title'], 'Date de livraison changée'))->count());
+        $this->assertStringContainsString('Livraison prévue le', $shipment->events()->reorder('id', 'desc')->first()->note);
+
+        // Décision attendue, puis retour demandé : affichés sur la fiche
+        $this->webhook($connection, 'order.updated', ['order' => $this->remoteOrder('rescheduled', ['delivery' => ['scheduled_date' => $in3], 'needs_decision' => true])], 'evt-3')->assertOk();
+        $this->assertTrue($shipment->fresh()->needs_decision);
+        $this->webhook($connection, 'order.updated', ['order' => $this->remoteOrder('rescheduled', ['delivery' => ['scheduled_date' => $in3], 'needs_decision' => false, 'return_requested' => true])], 'evt-4')->assertOk();
+        $this->storeApi($this->store, 'GET', "orders/{$shipment->order_id}")->assertOk()
+            ->assertJsonPath('data.shipments.0.needs_decision', false)
+            ->assertJsonPath('data.shipments.0.return_requested', true)
+            ->assertJsonPath('data.shipments.0.scheduled_date', $in3);
+        $this->assertSame(1, DatabaseNotification::all()->filter(fn ($n) => str_starts_with($n->data['title'], 'Date de livraison changée'))->count());
+    }
+
+    public function test_a_webhook_created_before_order_updated_is_recreated_once(): void
+    {
+        $connection = $this->connect();
+        $this->assertSame(CarrierConnections::WEBHOOK_EVENTS, $connection->setting('webhook_events'));
+        $connection->forceFill(['settings' => ['fee_payer' => 'store']])->save(); // connexion d'avant order.updated
+
+        $this->stub([self::API.'/orders?*' => Http::response(['data' => [], 'meta' => ['last_page' => 1]])]);
+        $this->artisan('shipping:sync')->assertSuccessful();
+        $this->artisan('shipping:sync')->assertSuccessful();
+
+        $created = Http::recorded(fn (HttpRequest $r) => $r->url() === self::API.'/webhooks' && $r->method() === 'POST');
+        $this->assertCount(2, $created); // connexion, puis une seule recréation
+        $this->assertContains('order.updated', $created->last()[0]['events']);
+        $this->assertSame(['store', CarrierConnections::WEBHOOK_EVENTS], [$connection->fresh()->setting('fee_payer'), $connection->fresh()->setting('webhook_events')]);
+    }
+
+    public function test_quotes_say_when_the_carrier_can_deliver(): void
+    {
+        $this->connect();
+        $order = $this->confirmedOrder();
+        $tomorrow = now()->addDay()->toDateString();
+        $this->stub([self::API.'/delivery-day' => Http::response(['data' => ['closed' => true, 'message' => 'Heure limite passée : livraison demain.', 'earliest_delivery_date' => $tomorrow]])]);
+
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}/shipping-quotes")->assertOk()
+            ->assertJsonPath('data.0.earliest_date', $tomorrow)
+            ->assertJsonPath('data.0.day_message', 'Heure limite passée : livraison demain.');
+    }
+
+    public function test_an_expired_proof_photo_link_is_asked_again(): void
+    {
+        $connection = $this->connect();
+        $shipment = $this->ship($this->confirmedOrder(), $connection);
+        $old = 'https://rapide.jibiat.com/photo?expires='.now()->subHour()->timestamp.'&signature=x';
+        $fresh = 'https://rapide.jibiat.com/photo?expires='.now()->addDay()->timestamp.'&signature=y';
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('delivered', ['amounts' => ['collected_amount' => 31500], 'proof' => ['photos' => [['type' => 'photo_delivery', 'url' => $old]]]])], 'evt-1')->assertOk();
+
+        $this->storeApi($this->store, 'GET', "orders/{$shipment->order_id}")->assertJsonPath('data.shipments.0.proof_photo_url', '/api/v1/shipments/'.$shipment->id.'/proof');
+        $this->stub([self::API.'/orders/LV-7K2M-QX9P' => Http::response(['data' => $this->remoteOrder('delivered', ['amounts' => ['collected_amount' => 31500], 'proof' => ['photos' => [['type' => 'photo_delivery', 'url' => $fresh]]]])])]);
+
+        $this->storeApi($this->store, 'GET', "shipments/{$shipment->id}/proof")->assertRedirect($fresh);
+        $this->assertSame($fresh, $shipment->fresh()->proof_photo_url);
+    }
+
+    public function test_carrier_zones_are_read_again_every_night(): void
+    {
+        $connection = $this->connect();
+        $this->stub([self::API.'/zones' => Http::response(['data' => [
+            ['id' => 1, 'parent_id' => null, 'name' => 'Cocody', 'is_shipping' => false, 'is_active' => true],
+            ['id' => 2, 'parent_id' => 1, 'name' => 'Angré', 'is_shipping' => false, 'is_active' => true],
+            ['id' => 4, 'parent_id' => null, 'name' => 'Plateau', 'is_shipping' => false, 'is_active' => true],
+        ]])]);
+
+        $this->artisan('shipping:zones')->assertSuccessful();
+
+        $zones = CarrierZone::where('connection_id', $connection->id)->pluck('is_active', 'name');
+        $this->assertSame([true, false], [$zones['Plateau'], $zones['Yopougon']]);
     }
 
     public function test_payout_from_a_manual_carrier_is_entered_by_the_store(): void

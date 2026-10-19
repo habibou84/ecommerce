@@ -26,7 +26,7 @@ use Jibiat\Socle\PhoneNumber;
  */
 class CarrierConnections
 {
-    public const WEBHOOK_EVENTS = ['order.status_changed', 'order.incident', 'payout.paid'];
+    public const WEBHOOK_EVENTS = ['order.status_changed', 'order.incident', 'order.updated', 'payout.paid'];
 
     public function __construct(
         private readonly DeliveryAppImporter $addresses,
@@ -128,7 +128,28 @@ class CarrierConnections
         $driver = $this->driver($connection);
         $driver->removeWebhook($connection);
         $webhook = $driver->registerWebhook($connection, $this->webhookUrl($connection), self::WEBHOOK_EVENTS);
-        $connection->forceFill(['remote_webhook_id' => $webhook['id'], 'webhook_secret' => $webhook['secret']])->save();
+        $connection->forceFill([
+            'remote_webhook_id' => $webhook['id'],
+            'webhook_secret' => $webhook['secret'],
+            'settings' => [...($connection->settings ?? []), 'webhook_events' => self::WEBHOOK_EVENTS],
+        ])->save();
+    }
+
+    /**
+     * Adresse créée avant l'ajout d'un événement (order.updated…) : recréée avec la liste à jour, une seule fois.
+     * Un échec n'empêche pas la synchronisation : nouvel essai la fois suivante.
+     */
+    public function refreshWebhook(CarrierConnection $connection): void
+    {
+        if ($connection->remote_webhook_id === null || $connection->setting('webhook_events') === self::WEBHOOK_EVENTS) {
+            return;
+        }
+
+        try {
+            $this->registerWebhook($connection);
+        } catch (CarrierException) {
+            // Transporteur injoignable : l'ancienne adresse reste en place
+        }
     }
 
     /**

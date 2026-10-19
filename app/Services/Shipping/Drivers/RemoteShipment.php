@@ -25,6 +25,9 @@ final class RemoteShipment
         public readonly ?string $paymentMethod = null,
         public readonly ?string $proofPhotoPath = null,
         public readonly ?string $rescheduledTo = null,
+        public readonly ?string $scheduledDate = null,
+        public readonly ?bool $needsDecision = null,
+        public readonly ?bool $returnRequested = null,
     ) {}
 
     /**
@@ -36,11 +39,13 @@ final class RemoteShipment
     {
         $photos = collect($order['proof']['photos'] ?? []);
         $photo = $photos->firstWhere('type', 'photo_delivery') ?? $photos->first();
+        $status = (string) ($order['status'] ?? '');
+        $scheduled = $order['delivery']['scheduled_date'] ?? null;
 
         return new self(
             trackingCode: (string) $order['tracking_code'],
-            status: ShipmentStatus::fromDeliveryApp((string) ($order['status'] ?? '')),
-            rawStatus: (string) ($order['status'] ?? ''),
+            status: ShipmentStatus::fromDeliveryApp($status),
+            rawStatus: $status,
             trackingUrl: $order['tracking_url'] ?? null,
             fee: isset($order['amounts']['delivery_fee']) ? (int) $order['amounts']['delivery_fee'] : null,
             collected: isset($order['amounts']['collected_amount']) ? (int) $order['amounts']['collected_amount'] : null,
@@ -51,6 +56,11 @@ final class RemoteShipment
             merchantReference: $order['merchant_reference'] ?? null,
             // Heure du changement chez le transporteur (un webhook relancé garde la sienne)
             occurredAt: $order['updated_at'] ?? $occurredAt,
+            // Course reportée : la nouvelle date est la date de livraison prévue
+            rescheduledTo: $status === 'rescheduled' ? $scheduled : null,
+            scheduledDate: $scheduled,
+            needsDecision: array_key_exists('needs_decision', $order) ? (bool) $order['needs_decision'] : null,
+            returnRequested: array_key_exists('return_requested', $order) ? (bool) $order['return_requested'] : null,
         );
     }
 }
