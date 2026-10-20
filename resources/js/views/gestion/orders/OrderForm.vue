@@ -58,6 +58,7 @@ onMounted(async () => {
   if (editing.value) {
     const { data } = await http.get(`/orders/${props.id}`)
     const o = data.data
+    original.value = deliverySignature(o)
     Object.assign(form, {
       customer_phone: o.customer_phone_display, customer_name: o.customer_name ?? '', delivery_method: o.delivery_method,
       shipping_phone2: o.shipping_phone2 ?? '', shipping_address: joinAddress(o.shipping_address, o.shipping_landmark), shipping_landmark: '',
@@ -250,7 +251,9 @@ function offsetFromTop(anchor) {
   const vv = window.visualViewport
   const shift = vv?.offsetTop ?? 0
   const header = document.querySelector('header')?.offsetHeight ?? 64
-  const wanted = Math.max(0, header - shift) + 12 // en-tête encore visible ou non
+  // En-tête encore visible ou non, et le message « ce qui manque » quand il est affiché
+  const notice = document.querySelector('[data-missing-notice]')?.offsetHeight ?? 0
+  const wanted = Math.max(0, header - shift) + 12 + (notice ? notice + 8 : 0)
   return anchor.getBoundingClientRect().top - shift - wanted
 }
 function bringToTop(event) {
@@ -294,14 +297,34 @@ const pointsDiscount = computed(() => (loyalty.value && rewardPoints.value > 0 ?
 const total = computed(() => Math.max(0, subtotal.value - discount.value - pointsDiscount.value) + fee.value)
 
 // Ce qui manque encore : le bouton le dit au lieu d'être grisé sans explication
-const blocker = computed(() => {
-  if (!editing.value && form.customer_phone.replace(/\D/g, '').length < 8) return 'Indiquez le téléphone du client'
-  if (!items.value.length) return 'Ajoutez au moins un article'
-  if (items.value.some((i) => i.needs_variant)) return 'Choisissez la variante des articles signalés'
-  if (items.value.some((i) => !i.variant_id && !String(i.title ?? '').trim())) return 'Donnez un nom à l\'article hors catalogue'
-  if (chosenCarrier.value && !chosenCarrier.value.covered) return `${chosenCarrier.value.name} ne livre pas ce quartier`
-  return ''
+const missing = computed(() => {
+  if (!editing.value && form.customer_phone.replace(/\D/g, '').length < 8) return { text: 'Indiquez le téléphone du client', field: 'customer_phone', target: '#phone' }
+  if (!items.value.length) return { text: 'Ajoutez au moins un article', field: 'items', target: '#product-search' }
+  if (items.value.some((i) => i.needs_variant)) return { text: 'Choisissez la variante des articles signalés', field: 'items', target: '[data-needs-variant]' }
+  if (items.value.some((i) => !i.variant_id && !String(i.title ?? '').trim())) return { text: 'Donnez un nom à l\'article hors catalogue', field: 'items', target: '[data-untitled]' }
+  if (chosenCarrier.value && !chosenCarrier.value.covered) return { text: `${chosenCarrier.value.name} ne livre pas ce quartier`, field: 'shipping_place_id', target: '#place' }
+  return null
 })
+const blocker = computed(() => missing.value?.text ?? '')
+// Message affiché seulement après un appui sur « Créer la commande » ; il disparaît dès que c'est réglé
+const missingNotice = ref('')
+// Le message s'efface dès que ce qu'il demandait est réglé (le suivant s'affichera au prochain appui)
+watch(missing, (now) => {
+  if (missingNotice.value && now?.text !== missingNotice.value) {
+    missingNotice.value = ''
+    errors.value = {}
+  }
+})
+function showMissing() {
+  const m = missing.value
+  missingNotice.value = m.text
+  errors.value = { [m.field]: `${m.text}.` }
+  const el = document.querySelector(m.target)
+  if (!el) return
+  if (el.matches('input, textarea')) el.focus({ preventScroll: true })
+  const header = document.querySelector('header')?.offsetHeight ?? 64
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - header - 110, behavior: 'smooth' })
+}
 
 // Assistant IA : conversation mal écrite ou en plusieurs messages, captures d'écran
 const ai = computed(() => auth.profile?.ai ?? { enabled: false, used: 0, limit: 0 })
@@ -425,11 +448,26 @@ function setVariant(item, variant) {
   Object.assign(item, { variant_id: variant.id, variant_title: variant.title, unit_price: variant.price, needs_variant: false, choices: null, available: variant.available })
 }
 
+// Commande modifiée alors qu'une entreprise de livraison a déjà la course : proposer de la mettre à jour chez elle
+const original = ref(null)
+const deliverySignature = (o) => JSON.stringify([o.shipping_address, o.shipping_landmark, o.shipping_phone, o.shipping_phone2, o.shipping_place_id, o.scheduled_date, o.amount_due])
+async function offerCarrierSync(saved) {
+  const shipment = (saved.shipments ?? []).find((s) => s.carrier_actions?.edit)
+  if (!shipment || deliverySignature(saved) === original.value) return
+  if (!window.confirm(`Mettre aussi à jour la course chez ${shipment.carrier?.name} (adresse, téléphones, date${shipment.carrier_actions.edit === 'all' ? ', montant' : ''}) ?`)) return
+  try {
+    await http.patch(`/shipments/${shipment.id}/carrier`, { from_order: true })
+  } catch (e) {
+    window.alert(`La commande est enregistrée, mais ${shipment.carrier?.name} n'a pas accepté la modification : ${errorMessage(e)}`)
+  }
+}
+
 async function save() {
-  if (blocker.value) {
-    error.value = `${blocker.value}.`
+  if (missing.value) {
+    showMissing()
     return
   }
+  missingNotice.value = ''
   saving.value = true
   error.value = ''
   errors.value = {}
@@ -457,7 +495,8 @@ async function save() {
       delete payload.source
       delete payload.customer_phone
       delete payload.confirmed
-      await http.put(`/orders/${props.id}`, payload)
+      const { data } = await http.put(`/orders/${props.id}`, payload)
+      await offerCarrierSync(data.data)
       router.push(`/gestion/commandes/${props.id}`)
     } else {
       const { data } = await http.post('/orders', { ...payload, conversation_id: conversation.value?.id ?? null })
@@ -507,6 +546,10 @@ async function save() {
       </div>
     </section>
     <Alert v-if="parseInfo" tone="info">{{ parseInfo }}</Alert>
+    <!-- Ce qui manque, après un appui sur « Créer la commande » -->
+    <div v-if="missingNotice" data-missing-notice class="sticky top-[4.5rem] z-20 flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-3 text-[15px] font-medium text-amber-900 shadow" role="alert">
+      <Icon name="alert" :size="20" class="shrink-0" />{{ missingNotice }} pour {{ editing ? 'enregistrer' : 'créer la commande' }}.
+    </div>
 
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div class="min-w-0 space-y-5">
@@ -672,7 +715,7 @@ async function save() {
                 <span v-else class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400"><Icon name="image" :size="18" /></span>
                 <div class="min-w-0 flex-1">
                   <p v-if="item.variant_id || item.needs_variant" class="font-medium leading-snug">{{ item.title }}<span v-if="item.variant_title" class="font-normal text-slate-500"> — {{ item.variant_title }}</span></p>
-                  <input v-else v-model="item.title" class="input py-1.5" placeholder="Nom de l'article" aria-label="Nom de l'article" />
+                  <input v-else v-model="item.title" class="input py-1.5" placeholder="Nom de l'article" aria-label="Nom de l'article" :data-untitled="!String(item.title ?? '').trim() || undefined" />
                   <span v-if="stockTone(item)" class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium" :class="stockTone(item)">
                     {{ item.available < item.quantity ? `Seulement ${item.available} en stock` : `${item.available} en stock` }}
                   </span>
@@ -695,7 +738,7 @@ async function save() {
                 {{ item.flash ? 'Prix de vente flash' : 'Prix par quantité' }}<template v-if="item.compare_at"> (au lieu de {{ money(item.compare_at) }})</template><template v-if="item.volume"> · {{ money(item.line_total) }} pour {{ item.quantity }}</template>
               </p>
               <p v-if="errors[`items.${index}.quantity`] || errors[`items.${index}.title`]" class="mt-2 text-sm text-red-600">{{ errors[`items.${index}.quantity`] || errors[`items.${index}.title`] }}</p>
-              <div v-if="item.needs_variant" class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+              <div v-if="item.needs_variant" data-needs-variant class="mt-3 flex flex-wrap items-center gap-2 text-sm">
                 <span class="text-amber-800">Quelle variante ?</span>
                 <button v-if="!item.choices" type="button" class="btn-secondary px-2 py-1" @click="chooseVariantFor(item)">Choisir</button>
                 <button v-for="v in item.choices ?? []" :key="v.id" type="button" class="rounded-full border border-slate-300 bg-white px-3 py-1 hover:border-emerald-600" @click="setVariant(item, v)">
@@ -766,36 +809,28 @@ async function save() {
             <label for="deposit" class="text-slate-600">Acompte exigé (F)</label>
             <input id="deposit" v-model="form.deposit_required" type="number" min="0" class="input w-32 py-1 text-right" placeholder="—" />
           </div>
+          <label v-if="!editing" class="flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 p-3">
+            <input v-model="form.confirmed" type="checkbox" class="peer sr-only" />
+            <span class="mt-0.5 h-6 w-11 shrink-0 rounded-full bg-slate-300 p-0.5 transition peer-checked:bg-emerald-600"><span class="block h-5 w-5 rounded-full bg-white shadow transition" :class="{ 'translate-x-5': form.confirmed }" /></span>
+            <span>Déjà confirmée avec le client <span class="block text-sm text-slate-500">Sinon elle va dans la file « À confirmer ».</span></span>
+          </label>
         </section>
 
         <!-- Ordinateur : validation sous le récapitulatif -->
         <div class="hidden space-y-3 lg:block">
-          <label v-if="!editing" class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm">
-            <input v-model="form.confirmed" type="checkbox" class="peer sr-only" />
-            <span class="mt-0.5 h-5 w-9 shrink-0 rounded-full bg-slate-300 p-0.5 transition peer-checked:bg-emerald-600"><span class="block h-4 w-4 rounded-full bg-white shadow transition" :class="{ 'translate-x-4': form.confirmed }" /></span>
-            <span>Déjà confirmée avec le client <span class="block text-xs text-slate-500">Sinon elle va dans la file « À confirmer ».</span></span>
-          </label>
           <button class="btn-brand w-full py-3 text-base" :disabled="saving">{{ saving ? 'Enregistrement…' : editing ? 'Enregistrer les modifications' : 'Créer la commande' }}</button>
-          <p v-if="blocker" class="text-center text-sm text-amber-800">{{ blocker }}</p>
         </div>
       </aside>
     </div>
 
     <!-- Téléphone : total et validation toujours visibles, au-dessus de la barre de navigation -->
-    <div class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 space-y-2 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-      <label v-if="!editing" class="flex items-center gap-2 text-sm">
-        <input v-model="form.confirmed" type="checkbox" class="peer sr-only" />
-        <span class="h-5 w-9 shrink-0 rounded-full bg-slate-300 p-0.5 transition peer-checked:bg-emerald-600"><span class="block h-4 w-4 rounded-full bg-white shadow transition" :class="{ 'translate-x-4': form.confirmed }" /></span>
-        Déjà confirmée avec le client
-      </label>
-      <div class="flex items-center gap-3">
-        <div class="min-w-0">
-          <p class="text-xs text-slate-500">Total</p>
-          <p class="text-lg font-bold leading-tight tabular-nums">{{ money(total) }}</p>
-        </div>
-        <button class="btn-brand ml-auto flex-1 py-3" :disabled="saving">{{ saving ? 'Enregistrement…' : editing ? 'Enregistrer' : 'Créer la commande' }}</button>
+    <!-- Une seule ligne, effacée pendant la saisie (clavier ouvert) -->
+    <div class="hide-on-keyboard fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur lg:hidden">
+      <div class="min-w-0">
+        <p class="text-xs text-slate-500">Total</p>
+        <p class="text-lg font-extrabold leading-tight tabular-nums">{{ money(total) }}</p>
       </div>
-      <p v-if="blocker" class="text-center text-xs text-amber-800">{{ blocker }}</p>
+      <button class="btn-brand ml-auto flex-1 py-3 text-base" :disabled="saving">{{ saving ? 'Enregistrement…' : editing ? 'Enregistrer' : 'Créer la commande' }}</button>
     </div>
 
     <DelivererPicker v-if="pickerOpen" v-model="chosen" :options="options" :place-label="place?.label ?? ''" @close="pickerOpen = false" />

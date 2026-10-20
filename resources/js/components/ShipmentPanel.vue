@@ -31,7 +31,7 @@ const quotes = ref(null)
 const locations = ref([])
 const couriers = ref([])
 const suggestion = ref(null)
-const form = reactive({ target: null, carrier_connection_id: null, courier_id: null, origin_location_id: null, fee_payer: '', note: '', status: 'delivered', collected_amount: '', reason: '' })
+const form = reactive({ target: null, carrier_connection_id: null, courier_id: null, origin_location_id: null, fee_payer: '', note: '', status: 'delivered', collected_amount: '', reason: '', date: '' })
 const current = ref(null)
 const error = ref('')
 const busy = ref(false)
@@ -104,10 +104,36 @@ const setStatus = () => run(() => http.post(`/shipments/${current.value.id}/stat
   collected_amount: form.status === 'delivered' && form.collected_amount !== '' ? Number(form.collected_amount) : null,
 }))
 
+// Actions sur la course chez l'entreprise de livraison (Delivery App)
+const todayIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+const edit = reactive({})
+function openEdit(s) {
+  const o = props.order
+  Object.assign(edit, {
+    delivery_address: o.shipping_address || '',
+    delivery_landmark: o.shipping_landmark || '',
+    recipient_phone: o.shipping_phone || o.customer_phone || '',
+    recipient_phone2: o.shipping_phone2 || '',
+    delivery_scheduled_date: s.scheduled_date || '',
+    items_amount: s.cod_amount,
+  })
+  openModal('edit', s)
+}
+function saveEdit() {
+  const fields = { ...edit }
+  if (current.value.carrier_actions.edit !== 'all' || current.value.fee_payer !== 'store') delete fields.items_amount
+  if (!fields.delivery_scheduled_date) delete fields.delivery_scheduled_date
+  return run(() => http.patch(`/shipments/${current.value.id}/carrier`, fields))
+}
+const decide = (decision) => run(() => http.post(`/shipments/${current.value.id}/decision`, { decision, date: decision === 'redeliver' ? form.date : null, note: form.note || null }))
+const askReturn = () => run(() => http.post(`/shipments/${current.value.id}/return-request`, { note: form.note || null }))
+const sendNote = () => run(() => http.post(`/shipments/${current.value.id}/notes`, { note: form.note }))
+
 function openModal(name, s) {
   current.value = s
   form.note = ''
   form.reason = ''
+  form.date = ''
   form.collected_amount = s.cod_amount
   error.value = ''
   modal.value = name
@@ -150,7 +176,13 @@ async function whatsapp(s) {
         <template v-if="s.collected_amount !== null"> · encaissé {{ money(s.collected_amount) }}</template>
       </p>
       <p v-if="s.scheduled_date && !s.is_final" class="text-slate-600">Livraison prévue <strong>{{ dayLabel(s.scheduled_date) }}</strong></p>
-      <p v-if="s.needs_decision && !s.is_final" class="rounded bg-rose-50 p-2 font-medium text-rose-900">L'entreprise de livraison attend votre décision (nouvelle date ou retour) : appelez-la ou répondez dans son application.</p>
+      <div v-if="s.needs_decision && !s.is_final" class="rounded bg-rose-50 p-2 text-rose-900">
+        <p class="font-medium">{{ s.carrier?.name || 'L\'entreprise de livraison' }} attend votre décision : nouvelle date ou retour du colis.</p>
+        <div v-if="s.carrier_actions?.decide" class="mt-2 flex flex-wrap gap-2">
+          <button class="btn-brand px-3 py-1.5" @click="openModal('redeliver', s)">Relivrer le…</button>
+          <button class="btn-secondary px-3 py-1.5" @click="openModal('return', s)">Faire revenir le colis</button>
+        </div>
+      </div>
       <p v-else-if="s.return_requested && !s.is_final" class="rounded bg-violet-50 p-2 text-violet-900">Retour du colis demandé.</p>
       <p v-if="s.failure_reason" class="rounded bg-amber-50 p-2 text-amber-900">{{ s.failure_reason }}<template v-if="s.attempts_count"> ({{ s.attempts_count }} tentative{{ s.attempts_count > 1 ? 's' : '' }})</template></p>
       <a v-if="s.proof_photo_url" :href="s.proof_photo_url" target="_blank" rel="noopener" class="text-emerald-700 underline">Photo de livraison</a>
@@ -175,7 +207,13 @@ async function whatsapp(s) {
           <button class="btn-secondary px-2 py-1" @click="whatsapp(s)"><Icon name="messages" :size="16" class="mr-1 inline-block align-[-3px]" />Envoyer la course</button>
           <button class="btn-secondary px-2 py-1" @click="openModal('status', s)">Mettre à jour</button>
         </template>
-        <button v-else class="btn-secondary px-2 py-1" :disabled="busy" @click="refresh(s)">Actualiser</button>
+        <template v-else>
+          <button class="btn-secondary px-2 py-1" :disabled="busy" @click="refresh(s)">Actualiser</button>
+          <!-- Actions sur la course chez l'entreprise de livraison -->
+          <button v-if="s.carrier_actions?.edit" class="btn-secondary px-2 py-1" @click="openEdit(s)">Modifier la course</button>
+          <button v-if="s.carrier_actions?.return" class="btn-secondary px-2 py-1" @click="openModal('return', s)">Demander le retour</button>
+          <button v-if="s.carrier_actions?.note" class="btn-ghost px-2 py-1" @click="openModal('note', s)">Ajouter une note</button>
+        </template>
         <button v-if="s.is_cancellable" class="btn-ghost px-2 py-1 text-red-600" @click="openModal('cancel', s)">Annuler la course</button>
       </div>
     </article>
@@ -265,6 +303,53 @@ async function whatsapp(s) {
           <option v-for="c in couriers" :key="c.id" :value="c.id">{{ c.name }}{{ c.is_available ? '' : ' (indisponible)' }}</option>
         </select>
         <button class="btn-brand w-full" :disabled="busy || !form.courier_id">Confier</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'edit'" :title="`Modifier la course ${current.reference}`" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="saveEdit">
+        <Alert v-if="error">{{ error }}</Alert>
+        <p class="text-xs text-slate-500">
+          {{ current.carrier_actions.edit === 'all' ? 'Avant le ramassage, tout se modifie.' : 'Le colis est déjà récupéré : seule la livraison se modifie.' }}
+          Pour changer le quartier, modifiez la commande : la course suivra.
+        </p>
+        <Field id="ce-address" label="Adresse"><input id="ce-address" v-model="edit.delivery_address" class="input" maxlength="500" /></Field>
+        <Field id="ce-landmark" label="Repère"><input id="ce-landmark" v-model="edit.delivery_landmark" class="input" maxlength="255" /></Field>
+        <div class="grid grid-cols-2 gap-3">
+          <Field id="ce-phone" label="Téléphone du client"><input id="ce-phone" v-model="edit.recipient_phone" class="input" type="tel" required /></Field>
+          <Field id="ce-phone2" label="Second téléphone"><input id="ce-phone2" v-model="edit.recipient_phone2" class="input" type="tel" /></Field>
+        </div>
+        <Field id="ce-date" label="Date de livraison"><input id="ce-date" v-model="edit.delivery_scheduled_date" class="input" type="date" :min="todayIso" /></Field>
+        <Field v-if="current.carrier_actions.edit === 'all' && current.fee_payer === 'store'" id="ce-amount" label="Montant à encaisser (F)">
+          <input id="ce-amount" v-model.number="edit.items_amount" class="input" type="number" min="0" />
+        </Field>
+        <button class="btn-brand w-full" :disabled="busy">Enregistrer chez {{ current.carrier?.name }}</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'redeliver'" :title="`Relivrer ${current.reference}`" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="decide('redeliver')">
+        <Alert v-if="error">{{ error }}</Alert>
+        <Field id="cd-date" label="Nouvelle date de livraison"><input id="cd-date" v-model="form.date" class="input" type="date" :min="todayIso" required /></Field>
+        <Field id="cd-note" label="Note pour le livreur (facultatif)"><input id="cd-note" v-model="form.note" class="input" maxlength="1000" placeholder="Ex. le client sera là après 14 h" /></Field>
+        <button class="btn-brand w-full" :disabled="busy">Demander la relivraison</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'return'" :title="`Faire revenir le colis ${current.reference}`" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="current.carrier_actions?.decide ? decide('return') : askReturn()">
+        <Alert v-if="error">{{ error }}</Alert>
+        <p class="text-sm text-slate-600">{{ current.carrier?.name }} ramènera le colis à la boutique.</p>
+        <Field id="cr-note" label="Raison (facultatif)"><input id="cr-note" v-model="form.note" class="input" maxlength="1000" placeholder="Ex. le client a annulé" /></Field>
+        <button class="btn-danger w-full" :disabled="busy">Demander le retour</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'note'" :title="`Note pour ${current.carrier?.name}`" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="sendNote">
+        <Alert v-if="error">{{ error }}</Alert>
+        <Field id="cn-note" label="Note pour l'agence et le livreur"><textarea id="cn-note" v-model="form.note" class="input" rows="3" maxlength="2000" required placeholder="Ex. appeler avant, portail bleu" /></Field>
+        <button class="btn-brand w-full" :disabled="busy">Envoyer</button>
       </form>
     </Modal>
 

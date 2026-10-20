@@ -530,6 +530,61 @@ class ShippingTest extends TestCase
         $this->assertSame([true, false], [$zones['Plateau'], $zones['Yopougon']]);
     }
 
+    public function test_the_store_acts_on_the_course_at_the_carrier(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, $connection);
+        $code = self::API.'/orders/LV-7K2M-QX9P';
+        $this->stub([
+            "PATCH {$code}" => fn () => Http::response(['data' => $this->remoteOrder('pending', ['delivery' => ['scheduled_date' => now()->addDay()->toDateString()]])]),
+            "POST {$code}/notes" => Http::response(['data' => ['tracking_code' => 'LV-7K2M-QX9P']], 201),
+        ]);
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.shipments.0.carrier_actions', ['edit' => 'all', 'decide' => false, 'return' => false, 'note' => true]);
+
+        // Avant le ramassage : tout se modifie, le montant à encaisser suit
+        $this->storeApi($this->store, 'PATCH', "shipments/{$shipment->id}/carrier", ['delivery_landmark' => 'Portail bleu', 'items_amount' => 30000])->assertOk();
+        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'PATCH' && $r->url() === $code && ($r->data()['delivery_landmark'] ?? null) === 'Portail bleu' && ($r->data()['items_amount'] ?? null) === 30000);
+        $this->assertSame(30000, $shipment->fresh()->cod_amount);
+        $this->assertStringContainsString('Course modifiée chez Rapide Express : repère, montant à encaisser', $shipment->events()->reorder('id', 'desc')->first()->note);
+
+        // Commande modifiée dans la boutique : la course reprend l'adresse et le montant de la commande
+        $order->forceFill(['shipping_address' => 'Cité Arcades, villa 12'])->save();
+        $this->storeApi($this->store, 'PATCH', "shipments/{$shipment->id}/carrier", ['from_order' => true])->assertOk();
+        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'PATCH' && ($r->data()['delivery_address'] ?? null) === 'Cité Arcades, villa 12' && ($r->data()['items_amount'] ?? null) === 31500 && ! isset($r->data()['pickup_address']));
+
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/notes", ['note' => 'Appeler avant'])->assertOk();
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === "{$code}/notes" && $r['note'] === 'Appeler avant');
+        // Avant le ramassage : pas de retour (on annule)
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/return-request")->assertStatus(422);
+
+        // Échec de livraison : la boutique décide sans quitter Jibiat Marchand
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('delivery_failed', ['needs_decision' => true, 'last_incident' => 'Client absent'])], 'evt-f')->assertOk();
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.shipments.0.carrier_actions.decide', true)
+            ->assertJsonPath('data.shipments.0.carrier_actions.edit', 'delivery');
+        $tomorrow = now()->addDay()->toDateString();
+        $this->stub(["POST {$code}/decision" => Http::response(['data' => $this->remoteOrder('rescheduled', ['delivery' => ['scheduled_date' => $tomorrow], 'needs_decision' => false])])]);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/decision", ['decision' => 'redeliver'])->assertJsonValidationErrors('date');
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/decision", ['decision' => 'redeliver', 'date' => $tomorrow, 'note' => 'Après 14 h'])->assertOk()
+            ->assertJsonPath('data.status', 'rescheduled')->assertJsonPath('data.needs_decision', false);
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === "{$code}/decision" && $r['decision'] === 'redeliver' && $r['date'] === $tomorrow);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/decision", ['decision' => 'return'])->assertStatus(422);
+
+        // Colis récupéré : retour demandé ; refus de l'entreprise repris tel quel
+        $this->stub(["POST {$code}/return-request" => Http::response(['message' => 'Retour impossible à ce stade.'], 422)]);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/return-request", ['note' => 'Client a annulé'])->assertStatus(422)
+            ->assertJsonFragment(['message' => 'Retour impossible à ce stade.']);
+    }
+
+    public function test_carrier_actions_need_a_connected_api_carrier(): void
+    {
+        $manual = app(CarrierConnections::class)->connectManual($this->store, 'Moto Express', '0700000099');
+        $shipment = $this->ship($this->confirmedOrder(), $manual);
+
+        $this->storeApi($this->store, 'GET', "orders/{$shipment->order_id}")->assertJsonPath('data.shipments.0.carrier_actions', null);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/notes", ['note' => 'x'])->assertStatus(422);
+    }
+
     public function test_payout_from_a_manual_carrier_is_entered_by_the_store(): void
     {
         $id = $this->storeApi($this->store, 'POST', 'carriers/manual', ['name' => 'Moto Express'])->assertCreated()->json('data.id');
