@@ -37,19 +37,19 @@ const PERIODS = [
   { value: 'custom', label: 'Période…' },
 ]
 const SORTS = [
-  { value: 'recent', label: 'Plus récentes' },
-  { value: 'oldest', label: 'Plus anciennes' },
   { value: 'scheduled', label: 'Date de livraison' },
+  { value: 'recent', label: 'Commandes récentes' },
+  { value: 'oldest', label: 'Commandes anciennes' },
   { value: 'amount', label: 'Montant' },
 ]
 
 // Filtres, gardés dans l'adresse de la page (retour arrière, lien partagé)
 const q = route.query
 const filters = reactive({
-  status: q.status ?? '', search: q.search ?? '', source: q.source ?? '', period: q.period ?? '', date_field: q.date_field ?? 'created',
-  from: q.from ?? '', to: q.to ?? '', deliverer: q.deliverer ?? '', commune_id: q.commune_id ?? '', payment: q.payment ?? '', sort: q.sort ?? 'recent', page: 1,
+  status: q.status ?? '', search: q.search ?? '', source: q.source ?? '', period: q.period ?? '', date_field: q.date_field ?? 'scheduled',
+  from: q.from ?? '', to: q.to ?? '', deliverer: q.deliverer ?? '', commune_id: q.commune_id ?? '', payment: q.payment ?? '', sort: q.sort ?? 'scheduled', page: 1,
 })
-const params = () => Object.fromEntries(Object.entries(filters).filter(([k, v]) => v !== '' && v !== null && !(k === 'date_field' && v === 'created') && !(k === 'sort' && v === 'recent')))
+const params = () => Object.fromEntries(Object.entries(filters).filter(([k, v]) => v !== '' && v !== null && !(k === 'date_field' && v === 'scheduled') && !(k === 'sort' && v === 'scheduled')))
 
 const orders = ref([])
 const counts = ref({})
@@ -117,8 +117,9 @@ function clearFilters() {
   Object.assign(filters, { deliverer: '', commune_id: '', payment: '', source: '' })
 }
 
-// Commandes regroupées par jour (date de livraison quand on trie ou filtre par elle)
-const byDelivery = computed(() => filters.sort === 'scheduled' || filters.date_field === 'scheduled')
+// Commandes regroupées par jour de livraison ; par jour de commande quand on trie par date de commande.
+// Sans date : « à fixer » si la commande est à livrer et en cours, sinon le jour où elle a été passée.
+const byDelivery = computed(() => !['recent', 'oldest'].includes(filters.sort))
 const iso = (d) => d.toLocaleDateString('sv-SE')
 function dayLabel(key) {
   if (!key) return 'Date de livraison à fixer'
@@ -131,7 +132,7 @@ function dayLabel(key) {
 const groups = computed(() => {
   const list = []
   for (const o of orders.value) {
-    const key = byDelivery.value ? o.scheduled_date ?? null : iso(new Date(o.created_at))
+    const key = !byDelivery.value ? iso(new Date(o.created_at)) : o.needs_date ? null : o.scheduled_date ?? iso(new Date(o.created_at))
     let g = list.find((x) => x.key === key)
     if (!g) list.push((g = { key, orders: [], amount: 0 }))
     g.orders.push(o)
@@ -431,7 +432,7 @@ async function exportList() {
         <div>
           <p class="label-lg">Les dates portent sur</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="d in [['created', 'La commande'], ['scheduled', 'La livraison']]" :key="d[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.date_field === d[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300'" @click="filters.date_field = d[0]">{{ d[1] }}</button>
+            <button v-for="d in [['scheduled', 'La livraison'], ['created', 'La commande']]" :key="d[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.date_field === d[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300'" @click="filters.date_field = d[0]">{{ d[1] }}</button>
           </div>
         </div>
         <div v-if="options">

@@ -61,8 +61,16 @@ class OrderListTest extends TestCase
         $this->assertSame([$late->id], collect($this->api('GET', 'orders?status=late')->json('data'))->pluck('id')->all());
         // Par date de livraison, tri par date de livraison
         $this->assertSame([$today->id], collect($this->api('GET', 'orders?period=today&date_field=scheduled')->json('data'))->pluck('id')->all());
-        $this->assertSame([$late->id, $today->id, $old->id], collect($this->api('GET', 'orders?sort=scheduled')->json('data'))->pluck('id')->all());
-        $this->assertSame(3, $this->api('GET', 'orders?payment=to_collect')->json('summary.count'));
+        $this->assertSame([$today->id, $late->id], collect($this->api('GET', 'orders?period=7d&date_field=created&sort=oldest')->json('data'))->pluck('id')->all());
+
+        // Par défaut : par jour de livraison, le plus lointain en haut, les dates à fixer d'abord
+        $undated = $this->order();
+        $undated->forceFill(['scheduled_date' => null, 'created_at' => now()->subMonth()])->save();
+        $list = $this->api('GET', 'orders')->assertOk();
+        $this->assertSame([$undated->id, $old->id, $today->id, $late->id], collect($list->json('data'))->pluck('id')->all());
+        $this->assertTrue($list->json('data.0.needs_date'));
+        $this->assertSame([$old->id], collect($this->api('GET', 'orders?period=custom&from='.today()->addDays(3)->toDateString())->json('data'))->pluck('id')->all());
+        $this->assertSame(4, $this->api('GET', 'orders?payment=to_collect')->json('summary.count'));
     }
 
     public function test_deliverer_filter_bulk_actions_labels_and_export(): void
