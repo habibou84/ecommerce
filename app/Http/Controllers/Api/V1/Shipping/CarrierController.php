@@ -9,6 +9,7 @@ use App\Models\CarrierZone;
 use App\Models\CarrierZoneMapping;
 use App\Services\Places\Places;
 use App\Services\Shipping\CarrierConnections;
+use App\Services\Shipping\CarrierDirectory;
 use App\Services\Shipping\CarrierEvents;
 use App\Services\Shipping\CarrierStock;
 use Illuminate\Http\JsonResponse;
@@ -40,6 +41,37 @@ class CarrierController extends Controller
         ], [], ['address' => 'adresse', 'api_key' => 'clé API']);
 
         $connection = $this->connections->connectDeliveryApp($this->currentStore(), $data['address'], $data['api_key']);
+
+        return response()->json(['data' => $this->present($connection)], 201);
+    }
+
+    /**
+     * Annuaire des entreprises de livraison de Jibiat (connexion en un clic).
+     */
+    public function directory(CarrierDirectory $directory): JsonResponse
+    {
+        $result = $directory->forStore($this->currentStore());
+
+        return response()->json(['data' => $result['companies'], 'available' => $result['available']]);
+    }
+
+    /**
+     * « Connecter » : adresse de la page de l'entreprise où le marchand autorise l'accès.
+     */
+    public function connectStart(Request $request, CarrierDirectory $directory): JsonResponse
+    {
+        $data = $request->validate(['slug' => ['required', 'string', 'max:60']]);
+
+        return response()->json(['data' => ['url' => $directory->start($this->currentStore(), $request->user(), $data['slug'])]]);
+    }
+
+    /**
+     * Retour de l'entreprise avec le code : la connexion est créée (zones, webhook) comme avec une clé.
+     */
+    public function connectFinish(Request $request, CarrierDirectory $directory): JsonResponse
+    {
+        $data = $request->validate(['state' => ['required', 'string', 'max:100'], 'code' => ['required', 'string', 'max:100']]);
+        $connection = $directory->finish($this->currentStore(), $request->user(), $data['state'], $data['code']);
 
         return response()->json(['data' => $this->present($connection)], 201);
     }

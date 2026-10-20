@@ -276,6 +276,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::CarriersManage->value)->group(function () {
                 Route::get('carriers', [CarrierController::class, 'index'])->name('carriers.index');
                 Route::post('carriers/delivery-app', [CarrierController::class, 'connectDeliveryApp'])->middleware('throttle:10,1')->name('carriers.delivery-app');
+                // Annuaire de Jibiat et connexion en un clic (contrat « directory » et « connect-token »)
+                Route::get('carriers/directory', [CarrierController::class, 'directory'])->name('carriers.directory');
+                Route::post('carriers/connect/start', [CarrierController::class, 'connectStart'])->middleware('throttle:20,1')->name('carriers.connect.start');
+                Route::post('carriers/connect/finish', [CarrierController::class, 'connectFinish'])->middleware('throttle:10,1')->name('carriers.connect.finish');
                 Route::post('carriers/manual', [CarrierController::class, 'connectManual'])->name('carriers.manual');
                 Route::patch('carriers/{carrier}', [CarrierController::class, 'update'])->whereNumber('carrier')->name('carriers.update');
                 Route::delete('carriers/{carrier}', [CarrierController::class, 'destroy'])->whereNumber('carrier')->name('carriers.destroy');
