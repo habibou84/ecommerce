@@ -358,6 +358,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('social/connect/{provider}', [SocialController::class, 'connect'])->whereIn('provider', ['meta', 'tiktok'])->name('social.connect');
                 Route::get('social/pages/{key}', [SocialController::class, 'pages'])->name('social.pages');
                 Route::post('social/pages/{key}', [SocialController::class, 'choosePage'])->name('social.pages.choose');
+                Route::post('social/tiktok/{key}', [SocialController::class, 'confirmTikTok'])->name('social.tiktok.confirm');
                 Route::delete('social/accounts/{network}', [SocialController::class, 'disconnect'])->whereIn('network', ['facebook', 'instagram', 'tiktok'])->name('social.disconnect');
                 Route::post('products/{product}/social/captions', [SocialController::class, 'captions'])->whereNumber('product')->middleware('throttle:20,1')->name('social.captions');
                 Route::post('products/{product}/social/posts', [SocialController::class, 'publish'])->whereNumber('product')->middleware('throttle:20,1')->name('social.publish');

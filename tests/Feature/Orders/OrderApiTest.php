@@ -88,6 +88,11 @@ class OrderApiTest extends TestCase
         // Modification demandée par le client : l'agent corrige la quantité
         $this->api('PUT', "orders/{$order['id']}", ['items' => [['variant_id' => $this->variantId, 'quantity' => 2]]])
             ->assertOk()->assertJsonPath('data.subtotal', 18000);
+        // … mais ne touche ni aux prix, ni à la remise, ni aux frais
+        $before = $this->api('GET', "orders/{$order['id']}")->json('data');
+        $this->api('PUT', "orders/{$order['id']}", ['items' => [['variant_id' => $this->variantId, 'quantity' => 2, 'unit_price' => 0]], 'discount_total' => 5000, 'shipping_fee' => 0])
+            ->assertOk()->assertJsonPath('data.subtotal', 18000)->assertJsonPath('data.discount_total', $before['discount_total'])
+            ->assertJsonPath('data.shipping_fee', $before['shipping_fee']);
 
         $this->api('POST', "orders/{$order['id']}/confirmations", ['outcome' => 'callback', 'channel' => 'call'])
             ->assertStatus(422)->assertJsonValidationErrors('callback_at');

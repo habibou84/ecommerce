@@ -44,6 +44,8 @@ const paste = ref('')
 const parsing = ref(false)
 const parseInfo = ref('')
 const auth = useAuthStore()
+// Agent de confirmation : prix, remise, frais et livreur affichés mais réservés à la gestion des commandes
+const canPrice = computed(() => auth.can('orders.manage'))
 const known = ref(null) // client déjà connu
 const elsewhere = ref([]) // le même numéro dans les autres boutiques de l'adresse
 const errors = ref({})
@@ -641,7 +643,7 @@ async function save() {
           <template v-if="form.delivery_method === 'delivery'">
             <div>
               <p class="label-lg">Qui livre ?</p>
-              <button type="button" class="flex min-h-14 w-full items-center gap-3 rounded-xl border-2 bg-white px-4 py-2.5 text-left" :class="chosen ? 'border-emerald-600' : 'border-slate-300 border-dashed'" @click="pickerOpen = true">
+              <button type="button" class="flex min-h-14 w-full items-center gap-3 rounded-xl border-2 bg-white px-4 py-2.5 text-left disabled:opacity-70" :class="chosen ? 'border-emerald-600' : 'border-slate-300 border-dashed'" :disabled="!canPrice" @click="pickerOpen = true">
                 <template v-if="chosenCarrier || chosenCourier">
                   <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-bold" :class="chosenCarrier ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-emerald-800'">{{ initials(delivererName) }}</span>
                   <span class="min-w-0 flex-1">
@@ -712,7 +714,7 @@ async function save() {
                 <span class="font-semibold tabular-nums">{{ fee ? money(fee) : 'Offerts' }}</span>
                 <span v-if="feeSource" class="text-slate-500">· {{ feeSource }}</span>
                 <span v-if="optionsLoading" class="text-slate-400">…</span>
-                <button type="button" class="ml-auto font-medium text-emerald-700 hover:underline" @click="editFee">Modifier</button>
+                <button v-if="canPrice" type="button" class="ml-auto font-medium text-emerald-700 hover:underline" @click="editFee">Modifier</button>
               </template>
             </div>
           </template>
@@ -749,7 +751,7 @@ async function save() {
                 </div>
                 <label class="flex items-center gap-1.5 text-sm text-slate-500">
                   Prix
-                  <input v-model.number="item.unit_price" type="number" min="0" class="input w-28 py-1.5 text-right" @input="item.price_edited = true" />
+                  <input v-model.number="item.unit_price" type="number" min="0" class="input w-28 py-1.5 text-right" :readonly="!canPrice" :class="{ 'bg-slate-50 text-slate-500': !canPrice }" @input="item.price_edited = true" />
                 </label>
                 <span class="ml-auto font-semibold tabular-nums">{{ money(lineTotal(item)) }}</span>
               </div>
@@ -798,7 +800,7 @@ async function save() {
           <div v-if="discount || pointsDiscount" class="flex justify-between text-emerald-700"><span>Remise</span><span class="tabular-nums">− {{ money(discount + pointsDiscount) }}</span></div>
 
           <!-- Une seule entrée pour toutes les remises -->
-          <button v-if="!showDiscount && !form.discount_code && !form.discount_total && !rewardPoints" type="button" class="text-emerald-700 hover:underline" @click="showDiscount = true">+ Ajouter une remise</button>
+          <button v-if="canPrice && !showDiscount && !form.discount_code && !form.discount_total && !rewardPoints" type="button" class="text-emerald-700 hover:underline" @click="showDiscount = true">+ Ajouter une remise</button>
           <div v-else class="space-y-2 rounded-lg bg-slate-50 p-3">
             <div class="flex items-center justify-between gap-2">
               <label for="promo" class="text-slate-600">Code promo</label>
@@ -809,7 +811,7 @@ async function save() {
             <p v-else-if="errors.discount_code" class="text-xs text-red-600">{{ errors.discount_code }}</p>
             <div v-if="!form.discount_code" class="flex items-center justify-between gap-2">
               <label for="discount" class="text-slate-600">Remise (F)</label>
-              <input id="discount" v-model.number="form.discount_total" type="number" min="0" class="input w-32 py-1 text-right" />
+              <input id="discount" v-model.number="form.discount_total" type="number" min="0" class="input w-32 py-1 text-right" :readonly="!canPrice" />
             </div>
             <div v-if="loyalty" class="flex items-center justify-between gap-2">
               <label for="points" class="text-slate-600">Points de fidélité <span class="text-xs">({{ loyalty.points }} dispo.)</span></label>

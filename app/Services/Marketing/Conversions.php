@@ -67,9 +67,10 @@ class Conversions
         ];
 
         try {
-            $response = Http::timeout(10)->asJson()->post(self::GRAPH."/{$pixel}/events?access_token=".urlencode($store->meta_capi_token), ['data' => [$event]]);
+            // Jeton dans le corps (jamais dans l'adresse : un message d'erreur réseau la recopie dans les journaux)
+            $response = Http::timeout(10)->asJson()->post(self::GRAPH."/{$pixel}/events", ['data' => [$event], 'access_token' => $store->meta_capi_token]);
         } catch (Throwable $e) {
-            Log::warning('API Conversions injoignable', ['order' => $order->id, 'error' => $e->getMessage()]);
+            Log::warning('API Conversions injoignable', ['order' => $order->id, 'error' => class_basename($e)]);
 
             return false;
         }
