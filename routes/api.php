@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\Messaging\ConversationController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Orders\AlertSettingsController;
 use App\Http\Controllers\Api\V1\Orders\CustomerController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryOptionsController;
@@ -452,6 +453,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
                 Route::get('delivery-calendar', [DeliveryController::class, 'calendar'])->name('delivery-calendar.show');
                 Route::put('delivery-calendar', [DeliveryController::class, 'updateCalendar'])->name('delivery-calendar.update');
+                Route::get('alert-settings', [AlertSettingsController::class, 'show'])->name('alert-settings.show');
+                Route::put('alert-settings', [AlertSettingsController::class, 'update'])->name('alert-settings.update');
                 Route::post('delivery-zones', [DeliveryController::class, 'storeZone'])->name('zones.store');
                 Route::put('delivery-zones/{zone}', [DeliveryController::class, 'updateZone'])->whereNumber('zone')->name('zones.update');
                 Route::delete('delivery-zones/{zone}', [DeliveryController::class, 'destroyZone'])->whereNumber('zone')->name('zones.destroy');

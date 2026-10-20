@@ -10,6 +10,7 @@ use App\Services\Console\SupportSessions;
 use App\Services\Couriers\MissionResponses;
 use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
+use App\Services\Orders\OrderAlerts;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierConnections;
 use App\Services\Shipping\CarrierEvents;
@@ -62,6 +63,16 @@ Artisan::command('couriers:remind', function (MissionResponses $responses) {
 })->purpose('Rappel des missions pas encore acceptées par les livreurs');
 
 Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping();
+
+/*
+ * Commandes qui attendent (sans livreur, pas ramassées, à confirmer, point du matin...) : alertes à l'équipe, une
+ * seule fois chacune, pendant les heures d'alerte de la boutique.
+ */
+Artisan::command('orders:alerts', function (OrderAlerts $alerts) {
+    $this->line($alerts->run().' alerte(s) envoyée(s)');
+})->purpose('Alertes sur les commandes qui attendent');
+
+Schedule::command('orders:alerts')->everyFiveMinutes()->withoutOverlapping();
 
 /*
  * Publications programmées sur les réseaux sociaux, arrivées à l'heure.

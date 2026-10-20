@@ -47,7 +47,7 @@ const SORTS = [
 const q = route.query
 const filters = reactive({
   status: q.status ?? '', search: q.search ?? '', source: q.source ?? '', period: q.period ?? '', date_field: q.date_field ?? 'scheduled',
-  from: q.from ?? '', to: q.to ?? '', deliverer: q.deliverer ?? '', commune_id: q.commune_id ?? '', payment: q.payment ?? '', sort: q.sort ?? 'scheduled', page: 1,
+  from: q.from ?? '', to: q.to ?? '', deliverer: q.deliverer ?? '', commune_id: q.commune_id ?? '', payment: q.payment ?? '', alert: q.alert ?? '', sort: q.sort ?? 'scheduled', page: 1,
 })
 const params = () => Object.fromEntries(Object.entries(filters).filter(([k, v]) => v !== '' && v !== null && !(k === 'date_field' && v === 'scheduled') && !(k === 'sort' && v === 'scheduled')))
 
@@ -96,7 +96,7 @@ watch(() => filters.search, () => {
   clearTimeout(timer)
   timer = setTimeout(() => { filters.page = 1; load() }, 300)
 })
-watch(() => [filters.status, filters.source, filters.period, filters.date_field, filters.from, filters.to, filters.deliverer, filters.commune_id, filters.payment, filters.sort], () => {
+watch(() => [filters.status, filters.source, filters.period, filters.date_field, filters.from, filters.to, filters.deliverer, filters.commune_id, filters.payment, filters.alert, filters.sort], () => {
   if (filters.period === 'custom' && !filters.from) return // en attente de la première date
   filters.page = 1
   load()
@@ -113,7 +113,11 @@ const delivererLabel = (key) => {
   const [type, id] = key.split(':')
   return (type === 'courier' ? options.value?.couriers : options.value?.carriers)?.find((d) => String(d.id) === id)?.name ?? 'Livreur'
 }
+// Files des alertes (ouvertes depuis une notification ou l'accueil)
+const ALERTS = { unassigned: 'Sans livreur', not_picked: 'Pas encore ramassées', on_the_way: 'Encore en route', unhandled: 'Problème de livraison à traiter' }
+watch(() => route.query.alert, (v) => { if ((v ?? '') !== filters.alert) filters.alert = v ?? '' })
 const activeFilters = computed(() => [
+  filters.alert && ALERTS[filters.alert] && { key: 'alert', label: ALERTS[filters.alert] },
   filters.deliverer && { key: 'deliverer', label: `Qui livre : ${delivererLabel(filters.deliverer)}` },
   filters.commune_id && { key: 'commune_id', label: `Commune : ${communes.value.find((c) => String(c.id) === String(filters.commune_id))?.name ?? '…'}` },
   filters.payment && { key: 'payment', label: filters.payment === 'paid' ? 'Payées' : 'À encaisser' },
@@ -121,7 +125,7 @@ const activeFilters = computed(() => [
 ].filter(Boolean))
 const filtersOpen = ref(false)
 function clearFilters() {
-  Object.assign(filters, { deliverer: '', commune_id: '', payment: '', source: '' })
+  Object.assign(filters, { deliverer: '', commune_id: '', payment: '', source: '', alert: '' })
 }
 
 // Commandes regroupées par jour de livraison ; par jour de commande quand on trie par date de commande.
