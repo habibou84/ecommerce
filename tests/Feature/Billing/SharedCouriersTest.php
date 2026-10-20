@@ -4,6 +4,7 @@ namespace Tests\Feature\Billing;
 
 use App\Enums\Role;
 use App\Enums\SubscriptionStatus;
+use App\Enums\UserStatus;
 use App\Models\CashCollection;
 use App\Models\Courier;
 use App\Models\CourierPayout;
@@ -68,6 +69,19 @@ class SharedCouriersTest extends TestCase
 
             return app(ShipmentDesk::class)->assignCourier($order, Courier::forStore($store->id)->where('user_id', $this->koffi->id)->sole(), [], $store->owner);
         });
+    }
+
+    public function test_sharing_never_reactivates_a_suspended_member(): void
+    {
+        // Koffi était gérant d'Awa Kids, suspendu : partager sa fiche livreur ne lui rend pas son accès
+        $this->addMember($this->kids, $this->koffi, Role::Manager);
+        $this->kids->members()->where('user_id', $this->koffi->id)->update(['status' => 'suspended']);
+        $this->storeApi($this->mode, 'POST', "my-stores/couriers/{$this->courier->id}/stores/{$this->kids->id}")->assertStatus(422);
+        $this->assertSame(UserStatus::Suspended, $this->kids->members()->where('user_id', $this->koffi->id)->value('status'));
+
+        // Même avec une fiche livreur active là-bas, ses missions d'Awa Kids ne lui sont plus montrées
+        Courier::withoutGlobalScope(StoreScope::class)->create(['store_id' => $this->kids->id, 'user_id' => $this->koffi->id, 'name' => 'Koffi', 'phone' => $this->koffi->phone, 'status' => 'active']);
+        $this->assertSame([$this->mode->id], app(SharedCouriers::class)->linked($this->courier)->pluck('store_id')->all());
     }
 
     public function test_a_courier_works_for_several_stores(): void

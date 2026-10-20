@@ -4,8 +4,9 @@
     $title = $meta['title'] ?? $store->name;
     $description = \Illuminate\Support\Str::limit($meta['description'] ?? '', 160) ?: $store->name;
     $ogImage = $meta['image'] ?? ($theme['hero_image_urls']['large'] ?? null);
-    // Suivi publicitaire : pas pendant l'aperçu d'une boutique encore fermée
-    $tracking = $store->storefront_enabled && collect(['meta_pixel_id', 'tiktok_pixel_id', 'ga4_id'])->contains(fn ($k) => $store->marketingId($k));
+    // Suivi publicitaire : pas pendant l'aperçu d'une boutique encore fermée, ni sur les pages privées d'une commande
+    // (avis, paiement) dont l'adresse contient le jeton de la commande
+    $tracking = $store->storefront_enabled && empty($meta['private']) && collect(['meta_pixel_id', 'tiktok_pixel_id', 'ga4_id'])->contains(fn ($k) => $store->marketingId($k));
 @endphp
 <!DOCTYPE html>
 <html lang="fr" data-base="{{ app(\App\Support\Tenancy::class)->basePath() }}">

@@ -24,6 +24,7 @@ use App\Services\Orders\OrderListing;
 use App\Services\Orders\OrderMessageParser;
 use App\Services\Orders\OrderMessages;
 use App\Services\WhatsApp\CustomerMessenger;
+use App\Support\SpreadsheetCell;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -69,12 +70,12 @@ class OrderController extends Controller
             fputcsv($out, ['N°', 'Date', 'Client', 'Téléphone', 'Quartier', 'Adresse', 'Date de livraison', 'Articles', 'Qui livre', 'Total', 'Payé', 'Reste à encaisser', 'Paiement', 'Statut', 'Canal'], ';');
             foreach ($orders as $o) {
                 $extras = $listing->extras($o);
-                fputcsv($out, [
+                fputcsv($out, SpreadsheetCell::row([
                     $o->reference(), $o->created_at->format('d/m/Y H:i'), $o->customer_name, PhoneNumber::display($o->customer_phone),
                     $o->delivery_method === 'pickup' ? 'Retrait' : $o->shipping_place_label, $o->shipping_address, $o->scheduled_date?->format('d/m/Y'),
                     $o->items->map(fn ($i) => $i->quantity.' × '.$i->title.($i->variant_title ? ' ('.$i->variant_title.')' : ''))->implode(', '),
                     $extras['deliverer'], $o->total, $o->amount_paid - $o->amount_refunded, $o->amountDue(), $o->payment_status->label(), $o->status->label(), $o->source->label(),
-                ], ';');
+                ]), ';');
             }
             fclose($out);
         }, 'commandes-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
