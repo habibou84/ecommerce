@@ -74,6 +74,7 @@ export function eventLabel(event) {
     case 'return_received': return `${d.return} : articles reçus${d.restocked ? ' et remis en stock' : ''}${d.refunded ? `, ${new Intl.NumberFormat('fr-FR').format(d.refunded)} F remboursés` : ''}`
     case 'return_cancelled': return `${d.return} annulé`
     case 'shipment_created': return `Livraison demandée à ${d.carrier}${d.tracking_code ? ` (n° ${d.tracking_code})` : ''}`
+    case 'planned_delivery': return `Livraison prévue par ${d.to}`
     default: return event.type
   }
 }

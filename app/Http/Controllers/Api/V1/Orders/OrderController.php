@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1\Orders;
 
 use App\Enums\CancelReason;
 use App\Enums\ConfirmationOutcome;
-use App\Enums\OrderSource;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentKind;
 use App\Enums\PaymentMethod;
@@ -17,13 +16,14 @@ use App\Models\Conversation;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Services\Customers\CustomerBook;
+use App\Services\Orders\OrderBulk;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
 use App\Services\Orders\OrderDrafter;
+use App\Services\Orders\OrderListing;
 use App\Services\Orders\OrderMessageParser;
 use App\Services\Orders\OrderMessages;
 use App\Services\WhatsApp\CustomerMessenger;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -35,36 +35,80 @@ class OrderController extends Controller
     public function __construct(private readonly OrderDesk $desk) {}
 
     /**
-     * Liste : onglet de statut, recherche (numéro, nom, téléphone), canal, relances dues ; compteurs par statut.
+     * Liste : onglet (statut, à faire livrer, en retard), recherche, période, qui livre, commune, paiement, canal, tri ;
+     * compteurs par onglet, résumé de la liste et total de chaque jour affiché.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, OrderListing $listing): JsonResponse
     {
-        $request->validate([
-            'status' => ['nullable', Rule::in([...OrderStatus::values(), 'to_ship'])],
-            'search' => ['nullable', 'string', 'max:100'],
-            'source' => ['nullable', Rule::enum(OrderSource::class)],
-            'customer_id' => ['nullable', 'integer'],
-            'callback_due' => ['nullable', 'boolean'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
+        $request->validate(OrderListing::rules());
 
-        $page = $this->filtered($request)
-            ->when($request->query('status'), fn (Builder $q, $status) => $status === 'to_ship'
-                ? $q->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])
-                : $q->where('status', $status))
-            ->when($request->boolean('callback_due'), fn (Builder $q) => $q->where('callback_at', '<=', now()))
-            ->with('store')->withCount('items')
-            ->latest('id')
-            ->paginate($request->integer('per_page', 30));
-
-        $counts = $this->filtered($request)->toBase()->groupBy('status')->selectRaw('status, COUNT(*) AS n')->pluck('n', 'status');
+        $page = $listing->query($request)->select('orders.*')->selectRaw($listing->dayKey($request).' AS list_day')
+            ->with(OrderListing::relations())->withCount('items')
+            ->paginate($request->integer('per_page', 50));
 
         return response()->json([
-            'data' => OrderResource::collection($page->getCollection())->resolve(),
+            'data' => $page->getCollection()->map(fn (Order $o) => OrderResource::make($o)->resolve() + $listing->extras($o) + ['day' => $o->list_day])->values(),
             'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()],
-            'counts' => collect(OrderStatus::cases())->mapWithKeys(fn ($s) => [$s->value => (int) ($counts[$s->value] ?? 0)])
-                ->put('to_ship', (int) ($counts[OrderStatus::Confirmed->value] ?? 0) + (int) ($counts[OrderStatus::Processing->value] ?? 0)),
+            'days' => $listing->dayTotals($request, $page->getCollection()->pluck('list_day')->unique()->values()->all()),
+            'counts' => $listing->counts($request),
+            'summary' => $listing->summary($request),
         ]);
+    }
+
+    /**
+     * Export de la liste affichée (mêmes filtres), en CSV lisible par Excel (séparateur « ; », accents conservés).
+     */
+    public function export(Request $request, OrderListing $listing): Response
+    {
+        $request->validate(OrderListing::rules());
+        $orders = $listing->query($request)->with([...OrderListing::relations(), 'items:id,order_id,title,variant_title,quantity'])->limit(5000)->get();
+
+        return response()->streamDownload(function () use ($orders, $listing) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\u{FEFF}");
+            fputcsv($out, ['N°', 'Date', 'Client', 'Téléphone', 'Quartier', 'Adresse', 'Date de livraison', 'Articles', 'Qui livre', 'Total', 'Payé', 'Reste à encaisser', 'Paiement', 'Statut', 'Canal'], ';');
+            foreach ($orders as $o) {
+                $extras = $listing->extras($o);
+                fputcsv($out, [
+                    $o->reference(), $o->created_at->format('d/m/Y H:i'), $o->customer_name, PhoneNumber::display($o->customer_phone),
+                    $o->delivery_method === 'pickup' ? 'Retrait' : $o->shipping_place_label, $o->shipping_address, $o->scheduled_date?->format('d/m/Y'),
+                    $o->items->map(fn ($i) => $i->quantity.' × '.$i->title.($i->variant_title ? ' ('.$i->variant_title.')' : ''))->implode(', '),
+                    $extras['deliverer'], $o->total, $o->amount_paid - $o->amount_refunded, $o->amountDue(), $o->payment_status->label(), $o->status->label(), $o->source->label(),
+                ], ';');
+            }
+            fclose($out);
+        }, 'commandes-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * Étiquettes colis de plusieurs commandes, une par page.
+     */
+    public function labels(Request $request, OrderDocuments $documents): Response
+    {
+        $data = $request->validate(['ids' => ['required', 'array', 'min:1', 'max:100'], 'ids.*' => ['integer']]);
+
+        return $documents->labels(Order::whereIn('id', $data['ids'])->orderBy('id')->get());
+    }
+
+    /**
+     * Action sur plusieurs commandes : confier à un livreur ou une entreprise, changer le statut, envoyer le message
+     * WhatsApp de l'étape. Chaque commande est traitée à part : le résultat dit ce qui a été fait et ce qui a échoué.
+     */
+    public function bulk(Request $request, OrderBulk $bulk): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:100'],
+            'ids.*' => ['integer'],
+            'action' => ['required', Rule::in(['assign', 'status', 'whatsapp'])],
+            'courier_id' => ['nullable', 'integer'],
+            'carrier_connection_id' => ['nullable', 'integer'],
+            'status' => ['required_if:action,status', 'nullable', Rule::in([OrderStatus::Confirmed->value, OrderStatus::Processing->value, OrderStatus::Cancelled->value])],
+            'reason' => ['required_if:status,cancelled', 'nullable', Rule::enum(CancelReason::class)],
+        ], [], ['status' => 'statut', 'reason' => 'motif']);
+
+        abort_if($data['action'] === 'assign' && ! $request->user()->can(Permission::ShipmentsManage->value), 403, 'Vous ne pouvez pas confier les livraisons.');
+
+        return response()->json(['data' => $bulk->run(Order::whereIn('id', $data['ids'])->orderBy('id')->get(), $data, $request->user())]);
     }
 
     /**
@@ -270,27 +314,5 @@ class OrderController extends Controller
     public function label(int $order, OrderDocuments $documents): Response
     {
         return $documents->label(Order::findOrFail($order));
-    }
-
-    private function filtered(Request $request): Builder
-    {
-        $search = trim((string) $request->query('search'));
-
-        return Order::query()
-            ->when($search !== '', function (Builder $q) use ($search) {
-                $digits = preg_replace('/\D/', '', $search);
-                $q->where(function (Builder $q) use ($search, $digits) {
-                    $q->where('customer_name', 'ilike', "%{$search}%");
-                    if ($digits !== '' && strlen($digits) <= 9) {
-                        $q->orWhere('number', (int) $digits);
-                    }
-                    if (strlen($digits) >= 4) {
-                        $q
-                            ->orWhere('customer_phone', 'like', '%'.(PhoneNumber::normalize($search) ? ltrim((string) PhoneNumber::normalize($search), '+') : $digits).'%');
-                    }
-                });
-            })
-            ->when($request->query('source'), fn (Builder $q, $source) => $q->where('source', $source))
-            ->when($request->query('customer_id'), fn (Builder $q, $id) => $q->where('customer_id', $id));
     }
 }

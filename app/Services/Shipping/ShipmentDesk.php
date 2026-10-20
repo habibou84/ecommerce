@@ -100,7 +100,7 @@ class ShipmentDesk
      *
      * @return array{earliest_delivery_date: ?string, closed: bool, message: ?string}|null
      */
-    private function deliveryDay(CarrierConnection $connection): ?array
+    public function deliveryDay(CarrierConnection $connection): ?array
     {
         return Cache::remember("carrier-day:{$connection->id}", now()->addMinutes(5), function () use ($connection) {
             try {

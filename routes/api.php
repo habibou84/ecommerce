@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\Messaging\ConversationController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Orders\AlertSettingsController;
 use App\Http\Controllers\Api\V1\Orders\CustomerController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryOptionsController;
@@ -213,6 +214,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('orders/{order}', [OrderController::class, 'show'])->whereNumber('order')->name('orders.show');
                 Route::get('orders/{order}/invoice', [OrderController::class, 'invoice'])->whereNumber('order')->name('orders.invoice');
                 Route::get('orders/{order}/label', [OrderController::class, 'label'])->whereNumber('order')->name('orders.label');
+                Route::get('orders/labels', [OrderController::class, 'labels'])->name('orders.labels');
+                Route::get('orders/export', [OrderController::class, 'export'])->name('orders.export');
                 Route::post('orders/{order}/notes', [OrderController::class, 'note'])->whereNumber('order')->name('orders.notes');
                 Route::get('delivery-zones', [DeliveryController::class, 'zones'])->name('zones.index');
             });
@@ -223,6 +226,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('returns/{return}/receive', [ReturnController::class, 'receive'])->whereNumber('return')->name('returns.receive');
                 Route::post('returns/{return}/cancel', [ReturnController::class, 'cancel'])->whereNumber('return')->name('returns.cancel');
                 Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
+                // Liste : plusieurs commandes à la fois (livreur, statut, WhatsApp)
+                Route::post('orders/bulk', [OrderController::class, 'bulk'])->name('orders.bulk');
                 Route::post('orders/parse', [OrderController::class, 'parse'])->name('orders.parse');
                 Route::post('orders/draft', [OrderController::class, 'draft'])->middleware('throttle:30,1')->name('orders.draft');
                 // Saisie : qui peut livrer ce quartier et à quel prix, zones et tarifs d'une entreprise de livraison
@@ -446,6 +451,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
 
             // ── Zones de livraison ──
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
+                Route::get('delivery-calendar', [DeliveryController::class, 'calendar'])->name('delivery-calendar.show');
+                Route::put('delivery-calendar', [DeliveryController::class, 'updateCalendar'])->name('delivery-calendar.update');
+                Route::get('alert-settings', [AlertSettingsController::class, 'show'])->name('alert-settings.show');
+                Route::put('alert-settings', [AlertSettingsController::class, 'update'])->name('alert-settings.update');
                 Route::post('delivery-zones', [DeliveryController::class, 'storeZone'])->name('zones.store');
                 Route::put('delivery-zones/{zone}', [DeliveryController::class, 'updateZone'])->whereNumber('zone')->name('zones.update');
                 Route::delete('delivery-zones/{zone}', [DeliveryController::class, 'destroyZone'])->whereNumber('zone')->name('zones.destroy');

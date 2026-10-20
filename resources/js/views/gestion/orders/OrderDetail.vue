@@ -291,7 +291,8 @@ async function addNote() {
               <Icon name="truck" :size="16" />Livrée par {{ (order.planned_courier || order.planned_carrier).name }}{{ order.status === 'pending_confirmation' ? ' dès la confirmation' : '' }}
             </p>
           </template>
-          <p v-if="order.scheduled_date" class="text-slate-500">Souhaitée le {{ new Date(order.scheduled_date).toLocaleDateString('fr-FR') }}</p>
+          <p v-if="order.scheduled_date" class="font-medium" :class="order.is_late ? 'text-red-700' : 'text-slate-700'">Livraison prévue le {{ new Date(`${order.scheduled_date.slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) }}</p>
+          <p v-else-if="order.delivery_method === 'delivery' && !['completed', 'cancelled', 'returned'].includes(order.status)" class="font-medium text-amber-800">Date de livraison à fixer (bouton Modifier)</p>
           <p v-if="order.customer_note" class="mt-2 rounded bg-amber-50 p-2">« {{ order.customer_note }} »</p>
           <p v-if="order.internal_note" class="mt-2 rounded bg-slate-50 p-2 text-slate-600">Note : {{ order.internal_note }}</p>
         </section>

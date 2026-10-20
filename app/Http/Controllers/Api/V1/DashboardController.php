@@ -7,6 +7,7 @@ use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Order;
+use App\Services\Orders\OrderAlerts;
 use App\Services\Reports\DailyAdvice;
 use App\Services\Stock\StockLevels;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +36,8 @@ class DashboardController extends Controller
                 'to_confirm' => Order::where('status', OrderStatus::PendingConfirmation->value)->count(),
                 'callbacks_due' => Order::where('status', OrderStatus::PendingConfirmation->value)->where('callback_at', '<=', now())->count(),
                 'to_ship' => Order::whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->count(),
+                // Files des alertes : sans livreur, pas ramassées, problèmes de livraison sans suite
+                'waiting' => OrderAlerts::counts(),
                 'month_revenue' => (int) (clone $month)->sum('total'),
                 'month_delivered' => (clone $month)->count(),
             ];

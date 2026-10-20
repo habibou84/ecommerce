@@ -118,7 +118,7 @@ vendor/bin/pint      # style du code
 | `app/Services/Storefront`, `routes/storefront.php` | Boutique en ligne : thèmes (`config/themes.php`), catalogue public, panier par cookie, commande en une page ; routes sans session |
 | `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |
 | `app/Enums/Role.php`, `Permission.php` | Rôles (propriétaire, gérant, agent de confirmation, préparateur, caissier, livreur) et leurs permissions |
-| `vendor/habibou84/socle` | Code commun avec Delivery App (dépôt `habibou84/socle`) : téléphones, montants, SMS, signature des webhooks ; une modification se fait dans ce dépôt, puis `composer update habibou84/socle` dans les deux applications |
+| `vendor/habibou84/socle` | Code commun avec Delivery App (dépôt `habibou84/socle`) : téléphones, montants, SMS, signature des webhooks, contrat de l'API de Jibiat (`Contract`, exemples utilisés par `ShippingTest`) ; une modification se fait dans ce dépôt, puis `composer update habibou84/socle` dans les deux applications |
 | `resources/js` | Application Vue : création de boutique, connexion, gestion (`/gestion`) |
 | `resources/views` | Pages Blade : présentation, boutique en ligne (`storefront/`, `layouts/storefront`), erreurs, PDF |
 | `resources/js/storefront.js`, `resources/css/storefront.css` | JavaScript (sans dépendance) et styles de la boutique en ligne, séparés de la gestion |

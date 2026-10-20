@@ -10,6 +10,7 @@ use App\Models\Courier;
 use App\Models\Place;
 use App\Models\ProductVariant;
 use App\Models\Shipment;
+use App\Services\Orders\DeliveryCalendar;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\Shipping\ShipmentDesk;
@@ -22,7 +23,7 @@ use Illuminate\Http\Request;
  */
 class DeliveryOptionsController extends Controller
 {
-    public function __invoke(Request $request, Places $places, ShipmentDesk $shipments): JsonResponse
+    public function __invoke(Request $request, Places $places, ShipmentDesk $shipments, DeliveryCalendar $calendar): JsonResponse
     {
         $data = $request->validate([
             'place_id' => ['nullable', 'integer'],
@@ -76,6 +77,8 @@ class DeliveryOptionsController extends Controller
             'couriers' => $couriers,
             'carriers' => $carriers,
             'recent' => $recent,
+            // Jours de livraison de la boutique : première date possible et jours fermés à griser
+            'calendar' => ['earliest' => $calendar->earliest($store), 'days' => $calendar->days($store), 'cutoff' => $calendar->settings($store)['cutoff']],
         ]]);
     }
 

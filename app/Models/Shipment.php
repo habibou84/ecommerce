@@ -24,6 +24,16 @@ class Shipment extends Model
         'last_synced_at', 'created_by',
     ];
 
+    /** Heure du dernier changement de statut : point de départ des alertes (pas ramassée, problème non traité) */
+    protected static function booted(): void
+    {
+        static::saving(function (Shipment $shipment) {
+            if ($shipment->isDirty('status')) {
+                $shipment->status_changed_at = now();
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
@@ -39,6 +49,7 @@ class Shipment extends Model
             'returned_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'last_synced_at' => 'datetime',
+            'status_changed_at' => 'datetime',
             'customer_notified_at' => 'datetime',
             'customer_response_at' => 'datetime',
         ];
