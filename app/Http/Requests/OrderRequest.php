@@ -42,7 +42,8 @@ class OrderRequest extends FormRequest
             'shipping_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'pickup_location_id' => ['nullable', 'integer'],
             'location_id' => ['nullable', 'integer'],
-            'scheduled_date' => ['nullable', 'date'],
+            // Date de livraison : jamais dans le passé à la saisie (sans date, la première date possible est prise)
+            'scheduled_date' => ['nullable', 'date', ...($creating ? ['after_or_equal:today'] : [])],
             'time_slot' => ['nullable', 'string', 'max:20'],
             'customer_note' => ['nullable', 'string', 'max:2000'],
             'internal_note' => ['nullable', 'string', 'max:2000'],
@@ -76,6 +77,7 @@ class OrderRequest extends FormRequest
             'reward_points' => 'points de fidélité',
             'referral_code' => 'code de parrainage',
             'planned_courier_id' => 'livreur', 'planned_carrier_connection_id' => 'entreprise de livraison',
+            'scheduled_date' => 'date de livraison',
         ];
     }
 

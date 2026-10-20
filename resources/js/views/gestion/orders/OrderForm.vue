@@ -206,19 +206,35 @@ const isoDay = (offset) => {
   return d.toLocaleDateString('sv-SE')
 }
 const pickDate = ref(false)
-// Entreprise choisie qui ne peut plus livrer aujourd'hui (heure limite passée, jour fermé) : « Aujourd'hui » grisé,
-// et un message si la date retenue est trop tôt
-const earliestDate = computed(() => (form.delivery_method === 'delivery' ? chosenCarrier.value?.earliest_date ?? null : null))
-const todayClosed = computed(() => !!earliestDate.value && earliestDate.value > isoDay(0))
-const earliestLabel = computed(() => {
-  if (!earliestDate.value) return ''
-  return earliestDate.value === isoDay(1) ? 'demain' : 'le ' + new Date(`${earliestDate.value}T00:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+// Date de livraison obligatoire : la première date possible est choisie d'office (heure limite et jours sans
+// livraison de la boutique ; journée de l'entreprise choisie quand elle est plus tardive) ; les jours fermés sont grisés
+const calendar = computed(() => options.value?.calendar ?? null)
+const earliestDate = computed(() => {
+  if (form.delivery_method !== 'delivery') return null
+  const dates = [calendar.value?.earliest, chosenCarrier.value?.earliest_date].filter(Boolean)
+  return dates.length ? dates.sort().at(-1) : null
 })
-const dateWarning = computed(() => {
-  if (!earliestDate.value || !form.scheduled_date || form.scheduled_date >= earliestDate.value) return ''
-  const why = form.scheduled_date === isoDay(0) ? 'Heure limite passée' : 'Pas de livraison ce jour-là'
-  return `${why} chez ${chosenCarrier.value.name} : livraison au plus tôt ${earliestLabel.value}.`
+const dayChoices = computed(() => (calendar.value?.days ?? []).slice(0, 4).map((d) => ({
+  ...d,
+  label: d.date === isoDay(0) ? 'Aujourd\'hui' : d.date === isoDay(1) ? 'Demain' : new Date(`${d.date}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }),
+  disabled: !d.open || (earliestDate.value && d.date < earliestDate.value),
+})))
+const dateLabel = (date) => (date === isoDay(1) ? 'demain' : 'le ' + new Date(`${date}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))
+const dateNotice = ref('')
+// Date vide, ou trop tôt pour qui livre : la première date possible, avec un mot d'explication
+watch(earliestDate, (min) => {
+  if (!min) return
+  if (!form.scheduled_date) {
+    form.scheduled_date = min
+  } else if (form.scheduled_date < min && (!editing.value || ready.value)) {
+    dateNotice.value = `${chosenCarrier.value?.earliest_date === min ? chosenCarrier.value.name : 'La boutique'} ne livre pas plus tôt que ${dateLabel(min)} : date avancée.`
+    form.scheduled_date = min
+  }
+}, { immediate: true })
+watch(() => form.scheduled_date, () => {
+  if (earliestDate.value && form.scheduled_date >= earliestDate.value) setTimeout(() => (dateNotice.value = ''), 4000)
 })
+const closedChosen = computed(() => form.scheduled_date && calendar.value?.days.some((d) => d.date === form.scheduled_date && !d.open))
 
 // Adresse précise et point de repère : un seul champ (les anciennes commandes réunissent les deux)
 function joinAddress(address, landmark) {
@@ -302,6 +318,7 @@ const missing = computed(() => {
   if (!items.value.length) return { text: 'Ajoutez au moins un article', field: 'items', target: '#product-search' }
   if (items.value.some((i) => i.needs_variant)) return { text: 'Choisissez la variante des articles signalés', field: 'items', target: '[data-needs-variant]' }
   if (items.value.some((i) => !i.variant_id && !String(i.title ?? '').trim())) return { text: 'Donnez un nom à l\'article hors catalogue', field: 'items', target: '[data-untitled]' }
+  if (form.delivery_method === 'delivery' && !form.scheduled_date) return { text: 'Choisissez la date de livraison', field: 'scheduled_date', target: '#delivery-date' }
   if (chosenCarrier.value && !chosenCarrier.value.covered) return { text: `${chosenCarrier.value.name} ne livre pas ce quartier`, field: 'shipping_place_id', target: '#place' }
   return null
 })
@@ -659,25 +676,27 @@ async function save() {
             </Field>
 
             <div>
-              <p class="label-lg">Quand ?</p>
+              <p id="delivery-date" class="label-lg">Date de livraison <span class="text-red-600">*</span></p>
               <div class="flex flex-wrap items-center gap-2">
                 <button
-                  v-for="d in [{ label: 'Dès que possible', value: '' }, { label: 'Aujourd\'hui', value: isoDay(0) }, { label: 'Demain', value: isoDay(1) }]"
-                  :key="d.label"
+                  v-for="d in dayChoices"
+                  :key="d.date"
                   type="button"
-                  class="rounded-full border px-4 py-2 text-[15px]"
-                  :class="[!pickDate && form.scheduled_date === d.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700', d.value === isoDay(0) && todayClosed ? 'cursor-not-allowed opacity-40' : '']"
-                  :disabled="d.value === isoDay(0) && todayClosed && form.scheduled_date !== d.value"
-                  :title="d.value === isoDay(0) && todayClosed ? `${chosenCarrier.name} ne livre plus aujourd'hui` : undefined"
-                  @click="pickDate = false; form.scheduled_date = d.value"
+                  class="rounded-full border px-4 py-2 text-[15px] first-letter:uppercase"
+                  :class="!pickDate && form.scheduled_date === d.date ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : d.disabled ? 'cursor-not-allowed border-slate-200 text-slate-400 line-through' : 'border-slate-300 text-slate-700'"
+                  :disabled="d.disabled"
+                  :title="!d.open ? 'Pas de livraison ce jour-là' : d.disabled ? 'Trop tôt pour qui livre' : undefined"
+                  @click="pickDate = false; form.scheduled_date = d.date"
                 >
                   {{ d.label }}
                 </button>
-                <button type="button" class="rounded-full border px-4 py-2 text-[15px]" :class="pickDate ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700'" @click="pickDate = true">Autre date</button>
-                <input v-if="pickDate || (form.scheduled_date && ![isoDay(0), isoDay(1)].includes(form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto" type="date" :min="earliestDate ?? undefined" aria-label="Date souhaitée" />
+                <button type="button" class="rounded-full border px-4 py-2 text-[15px]" :class="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date)) ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700'" @click="pickDate = true">Autre date</button>
+                <input v-if="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto" type="date" :min="earliestDate ?? isoDay(0)" aria-label="Date de livraison" />
               </div>
-              <p v-if="dateWarning" class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[15px] text-amber-900">{{ dateWarning }}</p>
-              <p v-else-if="todayClosed && !form.scheduled_date" class="mt-2 text-sm text-slate-500">{{ chosenCarrier.name }} ne livre plus aujourd'hui : « Dès que possible » veut dire {{ earliestLabel }}.</p>
+              <p v-if="errors.scheduled_date" class="mt-2 text-sm text-red-600">{{ errors.scheduled_date }}</p>
+              <p v-else-if="dateNotice" class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[15px] text-amber-900">{{ dateNotice }}</p>
+              <p v-else-if="closedChosen" class="mt-2 text-sm text-amber-800">D'habitude, pas de livraison ce jour-là.</p>
+              <p v-else-if="earliestDate && form.scheduled_date === earliestDate" class="mt-2 text-sm text-slate-500">Première date possible{{ calendar ? ` (commandes livrées le jour même jusqu'à ${calendar.cutoff.replace(':', ' h ')})` : '' }}.</p>
             </div>
 
             <!-- Frais : calculés, modifiables d'un geste -->

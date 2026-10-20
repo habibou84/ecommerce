@@ -60,6 +60,7 @@ class OrderDesk
         private readonly Pricing $pricing,
         private readonly PlanLimits $limits,
         private readonly Loyalty $loyalty,
+        private readonly DeliveryCalendar $calendar,
     ) {}
 
     /**
@@ -99,6 +100,7 @@ class OrderDesk
             ]);
             $this->applyPlace($store, $order);
             $this->applyPlannedDelivery($order, $data);
+            $this->ensureDeliveryDate($store, $order);
             // Fidélité : points utilisés et réduction de parrainage (avant le calcul du total)
             $this->loyalty->prepare($store, $order, $customer, $data);
             $order->save();
@@ -159,6 +161,10 @@ class OrderDesk
             if (array_key_exists('planned_courier_id', $data) || array_key_exists('planned_carrier_connection_id', $data) || $order->delivery_method === 'pickup') {
                 $this->applyPlannedDelivery($order, $data);
             }
+            if ($order->isDirty('scheduled_date') && $order->scheduled_date?->lt(today())) {
+                throw new BusinessRuleException('La date de livraison est déjà passée : choisissez aujourd\'hui ou plus tard.', 'scheduled_date');
+            }
+            $this->ensureDeliveryDate($order->store, $order);
 
             $itemsChanged = array_key_exists('items', $data);
             if ($itemsChanged) {
@@ -607,6 +613,17 @@ class OrderDesk
             throw new BusinessRuleException('Cette entreprise de livraison n\'est pas connectée.', 'planned_carrier_connection_id');
         }
         $order->forceFill(['planned_courier_id' => $courierId, 'planned_carrier_connection_id' => $carrierId]);
+    }
+
+    /**
+     * Toute commande à livrer a une date de livraison : sans date donnée (boutique en ligne, ancienne saisie), la
+     * première date possible (heure limite et jours sans livraison de la boutique, journée de l'entreprise choisie).
+     */
+    private function ensureDeliveryDate(Store $store, Order $order): void
+    {
+        if ($order->delivery_method === 'delivery' && $order->scheduled_date === null) {
+            $order->scheduled_date = $this->calendar->earliest($store, $order->planned_carrier_connection_id ? CarrierConnection::find($order->planned_carrier_connection_id) : null);
+        }
     }
 
     private function location(Store $store, ?int $locationId): StockLocation

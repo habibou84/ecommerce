@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Orders;
 use App\Http\Controllers\Controller;
 use App\Models\DeliveryZone;
 use App\Models\Place;
+use App\Services\Orders\DeliveryCalendar;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use Illuminate\Http\JsonResponse;
@@ -70,6 +71,36 @@ class DeliveryController extends Controller
         $zones = DeliveryZone::with('places.parent')->orderBy('sort')->orderBy('id')->get();
 
         return response()->json(['data' => $zones->map(fn (DeliveryZone $z) => $this->present($z))]);
+    }
+
+    /**
+     * Jours et heures de livraison : heure limite pour livrer le jour même, jours de la semaine et dates sans livraison.
+     */
+    public function calendar(DeliveryCalendar $calendar): JsonResponse
+    {
+        $store = $this->currentStore();
+
+        return response()->json(['data' => $calendar->settings($store) + ['earliest' => $calendar->earliest($store)]]);
+    }
+
+    public function updateCalendar(Request $request, DeliveryCalendar $calendar): JsonResponse
+    {
+        $data = $request->validate([
+            'cutoff' => ['required', 'date_format:H:i'],
+            'closed_weekdays' => ['present', 'array', 'max:6'],
+            'closed_weekdays.*' => ['integer', 'between:1,7'],
+            'closed_dates' => ['present', 'array', 'max:60'],
+            'closed_dates.*' => ['date_format:Y-m-d'],
+        ], [], ['cutoff' => 'heure limite', 'closed_weekdays' => 'jours sans livraison']);
+
+        $store = $this->currentStore();
+        $store->forceFill(['delivery_calendar' => [
+            'cutoff' => $data['cutoff'],
+            'closed_weekdays' => array_values(array_unique(array_map('intval', $data['closed_weekdays']))),
+            'closed_dates' => array_values(array_unique(array_filter($data['closed_dates'], fn ($d) => $d >= today()->toDateString()))),
+        ]])->save();
+
+        return $this->calendar($calendar);
     }
 
     public function storeZone(Request $request): JsonResponse
