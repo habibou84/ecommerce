@@ -123,6 +123,59 @@ class ShipmentController extends Controller
         return redirect()->away($model->proof_photo_url);
     }
 
+    /**
+     * Course chez l'entreprise de livraison : modification (champs choisis, ou reprise de la commande modifiée).
+     */
+    public function updateAtCarrier(Request $request, int $shipment): JsonResponse
+    {
+        $data = $request->validate([
+            'from_order' => ['sometimes', 'boolean'],
+            'recipient_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'recipient_phone' => ['sometimes', 'string', 'max:30'],
+            'recipient_phone2' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'delivery_address' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'delivery_landmark' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'delivery_scheduled_date' => ['sometimes', 'nullable', 'date', 'after_or_equal:today'],
+            'items_amount' => ['sometimes', 'integer', 'min:0', 'max:100000000'],
+            'is_fragile' => ['sometimes', 'boolean'],
+        ], [], ['delivery_scheduled_date' => 'date de livraison', 'items_amount' => 'montant à encaisser', 'recipient_phone' => 'téléphone']);
+        $model = Shipment::findOrFail($shipment);
+
+        $model = $request->boolean('from_order')
+            ? $this->desk->syncOrderToCarrier($model, $request->user())
+            : $this->desk->updateAtCarrier($model, collect($data)->except('from_order')->all(), $request->user());
+
+        return response()->json(['data' => $this->present($model)]);
+    }
+
+    public function decide(Request $request, int $shipment): JsonResponse
+    {
+        $data = $request->validate([
+            'decision' => ['required', Rule::in(['redeliver', 'return'])],
+            'date' => ['required_if:decision,redeliver', 'nullable', 'date', 'after_or_equal:today'],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ], [], ['decision' => 'décision', 'date' => 'date de livraison']);
+        $model = $this->desk->decideAtCarrier(Shipment::findOrFail($shipment), $data['decision'], $data['date'] ?? null, $data['note'] ?? null, $request->user());
+
+        return response()->json(['data' => $this->present($model)]);
+    }
+
+    public function requestReturn(Request $request, int $shipment): JsonResponse
+    {
+        $data = $request->validate(['note' => ['nullable', 'string', 'max:1000']]);
+        $model = $this->desk->requestReturnAtCarrier(Shipment::findOrFail($shipment), $data['note'] ?? null, $request->user());
+
+        return response()->json(['data' => $this->present($model)]);
+    }
+
+    public function note(Request $request, int $shipment): JsonResponse
+    {
+        $data = $request->validate(['note' => ['required', 'string', 'max:2000']], [], ['note' => 'note']);
+        $model = $this->desk->noteToCarrier(Shipment::findOrFail($shipment), $data['note'], $request->user());
+
+        return response()->json(['data' => $this->present($model)]);
+    }
+
     public function cancel(Request $request, int $shipment): JsonResponse
     {
         $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);

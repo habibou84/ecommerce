@@ -291,6 +291,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('orders/{order}/shipping-quotes', [ShipmentController::class, 'quotes'])->whereNumber('order')->name('shipments.quotes');
                 Route::post('orders/{order}/shipments', [ShipmentController::class, 'store'])->whereNumber('order')->name('shipments.store');
                 Route::post('shipments/{shipment}/cancel', [ShipmentController::class, 'cancel'])->whereNumber('shipment')->name('shipments.cancel');
+                // Actions sur la course chez l'entreprise de livraison (Delivery App)
+                Route::patch('shipments/{shipment}/carrier', [ShipmentController::class, 'updateAtCarrier'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.carrier-update');
+                Route::post('shipments/{shipment}/decision', [ShipmentController::class, 'decide'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.decision');
+                Route::post('shipments/{shipment}/return-request', [ShipmentController::class, 'requestReturn'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.return-request');
+                Route::post('shipments/{shipment}/notes', [ShipmentController::class, 'note'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.notes');
                 Route::post('shipments/{shipment}/status', [ShipmentController::class, 'status'])->whereNumber('shipment')->name('shipments.status');
                 Route::post('shipments/{shipment}/refresh', [ShipmentController::class, 'refresh'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.refresh');
                 Route::get('shipments/{shipment}/message', [ShipmentController::class, 'message'])->whereNumber('shipment')->name('shipments.message');

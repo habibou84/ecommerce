@@ -58,6 +58,7 @@ onMounted(async () => {
   if (editing.value) {
     const { data } = await http.get(`/orders/${props.id}`)
     const o = data.data
+    original.value = deliverySignature(o)
     Object.assign(form, {
       customer_phone: o.customer_phone_display, customer_name: o.customer_name ?? '', delivery_method: o.delivery_method,
       shipping_phone2: o.shipping_phone2 ?? '', shipping_address: joinAddress(o.shipping_address, o.shipping_landmark), shipping_landmark: '',
@@ -447,6 +448,20 @@ function setVariant(item, variant) {
   Object.assign(item, { variant_id: variant.id, variant_title: variant.title, unit_price: variant.price, needs_variant: false, choices: null, available: variant.available })
 }
 
+// Commande modifiée alors qu'une entreprise de livraison a déjà la course : proposer de la mettre à jour chez elle
+const original = ref(null)
+const deliverySignature = (o) => JSON.stringify([o.shipping_address, o.shipping_landmark, o.shipping_phone, o.shipping_phone2, o.shipping_place_id, o.scheduled_date, o.amount_due])
+async function offerCarrierSync(saved) {
+  const shipment = (saved.shipments ?? []).find((s) => s.carrier_actions?.edit)
+  if (!shipment || deliverySignature(saved) === original.value) return
+  if (!window.confirm(`Mettre aussi à jour la course chez ${shipment.carrier?.name} (adresse, téléphones, date${shipment.carrier_actions.edit === 'all' ? ', montant' : ''}) ?`)) return
+  try {
+    await http.patch(`/shipments/${shipment.id}/carrier`, { from_order: true })
+  } catch (e) {
+    window.alert(`La commande est enregistrée, mais ${shipment.carrier?.name} n'a pas accepté la modification : ${errorMessage(e)}`)
+  }
+}
+
 async function save() {
   if (missing.value) {
     showMissing()
@@ -480,7 +495,8 @@ async function save() {
       delete payload.source
       delete payload.customer_phone
       delete payload.confirmed
-      await http.put(`/orders/${props.id}`, payload)
+      const { data } = await http.put(`/orders/${props.id}`, payload)
+      await offerCarrierSync(data.data)
       router.push(`/gestion/commandes/${props.id}`)
     } else {
       const { data } = await http.post('/orders', { ...payload, conversation_id: conversation.value?.id ?? null })

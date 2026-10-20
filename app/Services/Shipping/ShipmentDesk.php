@@ -294,6 +294,125 @@ class ShipmentDesk
         return $shipment->fresh();
     }
 
+    /** Champs de la course envoyés à l'entreprise, avec leur nom pour l'historique */
+    private const CARRIER_FIELDS = [
+        'recipient_name' => 'nom du client', 'recipient_phone' => 'téléphone', 'recipient_phone2' => 'second téléphone',
+        'delivery_zone_id' => 'quartier', 'delivery_address' => 'adresse', 'delivery_landmark' => 'repère',
+        'delivery_scheduled_date' => 'date de livraison', 'items_amount' => 'montant à encaisser', 'is_fragile' => 'colis fragile',
+    ];
+
+    /** Une fois le colis récupéré, seule la livraison se modifie */
+    private const DELIVERY_ONLY = ['recipient_name', 'recipient_phone', 'recipient_phone2', 'delivery_zone_id', 'delivery_address', 'delivery_landmark', 'delivery_scheduled_date'];
+
+    /**
+     * Modifie la course chez l'entreprise de livraison (adresse, téléphones, date, montant avant le ramassage).
+     *
+     * @param  array<string, mixed>  $fields
+     */
+    public function updateAtCarrier(Shipment $shipment, array $fields, ?User $actor): Shipment
+    {
+        [$connection, $driver] = $this->carrierLink($shipment);
+        if ($shipment->status === ShipmentStatus::OutForDelivery) {
+            throw new BusinessRuleException('Le livreur est en route vers le client : la course ne se modifie plus.');
+        }
+        $fields = array_intersect_key($fields, $shipment->status->hasLeft() ? array_flip(self::DELIVERY_ONLY) : self::CARRIER_FIELDS);
+        if ($fields === []) {
+            throw new BusinessRuleException('Rien à modifier : le colis est déjà récupéré, seule la livraison se modifie.');
+        }
+
+        $remote = $driver->update($connection, $shipment, $fields);
+        $changed = implode(', ', array_map(fn (string $k) => self::CARRIER_FIELDS[$k], array_keys($fields)));
+        $this->apply($shipment, $remote, 'user', null, $actor);
+        // Nouveau montant : ce que le livreur encaisse (articles, plus son tarif si le client le paie)
+        if (array_key_exists('items_amount', $fields)) {
+            $shipment->refresh()->forceFill(['cod_amount' => (int) $fields['items_amount'] + ($shipment->fee_payer === 'customer' ? (int) $shipment->carrier_fee : 0)])->save();
+        }
+        $this->event($shipment->fresh(), $shipment->fresh()->status, $remote->rawStatus, 'user', 'Course modifiée chez '.$connection->name.' : '.$changed, $actor);
+
+        return $shipment->fresh();
+    }
+
+    /**
+     * Commande modifiée dans la boutique : la course reprend son adresse, ses téléphones, sa date (et son montant avant
+     * le ramassage).
+     */
+    public function syncOrderToCarrier(Shipment $shipment, ?User $actor): Shipment
+    {
+        [$connection] = $this->carrierLink($shipment);
+        $order = $shipment->order()->with(['items', 'store'])->firstOrFail();
+        $payload = $this->payload($shipment, $order, $connection, $shipment->origin, $shipment->fee_payer ?? 'store', $order->amountDue());
+
+        return $this->updateAtCarrier($shipment, array_intersect_key($payload, self::CARRIER_FIELDS), $actor);
+    }
+
+    /**
+     * Livraison échouée, l'entreprise attend la décision de la boutique : relivrer à une date, ou faire revenir le colis.
+     */
+    public function decideAtCarrier(Shipment $shipment, string $decision, ?string $date, ?string $note, ?User $actor): Shipment
+    {
+        [$connection, $driver] = $this->carrierLink($shipment);
+        if (! $shipment->needs_decision) {
+            throw new BusinessRuleException('Aucune décision n\'est attendue pour cette livraison.');
+        }
+
+        $remote = $driver->decide($connection, $shipment, $decision, $date, $note);
+        $label = $decision === 'redeliver' ? 'Relivraison demandée pour le '.Carbon::parse($date)->format('d/m/Y') : 'Retour du colis demandé';
+        $this->apply($shipment, $remote, 'user', trim($label.($note ? ' : '.$note : '')), $actor);
+        $this->eventIfUnchanged($shipment, $remote, $label, $note, $actor);
+
+        return $shipment->fresh();
+    }
+
+    public function requestReturnAtCarrier(Shipment $shipment, ?string $note, ?User $actor): Shipment
+    {
+        [$connection, $driver] = $this->carrierLink($shipment);
+        if (! $shipment->status->hasLeft()) {
+            throw new BusinessRuleException('Le colis n\'est pas encore récupéré : annulez plutôt la livraison.');
+        }
+
+        $remote = $driver->requestReturn($connection, $shipment, $note);
+        $this->apply($shipment, $remote, 'user', null, $actor);
+        $this->eventIfUnchanged($shipment, $remote, 'Retour du colis demandé', $note, $actor);
+
+        return $shipment->fresh();
+    }
+
+    public function noteToCarrier(Shipment $shipment, string $note, ?User $actor): Shipment
+    {
+        [$connection, $driver] = $this->carrierLink($shipment);
+        $driver->note($connection, $shipment, $note);
+        $this->event($shipment, $shipment->status, $shipment->carrier_status, 'user', 'Note envoyée à '.$connection->name.' : '.$note, $actor);
+
+        return $shipment->fresh();
+    }
+
+    /**
+     * Livraison suivie par une entreprise reliée à la boutique (Delivery App), pas encore terminée.
+     *
+     * @return array{0: CarrierConnection, 1: DeliveryAppDriver}
+     */
+    private function carrierLink(Shipment $shipment): array
+    {
+        $connection = $shipment->connection;
+        if (! $connection?->isApi() || ! $shipment->carrier_tracking_code) {
+            throw new BusinessRuleException('Cette livraison ne passe pas par une entreprise de livraison reliée à la boutique.');
+        }
+        if ($shipment->status->isFinal()) {
+            throw new BusinessRuleException('Cette livraison est terminée.');
+        }
+
+        return [$connection, app(DeliveryAppDriver::class)];
+    }
+
+    /** Ligne d'historique quand l'action n'a pas changé le statut (le changement de statut a déjà la sienne) */
+    private function eventIfUnchanged(Shipment $before, RemoteShipment $remote, string $label, ?string $note, ?User $actor): void
+    {
+        $after = $before->fresh();
+        if ($after->status === $before->status) {
+            $this->event($after, $after->status, $remote->rawStatus, 'user', trim($label.($note ? ' : '.$note : '')), $actor);
+        }
+    }
+
     /**
      * Statut saisi à la main (transporteur sans API, ou livreur de la boutique : réception d'un colis retourné…).
      */
