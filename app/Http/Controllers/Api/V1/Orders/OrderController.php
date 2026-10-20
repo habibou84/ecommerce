@@ -36,18 +36,20 @@ class OrderController extends Controller
 
     /**
      * Liste : onglet (statut, à faire livrer, en retard), recherche, période, qui livre, commune, paiement, canal, tri ;
-     * compteurs par onglet et résumé de la liste.
+     * compteurs par onglet, résumé de la liste et total de chaque jour affiché.
      */
     public function index(Request $request, OrderListing $listing): JsonResponse
     {
         $request->validate(OrderListing::rules());
 
-        $page = $listing->query($request)->with(OrderListing::relations())->withCount('items')
+        $page = $listing->query($request)->select('orders.*')->selectRaw($listing->dayKey($request).' AS list_day')
+            ->with(OrderListing::relations())->withCount('items')
             ->paginate($request->integer('per_page', 50));
 
         return response()->json([
-            'data' => $page->getCollection()->map(fn (Order $o) => OrderResource::make($o)->resolve() + $listing->extras($o))->values(),
+            'data' => $page->getCollection()->map(fn (Order $o) => OrderResource::make($o)->resolve() + $listing->extras($o) + ['day' => $o->list_day])->values(),
             'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()],
+            'days' => $listing->dayTotals($request, $page->getCollection()->pluck('list_day')->unique()->values()->all()),
             'counts' => $listing->counts($request),
             'summary' => $listing->summary($request),
         ]);

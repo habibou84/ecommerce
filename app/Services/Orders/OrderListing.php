@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\Shipment;
+use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -22,6 +23,9 @@ class OrderListing
 {
     /** Statuts où la commande attend encore d'être livrée : une date de livraison passée la met « en retard » */
     public const OPEN = [OrderStatus::Confirmed, OrderStatus::Processing, OrderStatus::Shipped];
+
+    /** Statuts où une commande à livrer sans date doit encore en recevoir une (« Date à fixer ») */
+    public const NEEDS_DATE = ['pending_confirmation', 'confirmed', 'processing', 'shipped'];
 
     /**
      * @return array<string, mixed>
@@ -69,7 +73,7 @@ class OrderListing
             ->when($request->query('source'), fn (Builder $q, $source) => $q->where('source', $source))
             ->when($request->query('customer_id'), fn (Builder $q, $id) => $q->where('customer_id', $id))
             ->when($this->period($request), function (Builder $q, array $range) use ($request) {
-                $request->query('date_field') === 'scheduled'
+                $request->query('date_field', 'scheduled') === 'scheduled'
                     ? $q->whereBetween('scheduled_date', [$range[0]->toDateString(), $range[1]->toDateString()])
                     : $q->whereBetween('created_at', $range);
             })
@@ -91,12 +95,75 @@ class OrderListing
         $query = $this->withStatus($this->filtered($request), $request->query('status'))
             ->when($request->boolean('callback_due'), fn (Builder $q) => $q->where('callback_at', '<=', now()));
 
-        return match ($request->query('sort', 'recent')) {
+        return match ($request->query('sort', 'scheduled')) {
+            'recent' => $query->latest('id'),
             'oldest' => $query->oldest('id'),
             'amount' => $query->orderByDesc('total')->latest('id'),
-            'scheduled' => $query->orderByRaw('scheduled_date IS NULL')->orderBy('scheduled_date')->latest('id'),
-            default => $query->latest('id'),
+            default => $this->byDeliveryDay($query),
         };
+    }
+
+    /**
+     * Tri par jour de livraison, le plus lointain en haut : d'abord les commandes en cours dont la date est à fixer,
+     * puis chaque jour de livraison (une commande sans date, retrait ou ancienne commande terminée, compte au jour
+     * où elle a été passée).
+     */
+    private function byDeliveryDay(Builder $query): Builder
+    {
+        $open = "'".implode("','", self::NEEDS_DATE)."'";
+
+        return $query
+            ->orderByRaw("(scheduled_date IS NULL AND delivery_method = 'delivery' AND status IN ({$open})) DESC")
+            ->orderByRaw('COALESCE(scheduled_date, CAST(created_at AS DATE)) DESC')
+            ->latest('id');
+    }
+
+    /**
+     * Jour sous lequel la liste range chaque commande (« AAAA-MM-JJ », ou rien pour « date à fixer ») : jour de
+     * livraison, ou jour de la commande quand on trie par date de commande. Même règle que le tri.
+     */
+    public function dayKey(Request $request): string
+    {
+        $tz = app(Tenancy::class)->store()?->timezone;
+        $tz = in_array($tz, timezone_identifiers_list(), true) ? $tz : config('app.timezone');
+        $created = "CAST((created_at AT TIME ZONE 'UTC') AT TIME ZONE '{$tz}' AS DATE)";
+        if (in_array($request->query('sort'), ['recent', 'oldest'], true)) {
+            return "CAST({$created} AS TEXT)";
+        }
+        $open = "'".implode("','", self::NEEDS_DATE)."'";
+
+        return "CASE WHEN scheduled_date IS NULL AND delivery_method = 'delivery' AND status IN ({$open}) THEN NULL ELSE CAST(COALESCE(scheduled_date, {$created}) AS TEXT) END";
+    }
+
+    /**
+     * Nombre et montant de chaque jour, sur toute la liste filtrée (pas seulement la page) : un jour coupé entre
+     * deux pages garde son vrai total.
+     *
+     * @param  list<string|null>  $days
+     * @return array<string, array{count: int, amount: int}> clé « none » pour « date à fixer »
+     */
+    public function dayTotals(Request $request, array $days): array
+    {
+        if ($days === []) {
+            return [];
+        }
+        $key = $this->dayKey($request);
+        $dates = array_values(array_filter($days));
+
+        return $this->query($request)->reorder()->toBase()
+            ->where(function ($q) use ($key, $dates, $days) {
+                if ($dates !== []) {
+                    $q->whereRaw("({$key}) BETWEEN ? AND ?", [min($dates), max($dates)]);
+                }
+                if (in_array(null, $days, true)) {
+                    $q->orWhereRaw("({$key}) IS NULL");
+                }
+            })
+            ->selectRaw("({$key}) AS day, COUNT(*) AS n, COALESCE(SUM(CASE WHEN status IN ('cancelled', 'returned') THEN 0 ELSE total END), 0) AS amount")
+            ->groupByRaw($key)
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->day ?? 'none' => ['count' => (int) $row->n, 'amount' => (int) $row->amount]])
+            ->all();
     }
 
     public function withStatus(Builder $query, ?string $status): Builder
@@ -161,6 +228,7 @@ class OrderListing
 
         return [
             'scheduled_date' => $order->scheduled_date?->toDateString(),
+            'needs_date' => $order->scheduled_date === null && $order->delivery_method === 'delivery' && in_array($order->status->value, self::NEEDS_DATE, true),
             'is_late' => in_array($order->status, self::OPEN, true) && $order->scheduled_date?->lt(today()),
             'items_label' => $order->items->sum('quantity').' article'.($order->items->sum('quantity') > 1 ? 's' : '').($titles->isNotEmpty() ? ' · '.$titles->take(2)->implode(', ').($titles->count() > 2 ? '…' : '') : ''),
             'deliverer' => $deliverer,
