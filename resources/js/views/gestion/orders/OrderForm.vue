@@ -228,6 +228,18 @@ const placeHint = computed(() => {
   if (zone.value) return { tone: 'text-emerald-800', text: `✓ Votre zone ${zone.value.name} · ${money(zone.value.fee)}${zone.value.eta_label ? ` · ${zone.value.eta_label}` : ''}` }
   return { tone: 'text-amber-800', text: 'Hors de vos zones de livraison : indiquez les frais.' }
 })
+// Champ touché : ramené en haut de l'écran, avec son libellé, sous l'en-tête (le clavier du téléphone ne le cache plus
+// et la liste des quartiers a la place de s'ouvrir)
+function bringToTop(event) {
+  const el = event.target
+  if (!el.matches?.('input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea, select')) return
+  const anchor = (el.id && document.querySelector(`label[for="${el.id}"]`)) || el
+  setTimeout(() => {
+    const header = document.querySelector('header')?.offsetHeight ?? 64
+    window.scrollTo({ top: anchor.getBoundingClientRect().top + window.scrollY - header - 12, behavior: 'smooth' })
+  }, 250) // le temps que le clavier s'ouvre
+}
+
 function removePhone2() {
   form.shipping_phone2 = ''
   showPhone2.value = false
@@ -432,7 +444,7 @@ async function save() {
 
 <template>
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
-  <form v-else class="space-y-5 pb-40 lg:pb-6" novalidate @submit.prevent="save">
+  <form v-else class="space-y-5 pb-40 lg:pb-6" novalidate @submit.prevent="save" @focusin="bringToTop">
     <RouterLink v-if="conversation" :to="`/gestion/messages/${conversation.id}`" class="text-sm text-slate-500 hover:text-emerald-700">← Conversation avec {{ conversation.name || conversation.phone_display }}</RouterLink>
     <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
