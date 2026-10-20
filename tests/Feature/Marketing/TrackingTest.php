@@ -72,7 +72,9 @@ class TrackingTest extends TestCase
 
         $order = Order::latest('id')->first();
         $this->assertCount(1, $sent);
-        $this->assertStringContainsString('/123456789012345/events?access_token=EAAB-secret', $sent[0]->url());
+        // Jeton dans le corps, jamais dans l'adresse (qui peut finir dans les journaux)
+        $this->assertStringEndsWith('/123456789012345/events', $sent[0]->url());
+        $this->assertSame('EAAB-secret', $sent[0]['access_token']);
         $event = $sent[0]['data'][0];
         $this->assertSame(['Purchase', 'order-'.$order->id, $order->total], [$event['event_name'], $event['event_id'], $event['custom_data']['value']]);
         $this->assertSame([hash('sha256', '2250506070809')], $event['user_data']['ph']);

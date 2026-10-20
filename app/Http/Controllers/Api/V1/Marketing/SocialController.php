@@ -49,15 +49,22 @@ class SocialController extends Controller
         return response()->json(['url' => $connections->authorizeUrl($this->currentStore(), $request->user(), $provider)]);
     }
 
-    public function pages(string $key, SocialConnections $connections): JsonResponse
+    public function pages(Request $request, string $key, SocialConnections $connections): JsonResponse
     {
-        return response()->json(['data' => $connections->pendingPages($this->currentStore(), $key)]);
+        return response()->json(['data' => $connections->pendingPages($this->currentStore(), $request->user(), $key)]);
+    }
+
+    public function confirmTikTok(Request $request, string $key, SocialConnections $connections): JsonResponse
+    {
+        $account = $connections->confirmTikTok($this->currentStore(), $request->user(), $key);
+
+        return response()->json(['data' => ['network' => $account->network, 'name' => $account->name]]);
     }
 
     public function choosePage(Request $request, string $key, SocialConnections $connections): JsonResponse
     {
         $data = $request->validate(['page_id' => ['required', 'string', 'max:64']]);
-        $accounts = $connections->choosePage($this->currentStore(), $key, $data['page_id']);
+        $accounts = $connections->choosePage($this->currentStore(), $request->user(), $key, $data['page_id']);
 
         return response()->json(['data' => array_map(fn (SocialAccount $a) => ['network' => $a->network, 'name' => $a->name], $accounts)]);
     }

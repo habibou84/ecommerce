@@ -45,11 +45,14 @@ class SocialConnections
         }
 
         try {
+            // Le compte n'est enregistré qu'une fois confirmé dans la gestion, par la personne qui a lancé la connexion :
+            // un lien de connexion envoyé à quelqu'un d'autre ne relie pas son compte à cette boutique
             if ($provider === 'tiktok') {
                 $account = $this->tiktok->connect($code);
-                $this->save($store, $data['user'], 'tiktok', $account['open_id'], $account['name'], $account['access_token'], $account['refresh_token'], now()->addSeconds($account['expires_in']));
+                $key = Str::random(40);
+                Cache::put('social-tiktok:'.$key, ['store' => $store->id, 'user' => $data['user'], 'account' => $account], now()->addMinutes(20));
 
-                return $back.'?connecte=tiktok';
+                return $back.'?tiktok='.$key;
             }
 
             $pages = $this->meta->pages($code);
@@ -70,9 +73,24 @@ class SocialConnections
      *
      * @return list<array{id: string, name: string, instagram: ?array{id: string, name: string}}>
      */
-    public function pendingPages(Store $store, string $key): array
+    public function pendingPages(Store $store, User $user, string $key): array
     {
-        return array_map(fn ($p) => ['id' => $p['id'], 'name' => $p['name'], 'instagram' => $p['instagram']], $this->pending($store, $key)['pages']);
+        return array_map(fn ($p) => ['id' => $p['id'], 'name' => $p['name'], 'instagram' => $p['instagram']], $this->pending($store, $user, $key)['pages']);
+    }
+
+    /**
+     * Compte TikTok autorisé : enregistré une fois confirmé par la personne qui a lancé la connexion.
+     */
+    public function confirmTikTok(Store $store, User $user, string $key): SocialAccount
+    {
+        $pending = Cache::get('social-tiktok:'.$key);
+        if (! is_array($pending) || $pending['store'] !== $store->id || $pending['user'] !== $user->id) {
+            throw new BusinessRuleException('La connexion à TikTok a expiré : recommencez.');
+        }
+        Cache::forget('social-tiktok:'.$key);
+        $account = $pending['account'];
+
+        return $this->save($store, $user->id, 'tiktok', $account['open_id'], $account['name'], $account['access_token'], $account['refresh_token'], now()->addSeconds($account['expires_in']));
     }
 
     /**
@@ -80,9 +98,9 @@ class SocialConnections
      *
      * @return list<SocialAccount>
      */
-    public function choosePage(Store $store, string $key, string $pageId): array
+    public function choosePage(Store $store, User $user, string $key, string $pageId): array
     {
-        $pending = $this->pending($store, $key);
+        $pending = $this->pending($store, $user, $key);
         $page = collect($pending['pages'])->firstWhere('id', $pageId) ?? throw new BusinessRuleException('Page introuvable : reconnectez Facebook.');
 
         try {
@@ -113,10 +131,10 @@ class SocialConnections
     /**
      * @return array{store: int, user: int, pages: list<array<string, mixed>>}
      */
-    private function pending(Store $store, string $key): array
+    private function pending(Store $store, User $user, string $key): array
     {
         $pending = Cache::get('social-pages:'.$key);
-        if (! is_array($pending) || $pending['store'] !== $store->id) {
+        if (! is_array($pending) || $pending['store'] !== $store->id || $pending['user'] !== $user->id) {
             throw new BusinessRuleException('La connexion à Facebook a expiré : recommencez.');
         }
 

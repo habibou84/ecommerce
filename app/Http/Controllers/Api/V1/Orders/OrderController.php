@@ -184,9 +184,44 @@ class OrderController extends Controller
         abort_unless($user->can(Permission::OrdersManage->value)
             || ($user->can(Permission::OrdersConfirm->value) && $model->status === OrderStatus::PendingConfirmation), 403);
 
-        $this->desk->update($model, $request->orderData(), $user);
+        $data = $request->orderData();
+        if (! $user->can(Permission::OrdersManage->value)) {
+            $data = $this->confirmationAgentData($model, $data);
+        }
+        $this->desk->update($model, $data, $user);
 
         return $this->show($order, app(CustomerBook::class), app(OrderMessages::class));
+    }
+
+    /**
+     * Agent de confirmation : il corrige les coordonnées, l'adresse et les articles demandés par le client, mais ni les
+     * prix, ni la remise, ni les frais, ni l'acompte, ni qui livre (réservés à la gestion des commandes et des
+     * livraisons). Un article déjà présent garde son prix ; un nouvel article prend le prix du catalogue.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function confirmationAgentData(Order $order, array $data): array
+    {
+        unset($data['discount_total'], $data['deposit_required'], $data['planned_courier_id'], $data['planned_carrier_connection_id'], $data['shipping_fee']);
+        $samePlace = ($data['shipping_place_id'] ?? $order->shipping_place_id) === $order->shipping_place_id
+            && ($data['delivery_method'] ?? $order->delivery_method) === $order->delivery_method;
+        if ($samePlace) {
+            $data['shipping_fee'] = $order->shipping_fee; // les frais fixés par la gestion restent
+        }
+        if (isset($data['items'])) {
+            $prices = $order->items()->whereNotNull('variant_id')->pluck('unit_price', 'variant_id');
+            $data['items'] = array_map(function (array $line) use ($prices) {
+                unset($line['unit_price']);
+                if (isset($line['variant_id'], $prices[$line['variant_id']])) {
+                    $line['unit_price'] = $prices[$line['variant_id']];
+                }
+
+                return $line;
+            }, $data['items']);
+        }
+
+        return $data;
     }
 
     public function transition(Request $request, int $order): JsonResponse
