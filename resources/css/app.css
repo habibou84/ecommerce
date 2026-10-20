@@ -71,6 +71,11 @@
   filter: invert(1) hue-rotate(180deg);
 }
 
+/* Clavier du téléphone ouvert : les barres fixées en bas s'effacent (voir lib/keyboard.js) */
+.keyboard-open .hide-on-keyboard {
+  display: none !important;
+}
+
 /* Onglets qui débordent : fondu du côté où il en reste (voir lib/tabStrip.js) */
 .tab-strip {
   scrollbar-width: none;
