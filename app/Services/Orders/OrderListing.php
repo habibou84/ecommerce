@@ -45,6 +45,7 @@ class OrderListing
             'deliverer' => ['nullable', 'string', 'regex:/^(none|courier:\d+|carrier:\d+)$/'],
             'commune_id' => ['nullable', 'integer'],
             'payment' => ['nullable', Rule::in(['to_collect', 'paid'])],
+            'alert' => ['nullable', Rule::in(['unassigned', 'not_picked', 'on_the_way', 'unhandled'])],
             'sort' => ['nullable', Rule::in(['recent', 'oldest', 'scheduled', 'amount'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
@@ -78,6 +79,12 @@ class OrderListing
                     : $q->whereBetween('created_at', $range);
             })
             ->when($request->query('deliverer'), fn (Builder $q, string $who) => $this->deliverer($q, $who))
+            ->when($request->query('alert'), fn (Builder $q, string $alert) => match ($alert) {
+                'unassigned' => OrderAlerts::unassigned($q),
+                'not_picked' => OrderAlerts::notPicked($q),
+                'on_the_way' => OrderAlerts::onTheWay($q),
+                default => OrderAlerts::unhandled($q),
+            })
             ->when($request->query('commune_id'), function (Builder $q, $commune) {
                 $ids = Place::where('parent_id', $commune)->pluck('id')->push((int) $commune);
                 $q->whereIn('shipping_place_id', $ids->merge(Place::whereIn('parent_id', $ids)->pluck('id'))->unique());

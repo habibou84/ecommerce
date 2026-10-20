@@ -56,6 +56,7 @@ class Store extends Model
             'billing_notices' => 'array',
             'marketing' => 'array',
             'delivery_calendar' => 'array',
+            'alert_settings' => 'array',
             'loyalty_settings' => 'array',
             'message_texts' => 'array',
             'meta_capi_token' => 'encrypted',
