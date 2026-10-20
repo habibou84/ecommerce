@@ -462,7 +462,8 @@ Hypothèse d'équipe identique à Delivery App : 2 développeurs full-stack, 1 d
 - [x] Test de bout en bout sur une instance Delivery App locale : connexion, zones, devis, course, ramassage, livraison et reversement rapproché sans écart, avec de vrais webhooks signés.
 - [x] Bascule de Delivery App sur `socle` (dépôt public `habibou84/socle`, branche `main` en 1.0.x) : nombres, téléphones, SMS et signature des webhooks viennent du même code dans les deux applications.
 - [x] Synchronisation sans décalage : événement `order.updated` (date changée, décision attendue, retour demandé, sans changement de statut) suivi et signalé à l'équipe, adresse webhook recréée une fois pour les connexions plus anciennes, date de livraison prévue et date au plus tôt du transporteur (`GET /delivery-day`) dans les devis, rattrapage des reversements depuis le dernier reçu (`paid_since`), zones relues chaque nuit (`shipping:zones`), lien de la photo de preuve redemandé quand il a expiré, alertes de l'entreprise de livraison coupées pour ces courses (`notify_merchant: false`) : l'équipe n'est prévenue qu'une fois, par Jibiat Marchand.
-- Restent pour la V1 : flux « Connecter » en un clic (§5.7 point 6), expédition partielle, test de contrat automatisé dans la CI de Delivery App.
+- Fait : annuaire des entreprises de livraison et flux « Connecter » en un clic (§5.7 point 6, contrat 1.2 « directory » et « connect-token »), dans Gestion › Livraisons › Entreprises de livraison.
+- Restent pour la V1 : expédition partielle, test de contrat automatisé dans la CI de Delivery App.
 
 ### Phase 5 : livreurs propres (3 semaines) ✅ *réalisée*
 - [x] Livreurs ajoutés par la gestion (nom, téléphone, véhicule, zones couvertes, plafond d'espèces, règle de paie) ; lien d'invitation à envoyer par WhatsApp (compte créé avec code SMS) ; un membre de l'équipe qui livre aussi est relié sans invitation ; disponibilité ; désactivation ; limite de l'offre (1 livreur en gratuit, 5 en Pro).

@@ -38,6 +38,8 @@ return [
     // puis connexion transporteur (phase 4). Aucune requête n'est faite vers un autre domaine.
     'delivery_app_domains' => array_filter(array_map('trim', explode(',', (string) env('DELIVERY_APP_DOMAINS', 'jibiat.com')))),
     'delivery_app_scheme' => env('DELIVERY_APP_SCHEME', 'https'),
+    // Annuaire des entreprises de livraison de Jibiat (contrat « directory » de habibou84/socle) et connexion en un clic
+    'delivery_app_directory_url' => env('DELIVERY_APP_DIRECTORY_URL', 'https://jibiat.com/api/public/directory'),
 
     // Reversement des entreprises de livraison : une course livrée non reversée depuis ce nombre de jours est signalée en retard
     'carrier_payout_overdue_days' => (int) env('CARRIER_PAYOUT_OVERDUE_DAYS', 7),
