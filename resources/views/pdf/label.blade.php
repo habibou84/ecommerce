@@ -13,6 +13,10 @@
     </style>
 </head>
 <body>
+@foreach ($labels as $i => $label)
+@php($order = $label['order'])
+@php($qr = $label['qr'])
+<div @if ($i < count($labels) - 1) style="page-break-after: always" @endif>
     <table style="width: 100%">
         <tr>
             <td>
@@ -47,5 +51,7 @@
             {{ $item->quantity }} × {{ $item->label() }}<br>
         @endforeach
     </div>
+</div>
+@endforeach
 </body>
 </html>

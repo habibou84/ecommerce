@@ -7,6 +7,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use chillerlan\QRCode\Output\QROutputInterface;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
+use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -26,9 +27,23 @@ class OrderDocuments
     {
         $order->loadMissing(['items', 'store']);
 
-        return Pdf::loadView('pdf.label', ['order' => $order, 'qr' => $this->qr($order->trackingUrl())])
+        return Pdf::loadView('pdf.label', ['labels' => [['order' => $order, 'qr' => $this->qr($order->trackingUrl())]]])
             ->setPaper([0, 0, 283.46, 425.2]) // 10 × 15 cm en points
             ->download('etiquette-'.ltrim($order->reference(), '#').'.pdf');
+    }
+
+    /**
+     * Étiquettes de plusieurs commandes dans un seul PDF, une par page (impression en série).
+     *
+     * @param  Collection<int, Order>  $orders
+     */
+    public function labels(Collection $orders): Response
+    {
+        $orders->loadMissing(['items', 'store']);
+
+        return Pdf::loadView('pdf.label', ['labels' => $orders->map(fn (Order $o) => ['order' => $o, 'qr' => $this->qr($o->trackingUrl())])->all()])
+            ->setPaper([0, 0, 283.46, 425.2])
+            ->download('etiquettes-'.now()->format('Y-m-d').'.pdf');
     }
 
     /**
