@@ -63,7 +63,7 @@ class SocialPublisher
      */
     public function publish(SocialPost $post): SocialPost
     {
-        if (! in_array($post->status, ['scheduled', 'failed', 'partial'], true)) {
+        if (! in_array($post->status, ['scheduled', 'queued', 'failed', 'partial'], true)) {
             return $post;
         }
         $post->forceFill(['status' => 'publishing'])->save();
@@ -109,10 +109,18 @@ class SocialPublisher
      */
     public function publishDue(): int
     {
-        $due = SocialPost::withoutGlobalScopes()->with('store')->where('status', 'scheduled')->whereNotNull('scheduled_at')->where('scheduled_at', '<=', now())->get();
-        $due->each(fn (SocialPost $post) => $this->publish($post));
+        // Publiées par la file d'attente (appels Facebook/TikTok lents) : chaque publication est d'abord « réservée »
+        // pour ne pas partir deux fois si la tâche repasse avant la fin
+        $due = SocialPost::withoutGlobalScopes()->where('status', 'scheduled')->whereNotNull('scheduled_at')->where('scheduled_at', '<=', now())->pluck('id');
+        $queued = 0;
+        foreach ($due as $id) {
+            if (SocialPost::withoutGlobalScopes()->whereKey($id)->where('status', 'scheduled')->update(['status' => 'queued']) === 1) {
+                PublishSocialPost::dispatch($id);
+                $queued++;
+            }
+        }
 
-        return $due->count();
+        return $queued;
     }
 
     /**
