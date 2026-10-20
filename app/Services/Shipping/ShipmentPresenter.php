@@ -2,6 +2,7 @@
 
 namespace App\Services\Shipping;
 
+use App\Enums\ShipmentStatus;
 use App\Models\CourierAssignment;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
@@ -21,6 +22,24 @@ class ShipmentPresenter
         $a = CourierAssignment::forStore($s->store_id)->where('shipment_id', $s->id)->where('courier_id', $s->courier_id)->where('status', 'assigned')->latest('id')->first();
 
         return ['seen_at' => $a?->seen_at?->toIso8601String(), 'accepted_at' => $a?->accepted_at?->toIso8601String()];
+    }
+
+    /**
+     * @return array{edit: ?string, decide: bool, return: bool, note: bool}|null
+     */
+    private static function carrierActions(Shipment $s): ?array
+    {
+        if (! $s->connection?->isApi() || ! $s->carrier_tracking_code || $s->status->isFinal()) {
+            return null;
+        }
+
+        return [
+            // « all » avant le ramassage, « delivery » ensuite, rien quand le livreur est en route
+            'edit' => $s->status === ShipmentStatus::OutForDelivery ? null : ($s->status->hasLeft() ? 'delivery' : 'all'),
+            'decide' => (bool) $s->needs_decision,
+            'return' => $s->status->hasLeft() && ! $s->return_requested && ! $s->needs_decision,
+            'note' => true,
+        ];
     }
 
     /**
@@ -55,6 +74,8 @@ class ShipmentPresenter
             'scheduled_date' => $s->scheduled_date?->toDateString(),
             'needs_decision' => $s->needs_decision,
             'return_requested' => $s->return_requested,
+            // Actions possibles sur la course chez l'entreprise de livraison (Delivery App)
+            'carrier_actions' => self::carrierActions($s),
             'attempts_count' => $s->attempts_count,
             'failure_reason' => $s->failure_reason,
             'requested_at' => $s->requested_at?->toIso8601String(),

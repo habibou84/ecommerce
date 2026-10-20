@@ -100,6 +100,47 @@ class DeliveryAppDriver implements CarrierDriver
         return RemoteShipment::fromDeliveryApp($response->json('data'));
     }
 
+    /**
+     * Modification de la course par le marchand (règles de l'entreprise : tout avant le ramassage, la livraison ensuite).
+     *
+     * @param  array<string, mixed>  $fields
+     */
+    public function update(CarrierConnection $connection, Shipment $shipment, array $fields): RemoteShipment
+    {
+        $response = $this->send($connection, fn (PendingRequest $http) => $http->patch($this->orderPath($shipment), $fields));
+
+        return RemoteShipment::fromDeliveryApp($response->json('data'));
+    }
+
+    /**
+     * Suite d'une livraison échouée : « redeliver » à une date, ou « return ».
+     */
+    public function decide(CarrierConnection $connection, Shipment $shipment, string $decision, ?string $date, ?string $note): RemoteShipment
+    {
+        $response = $this->send($connection, fn (PendingRequest $http) => $http->post($this->orderPath($shipment).'/decision', array_filter([
+            'decision' => $decision, 'date' => $date, 'note' => $note,
+        ], fn ($v) => $v !== null && $v !== '')));
+
+        return RemoteShipment::fromDeliveryApp($response->json('data'));
+    }
+
+    public function requestReturn(CarrierConnection $connection, Shipment $shipment, ?string $note): RemoteShipment
+    {
+        $response = $this->send($connection, fn (PendingRequest $http) => $http->post($this->orderPath($shipment).'/return-request', array_filter(['note' => $note])));
+
+        return RemoteShipment::fromDeliveryApp($response->json('data'));
+    }
+
+    public function note(CarrierConnection $connection, Shipment $shipment, string $note): void
+    {
+        $this->send($connection, fn (PendingRequest $http) => $http->post($this->orderPath($shipment).'/notes', ['note' => $note]));
+    }
+
+    private function orderPath(Shipment $shipment): string
+    {
+        return 'orders/'.rawurlencode((string) $shipment->carrier_tracking_code);
+    }
+
     public function fetch(CarrierConnection $connection, Shipment $shipment): RemoteShipment
     {
         $response = $this->send($connection, fn (PendingRequest $http) => $http->get('orders/'.rawurlencode($shipment->carrier_tracking_code)));
