@@ -60,7 +60,7 @@ function pick(key) {
     <div class="space-y-3">
       <div class="relative">
         <Icon name="search" :size="20" class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input v-model="search" type="search" class="input-lg pl-12" placeholder="Rechercher un livreur ou une entreprise…" aria-label="Rechercher" />
+        <input v-model="search" type="search" class="input-lg pl-12" placeholder="Rechercher un livreur ou une entreprise…" aria-label="Rechercher" autocomplete="jm-no-autofill" data-lpignore="true" data-1p-ignore />
       </div>
       <div class="flex gap-2 overflow-x-auto text-sm font-semibold">
         <button v-for="f in [['all', 'Tous'], ['courier', `Mes livreurs (${count('courier')})`], ['carrier', `Entreprises (${count('carrier')})`]]" :key="f[0]" type="button" class="shrink-0 rounded-full px-4 py-2" :class="filter === f[0] ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'" @click="filter = f[0]">{{ f[1] }}</button>

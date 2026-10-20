@@ -19,6 +19,7 @@ const PATHS = {
   truck: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   alert: 'M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
   check: 'M20 6 9 17l-5-5',
+  up: 'M12 19V5M5 12l7-7 7 7',
   'arrow-up': 'M7 17 17 7M8 7h9v9',
   'arrow-down': 'M7 7l10 10M17 8v9H8',
   chevron: 'm9 6 6 6-6 6',

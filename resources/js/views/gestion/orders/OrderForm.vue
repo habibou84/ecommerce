@@ -242,15 +242,32 @@ const placeHint = computed(() => {
   return { tone: 'text-amber-800', text: 'Hors de vos zones de livraison : indiquez les frais.' }
 })
 // Champ touché : ramené en haut de l'écran, avec son libellé, sous l'en-tête (le clavier du téléphone ne le cache plus
-// et la liste des quartiers a la place de s'ouvrir)
+// et la liste des quartiers a la place de s'ouvrir). Avec le clavier ouvert, le navigateur décale la partie visible
+// de la page (visualViewport) : la position est comptée dans ce qui se voit vraiment, puis corrigée une fois la page
+// immobile (contenu ajouté ou retiré au-dessus pendant le défilement).
+let scrollTimers = []
+function offsetFromTop(anchor) {
+  const vv = window.visualViewport
+  const shift = vv?.offsetTop ?? 0
+  const header = document.querySelector('header')?.offsetHeight ?? 64
+  const wanted = Math.max(0, header - shift) + 12 // en-tête encore visible ou non
+  return anchor.getBoundingClientRect().top - shift - wanted
+}
 function bringToTop(event) {
   const el = event.target
   if (!el.matches?.('input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea, select')) return
   const anchor = (el.id && document.querySelector(`label[for="${el.id}"]`)) || el
-  setTimeout(() => {
-    const header = document.querySelector('header')?.offsetHeight ?? 64
-    window.scrollTo({ top: anchor.getBoundingClientRect().top + window.scrollY - header - 12, behavior: 'smooth' })
-  }, 250) // le temps que le clavier s'ouvre
+  scrollTimers.forEach(clearTimeout)
+  scrollTimers = [
+    setTimeout(() => {
+      const delta = offsetFromTop(anchor)
+      if (Math.abs(delta) > 4) window.scrollBy({ top: delta, behavior: 'smooth' })
+    }, 300), // le temps que le clavier s'ouvre
+    setTimeout(() => {
+      const delta = offsetFromTop(anchor)
+      if (Math.abs(delta) > 8) window.scrollBy({ top: delta })
+    }, 900),
+  ]
 }
 
 function removePhone2() {
@@ -457,7 +474,7 @@ async function save() {
 
 <template>
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
-  <form v-else class="space-y-5 pb-40 lg:pb-6" novalidate @submit.prevent="save" @focusin="bringToTop">
+  <form v-else class="space-y-5 pb-40 lg:pb-6" v-no-autofill novalidate @submit.prevent="save" @focusin="bringToTop">
     <RouterLink v-if="conversation" :to="`/gestion/messages/${conversation.id}`" class="text-sm text-slate-500 hover:text-emerald-700">← Conversation avec {{ conversation.name || conversation.phone_display }}</RouterLink>
     <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
@@ -687,7 +704,10 @@ async function save() {
               </div>
             </li>
           </ul>
-          <p v-else class="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">Cherchez un produit ci-dessus pour l'ajouter.</p>
+          <p v-else class="flex items-start gap-2 text-[15px] leading-snug text-slate-600">
+            <Icon name="up" :size="18" class="mt-0.5 shrink-0 text-emerald-700" />
+            <span>Tapez le nom de l'article (ou son code) dans le champ ci-dessus : la liste des articles s'affiche, touchez celui que le client veut pour l'ajouter à la commande.</span>
+          </p>
           <button type="button" class="text-sm text-emerald-700 hover:underline" @click="items.push({ variant_id: null, title: '', quantity: 1, unit_price: '' })">+ Article hors catalogue</button>
         </section>
 
