@@ -50,7 +50,7 @@ function add(product, variant) {
   <div class="space-y-2">
     <div class="relative">
       <Icon name="search" :size="18" class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-      <input v-model="search" type="search" class="input-lg pl-12" placeholder="Tapez le nom ou le code de l'article" @input="find" />
+      <input id="product-search" v-model="search" type="search" class="input-lg pl-12" placeholder="Tapez le nom ou le code de l'article" @input="find" />
     </div>
     <ul v-if="results.length && !choosing" class="divide-y divide-slate-100 rounded-lg border border-slate-200">
       <li v-for="p in results" :key="p.id">
