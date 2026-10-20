@@ -65,50 +65,13 @@ const todo = computed(() => {
 })
 const pending = computed(() => todo.value.filter((t) => t.count > 0 || t.hint))
 
-// Premiers pas, selon les droits de la personne
-const steps = computed(() => [
-  ...(auth.can('store.manage')
-    ? [
-        { title: 'Compléter les informations de la boutique', text: 'Slogan, numéro WhatsApp des clients, adresse.', to: '/gestion/parametres', done: !!auth.store?.tagline },
-        { title: 'Vérifier vos frais de livraison', text: 'Une zone « Abidjan » à 1 500 F est créée par défaut : adaptez-la par quartier.', to: '/gestion/livraisons/zones' },
-      ]
-    : []),
-  ...(auth.can('products.manage')
-    ? [{ title: 'Ajouter vos produits et leurs variantes', text: 'Tailles, couleurs, photos, stock. Ou importez un fichier Excel.', to: '/gestion/catalogue/nouveau' }]
-    : []),
-  ...(auth.can('orders.manage')
-    ? [{ title: 'Saisir votre première commande', text: 'Collez le message WhatsApp du client : tout se remplit.', to: '/gestion/commandes/nouvelle', done: weekTotal.value > 0 || (stats.value?.orders?.month_delivered ?? 0) > 0 }]
-    : []),
-  ...(auth.can('team.manage') ? [{ title: 'Inviter votre équipe', text: 'Gérant, agent de confirmation, préparateur, caissier.', to: '/gestion/equipe' }] : []),
-  ...(auth.can('store.manage')
-    ? [{ title: 'Ouvrir votre boutique en ligne', text: 'Choisissez un thème, ajoutez votre logo et ouvrez : vos clients commandent et paient à la livraison.', to: '/gestion/boutique-en-ligne', done: !!auth.store?.storefront_enabled }]
-    : []),
-])
-
-// « Pour bien démarrer » : repliable ; masqué pour de bon quand tout est fait ou quand on le demande (gardé sur cet appareil)
-const startKey = computed(() => `jm-demarrer:${auth.store?.id}`)
-function remembered(key) {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-function remember(key, value) {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // stockage refusé : le réglage dure le temps de la page
-  }
-}
-const startState = ref(remembered(startKey.value)) // null | 'closed' | 'hidden'
-const startOpen = computed(() => (startState.value ? startState.value === 'open' : weekTotal.value === 0))
-const showStart = computed(() => steps.value.length && startState.value !== 'hidden' && !steps.value.every((s) => s.done))
-const doneCount = computed(() => steps.value.filter((s) => s.done).length)
-function setStart(value) {
-  startState.value = value
-  remember(startKey.value, value)
-}
+// Guide de démarrage : avancement et prochaine étape (le détail est sur sa page)
+const guide = ref(null)
+onMounted(async () => {
+  guide.value = (await http.get('/setup-guide').catch(() => ({ data: { data: null } }))).data.data
+})
+const guideNext = computed(() => guide.value?.steps.find((s) => s.key === guide.value.next) ?? null)
+const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.value.done < guide.value.total)
 </script>
 
 <template>
@@ -116,6 +79,7 @@ function setStart(value) {
     <Alert v-if="welcome" tone="success">
       Votre boutique <strong>{{ auth.store?.name }}</strong> est créée. Elle est à l'adresse
       <a :href="auth.store?.url" target="_blank" class="font-medium underline">{{ auth.store?.url.replace(/^https?:\/\//, '').replace(/\/$/, '') }}</a>.
+      <RouterLink to="/gestion/demarrage" class="mt-1 block font-semibold underline">Suivez le guide de démarrage, étape par étape</RouterLink>
     </Alert>
 
     <Alert v-if="trialDays !== null" tone="info">
@@ -129,6 +93,17 @@ function setStart(value) {
         <p class="text-sm text-slate-500 first-letter:uppercase">{{ today }}</p>
       </div>
       <RouterLink v-if="auth.can('orders.manage')" to="/gestion/commandes/nouvelle" class="btn-brand hidden lg:inline-flex"><Icon name="plus" :size="18" />Nouvelle commande</RouterLink>
+    </section>
+
+    <!-- Guide de démarrage : disparaît quand l'essentiel est fait -->
+    <section v-if="showGuide" class="card flex flex-wrap items-center gap-4 p-4 sm:p-5">
+      <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-800"><Icon name="lightbulb" :size="22" /></span>
+      <div class="min-w-0 flex-1">
+        <p class="font-semibold">Bien démarrer : {{ guide.done }} sur {{ guide.total }} étapes essentielles faites</p>
+        <p v-if="guideNext" class="text-sm text-slate-600">Prochaine étape : {{ guideNext.title }}</p>
+        <div class="mt-2 h-2 max-w-xs overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-emerald-600" :style="{ width: `${(guide.done / guide.total) * 100}%` }" /></div>
+      </div>
+      <RouterLink :to="guideNext ? `/gestion/demarrage?etape=${guideNext.key}` : '/gestion/demarrage'" class="btn-brand w-full justify-center sm:w-auto">{{ guide.done ? 'Continuer le guide' : 'Commencer le guide' }}</RouterLink>
     </section>
 
     <!-- Chiffres du jour -->
@@ -228,31 +203,5 @@ function setStart(value) {
       <p class="text-xs text-slate-500">Tirés de vos chiffres : ventes, stock, confirmations et livraisons. Ils sont aussi dans le rapport du soir.</p>
     </section>
 
-    <!-- Pour bien démarrer : repliable, disparaît quand tout est fait -->
-    <section v-if="showStart" class="card">
-      <button type="button" class="flex w-full items-center gap-3 p-4 text-left sm:p-5" :aria-expanded="startOpen" @click="setStart(startOpen ? 'closed' : 'open')">
-        <span class="min-w-0 flex-1">
-          <span class="block font-semibold">Pour bien démarrer</span>
-          <span class="block text-sm text-slate-500">{{ doneCount }} sur {{ steps.length }} étape(s) faite(s)</span>
-        </span>
-        <span class="hidden h-2 w-24 overflow-hidden rounded-full bg-slate-100 sm:block"><span class="block h-full rounded-full bg-emerald-600" :style="{ width: `${(doneCount / steps.length) * 100}%` }" /></span>
-        <Icon name="chevron" :size="18" class="text-slate-400 transition" :class="{ 'rotate-90': startOpen }" />
-      </button>
-      <div v-if="startOpen" class="border-t border-slate-100 p-4 sm:p-5">
-        <ol class="space-y-3">
-          <li v-for="(step, index) in steps" :key="step.title" class="flex items-start gap-4">
-            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-semibold" :class="step.done ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'">
-              <Icon v-if="step.done" name="check" :size="16" /><template v-else>{{ index + 1 }}</template>
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="font-medium">{{ step.title }}</p>
-              <p class="text-sm text-slate-500">{{ step.text }}</p>
-            </div>
-            <RouterLink :to="step.to" class="btn-secondary shrink-0 px-3 py-1.5">{{ step.done ? 'Modifier' : 'Commencer' }}</RouterLink>
-          </li>
-        </ol>
-        <button type="button" class="btn-ghost mt-3 px-2 text-sm" @click="setStart('hidden')">J'ai terminé, ne plus afficher</button>
-      </div>
-    </section>
   </div>
 </template>

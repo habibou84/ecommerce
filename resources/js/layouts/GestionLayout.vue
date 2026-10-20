@@ -6,6 +6,7 @@ import NotificationBell from '../components/NotificationBell.vue'
 import { inApp } from '../lib/app'
 import { registerDevice, unregisterDevice } from '../lib/push'
 import { boot } from '../lib/boot'
+import { guideClear, guideCurrent } from '../lib/guide'
 import http, { errorMessage } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
 
@@ -51,6 +52,7 @@ const groups = [
     { to: '/gestion/marketing', label: 'Promotions' },
   ] },
   { label: 'Réglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
+    { to: '/gestion/demarrage', label: 'Bien démarrer' },
     { to: '/gestion/parametres', label: 'Informations de la boutique' },
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/alertes', label: 'Alertes' },
@@ -114,6 +116,8 @@ onMounted(() => {
 })
 onBeforeUnmount(() => clearInterval(badgeTimer))
 watch(() => route.path, refreshBadges)
+const guideStep = ref(guideCurrent())
+watch(() => route.fullPath, () => { guideStep.value = guideCurrent() })
 
 // Barre du bas (téléphone) : accueil, commandes, nouvelle commande, messages, le reste du menu
 const bottomTabs = computed(() => [
@@ -314,6 +318,13 @@ async function switchTo(store) {
       <div v-else-if="support && auth.can('team.manage')" class="flex flex-wrap items-center justify-center gap-3 bg-sky-50 px-4 py-2 text-sm text-sky-900">
         <span><Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Le support Jibiat Marchand ({{ support.admin }}) a accès à votre gestion jusqu'à {{ supportUntil }} : « {{ support.reason }} »</span>
         <button class="underline" @click="endSupport">Mettre fin</button>
+      </div>
+      <!-- Venu du guide de démarrage : un bandeau pour y revenir une fois le réglage fait -->
+      <div v-if="guideStep && route.path !== '/gestion/demarrage'" class="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">
+        <Icon name="lightbulb" :size="16" class="shrink-0" />
+        <span class="min-w-0 flex-1 truncate"><span class="hidden sm:inline">Guide de démarrage : </span>{{ guideStep.title }}</span>
+        <RouterLink :to="`/gestion/demarrage?etape=${guideStep.key}`" class="shrink-0 font-semibold underline">Revenir au guide</RouterLink>
+        <button type="button" class="shrink-0 text-emerald-700" aria-label="Fermer" @click="guideClear(); guideStep = null"><Icon name="close" :size="16" /></button>
       </div>
       <main class="mx-auto max-w-6xl p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
         <!-- Changement de boutique : la page est recréée avec les données de la nouvelle boutique -->
