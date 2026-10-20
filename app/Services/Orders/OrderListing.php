@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\Shipment;
+use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -115,6 +116,54 @@ class OrderListing
             ->orderByRaw("(scheduled_date IS NULL AND delivery_method = 'delivery' AND status IN ({$open})) DESC")
             ->orderByRaw('COALESCE(scheduled_date, CAST(created_at AS DATE)) DESC')
             ->latest('id');
+    }
+
+    /**
+     * Jour sous lequel la liste range chaque commande (« AAAA-MM-JJ », ou rien pour « date à fixer ») : jour de
+     * livraison, ou jour de la commande quand on trie par date de commande. Même règle que le tri.
+     */
+    public function dayKey(Request $request): string
+    {
+        $tz = app(Tenancy::class)->store()?->timezone;
+        $tz = in_array($tz, timezone_identifiers_list(), true) ? $tz : config('app.timezone');
+        $created = "CAST((created_at AT TIME ZONE 'UTC') AT TIME ZONE '{$tz}' AS DATE)";
+        if (in_array($request->query('sort'), ['recent', 'oldest'], true)) {
+            return "CAST({$created} AS TEXT)";
+        }
+        $open = "'".implode("','", self::NEEDS_DATE)."'";
+
+        return "CASE WHEN scheduled_date IS NULL AND delivery_method = 'delivery' AND status IN ({$open}) THEN NULL ELSE CAST(COALESCE(scheduled_date, {$created}) AS TEXT) END";
+    }
+
+    /**
+     * Nombre et montant de chaque jour, sur toute la liste filtrée (pas seulement la page) : un jour coupé entre
+     * deux pages garde son vrai total.
+     *
+     * @param  list<string|null>  $days
+     * @return array<string, array{count: int, amount: int}> clé « none » pour « date à fixer »
+     */
+    public function dayTotals(Request $request, array $days): array
+    {
+        if ($days === []) {
+            return [];
+        }
+        $key = $this->dayKey($request);
+        $dates = array_values(array_filter($days));
+
+        return $this->query($request)->reorder()->toBase()
+            ->where(function ($q) use ($key, $dates, $days) {
+                if ($dates !== []) {
+                    $q->whereRaw("({$key}) BETWEEN ? AND ?", [min($dates), max($dates)]);
+                }
+                if (in_array(null, $days, true)) {
+                    $q->orWhereRaw("({$key}) IS NULL");
+                }
+            })
+            ->selectRaw("({$key}) AS day, COUNT(*) AS n, COALESCE(SUM(CASE WHEN status IN ('cancelled', 'returned') THEN 0 ELSE total END), 0) AS amount")
+            ->groupByRaw($key)
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->day ?? 'none' => ['count' => (int) $row->n, 'amount' => (int) $row->amount]])
+            ->all();
     }
 
     public function withStatus(Builder $query, ?string $status): Builder

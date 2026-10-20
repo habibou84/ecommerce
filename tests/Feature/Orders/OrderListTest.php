@@ -69,6 +69,13 @@ class OrderListTest extends TestCase
         $list = $this->api('GET', 'orders')->assertOk();
         $this->assertSame([$undated->id, $old->id, $today->id, $late->id], collect($list->json('data'))->pluck('id')->all());
         $this->assertTrue($list->json('data.0.needs_date'));
+        $this->assertSame([null, today()->addDays(3)->toDateString()], [$list->json('data.0.day'), $list->json('data.1.day')]);
+        $list->assertJsonPath('days.none.count', 1)->assertJsonPath('days.'.today()->toDateString().'.amount', 19500);
+        // Un jour coupé entre deux pages garde son vrai total
+        $page = $this->api('GET', 'orders?per_page=1&page=2')->assertOk();
+        $this->assertSame([$old->id], collect($page->json('data'))->pluck('id')->all());
+        $page->assertJsonPath('days.'.today()->addDays(3)->toDateString().'.count', 1)->assertJsonPath('meta.last_page', 4);
+        $this->assertSame(today()->subMonth()->toDateString(), $this->api('GET', 'orders?sort=recent')->json('data.0.day'));
         $this->assertSame([$old->id], collect($this->api('GET', 'orders?period=custom&from='.today()->addDays(3)->toDateString())->json('data'))->pluck('id')->all());
         $this->assertSame(4, $this->api('GET', 'orders?payment=to_collect')->json('summary.count'));
     }

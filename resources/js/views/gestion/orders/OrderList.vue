@@ -55,19 +55,26 @@ const orders = ref([])
 const counts = ref({})
 const summary = ref(null)
 const meta = ref(null)
+const days = ref({})
 const error = ref('')
 const loading = ref(false)
 
-async function load() {
+// more : ajoute la page suivante sous la liste (« Voir plus » sur téléphone) au lieu de la remplacer
+const stacked = ref(false)
+async function load(more = false) {
+  // Après « Voir plus », un rechargement (action, filtre) repart de la première page
+  if (!more && stacked.value) filters.page = 1
+  stacked.value = more
   router.replace({ query: { ...params(), page: undefined } })
   loading.value = true
   try {
     const { data } = await http.get('/orders', { params: params() })
-    orders.value = data.data
+    orders.value = more ? [...orders.value, ...data.data.filter((o) => !orders.value.some((x) => x.id === o.id))] : data.data
     counts.value = data.counts
     summary.value = data.summary
     meta.value = data.meta
-    selected.value = new Set([...selected.value].filter((id) => data.data.some((o) => o.id === id)))
+    days.value = more ? { ...days.value, ...data.days } : data.days
+    selected.value = new Set([...selected.value].filter((id) => orders.value.some((o) => o.id === id)))
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -119,7 +126,7 @@ function clearFilters() {
 
 // Commandes regroupées par jour de livraison ; par jour de commande quand on trie par date de commande.
 // Sans date : « à fixer » si la commande est à livrer et en cours, sinon le jour où elle a été passée.
-const byDelivery = computed(() => !['recent', 'oldest'].includes(filters.sort))
+// Le serveur donne le jour de chaque commande et le total de chaque jour sur toute la liste, pas seulement la page.
 const iso = (d) => d.toLocaleDateString('sv-SE')
 function dayLabel(key) {
   if (!key) return 'Date de livraison à fixer'
@@ -132,13 +139,14 @@ function dayLabel(key) {
 const groups = computed(() => {
   const list = []
   for (const o of orders.value) {
-    const key = !byDelivery.value ? iso(new Date(o.created_at)) : o.needs_date ? null : o.scheduled_date ?? iso(new Date(o.created_at))
+    const key = o.day ?? null
     let g = list.find((x) => x.key === key)
-    if (!g) list.push((g = { key, orders: [], amount: 0 }))
+    if (!g) list.push((g = { key, orders: [], count: 0, amount: 0 }))
     g.orders.push(o)
+    g.count++
     g.amount += ['cancelled', 'returned'].includes(o.status) ? 0 : o.total
   }
-  return list
+  return list.map((g) => ({ ...g, ...(days.value[g.key ?? 'none'] ?? {}) }))
 })
 const timeOf = (o) => new Date(o.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 const phone = (o) => phoneDisplay(o.customer_phone) || o.customer_phone_display
@@ -357,7 +365,7 @@ async function exportList() {
         <tbody>
           <template v-for="g in groups" :key="g.key ?? 'sans-date'">
             <tr class="bg-slate-50">
-              <td colspan="9" class="px-4 py-2"><span class="font-bold text-slate-800">{{ dayLabel(g.key) }}</span><span class="text-slate-500"> · {{ g.orders.length }} commande(s) · {{ money(g.amount) }}</span></td>
+              <td colspan="9" class="px-4 py-2"><span class="font-bold text-slate-800">{{ dayLabel(g.key) }}</span><span class="text-slate-500"> · {{ g.count }} commande{{ g.count > 1 ? 's' : '' }} · {{ money(g.amount) }}</span><span v-if="g.count > g.orders.length" class="text-slate-500"> ({{ g.orders.length }} sur cette page)</span></td>
             </tr>
             <tr v-for="o in g.orders" :key="o.id" class="border-t border-slate-100" :class="selected.has(o.id) ? 'bg-emerald-50/60' : 'hover:bg-slate-50'">
               <td class="py-3 pl-4"><input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="selected.has(o.id)" :aria-label="`Sélectionner ${o.reference}`" @change="toggle(o.id)" /></td>
@@ -395,7 +403,7 @@ async function exportList() {
     <!-- Téléphone et tablette : une carte par commande, groupées par jour -->
     <div class="space-y-3 lg:hidden">
       <template v-for="g in groups" :key="g.key ?? 'sans-date'">
-        <p class="flex items-baseline justify-between pt-1 text-sm"><span class="font-bold text-slate-800">{{ dayLabel(g.key).split(',')[0] }} · {{ g.orders.length }} commande(s)</span><span class="font-semibold tabular-nums">{{ money(g.amount) }}</span></p>
+        <p class="flex items-baseline justify-between pt-1 text-sm"><span class="font-bold text-slate-800">{{ dayLabel(g.key).split(',')[0] }} · {{ g.count }} commande{{ g.count > 1 ? 's' : '' }}</span><span class="font-semibold tabular-nums">{{ money(g.amount) }}</span></p>
         <div v-for="o in g.orders" :key="o.id" class="card p-4" :class="{ 'ring-2 ring-emerald-600': selected.has(o.id) }">
           <div class="flex items-start gap-3">
             <input type="checkbox" class="mt-1 h-5 w-5 shrink-0 accent-emerald-700" :checked="selected.has(o.id)" :aria-label="`Sélectionner ${o.reference}`" @change="toggle(o.id)" />
@@ -424,7 +432,13 @@ async function exportList() {
       </template>
     </div>
 
-    <Pagination :meta="meta" @page="(p) => { filters.page = p; load() }" />
+    <div class="hidden lg:block"><Pagination :meta="meta" @page="(p) => { filters.page = p; load() }" /></div>
+    <div v-if="meta && meta.current_page < meta.last_page" class="lg:hidden">
+      <button type="button" class="btn-secondary w-full py-3" :disabled="loading" @click="filters.page = meta.current_page + 1; load(true)">
+        {{ loading ? 'Chargement…' : `Voir plus · ${meta.total - orders.length} autre${meta.total - orders.length > 1 ? 's' : ''}` }}
+      </button>
+    </div>
+    <p v-else-if="stacked" class="text-center text-sm text-slate-500 lg:hidden">Toutes les commandes sont affichées ({{ meta.total }}).</p>
 
     <!-- Filtres et tri -->
     <Modal v-if="filtersOpen" title="Filtres et tri" @close="filtersOpen = false">
