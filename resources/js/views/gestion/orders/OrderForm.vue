@@ -205,6 +205,19 @@ const isoDay = (offset) => {
   return d.toLocaleDateString('sv-SE')
 }
 const pickDate = ref(false)
+// Entreprise choisie qui ne peut plus livrer aujourd'hui (heure limite passée, jour fermé) : « Aujourd'hui » grisé,
+// et un message si la date retenue est trop tôt
+const earliestDate = computed(() => (form.delivery_method === 'delivery' ? chosenCarrier.value?.earliest_date ?? null : null))
+const todayClosed = computed(() => !!earliestDate.value && earliestDate.value > isoDay(0))
+const earliestLabel = computed(() => {
+  if (!earliestDate.value) return ''
+  return earliestDate.value === isoDay(1) ? 'demain' : 'le ' + new Date(`${earliestDate.value}T00:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+})
+const dateWarning = computed(() => {
+  if (!earliestDate.value || !form.scheduled_date || form.scheduled_date >= earliestDate.value) return ''
+  const why = form.scheduled_date === isoDay(0) ? 'Heure limite passée' : 'Pas de livraison ce jour-là'
+  return `${why} chez ${chosenCarrier.value.name} : livraison au plus tôt ${earliestLabel.value}.`
+})
 
 // Adresse précise et point de repère : un seul champ (les anciennes commandes réunissent les deux)
 function joinAddress(address, landmark) {
@@ -593,14 +606,18 @@ async function save() {
                   :key="d.label"
                   type="button"
                   class="rounded-full border px-4 py-2 text-[15px]"
-                  :class="!pickDate && form.scheduled_date === d.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700'"
+                  :class="[!pickDate && form.scheduled_date === d.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700', d.value === isoDay(0) && todayClosed ? 'cursor-not-allowed opacity-40' : '']"
+                  :disabled="d.value === isoDay(0) && todayClosed && form.scheduled_date !== d.value"
+                  :title="d.value === isoDay(0) && todayClosed ? `${chosenCarrier.name} ne livre plus aujourd'hui` : undefined"
                   @click="pickDate = false; form.scheduled_date = d.value"
                 >
                   {{ d.label }}
                 </button>
                 <button type="button" class="rounded-full border px-4 py-2 text-[15px]" :class="pickDate ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700'" @click="pickDate = true">Autre date</button>
-                <input v-if="pickDate || (form.scheduled_date && ![isoDay(0), isoDay(1)].includes(form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto" type="date" aria-label="Date souhaitée" />
+                <input v-if="pickDate || (form.scheduled_date && ![isoDay(0), isoDay(1)].includes(form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto" type="date" :min="earliestDate ?? undefined" aria-label="Date souhaitée" />
               </div>
+              <p v-if="dateWarning" class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[15px] text-amber-900">{{ dateWarning }}</p>
+              <p v-else-if="todayClosed && !form.scheduled_date" class="mt-2 text-sm text-slate-500">{{ chosenCarrier.name }} ne livre plus aujourd'hui : « Dès que possible » veut dire {{ earliestLabel }}.</p>
             </div>
 
             <!-- Frais : calculés, modifiables d'un geste -->
