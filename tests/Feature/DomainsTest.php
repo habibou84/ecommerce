@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\StoreDomain;
 use App\Models\Subscription;
 use App\Services\Domains\DnsResolver;
+use App\Support\Tenancy;
 use Tests\TestCase;
 
 class DomainsTest extends TestCase
@@ -71,6 +72,8 @@ class DomainsTest extends TestCase
         $this->get('http://www.awamode.ci/gestion')->assertRedirect($this->storeUrl($store, '/gestion'));
         $this->call('GET', 'http://localhost/_caddy/ask', ['domain' => 'www.awamode.ci'], [], [], ['REMOTE_ADDR' => '127.0.0.1'])->assertOk();
         $this->call('GET', 'http://localhost/_caddy/ask', ['domain' => 'autre.ci'], [], [], ['REMOTE_ADDR' => '127.0.0.1'])->assertNotFound();
+        // Les noms de la plateforme ont leur certificat wildcard : aucun certificat à la demande (noms inventés compris)
+        $this->call('GET', 'http://localhost/_caddy/ask', ['domain' => 'a.b.'.Tenancy::domain()], [], [], ['REMOTE_ADDR' => '127.0.0.1'])->assertNotFound();
         $this->call('GET', 'http://localhost/_caddy/ask', ['domain' => 'www.awamode.ci'], [], [], ['REMOTE_ADDR' => '198.51.100.7'])->assertForbidden();
 
         // Domaine nu : enregistrement A ; un domaine déjà pris est refusé

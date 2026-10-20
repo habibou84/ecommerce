@@ -37,7 +37,7 @@ class PaymentPageController extends Controller
         return view('storefront.payment-link', $this->view->shared($request, $store) + [
             'link' => $link,
             'methods' => $this->payments->availableMethods($store),
-            'meta' => ['title' => 'Paiement · '.$store->name, 'description' => '', 'path' => '/payer/'.$token, 'noindex' => true],
+            'meta' => ['title' => 'Paiement · '.$store->name, 'description' => '', 'path' => '/payer/'.$token, 'noindex' => true, 'private' => true],
         ]);
     }
 
@@ -88,7 +88,7 @@ class PaymentPageController extends Controller
             'payment' => $payment,
             'order' => $payment->order,
             'cancelled' => $request->boolean('annule'),
-            'meta' => ['title' => 'Paiement · '.$store->name, 'description' => '', 'path' => '/paiement', 'noindex' => true],
+            'meta' => ['title' => 'Paiement · '.$store->name, 'description' => '', 'path' => '/paiement', 'noindex' => true, 'private' => true],
         ]);
     }
 }

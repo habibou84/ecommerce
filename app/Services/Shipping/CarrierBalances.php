@@ -6,6 +6,7 @@ use App\Enums\ShipmentStatus;
 use App\Models\CarrierConnection;
 use App\Models\Shipment;
 use App\Models\Store;
+use App\Support\SpreadsheetCell;
 use Illuminate\Support\Collection;
 
 /**
@@ -92,11 +93,11 @@ class CarrierBalances
         fwrite($out, "\xEF\xBB\xBF");
         fputcsv($out, ['Commande', 'Course', 'Livrée le', 'Jours', 'Encaissé', 'Frais', 'Net à recevoir'], ';', '"', '');
         foreach ($rows as $r) {
-            fputcsv($out, [
+            fputcsv($out, SpreadsheetCell::row([
                 $r['order_reference'], $r['tracking_code'] ?? '',
                 $r['delivered_at'] ? now()->parse($r['delivered_at'])->setTimezone($store->timezone)->format('d/m/Y H:i') : '',
                 $r['days'], $r['collected'], $r['fees'], $r['net'],
-            ], ';', '"', '');
+            ]), ';', '"', '');
         }
         fputcsv($out, ['Total', '', '', '', $rows->sum('collected'), $rows->sum('fees'), $rows->sum('net')], ';', '"', '');
         rewind($out);

@@ -12,6 +12,7 @@ use App\Models\StockLocation;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Stock\StockKeeper;
+use App\Support\SpreadsheetCell;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
@@ -90,7 +91,7 @@ class CatalogCsv
         $out = fopen('php://temp', 'r+');
         fwrite($out, "\xEF\xBB\xBF"); // BOM : Excel lit l'UTF-8
         foreach ($rows as $row) {
-            fputcsv($out, $row, ';', '"', '');
+            fputcsv($out, SpreadsheetCell::row($row), ';', '"', '');
         }
         rewind($out);
 
@@ -164,7 +165,8 @@ class CatalogCsv
             if (count($lines) >= self::MAX_LINES) {
                 throw new BusinessRuleException('Le fichier dépasse '.self::MAX_LINES.' lignes : découpez-le.', 'file');
             }
-            $lines[] = ['line' => $number, 'cells' => array_map(fn ($c) => trim((string) $c), $cells)];
+            // Apostrophe ajoutée à l'export devant un texte commençant par = + - @ : retirée à la relecture
+            $lines[] = ['line' => $number, 'cells' => array_map(fn ($c) => preg_replace("/^'(?=[=+\-@])/", '', trim((string) $c)), $cells)];
         }
 
         if ($header === [] || $lines === []) {

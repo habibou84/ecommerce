@@ -4,6 +4,7 @@ namespace Tests\Feature\Reports;
 
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
+use App\Enums\Role;
 use App\Models\CashMovement;
 use App\Models\Courier;
 use App\Models\CourierEarning;
@@ -17,6 +18,7 @@ use App\Models\Product;
 use App\Models\ScheduledReport;
 use App\Models\Store;
 use App\Models\Subscription;
+use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Notifications\DailyReportMail;
 use App\Services\Catalog\CatalogWriter;
@@ -141,5 +143,21 @@ class StatsTest extends TestCase
         // Déjà envoyé aujourd'hui
         $this->artisan('reports:send')->expectsOutput('0 rapport(s) envoyé(s)');
         $this->assertSame(2, ScheduledReport::whereNotNull('last_sent_at')->count());
+    }
+
+    public function test_daily_report_stops_for_a_suspended_member(): void
+    {
+        Notification::fake();
+        $member = User::factory()->create(['email' => 'adjoint@example.com']);
+        $this->addMember($this->store, $member, Role::Manager);
+        ScheduledReport::create(['store_id' => $this->store->id, 'user_id' => $member->id, 'frequency' => 'daily', 'channel' => 'email', 'send_at' => '00:00', 'is_active' => true]);
+
+        // Suspendu (ou retiré) de l'équipe : plus de chiffres de la boutique
+        $this->store->members()->where('user_id', $member->id)->update(['status' => 'suspended']);
+        $this->artisan('reports:send')->expectsOutput('0 rapport(s) envoyé(s)');
+        Notification::assertNothingSentTo($member);
+
+        $this->store->members()->where('user_id', $member->id)->update(['status' => 'active']);
+        $this->artisan('reports:send')->expectsOutput('1 rapport(s) envoyé(s)');
     }
 }

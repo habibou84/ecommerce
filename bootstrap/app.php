@@ -10,6 +10,7 @@ use App\Http\Middleware\PreprodGate;
 use App\Http\Middleware\PreventIndexing;
 use App\Http\Middleware\RequireAjax;
 use App\Http\Middleware\ResolveStore;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -44,6 +45,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(PreventIndexing::class);
         // Préproduction fermée au public par un code d'accès (PREPROD_ACCESS_CODE)
         $middleware->append(PreprodGate::class);
+        // En-têtes de sécurité (cadres, type des fichiers, adresse précédente, HTTPS)
+        $middleware->append(SecurityHeaders::class);
         // Gestion (SPA) authentifiée par cookie de session, limité au nom d'hôte de la boutique
         $middleware->statefulApi();
         // Cookies des pixels publicitaires (posés par leur script) : lus tels quels pour l'API Conversions

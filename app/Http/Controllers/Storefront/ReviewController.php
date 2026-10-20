@@ -29,7 +29,7 @@ class ReviewController extends Controller
             'order' => $order,
             'open' => $this->reviews->canReview($order),
             'products' => $this->reviews->products($order),
-            'meta' => ['title' => 'Votre avis · '.$store->name, 'description' => '', 'path' => '/avis/'.$token, 'noindex' => true],
+            'meta' => ['title' => 'Votre avis · '.$store->name, 'description' => '', 'path' => '/avis/'.$token, 'noindex' => true, 'private' => true],
         ]);
     }
 

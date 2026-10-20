@@ -69,7 +69,7 @@ class CourierController extends Controller
 
         // Autres boutiques de l'adresse pour lesquelles il travaillera aussi (celles où l'on gère les livreurs)
         $others = $store->addressStores()->whereIn('id', array_map('intval', $request->input('store_ids', [])))->where('id', '!=', $store->id)
-            ->filter(fn ($s) => $s->owner_id === $request->user()->id || in_array(Permission::CouriersManage->value, $roles->permissionsOf($request->user(), $s), true))
+            ->filter(fn ($s) => $roles->can($request->user(), $s, Permission::CouriersManage))
             ->values();
 
         $extras = $others->map(fn ($s) => ['store_id' => $s->id, 'role' => Role::Courier->value])->all();

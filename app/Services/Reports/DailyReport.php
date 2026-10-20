@@ -165,6 +165,10 @@ class DailyReport
                 if ($r->store === null || $r->user === null || ! $r->store->isOpen()) {
                     return false;
                 }
+                // Personne retirée, suspendue ou sans le droit de voir les commandes : plus de rapport
+                if (! $r->user->isActive() || ! app(StoreRoles::class)->can($r->user, $r->store, Permission::OrdersView)) {
+                    return false;
+                }
                 $local = now($r->store->timezone);
                 $due = $local->copy()->setTimeFromTimeString($r->send_at);
 
