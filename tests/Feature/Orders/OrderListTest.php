@@ -49,7 +49,7 @@ class OrderListTest extends TestCase
         $late = $this->order(['confirmed' => true]);
         $late->forceFill(['scheduled_date' => today()->subDays(2), 'created_at' => now()->subDays(3)])->save();
         $old = $this->order();
-        $old->forceFill(['created_at' => now()->subMonths(2)])->save();
+        $old->forceFill(['created_at' => now()->subMonths(2), 'scheduled_date' => today()->addDays(3)])->save();
 
         $list = $this->api('GET', 'orders?period=7d')->assertOk();
         $this->assertSame([$today->id, $late->id], collect($list->json('data'))->pluck('id')->sort()->values()->all());
@@ -59,7 +59,7 @@ class OrderListTest extends TestCase
         $this->assertSame(['2 articles · Sac pagne', today()->toDateString(), false], [$row['items_label'], $row['scheduled_date'], $row['is_late']]);
 
         $this->assertSame([$late->id], collect($this->api('GET', 'orders?status=late')->json('data'))->pluck('id')->all());
-        // Par date de livraison, tri par date de livraison (sans date en dernier)
+        // Par date de livraison, tri par date de livraison
         $this->assertSame([$today->id], collect($this->api('GET', 'orders?period=today&date_field=scheduled')->json('data'))->pluck('id')->all());
         $this->assertSame([$late->id, $today->id, $old->id], collect($this->api('GET', 'orders?sort=scheduled')->json('data'))->pluck('id')->all());
         $this->assertSame(3, $this->api('GET', 'orders?payment=to_collect')->json('summary.count'));

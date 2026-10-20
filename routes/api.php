@@ -450,6 +450,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
 
             // ── Zones de livraison ──
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
+                Route::get('delivery-calendar', [DeliveryController::class, 'calendar'])->name('delivery-calendar.show');
+                Route::put('delivery-calendar', [DeliveryController::class, 'updateCalendar'])->name('delivery-calendar.update');
                 Route::post('delivery-zones', [DeliveryController::class, 'storeZone'])->name('zones.store');
                 Route::put('delivery-zones/{zone}', [DeliveryController::class, 'updateZone'])->whereNumber('zone')->name('zones.update');
                 Route::delete('delivery-zones/{zone}', [DeliveryController::class, 'destroyZone'])->whereNumber('zone')->name('zones.destroy');

@@ -20,6 +20,43 @@ async function load() {
 }
 onMounted(load)
 
+// Jours et heures de livraison : la première date possible proposée à chaque commande en dépend
+const WEEKDAYS = [[1, 'Lun'], [2, 'Mar'], [3, 'Mer'], [4, 'Jeu'], [5, 'Ven'], [6, 'Sam'], [7, 'Dim']]
+const CUTOFFS = Array.from({ length: 33 }, (_, i) => `${String(6 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`)
+const calendar = ref(null)
+const newClosedDate = ref('')
+const calendarSaved = ref('')
+onMounted(async () => {
+  calendar.value = (await http.get('/delivery-calendar')).data.data
+})
+async function saveCalendar() {
+  error.value = ''
+  try {
+    calendar.value = (await http.put('/delivery-calendar', {
+      cutoff: calendar.value.cutoff, closed_weekdays: calendar.value.closed_weekdays, closed_dates: calendar.value.closed_dates,
+    })).data.data
+    calendarSaved.value = `Enregistré. Une commande saisie maintenant serait livrée ${new Date(`${calendar.value.earliest}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}.`
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+function toggleWeekday(day) {
+  const list = calendar.value.closed_weekdays
+  calendar.value.closed_weekdays = list.includes(day) ? list.filter((d) => d !== day) : [...list, day]
+  saveCalendar()
+}
+function addClosedDate() {
+  if (newClosedDate.value && !calendar.value.closed_dates.includes(newClosedDate.value)) {
+    calendar.value.closed_dates = [...calendar.value.closed_dates, newClosedDate.value].sort()
+    saveCalendar()
+  }
+  newClosedDate.value = ''
+}
+function removeClosedDate(date) {
+  calendar.value.closed_dates = calendar.value.closed_dates.filter((d) => d !== date)
+  saveCalendar()
+}
+
 function open(zone) {
   errors.value = {}
   error.value = ''
@@ -65,6 +102,37 @@ async function destroy() {
       </p>
       <button class="btn-brand shrink-0" @click="open(null)">+ Zone</button>
     </div>
+
+    <!-- Jours et heures de livraison -->
+    <section v-if="calendar" class="card space-y-4 p-4 sm:p-5">
+      <div>
+        <h3 class="font-semibold">Jours et heures de livraison</h3>
+        <p class="text-sm text-slate-600">Chaque commande reçoit d'office la première date possible : aujourd'hui avant l'heure limite, sinon le jour suivant, en sautant les jours sans livraison. Une entreprise de livraison qui a ses propres horaires (Delivery App) les fait passer en premier.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <label for="cutoff" class="font-medium">Livrée le jour même si commandée avant</label>
+        <select id="cutoff" v-model="calendar.cutoff" class="input w-auto" @change="saveCalendar">
+          <option v-for="t in CUTOFFS" :key="t" :value="t">{{ t.replace(':', ' h ') }}</option>
+        </select>
+      </div>
+      <div>
+        <p class="mb-1.5 text-sm font-medium">Jours sans livraison</p>
+        <div class="flex flex-wrap gap-2">
+          <button v-for="[day, label] in WEEKDAYS" :key="day" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="calendar.closed_weekdays.includes(day) ? 'border-red-300 bg-red-50 font-semibold text-red-800 line-through' : 'border-slate-300'" :aria-pressed="calendar.closed_weekdays.includes(day)" @click="toggleWeekday(day)">{{ label }}</button>
+        </div>
+      </div>
+      <div>
+        <p class="mb-1.5 text-sm font-medium">Dates sans livraison (jours fériés, fermeture)</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <span v-for="d in calendar.closed_dates" :key="d" class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm">
+            {{ new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) }}
+            <button type="button" class="text-slate-500 hover:text-red-600" :aria-label="`Retirer le ${d}`" @click="removeClosedDate(d)">✕</button>
+          </span>
+          <input v-model="newClosedDate" type="date" class="input w-auto" aria-label="Date sans livraison" @change="addClosedDate" />
+        </div>
+      </div>
+      <p v-if="calendarSaved" class="text-sm text-emerald-800">{{ calendarSaved }}</p>
+    </section>
 
     <div class="card">
       <ul class="divide-y divide-slate-100">

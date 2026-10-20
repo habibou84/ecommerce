@@ -55,6 +55,7 @@ class Store extends Model
             'free_shipping_above' => 'integer',
             'billing_notices' => 'array',
             'marketing' => 'array',
+            'delivery_calendar' => 'array',
             'loyalty_settings' => 'array',
             'message_texts' => 'array',
             'meta_capi_token' => 'encrypted',
