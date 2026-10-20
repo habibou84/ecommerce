@@ -85,8 +85,10 @@ class StorefrontTest extends TestCase
 
         $this->withCookie('apercu', $cookie->getValue())->get($this->storeUrl($this->store, '/produits/robe-wax'))->assertOk()->assertSee('Robe wax');
 
-        // Lien d'une autre boutique ou falsifié : refusé
+        // Lien d'une autre boutique ou falsifié : refusé ; l'aperçu d'une boutique n'ouvre pas une autre boutique fermée
         $other = $this->createStore(['slug' => 'autre']);
+        $other->forceFill(['storefront_enabled' => false])->save();
+        $this->withCookie('apercu', $cookie->getValue())->get($this->storeUrl($other))->assertOk()->assertSee('ouvre bientôt');
         $this->get($this->storeUrl($other, $link))->assertForbidden();
         $this->get($this->storeUrl($this->store, '/apercu?boutique='.$this->store->id))->assertForbidden();
     }

@@ -123,10 +123,13 @@ class Pricing
             return $none;
         }
 
-        $discount = Discount::forStore($storeId)->where('code', $code)->where('is_active', true)->first();
+        // Pendant l'enregistrement d'une commande, la remise est verrouillée jusqu'à la fin : deux commandes simultanées
+        // ne dépassent pas sa limite d'utilisation
+        $discount = Discount::forStore($storeId)->where('code', $code)->where('is_active', true)
+            ->when(DB::transactionLevel() > 0, fn ($q) => $q->lockForUpdate())->first();
         $error = match (true) {
-            $discount === null => 'Ce code promo n\'existe pas.',
-            ! $discount->isRunning() => $discount->starts_at?->isFuture() ? 'Ce code promo n\'est pas encore valable.' : 'Ce code promo n\'est plus valable.',
+            // Même message pour un code inconnu, pas encore ou plus valable : on ne devine pas les codes en les essayant
+            $discount === null, ! $discount->isRunning() => 'Ce code promo n\'est pas valable.',
             $discount->usage_limit !== null && $this->usageCount($discount, $exceptOrderId) >= $discount->usage_limit => 'Ce code promo a atteint sa limite d\'utilisation.',
             $discount->per_customer_limit !== null && $this->customerUsageCount($discount, $phone, $exceptOrderId) >= $discount->per_customer_limit => 'Vous avez déjà utilisé ce code promo.',
             default => null,

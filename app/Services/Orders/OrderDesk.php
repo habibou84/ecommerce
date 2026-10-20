@@ -578,6 +578,10 @@ class OrderDesk
 
     private function applyPlace(Store $store, Order $order): void
     {
+        // Point de retrait : seulement un lieu de la boutique (jamais celui d'une autre)
+        if ($order->pickup_location_id !== null && ! StockLocation::forStore($store->id)->whereKey($order->pickup_location_id)->exists()) {
+            throw new BusinessRuleException('Choisissez un point de retrait de la boutique.', 'pickup_location_id');
+        }
         if ($order->delivery_method === 'pickup') {
             $order->forceFill(['delivery_zone_id' => null]);
 

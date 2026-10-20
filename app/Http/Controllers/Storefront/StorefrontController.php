@@ -186,7 +186,7 @@ class StorefrontController extends Controller
         // Signature calculée sur le chemin (l'adresse de la boutique varie) : le lien porte l'identifiant de la boutique
         abort_unless($request->hasValidSignature(false) && (int) $request->query('boutique') === $this->currentStore()->id, 403, 'Lien d\'aperçu invalide ou expiré.');
 
-        return redirect('/')->withCookie(cookie(EnsureStorefrontOpen::PREVIEW_COOKIE, (string) (time() + 3600), 60));
+        return redirect('/')->withCookie(cookie(EnsureStorefrontOpen::PREVIEW_COOKIE, EnsureStorefrontOpen::previewCookieValue($this->currentStore()->id), 60));
     }
 
     private function listing(Request $request, $query, string $title, ?Collection $collection, string $path): Response

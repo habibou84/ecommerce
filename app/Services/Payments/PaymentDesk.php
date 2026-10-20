@@ -24,6 +24,7 @@ use App\Services\Payments\Gateways\WaveGateway;
 use App\Support\Tenancy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -160,7 +161,19 @@ class PaymentDesk
             }
 
             if ($result->status === GatewayResult::SUCCEEDED) {
-                if ($result->amount !== null && $result->amount < $payment->amount) {
+                // Sans montant confirmé par le prestataire, rien n'est validé : le paiement reste en attente et sera relu
+                if ($result->amount === null) {
+                    Log::warning('Paiement réussi sans montant confirmé : laissé en attente', ['payment' => $payment->id, 'provider' => $payment->provider]);
+
+                    return $payment;
+                }
+                // Compte de paiement resté en mode test : un paiement de démonstration ne valide pas une vraie commande
+                if ($payment->account?->mode === 'test' && app()->isProduction()) {
+                    $payment->forceFill(['status' => 'failed', 'failure_reason' => 'Compte de paiement en mode test', 'raw' => $result->raw])->save();
+
+                    return $payment;
+                }
+                if ($result->amount < $payment->amount) {
                     $payment->forceFill(['status' => 'failed', 'failure_reason' => 'Montant reçu inférieur au montant demandé', 'raw' => $result->raw])->save();
 
                     return $payment;
