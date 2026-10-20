@@ -81,7 +81,7 @@ Route::middleware('zone:store,custom_domain')->group(function () {
         Route::middleware(['ajax', 'throttle:storefront'])->group(function () {
             Route::get('/panier/resume', [CartController::class, 'summary']);
             Route::post('/panier/articles', [CartController::class, 'put']);
-            Route::post('/panier/code', [CartController::class, 'code']);
+            Route::post('/panier/code', [CartController::class, 'code'])->middleware('throttle:storefront-code');
             Route::get('/lieux', [CheckoutController::class, 'places']);
             Route::post('/commande/devis', [CheckoutController::class, 'quote']);
             Route::post('/commande/contact', [CheckoutController::class, 'contact'])->middleware('throttle:storefront-contact');

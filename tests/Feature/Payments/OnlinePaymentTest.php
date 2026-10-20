@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
+use App\Services\Payments\PaymentDesk;
 use App\Services\Places\Places;
 use App\Services\Storefront\CartService;
 use Illuminate\Http\Client\Request as HttpRequest;
@@ -165,6 +166,28 @@ class OnlinePaymentTest extends TestCase
         $order = Order::sole();
         $this->assertSame(['succeeded', 315], [$payment->fresh()->status, $payment->fresh()->fee]);
         $this->assertSame(['paid', OrderStatus::Confirmed, 0], [$order->payment_status->value, $order->status, $order->amountDue()]);
+    }
+
+    public function test_payment_needs_a_confirmed_amount_and_a_live_account(): void
+    {
+        $wave = $this->waveAccount();
+        $this->store->forceFill(['online_payment' => 'optional'])->save();
+        $this->stub('POST https://api.wave.com/v1/checkout/sessions', $this->waveSession());
+        $this->placeOrder(['payment' => 'online', 'payment_method' => 'wave'])->assertCreated();
+        $payment = Payment::sole();
+
+        // Réussi mais sans montant : rien n'est validé, le paiement attend une nouvelle lecture
+        $this->stub('GET https://api.wave.com/v1/checkout/sessions/*', fn () => Http::response(['id' => 'cos-18qq25rgr100a', 'payment_status' => 'succeeded']));
+        app(PaymentDesk::class)->confirm($payment->fresh());
+        $this->assertSame('pending', $payment->fresh()->status);
+
+        // Compte resté en mode test : un paiement de démonstration ne valide pas une commande en production
+        $wave->forceFill(['mode' => 'test'])->save();
+        $this->app['env'] = 'production';
+        $this->stub('GET https://api.wave.com/v1/checkout/sessions/*', $this->waveSession('succeeded'));
+        app(PaymentDesk::class)->confirm($payment->fresh());
+        $this->assertSame(['failed', 'Compte de paiement en mode test'], [$payment->fresh()->status, $payment->fresh()->failure_reason]);
+        $this->assertSame('unpaid', Order::sole()->payment_status->value);
     }
 
     public function test_cash_on_delivery_stays_available_when_payment_is_optional(): void

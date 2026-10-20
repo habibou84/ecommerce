@@ -16,6 +16,9 @@ use Illuminate\Support\Str;
  */
 class CustomDomains
 {
+    /** Délai pour vérifier un domaine déclaré avant qu'une autre boutique puisse le déclarer */
+    public const UNVERIFIED_HOURS = 48;
+
     public const MAX_PER_STORE = 3;
 
     public const TXT_PREFIX = '_jibiat';
@@ -33,6 +36,9 @@ class CustomDomains
         if (StoreDomain::where('store_id', $store->id)->count() >= self::MAX_PER_STORE) {
             throw new BusinessRuleException('Une boutique a au plus '.self::MAX_PER_STORE.' domaines personnalisés.', 'hostname');
         }
+        // Un domaine déclaré mais jamais vérifié n'est retenu que 48 h : personne ne bloque le domaine d'un autre
+        StoreDomain::where('hostname', $hostname)->whereNull('verified_at')->where('store_id', '!=', $store->id)
+            ->where('created_at', '<', now()->subHours(self::UNVERIFIED_HOURS))->delete();
         if (StoreDomain::where('hostname', $hostname)->exists()) {
             throw new BusinessRuleException('Ce domaine est déjà déclaré par une boutique.', 'hostname');
         }

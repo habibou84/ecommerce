@@ -3,8 +3,10 @@
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Models\CarrierConnection;
+use App\Models\CarrierWebhookReceipt;
 use App\Models\Cart;
 use App\Models\Order;
+use App\Models\PaymentWebhookReceipt;
 use App\Models\StoreDomain;
 use App\Models\User;
 use App\Services\Accounts\StoreDataExport;
@@ -152,6 +154,9 @@ Artisan::command('exports:purge', function (StoreDataExport $exports) {
     $this->info($exports->purge().' export(s) expiré(s) supprimé(s).');
 })->purpose('Supprimer les exports de données de plus de 7 jours');
 Schedule::command('exports:purge')->dailyAt('04:10');
+
+// Données personnelles gardées le temps utile : reçus de webhooks et paniers abandonnés, effacés après 90 jours
+Schedule::command('model:prune', ['--model' => [PaymentWebhookReceipt::class, CarrierWebhookReceipt::class, Cart::class]])->dailyAt('04:20');
 
 Artisan::command('billing:run', function (Billing $billing) {
     $counts = $billing->run();

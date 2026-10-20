@@ -102,7 +102,8 @@ class StoreSignup
         }
 
         return DB::transaction(function () use ($owner, $name, $slug, $trial) {
-            $store = Store::create([
+            // Propriétaire et statut ne sont jamais remplis en masse
+            $store = (new Store)->forceFill([
                 'owner_id' => $owner->id,
                 'slug' => $slug,
                 'name' => $name,
@@ -110,6 +111,7 @@ class StoreSignup
                 'whatsapp_phone' => $owner->phone,
                 'status' => StoreStatus::Trial,
             ]);
+            $store->save();
 
             $store->members()->create(['user_id' => $owner->id, 'status' => UserStatus::Active, 'joined_at' => now()]);
             $this->roles->assign($owner, $store, Role::Owner);

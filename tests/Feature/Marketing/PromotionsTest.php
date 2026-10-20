@@ -115,7 +115,7 @@ class PromotionsTest extends TestCase
         $this->assertSame('BIENVENUE', $code->code);
 
         $this->setQuantity(1);
-        $this->shop('POST', '/panier/code', ['code' => 'INCONNU'])->assertStatus(422)->assertJsonPath('errors.code.0', 'Ce code promo n\'existe pas.');
+        $this->shop('POST', '/panier/code', ['code' => 'INCONNU'])->assertStatus(422)->assertJsonPath('errors.code.0', 'Ce code promo n\'est pas valable.');
         $this->shop('POST', '/panier/code', ['code' => 'bienvenue'])->assertStatus(422)->assertJsonPath('errors.code.0', 'Ce code promo s\'applique dès 20 000 F d\'achat.');
 
         $this->setQuantity(3);
@@ -135,6 +135,15 @@ class PromotionsTest extends TestCase
         $this->setQuantity(3);
         $this->shop('POST', '/panier/code', ['code' => 'BIENVENUE'])->assertOk();
         $this->checkout()->assertStatus(422)->assertJsonPath('errors.code.0', 'Vous avez déjà utilisé ce code promo. Il a été retiré : vérifiez le total avant de confirmer.');
+    }
+
+    public function test_promo_codes_cannot_be_tried_in_a_loop(): void
+    {
+        $this->setQuantity(1);
+        foreach (range(1, 10) as $i) {
+            $this->shop('POST', '/panier/code', ['code' => 'ESSAI'.$i])->assertStatus(422);
+        }
+        $this->shop('POST', '/panier/code', ['code' => 'ESSAI11'])->assertStatus(429);
     }
 
     public function test_cancelled_order_releases_the_code(): void

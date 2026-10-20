@@ -32,10 +32,22 @@ class EnsureStorefrontOpen
         return response()->view('storefront.coming-soon', ['store' => $store], 200);
     }
 
+    /**
+     * Cookie « boutique|expiration » (chiffré) : l'aperçu d'une boutique ne vaut pas pour une autre.
+     */
     public static function previewing(Request $request): bool
     {
-        $until = $request->cookie(self::PREVIEW_COOKIE);
+        $value = $request->cookie(self::PREVIEW_COOKIE);
+        $store = app(Tenancy::class)->store();
+        if (! is_string($value) || $store === null || ! preg_match('/^(\d+)\|(\d+)$/', $value, $m)) {
+            return false;
+        }
 
-        return is_string($until) && ctype_digit($until) && (int) $until > time();
+        return (int) $m[1] === $store->id && (int) $m[2] > time();
+    }
+
+    public static function previewCookieValue(int $storeId): string
+    {
+        return $storeId.'|'.(time() + 3600);
     }
 }

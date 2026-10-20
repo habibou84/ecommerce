@@ -5,6 +5,7 @@ namespace App\Services\Ai;
 use Anthropic\Client;
 use Anthropic\Core\Exceptions\APIException;
 use Anthropic\Messages\ToolUseBlock;
+use App\Exceptions\BusinessRuleException;
 use Throwable;
 
 /**
@@ -106,7 +107,12 @@ class AnthropicAiClient implements AiClient
                     try {
                         $results[] = ['type' => 'tool_result', 'toolUseID' => $block->id, 'content' => json_encode($run($block->name, (array) $block->input), JSON_UNESCAPED_UNICODE)];
                     } catch (Throwable $e) {
-                        $results[] = ['type' => 'tool_result', 'toolUseID' => $block->id, 'content' => 'Erreur : '.$e->getMessage(), 'isError' => true];
+                        // Seuls les messages prévus pour l'utilisateur partent vers le modèle (pas de détail technique)
+                        if (! $e instanceof BusinessRuleException) {
+                            report($e);
+                        }
+                        $error = $e instanceof BusinessRuleException ? $e->getMessage() : 'cette information n\'est pas disponible.';
+                        $results[] = ['type' => 'tool_result', 'toolUseID' => $block->id, 'content' => 'Erreur : '.$error, 'isError' => true];
                     }
                 }
             }

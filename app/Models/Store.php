@@ -19,9 +19,12 @@ class Store extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'owner_id', 'slug', 'name', 'tagline', 'country', 'currency', 'timezone', 'locale',
-        'phone', 'whatsapp_phone', 'email', 'address', 'status',
+        'slug', 'name', 'tagline', 'country', 'currency', 'timezone', 'locale',
+        'phone', 'whatsapp_phone', 'email', 'address',
     ];
+
+    // Secrets jamais renvoyés quand la boutique est transformée en tableau ou en JSON
+    protected $hidden = ['meta_capi_token'];
 
     // Valeurs par défaut des colonnes, connues avant le rechargement depuis la base
     protected $attributes = [
