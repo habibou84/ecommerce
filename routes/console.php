@@ -39,7 +39,7 @@ Artisan::command('shipping:sync', function (CarrierEvents $events) {
     }
 })->purpose('Synchronise les expéditions avec les entreprises de livraison');
 
-Schedule::command('shipping:sync')->everyTenMinutes()->withoutOverlapping();
+Schedule::command('shipping:sync')->everyTenMinutes()->withoutOverlapping()->runInBackground();
 
 /*
  * Zones des transporteurs relues chaque nuit : une zone ouverte ou fermée chez eux l'est aussi ici, sans attendre
@@ -66,7 +66,7 @@ Artisan::command('couriers:remind', function (MissionResponses $responses) {
     $this->line($responses->remindUnanswered().' mission(s) sans réponse signalée(s)');
 })->purpose('Rappel des missions pas encore acceptées par les livreurs');
 
-Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
 
 /*
  * Commandes qui attendent (sans livreur, pas ramassées, à confirmer, point du matin...) : alertes à l'équipe, une
@@ -76,7 +76,7 @@ Artisan::command('orders:alerts', function (OrderAlerts $alerts) {
     $this->line($alerts->run().' alerte(s) envoyée(s)');
 })->purpose('Alertes sur les commandes qui attendent');
 
-Schedule::command('orders:alerts')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('orders:alerts')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
 
 /*
  * Publications programmées sur les réseaux sociaux, arrivées à l'heure.
@@ -85,7 +85,7 @@ Artisan::command('social:publish', function (SocialPublisher $publisher) {
     $this->line($publisher->publishDue().' publication(s) programmée(s) publiée(s)');
 })->purpose('Publie sur les réseaux les produits programmés');
 
-Schedule::command('social:publish')->everyMinute()->withoutOverlapping();
+Schedule::command('social:publish')->everyMinute()->withoutOverlapping()->runInBackground();
 
 /*
  * Paniers abandonnés : un client a laissé son numéro et des articles sans commander depuis plus d'une heure (et moins
@@ -116,7 +116,7 @@ Artisan::command('carts:recover', function (CustomerMessenger $messenger) {
     $this->line("{$sent} relance(s) envoyée(s)");
 })->purpose('Relance par WhatsApp des paniers abandonnés');
 
-Schedule::command('carts:recover')->hourly()->withoutOverlapping();
+Schedule::command('carts:recover')->hourly()->withoutOverlapping()->runInBackground();
 
 /*
  * Commandes passées en ligne et jamais confirmées : annulées au bout de 48 h pour rendre le stock (sauf payées ou
@@ -135,13 +135,13 @@ Artisan::command('orders:expire', function (OrderDesk $desk) {
     $this->line($expired->count().' commande(s) non confirmée(s) annulée(s)');
 })->purpose('Annule les commandes en ligne jamais confirmées');
 
-Schedule::command('orders:expire')->hourly()->withoutOverlapping();
+Schedule::command('orders:expire')->hourly()->withoutOverlapping()->runInBackground();
 
 Artisan::command('reports:send', function (DailyReport $reports) {
     $this->line($reports->sendDue().' rapport(s) envoyé(s)');
 })->purpose('Rapports quotidiens à l\'équipe (WhatsApp ou email), à l\'heure choisie');
 
-Schedule::command('reports:send')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('reports:send')->everyFifteenMinutes()->withoutOverlapping()->runInBackground();
 
 Artisan::command('expenses:recurring', function (RecurringExpenses $expenses) {
     $this->info($expenses->run().' dépense(s) mensuelle(s) enregistrée(s).');

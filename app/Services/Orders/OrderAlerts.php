@@ -44,6 +44,9 @@ class OrderAlerts
         'unhandled' => ['on' => true, 'minutes' => 30],
     ];
 
+    /** Ancienneté maximale d'une attente alertée (jours) ; les alertes envoyées sont gardées 30 jours */
+    public const RECENT_DAYS = 7;
+
     /** Une alerte non traitée après ce multiple du délai est remontée au propriétaire */
     public const ESCALATE = 3;
 
@@ -122,6 +125,7 @@ class OrderAlerts
      */
     public function run(): int
     {
+        DB::table('order_alerts')->where('created_at', '<', now()->subDays(30))->delete();
         $sent = 0;
         $tenancy = app(Tenancy::class);
         $previous = $tenancy->store();
@@ -147,12 +151,16 @@ class OrderAlerts
         }
         $sent = 0;
         $today = $now->toDateString();
+        // Seules les attentes récentes sont alertées : une commande oubliée depuis des semaines n'est plus une urgence
+        $since = $now->subDays(self::RECENT_DAYS)->startOfDay();
 
         if ($settings['morning']['on']) {
             $sent += $this->morning($store, $now);
         }
         if ($settings['unassigned']['on']) {
-            $orders = self::unassigned(Order::forStore($store->id))->with('shipments:id,order_id,status,status_changed_at')->get()
+            $orders = self::unassigned(Order::forStore($store->id))
+                ->where(fn (Builder $q) => $q->where('scheduled_date', '>=', $since->toDateString())->orWhere(fn (Builder $q) => $q->whereNull('scheduled_date')->where('created_at', '>=', $since->utc())))
+                ->with('shipments:id,order_id,status,status_changed_at')->get()
                 ->mapWithKeys(fn (Order $o) => [$o->id => $this->unassignedSince($o, $from)]);
             $sent += $this->delays($store, 'unassigned', $orders, $settings['unassigned']['minutes'], $now,
                 fn (int $n) => $n > 1 ? "{$n} commandes confirmées attendent un livreur" : 'Une commande confirmée attend un livreur',
@@ -171,7 +179,7 @@ class OrderAlerts
             }
         }
         if ($settings['pickup']['on']) {
-            $shipments = Shipment::forStore($store->id)->whereIn('status', self::values(self::NOT_PICKED))->with('order:id,scheduled_date')->get()
+            $shipments = Shipment::forStore($store->id)->whereIn('status', self::values(self::NOT_PICKED))->where('updated_at', '>=', $since->utc())->with('order:id,scheduled_date')->get()
                 ->mapWithKeys(fn (Shipment $s) => [$s->id => $this->latest($s->status_changed_at ?? $s->requested_at ?? $s->created_at, $this->dayStart($s->scheduled_date ?? $s->order?->scheduled_date, $from))]);
             $sent += $this->delays($store, 'pickup', $shipments, $settings['pickup']['minutes'], $now,
                 fn (int $n) => $n > 1 ? "{$n} colis pas encore ramassés" : 'Un colis pas encore ramassé',
@@ -179,7 +187,7 @@ class OrderAlerts
         }
         if ($settings['confirm']['on']) {
             // Un rappel prévu a sa propre alerte, à l'heure choisie
-            $orders = Order::forStore($store->id)->where('status', OrderStatus::PendingConfirmation->value)->whereNull('callback_at')->get(['id', 'created_at'])
+            $orders = Order::forStore($store->id)->where('status', OrderStatus::PendingConfirmation->value)->whereNull('callback_at')->where('created_at', '>=', $since->utc())->get(['id', 'created_at'])
                 ->mapWithKeys(fn (Order $o) => [$o->id => $this->latest($o->created_at, $from)]);
             $sent += $this->delays($store, 'confirm', $orders, $settings['confirm']['minutes'], $now,
                 fn (int $n) => $n > 1 ? "{$n} commandes attendent d'être confirmées" : 'Une commande attend d\'être confirmée',
@@ -202,7 +210,7 @@ class OrderAlerts
             }
         }
         if ($settings['unhandled']['on']) {
-            $shipments = Shipment::forStore($store->id)->whereNotIn('status', self::values(self::FINAL))
+            $shipments = Shipment::forStore($store->id)->whereNotIn('status', self::values(self::FINAL))->where('updated_at', '>=', $since->utc())
                 ->where(fn (Builder $q) => $q->where('status', ShipmentStatus::Failed->value)->orWhere('needs_decision', true))->get()
                 ->mapWithKeys(fn (Shipment $s) => [$s->id => CarbonImmutable::parse($s->status_changed_at ?? $s->updated_at)]);
             $sent += $this->delays($store, 'unhandled', $shipments, $settings['unhandled']['minutes'], $now,

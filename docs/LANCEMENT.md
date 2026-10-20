@@ -16,7 +16,7 @@ Un serveur Linux (Ubuntu 24.04) suffit pour le pilote et les premières centaine
 | PHP-FPM | 8.3 (extensions `pgsql`, `gd` avec FreeType et WebP, `intl`, `mbstring`, `bcmath`, `zip`) | Application |
 | PostgreSQL | 16 | Base de données |
 | Caddy | 2.8+ | HTTPS automatique, domaines personnalisés |
-| Redis | 7 (facultatif) | Cache, files d'attente si le volume augmente |
+| Redis | 7 (recommandé) | Sessions et cache (bases 4 et 5), mis en place par les scripts de déploiement |
 | Node.js | 20 | Compilation du front (`npm ci && npm run build`) au déploiement seulement |
 
 ### Variables d'environnement à renseigner

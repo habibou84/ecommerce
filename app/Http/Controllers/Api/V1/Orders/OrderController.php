@@ -52,7 +52,7 @@ class OrderController extends Controller
             'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()],
             'days' => $listing->dayTotals($request, $page->getCollection()->pluck('list_day')->unique()->values()->all()),
             'counts' => $listing->counts($request),
-            'summary' => $listing->summary($request),
+            'summary' => $listing->summary($request, $page->total()),
         ]);
     }
 

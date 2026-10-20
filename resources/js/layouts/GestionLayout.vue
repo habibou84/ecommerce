@@ -110,7 +110,7 @@ async function refreshBadges() {
 onMounted(() => {
   registerDevice()
   refreshBadges()
-  badgeTimer = setInterval(refreshBadges, 30000)
+  badgeTimer = setInterval(() => document.visibilityState === 'visible' && refreshBadges(), 30000)
 })
 onBeforeUnmount(() => clearInterval(badgeTimer))
 watch(() => route.path, refreshBadges)

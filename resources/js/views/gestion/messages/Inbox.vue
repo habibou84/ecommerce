@@ -91,7 +91,7 @@ function refresh() {
 onMounted(() => {
   loadList()
   loadCurrent(true)
-  timer = setInterval(refresh, 10000)
+  timer = setInterval(() => document.visibilityState === 'visible' && refresh(), 15000)
 })
 onBeforeUnmount(() => clearInterval(timer))
 watch(() => props.id, () => {
