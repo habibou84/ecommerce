@@ -2,6 +2,7 @@
 
 namespace App\Services\Billing;
 
+use App\Enums\OrderStatus;
 use App\Exceptions\QuotaExceededException;
 use App\Models\AiUsage;
 use App\Models\CarrierConnection;
@@ -160,7 +161,11 @@ class PlanLimits
     public function used(Store $store, string $limit): int
     {
         return match ($limit) {
-            'orders_per_month' => Order::forStore($store->id)->where('created_at', '>=', CarbonImmutable::now($store->timezone)->startOfMonth()->utc())->count(),
+            // Commandes du mois, sans les annulées ni celles passées en ligne et pas encore confirmées : de fausses
+            // commandes sur la boutique en ligne n'épuisent pas l'offre gratuite
+            'orders_per_month' => Order::forStore($store->id)->where('created_at', '>=', CarbonImmutable::now($store->timezone)->startOfMonth()->utc())
+                ->where('status', '!=', OrderStatus::Cancelled->value)
+                ->whereNot(fn ($q) => $q->where('source', 'online_store')->where('status', OrderStatus::PendingConfirmation->value))->count(),
             'products' => Product::forStore($store->id)->count(),
             // Équipe : membres actifs (hors livreurs, comptés à part) et invitations en attente
             'members' => StoreUser::where('store_id', $store->id)->where('status', 'active')

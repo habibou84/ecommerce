@@ -226,6 +226,31 @@ class StorefrontTest extends TestCase
         $this->assertStringContainsString('frais à confirmer', Order::sole()->internal_note);
     }
 
+    public function test_fake_orders_cannot_flood_a_store(): void
+    {
+        [$sRouge] = $this->robe->variants->all();
+        StockLevel::where('variant_id', $sRouge->id)->update(['on_hand' => 10]);
+        $angre = $this->place('Angré');
+        $data = ['name' => 'Fatou', 'phone' => '0506070809', 'delivery_method' => 'delivery', 'place_id' => $angre->id];
+        foreach (range(1, 3) as $i) {
+            $this->ajax('POST', '/commande', $data, $this->addToCart($sRouge->id, 1)->getCookie(CartService::COOKIE)->getValue())->assertCreated();
+        }
+        // Trois commandes en ligne encore à confirmer avec ce numéro : la quatrième est refusée
+        $this->ajax('POST', '/commande', $data, $this->addToCart($sRouge->id, 1)->getCookie(CartService::COOKIE)->getValue())
+            ->assertStatus(422)->assertJsonPath('message', 'Vous avez déjà des commandes en attente de confirmation : la boutique va vous appeler. Contactez-la directement pour en ajouter.');
+
+        // Jamais confirmées : annulées au bout de 48 h, le stock revient ; une commande payée reste
+        $paid = Order::query()->latest('id')->first();
+        $paid->forceFill(['amount_paid' => 15000])->save();
+        $reserved = fn () => (int) StockLevel::where('variant_id', $sRouge->id)->sum('reserved');
+        $this->assertSame(3, $reserved());
+        $this->travel(49)->hours();
+        $this->artisan('orders:expire')->expectsOutput('2 commande(s) non confirmée(s) annulée(s)');
+        $this->assertSame(2, Order::where('status', OrderStatus::Cancelled->value)->count());
+        $this->assertSame(OrderStatus::PendingConfirmation, $paid->fresh()->status);
+        $this->assertSame(1, $reserved());
+    }
+
     public function test_theme_settings_change_the_storefront(): void
     {
         $themes = app(ThemeSettings::class);

@@ -1,7 +1,10 @@
 <?php
 
+use App\Enums\CancelReason;
+use App\Enums\OrderStatus;
 use App\Models\CarrierConnection;
 use App\Models\Cart;
+use App\Models\Order;
 use App\Models\StoreDomain;
 use App\Models\User;
 use App\Services\Accounts\StoreDataExport;
@@ -11,6 +14,7 @@ use App\Services\Couriers\MissionResponses;
 use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
 use App\Services\Orders\OrderAlerts;
+use App\Services\Orders\OrderDesk;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierConnections;
 use App\Services\Shipping\CarrierEvents;
@@ -91,10 +95,20 @@ Artisan::command('carts:recover', function (CustomerMessenger $messenger) {
     $carts = Cart::withoutGlobalScopes()->where('status', 'active')->whereNotNull('phone')->whereNull('recovery_sent_at')
         ->whereBetween('last_activity_at', [now()->subDays(2), now()->subHour()])->whereHas('items')->get();
 
+    // Contre les relances en masse vers des numéros inventés : une seule par numéro et par boutique sur 7 jours, et
+    // au plus 20 par boutique à chaque passage
+    $perHour = 20;
     $sent = 0;
+    $perStore = [];
     foreach ($carts as $cart) {
+        $recent = Cart::withoutGlobalScopes()->where('store_id', $cart->store_id)->where('phone', $cart->phone)
+            ->where('recovery_sent_at', '>=', now()->subDays(7))->exists();
+        if ($recent || ($perStore[$cart->store_id] ?? 0) >= $perHour) {
+            continue;
+        }
         app(Tenancy::class)->setStore($cart->store);
         if ($messenger->forCart($cart)) {
+            $perStore[$cart->store_id] = ($perStore[$cart->store_id] ?? 0) + 1;
             $cart->forceFill(['recovery_sent_at' => now()])->save();
             $sent++;
         }
@@ -103,6 +117,25 @@ Artisan::command('carts:recover', function (CustomerMessenger $messenger) {
 })->purpose('Relance par WhatsApp des paniers abandonnés');
 
 Schedule::command('carts:recover')->hourly()->withoutOverlapping();
+
+/*
+ * Commandes passées en ligne et jamais confirmées : annulées au bout de 48 h pour rendre le stock (sauf payées ou
+ * avec un rappel prévu plus tard). Sans cela, de fausses commandes bloqueraient des articles indéfiniment.
+ */
+Artisan::command('orders:expire', function (OrderDesk $desk) {
+    $hours = 48;
+    $expired = Order::withoutGlobalScopes()->with('store')->where('source', 'online_store')->where('status', OrderStatus::PendingConfirmation->value)
+        ->where('created_at', '<', now()->subHours($hours))->where('amount_paid', 0)
+        ->where(fn ($q) => $q->whereNull('callback_at')->orWhere('callback_at', '<', now()))->get();
+
+    foreach ($expired as $order) {
+        app(Tenancy::class)->setStore($order->store);
+        $desk->cancel($order, CancelReason::Unreachable, "Annulée automatiquement : pas confirmée en {$hours} h (stock rendu).", null);
+    }
+    $this->line($expired->count().' commande(s) non confirmée(s) annulée(s)');
+})->purpose('Annule les commandes en ligne jamais confirmées');
+
+Schedule::command('orders:expire')->hourly()->withoutOverlapping();
 
 Artisan::command('reports:send', function (DailyReport $reports) {
     $this->line($reports->sendDue().' rapport(s) envoyé(s)');
