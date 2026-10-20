@@ -143,8 +143,18 @@ Le script :
 - installe les dépendances et recompile l'interface ;
 - applique les migrations, les rôles et les offres ;
 - reconstruit les caches ;
-- relance PHP-FPM et la file d'attente ;
+- relance PHP-FPM et la file d'attente (deux processus) ;
 - rouvre le site.
+
+### Redis (sessions et cache)
+
+Si Redis répond sur le serveur, l'installation et la mise à jour y placent les sessions et le cache (bases 4 et 5,
+préfixe du nom de l'installation : rien ne se mélange avec Delivery App, qui utilise les bases 2 et 3). L'extension
+PHP Redis est installée si elle manque. Sans Redis, rien ne change : tout reste dans PostgreSQL. La file d'attente
+reste dans PostgreSQL. Au moment du passage, les personnes connectées doivent se reconnecter une fois.
+
+Vérifier après la mise à jour : `grep -E '^(SESSION_DRIVER|CACHE_STORE)=' /var/www/jibiat-marchand/.env` (doit
+afficher `redis`) et `redis-cli -n 4 dbsize` (nombre de sessions ouvertes).
 
 ## 7. Sécurité de la préproduction
 

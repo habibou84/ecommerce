@@ -44,7 +44,7 @@ restart_processes() {
     # PHP-FPM : vider le cache OPcache de l'ancien code
     systemctl reload "php$PHP_V-fpm"
     as_app "php artisan queue:restart"
-    supervisorctl restart "$INSTANCE-queue"
+    supervisorctl restart "$INSTANCE-queue:*"
 }
 
 # Le site répond-il ? (pendant la maintenance, grâce au cookie de passage)
@@ -132,6 +132,8 @@ CODE_CHANGED=1
 step "Dépendances PHP et interface"
 dependencies
 
+configure_redis
+
 step "Copie de la base avant les migrations"
 install -d -m 700 -o postgres -g postgres "$(dirname "$SNAPSHOT")"
 sudo -u postgres pg_dump -Fc -f "$SNAPSHOT.tmp" "$DB_NAME"
@@ -147,8 +149,11 @@ as_app "php artisan db:seed --class=PlanSeeder --force"
 as_app "php artisan optimize"
 
 step "Redémarrage des processus"
-restart_processes
-supervisorctl status "$INSTANCE-queue"
+# Configuration de la file d'attente à jour avec le code (nombre de processus), puis redémarrage
+systemctl reload "php$PHP_V-fpm"
+as_app "php artisan queue:restart"
+install_supervisor
+supervisorctl status "$INSTANCE-queue:*"
 
 step "Vérification avant ouverture"
 check_site || fail "le site ne répond pas correctement avec la nouvelle version."

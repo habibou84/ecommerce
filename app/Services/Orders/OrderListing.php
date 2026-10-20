@@ -208,14 +208,14 @@ class OrderListing
      *
      * @return array{count: int, amount: int, to_collect: int, due_today: int}
      */
-    public function summary(Request $request): array
+    public function summary(Request $request, ?int $total = null): array
     {
         $open = fn (Builder $q) => $q->whereNotIn('status', [OrderStatus::Cancelled->value, OrderStatus::Returned->value]);
         $row = $open($this->query($request)->reorder())->toBase()
             ->selectRaw('COUNT(*) AS n, COALESCE(SUM(total), 0) AS amount, COALESCE(SUM(GREATEST(total - amount_paid + amount_refunded, 0)), 0) AS due')->first();
 
         return [
-            'count' => $this->query($request)->count(),
+            'count' => $total ?? $this->query($request)->count(),
             'amount' => (int) $row->amount,
             'to_collect' => (int) $row->due,
             'due_today' => Order::where('scheduled_date', today()->toDateString())->whereIn('status', array_map(fn ($s) => $s->value, self::OPEN))->count(),

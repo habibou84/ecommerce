@@ -23,7 +23,8 @@ async function load() {
 
 onMounted(() => {
   load()
-  timer = setInterval(load, 60000)
+  // Seulement quand l'écran est visible : un onglet oublié n'interroge pas le serveur
+  timer = setInterval(() => document.visibilityState === 'visible' && load(), 60000)
 })
 onBeforeUnmount(() => clearInterval(timer))
 

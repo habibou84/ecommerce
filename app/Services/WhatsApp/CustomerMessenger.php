@@ -172,7 +172,8 @@ class CustomerMessenger
         $cart->loadMissing('store');
 
         return $this->queue($account, $cart->phone, 'cart_recovery', [
-            Str::before((string) ($cart->name ?: 'cher client'), ' '), $cart->store->name, $cart->store->url('/panier/reprendre/'.$cart->token),
+            // Prénom seulement en lettres : un « nom » saisi ne peut pas glisser un lien dans le message de la boutique
+            Str::limit(Str::before(trim(preg_replace("/[^\\p{L}' -]/u", '', (string) $cart->name)) ?: 'cher client', ' '), 30, ''), $cart->store->name, $cart->store->url('/panier/reprendre/'.$cart->token),
         ], [], 'cart', $cart->id);
     }
 

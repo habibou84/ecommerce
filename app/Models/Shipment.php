@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ShipmentStatus;
 use App\Models\Concerns\BelongsToStore;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -32,6 +33,22 @@ class Shipment extends Model
                 $shipment->status_changed_at = now();
             }
         });
+    }
+
+    /** Liens reçus des transporteurs : seulement http(s), jamais « javascript: » ou autre (affichés comme liens) */
+    public static function webUrl(?string $url): ?string
+    {
+        return $url !== null && preg_match('#^https?://[^\s]+$#i', trim($url)) ? trim($url) : null;
+    }
+
+    protected function carrierTrackingUrl(): Attribute
+    {
+        return Attribute::make(get: fn (?string $value) => self::webUrl($value), set: fn (?string $value) => self::webUrl($value));
+    }
+
+    protected function proofPhotoUrl(): Attribute
+    {
+        return Attribute::make(get: fn (?string $value) => self::webUrl($value), set: fn (?string $value) => self::webUrl($value));
     }
 
     protected function casts(): array

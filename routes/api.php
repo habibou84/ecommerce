@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\V1\Payments\OrderPaymentController;
 use App\Http\Controllers\Api\V1\Payments\PaymentSettingsController;
 use App\Http\Controllers\Api\V1\PlatformAccountController;
 use App\Http\Controllers\Api\V1\Reports\StatsController;
+use App\Http\Controllers\Api\V1\SetupGuideController;
 use App\Http\Controllers\Api\V1\Shipping\CarrierBalanceController;
 use App\Http\Controllers\Api\V1\Shipping\CarrierController;
 use App\Http\Controllers\Api\V1\Shipping\ShipmentController;
@@ -152,6 +153,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
             });
 
             Route::get('dashboard', DashboardController::class)->name('dashboard');
+            // Guide de démarrage pas à pas (étapes selon le rôle de chacun)
+            Route::get('setup-guide', [SetupGuideController::class, 'show'])->name('setup-guide.show');
+            Route::put('setup-guide/{step}', [SetupGuideController::class, 'skip'])->where('step', '[a-z_]+')->name('setup-guide.skip');
             // La boutique met fin à un accès du support de la plateforme
             Route::post('support-sessions/{session}/end', SupportSessionController::class)->whereNumber('session')
                 ->middleware('permission:'.Permission::TeamManage->value)->name('support.end');

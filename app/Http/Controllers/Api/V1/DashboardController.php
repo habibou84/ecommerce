@@ -12,6 +12,7 @@ use App\Services\Reports\DailyAdvice;
 use App\Services\Stock\StockLevels;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Chiffres de l'accueil de la gestion (selon les droits de la personne).
@@ -51,7 +52,9 @@ class DashboardController extends Controller
 
         // Conseils du jour (les mêmes que ceux du rapport du soir) pour qui voit les finances
         if ($user->can(Permission::FinanceView->value)) {
-            $data['tips'] = app(DailyAdvice::class)->tips($this->currentStore());
+            // Conseils tirés des chiffres des 30 derniers jours : recalculés au plus toutes les 30 minutes
+            $store = $this->currentStore();
+            $data['tips'] = Cache::remember("daily-advice:{$store->id}", 1800, fn () => app(DailyAdvice::class)->tips($store));
         }
 
         if ($user->can(Permission::StockManage->value)) {

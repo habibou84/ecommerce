@@ -3,6 +3,7 @@
 namespace App\Services\Accounts;
 
 use App\Models\StoreExport;
+use App\Support\SpreadsheetCell;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -146,7 +147,7 @@ class StoreDataExport
         fwrite($out, "\u{FEFF}"); // BOM : accents corrects dans Excel
         fputcsv($out, $headers, ';');
         foreach ($query->cursor() as $row) {
-            fputcsv($out, array_map(fn ($v) => is_bool($v) ? ($v ? 'oui' : 'non') : $v, $map($row)), ';');
+            fputcsv($out, array_map(fn ($v) => is_bool($v) ? ($v ? 'oui' : 'non') : SpreadsheetCell::safe($v), $map($row)), ';');
         }
         rewind($out);
 

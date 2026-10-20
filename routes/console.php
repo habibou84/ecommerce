@@ -1,7 +1,10 @@
 <?php
 
+use App\Enums\CancelReason;
+use App\Enums\OrderStatus;
 use App\Models\CarrierConnection;
 use App\Models\Cart;
+use App\Models\Order;
 use App\Models\StoreDomain;
 use App\Models\User;
 use App\Services\Accounts\StoreDataExport;
@@ -11,6 +14,7 @@ use App\Services\Couriers\MissionResponses;
 use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
 use App\Services\Orders\OrderAlerts;
+use App\Services\Orders\OrderDesk;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierConnections;
 use App\Services\Shipping\CarrierEvents;
@@ -35,7 +39,7 @@ Artisan::command('shipping:sync', function (CarrierEvents $events) {
     }
 })->purpose('Synchronise les expéditions avec les entreprises de livraison');
 
-Schedule::command('shipping:sync')->everyTenMinutes()->withoutOverlapping();
+Schedule::command('shipping:sync')->everyTenMinutes()->withoutOverlapping()->runInBackground();
 
 /*
  * Zones des transporteurs relues chaque nuit : une zone ouverte ou fermée chez eux l'est aussi ici, sans attendre
@@ -62,7 +66,7 @@ Artisan::command('couriers:remind', function (MissionResponses $responses) {
     $this->line($responses->remindUnanswered().' mission(s) sans réponse signalée(s)');
 })->purpose('Rappel des missions pas encore acceptées par les livreurs');
 
-Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
 
 /*
  * Commandes qui attendent (sans livreur, pas ramassées, à confirmer, point du matin...) : alertes à l'équipe, une
@@ -72,7 +76,7 @@ Artisan::command('orders:alerts', function (OrderAlerts $alerts) {
     $this->line($alerts->run().' alerte(s) envoyée(s)');
 })->purpose('Alertes sur les commandes qui attendent');
 
-Schedule::command('orders:alerts')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('orders:alerts')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
 
 /*
  * Publications programmées sur les réseaux sociaux, arrivées à l'heure.
@@ -81,7 +85,7 @@ Artisan::command('social:publish', function (SocialPublisher $publisher) {
     $this->line($publisher->publishDue().' publication(s) programmée(s) publiée(s)');
 })->purpose('Publie sur les réseaux les produits programmés');
 
-Schedule::command('social:publish')->everyMinute()->withoutOverlapping();
+Schedule::command('social:publish')->everyMinute()->withoutOverlapping()->runInBackground();
 
 /*
  * Paniers abandonnés : un client a laissé son numéro et des articles sans commander depuis plus d'une heure (et moins
@@ -91,10 +95,20 @@ Artisan::command('carts:recover', function (CustomerMessenger $messenger) {
     $carts = Cart::withoutGlobalScopes()->where('status', 'active')->whereNotNull('phone')->whereNull('recovery_sent_at')
         ->whereBetween('last_activity_at', [now()->subDays(2), now()->subHour()])->whereHas('items')->get();
 
+    // Contre les relances en masse vers des numéros inventés : une seule par numéro et par boutique sur 7 jours, et
+    // au plus 20 par boutique à chaque passage
+    $perHour = 20;
     $sent = 0;
+    $perStore = [];
     foreach ($carts as $cart) {
+        $recent = Cart::withoutGlobalScopes()->where('store_id', $cart->store_id)->where('phone', $cart->phone)
+            ->where('recovery_sent_at', '>=', now()->subDays(7))->exists();
+        if ($recent || ($perStore[$cart->store_id] ?? 0) >= $perHour) {
+            continue;
+        }
         app(Tenancy::class)->setStore($cart->store);
         if ($messenger->forCart($cart)) {
+            $perStore[$cart->store_id] = ($perStore[$cart->store_id] ?? 0) + 1;
             $cart->forceFill(['recovery_sent_at' => now()])->save();
             $sent++;
         }
@@ -102,13 +116,32 @@ Artisan::command('carts:recover', function (CustomerMessenger $messenger) {
     $this->line("{$sent} relance(s) envoyée(s)");
 })->purpose('Relance par WhatsApp des paniers abandonnés');
 
-Schedule::command('carts:recover')->hourly()->withoutOverlapping();
+Schedule::command('carts:recover')->hourly()->withoutOverlapping()->runInBackground();
+
+/*
+ * Commandes passées en ligne et jamais confirmées : annulées au bout de 48 h pour rendre le stock (sauf payées ou
+ * avec un rappel prévu plus tard). Sans cela, de fausses commandes bloqueraient des articles indéfiniment.
+ */
+Artisan::command('orders:expire', function (OrderDesk $desk) {
+    $hours = 48;
+    $expired = Order::withoutGlobalScopes()->with('store')->where('source', 'online_store')->where('status', OrderStatus::PendingConfirmation->value)
+        ->where('created_at', '<', now()->subHours($hours))->where('amount_paid', 0)
+        ->where(fn ($q) => $q->whereNull('callback_at')->orWhere('callback_at', '<', now()))->get();
+
+    foreach ($expired as $order) {
+        app(Tenancy::class)->setStore($order->store);
+        $desk->cancel($order, CancelReason::Unreachable, "Annulée automatiquement : pas confirmée en {$hours} h (stock rendu).", null);
+    }
+    $this->line($expired->count().' commande(s) non confirmée(s) annulée(s)');
+})->purpose('Annule les commandes en ligne jamais confirmées');
+
+Schedule::command('orders:expire')->hourly()->withoutOverlapping()->runInBackground();
 
 Artisan::command('reports:send', function (DailyReport $reports) {
     $this->line($reports->sendDue().' rapport(s) envoyé(s)');
 })->purpose('Rapports quotidiens à l\'équipe (WhatsApp ou email), à l\'heure choisie');
 
-Schedule::command('reports:send')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('reports:send')->everyFifteenMinutes()->withoutOverlapping()->runInBackground();
 
 Artisan::command('expenses:recurring', function (RecurringExpenses $expenses) {
     $this->info($expenses->run().' dépense(s) mensuelle(s) enregistrée(s).');

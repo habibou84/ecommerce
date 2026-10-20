@@ -176,6 +176,38 @@ build_app() {
     as_app "php artisan optimize"
 }
 
+# Sessions et cache dans Redis (déjà présent sur le serveur et partagé avec d'autres logiciels, dont Delivery App sur
+# ses bases 2 et 3) : bases 4 et 5, et un préfixe propre à l'installation (préproduction et production ne se mélangent
+# pas). Sans Redis qui répond, ou sans l'extension PHP, rien ne change : sessions et cache restent dans la base.
+# La file d'attente reste dans PostgreSQL (aucune tâche perdue si le serveur redémarre brutalement).
+configure_redis() {
+    step "Redis (sessions et cache)"
+    if [[ "$(env_get SESSION_DRIVER)" == redis && "$(env_get CACHE_STORE)" == redis ]]; then
+        info "Déjà sur Redis."
+        return 0
+    fi
+    if ! command -v redis-cli >/dev/null 2>&1 || [[ "$(redis-cli ping 2>/dev/null)" != PONG ]]; then
+        warn "Redis ne répond pas sur ce serveur : sessions et cache restent dans la base de données."
+        return 0
+    fi
+    if ! "$PHP_BIN" -m 2>/dev/null | grep -qi '^redis$'; then
+        info "Installation de l'extension PHP Redis (php$PHP_V-redis)"
+        apt-get install -y -q "php$PHP_V-redis" >/dev/null 2>&1 || true
+        if ! "$PHP_BIN" -m 2>/dev/null | grep -qi '^redis$'; then
+            warn "Extension PHP Redis indisponible : sessions et cache restent dans la base de données."
+            return 0
+        fi
+        systemctl reload "php$PHP_V-fpm" || true
+    fi
+    env_set REDIS_DB 4
+    env_set REDIS_CACHE_DB 5
+    env_set REDIS_PREFIX "$INSTANCE-"
+    env_set SESSION_DRIVER redis
+    env_set CACHE_STORE redis
+    info "Sessions et cache sur Redis (bases 4 et 5, préfixe $INSTANCE-)."
+    info "Les personnes connectées devront se reconnecter une fois."
+}
+
 # File d'attente (messages WhatsApp, API Conversions, affectation automatique) sous Supervisor
 install_supervisor() {
     step "Supervisor (file d'attente)"
@@ -184,7 +216,7 @@ install_supervisor() {
     systemctl enable --now supervisor
     supervisorctl reread
     supervisorctl update
-    supervisorctl restart "$INSTANCE-queue"
+    supervisorctl restart "$INSTANCE-queue:*"
 }
 
 # Planificateur Laravel (expéditions, abonnements, rapports, domaines, support) chaque minute

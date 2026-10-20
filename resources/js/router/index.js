@@ -109,6 +109,7 @@ const storeRoutes = [
       { path: 'mes-boutiques/livreurs', component: () => import('../views/gestion/group/GroupCouriers.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },
       { path: 'equipe', component: () => import('../views/gestion/Team.vue'), meta: { title: 'Équipe', permission: 'team.manage' } },
       { path: 'parametres', component: () => import('../views/gestion/Settings.vue'), meta: { title: 'Informations de la boutique' } },
+      { path: 'demarrage', component: () => import('../views/gestion/SetupGuide.vue'), meta: { title: 'Bien démarrer' } },
       { path: 'alertes', component: () => import('../views/gestion/AlertSettings.vue'), meta: { title: 'Alertes', permission: 'store.manage' } },
       { path: 'compte', component: () => import('../views/gestion/Account.vue'), meta: { title: 'Mon compte' } },
     ],

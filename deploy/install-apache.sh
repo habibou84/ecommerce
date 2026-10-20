@@ -106,6 +106,7 @@ create_user
 setup_postgres
 fetch_code
 write_env
+configure_redis
 build_app
 chown -R "$APP_USER:$APP_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 chmod -R g+rX "$APP_DIR/public" "$APP_DIR/storage/app/public"

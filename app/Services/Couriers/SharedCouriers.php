@@ -72,8 +72,12 @@ class SharedCouriers
             return collect([$courier]);
         }
 
+        // Seulement les boutiques où la personne est encore membre active (pas suspendue dans l'équipe)
         return Courier::withoutGlobalScope(StoreScope::class)->with('store')->whereIn('store_id', $stores->pluck('id'))
-            ->where('user_id', $courier->user_id)->where('status', 'active')->orderBy('store_id')->get();
+            ->where('user_id', $courier->user_id)->where('status', 'active')
+            ->whereExists(fn ($q) => $q->from('store_users')->whereColumn('store_users.store_id', 'couriers.store_id')
+                ->whereColumn('store_users.user_id', 'couriers.user_id')->where('store_users.status', UserStatus::Active->value))
+            ->orderBy('store_id')->get();
     }
 
     /**
@@ -148,7 +152,8 @@ class SharedCouriers
                     $target->members()->updateOrCreate(['user_id' => $user->id], ['status' => UserStatus::Active, 'joined_at' => now()]);
                     $this->roles->assign($user, $target, Role::Courier);
                 } elseif ($membership->status !== UserStatus::Active) {
-                    $membership->update(['status' => UserStatus::Active]);
+                    // Une personne suspendue dans l'équipe le reste : le partage ne lui rend pas son accès (ni son rôle)
+                    throw new BusinessRuleException("{$source->name} est suspendu dans l'équipe de {$target->name} : réactivez-le d'abord depuis l'équipe de cette boutique.");
                 }
 
                 return $courier;
