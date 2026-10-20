@@ -11,6 +11,7 @@ use App\Enums\StockLocationType;
 use App\Exceptions\BusinessRuleException;
 use App\Models\CarrierConnection;
 use App\Models\CarrierProductMapping;
+use App\Models\CarrierZone;
 use App\Models\Courier;
 use App\Models\Order;
 use App\Models\Shipment;
@@ -21,8 +22,10 @@ use App\Notifications\ShipmentAlert;
 use App\Services\Accounts\TeamNotifier;
 use App\Services\Couriers\CourierMissions;
 use App\Services\Orders\OrderDesk;
+use App\Services\Shipping\Drivers\DeliveryAppDriver;
 use App\Services\Shipping\Drivers\RemoteShipment;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
@@ -45,34 +48,67 @@ class ShipmentDesk
     /**
      * Devis de chaque transporteur connecté pour une commande (null : pas de devis, zone non couverte).
      *
-     * @return list<array{connection_id: int, name: string, driver: string, fee: ?int, zone: ?string, error: ?string}>
+     * @return list<array{connection_id: int, name: string, driver: string, fee: ?int, zone: ?string, earliest_date: ?string, day_message: ?string, error: ?string}>
      */
     public function quotes(Order $order): array
     {
-        $quotes = [];
-        foreach (CarrierConnection::forStore($order->store_id)->where('status', 'active')->orderBy('name')->get() as $connection) {
-            $zone = $this->connections->zoneForPlace($connection, $order->shipping_place_id);
-            $quote = ['connection_id' => $connection->id, 'name' => $connection->name, 'driver' => $connection->driver, 'fee' => null, 'zone' => $zone?->label(), 'error' => null];
+        $fragile = $order->items->contains(fn ($i) => $i->product?->is_fragile);
 
-            if ($connection->isApi()) {
-                if ($zone === null) {
-                    $quote['error'] = 'Quartier non couvert (ou sans correspondance de zone).';
-                } else {
-                    try {
-                        $quote['fee'] = $this->connections->driver($connection)->quote($connection, [
-                            'zone_id' => $zone->remote_id,
-                            'is_fragile' => $order->items->contains(fn ($i) => $i->product?->is_fragile),
-                            'weight_kg' => $this->weightKg($order),
-                        ]);
-                    } catch (CarrierException $e) {
-                        $quote['error'] = $e->getMessage();
-                    }
+        return $this->quotesFor($order->store_id, $order->shipping_place_id, $fragile, $this->weightKg($order));
+    }
+
+    /**
+     * Devis de chaque transporteur connecté pour un lieu de livraison, avant même que la commande existe
+     * (formulaire de saisie). Entreprise sans API : son tarif pour la zone, saisi par le marchand.
+     *
+     * @return list<array{connection_id: int, name: string, driver: string, fee: ?int, zone: ?string, earliest_date: ?string, day_message: ?string, error: ?string}>
+     */
+    public function quotesFor(int $storeId, ?int $placeId, bool $fragile, ?float $weightKg): array
+    {
+        $quotes = [];
+        foreach (CarrierConnection::forStore($storeId)->where('status', 'active')->orderBy('name')->get() as $connection) {
+            $zone = $this->connections->zoneForPlace($connection, $placeId);
+            $quote = ['connection_id' => $connection->id, 'name' => $connection->name, 'driver' => $connection->driver, 'fee' => $zone?->fee, 'zone' => $zone?->label(), 'earliest_date' => null, 'day_message' => null, 'error' => null];
+
+            // Entreprise sans API et sans grille de zones : elle livre partout, à un prix non renseigné
+            $hasZones = $connection->isApi() || CarrierZone::where('connection_id', $connection->id)->where('is_active', true)->exists();
+            if ($zone === null) {
+                $quote['error'] = $placeId === null || ! $hasZones ? null : 'Quartier non couvert (ou sans correspondance de zone).';
+            } elseif ($connection->isApi()) {
+                try {
+                    $quote['fee'] = $this->connections->driver($connection)->quote($connection, [
+                        'zone_id' => $zone->remote_id,
+                        'is_fragile' => $fragile,
+                        'weight_kg' => $weightKg,
+                    ]) ?? $zone->fee;
+                } catch (CarrierException $e) {
+                    $quote['error'] = $quote['fee'] === null ? $e->getMessage() : null;
                 }
+                $day = $this->deliveryDay($connection);
+                $quote['earliest_date'] = $day['earliest_delivery_date'] ?? null;
+                $quote['day_message'] = $day['message'] ?? null;
             }
             $quotes[] = $quote;
         }
 
         return $quotes;
+    }
+
+    /**
+     * Journée de livraison du transporteur (heure limite, jours fermés), gardée cinq minutes : un devis par commande
+     * ne relance pas la question à chaque fois.
+     *
+     * @return array{earliest_delivery_date: ?string, closed: bool, message: ?string}|null
+     */
+    private function deliveryDay(CarrierConnection $connection): ?array
+    {
+        return Cache::remember("carrier-day:{$connection->id}", now()->addMinutes(5), function () use ($connection) {
+            try {
+                return app(DeliveryAppDriver::class)->deliveryDay($connection);
+            } catch (CarrierException) {
+                return null;
+            }
+        });
     }
 
     /**
@@ -302,6 +338,7 @@ class ShipmentDesk
             // de la nôtre, et la réponse à la création arrive après l'heure qu'elle porte
             $lastEventAt = ShipmentEvent::where('shipment_id', $shipment->id)->whereIn('source', ['carrier_webhook', 'carrier_sync'])->max('occurred_at');
             $stale = $source !== 'user' && $lastEventAt !== null && $occurredAt->lt(Carbon::parse($lastEventAt));
+            $previousDate = $shipment->scheduled_date?->toDateString();
 
             $shipment->forceFill(array_filter([
                 'carrier_status' => $stale ? null : $remote->rawStatus,
@@ -314,11 +351,20 @@ class ShipmentDesk
                 'attempts_count' => $remote->attempts ?: null,
                 'failure_reason' => $remote->incident,
                 'rescheduled_to' => $remote->rescheduledTo,
+                'scheduled_date' => $stale ? null : $remote->scheduledDate,
+                'needs_decision' => $stale ? null : $remote->needsDecision,
+                'return_requested' => $stale ? null : $remote->returnRequested,
             ], fn ($v) => $v !== null))->forceFill(['last_synced_at' => $source === 'user' ? $shipment->last_synced_at : now()]);
+            $newDate = $shipment->scheduled_date?->toDateString();
 
             $to = $remote->status;
             if ($to === null || $to === $shipment->status || $stale) {
                 $shipment->save();
+                // Même statut, autre date (course reportée de nouveau, livraison décalée) : la boutique est prévenue
+                if ($previousDate !== null && $newDate !== $previousDate && ! $stale && $source !== 'user') {
+                    $this->event($shipment, $shipment->status, $remote->rawStatus, $source, 'Livraison prévue le '.$shipment->scheduled_date->format('d/m/Y'), $actor, $occurredAt);
+                    $this->notifier->notify($shipment->store, Permission::OrdersView->value, new ShipmentAlert($shipment, 'Date de livraison changée', 'livraison prévue le '.$shipment->scheduled_date->format('d/m/Y')));
+                }
 
                 return;
             }
@@ -369,7 +415,10 @@ class ShipmentDesk
         };
         // Alerte quand l'information vient du terrain (transporteur ou livreur), pas d'une saisie dans la gestion
         if ($alert && ($actor === null || $source === 'courier')) {
-            $this->notifier->notify($shipment->store, Permission::OrdersView->value, new ShipmentAlert($shipment, $alert, $shipment->failure_reason));
+            $detail = $to === ShipmentStatus::Rescheduled && $shipment->rescheduled_to
+                ? trim(($shipment->failure_reason ? $shipment->failure_reason.', ' : '').'nouvelle date le '.$shipment->rescheduled_to->format('d/m/Y'))
+                : $shipment->failure_reason;
+            $this->notifier->notify($shipment->store, Permission::OrdersView->value, new ShipmentAlert($shipment, $alert, $detail));
         }
 
         if ($shipment->isOwnCourier()) {
@@ -472,6 +521,8 @@ class ShipmentDesk
             'merchant_note' => $shipment->note,
             'items_amount' => $itemsAmount,
             'fee_payer' => $feePayer === 'store' ? 'merchant' : 'recipient',
+            // Jibiat Marchand prévient déjà l'équipe : pas d'alertes en double de l'entreprise de livraison
+            'notify_merchant' => false,
             'items' => $order->items->map(fn ($item) => array_filter([
                 'product_id' => isset($remoteProducts[$item->variant_id]) ? (int) $remoteProducts[$item->variant_id] : null,
                 'label' => Str::limit($item->label(), 250),

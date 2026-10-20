@@ -12,6 +12,8 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\Permission;
 use App\Exceptions\BusinessRuleException;
+use App\Models\CarrierConnection;
+use App\Models\Courier;
 use App\Models\Order;
 use App\Models\OrderConfirmation;
 use App\Models\OrderEvent;
@@ -96,6 +98,7 @@ class OrderDesk
                 'created_by' => $actor?->id,
             ]);
             $this->applyPlace($store, $order);
+            $this->applyPlannedDelivery($order, $data);
             // Fidélité : points utilisés et réduction de parrainage (avant le calcul du total)
             $this->loyalty->prepare($store, $order, $customer, $data);
             $order->save();
@@ -152,6 +155,9 @@ class OrderDesk
             $placeChanged = $order->isDirty('shipping_place_id') || $order->isDirty('delivery_method');
             if ($placeChanged) {
                 $this->applyPlace($order->store, $order);
+            }
+            if (array_key_exists('planned_courier_id', $data) || array_key_exists('planned_carrier_connection_id', $data) || $order->delivery_method === 'pickup') {
+                $this->applyPlannedDelivery($order, $data);
             }
 
             $itemsChanged = array_key_exists('items', $data);
@@ -579,6 +585,28 @@ class OrderDesk
             'delivery_zone_id' => $this->places->zoneFor($store, $place)?->id,
         ]);
         $order->unsetRelation('zone');
+    }
+
+    /**
+     * Qui livre, choisi à la saisie : un livreur actif de la boutique ou une entreprise de livraison connectée
+     * (rien en retrait au magasin). L'expédition est créée à la confirmation.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function applyPlannedDelivery(Order $order, array $data): void
+    {
+        $courierId = $data['planned_courier_id'] ?? null;
+        $carrierId = $data['planned_carrier_connection_id'] ?? null;
+        if ($order->delivery_method === 'pickup') {
+            $courierId = $carrierId = null;
+        }
+        if ($courierId !== null && ! Courier::forStore($order->store_id)->where('status', 'active')->whereKey($courierId)->exists()) {
+            throw new BusinessRuleException('Ce livreur n\'est pas actif dans la boutique.', 'planned_courier_id');
+        }
+        if ($carrierId !== null && ! CarrierConnection::forStore($order->store_id)->where('status', 'active')->whereKey($carrierId)->exists()) {
+            throw new BusinessRuleException('Cette entreprise de livraison n\'est pas connectée.', 'planned_carrier_connection_id');
+        }
+        $order->forceFill(['planned_courier_id' => $courierId, 'planned_carrier_connection_id' => $carrierId]);
     }
 
     private function location(Store $store, ?int $locationId): StockLocation

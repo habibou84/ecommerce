@@ -145,11 +145,41 @@ class DeliveryAppDriver implements CarrierDriver
         $this->send($connection, fn (PendingRequest $http) => $http->delete('webhooks/'.rawurlencode($connection->remote_webhook_id)), allowMissing: true);
     }
 
-    public function paidPayouts(CarrierConnection $connection): array
+    public function paidPayouts(CarrierConnection $connection, ?\DateTimeInterface $since = null): array
     {
-        $data = $this->send($connection, fn (PendingRequest $http) => $http->get('payouts', ['status' => 'paid', 'per_page' => 20]), allowMissing: true)->json('data');
+        $references = [];
+        for ($page = 1; $page <= 10; $page++) {
+            $response = $this->send($connection, fn (PendingRequest $http) => $http->get('payouts', array_filter([
+                'status' => 'paid', 'paid_since' => $since?->format(DATE_ATOM), 'per_page' => 100, 'page' => $page,
+            ])), allowMissing: true);
+            $data = $response->json('data');
+            foreach (is_array($data) ? $data : [] as $payout) {
+                if (! empty($payout['reference'])) {
+                    $references[] = (string) $payout['reference'];
+                }
+            }
+            if ($page >= (int) $response->json('meta.last_page', 1)) {
+                break;
+            }
+        }
 
-        return collect(is_array($data) ? $data : [])->pluck('reference')->filter()->map(fn ($r) => (string) $r)->values()->all();
+        return $references;
+    }
+
+    /**
+     * Journée de livraison chez le transporteur : premier jour où une nouvelle course peut être livrée, et pourquoi
+     * (heure limite passée, jour fermé).
+     *
+     * @return array{earliest_delivery_date: ?string, closed: bool, message: ?string}|null
+     */
+    public function deliveryDay(CarrierConnection $connection): ?array
+    {
+        $data = $this->send($connection, fn (PendingRequest $http) => $http->get('delivery-day'), allowMissing: true)->json('data');
+        if (! is_array($data) || ! isset($data['earliest_delivery_date'])) {
+            return null; // version de Delivery App sans journée de livraison
+        }
+
+        return ['earliest_delivery_date' => (string) $data['earliest_delivery_date'], 'closed' => (bool) ($data['closed'] ?? false), 'message' => $data['message'] ?? null];
     }
 
     public function payout(CarrierConnection $connection, string $reference): array

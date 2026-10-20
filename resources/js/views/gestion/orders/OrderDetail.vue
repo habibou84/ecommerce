@@ -287,6 +287,9 @@ async function addNote() {
             <p v-if="order.shipping_address">{{ order.shipping_address }}</p>
             <p v-if="order.shipping_landmark" class="text-slate-500">Repère : {{ order.shipping_landmark }}</p>
             <p v-if="order.shipping_phone2" class="text-slate-500">Autre numéro : {{ order.shipping_phone2 }}</p>
+            <p v-if="(order.planned_courier || order.planned_carrier) && !order.shipments.length" class="flex items-center gap-1.5 text-emerald-800">
+              <Icon name="truck" :size="16" />Livrée par {{ (order.planned_courier || order.planned_carrier).name }}{{ order.status === 'pending_confirmation' ? ' dès la confirmation' : '' }}
+            </p>
           </template>
           <p v-if="order.scheduled_date" class="text-slate-500">Souhaitée le {{ new Date(order.scheduled_date).toLocaleDateString('fr-FR') }}</p>
           <p v-if="order.customer_note" class="mt-2 rounded bg-amber-50 p-2">« {{ order.customer_note }} »</p>

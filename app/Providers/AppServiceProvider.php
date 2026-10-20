@@ -60,10 +60,15 @@ class AppServiceProvider extends ServiceProvider
         OrderEvent::created(fn (OrderEvent $event) => DB::afterCommit(fn () => app(CustomerMessenger::class)->onOrderEvent($event)));
         // Fidélité : points gagnés à la livraison, rendus ou retirés si la commande est annulée ou retournée
         OrderEvent::created(fn (OrderEvent $event) => app(Loyalty::class)->onOrderEvent($event));
-        // Affectation automatique (mode « auto ») : livreur ou transporteur choisi par les règles dès la confirmation
+        // Dès la confirmation : expédition confiée à qui a été choisi à la saisie, sinon (mode « auto ») à qui
+        // désignent les règles
         OrderEvent::created(function (OrderEvent $event) {
-            if ($event->type === 'status_changed' && ($event->data['to'] ?? null) === OrderStatus::Confirmed->value
-                && Store::whereKey($event->store_id)->value('assignment_mode') === 'auto') {
+            if ($event->type !== 'status_changed' || ($event->data['to'] ?? null) !== OrderStatus::Confirmed->value) {
+                return;
+            }
+            $planned = Order::withoutGlobalScopes()->whereKey($event->order_id)
+                ->where(fn ($q) => $q->whereNotNull('planned_courier_id')->orWhereNotNull('planned_carrier_connection_id'))->exists();
+            if ($planned || Store::whereKey($event->store_id)->value('assignment_mode') === 'auto') {
                 DB::afterCommit(fn () => AutoAssignOrder::dispatch($event->order_id));
             }
         });

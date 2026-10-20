@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Orders\CustomerController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryController;
+use App\Http\Controllers\Api\V1\Orders\DeliveryOptionsController;
 use App\Http\Controllers\Api\V1\Orders\MessageTextController;
 use App\Http\Controllers\Api\V1\Orders\OrderController;
 use App\Http\Controllers\Api\V1\Orders\ReturnController;
@@ -224,6 +225,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
                 Route::post('orders/parse', [OrderController::class, 'parse'])->name('orders.parse');
                 Route::post('orders/draft', [OrderController::class, 'draft'])->middleware('throttle:30,1')->name('orders.draft');
+                // Saisie : qui peut livrer ce quartier et à quel prix, zones et tarifs d'une entreprise de livraison
+                Route::post('orders/delivery-options', DeliveryOptionsController::class)->name('orders.delivery-options');
+                Route::get('orders/delivery-options/places', [DeliveryOptionsController::class, 'places'])->name('orders.delivery-options.places');
+                Route::get('orders/delivery-options/carriers/{carrier}', [DeliveryOptionsController::class, 'tariffs'])->whereNumber('carrier')->name('orders.delivery-options.tariffs');
                 Route::post('orders/{order}/status', [OrderController::class, 'transition'])->whereNumber('order')->name('orders.status');
                 Route::post('orders/{order}/payments', [OrderController::class, 'payment'])->whereNumber('order')->name('orders.payments');
                 Route::post('places', [DeliveryController::class, 'addPlace'])->name('places.store');
@@ -267,6 +272,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::delete('carriers/{carrier}', [CarrierController::class, 'destroy'])->whereNumber('carrier')->name('carriers.destroy');
                 Route::get('carriers/{carrier}/zones', [CarrierController::class, 'zones'])->whereNumber('carrier')->name('carriers.zones');
                 Route::put('carriers/{carrier}/zones', [CarrierController::class, 'updateZones'])->whereNumber('carrier')->name('carriers.zones.update');
+                // Grille de tarifs : zones créées par le marchand (entreprise sans API), prix par zone
+                Route::post('carriers/{carrier}/tariff-zones', [CarrierController::class, 'storeZone'])->whereNumber('carrier')->name('carriers.tariff-zones.store');
+                Route::patch('carrier-zones/{zone}', [CarrierController::class, 'updateZone'])->whereNumber('zone')->name('carrier-zones.update');
+                Route::delete('carrier-zones/{zone}', [CarrierController::class, 'destroyZone'])->whereNumber('zone')->name('carrier-zones.destroy');
                 Route::post('carriers/{carrier}/sync', [CarrierController::class, 'sync'])->whereNumber('carrier')->middleware('throttle:10,1')->name('carriers.sync');
                 Route::get('carriers/{carrier}/stock', [CarrierController::class, 'stock'])->whereNumber('carrier')->middleware('throttle:10,1')->name('carriers.stock');
                 Route::post('carriers/{carrier}/hubs', [CarrierController::class, 'linkHub'])->whereNumber('carrier')->name('carriers.hubs');

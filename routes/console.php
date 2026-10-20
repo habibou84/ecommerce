@@ -11,7 +11,9 @@ use App\Services\Couriers\MissionResponses;
 use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
 use App\Services\Reports\DailyReport;
+use App\Services\Shipping\CarrierConnections;
 use App\Services\Shipping\CarrierEvents;
+use App\Services\Shipping\CarrierException;
 use App\Services\Social\SocialPublisher;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
@@ -33,6 +35,24 @@ Artisan::command('shipping:sync', function (CarrierEvents $events) {
 })->purpose('Synchronise les expéditions avec les entreprises de livraison');
 
 Schedule::command('shipping:sync')->everyTenMinutes()->withoutOverlapping();
+
+/*
+ * Zones des transporteurs relues chaque nuit : une zone ouverte ou fermée chez eux l'est aussi ici, sans attendre
+ * que le marchand le fasse à la main.
+ */
+Artisan::command('shipping:zones', function (CarrierConnections $connections) {
+    foreach (CarrierConnection::withoutGlobalScopes()->with('store')->where('driver', CarrierConnection::DELIVERY_APP)->where('status', 'active')->get() as $connection) {
+        app(Tenancy::class)->setStore($connection->store);
+        try {
+            $connections->syncZones($connection);
+            $this->line("{$connection->name} (boutique {$connection->store_id}) : zones à jour");
+        } catch (CarrierException $e) {
+            $this->warn("{$connection->name} (boutique {$connection->store_id}) : {$e->getMessage()}");
+        }
+    }
+})->purpose('Relit les zones des entreprises de livraison');
+
+Schedule::command('shipping:zones')->dailyAt('03:40')->withoutOverlapping();
 
 /*
  * Missions confiées aux livreurs et toujours sans réponse après un quart d'heure : rappel à l'équipe et au livreur.

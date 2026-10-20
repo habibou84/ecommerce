@@ -9,10 +9,12 @@ use App\Models\Courier;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\StockLocation;
+use App\Services\Shipping\CarrierException;
 use App\Services\Shipping\DeliveryAdvisor;
 use App\Services\Shipping\ShipmentDesk;
 use App\Services\Shipping\ShipmentPresenter;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -96,14 +98,29 @@ class ShipmentController extends Controller
     }
 
     /**
-     * Photo prise par le livreur (stockage privé).
+     * Photo de preuve : prise par le livreur de la boutique (stockage privé), ou chez l'entreprise de livraison par un
+     * lien signé qui expire au bout d'un jour, redemandé quand il a expiré.
      */
-    public function proof(int $shipment): StreamedResponse
+    public function proof(int $shipment): StreamedResponse|RedirectResponse
     {
         $model = Shipment::findOrFail($shipment);
-        abort_unless($model->proof_photo_path && Storage::disk('local')->exists($model->proof_photo_path), 404);
+        if ($model->proof_photo_path) {
+            abort_unless(Storage::disk('local')->exists($model->proof_photo_path), 404);
 
-        return Storage::disk('local')->response($model->proof_photo_path);
+            return Storage::disk('local')->response($model->proof_photo_path);
+        }
+
+        abort_unless($model->proof_photo_url, 404);
+        parse_str((string) parse_url($model->proof_photo_url, PHP_URL_QUERY), $query);
+        if (isset($query['expires']) && (int) $query['expires'] <= now()->addMinutes(5)->timestamp && $model->connection?->isApi()) {
+            try {
+                $model = $this->desk->refresh($model);
+            } catch (CarrierException) {
+                // Transporteur injoignable : l'ancien lien est rendu tel quel
+            }
+        }
+
+        return redirect()->away($model->proof_photo_url);
     }
 
     public function cancel(Request $request, int $shipment): JsonResponse

@@ -13,6 +13,7 @@ use App\Services\Shipping\CarrierEvents;
 use App\Services\Shipping\CarrierStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Jibiat\Socle\Rules\PhoneNumber as PhoneRule;
 
@@ -109,7 +110,7 @@ class CarrierController extends Controller
 
         return response()->json(['data' => [
             'zones' => CarrierZone::where('connection_id', $connection->id)->where('is_active', true)->orderBy('name')->get()
-                ->map(fn (CarrierZone $z) => ['id' => $z->id, 'label' => $z->label(), 'is_shipping' => $z->is_shipping]),
+                ->map(fn (CarrierZone $z) => ['id' => $z->id, 'label' => $z->label(), 'name' => $z->name, 'fee' => $z->fee, 'is_shipping' => $z->is_shipping]),
             'places' => $rows,
         ]]);
     }
@@ -125,6 +126,58 @@ class CarrierController extends Controller
         $this->connections->updateMappings($connection, $data['mappings']);
 
         return response()->json(['message' => 'Correspondances enregistrées.']);
+    }
+
+    /**
+     * Zone ajoutée à la grille d'une entreprise sans API (« Cocody », 1 500 F), puis reliée aux quartiers.
+     */
+    public function storeZone(Request $request, int $carrier): JsonResponse
+    {
+        $connection = CarrierConnection::findOrFail($carrier);
+        abort_if($connection->isApi(), 422, 'Les zones de cette entreprise viennent de son application : synchronisez-les.');
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'fee' => ['required', 'integer', 'min:0', 'max:10000000'],
+        ], [], ['name' => 'nom de la zone', 'fee' => 'tarif']);
+
+        $zone = CarrierZone::create([
+            'connection_id' => $connection->id, 'remote_id' => 'manual-'.Str::uuid(), 'name' => $data['name'], 'fee' => $data['fee'],
+            'is_shipping' => false, 'is_active' => true, 'synced_at' => now(),
+        ]);
+        $this->connections->autoMap($connection);
+
+        return response()->json(['data' => ['id' => $zone->id, 'label' => $zone->label(), 'name' => $zone->name, 'fee' => $zone->fee]], 201);
+    }
+
+    /**
+     * Tarif d'une zone (et son nom, pour une entreprise sans API). Entreprise avec API : prix de secours si son devis
+     * ne répond pas.
+     */
+    public function updateZone(Request $request, int $zone): JsonResponse
+    {
+        $model = CarrierZone::findOrFail($zone);
+        $connection = CarrierConnection::findOrFail($model->connection_id);
+        $data = $request->validate([
+            'name' => [$connection->isApi() ? 'prohibited' : 'sometimes', 'required', 'string', 'max:120'],
+            'fee' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:10000000'],
+        ], [], ['name' => 'nom de la zone', 'fee' => 'tarif']);
+        $model->fill($data)->save();
+        if (isset($data['name'])) {
+            $this->connections->autoMap($connection);
+        }
+
+        return response()->json(['data' => ['id' => $model->id, 'label' => $model->label(), 'name' => $model->name, 'fee' => $model->fee]]);
+    }
+
+    public function destroyZone(int $zone): JsonResponse
+    {
+        $model = CarrierZone::findOrFail($zone);
+        $connection = CarrierConnection::findOrFail($model->connection_id);
+        abort_if($connection->isApi(), 422, 'Les zones de cette entreprise viennent de son application.');
+        CarrierZoneMapping::where('carrier_zone_id', $model->id)->delete();
+        $model->delete();
+
+        return response()->json(['message' => 'Zone supprimée.']);
     }
 
     /**
