@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Marketing;
 
+use App\Enums\Role;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\Place;
@@ -114,8 +115,18 @@ class SocialTest extends TestCase
         ]);
         $url = $this->storeApi($this->store, 'POST', 'social/connect/tiktok')->assertOk()->json('url');
         parse_str(parse_url($url, PHP_URL_QUERY), $query);
-        $this->get('http://localhost/reseaux/tiktok/retour?code=xyz&state='.rawurlencode($query['state']))
-            ->assertRedirect($this->storeUrl($this->store, '/gestion/marketing/reseaux?connecte=tiktok'));
+        $back = $this->get('http://localhost/reseaux/tiktok/retour?code=xyz&state='.rawurlencode($query['state']))->assertRedirect()->headers->get('Location');
+        $this->assertStringStartsWith($this->storeUrl($this->store, '/gestion/marketing/reseaux?tiktok='), $back);
+        $key = explode('tiktok=', $back)[1];
+
+        // Rien n'est enregistré avant la confirmation dans la gestion, par la personne qui a lancé la connexion
+        $this->assertSame(0, SocialAccount::count());
+        $other = $this->addMember($this->store, null, Role::Manager);
+        $this->actingAs($other);
+        $this->storeApi($this->store, 'POST', "social/tiktok/{$key}")->assertStatus(422);
+        $this->actingAs($this->store->owner);
+        $this->storeApi($this->store, 'POST', "social/tiktok/{$key}")->assertOk()->assertJsonPath('data.name', 'Awa Mode CI');
+        $this->storeApi($this->store, 'POST', "social/tiktok/{$key}")->assertStatus(422);
 
         $account = SocialAccount::sole();
         $this->assertSame(['tiktok', 'OPEN1', 'Awa Mode CI', 'tt-token', 'tt-refresh'], [$account->network, $account->external_id, $account->name, $account->access_token, $account->refresh_token]);

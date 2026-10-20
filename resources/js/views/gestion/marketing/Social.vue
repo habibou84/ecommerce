@@ -38,9 +38,18 @@ async function load() {
 }
 
 onMounted(async () => {
-  const { pages: key, connecte, erreur } = route.query
+  const { pages: key, connecte, erreur, tiktok } = route.query
   if (erreur) error.value = String(erreur)
   if (connecte) notice.value = `${LABELS[connecte] ?? 'Compte'} connecté ✓`
+  // Retour de TikTok : le compte est enregistré une fois confirmé ici, par la personne qui a lancé la connexion
+  if (tiktok) {
+    try {
+      await http.post(`/social/tiktok/${tiktok}`)
+      notice.value = `${LABELS.tiktok ?? 'TikTok'} connecté ✓`
+    } catch (e) {
+      error.value = errorMessage(e)
+    }
+  }
   if (key) {
     pagesKey.value = String(key)
     try {
@@ -49,7 +58,7 @@ onMounted(async () => {
       error.value = errorMessage(e)
     }
   }
-  if (key || connecte || erreur) router.replace({ query: {} })
+  if (key || connecte || erreur || tiktok) router.replace({ query: {} })
   await load()
 })
 
