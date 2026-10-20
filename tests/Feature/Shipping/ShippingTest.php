@@ -4,6 +4,7 @@ namespace Tests\Feature\Shipping;
 
 use App\Enums\OrderStatus;
 use App\Enums\Role;
+use App\Enums\ShipmentStatus;
 use App\Models\CarrierConnection;
 use App\Models\CarrierPayout;
 use App\Models\CarrierZone;
@@ -19,12 +20,14 @@ use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierConnections;
+use App\Services\Shipping\Drivers\RemoteShipment;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Jibiat\Socle\Contract\Contract;
 use Jibiat\Socle\Webhooks\WebhookSignature;
 use Tests\TestCase;
 
@@ -65,20 +68,12 @@ class ShippingTest extends TestCase
         $this->actingAs($this->store->owner);
     }
 
+    /**
+     * Course telle que Jibiat l'envoie : l'exemple du contrat partagé (habibou84/socle), au statut voulu.
+     */
     private function remoteOrder(string $status, array $extra = []): array
     {
-        return array_replace_recursive([
-            'tracking_code' => 'LV-7K2M-QX9P',
-            'merchant_reference' => '#1001-1',
-            'status' => $status,
-            'tracking_url' => 'https://rapide.jibiat.com/suivi/LV-7K2M-QX9P',
-            'delivery_code' => '4821',
-            'amounts' => ['items_amount' => 31500, 'delivery_fee' => 1200, 'fee_payer' => 'merchant', 'cod_amount' => 31500, 'collected_amount' => null],
-            'attempts_count' => 0,
-            'last_incident' => null,
-            'proof' => ['delivered_at' => null, 'photos' => []],
-            'updated_at' => now()->toIso8601String(),
-        ], $extra);
+        return array_replace_recursive(Contract::example('order-pending')['data'], ['status' => $status, 'updated_at' => now()->toIso8601String()], $extra);
     }
 
     /**
@@ -95,18 +90,10 @@ class ShippingTest extends TestCase
     private function fakeDeliveryApp(): void
     {
         $this->stub([
-            self::API.'/me' => Http::response(['data' => [
-                'merchant' => ['id' => 12, 'business_name' => 'Awa Mode'],
-                'company' => ['name' => 'Rapide Express', 'slug' => 'rapide', 'url' => 'https://rapide.jibiat.com'],
-                'key' => ['name' => 'Jibiat Marchand', 'prefix' => 'abcd1234', 'scopes' => ['orders:read', 'orders:write', 'webhooks:write', 'payouts:read']],
-            ]]),
-            self::API.'/zones' => Http::response(['data' => [
-                ['id' => 1, 'parent_id' => null, 'name' => 'Cocody', 'is_shipping' => false, 'is_active' => true],
-                ['id' => 2, 'parent_id' => 1, 'name' => 'Angré', 'is_shipping' => false, 'is_active' => true],
-                ['id' => 3, 'parent_id' => null, 'name' => 'Yopougon', 'is_shipping' => false, 'is_active' => true],
-            ]]),
-            self::API.'/webhooks' => Http::response(['data' => ['id' => 77], 'secret' => 'whsec_secret'], 201),
-            self::API.'/quotes' => Http::response(['data' => ['total' => 1200]]),
+            self::API.'/me' => Http::response(Contract::example('me')),
+            self::API.'/zones' => Http::response(Contract::example('zones')),
+            self::API.'/webhooks' => Http::response(['secret' => 'whsec_secret'] + Contract::example('webhook-created'), 201),
+            self::API.'/quotes' => Http::response(Contract::example('quote')),
             self::API.'/orders' => Http::response(['data' => $this->remoteOrder('pending')], 201),
         ]);
     }
@@ -156,6 +143,16 @@ class ShippingTest extends TestCase
             'HTTP_X_WEBHOOK_TIMESTAMP' => (string) $timestamp,
             'HTTP_X_WEBHOOK_SIGNATURE' => WebhookSignature::sign($secret ?? $connection->webhook_secret, $timestamp, $body),
         ], $body);
+    }
+
+    /**
+     * Webhook réel du contrat partagé (corps exact de Jibiat, signé).
+     */
+    private function contractWebhook(CarrierConnection $connection, string $example): TestResponse
+    {
+        $payload = Contract::example($example);
+
+        return $this->webhook($connection, $payload['event'], $payload['data'], $payload['id'].'-'.Str::random(4));
     }
 
     private function stock(int $variantIndex = 0): array
@@ -438,6 +435,48 @@ class ShippingTest extends TestCase
         // Une fois un reversement reçu : seulement ceux payés depuis (marge de deux jours)
         Http::assertSent(fn (HttpRequest $r) => str_starts_with($r->url(), self::API.'/payouts?status=paid&paid_since='));
         $this->storeApi($this->store, 'GET', 'carrier-balances')->assertJsonPath('total', 0);
+    }
+
+    public function test_every_status_and_order_of_the_contract_is_understood(): void
+    {
+        foreach (Contract::ORDER_STATUSES as $status) {
+            $this->assertNotNull(ShipmentStatus::fromDeliveryApp($status), "Statut Jibiat « {$status} » sans équivalent");
+        }
+
+        $read = fn (string $example) => RemoteShipment::fromDeliveryApp(Contract::example($example)['data']);
+        $tomorrow = now()->addDay()->toDateString();
+        $in2 = now()->addDays(2)->toDateString();
+
+        $pending = $read('order-pending');
+        $this->assertSame(['LV-7K2M-QX9P', ShipmentStatus::Requested, 1200, '4821', null, false, false], [$pending->trackingCode, $pending->status, $pending->fee, $pending->deliveryCode, $pending->scheduledDate, $pending->needsDecision, $pending->returnRequested]);
+        $this->assertSame([ShipmentStatus::Accepted, $tomorrow, null], [$read('order-scheduled-tomorrow')->status, $read('order-scheduled-tomorrow')->scheduledDate, $read('order-scheduled-tomorrow')->rescheduledTo]);
+        $this->assertSame(ShipmentStatus::InTransit, $read('order-picked-up')->status);
+        $failed = $read('order-failed-needs-decision');
+        $this->assertSame([ShipmentStatus::Failed, true, 'Client absent', 1], [$failed->status, $failed->needsDecision, $failed->incident, $failed->attempts]);
+        $this->assertSame([ShipmentStatus::Rescheduled, $in2, $in2], [$read('order-rescheduled')->status, $read('order-rescheduled')->rescheduledTo, $read('order-rescheduled')->scheduledDate]);
+        $this->assertSame([true, false], [$read('order-return-requested')->returnRequested, $read('order-return-requested')->needsDecision]);
+        $delivered = $read('order-delivered');
+        $this->assertSame([ShipmentStatus::Delivered, 31500], [$delivered->status, $delivered->collected]);
+        $this->assertStringStartsWith('https://', (string) $delivered->proofPhotoUrl);
+    }
+
+    public function test_every_webhook_of_the_contract_is_understood(): void
+    {
+        $connection = $this->connect();
+        $shipment = $this->ship($this->confirmedOrder(), $connection);
+
+        $this->contractWebhook($connection, 'webhook-order-status-changed')->assertOk();
+        $this->assertSame('in_transit', $shipment->fresh()->status->value);
+
+        $this->contractWebhook($connection, 'webhook-order-incident')->assertOk();
+        $this->assertSame(['failed', true], [$shipment->fresh()->status->value, $shipment->fresh()->needs_decision]);
+
+        $this->contractWebhook($connection, 'webhook-order-updated')->assertOk();
+        $this->assertSame(['rescheduled', now()->addDays(2)->toDateString()], [$shipment->fresh()->status->value, $shipment->fresh()->scheduled_date->toDateString()]);
+
+        $this->stub([self::API.'/payouts/RV-261020-00001' => Http::response(Contract::example('payout'))]);
+        $this->contractWebhook($connection, 'webhook-payout-paid')->assertOk();
+        $this->assertSame(['RV-261020-00001', 30300], [CarrierPayout::sole()->remote_id, CarrierPayout::sole()->amount]);
     }
 
     public function test_dates_decisions_and_returns_follow_the_carrier_without_status_change(): void
