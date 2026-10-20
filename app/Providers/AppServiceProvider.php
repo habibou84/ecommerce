@@ -100,6 +100,11 @@ class AppServiceProvider extends ServiceProvider
 
         // Boutique en ligne : appels JSON (panier, quartier, frais) et passage de commande
         RateLimiter::for('storefront', fn (Request $request) => Limit::perMinute(120)->by('storefront:'.$request->ip()));
+        // Numéro laissé au moment de commander (relance du panier) : pas des milliers de numéros depuis une même adresse
+        RateLimiter::for('storefront-contact', fn (Request $request) => [
+            Limit::perMinute(10)->by('storefront-contact:'.$request->ip()),
+            Limit::perHour(60)->by('storefront-contact-hour:'.$request->ip()),
+        ]);
         RateLimiter::for('storefront-order', fn (Request $request) => [
             Limit::perMinute(5)->by('storefront-order:'.$request->ip()),
             Limit::perHour(30)->by('storefront-order-hour:'.$request->ip()),

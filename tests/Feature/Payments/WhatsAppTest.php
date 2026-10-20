@@ -17,6 +17,7 @@ use App\Services\Places\Places;
 use App\Services\Storefront\CartService;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -249,5 +250,18 @@ class WhatsAppTest extends TestCase
 
         // Le lien rend le panier au client
         $this->get($this->storeUrl($this->store, '/panier/reprendre/'.$cart->token))->assertRedirect('/panier')->assertCookie(CartService::COOKIE);
+
+        // Un autre panier abandonné avec le même numéro dans la semaine : pas de seconde relance ; un « nom » piégé
+        // ne glisse pas de lien dans le message
+        $other = Cart::create(['store_id' => $this->store->id, 'token' => Str::random(40), 'status' => 'active', 'phone' => '+2250708091011',
+            'name' => 'https://evil.tld/x Koné', 'last_activity_at' => now()->subHours(2)]);
+        $other->items()->create(['variant_id' => $this->robe->variants[0]->id, 'quantity' => 1]);
+        $this->artisan('carts:recover')->assertSuccessful();
+        $this->assertNull($other->fresh()->recovery_sent_at);
+
+        $other->forceFill(['phone' => '+2250708091099'])->save();
+        $this->artisan('carts:recover')->assertSuccessful();
+        Http::assertSent(fn (HttpRequest $r) => ($r['template']['name'] ?? null) === 'panier_abandonne' && $r['to'] === '2250708091099'
+            && $r['template']['components'][0]['parameters'][0]['text'] === 'httpseviltldx');
     }
 }

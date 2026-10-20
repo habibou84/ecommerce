@@ -2,6 +2,7 @@
 
 namespace App\Services\Storefront;
 
+use App\Enums\OrderStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Exceptions\QuotaExceededException;
 use App\Models\Cart;
@@ -15,6 +16,7 @@ use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Commande en une page de la boutique en ligne : frais de livraison du quartier, puis création de la commande
@@ -71,6 +73,29 @@ class Checkout
     /**
      * @param  array{name: string, phone: string, delivery_method: string, place_id: ?int, address: ?string, landmark: ?string, note: ?string, pickup_location_id: ?int}  $data
      */
+    /** Commandes en ligne encore à confirmer qu'un même numéro peut avoir en même temps dans une boutique */
+    public const MAX_PENDING_PER_PHONE = 3;
+
+    /** Commandes en ligne par numéro et par heure dans une boutique */
+    public const MAX_PER_PHONE_HOUR = 5;
+
+    /**
+     * Fausses commandes en série : un même numéro ne peut pas bloquer le stock ni faire envoyer des messages sans fin.
+     */
+    private function ensureNotFlooding(Store $store, string $phone): void
+    {
+        $pending = Order::forStore($store->id)->where('source', 'online_store')->where('customer_phone', $phone)
+            ->where('status', OrderStatus::PendingConfirmation->value)->count();
+        if ($pending >= self::MAX_PENDING_PER_PHONE) {
+            throw new BusinessRuleException('Vous avez déjà des commandes en attente de confirmation : la boutique va vous appeler. Contactez-la directement pour en ajouter.');
+        }
+        $key = "storefront-phone:{$store->id}:{$phone}";
+        if (RateLimiter::tooManyAttempts($key, self::MAX_PER_PHONE_HOUR)) {
+            throw new BusinessRuleException('Trop de commandes avec ce numéro en peu de temps. Réessayez plus tard ou contactez la boutique.');
+        }
+        RateLimiter::hit($key, 3600);
+    }
+
     public function place(Store $store, Cart $cart, array $data): Order
     {
         $cart->phone = $data['phone']; // limite d'utilisation d'un code promo par client
@@ -96,6 +121,7 @@ class Checkout
         }
 
         $quote = $this->quote($store, $cart, $data['delivery_method'], $data['place_id'] ?? null);
+        $this->ensureNotFlooding($store, $data['phone']);
 
         try {
             app(PlanLimits::class)->ensureOrderQuota($store);
