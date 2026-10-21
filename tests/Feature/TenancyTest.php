@@ -32,6 +32,7 @@ class TenancyTest extends TestCase
             ->assertSee('3 500 F')->assertSee('12 500 F')
             ->assertDontSee('35 000 F')
             ->assertSee('/videos/og-marchand.jpg', false)
+            ->assertSee('https://wa.me/2250507016739?text=', false)
             ->assertSee('"@type":"FAQPage"', false);
     }
 
