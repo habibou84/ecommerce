@@ -7,6 +7,7 @@ use App\Models\AdminAction;
 use App\Models\SubscriptionInvoice;
 use App\Services\Billing\Billing;
 use App\Services\Billing\BillingSettings;
+use App\Services\Billing\PaymentAlerts;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,35 @@ class ConsolePaymentsController extends Controller
         $this->log($request, 'billing_settings', ['provider' => $data['provider'], 'pin_changed' => filled($data['validator_pin'] ?? null)]);
 
         return $this->settings();
+    }
+
+    /**
+     * Serveur d'e-mail des alertes (Gmail : smtp.gmail.com, port 587, mot de passe d'application). Le mot de passe
+     * n'est jamais renvoyé ; un hôte vide retire le réglage.
+     */
+    public function updateMail(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'host' => ['nullable', 'string', 'max:190', 'regex:/^[A-Za-z0-9.-]+$/'],
+            'port' => ['nullable', 'integer', 'between:1,65535'],
+            'username' => ['nullable', 'string', 'max:190'],
+            'password' => ['nullable', 'string', 'max:190'],
+            'from_address' => ['nullable', 'email', 'max:190'],
+        ], [], ['host' => 'serveur', 'port' => 'port', 'username' => 'identifiant', 'password' => 'mot de passe', 'from_address' => 'adresse d\'envoi']);
+        $this->settings->updateMail($data);
+        $this->log($request, 'billing_mail_settings', ['host' => $data['host'] ?? null]);
+
+        return $this->settings();
+    }
+
+    /**
+     * Alerte d'essai au validateur : e-mail et SMS, avec la raison d'un échec.
+     */
+    public function testAlert(Request $request, PaymentAlerts $alerts): JsonResponse
+    {
+        $this->log($request, 'billing_alert_test');
+
+        return response()->json(['data' => $alerts->test()]);
     }
 
     public function uploadQr(Request $request): JsonResponse

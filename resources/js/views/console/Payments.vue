@@ -12,10 +12,15 @@ const form = reactive({ provider: 'wave_link', wave_link: '', validator_email: '
 const error = ref('')
 const saved = ref(false)
 const busy = ref(null)
-const CHANNELS = { mail: 'e-mail', sms: 'SMS' }
+const CHANNELS = { mail: 'e-mail', sms: 'SMS', journal: 'SMS non envoyé (pas de fournisseur)' }
+const mail = reactive({ host: '', port: 587, username: '', password: '', from_address: '' })
+const mailSaved = ref(false)
+const testResult = ref(null)
+const testing = ref(false)
 
 function fill(data) {
   settings.value = data
+  Object.assign(mail, { host: data.mail.host ?? '', port: Number(data.mail.port ?? 587), username: data.mail.username ?? '', password: '', from_address: data.mail.from_address ?? '' })
   Object.assign(form, { provider: data.provider, wave_link: data.wave_link ?? '', validator_email: data.validator_email ?? '', validator_phone: data.validator_phone ?? '', validator_pin: '' })
 }
 
@@ -58,6 +63,35 @@ async function save() {
     saved.value = true
   } catch (e) {
     error.value = errorMessage(e)
+  }
+}
+
+// Gmail : serveur et port tout prêts ; le mot de passe est un « mot de passe d'application » Google
+function gmail() {
+  Object.assign(mail, { host: 'smtp.gmail.com', port: 587 })
+}
+
+async function saveMail() {
+  error.value = ''
+  mailSaved.value = false
+  try {
+    fill((await http.put('/console/payments/mail', mail)).data.data)
+    mailSaved.value = true
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
+async function testAlert() {
+  testing.value = true
+  testResult.value = null
+  error.value = ''
+  try {
+    testResult.value = (await http.post('/console/payments/test-alert')).data.data
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    testing.value = false
   }
 }
 
@@ -145,6 +179,46 @@ async function removeQr() {
       </template>
 
       <div class="flex items-center gap-2"><button class="btn-brand" @click="save">Enregistrer</button><span v-if="saved" class="text-emerald-700">Enregistré ✓</span></div>
+    </section>
+
+    <section v-if="settings && form.provider === 'wave_link'" class="card space-y-4 p-4 text-sm">
+      <h3 class="text-base font-semibold">Envoi des alertes</h3>
+      <ul class="space-y-1">
+        <li>
+          <span :class="settings.mail.source ? 'text-emerald-700' : 'text-amber-800'">{{ settings.mail.source ? '✓' : '✗' }} E-mail :</span>
+          {{ settings.mail.source === 'console' ? `par ${settings.mail.host} (réglé ci-dessous)` : settings.mail.source === 'server' ? 'par le serveur' : 'aucun serveur d\'e-mail : les e-mails ne partent pas' }}
+        </li>
+        <li>
+          <span :class="settings.sms_ready ? 'text-emerald-700' : 'text-amber-800'">{{ settings.sms_ready ? '✓' : '✗' }} SMS :</span>
+          {{ settings.sms_ready ? 'le serveur envoie les SMS' : 'pas de fournisseur de SMS sur le serveur : les SMS ne partent pas' }}
+        </li>
+      </ul>
+
+      <div class="space-y-3 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
+        <p class="font-medium">Envoi des e-mails</p>
+        <p class="text-xs text-slate-600">
+          Avec Gmail : activez la validation en deux étapes de votre compte Google, puis créez un « mot de passe d'application »
+          (Compte Google › Sécurité › Mots de passe des applications). Collez-le ici, pas votre mot de passe habituel.
+        </p>
+        <button class="btn-ghost" type="button" @click="gmail">Utiliser Gmail</button>
+        <div class="grid max-w-xl gap-3 sm:grid-cols-[1fr_6rem]">
+          <label>Serveur<input v-model="mail.host" class="input mt-1" placeholder="smtp.gmail.com" /></label>
+          <label>Port<input v-model.number="mail.port" type="number" class="input mt-1" /></label>
+        </div>
+        <div class="grid max-w-xl gap-3 sm:grid-cols-2">
+          <label>Adresse Gmail (identifiant)<input v-model="mail.username" type="email" class="input mt-1" placeholder="vous@gmail.com" autocomplete="off" /></label>
+          <label>Mot de passe d'application<input v-model="mail.password" type="password" class="input mt-1" autocomplete="new-password" :placeholder="settings.mail.password_set ? 'Déjà enregistré : laisser vide pour le garder' : '16 lettres'" /></label>
+        </div>
+        <div class="flex items-center gap-2"><button class="btn-brand" @click="saveMail">Enregistrer l'envoi des e-mails</button><span v-if="mailSaved" class="text-emerald-700">Enregistré ✓</span></div>
+      </div>
+
+      <div class="space-y-2">
+        <button class="btn-ghost" :disabled="testing" @click="testAlert">{{ testing ? 'Envoi…' : 'Envoyer une alerte d\'essai' }}</button>
+        <ul v-if="testResult" class="space-y-1">
+          <li :class="testResult.mail.ok ? 'text-emerald-700' : 'text-red-700'">{{ testResult.mail.ok ? '✓' : '✗' }} E-mail : {{ testResult.mail.detail }}</li>
+          <li :class="testResult.sms.ok ? 'text-emerald-700' : 'text-red-700'">{{ testResult.sms.ok ? '✓' : '✗' }} SMS : {{ testResult.sms.detail }}</li>
+        </ul>
+      </div>
     </section>
   </div>
 </template>

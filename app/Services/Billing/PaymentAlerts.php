@@ -40,46 +40,77 @@ class PaymentAlerts
             'console_url' => Tenancy::consoleUrl('/console/paiements'),
         ];
 
-        $channel = $this->mail($details) ? 'mail' : ($this->text($details) ? 'sms' : null);
+        // E-mail d'abord ; SMS sinon (« journal » : le serveur n'envoie pas encore de vrais SMS)
+        $channel = $this->mail($details) === null ? 'mail' : ($this->text($details) === null ? ($this->settings->smsReady() ? 'sms' : 'journal') : null);
         $raw['alerts'][] = ['at' => now()->toIso8601String(), 'claimed' => $claimed, 'channel' => $channel];
         $invoice->update(['raw' => $raw]);
 
         return $channel;
     }
 
-    private function mail(array $details): bool
+    /**
+     * Alerte d'essai depuis la console : e-mail et SMS au validateur, avec ce qui a bloqué.
+     *
+     * @return array{mail: array{ok: bool, detail: string}, sms: array{ok: bool, detail: string}}
+     */
+    public function test(): array
+    {
+        $details = ['test' => true, 'console_url' => Tenancy::consoleUrl('/console/paiements')];
+        $mail = $this->mail($details);
+        $sms = $this->settings->smsReady() ? $this->text($details) : 'Le serveur n\'envoie pas encore de vrais SMS (fournisseur de SMS non configuré).';
+
+        return [
+            'mail' => ['ok' => $mail === null, 'detail' => $mail ?? 'E-mail envoyé à '.$this->settings->validatorEmail().'. Regardez aussi dans les spams.'],
+            'sms' => ['ok' => $sms === null, 'detail' => $sms ?? 'SMS envoyé au '.$this->settings->validatorPhone().'.'],
+        ];
+    }
+
+    /**
+     * @return string|null null si l'e-mail est parti, sinon la raison
+     */
+    private function mail(array $details): ?string
     {
         $email = $this->settings->validatorEmail();
-        if ($email === null || ! $this->settings->mailReady()) {
-            return false;
+        if ($email === null) {
+            return 'Aucune adresse e-mail de validateur.';
+        }
+        $mailer = $this->settings->mailer();
+        if ($mailer === null) {
+            return 'Aucun serveur d\'e-mail réglé (Envoi des e-mails, plus bas).';
         }
         try {
-            Notification::route('mail', $email)->notifyNow(new WavePaymentToValidate($details));
+            Notification::route('mail', $email)->notifyNow(new WavePaymentToValidate($details, $mailer['mailer'], $mailer['from']));
 
-            return true;
+            return null;
         } catch (Throwable $e) {
-            Log::warning('E-mail de paiement Wave non envoyé, passage au SMS', ['invoice' => $details['number'], 'error' => $e->getMessage()]);
+            Log::warning('E-mail de paiement Wave non envoyé, passage au SMS', ['invoice' => $details['number'] ?? 'essai', 'error' => $e->getMessage()]);
 
-            return false;
+            return 'Le serveur d\'e-mail a refusé l\'envoi : '.mb_substr($e->getMessage(), 0, 200);
         }
     }
 
-    private function text(array $details): bool
+    /**
+     * @return string|null null si le SMS est parti, sinon la raison
+     */
+    private function text(array $details): ?string
     {
         $phone = $this->settings->validatorPhone();
         if ($phone === null) {
-            return false;
+            return 'Aucun téléphone de validateur.';
         }
+        $text = ($details['test'] ?? false)
+            ? 'Jibiat Marchand · Essai : les alertes de paiement par SMS fonctionnent.'
+            : 'Jibiat Marchand · '.($details['claimed'] ? 'Paiement Wave déclaré payé' : 'Paiement Wave à vérifier')
+                ." : {$details['amount']} depuis le ".($details['payer'] ?? '?').". {$details['label']} ({$details['number']}). Confirmer : {$details['validate_url']}";
         try {
-            $this->sms->send($phone, 'Jibiat Marchand · '.($details['claimed'] ? 'Paiement Wave déclaré payé' : 'Paiement Wave à vérifier')
-                ." : {$details['amount']} depuis le ".($details['payer'] ?? '?').". {$details['label']} ({$details['number']}). Confirmer : {$details['validate_url']}");
+            $this->sms->send($phone, $text);
 
-            return true;
+            return null;
         } catch (Throwable $e) {
             // Le paiement reste visible dans la console
-            Log::warning('SMS de paiement Wave non envoyé', ['invoice' => $details['number'], 'error' => $e->getMessage()]);
+            Log::warning('SMS de paiement Wave non envoyé', ['invoice' => $details['number'] ?? 'essai', 'error' => $e->getMessage()]);
 
-            return false;
+            return 'Le SMS n\'est pas parti : '.mb_substr($e->getMessage(), 0, 200);
         }
     }
 }

@@ -5,7 +5,9 @@ namespace App\Services\Billing;
 use App\Models\PlatformSetting;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -156,15 +158,105 @@ class BillingSettings
             'validator_email' => $this->validatorEmail(),
             'pin_set' => $this->pinSet(),
             'mail_ready' => $this->mailReady(),
+            // Envoi des alertes : serveur d'e-mail (console ou serveur) et SMS (pilote du serveur)
+            'mail' => $this->presentMail(),
+            'sms_ready' => $this->smsReady(),
         ];
     }
 
     /**
-     * Un serveur d'e-mail est configuré (le pilote « log » n'envoie rien).
+     * Un serveur d'e-mail est configuré : celui de la console, sinon celui du serveur (le pilote « log » n'envoie rien).
      */
     public function mailReady(): bool
     {
-        return config('mail.default') !== 'log';
+        return $this->smtp() !== null || config('mail.default') !== 'log';
+    }
+
+    /**
+     * Les SMS partent vraiment (le pilote « log » les écrit seulement dans le journal du serveur).
+     */
+    public function smsReady(): bool
+    {
+        return ! in_array(config('services.sms.driver'), ['log', 'none', null], true);
+    }
+
+    /**
+     * Messagerie à utiliser pour les alertes : le serveur SMTP réglé dans la console (Gmail…), sinon celle du serveur.
+     *
+     * @return array{mailer: string, from: ?string}|null
+     */
+    public function mailer(): ?array
+    {
+        if (($smtp = $this->smtp()) !== null) {
+            config(['mail.mailers.console_smtp' => [
+                'transport' => 'smtp',
+                'scheme' => (int) $smtp['port'] === 465 ? 'smtps' : 'smtp',
+                'host' => $smtp['host'],
+                'port' => (int) $smtp['port'],
+                'username' => $smtp['username'],
+                'password' => $smtp['password'],
+                'timeout' => 15,
+            ]]);
+            Mail::purge('console_smtp');
+
+            return ['mailer' => 'console_smtp', 'from' => $smtp['from_address'] ?: $smtp['username']];
+        }
+
+        return config('mail.default') !== 'log' ? ['mailer' => (string) config('mail.default'), 'from' => null] : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function updateMail(array $data): void
+    {
+        foreach (['host', 'port', 'username', 'from_address'] as $key) {
+            if (array_key_exists($key, $data)) {
+                PlatformSetting::put("mail.{$key}", filled($data[$key]) ? (string) $data[$key] : null);
+            }
+        }
+        if (filled($data['password'] ?? null)) {
+            PlatformSetting::put('mail.password', Crypt::encryptString((string) $data['password']));
+        }
+        if (blank($data['host'] ?? null)) {
+            PlatformSetting::where('key', 'like', 'mail.%')->delete();
+        }
+    }
+
+    /**
+     * @return array{host: string, port: string, username: ?string, password: ?string, from_address: ?string}|null
+     */
+    private function smtp(): ?array
+    {
+        $s = PlatformSetting::group('mail');
+        if (blank($s['host'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'host' => $s['host'],
+            'port' => $s['port'] ?? '587',
+            'username' => $s['username'] ?? null,
+            'password' => filled($s['password'] ?? null) ? Crypt::decryptString($s['password']) : null,
+            'from_address' => $s['from_address'] ?? null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function presentMail(): array
+    {
+        $s = PlatformSetting::group('mail');
+
+        return [
+            'source' => filled($s['host'] ?? null) ? 'console' : (config('mail.default') !== 'log' ? 'server' : null),
+            'host' => $s['host'] ?? null,
+            'port' => $s['port'] ?? null,
+            'username' => $s['username'] ?? null,
+            'from_address' => $s['from_address'] ?? null,
+            'password_set' => filled($s['password'] ?? null),
+        ];
     }
 
     private function value(string $key): ?string
