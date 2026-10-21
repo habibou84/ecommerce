@@ -74,6 +74,7 @@
             </a>
             <nav class="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex" aria-label="Navigation principale">
                 <a href="#presentation" class="hover:text-slate-900">Vidéo</a>
+                <a href="/bien-demarrer" class="hover:text-slate-900">Bien démarrer</a>
                 <a href="#assistant" class="hover:text-slate-900">Assistant</a>
                 <a href="#boutique" class="hover:text-slate-900">Boutique</a>
                 <a href="#livraison" class="hover:text-slate-900">Livraison</a>
@@ -136,6 +137,9 @@
                         <source src="/videos/marchand-presentation-h.mp4" type="video/mp4">
                     </video>
                 </div>
+                <p class="mt-10 text-center">
+                    <a href="/bien-demarrer" class="btn-secondary border-white/30 bg-transparent px-5 py-3 text-white hover:bg-white/10">▶ Les étapes essentielles pour commencer, en 11 courtes vidéos</a>
+                </p>
             </div>
         </section>
 
