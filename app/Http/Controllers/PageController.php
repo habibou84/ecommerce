@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\Tenancy;
+use App\Support\TrialOffer;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -22,7 +23,8 @@ class PageController extends Controller
             'domain' => Tenancy::domain(),
             'platformUrl' => Tenancy::platformUrl(),
             'storeUrlTemplate' => Tenancy::storeUrl('{slug}'),
-            'trialDays' => (int) config('platform.trial_days'),
+            'trialDays' => TrialOffer::days(),
+            'trialOffer' => TrialOffer::duration().' de l\'offre '.TrialOffer::planName(),
             'supportWhatsapp' => config('platform.support_whatsapp'),
             'store' => $store ? ['id' => $store->id, 'name' => $store->name, 'slug' => $store->slug] : null,
         ]]);

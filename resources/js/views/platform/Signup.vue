@@ -69,7 +69,7 @@ function done(data) {
 <template>
   <AuthShell
     :title="pending ? 'Vérifiez votre numéro' : 'Créez votre boutique'"
-    :subtitle="pending ? '' : `Gratuit pendant ${boot.trialDays} jours, sans engagement. Tout se fait depuis votre téléphone.`"
+    :subtitle="pending ? '' : `${boot.trialOffer} offert, sans carte bancaire ni engagement. Tout se fait depuis votre téléphone.`"
   >
     <CodeStep v-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Créer ma boutique" @done="done" />
 
