@@ -40,6 +40,11 @@ onMounted(async () => {
   }
 })
 
+// Messages affichés en haut de la page : on y remonte pour qu'ils se voient tout de suite
+watch([notice, error], ([n, e]) => {
+  if (n || e) window.scrollTo({ top: 0, behavior: 'smooth' })
+})
+
 const sub = computed(() => data.value?.subscription)
 const paidPlans = computed(() => data.value?.plans.filter((p) => p.monthly_price > 0) ?? [])
 const selected = computed(() => paidPlans.value.find((p) => p.code === choice.plan))

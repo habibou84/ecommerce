@@ -114,12 +114,39 @@ class WavePaymentConsoleTest extends TestCase
         $sms = collect($this->sentSms())->firstWhere('to', '+2250507016739');
         $this->assertNotNull($sms);
         $this->assertStringContainsString('1 000 F', $sms['text']);
-        $this->assertSame('sms', SubscriptionInvoice::where('number', $number)->sole()->raw['alerts'][0]['channel']);
+        // Pilote « log » des tests : le SMS est écrit dans le journal, pas vraiment envoyé, et c'est dit
+        $this->assertSame('journal', SubscriptionInvoice::where('number', $number)->sole()->raw['alerts'][0]['channel']);
 
         // Le code réglé dans la console (haché) valide depuis le lien
         preg_match('#(http\S+/facturation/valider/\S+)#', $sms['text'], $m);
         $this->assertStringNotContainsString('2468', (string) PlatformSetting::find('billing.validator_pin')->value);
         $this->post($m[1], ['code' => '2468', 'decision' => 'received'])->assertOk()->assertSee('Paiement confirmé');
         $this->assertSame(100, $this->store->fresh()->ai_credits);
+    }
+
+    public function test_mail_server_is_set_in_the_console_and_a_test_alert_reports_what_went_out(): void
+    {
+        Notification::fake();
+        config(['mail.default' => 'log']);
+        $this->signIn();
+        $this->console('PUT', 'payments/settings', ['provider' => 'wave_link', 'wave_link' => 'https://pay.wave.com/m/M_ci_test/c/ci/',
+            'validator_email' => 'paiements@jibiat.com', 'validator_phone' => '0507016739'])->assertOk()
+            ->assertJsonPath('data.mail.source', null)->assertJsonPath('data.sms_ready', false);
+
+        // Rien de réglé : l'essai dit pourquoi rien ne part
+        $this->console('POST', 'payments/test-alert')->assertOk()->assertJsonPath('data.mail.ok', false)->assertJsonPath('data.sms.ok', false)
+            ->assertJsonPath('data.mail.detail', fn ($d) => str_contains($d, 'serveur d\'e-mail'));
+
+        // Gmail réglé dans la console : l'e-mail part par ce serveur, le mot de passe n'est jamais renvoyé
+        $this->console('PUT', 'payments/mail', ['host' => 'smtp.gmail.com', 'port' => 587, 'username' => 'jibiat@gmail.com', 'password' => 'abcd efgh ijkl mnop'])
+            ->assertOk()->assertJsonPath('data.mail.source', 'console')->assertJsonPath('data.mail.password_set', true)->assertJsonMissingPath('data.mail.password');
+        $this->assertStringNotContainsString('abcd', (string) PlatformSetting::find('mail.password')->value);
+        $this->console('POST', 'payments/test-alert')->assertOk()->assertJsonPath('data.mail.ok', true);
+        Notification::assertSentOnDemand(WavePaymentToValidate::class, fn ($n, $channels, AnonymousNotifiable $to) => $to->routes['mail'] === 'paiements@jibiat.com'
+            && $n->toMail($to)->mailer === 'console_smtp' && $n->toMail($to)->from[0] === 'jibiat@gmail.com');
+        $this->assertSame('smtp.gmail.com', config('mail.mailers.console_smtp.host'));
+
+        // Hôte vide : réglage retiré
+        $this->console('PUT', 'payments/mail', ['host' => ''])->assertOk()->assertJsonPath('data.mail.source', null);
     }
 }
