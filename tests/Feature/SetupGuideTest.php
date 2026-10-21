@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\Role;
 use App\Models\Courier;
+use App\Models\PushSubscription;
 use App\Models\User;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Places\Places;
@@ -19,8 +20,9 @@ class SetupGuideTest extends TestCase
 
         $guide = $this->storeApi($store, 'GET', 'setup-guide')->assertOk();
         $steps = collect($guide->json('data.steps'))->keyBy('key');
-        $this->assertSame('store_info', $guide->json('data.next'));
+        $this->assertSame('mobile_app', $guide->json('data.next'));
         $this->assertFalse($steps['products']['done']);
+        $this->assertFalse($steps['mobile_app']['optional']);
         $this->assertTrue($steps['alerts']['optional']);
         $total = $guide->json('data.total');
 
@@ -32,6 +34,12 @@ class SetupGuideTest extends TestCase
         $steps = collect($guide->json('data.steps'))->keyBy('key');
         $this->assertTrue($steps['store_info']['done'] && $steps['products']['done'] && $steps['deliverers']['done']);
         $this->assertSame(3, $guide->json('data.done'));
+        $this->assertSame('mobile_app', $guide->json('data.next'));
+
+        // Notifications activées sur le navigateur (application installée depuis Chrome ou Safari) : étape faite
+        PushSubscription::create(['user_id' => $store->owner_id, 'endpoint' => 'https://push.exemple/abc', 'endpoint_hash' => PushSubscription::hashEndpoint('https://push.exemple/abc'), 'p256dh' => 'x', 'auth' => 'y']);
+        $guide = $this->storeApi($store, 'GET', 'setup-guide');
+        $this->assertSame(4, $guide->json('data.done'));
         $this->assertSame('delivery_zones', $guide->json('data.next'));
 
         // Passer une étape, puis la reprendre

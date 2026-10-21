@@ -7,6 +7,7 @@ use App\Enums\UserStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Courier;
 use App\Models\DeviceToken;
+use App\Models\PushSubscription;
 use App\Models\ScheduledReport;
 use App\Models\Store;
 use App\Models\StoreUser;
@@ -40,6 +41,7 @@ class AccountDeletion
             Courier::withoutGlobalScopes()->where('user_id', $user->id)->update(['user_id' => null, 'status' => 'inactive', 'is_available' => false]);
             ScheduledReport::withoutGlobalScopes()->where('user_id', $user->id)->delete();
             DeviceToken::where('user_id', $user->id)->delete();
+            PushSubscription::where('user_id', $user->id)->delete();
             DB::table('sessions')->where('user_id', $user->id)->delete();
 
             $user->forceFill([

@@ -35,7 +35,7 @@ Route::middleware('zone:console')->group(function () {
 Route::middleware('zone:store')->group(function () {
     Route::get('/auth/relais', HandoffController::class)->name('handoff');
     Route::get('/invitation/{token}', [PageController::class, 'spa'])->name('invitation');
-    Route::get('/gestion/{any?}', [PageController::class, 'spa'])->where('any', '.*')->name('gestion');
+    Route::get('/gestion/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest).*')->name('gestion');
     // Application des livreurs de la boutique (installable sur le téléphone)
     Route::get('/livreur/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest).*')->name('courier-app');
 });

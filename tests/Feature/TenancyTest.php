@@ -73,7 +73,8 @@ class TenancyTest extends TestCase
             ->assertSee('300 actions de l\'assistant')
             ->assertSee('/videos/marchand-ia-commande-v.mp4', false)
             ->assertSee('Elle vend même quand vous dormez')
-            ->assertSee('/videos/marchand-boutique-v.mp4', false);
+            ->assertSee('/videos/marchand-boutique-v.mp4', false)
+            ->assertSee('/videos/marchand-presentation-v.mp4', false)->assertSee('/videos/marchand-presentation-h.mp4', false);
     }
 
     public function test_the_trial_is_announced_in_days_when_it_is_not_whole_months(): void
@@ -201,5 +202,23 @@ class TenancyTest extends TestCase
         config(['app.url' => 'http://localhost:8000', 'platform.domain' => 'localhost']);
         $this->assertSame('http://awa.localhost:8000/', Tenancy::storeUrl('awa'));
         $this->assertSame('http://localhost:8000/connexion', Tenancy::platformUrl('connexion'));
+    }
+
+    public function test_the_store_management_can_be_installed_on_the_home_screen(): void
+    {
+        $store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode Abidjan']);
+
+        $this->get($this->storeUrl($store, '/gestion'))->assertOk()
+            ->assertSee('<link rel="manifest" href="/gestion/manifest.webmanifest">', false)
+            ->assertSee('<meta name="apple-mobile-web-app-capable" content="yes">', false);
+        $this->get($this->storeUrl($store, '/gestion/manifest.webmanifest'))->assertOk()
+            ->assertHeader('Content-Type', 'application/manifest+json')
+            ->assertJsonPath('name', 'Awa Mode Abidjan · Jibiat Marchand')
+            ->assertJsonPath('short_name', 'Awa Mode Abi')
+            ->assertJsonPath('start_url', '/gestion')
+            ->assertJsonPath('display', 'standalone')
+            ->assertJsonPath('icons.1.sizes', '512x512');
+        // La plateforme n'a pas de gestion à installer
+        $this->get($this->platformUrl('/connexion'))->assertDontSee('/gestion/manifest.webmanifest', false);
     }
 }

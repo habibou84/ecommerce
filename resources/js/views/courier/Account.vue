@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Modal from '../../components/Modal.vue'
+import PushToggle from '../../components/PushToggle.vue'
 import { cachedGet, forgetAll, offline } from '../../lib/courierOffline'
 import { phoneDisplay } from '../../lib/format'
 import { unregisterDevice } from '../../lib/push'
@@ -82,6 +83,8 @@ async function removeAccount() {
         <input v-model="prefs.big" type="checkbox" class="h-6 w-6 accent-emerald-700" />
       </label>
     </section>
+
+    <PushToggle app="livreur" class="rounded-xl bg-white p-4 text-sm shadow-sm" />
 
     <section class="rounded-xl bg-white p-4 shadow-sm text-sm text-slate-600">
       <p class="font-semibold text-slate-800">Installer l'application</p>
