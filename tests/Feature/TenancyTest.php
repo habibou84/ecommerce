@@ -46,7 +46,9 @@ class TenancyTest extends TestCase
             ->assertSee('Paniers abandonnés relancés')
             ->assertSee('1 mois de l\'offre Pro offert')
             ->assertSee('300 actions de l\'assistant')
-            ->assertSee('/videos/marchand-ia-commande-v.mp4', false);
+            ->assertSee('/videos/marchand-ia-commande-v.mp4', false)
+            ->assertSee('Elle vend même quand vous dormez')
+            ->assertSee('/videos/marchand-boutique-v.mp4', false);
     }
 
     public function test_the_trial_is_announced_in_days_when_it_is_not_whole_months(): void
