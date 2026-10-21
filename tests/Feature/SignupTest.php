@@ -65,7 +65,7 @@ class SignupTest extends TestCase
         $subscription = $store->currentSubscription()->with('plan')->first();
         $this->assertSame(SubscriptionStatus::Trialing, $subscription->status);
         $this->assertSame('pro', $subscription->plan->code);
-        $this->assertTrue($subscription->trial_ends_at->between(now()->addDays(13), now()->addDays(15)));
+        $this->assertTrue($subscription->trial_ends_at->between(now()->addDays(29), now()->addDays(31)));
 
         // Le lien de connexion ouvre la gestion de la nouvelle boutique
         $this->get($redirect)->assertRedirect('/gestion?bienvenue=1');

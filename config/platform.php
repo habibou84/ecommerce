@@ -44,8 +44,8 @@ return [
     // Reversement des entreprises de livraison : une course livrée non reversée depuis ce nombre de jours est signalée en retard
     'carrier_payout_overdue_days' => (int) env('CARRIER_PAYOUT_OVERDUE_DAYS', 7),
 
-    // Durée de l'essai gratuit à la création d'une boutique (toutes les fonctions de l'offre d'essai)
-    'trial_days' => (int) env('PLATFORM_TRIAL_DAYS', 14),
+    // Essai gratuit à la création d'une boutique : un mois de l'offre Pro (annoncé sur le site et à l'inscription)
+    'trial_days' => (int) env('PLATFORM_TRIAL_DAYS', 30),
     'trial_plan' => env('PLATFORM_TRIAL_PLAN', 'pro'),
 
     // Abonnements des boutiques, encaissés sur le compte de la plateforme (docs/PLAN.md §6.5)

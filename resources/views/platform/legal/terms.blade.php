@@ -21,7 +21,7 @@
     <h2>4. Offres, prix et paiement</h2>
     <ul>
         <li>Le Service est proposé en plusieurs offres (Gratuit, Starter, Pro, Business) dont le contenu, les limites et les prix sont indiqués sur la page Abonnement de la gestion. Les prix sont en francs CFA (XOF).</li>
-        <li>Une boutique nouvellement créée bénéficie d'un essai gratuit de {{ config('platform.trial_days') }} jours de l'offre {{ ucfirst(config('platform.trial_plan')) }}, sans engagement ni moyen de paiement.</li>
+        <li>Une boutique nouvellement créée bénéficie d'un essai gratuit de {{ \App\Support\TrialOffer::duration() }} de l'offre {{ \App\Support\TrialOffer::planName() }} ({{ \App\Support\TrialOffer::days() }} jours), sans engagement ni moyen de paiement.</li>
         <li>L'abonnement est payé d'avance, au mois ou à l'année, par mobile money ou carte via notre prestataire de paiement. Une facture est disponible dans la gestion après chaque paiement.</li>
         <li>Sans renouvellement à l'échéance, la boutique dispose d'un délai de grâce de {{ config('platform.billing.grace_days') }} jours, puis repasse à l'offre gratuite. Aucune donnée n'est supprimée ; les limites de l'offre gratuite s'appliquent aux nouveaux ajouts.</li>
         <li>Le Marchand peut demander à tout moment le retour à l'offre gratuite à la fin de la période payée. Les sommes payées pour une période commencée ne sont pas remboursées, sauf manquement de l'Éditeur.</li>

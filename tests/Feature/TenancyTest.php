@@ -9,6 +9,7 @@ use App\Models\SlugHistory;
 use App\Models\StoreDomain;
 use App\Models\StoreInvitation;
 use App\Support\Tenancy;
+use App\Support\TrialOffer;
 use Database\Seeders\PlanSeeder;
 use Tests\TestCase;
 
@@ -32,6 +33,28 @@ class TenancyTest extends TestCase
             ->assertDontSee('35 000 F')
             ->assertSee('/videos/og-marchand.jpg', false)
             ->assertSee('"@type":"FAQPage"', false);
+    }
+
+    public function test_the_presentation_page_shows_the_assistant_and_the_pro_trial(): void
+    {
+        $this->seed(PlanSeeder::class);
+        config(['platform.trial_days' => 30, 'platform.trial_plan' => 'pro']);
+
+        $this->get($this->platformUrl())->assertOk()
+            ->assertSee('Un message WhatsApp devient une commande')
+            ->assertSee('Une photo devient une fiche produit')
+            ->assertSee('Paniers abandonnés relancés')
+            ->assertSee('1 mois de l\'offre Pro offert')
+            ->assertSee('300 actions de l\'assistant')
+            ->assertSee('/videos/marchand-ia-commande-v.mp4', false);
+    }
+
+    public function test_the_trial_is_announced_in_days_when_it_is_not_whole_months(): void
+    {
+        config(['platform.trial_days' => 14]);
+        $this->assertSame('14 jours', TrialOffer::duration());
+        config(['platform.trial_days' => 60]);
+        $this->assertSame('2 mois', TrialOffer::duration());
     }
 
     public function test_the_whatsapp_facebook_window_is_only_on_the_platform(): void
