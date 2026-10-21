@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
+use App\Http\Controllers\Api\V1\Console\ConsoleWhatsAppController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
 use App\Http\Controllers\Api\V1\Couriers\CourierController;
@@ -119,6 +120,12 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::delete('payments/wave-qr', [ConsolePaymentsController::class, 'removeQr'])->name('payments.qr.remove');
             Route::get('payments/pending', [ConsolePaymentsController::class, 'pending'])->name('payments.pending');
             Route::post('payments/{invoice}/decide', [ConsolePaymentsController::class, 'decide'])->whereNumber('invoice')->name('payments.decide');
+            Route::get('whatsapp', [ConsoleWhatsAppController::class, 'show'])->name('whatsapp.show');
+            Route::post('whatsapp/embedded', [ConsoleWhatsAppController::class, 'connect'])->middleware('throttle:login')->name('whatsapp.connect');
+            Route::delete('whatsapp', [ConsoleWhatsAppController::class, 'disconnect'])->name('whatsapp.disconnect');
+            Route::get('whatsapp/conversations', [ConsoleWhatsAppController::class, 'conversations'])->name('whatsapp.conversations');
+            Route::get('whatsapp/conversations/{conversation}', [ConsoleWhatsAppController::class, 'messages'])->whereNumber('conversation')->name('whatsapp.messages');
+            Route::post('whatsapp/conversations/{conversation}/reply', [ConsoleWhatsAppController::class, 'reply'])->whereNumber('conversation')->middleware('throttle:30,1')->name('whatsapp.reply');
         });
     });
 

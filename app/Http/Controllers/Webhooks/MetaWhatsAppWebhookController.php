@@ -7,6 +7,7 @@ use App\Models\SocialAccount;
 use App\Models\WhatsappAccount;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Services\WhatsApp\Inbox;
+use App\Services\WhatsApp\PlatformWhatsApp;
 use App\Services\WhatsApp\TemplateLibrary;
 use App\Services\WhatsApp\WhatsAppCloud;
 use App\Support\Tenancy;
@@ -41,7 +42,14 @@ class MetaWhatsAppWebhookController extends Controller
             return response('OK');
         }
 
+        // Numéro du support Jibiat Marchand : boîte WhatsApp de la console
+        $support = app(PlatformWhatsApp::class)->wabaId();
         foreach ($request->json('entry') ?? [] as $entry) {
+            if ($support !== null && (string) ($entry['id'] ?? '') === $support) {
+                app(PlatformWhatsApp::class)->handle($entry);
+
+                continue;
+            }
             $account = $this->account((string) ($entry['id'] ?? ''));
             if ($account === null) {
                 continue;
