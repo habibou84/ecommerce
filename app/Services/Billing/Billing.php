@@ -22,8 +22,10 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
+use Jibiat\Socle\Sms\SmsGateway;
 use Throwable;
 
 /**
@@ -39,6 +41,7 @@ class Billing
         private readonly PlanLimits $limits,
         private readonly PaymentDesk $payments,
         private readonly TeamNotifier $notifier,
+        private readonly SmsGateway $sms,
     ) {}
 
     /**
@@ -63,6 +66,9 @@ class Billing
      */
     public function methods(): array
     {
+        if ($this->manual()) {
+            return ['wave' => 'Wave'];
+        }
         $gateway = $this->payments->gateway(config('platform.billing.provider'));
 
         return array_intersect_key(PaymentDesk::METHODS, array_flip($gateway->methods()));
@@ -100,6 +106,8 @@ class Billing
                 'limits' => $p->limits, 'features' => array_keys(array_filter($p->features ?? [])),
             ]),
             'methods' => $this->methods(),
+            // Lien marchand Wave : le numéro qui paie est demandé, la confirmation se fait à la main
+            'manual_payment' => $this->manual(),
             // Recharges de l'assistant : actions achetées restantes et prix d'une recharge
             'ai_credits' => (int) $store->ai_credits,
             'ai_pack' => config('platform.ai_pack'),
@@ -111,7 +119,7 @@ class Billing
     /**
      * Facture et page de paiement du prestataire pour une offre payante.
      */
-    public function checkout(Store $store, Plan $plan, string $cycle, string $method, User $user): SubscriptionInvoice
+    public function checkout(Store $store, Plan $plan, string $cycle, string $method, User $user, ?string $payerPhone = null): SubscriptionInvoice
     {
         if (($covering = $this->limits->coveringStore($store)) !== null) {
             throw new BusinessRuleException("Cette boutique est couverte par l'abonnement de {$covering->name}. Retirez-la de cet abonnement (Mes boutiques) pour prendre une offre séparée.", 'plan');
@@ -129,13 +137,13 @@ class Billing
             'plan_id' => $plan->id,
             'billing_cycle' => $cycle,
             'amount' => $amount,
-        ], "Abonnement {$plan->name} ({$this->cycleLabel($cycle)}) · {$store->name}");
+        ], "Abonnement {$plan->name} ({$this->cycleLabel($cycle)}) · {$store->name}", $payerPhone);
     }
 
     /**
      * Recharge de l'assistant : des actions en plus, utilisées après celles de l'offre et sans date de fin.
      */
-    public function buyAiPack(Store $store, string $method, User $user): SubscriptionInvoice
+    public function buyAiPack(Store $store, string $method, User $user, ?string $payerPhone = null): SubscriptionInvoice
     {
         ['actions' => $actions, 'price' => $price] = config('platform.ai_pack');
 
@@ -144,7 +152,7 @@ class Billing
             'ai_actions' => $actions,
             'billing_cycle' => 'pack',
             'amount' => $price,
-        ], "Recharge de l'assistant ({$actions} actions) · {$store->name}");
+        ], "Recharge de l'assistant ({$actions} actions) · {$store->name}", $payerPhone);
     }
 
     /**
@@ -152,10 +160,13 @@ class Billing
      *
      * @param  array<string, mixed>  $data
      */
-    private function pay(Store $store, User $user, string $method, array $data, string $description): SubscriptionInvoice
+    private function pay(Store $store, User $user, string $method, array $data, string $description, ?string $payerPhone = null): SubscriptionInvoice
     {
         if (! array_key_exists($method, $this->methods())) {
             throw new BusinessRuleException('Moyen de paiement non disponible.', 'method');
+        }
+        if ($this->manual()) {
+            return $this->payByLink($store, $user, $data, $description, $payerPhone);
         }
 
         $invoice = $this->newInvoice($data + [
@@ -191,11 +202,79 @@ class Billing
     }
 
     /**
+     * Paiement par le lien marchand Wave (sans API) : facture en attente, lien avec le montant, et SMS au validateur avec
+     * le numéro qui paie et le lien pour confirmer quand le message de Wave arrive.
+     */
+    private function payByLink(Store $store, User $user, array $data, string $description, ?string $payerPhone): SubscriptionInvoice
+    {
+        $link = (string) config('platform.billing.wave_link');
+        $validator = (string) config('platform.billing.validator_phone');
+        if ($link === '' || $validator === '') {
+            throw new BusinessRuleException('Le paiement en ligne est indisponible pour le moment. Réessayez dans quelques minutes.');
+        }
+        if (blank($payerPhone)) {
+            throw new BusinessRuleException('Indiquez le numéro Wave qui va payer.', 'payer_phone');
+        }
+
+        $invoice = $this->newInvoice($data + [
+            'store_id' => $store->id,
+            'status' => 'pending',
+            'provider' => 'wave_link',
+            'method' => 'wave',
+            'idempotency_key' => (string) Str::uuid(),
+            'created_by' => $user->id,
+        ]);
+        $url = str_contains($link, '{montant}')
+            ? str_replace('{montant}', (string) $invoice->amount, $link)
+            : $link.(str_contains($link, '?') ? '&' : '?').'amount='.$invoice->amount;
+        $invoice->update(['checkout_url' => $url, 'raw' => ['payer_phone' => $payerPhone, 'description' => $description, 'payer_name' => $user->name]]);
+
+        // Lien signé sur l'adresse de la plateforme, quelle que soit l'adresse de l'espace marchand qui paie
+        $validate = Tenancy::platformUrl(URL::temporarySignedRoute('billing.validate', now()->addDays(7), ['invoice' => $invoice->id], absolute: false));
+        try {
+            $this->sms->send($validator, 'Jibiat Marchand · Paiement Wave à vérifier : '.Money::format($invoice->amount)." depuis le {$payerPhone}. "
+                ."{$description} ({$invoice->number}). Confirmer : {$validate}");
+        } catch (Throwable $e) {
+            // Le paiement reste possible : la facture attend dans la console
+            Log::warning('SMS de paiement Wave non envoyé', ['invoice' => $invoice->number, 'error' => $e->getMessage()]);
+        }
+
+        return $invoice->fresh();
+    }
+
+    /**
+     * Décision du validateur sur un paiement par lien Wave : reçu (l'offre ou la recharge s'active) ou non reçu.
+     */
+    public function decide(SubscriptionInvoice $invoice, bool $received): SubscriptionInvoice
+    {
+        if ($invoice->status !== 'pending' || $invoice->provider !== 'wave_link') {
+            return $invoice;
+        }
+        if ($received) {
+            return $this->activate($invoice, 'paid', 'wave', ($invoice->raw ?? []) + ['validated_at' => now()->toIso8601String()]);
+        }
+
+        $invoice->update(['status' => 'failed']);
+        $this->notify(Store::findOrFail($invoice->store_id), 'Paiement Wave non reçu',
+            "Nous n'avons pas reçu le paiement Wave de la facture {$invoice->number}. Si vous avez bien payé, écrivez-nous sur WhatsApp avec la référence de la transaction.");
+
+        return $invoice->fresh();
+    }
+
+    /**
+     * Abonnements payés par le lien marchand Wave et validés à la main.
+     */
+    public function manual(): bool
+    {
+        return config('platform.billing.provider') === 'wave_link';
+    }
+
+    /**
      * Statut relu chez le prestataire (retour sur la gestion, notification, vérification de secours).
      */
     public function confirm(SubscriptionInvoice $invoice): SubscriptionInvoice
     {
-        if ($invoice->status !== 'pending') {
+        if ($invoice->status !== 'pending' || $invoice->provider === 'wave_link') {
             return $invoice;
         }
 

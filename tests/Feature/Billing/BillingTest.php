@@ -131,6 +131,59 @@ class BillingTest extends TestCase
         $this->withCredentials()->get($this->storeUrl($this->store, "/api/v1/billing/invoices/{$invoice->id}/receipt"))->assertOk();
     }
 
+    public function test_paying_with_the_wave_merchant_link_and_validating_by_sms(): void
+    {
+        config(['platform.billing.provider' => 'wave_link', 'platform.billing.wave_link' => 'https://pay.wave.com/m/M_ci_test/c/ci/?amount={montant}',
+            'platform.billing.validator_phone' => '+2250507016739', 'platform.billing.validator_pin' => '4321']);
+        $this->storeApi($this->store, 'GET', 'billing')->assertJsonPath('data.manual_payment', true)->assertJsonPath('data.methods', ['wave' => 'Wave']);
+
+        // Le numéro Wave qui paie est demandé
+        $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'monthly', 'method' => 'wave'])
+            ->assertStatus(422)->assertJsonValidationErrors('payer_phone');
+
+        $checkout = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'monthly', 'method' => 'wave', 'payer_phone' => '0708091011'])
+            ->assertCreated()->assertJsonPath('redirect', 'https://pay.wave.com/m/M_ci_test/c/ci/?amount=12500');
+        Http::assertNothingSent();
+        $number = $checkout->json('data.number');
+
+        // SMS au validateur : montant, numéro qui paie, offre et lien signé
+        $sms = collect($this->sentSms())->firstWhere('to', '+2250507016739');
+        $this->assertNotNull($sms);
+        $this->assertStringContainsString('12 500 F', $sms['text']);
+        $this->assertStringContainsString('07 08 09 10 11', $sms['text']);
+        $this->assertStringContainsString('Abonnement Pro (mensuel)', $sms['text']);
+        preg_match('#(http\S+/facturation/valider/\S+)#', $sms['text'], $m);
+        $url = $m[1];
+
+        // Retour sur la gestion : la facture attend la vérification
+        $this->storeApi($this->store, 'POST', "billing/invoices/{$number}/check")->assertJsonPath('data.status', 'pending');
+
+        // Lien sans signature refusé ; page avec le détail ; mauvais code refusé
+        $this->assertTrue($this->get(strtok($url, '?'))->isClientError());
+        $this->get($url)->assertOk()->assertSee('12 500 F')->assertSee('07 08 09 10 11')->assertSee('Awa Mode');
+        $this->post($url, ['code' => '0000', 'decision' => 'received'])->assertOk()->assertSee('Code incorrect.');
+        $this->assertSame('pending', SubscriptionInvoice::where('number', $number)->value('status'));
+
+        // Bon code : offre Pro active pour un mois
+        $this->post($url, ['code' => '4321', 'decision' => 'received'])->assertOk()->assertSee('Paiement confirmé');
+        $invoice = SubscriptionInvoice::where('number', $number)->sole();
+        $this->assertSame(['paid', 'wave'], [$invoice->status, $invoice->method]);
+        $sub = $this->store->currentSubscription()->first();
+        $this->assertSame([SubscriptionStatus::Active, 'pro'], [$sub->status, $sub->plan->code]);
+        // Une deuxième validation ne prolonge rien
+        $end = $sub->current_period_end;
+        $this->post($url, ['code' => '4321', 'decision' => 'received'])->assertOk();
+        $this->assertEquals($end, $sub->fresh()->current_period_end);
+
+        // Paiement non reçu : la facture est refusée, l'espace marchand reste comme avant
+        $pack = $this->storeApi($this->store, 'POST', 'billing/ai-pack', ['method' => 'wave', 'payer_phone' => '0708091011'])
+            ->assertCreated()->assertJsonPath('redirect', 'https://pay.wave.com/m/M_ci_test/c/ci/?amount=1000');
+        preg_match('#(http\S+/facturation/valider/\S+)#', collect($this->sentSms())->last()['text'], $m);
+        $this->post($m[1], ['code' => '4321', 'decision' => 'missing'])->assertOk()->assertSee('non reçu');
+        $this->assertSame('failed', SubscriptionInvoice::where('number', $pack->json('data.number'))->value('status'));
+        $this->assertSame(0, $this->store->fresh()->ai_credits);
+    }
+
     public function test_trial_end_renewal_and_grace_period(): void
     {
         Notification::fake();

@@ -51,7 +51,7 @@ return [
 
     // Abonnements des boutiques, encaissés sur le compte de la plateforme (docs/PLAN.md §6.5)
     'billing' => [
-        'provider' => env('BILLING_PROVIDER', 'wave'), // wave | cinetpay | paydunya
+        'provider' => env('BILLING_PROVIDER', 'wave'), // wave | cinetpay | paydunya | wave_link
         'mode' => env('BILLING_MODE', 'live'), // test | live
         // Identifiants du compte de la plateforme chez le prestataire (noms des champs du pilote)
         'credentials' => array_filter([
@@ -64,6 +64,12 @@ return [
             'private_key' => env('BILLING_PAYDUNYA_PRIVATE_KEY'),
             'token' => env('BILLING_PAYDUNYA_TOKEN'),
         ]),
+        // wave_link : lien de paiement marchand Wave (sans API). {montant} est remplacé par le montant de la facture ;
+        // sans {montant}, le montant est ajouté en ?amount=. Chaque paiement est annoncé par SMS au validateur, qui le
+        // confirme avec son code après avoir reçu le message de Wave.
+        'wave_link' => env('BILLING_WAVE_LINK'),
+        'validator_phone' => env('BILLING_VALIDATOR_PHONE'),
+        'validator_pin' => env('BILLING_VALIDATOR_PIN'),
         // Jours de grâce après l'échéance avant le retour à l'offre gratuite ; rappel avant l'échéance
         'grace_days' => (int) env('BILLING_GRACE_DAYS', 7),
         'reminder_days' => (int) env('BILLING_REMINDER_DAYS', 3),
