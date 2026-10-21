@@ -4,17 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\SubscriptionInvoice;
 use App\Services\Billing\Billing;
+use App\Services\Billing\BillingSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\View\View;
 use Jibiat\Socle\Money;
 
 /**
- * Validation d'un paiement par lien marchand Wave : lien signé reçu par SMS, puis code du validateur.
+ * Validation d'un paiement par lien marchand Wave : lien signé reçu par e-mail ou SMS, puis code du validateur.
  */
 class BillingValidationController extends Controller
 {
-    public function __construct(private readonly Billing $billing) {}
+    public function __construct(private readonly Billing $billing, private readonly BillingSettings $settings) {}
 
     public function show(int $invoice): View
     {
@@ -33,8 +34,7 @@ class BillingValidationController extends Controller
         if (RateLimiter::tooManyAttempts($key, 5)) {
             return view('billing.validate', $this->details($model) + ['error' => 'Trop d\'essais. Réessayez dans quelques minutes.']);
         }
-        $pin = (string) config('platform.billing.validator_pin');
-        if ($pin === '' || ! hash_equals($pin, (string) $data['code'])) {
+        if (! $this->settings->checkPin((string) $data['code'])) {
             RateLimiter::hit($key, 900);
 
             return view('billing.validate', $this->details($model) + ['error' => 'Code incorrect.']);

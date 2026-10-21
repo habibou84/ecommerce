@@ -70,6 +70,16 @@ class BillingController extends Controller
         return response()->json(['data' => $this->billing->presentInvoice($this->billing->confirm($invoice)->loadMissing('plan'))]);
     }
 
+    /**
+     * « J'ai payé » (lien marchand Wave) : le validateur est prévenu une seconde fois.
+     */
+    public function claimPaid(string $number): JsonResponse
+    {
+        $invoice = SubscriptionInvoice::where('number', $number)->firstOrFail();
+
+        return response()->json(['data' => $this->billing->presentInvoice($this->billing->claimPaid($invoice)->loadMissing('plan'))]);
+    }
+
     public function cancel(Request $request): JsonResponse
     {
         $this->billing->cancelAtPeriodEnd($this->currentStore(), $request->boolean('cancel', true));
