@@ -241,17 +241,32 @@ async function cancel(value) {
       </ul>
     </section>
 
-    <Modal v-if="wave" :title="`Payer ${money(wave.invoice.amount)} avec Wave`" @close="wave = null">
-      <div class="space-y-4 text-sm">
-        <p class="text-slate-600">{{ wave.invoice.plan }}<template v-if="wave.invoice.kind !== 'ai_pack'"> ({{ wave.invoice.cycle_label }})</template> · facture {{ wave.invoice.number }}</p>
-        <a v-if="wave.link" :href="wave.link" target="_blank" rel="noopener" class="btn-brand flex w-full justify-center py-3">Ouvrir Wave et payer {{ money(wave.invoice.amount) }}</a>
-        <div v-if="data.wave_qr_url" class="flex flex-col items-center gap-2 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
-          <img :src="data.wave_qr_url" alt="QR code Wave de Jibiat Marchand" class="h-56 w-56 rounded-lg bg-white object-contain" />
-          <p class="text-center text-slate-600">Sur ordinateur : scannez ce QR code avec l'application Wave de votre téléphone, puis payez <strong>{{ money(wave.invoice.amount) }}</strong>.</p>
+    <Modal v-if="wave" title="Payer avec Wave" @close="wave = null">
+      <div class="space-y-5 text-sm">
+        <div class="rounded-xl bg-slate-50 p-4 text-center ring-1 ring-slate-200">
+          <p class="text-2xl font-bold">{{ money(wave.invoice.amount) }} à payer</p>
+          <p v-if="wave.phone" class="mt-1 text-slate-600">Depuis le numéro Wave {{ wave.phone }}</p>
+          <p class="mt-1 text-xs text-slate-500">{{ wave.invoice.plan }}<template v-if="wave.invoice.kind !== 'ai_pack'"> ({{ wave.invoice.cycle_label }})</template> · facture {{ wave.invoice.number }}</p>
         </div>
-        <p class="text-slate-600">Payez exactement <strong>{{ money(wave.invoice.amount) }}</strong><template v-if="wave.phone"> depuis le <strong>{{ wave.phone }}</strong></template>. Une fois payé, appuyez sur le bouton ci-dessous.</p>
-        <button class="btn-brand w-full py-3" :disabled="claiming" @click="claimPaid">{{ claiming ? 'Envoi…' : 'J\'ai payé' }}</button>
-        <p class="text-xs text-slate-500">Nous vérifions la réception dans Wave, puis votre {{ wave.invoice.kind === 'ai_pack' ? 'recharge est ajoutée' : 'offre est activée' }}. Vous êtes prévenu.</p>
+
+        <section class="space-y-3">
+          <h3 class="flex items-center gap-2 font-semibold"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-sky-600 text-xs text-white">1</span>Payez avec Wave</h3>
+          <!-- Téléphone : le bouton d'abord ; ordinateur : le QR code d'abord (on paie avec son téléphone) -->
+          <div class="flex flex-col gap-3">
+            <a v-if="wave.link" :href="wave.link" target="_blank" rel="noopener" class="order-1 flex w-full justify-center rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white hover:bg-sky-700 md:order-2">Cliquez ici pour payer avec Wave</a>
+            <div v-if="data.wave_qr_url" class="order-2 flex flex-col items-center gap-2 md:order-1">
+              <p class="text-slate-600">{{ wave.link ? 'ou scannez ce code QR avec l\'application Wave' : 'Scannez ce code QR avec l\'application Wave' }}</p>
+              <img :src="data.wave_qr_url" alt="Code QR Wave de Jibiat Marchand" class="h-52 w-52 rounded-lg bg-white object-contain ring-1 ring-slate-200" />
+            </div>
+          </div>
+        </section>
+
+        <section class="space-y-2 border-t border-slate-100 pt-4">
+          <h3 class="flex items-center gap-2 font-semibold"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-xs text-white">2</span>Confirmez votre paiement</h3>
+          <p class="text-slate-600">Une fois le paiement fait dans Wave :</p>
+          <button class="w-full rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white hover:bg-emerald-800 disabled:opacity-60" :disabled="claiming" @click="claimPaid">{{ claiming ? 'Envoi…' : 'Cliquez ici pour confirmer votre paiement' }}</button>
+          <p class="text-xs text-slate-500">Nous vérifions la réception, puis votre {{ wave.invoice.kind === 'ai_pack' ? 'recharge est ajoutée' : 'offre est activée' }}.</p>
+        </section>
       </div>
     </Modal>
   </div>
