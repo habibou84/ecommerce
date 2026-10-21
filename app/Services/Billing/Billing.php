@@ -39,17 +39,19 @@ class Billing
         private readonly PlanLimits $limits,
         private readonly PaymentDesk $payments,
         private readonly TeamNotifier $notifier,
+        private readonly BillingSettings $settings,
+        private readonly PaymentAlerts $alerts,
     ) {}
 
     /**
-     * Compte de la plateforme chez le prestataire (configuration, jamais en base).
+     * Compte de la plateforme chez le prestataire (prestataire choisi dans la console, clés sur le serveur).
      */
     public function account(): PaymentAccount
     {
         $config = config('platform.billing');
 
         return (new PaymentAccount)->forceFill([
-            'provider' => $config['provider'],
+            'provider' => $this->settings->provider(),
             'mode' => $config['mode'],
             'credentials' => $config['credentials'],
             'label' => 'Jibiat Marchand',
@@ -63,7 +65,10 @@ class Billing
      */
     public function methods(): array
     {
-        $gateway = $this->payments->gateway(config('platform.billing.provider'));
+        if ($this->manual()) {
+            return ['wave' => 'Wave'];
+        }
+        $gateway = $this->payments->gateway($this->settings->provider());
 
         return array_intersect_key(PaymentDesk::METHODS, array_flip($gateway->methods()));
     }
@@ -100,6 +105,9 @@ class Billing
                 'limits' => $p->limits, 'features' => array_keys(array_filter($p->features ?? [])),
             ]),
             'methods' => $this->methods(),
+            // Lien marchand Wave : le numéro qui paie est demandé, la confirmation se fait à la main
+            'manual_payment' => $this->manual(),
+            'wave_qr_url' => $this->manual() ? $this->settings->qrUrl() : null,
             // Recharges de l'assistant : actions achetées restantes et prix d'une recharge
             'ai_credits' => (int) $store->ai_credits,
             'ai_pack' => config('platform.ai_pack'),
@@ -111,7 +119,7 @@ class Billing
     /**
      * Facture et page de paiement du prestataire pour une offre payante.
      */
-    public function checkout(Store $store, Plan $plan, string $cycle, string $method, User $user): SubscriptionInvoice
+    public function checkout(Store $store, Plan $plan, string $cycle, string $method, User $user, ?string $payerPhone = null): SubscriptionInvoice
     {
         if (($covering = $this->limits->coveringStore($store)) !== null) {
             throw new BusinessRuleException("Cette boutique est couverte par l'abonnement de {$covering->name}. Retirez-la de cet abonnement (Mes boutiques) pour prendre une offre séparée.", 'plan');
@@ -129,13 +137,13 @@ class Billing
             'plan_id' => $plan->id,
             'billing_cycle' => $cycle,
             'amount' => $amount,
-        ], "Abonnement {$plan->name} ({$this->cycleLabel($cycle)}) · {$store->name}");
+        ], "Abonnement {$plan->name} ({$this->cycleLabel($cycle)}) · {$store->name}", $payerPhone);
     }
 
     /**
      * Recharge de l'assistant : des actions en plus, utilisées après celles de l'offre et sans date de fin.
      */
-    public function buyAiPack(Store $store, string $method, User $user): SubscriptionInvoice
+    public function buyAiPack(Store $store, string $method, User $user, ?string $payerPhone = null): SubscriptionInvoice
     {
         ['actions' => $actions, 'price' => $price] = config('platform.ai_pack');
 
@@ -144,7 +152,7 @@ class Billing
             'ai_actions' => $actions,
             'billing_cycle' => 'pack',
             'amount' => $price,
-        ], "Recharge de l'assistant ({$actions} actions) · {$store->name}");
+        ], "Recharge de l'assistant ({$actions} actions) · {$store->name}", $payerPhone);
     }
 
     /**
@@ -152,16 +160,19 @@ class Billing
      *
      * @param  array<string, mixed>  $data
      */
-    private function pay(Store $store, User $user, string $method, array $data, string $description): SubscriptionInvoice
+    private function pay(Store $store, User $user, string $method, array $data, string $description, ?string $payerPhone = null): SubscriptionInvoice
     {
         if (! array_key_exists($method, $this->methods())) {
             throw new BusinessRuleException('Moyen de paiement non disponible.', 'method');
+        }
+        if ($this->manual()) {
+            return $this->payByLink($store, $user, $data, $description, $payerPhone);
         }
 
         $invoice = $this->newInvoice($data + [
             'store_id' => $store->id,
             'status' => 'pending',
-            'provider' => config('platform.billing.provider'),
+            'provider' => $this->settings->provider(),
             'method' => $method,
             'idempotency_key' => (string) Str::uuid(),
             'created_by' => $user->id,
@@ -191,11 +202,85 @@ class Billing
     }
 
     /**
+     * Paiement par le lien marchand Wave (sans API) : facture en attente, lien avec le montant (et QR code à scanner),
+     * et alerte au validateur avec le numéro qui paie et le lien pour confirmer quand le message de Wave arrive.
+     */
+    private function payByLink(Store $store, User $user, array $data, string $description, ?string $payerPhone): SubscriptionInvoice
+    {
+        if (! $this->settings->ready()) {
+            throw new BusinessRuleException('Le paiement en ligne est indisponible pour le moment. Réessayez dans quelques minutes.');
+        }
+        if (blank($payerPhone)) {
+            throw new BusinessRuleException('Indiquez le numéro Wave qui va payer.', 'payer_phone');
+        }
+
+        $invoice = $this->newInvoice($data + [
+            'store_id' => $store->id,
+            'status' => 'pending',
+            'provider' => 'wave_link',
+            'method' => 'wave',
+            'idempotency_key' => (string) Str::uuid(),
+            'created_by' => $user->id,
+        ]);
+        $link = $this->settings->waveLink();
+        $url = match (true) {
+            $link === null => null,
+            str_contains($link, '{montant}') => str_replace('{montant}', (string) $invoice->amount, $link),
+            default => $link.(str_contains($link, '?') ? '&' : '?').'amount='.$invoice->amount,
+        };
+        $invoice->update(['checkout_url' => $url, 'raw' => ['payer_phone' => $payerPhone, 'description' => $description, 'payer_name' => $user->name]]);
+        $this->alerts->alert($invoice, claimed: false);
+
+        return $invoice->fresh();
+    }
+
+    /**
+     * « J'ai payé » : l'e-commerçant confirme son paiement Wave, le validateur est prévenu une seconde fois.
+     */
+    public function claimPaid(SubscriptionInvoice $invoice): SubscriptionInvoice
+    {
+        if ($invoice->status !== 'pending' || $invoice->provider !== 'wave_link' || isset($invoice->raw['claimed_at'])) {
+            return $invoice;
+        }
+        $invoice->update(['raw' => ['claimed_at' => now()->toIso8601String()] + ($invoice->raw ?? [])]);
+        $this->alerts->alert($invoice, claimed: true);
+
+        return $invoice->fresh();
+    }
+
+    /**
+     * Décision du validateur sur un paiement par lien Wave : reçu (l'offre ou la recharge s'active) ou non reçu.
+     */
+    public function decide(SubscriptionInvoice $invoice, bool $received): SubscriptionInvoice
+    {
+        if ($invoice->status !== 'pending' || $invoice->provider !== 'wave_link') {
+            return $invoice;
+        }
+        if ($received) {
+            return $this->activate($invoice, 'paid', 'wave', ($invoice->raw ?? []) + ['validated_at' => now()->toIso8601String()]);
+        }
+
+        $invoice->update(['status' => 'failed']);
+        $this->notify(Store::findOrFail($invoice->store_id), 'Paiement Wave non reçu',
+            "Nous n'avons pas reçu le paiement Wave de la facture {$invoice->number}. Si vous avez bien payé, écrivez-nous sur WhatsApp avec la référence de la transaction.");
+
+        return $invoice->fresh();
+    }
+
+    /**
+     * Abonnements payés par le lien marchand Wave et validés à la main.
+     */
+    public function manual(): bool
+    {
+        return $this->settings->manual();
+    }
+
+    /**
      * Statut relu chez le prestataire (retour sur la gestion, notification, vérification de secours).
      */
     public function confirm(SubscriptionInvoice $invoice): SubscriptionInvoice
     {
-        if ($invoice->status !== 'pending') {
+        if ($invoice->status !== 'pending' || $invoice->provider === 'wave_link') {
             return $invoice;
         }
 
@@ -215,7 +300,11 @@ class Billing
      */
     public function webhook(Request $request): bool
     {
-        $parsed = $this->payments->gateway(config('platform.billing.provider'))->parseWebhook($this->account(), $request);
+        // Lien marchand Wave : aucun prestataire n'envoie de notification
+        if ($this->manual()) {
+            return false;
+        }
+        $parsed = $this->payments->gateway($this->settings->provider())->parseWebhook($this->account(), $request);
         if ($parsed === null) {
             return false;
         }
@@ -351,6 +440,9 @@ class Billing
             'period_end' => $i->period_end?->toIso8601String(),
             'paid_at' => $i->paid_at?->toIso8601String(),
             'checkout_url' => $i->status === 'pending' ? $i->checkout_url : null,
+            // Lien marchand Wave : paiement validé à la main, « J'ai payé » déjà signalé ou non
+            'manual' => $i->provider === 'wave_link',
+            'claimed_at' => $i->provider === 'wave_link' ? ($i->raw['claimed_at'] ?? null) : null,
             'created_at' => $i->created_at->toIso8601String(),
         ];
     }

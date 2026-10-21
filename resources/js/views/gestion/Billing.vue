@@ -3,6 +3,7 @@ import Icon from '../../components/Icon.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
+import Modal from '../../components/Modal.vue'
 import http, { download, errorMessage } from '../../lib/http'
 import { formatDateTime, money } from '../../lib/format'
 
@@ -12,7 +13,7 @@ const data = ref(null)
 const error = ref('')
 const notice = ref(null)
 const busy = ref(false)
-const choice = reactive({ plan: 'pro', cycle: 'monthly', method: 'wave' })
+const choice = reactive({ plan: 'pro', cycle: 'monthly', method: 'wave', payer_phone: '' })
 
 const FEATURES = { custom_domain: 'Domaine personnalisé', online_payment: 'Paiement en ligne', whatsapp_api: 'WhatsApp automatique', advanced_stats: 'Statistiques avancées', merchant_api: 'API marchand', multi_store: 'Plusieurs boutiques' }
 const LIMITS = { orders_per_month: 'commandes / mois', products: 'produits', members: 'membres', couriers: 'livreurs', carrier_connections: 'entreprises de livraison', payment_accounts: 'comptes de paiement', ai_actions_per_month: 'actions de l\'assistant IA / mois' }
@@ -37,6 +38,11 @@ onMounted(async () => {
   } catch (e) {
     error.value = errorMessage(e)
   }
+})
+
+// Messages affichés en haut de la page : on y remonte pour qu'ils se voient tout de suite
+watch([notice, error], ([n, e]) => {
+  if (n || e) window.scrollTo({ top: 0, behavior: 'smooth' })
 })
 
 const sub = computed(() => data.value?.subscription)
@@ -66,12 +72,46 @@ const creditDays = computed(() => {
   return Math.min(366, Math.floor(data.value.credit / (price.value / { weekly: 7, monthly: 30, yearly: 365 }[choice.cycle])))
 })
 
+// Lien marchand Wave : la facture est créée (le validateur est prévenu), puis le panneau Wave s'ouvre :
+// bouton vers Wave sur téléphone, QR code à scanner sur ordinateur, et « J'ai payé » pour une seconde alerte
+const wave = ref(null)
+const claiming = ref(false)
+
+async function go(res) {
+  if (!data.value.manual_payment) {
+    window.location.assign(res.redirect)
+    return
+  }
+  wave.value = { invoice: res.data, link: res.redirect, phone: choice.payer_phone }
+  busy.value = false
+  await load()
+}
+
+async function claimPaid() {
+  claiming.value = true
+  error.value = ''
+  try {
+    const { data: res } = await http.post(`/billing/invoices/${wave.value.invoice.number}/paid`)
+    notice.value = { tone: 'info', text: `Merci ! Nous vérifions votre paiement de ${money(res.data.amount)}. Dès qu'il est confirmé, votre ${res.data.kind === 'ai_pack' ? 'recharge est ajoutée' : 'offre est activée'} et vous êtes prévenu.` }
+    wave.value = null
+    await load()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    claiming.value = false
+  }
+}
+
 async function pay() {
+  if (data.value.manual_payment && !choice.payer_phone.trim()) {
+    error.value = 'Indiquez le numéro Wave qui va payer.'
+    return
+  }
   busy.value = true
   error.value = ''
   try {
     const { data: res } = await http.post('/billing/checkout', choice)
-    window.location.assign(res.redirect)
+    await go(res)
   } catch (e) {
     error.value = errorMessage(e)
     busy.value = false
@@ -79,11 +119,15 @@ async function pay() {
 }
 
 async function buyAiPack() {
+  if (data.value.manual_payment && !choice.payer_phone.trim()) {
+    error.value = 'Indiquez le numéro Wave qui va payer.'
+    return
+  }
   busy.value = true
   error.value = ''
   try {
-    const { data: res } = await http.post('/billing/ai-pack', { method: choice.method })
-    window.location.assign(res.redirect)
+    const { data: res } = await http.post('/billing/ai-pack', { method: choice.method, payer_phone: choice.payer_phone })
+    await go(res)
   } catch (e) {
     error.value = errorMessage(e)
     busy.value = false
@@ -152,11 +196,14 @@ async function cancel(value) {
       <p v-if="creditDays > 0" class="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
         Vos {{ money(data.credit) }} payés et non utilisés de l'offre {{ data.plan.name }} deviennent environ <strong>{{ creditDays }} jour{{ creditDays > 1 ? 's' : '' }} en plus</strong> sur l'offre {{ selected.name }}.
       </p>
+      <label v-if="data.manual_payment" class="block max-w-xs text-sm">Numéro Wave qui va payer
+        <input v-model="choice.payer_phone" type="tel" class="input mt-1" placeholder="07 00 00 00 00" />
+      </label>
       <div class="flex flex-wrap items-center gap-3">
         <select v-model="choice.method" class="input w-auto" aria-label="Moyen de paiement">
           <option v-for="(label, key) in data.methods" :key="key" :value="key">{{ label }}</option>
         </select>
-        <button class="btn-brand" :disabled="busy || !price" @click="pay">{{ busy ? 'Redirection…' : `Payer ${money(price)}` }}</button>
+        <button class="btn-brand" :disabled="busy || !price" @click="pay">{{ busy ? 'Un instant…' : `Payer ${money(price)}` }}</button>
         <span class="text-xs text-slate-500">Sans carte bancaire : Wave, Orange Money, MTN ou Moov. Une facture à chaque paiement. Sans renouvellement, votre espace marchand repasse à l'offre gratuite (rien n'est supprimé).</span>
       </div>
     </section>
@@ -167,11 +214,14 @@ async function cancel(value) {
         {{ data.ai_pack.actions }} actions de plus pour {{ money(data.ai_pack.price) }}, utilisées quand celles de votre offre sont épuisées. Elles ne périment pas.
         <template v-if="data.ai_credits"> En réserve : <strong>{{ data.ai_credits }} actions</strong>.</template>
       </p>
+      <label v-if="data.manual_payment" class="block max-w-xs text-sm">Numéro Wave qui va payer
+        <input v-model="choice.payer_phone" type="tel" class="input mt-1" placeholder="07 00 00 00 00" />
+      </label>
       <div class="flex flex-wrap items-center gap-3">
         <select v-model="choice.method" class="input w-auto" aria-label="Moyen de paiement de la recharge">
           <option v-for="(label, key) in data.methods" :key="key" :value="key">{{ label }}</option>
         </select>
-        <button class="btn-brand" :disabled="busy" @click="buyAiPack">{{ busy ? 'Redirection…' : `Recharger pour ${money(data.ai_pack.price)}` }}</button>
+        <button class="btn-brand" :disabled="busy" @click="buyAiPack">{{ busy ? 'Un instant…' : `Recharger pour ${money(data.ai_pack.price)}` }}</button>
       </div>
     </section>
 
@@ -182,10 +232,28 @@ async function cancel(value) {
           <span class="flex-1">{{ i.number }} · {{ i.plan }} ({{ i.cycle_label }})<span class="block text-xs text-slate-500">{{ i.status_label }}<template v-if="i.period_end"> · jusqu'au {{ formatDateTime(i.period_end) }}</template><template v-if="i.credit_days"> · dont {{ i.credit_days }} jours reportés de l'offre précédente</template></span></span>
           <span class="font-medium">{{ money(i.amount) }}</span>
           <button v-if="['paid', 'offered'].includes(i.status)" class="btn-ghost px-2" @click="download(`/billing/invoices/${i.id}/receipt`, `facture-${i.number}.pdf`)"><Icon name="file" :size="16" class="mr-1 inline-block align-[-3px]" />PDF</button>
+          <template v-else-if="i.status === 'pending' && i.manual">
+            <span v-if="i.claimed_at" class="text-xs text-slate-500">Vérification en cours</span>
+            <button v-else class="btn-ghost px-2" @click="wave = { invoice: i, link: i.checkout_url, phone: '' }">Payer</button>
+          </template>
           <a v-else-if="i.checkout_url" :href="i.checkout_url" class="btn-ghost px-2">Payer</a>
         </li>
       </ul>
     </section>
+
+    <Modal v-if="wave" :title="`Payer ${money(wave.invoice.amount)} avec Wave`" @close="wave = null">
+      <div class="space-y-4 text-sm">
+        <p class="text-slate-600">{{ wave.invoice.plan }}<template v-if="wave.invoice.kind !== 'ai_pack'"> ({{ wave.invoice.cycle_label }})</template> · facture {{ wave.invoice.number }}</p>
+        <a v-if="wave.link" :href="wave.link" target="_blank" rel="noopener" class="btn-brand flex w-full justify-center py-3">Ouvrir Wave et payer {{ money(wave.invoice.amount) }}</a>
+        <div v-if="data.wave_qr_url" class="flex flex-col items-center gap-2 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
+          <img :src="data.wave_qr_url" alt="QR code Wave de Jibiat Marchand" class="h-56 w-56 rounded-lg bg-white object-contain" />
+          <p class="text-center text-slate-600">Sur ordinateur : scannez ce QR code avec l'application Wave de votre téléphone, puis payez <strong>{{ money(wave.invoice.amount) }}</strong>.</p>
+        </div>
+        <p class="text-slate-600">Payez exactement <strong>{{ money(wave.invoice.amount) }}</strong><template v-if="wave.phone"> depuis le <strong>{{ wave.phone }}</strong></template>. Une fois payé, appuyez sur le bouton ci-dessous.</p>
+        <button class="btn-brand w-full py-3" :disabled="claiming" @click="claimPaid">{{ claiming ? 'Envoi…' : 'J\'ai payé' }}</button>
+        <p class="text-xs text-slate-500">Nous vérifions la réception dans Wave, puis votre {{ wave.invoice.kind === 'ai_pack' ? 'recharge est ajoutée' : 'offre est activée' }}. Vous êtes prévenu.</p>
+      </div>
+    </Modal>
   </div>
   <p v-else-if="!error" class="text-sm text-slate-500">Chargement…</p>
   <Alert v-else>{{ error }}</Alert>

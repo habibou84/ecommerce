@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
+use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
+use App\Http\Controllers\Api\V1\Console\ConsoleWhatsAppController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
 use App\Http\Controllers\Api\V1\Couriers\CourierController;
@@ -112,6 +114,20 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
             Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
+            Route::get('payments/settings', [ConsolePaymentsController::class, 'settings'])->name('payments.settings');
+            Route::put('payments/settings', [ConsolePaymentsController::class, 'update'])->name('payments.update');
+            Route::post('payments/wave-qr', [ConsolePaymentsController::class, 'uploadQr'])->name('payments.qr');
+            Route::put('payments/mail', [ConsolePaymentsController::class, 'updateMail'])->name('payments.mail');
+            Route::post('payments/test-alert', [ConsolePaymentsController::class, 'testAlert'])->middleware('throttle:5,1')->name('payments.test-alert');
+            Route::delete('payments/wave-qr', [ConsolePaymentsController::class, 'removeQr'])->name('payments.qr.remove');
+            Route::get('payments/pending', [ConsolePaymentsController::class, 'pending'])->name('payments.pending');
+            Route::post('payments/{invoice}/decide', [ConsolePaymentsController::class, 'decide'])->whereNumber('invoice')->name('payments.decide');
+            Route::get('whatsapp', [ConsoleWhatsAppController::class, 'show'])->name('whatsapp.show');
+            Route::post('whatsapp/embedded', [ConsoleWhatsAppController::class, 'connect'])->middleware('throttle:login')->name('whatsapp.connect');
+            Route::delete('whatsapp', [ConsoleWhatsAppController::class, 'disconnect'])->name('whatsapp.disconnect');
+            Route::get('whatsapp/conversations', [ConsoleWhatsAppController::class, 'conversations'])->name('whatsapp.conversations');
+            Route::get('whatsapp/conversations/{conversation}', [ConsoleWhatsAppController::class, 'messages'])->whereNumber('conversation')->name('whatsapp.messages');
+            Route::post('whatsapp/conversations/{conversation}/reply', [ConsoleWhatsAppController::class, 'reply'])->whereNumber('conversation')->middleware('throttle:30,1')->name('whatsapp.reply');
         });
     });
 
@@ -182,6 +198,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('checkout', [BillingController::class, 'checkout'])->middleware('throttle:10,1')->name('checkout');
                 Route::post('ai-pack', [BillingController::class, 'aiPack'])->middleware('throttle:10,1')->name('ai-pack');
                 Route::post('invoices/{number}/check', [BillingController::class, 'check'])->where('number', 'JM-\\d{4}-\\d{6}')->name('check');
+                Route::post('invoices/{number}/paid', [BillingController::class, 'claimPaid'])->middleware('throttle:10,1')->where('number', 'JM-\\d{4}-\\d{6}')->name('paid');
                 Route::get('invoices/{invoice}/receipt', [BillingController::class, 'receipt'])->whereNumber('invoice')->name('receipt');
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
             });

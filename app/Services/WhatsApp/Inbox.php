@@ -91,7 +91,7 @@ class Inbox
     public function receive(WhatsappAccount $account, array $message, array $contacts = []): ?ConversationMessage
     {
         $from = (string) ($message['from'] ?? '');
-        $body = $this->body($message);
+        $body = self::readable($message);
         if ($from === '' || $body === null) {
             return null;
         }
@@ -228,7 +228,7 @@ class Inbox
      *
      * @param  array<string, mixed>  $m
      */
-    private function body(array $m): ?string
+    public static function readable(array $m): ?string
     {
         $caption = fn (string $label, ?string $text) => trim($label.($text ? ' : '.$text : ''));
 
@@ -241,7 +241,7 @@ class Inbox
             'audio' => '🎤 Message vocal',
             'sticker' => 'Autocollant',
             'document' => $caption('📄 Document', $m['document']['filename'] ?? $m['document']['caption'] ?? null),
-            'location' => $this->location($m['location'] ?? []),
+            'location' => self::location($m['location'] ?? []),
             'reaction', 'system', 'unsupported', 'request_welcome' => null,
             default => 'Message non affichable ici : ouvrez WhatsApp pour le voir.',
         };
@@ -250,7 +250,7 @@ class Inbox
     /**
      * @param  array<string, mixed>  $l
      */
-    private function location(array $l): string
+    private static function location(array $l): string
     {
         $place = collect([$l['name'] ?? null, $l['address'] ?? null])->filter()->implode(', ');
         $map = isset($l['latitude'], $l['longitude']) ? "https://maps.google.com/?q={$l['latitude']},{$l['longitude']}" : '';
