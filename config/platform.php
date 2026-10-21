@@ -85,7 +85,8 @@ return [
         'ips' => array_filter(array_map('trim', explode(',', (string) env('CUSTOM_DOMAIN_IPS', '')))),
     ],
 
-    // Support : WhatsApp de l'équipe Jibiat Marchand (bouton « Aide » de la gestion)
-    'support_whatsapp' => env('SUPPORT_WHATSAPP', '+2250700000000'),
+    // WhatsApp de l'équipe Jibiat Marchand : bouton du site et « Aide » de la gestion
+    // (l'ancien SUPPORT_WHATSAPP n'est plus lu : il gardait un numéro provisoire sur les serveurs)
+    'support_whatsapp' => env('SUPPORT_WHATSAPP_NUMBER', '+2250507016739'),
     'support_session_minutes' => (int) env('SUPPORT_SESSION_MINUTES', 60),
 ];
