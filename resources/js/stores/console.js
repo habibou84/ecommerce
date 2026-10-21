@@ -3,7 +3,7 @@ import http from '../lib/http'
 
 // Session de la console (admin.jibiat-marchand.com)
 export const useConsoleStore = defineStore('console', {
-  state: () => ({ admin: null, loaded: false, pendingPayments: 0 }),
+  state: () => ({ admin: null, loaded: false, pendingPayments: 0, unreadMessages: 0 }),
   actions: {
     async fetch() {
       try {
@@ -19,6 +19,7 @@ export const useConsoleStore = defineStore('console', {
     async refreshPending() {
       try {
         this.pendingPayments = (await http.get('/console/payments/pending')).data.data.length
+        this.unreadMessages = (await http.get('/console/whatsapp/conversations')).data.meta.unread
       } catch {
         // Pastille seulement : une erreur passagère ne bloque rien
       }
