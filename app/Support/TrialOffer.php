@@ -17,11 +17,19 @@ class TrialOffer
     /**
      * Durée lisible : « 1 mois » pour 30 jours, « 2 mois » pour 60, sinon « 14 jours ».
      */
-    public static function duration(): string
+    public static function duration(?int $days = null): string
     {
-        $days = self::days();
+        $days ??= self::days();
 
         return $days >= 30 && $days % 30 === 0 ? ($days / 30).' mois' : $days.' jours';
+    }
+
+    /**
+     * Essai d'un e-commerçant invité par une entreprise de livraison de l'annuaire : un mois de plus.
+     */
+    public static function partnerDays(): int
+    {
+        return self::days() + (int) config('platform.partner_bonus_days');
     }
 
     /**

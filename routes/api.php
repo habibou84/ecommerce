@@ -73,6 +73,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
     // ── jibiat-marchand.com : création de boutique, retrouver ses boutiques ──
     Route::middleware('zone:platform')->group(function () {
         Route::get('signup/slug', [SignupController::class, 'checkSlug'])->middleware('throttle:60,1')->name('signup.slug');
+        Route::get('signup/partner', [SignupController::class, 'partner'])->middleware('throttle:60,1')->name('signup.partner');
         Route::post('signup', [SignupController::class, 'start'])->middleware('throttle:verification-start')->name('signup');
 
         Route::post('account/login', [PlatformAccountController::class, 'login'])->middleware('throttle:login')->name('account.login');
@@ -179,6 +180,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::BillingManage->value)->prefix('billing')->name('billing.')->group(function () {
                 Route::get('/', [BillingController::class, 'show'])->name('show');
                 Route::post('checkout', [BillingController::class, 'checkout'])->middleware('throttle:10,1')->name('checkout');
+                Route::post('ai-pack', [BillingController::class, 'aiPack'])->middleware('throttle:10,1')->name('ai-pack');
                 Route::post('invoices/{number}/check', [BillingController::class, 'check'])->where('number', 'JM-\\d{4}-\\d{6}')->name('check');
                 Route::get('invoices/{invoice}/receipt', [BillingController::class, 'receipt'])->whereNumber('invoice')->name('receipt');
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');

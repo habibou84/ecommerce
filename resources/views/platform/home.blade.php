@@ -13,8 +13,18 @@
     $aiActions = $plans->filter(fn ($p) => array_key_exists('ai_actions_per_month', $p->limits ?? []) && ($p->limits['ai_actions_per_month'] ?? 0) !== 0)
         ->map(fn ($p) => ($p->limits['ai_actions_per_month'] === null ? 'illimitées' : number_format($p->limits['ai_actions_per_month'], 0, ',', ' ')).' en '.$p->name);
     $trialActions = $plans->firstWhere('code', config('platform.trial_plan'))?->limits['ai_actions_per_month'] ?? null;
+    // Montant sans coupure de ligne (espaces insécables)
+    $f = fn (int $amount) => number_format($amount, 0, ',', "\u{00A0}")."\u{00A0}F";
+    // Prix d'entrée des offres payantes, au mois et à la semaine
+    $fromMonthly = $plans->where('monthly_price', '>', 0)->min('monthly_price');
+    $fromWeekly = $plans->where('weekly_price', '>', 0)->min('weekly_price');
+    $aiPack = config('platform.ai_pack');
+    $partnerTrial = \App\Support\TrialOffer::duration(\App\Support\TrialOffer::partnerDays());
     $faq = [
-        ['Combien ça coûte ?', 'Vous commencez avec '.$trial.' de l\'offre '.$trialPlan.' offert : l\'assistant, WhatsApp automatique, les statistiques avancées, le paiement en ligne, sans carte bancaire. Ensuite, l\'offre Gratuit reste disponible, et les offres payantes commencent à 5 000 F par mois.'],
+        ['Combien ça coûte ?', 'Vous commencez avec '.$trial.' de l\'offre '.$trialPlan.' offert : l\'assistant, WhatsApp automatique, les statistiques avancées, le paiement en ligne, sans carte bancaire. Ensuite, l\'offre Gratuit reste disponible'.($fromMonthly ? ', et les offres payantes commencent à '.$f($fromMonthly).' par mois'.($fromWeekly ? ', ou '.$f($fromWeekly).' par semaine' : '') : '').'.'],
+        ['Comment je paie mon abonnement ?', 'Sans carte bancaire : par Wave, Orange Money, MTN ou Moov, depuis votre téléphone. À la semaine, au mois ou à l\'année (12 mois pour le prix de 10). Vous recevez une facture à chaque paiement, et rien n\'est prélevé tout seul.'],
+        ['Et si j\'utilise beaucoup l\'assistant ?', 'Quand les actions de votre offre sont épuisées, rechargez '.$aiPack['actions'].' actions pour '.$f($aiPack['price']).' par Mobile Money, sans changer d\'offre. Elles ne périment pas.'],
+        ['Mon entreprise de livraison m\'a envoyé un lien. Qu\'est-ce que j\'y gagne ?', 'Si elle est dans l\'annuaire Jibiat, son lien vous offre '.$partnerTrial.' de l\'offre '.$trialPlan.' au lieu de '.$trial.', et vous la connectez en un clic.'],
         ['Que fait l\'assistant ?', 'Il transforme le message WhatsApp d\'un client (même mal écrit, ou en capture d\'écran) en commande, écrit la fiche d\'un produit à partir d\'une photo, prépare vos réponses aux clients avec vos vrais prix et votre stock, rédige vos publications et répond à vos questions sur vos chiffres. Rien n\'est envoyé ni enregistré sans vous.'],
         ['La boutique en ligne est-elle comprise ?', 'Oui, dans toutes les offres, même Gratuit : vos produits en ligne, le panier, la commande et le suivi pour vos clients, à l\'adresse votre-nom.'.config('platform.domain').'. Les offres payantes ajoutent le paiement en ligne, et Pro et Business votre propre nom de domaine.'],
         ['Et à la fin du mois d\'essai ?', 'Rien n\'est prélevé : vous choisissez l\'offre qui vous convient, ou votre espace marchand passe sur l\'offre Gratuit. Vos produits, vos clients et vos commandes restent là.'],
@@ -303,6 +313,9 @@
                     <div class="mx-auto max-w-2xl text-center">
                         <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">Des prix simples, en francs CFA</h2>
                         <p class="mt-3 text-lg text-slate-600">{{ ucfirst($trial) }} de l'offre {{ $trialPlan }} offert, puis l'offre de votre choix. Sans engagement.</p>
+                        <p class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm font-medium text-emerald-800">
+                            <span>✓ Sans carte bancaire</span><span>✓ Wave, Orange Money, MTN, Moov</span><span>✓ Une facture à chaque paiement</span>
+                        </p>
                     </div>
                     <div class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                         @foreach ($plans as $plan)
@@ -313,6 +326,12 @@
                             <div @class(['flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1', 'ring-2 ring-emerald-600' => $plan->code === 'pro', 'ring-slate-200' => $plan->code !== 'pro'])>
                                 <h3 class="flex items-center justify-between gap-2 font-semibold">{{ $plan->name }}@if ($plan->code === config('platform.trial_plan'))<span class="rounded-full bg-amber-300 px-2 py-0.5 text-xs font-semibold text-amber-950">{{ $trial }} offert</span>@endif</h3>
                                 <p class="mt-2"><span class="text-3xl font-bold">{{ number_format($plan->monthly_price, 0, ',', ' ') }} F</span><span class="text-slate-500"> / mois</span></p>
+                                @if ($plan->weekly_price)
+                                    <p class="mt-1 text-sm font-medium text-slate-700">ou {{ $f($plan->weekly_price) }} / semaine</p>
+                                @endif
+                                @if ($plan->yearly_price && $plan->monthly_price * 12 > $plan->yearly_price)
+                                    <p class="mt-1 text-sm text-emerald-700">À l'année : {{ $f($plan->yearly_price) }}, soit {{ $f($plan->monthly_price * 12 - $plan->yearly_price) }} d'économie</p>
+                                @endif
                                 <ul class="mt-5 space-y-2 text-sm text-slate-700">
                                     <li class="font-medium text-emerald-800">✓ @if (! empty($plan->features['custom_domain']))Boutique en ligne à votre nom de domaine @else Boutique en ligne : <span class="whitespace-nowrap">votre-nom.{{ config('platform.domain') }}</span>@endif</li>
                                     <li>✓ {{ ($limits['orders_per_month'] ?? null) !== null ? $limits['orders_per_month'].' commandes par mois' : 'Commandes illimitées' }}</li>
@@ -334,6 +353,7 @@
                             </div>
                         @endforeach
                     </div>
+                    <p class="mt-6 text-center text-sm text-slate-600">Besoin de plus d'assistant ? Rechargez {{ $aiPack['actions'] }} actions pour {{ $f($aiPack['price']) }}, sans changer d'offre.</p>
                 </div>
             </section>
         @endif

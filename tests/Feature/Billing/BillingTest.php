@@ -49,7 +49,7 @@ class BillingTest extends TestCase
 
         $checkout = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'monthly', 'method' => 'wave'])
             ->assertCreated()->assertJsonPath('redirect', 'https://pay.wave.com/c/cos-plateforme');
-        Http::assertSent(fn ($r) => $r->method() === 'POST' && $r->hasHeader('Authorization', 'Bearer wave_platform') && $r['amount'] === '15000'
+        Http::assertSent(fn ($r) => $r->method() === 'POST' && $r->hasHeader('Authorization', 'Bearer wave_platform') && $r['amount'] === '12500'
             && str_contains($r['success_url'], '/gestion/abonnement?facture=JM-'));
         $number = $checkout->json('data.number');
         $this->assertMatchesRegularExpression('/^JM-\d{4}-\d{6}$/', $number);
@@ -84,6 +84,51 @@ class BillingTest extends TestCase
         $this->assertTrue($sub->fresh()->current_period_end->between(now()->addMonths(2)->subMinute(), now()->addMonths(2)->addMinute()));
 
         $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'free', 'cycle' => 'monthly', 'method' => 'wave'])->assertStatus(422);
+    }
+
+    public function test_paying_by_the_week(): void
+    {
+        $this->storeApi($this->store, 'GET', 'billing')->assertJsonPath('data.plans.1.code', 'starter')->assertJsonPath('data.plans.1.weekly_price', 1500);
+
+        // Pro ne se paie pas à la semaine
+        $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'weekly', 'method' => 'wave'])
+            ->assertStatus(422)->assertJsonPath('message', 'Cette offre ne se paie pas à la semaine.');
+
+        $number = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'starter', 'cycle' => 'weekly', 'method' => 'wave'])
+            ->assertCreated()->json('data.number');
+        Http::assertSent(fn ($r) => $r->method() === 'POST' && $r['amount'] === '1500');
+        $this->waveStatus = 'succeeded';
+        $this->storeApi($this->store, 'POST', "billing/invoices/{$number}/check")->assertJsonPath('data.status', 'paid')->assertJsonPath('data.cycle_label', 'à la semaine');
+
+        // Une semaine, puis la semaine suivante s'ajoute à la fin de la première
+        $sub = $this->store->currentSubscription()->first();
+        $this->assertSame(['starter', 'weekly'], [$sub->plan->code, $sub->billing_cycle]);
+        $this->assertTrue($sub->current_period_end->between(now()->addWeek()->subMinute(), now()->addWeek()->addMinute()));
+        $this->waveStatus = 'processing';
+        $second = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'starter', 'cycle' => 'weekly', 'method' => 'wave'])->json('data.number');
+        $this->waveStatus = 'succeeded';
+        $this->storeApi($this->store, 'POST', "billing/invoices/{$second}/check")->assertJsonPath('data.status', 'paid');
+        $this->assertTrue($sub->fresh()->current_period_end->between(now()->addWeeks(2)->subMinute(), now()->addWeeks(2)->addMinute()));
+    }
+
+    public function test_buying_assistant_actions(): void
+    {
+        $number = $this->storeApi($this->store, 'POST', 'billing/ai-pack', ['method' => 'wave'])
+            ->assertCreated()->assertJsonPath('data.plan', "Recharge de l'assistant (100 actions)")->json('data.number');
+        Http::assertSent(fn ($r) => $r->method() === 'POST' && $r['amount'] === '1000');
+
+        $this->waveStatus = 'succeeded';
+        $this->storeApi($this->store, 'POST', "billing/invoices/{$number}/check")->assertJsonPath('data.status', 'paid')->assertJsonPath('data.kind', 'ai_pack');
+        // Deuxième relecture : rien n'est ajouté deux fois
+        $this->storeApi($this->store, 'POST', "billing/invoices/{$number}/check")->assertJsonPath('data.status', 'paid');
+
+        $this->assertSame(100, $this->store->fresh()->ai_credits);
+        // L'abonnement (essai Pro) n'est pas touché
+        $this->assertSame(SubscriptionStatus::Trialing, $this->store->currentSubscription()->first()->status);
+        $this->storeApi($this->store, 'GET', 'billing')->assertJsonPath('data.ai_credits', 100)->assertJsonPath('data.ai_pack', ['actions' => 100, 'price' => 1000]);
+
+        $invoice = SubscriptionInvoice::where('number', $number)->sole();
+        $this->withCredentials()->get($this->storeUrl($this->store, "/api/v1/billing/invoices/{$invoice->id}/receipt"))->assertOk();
     }
 
     public function test_trial_end_renewal_and_grace_period(): void
@@ -170,14 +215,14 @@ class BillingTest extends TestCase
         $credit = $this->storeApi($this->store, 'GET', 'billing')->json('data.credit');
         $this->assertEqualsWithDelta(2666, $credit, 2);
 
-        // Passage au Pro (15 000 F par mois, soit 500 F par jour) : 5 jours en plus
+        // Passage au Pro (12 500 F par mois, soit environ 417 F par jour) : 6 jours en plus
         $number = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'monthly', 'method' => 'wave'])->assertCreated()->json('data.number');
         $this->waveStatus = 'succeeded';
-        $this->storeApi($this->store, 'POST', "billing/invoices/{$number}/check")->assertJsonPath('data.status', 'paid')->assertJsonPath('data.credit_days', 5);
+        $this->storeApi($this->store, 'POST', "billing/invoices/{$number}/check")->assertJsonPath('data.status', 'paid')->assertJsonPath('data.credit_days', 6);
 
         $pro = $this->store->currentSubscription()->first();
         $this->assertSame('pro', $pro->plan->code);
-        $this->assertTrue($pro->current_period_end->between(now()->addMonth()->addDays(5)->subMinute(), now()->addMonth()->addDays(5)->addMinute()));
+        $this->assertTrue($pro->current_period_end->between(now()->addMonth()->addDays(6)->subMinute(), now()->addMonth()->addDays(6)->addMinute()));
         $this->assertSame(SubscriptionStatus::Cancelled, $starter->fresh()->status);
 
         // Plus rien à reporter sur l'offre remplacée ; un essai n'a jamais de crédit

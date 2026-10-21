@@ -69,6 +69,15 @@ return [
         'reminder_days' => (int) env('BILLING_REMINDER_DAYS', 3),
     ],
 
+    // Recharge de l'assistant IA : actions en plus de celles de l'offre, payées par Mobile Money, sans date de fin
+    'ai_pack' => [
+        'actions' => (int) env('AI_PACK_ACTIONS', 100),
+        'price' => (int) env('AI_PACK_PRICE', 1000),
+    ],
+
+    // Parrainage : jours d'essai en plus pour un e-commerçant invité par une entreprise de livraison de l'annuaire
+    'partner_bonus_days' => (int) env('PLATFORM_PARTNER_BONUS_DAYS', 30),
+
     // Domaines personnalisés : le marchand fait pointer son domaine (CNAME) vers cette adresse, ou (domaine nu)
     // vers ces adresses IP ; les certificats sont demandés à la volée par Caddy (route /_caddy/ask)
     'custom_domains' => [

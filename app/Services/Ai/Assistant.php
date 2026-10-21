@@ -30,13 +30,13 @@ class Assistant
     }
 
     /**
-     * Actions restantes ce mois-ci (null : illimité).
+     * Actions utilisées ce mois-ci, quota de l'offre (null : illimité) et actions achetées en réserve.
      *
-     * @return array{enabled: bool, used: int, limit: ?int}
+     * @return array{enabled: bool, used: int, limit: ?int, credits: int}
      */
     public function status(Store $store): array
     {
-        return ['enabled' => $this->enabled(), 'used' => $this->limits->used($store, 'ai_actions_per_month'), 'limit' => $this->limit($store)];
+        return ['enabled' => $this->enabled(), 'used' => $this->limits->used($store, 'ai_actions_per_month'), 'limit' => $this->limit($store), 'credits' => (int) $store->fresh()->ai_credits];
     }
 
     /**
@@ -105,13 +105,21 @@ class Assistant
             throw new BusinessRuleException('L\'assistant IA n\'est pas encore activé sur la plateforme.');
         }
         $limit = $this->limit($store);
-        if ($limit !== null && $this->limits->used($store, 'ai_actions_per_month') >= $limit) {
+        // Quota de l'offre épuisé : les actions achetées (recharges) prennent le relais
+        if ($this->overQuota($store, $limit) && (int) $store->fresh()->ai_credits <= 0) {
             $plan = $this->limits->plan($store)?->name;
+            ['actions' => $actions, 'price' => $price] = config('platform.ai_pack');
+            $recharge = "Rechargez {$actions} actions pour ".number_format($price, 0, ',', ' ').' F, ou changez d\'offre, dans Réglages › Abonnement.';
 
             throw new QuotaExceededException($limit === 0
-                ? "L'assistant IA n'est pas compris dans l'offre {$plan}. Changez d'offre dans Réglages › Abonnement."
-                : "Les {$limit} actions de l'assistant IA de l'offre {$plan} sont utilisées ce mois-ci. Passez à une offre supérieure pour continuer.");
+                ? "L'assistant IA n'est pas compris dans l'offre {$plan}. {$recharge}"
+                : "Les {$limit} actions de l'assistant IA de l'offre {$plan} sont utilisées ce mois-ci. {$recharge}");
         }
+    }
+
+    private function overQuota(Store $store, ?int $limit): bool
+    {
+        return $limit !== null && $this->limits->used($store, 'ai_actions_per_month') >= $limit;
     }
 
     /**
@@ -129,6 +137,10 @@ class Assistant
 
     private function record(Store $store, ?User $user, string $feature, int $input, int $output, bool $succeeded): void
     {
+        // Action réussie au-delà du quota de l'offre : prise sur les actions achetées
+        if ($succeeded && $this->overQuota($store, $this->limit($store))) {
+            Store::whereKey($store->id)->where('ai_credits', '>', 0)->decrement('ai_credits');
+        }
         AiUsage::create([
             'store_id' => $store->id, 'user_id' => $user?->id, 'feature' => $feature, 'model' => $this->client->model(),
             'input_tokens' => $input, 'output_tokens' => $output, 'succeeded' => $succeeded,

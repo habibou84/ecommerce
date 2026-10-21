@@ -7,7 +7,9 @@ use App\Rules\StoreSlug;
 use App\Services\Accounts\LoginHandoff;
 use App\Services\Accounts\PhoneVerifier;
 use App\Services\Accounts\StoreSignup;
+use App\Services\Shipping\CarrierDirectory;
 use App\Support\Tenancy;
+use App\Support\TrialOffer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -35,7 +37,22 @@ class SignupController extends Controller
         ]);
     }
 
-    public function start(Request $request, StoreSignup $signup, LoginHandoff $handoff, PhoneVerifier $verifier): JsonResponse
+    /**
+     * Entreprise de livraison qui invite l'e-commerçant (lien « ?partenaire= ») et essai prolongé qu'elle lui offre.
+     */
+    public function partner(Request $request, CarrierDirectory $directory): JsonResponse
+    {
+        $company = $directory->find((string) $request->query('slug'));
+
+        return response()->json(['data' => $company === null ? null : [
+            'slug' => $company['slug'],
+            'name' => $company['name'],
+            'logo_url' => $company['logo_url'],
+            'trial' => TrialOffer::duration(TrialOffer::partnerDays()).' de l\'offre '.TrialOffer::planName(),
+        ]]);
+    }
+
+    public function start(Request $request, StoreSignup $signup, LoginHandoff $handoff, PhoneVerifier $verifier, CarrierDirectory $directory): JsonResponse
     {
         $request->merge(['slug' => strtolower(trim((string) $request->input('slug')))]);
 
@@ -45,6 +62,7 @@ class SignupController extends Controller
             'name' => ['required', 'string', 'max:80'],
             'phone' => ['required', new PhoneRule],
             'password' => ['required', 'string', 'min:8', 'max:100'],
+            'partner' => ['nullable', 'string', 'max:80'],
         ], [], [
             'store_name' => 'nom de la boutique',
             'slug' => 'adresse',
@@ -53,6 +71,8 @@ class SignupController extends Controller
             'password' => 'mot de passe',
         ]);
         $data['phone'] = PhoneNumber::normalize($data['phone']);
+        // Parrainage reconnu seulement pour une entreprise présente dans l'annuaire
+        $data['partner'] = filled($data['partner'] ?? null) ? $directory->find($data['partner'])['slug'] ?? null : null;
 
         $result = $signup->start($data, $request->ip());
 

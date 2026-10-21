@@ -29,10 +29,23 @@ class TenancyTest extends TestCase
         $this->get($this->platformUrl())->assertOk()
             ->assertSee('Des livreurs fiables, toujours disponibles, en un clic')
             ->assertSee('Connecter en un clic')
-            ->assertSee('5 000 F')->assertSee('15 000 F')
+            ->assertSee('3 500 F')->assertSee('12 500 F')
             ->assertDontSee('35 000 F')
             ->assertSee('/videos/og-marchand.jpg', false)
             ->assertSee('"@type":"FAQPage"', false);
+    }
+
+    public function test_prices_suit_mobile_money_payments(): void
+    {
+        $this->seed(PlanSeeder::class);
+
+        $this->get($this->platformUrl())->assertOk()
+            ->assertSee("ou 1\u{00A0}500\u{00A0}F / semaine", false)
+            ->assertSee("25\u{00A0}000\u{00A0}F d'économie", false)
+            ->assertSee('Wave, Orange Money, MTN, Moov')
+            ->assertSee('60 commandes par mois')
+            ->assertSee("Rechargez 100 actions pour 1\u{00A0}000\u{00A0}F", false)
+            ->assertSee('2 mois de l&#039;offre Pro au lieu de 1 mois', false);
     }
 
     public function test_every_plan_lists_the_online_store(): void

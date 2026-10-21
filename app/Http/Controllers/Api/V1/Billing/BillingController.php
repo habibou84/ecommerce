@@ -28,11 +28,20 @@ class BillingController extends Controller
     {
         $data = $request->validate([
             'plan' => ['required', Rule::exists('plans', 'code')->where('is_public', true)],
-            'cycle' => ['required', Rule::in(['monthly', 'yearly'])],
+            'cycle' => ['required', Rule::in(['monthly', 'weekly', 'yearly'])],
             'method' => ['required', 'string'],
         ], [], ['plan' => 'offre', 'method' => 'moyen de paiement']);
 
         $invoice = $this->billing->checkout($this->currentStore(), Plan::where('code', $data['plan'])->firstOrFail(), $data['cycle'], $data['method'], $request->user());
+
+        return response()->json(['data' => $this->billing->presentInvoice($invoice), 'redirect' => $invoice->checkout_url], 201);
+    }
+
+    public function aiPack(Request $request): JsonResponse
+    {
+        $data = $request->validate(['method' => ['required', 'string']], [], ['method' => 'moyen de paiement']);
+
+        $invoice = $this->billing->buyAiPack($this->currentStore(), $data['method'], $request->user());
 
         return response()->json(['data' => $this->billing->presentInvoice($invoice), 'redirect' => $invoice->checkout_url], 201);
     }
