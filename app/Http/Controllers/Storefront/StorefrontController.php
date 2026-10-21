@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Models\Collection;
 use App\Models\Page;
+use App\Models\Plan;
 use App\Services\Catalog\Bundles;
 use App\Services\Marketing\ReviewBook;
 use App\Services\Promotions\Pricing;
@@ -37,7 +38,12 @@ class StorefrontController extends Controller
     public function home(Request $request, Tenancy $tenancy): Response|JsonResponse|RedirectResponse
     {
         return match ($tenancy->zone()) {
-            Tenancy::PLATFORM => response()->view('platform.home', ['signupUrl' => '/creer-ma-boutique', 'loginUrl' => '/connexion']),
+            Tenancy::PLATFORM => response()->view('platform.home', [
+                'signupUrl' => '/creer-ma-boutique',
+                'loginUrl' => '/connexion',
+                // Tarifs de la page de présentation : offres publiques de la console
+                'plans' => Plan::where('is_public', true)->orderBy('sort')->get(),
+            ]),
             Tenancy::CONSOLE => redirect('/console'),
             Tenancy::API => response()->json(['message' => 'API Jibiat Marchand.'], 404),
             default => $this->storefrontHome($request),

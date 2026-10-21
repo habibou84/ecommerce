@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Enums\Role;
 use App\Enums\StoreStatus;
+use App\Models\Plan;
 use App\Models\SlugHistory;
 use App\Models\StoreDomain;
 use App\Models\StoreInvitation;
 use App\Support\Tenancy;
+use Database\Seeders\PlanSeeder;
 use Tests\TestCase;
 
 class TenancyTest extends TestCase
@@ -16,6 +18,20 @@ class TenancyTest extends TestCase
     {
         $this->get($this->platformUrl())->assertOk()->assertSee('Créer ma boutique');
         $this->get('http://www.localhost/')->assertOk()->assertSee('Créer ma boutique');
+    }
+
+    public function test_the_presentation_page_puts_delivery_first_and_shows_public_prices(): void
+    {
+        $this->seed(PlanSeeder::class);
+        Plan::where('code', 'business')->update(['is_public' => false]);
+
+        $this->get($this->platformUrl())->assertOk()
+            ->assertSee('Des livreurs fiables, toujours disponibles, en un clic')
+            ->assertSee('Connecter en un clic')
+            ->assertSee('5 000 F')->assertSee('15 000 F')
+            ->assertDontSee('35 000 F')
+            ->assertSee('/videos/og-marchand.jpg', false)
+            ->assertSee('"@type":"FAQPage"', false);
     }
 
     public function test_the_whatsapp_facebook_window_is_only_on_the_platform(): void
