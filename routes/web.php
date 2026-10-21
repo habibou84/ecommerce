@@ -23,6 +23,7 @@ Route::middleware('zone:platform')->group(function () {
     Route::post('/facturation/valider/{invoice}', [BillingValidationController::class, 'decide'])->whereNumber('invoice')->middleware(['signed:relative', 'throttle:20,1']);
     Route::get('/cgu', [LegalController::class, 'terms'])->name('legal.terms');
     Route::get('/confidentialite', [LegalController::class, 'privacy'])->name('legal.privacy');
+    Route::get('/suppression-compte', [LegalController::class, 'accountDeletion'])->name('legal.account-deletion');
 });
 
 // admin.jibiat-marchand.com : console du super administrateur (application Vue)

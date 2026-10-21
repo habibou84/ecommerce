@@ -35,7 +35,7 @@
     <p>Accès chiffré (https), mots de passe et clés des prestataires chiffrés, cloisonnement strict entre espaces marchands, sauvegardes quotidiennes, accès de notre équipe limité, journalisé et soumis à une double vérification.</p>
 
     <h2>6. Vos droits</h2>
-    <p>Vous pouvez accéder à vos données, les faire rectifier ou supprimer, vous opposer à un traitement pour un motif légitime, et en demander la portabilité. Pour les données collectées par une boutique, adressez-vous d'abord à cette boutique. Contact : {{ config('legal.privacy_email') }}. Vous pouvez aussi saisir l'ARTCI (www.artci.ci).</p>
+    <p>Vous pouvez accéder à vos données, les faire rectifier ou supprimer, vous opposer à un traitement pour un motif légitime, et en demander la portabilité. Pour les données collectées par une boutique, adressez-vous d'abord à cette boutique. Vous pouvez aussi supprimer vous-même votre compte (<a href="{{ route('legal.account-deletion') }}">comment faire</a>). Contact : {{ config('legal.privacy_email') }}. Vous pouvez aussi saisir l'ARTCI (www.artci.ci).</p>
 
     <h2>7. Cookies</h2>
     <p>Les boutiques utilisent un cookie de panier et un cookie de session pour la gestion, indispensables au fonctionnement. Les pixels publicitaires ne sont présents que si le marchand les a activés.</p>

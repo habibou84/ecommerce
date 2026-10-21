@@ -145,6 +145,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::delete('devices', [DeviceController::class, 'destroy'])->name('devices.destroy');
             Route::put('auth/account', [AuthController::class, 'updateAccount'])->name('auth.account');
             Route::put('auth/password', [AuthController::class, 'updatePassword'])->middleware('throttle:login')->name('auth.password');
+            Route::delete('auth/account', [AuthController::class, 'destroyAccount'])->middleware('throttle:login')->name('auth.account.destroy');
 
             Route::get('store', [StoreController::class, 'show'])->name('store.show');
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
