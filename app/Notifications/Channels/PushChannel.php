@@ -4,20 +4,26 @@ namespace App\Notifications\Channels;
 
 use App\Jobs\SendPushNotification;
 use App\Models\DeviceToken;
+use App\Models\PushSubscription;
 use App\Models\Store;
 use App\Services\Push\FirebaseMessaging;
+use App\Services\Push\WebPush;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
 /**
- * Même alerte que la cloche, sur le téléphone (application installée) : au toucher, l'application ouvre la page
+ * Même alerte que la cloche, sur le téléphone ou l'ordinateur (application Android, navigateur, application
+ * installée depuis le navigateur) : au toucher, l'application ouvre la page
  * de la notification dans la bonne boutique.
  */
 class PushChannel
 {
     public function send(object $notifiable, Notification $notification): void
     {
-        if (! FirebaseMessaging::enabled() || ! DeviceToken::where('user_id', $notifiable->getKey())->exists()) {
+        // Application Android (Firebase), navigateur ou application installée depuis le navigateur (Web Push)
+        $phone = FirebaseMessaging::enabled() && DeviceToken::where('user_id', $notifiable->getKey())->exists();
+        $browser = WebPush::enabled() && PushSubscription::where('user_id', $notifiable->getKey())->exists();
+        if (! $phone && ! $browser) {
             return;
         }
 

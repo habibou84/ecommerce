@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
 import Modal from '../../components/Modal.vue'
+import PushToggle from '../../components/PushToggle.vue'
 import { boot } from '../../lib/boot'
 import { unregisterDevice } from '../../lib/push'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
@@ -82,6 +83,8 @@ async function removeAccount() {
 
 <template>
   <div class="space-y-6">
+    <PushToggle class="card p-4 sm:p-6" />
+
     <form class="card space-y-4 p-4 sm:p-6" @submit.prevent="save">
       <h2 class="font-semibold">Mes informations</h2>
       <Alert v-if="error">{{ error }}</Alert>
