@@ -8,6 +8,8 @@ use App\Enums\SubscriptionStatus;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\StoreRoles;
+use Illuminate\Support\Facades\Http;
+use Jibiat\Socle\Contract\Contract;
 use Tests\TestCase;
 
 class SignupTest extends TestCase
@@ -77,6 +79,28 @@ class SignupTest extends TestCase
 
         // Le code ne sert qu'une fois
         $this->platformApi('POST', "verifications/{$token}/confirm", ['code' => $code])->assertStatus(422);
+    }
+
+    public function test_a_delivery_company_of_the_directory_offers_one_more_month(): void
+    {
+        Http::fake(['https://jibiat.com/api/public/directory' => Http::response(Contract::example('directory'))]);
+
+        $this->platformApi('GET', 'signup/partner?slug=rapide')->assertOk()
+            ->assertJsonPath('data.name', 'Rapide Express')->assertJsonPath('data.trial', "2 mois de l'offre Pro");
+        $this->platformApi('GET', 'signup/partner?slug=inconnue')->assertOk()->assertJsonPath('data', null);
+
+        $user = User::factory()->create(['phone' => '+2250708091011']);
+        $this->platformApi('POST', 'signup', $this->signupData(['password' => 'password', 'partner' => 'rapide']))->assertCreated();
+        $store = Store::where('slug', 'awa-mode')->sole();
+        $this->assertSame('rapide', $store->referred_by);
+        $this->assertTrue($store->currentSubscription->trial_ends_at->between(now()->addDays(60)->subMinute(), now()->addDays(60)->addMinute()));
+
+        // Entreprise absente de l'annuaire : essai habituel, sans parrain
+        $this->platformApi('POST', 'signup', $this->signupData(['password' => 'password', 'slug' => 'awa-deux', 'partner' => 'inconnue']))->assertCreated();
+        $other = Store::where('slug', 'awa-deux')->sole();
+        $this->assertNull($other->referred_by);
+        $this->assertTrue($other->currentSubscription->trial_ends_at->between(now()->addDays(30)->subMinute(), now()->addDays(30)->addMinute()));
+        $this->assertSame($user->id, $other->owner_id);
     }
 
     public function test_an_existing_account_creates_another_store_with_its_password(): void

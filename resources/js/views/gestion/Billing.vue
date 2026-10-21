@@ -1,6 +1,6 @@
 <script setup>
 import Icon from '../../components/Icon.vue'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import http, { download, errorMessage } from '../../lib/http'
@@ -29,7 +29,7 @@ onMounted(async () => {
     if (route.query.facture) {
       const { data: res } = await http.post(`/billing/invoices/${route.query.facture}/check`)
       notice.value = res.data.status === 'paid'
-        ? { tone: 'success', text: `Paiement reçu : offre ${res.data.plan} active. Merci !` }
+        ? { tone: 'success', text: res.data.kind === 'ai_pack' ? `Paiement reçu : ${res.data.plan.toLowerCase()} ajoutée. Merci !` : `Paiement reçu : offre ${res.data.plan} active. Merci !` }
         : { tone: 'warning', text: 'Paiement pas encore confirmé. S\'il a bien été fait, l\'offre s\'activera dans quelques minutes.' }
       router.replace('/gestion/abonnement')
     }
@@ -42,7 +42,20 @@ onMounted(async () => {
 const sub = computed(() => data.value?.subscription)
 const paidPlans = computed(() => data.value?.plans.filter((p) => p.monthly_price > 0) ?? [])
 const selected = computed(() => paidPlans.value.find((p) => p.code === choice.plan))
-const price = computed(() => (choice.cycle === 'yearly' ? selected.value?.yearly_price : selected.value?.monthly_price) ?? 0)
+// Rythme sans prix pour l'offre choisie (ex. Pro à la semaine) : première offre qui l'a
+watch(() => choice.cycle, (cycle) => {
+  if (selected.value && !priceOf(selected.value, cycle)) choice.plan = paidPlans.value.find((p) => priceOf(p, cycle))?.code ?? choice.plan
+})
+const CYCLE_PRICE = { weekly: 'weekly_price', monthly: 'monthly_price', yearly: 'yearly_price' }
+const CYCLE_UNIT = { weekly: 'semaine', monthly: 'mois', yearly: 'an' }
+const CYCLE_LABEL = { weekly: 'à la semaine', monthly: 'mensuel', yearly: 'annuel' }
+const priceOf = (p, cycle = choice.cycle) => p?.[CYCLE_PRICE[cycle]] ?? null
+const price = computed(() => priceOf(selected.value) ?? 0)
+// Paiement à la semaine proposé seulement si une offre a un prix à la semaine
+const weekly = computed(() => paidPlans.value.some((p) => p.weekly_price))
+// Économie de l'abonnement annuel par rapport à 12 mois payés au mois
+const yearlySaving = (p) => (p.yearly_price ? Math.max(0, p.monthly_price * 12 - p.yearly_price) : 0)
+const bestSaving = computed(() => Math.max(0, ...paidPlans.value.map(yearlySaving)))
 const percent = (u) => (u.limit ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0)
 // Utilisation affichée : le nombre de boutiques seulement pour une offre qui en couvre plusieurs
 const usage = computed(() => Object.fromEntries(Object.entries(data.value?.usage ?? {}).filter(([key, u]) => key !== 'stores' || (u.limit !== 1 && !data.value.covered_by))))
@@ -50,7 +63,7 @@ const changing = computed(() => !!selected.value && (selected.value.code !== dat
 // Jours payés non utilisés : convertis en jours de la nouvelle offre
 const creditDays = computed(() => {
   if (!data.value?.credit || !changing.value || !price.value) return 0
-  return Math.min(366, Math.floor(data.value.credit / (price.value / (choice.cycle === 'yearly' ? 365 : 30))))
+  return Math.min(366, Math.floor(data.value.credit / (price.value / { weekly: 7, monthly: 30, yearly: 365 }[choice.cycle])))
 })
 
 async function pay() {
@@ -58,6 +71,18 @@ async function pay() {
   error.value = ''
   try {
     const { data: res } = await http.post('/billing/checkout', choice)
+    window.location.assign(res.redirect)
+  } catch (e) {
+    error.value = errorMessage(e)
+    busy.value = false
+  }
+}
+
+async function buyAiPack() {
+  busy.value = true
+  error.value = ''
+  try {
+    const { data: res } = await http.post('/billing/ai-pack', { method: choice.method })
     window.location.assign(res.redirect)
   } catch (e) {
     error.value = errorMessage(e)
@@ -81,7 +106,7 @@ async function cancel(value) {
         <h3 class="text-lg font-semibold">Offre {{ data.plan.name }}</h3>
         <span v-if="sub?.status === 'trialing'" class="rounded bg-sky-100 px-2 py-0.5 text-sm text-sky-800">Essai gratuit jusqu'au {{ formatDateTime(sub.trial_ends_at) }}</span>
         <span v-else-if="sub?.status === 'past_due'" class="rounded bg-amber-100 px-2 py-0.5 text-sm text-amber-900">À renouveler avant le {{ formatDateTime(sub.grace_ends_at) }}</span>
-        <span v-else-if="sub" class="text-sm text-slate-600">{{ sub.cancel_at_period_end ? 'Se termine' : 'Renouvellement' }} le {{ formatDateTime(sub.current_period_end) }} · {{ sub.billing_cycle === 'yearly' ? 'annuel' : 'mensuel' }}</span>
+        <span v-else-if="sub" class="text-sm text-slate-600">{{ sub.cancel_at_period_end ? 'Se termine' : 'Renouvellement' }} le {{ formatDateTime(sub.current_period_end) }} · {{ CYCLE_LABEL[sub.billing_cycle] ?? 'mensuel' }}</span>
       </div>
       <p v-if="sub?.cancel_at_period_end" class="text-sm">Votre espace marchand passera à l'offre gratuite à l'échéance. <button class="text-emerald-700 underline" @click="cancel(false)">Garder mon abonnement</button></p>
       <p v-else-if="sub && sub.status === 'active'" class="text-sm"><button class="text-slate-500 underline" @click="cancel(true)">Revenir à l'offre gratuite à l'échéance</button></p>
@@ -101,14 +126,19 @@ async function cancel(value) {
     <section v-if="!data.covered_by" class="card space-y-4 p-4">
       <h3 class="font-semibold">{{ sub && sub.status !== 'trialing' ? 'Renouveler ou changer d\'offre' : 'Choisir une offre' }}</h3>
       <div class="flex gap-1 rounded-lg bg-slate-100 p-1 text-sm sm:w-fit">
-        <button class="flex-1 rounded-md px-3 py-1" :class="choice.cycle === 'monthly' ? 'bg-white shadow-sm' : ''" @click="choice.cycle = 'monthly'">Mensuel</button>
-        <button class="flex-1 rounded-md px-3 py-1" :class="choice.cycle === 'yearly' ? 'bg-white shadow-sm' : ''" @click="choice.cycle = 'yearly'">Annuel <span class="text-emerald-700">2 mois offerts</span></button>
+        <button v-if="weekly" class="flex-1 rounded-md px-3 py-1 whitespace-nowrap" :class="choice.cycle === 'weekly' ? 'bg-white shadow-sm' : ''" @click="choice.cycle = 'weekly'">Semaine</button>
+        <button class="flex-1 rounded-md px-3 py-1" :class="choice.cycle === 'monthly' ? 'bg-white shadow-sm' : ''" @click="choice.cycle = 'monthly'">Mois</button>
+        <button class="flex-1 rounded-md px-3 py-1 whitespace-nowrap" :class="choice.cycle === 'yearly' ? 'bg-white shadow-sm' : ''" @click="choice.cycle = 'yearly'">Année <span class="text-emerald-700">2 mois offerts</span></button>
       </div>
+      <p v-if="choice.cycle === 'yearly' && bestSaving" class="text-sm text-emerald-800">12 mois pour le prix de 10 : jusqu'à <strong>{{ money(bestSaving) }}</strong> d'économie par an.</p>
+      <p v-else-if="choice.cycle === 'weekly'" class="text-sm text-slate-600">Payez semaine après semaine, au rythme de vos ventes. Au mois, c'est moins cher.</p>
       <div class="grid gap-3 md:grid-cols-3">
-        <label v-for="p in paidPlans" :key="p.code" class="flex cursor-pointer flex-col gap-2 rounded-xl border p-4 text-sm" :class="choice.plan === p.code ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
-          <span class="flex items-center gap-2"><input v-model="choice.plan" type="radio" :value="p.code" class="accent-emerald-700" /><span class="text-base font-semibold">{{ p.name }}</span>
+        <label v-for="p in paidPlans" :key="p.code" class="flex flex-col gap-2 rounded-xl border p-4 text-sm" :class="[choice.plan === p.code ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200', priceOf(p) ? 'cursor-pointer' : 'opacity-50']">
+          <span class="flex items-center gap-2"><input v-model="choice.plan" type="radio" :value="p.code" :disabled="!priceOf(p)" class="accent-emerald-700" /><span class="text-base font-semibold">{{ p.name }}</span>
             <span v-if="p.code === data.plan.code && sub?.status !== 'trialing'" class="ml-auto rounded bg-white px-1.5 text-xs text-emerald-800">Actuelle</span></span>
-          <span class="text-xl font-semibold">{{ money(choice.cycle === 'yearly' ? p.yearly_price : p.monthly_price) }}<span class="text-sm font-normal text-slate-500"> / {{ choice.cycle === 'yearly' ? 'an' : 'mois' }}</span></span>
+          <span v-if="priceOf(p)" class="text-xl font-semibold">{{ money(priceOf(p)) }}<span class="text-sm font-normal text-slate-500"> / {{ CYCLE_UNIT[choice.cycle] }}</span></span>
+          <span v-else class="text-slate-500">Pas de paiement à la {{ CYCLE_UNIT[choice.cycle] }}</span>
+          <span v-if="choice.cycle === 'yearly' && yearlySaving(p)" class="text-xs font-medium text-emerald-700">{{ money(yearlySaving(p)) }} d'économie par an</span>
           <ul class="space-y-0.5 text-slate-600">
             <li class="text-emerald-800">✓ Boutique en ligne{{ p.features.includes('custom_domain') ? ' à votre nom de domaine' : '' }}</li>
             <li v-for="(label, key) in LIMITS" :key="key">{{ limitLine(p, key) }} {{ label }}</li>
@@ -127,7 +157,21 @@ async function cancel(value) {
           <option v-for="(label, key) in data.methods" :key="key" :value="key">{{ label }}</option>
         </select>
         <button class="btn-brand" :disabled="busy || !price" @click="pay">{{ busy ? 'Redirection…' : `Payer ${money(price)}` }}</button>
-        <span class="text-xs text-slate-500">Paiement sécurisé chez le prestataire. Sans renouvellement, votre espace marchand repasse à l'offre gratuite (rien n'est supprimé).</span>
+        <span class="text-xs text-slate-500">Sans carte bancaire : Wave, Orange Money, MTN ou Moov. Une facture à chaque paiement. Sans renouvellement, votre espace marchand repasse à l'offre gratuite (rien n'est supprimé).</span>
+      </div>
+    </section>
+
+    <section v-if="data.ai_pack && usage.ai_actions_per_month" class="card space-y-3 p-4 text-sm">
+      <h3 class="font-semibold">Recharger l'assistant</h3>
+      <p class="text-slate-600">
+        {{ data.ai_pack.actions }} actions de plus pour {{ money(data.ai_pack.price) }}, utilisées quand celles de votre offre sont épuisées. Elles ne périment pas.
+        <template v-if="data.ai_credits"> En réserve : <strong>{{ data.ai_credits }} actions</strong>.</template>
+      </p>
+      <div class="flex flex-wrap items-center gap-3">
+        <select v-model="choice.method" class="input w-auto" aria-label="Moyen de paiement de la recharge">
+          <option v-for="(label, key) in data.methods" :key="key" :value="key">{{ label }}</option>
+        </select>
+        <button class="btn-brand" :disabled="busy" @click="buyAiPack">{{ busy ? 'Redirection…' : `Recharger pour ${money(data.ai_pack.price)}` }}</button>
       </div>
     </section>
 

@@ -14,6 +14,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Rules\StoreSlug;
 use App\Services\Places\Places;
+use App\Support\TrialOffer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -31,7 +32,7 @@ class StoreSignup
     ) {}
 
     /**
-     * @param  array{store_name: string, slug: string, name: string, phone: string, password: string}  $data
+     * @param  array{store_name: string, slug: string, name: string, phone: string, password: string, partner?: ?string}  $data
      * @return array{store: ?Store, user: ?User, verification: ?PhoneVerification, token: ?string, demo_code: ?string}
      */
     public function start(array $data, ?string $ip = null): array
@@ -46,7 +47,7 @@ class StoreSignup
                 throw new BusinessRuleException('Ce compte est suspendu.', 'phone');
             }
 
-            $store = $this->createStore($existing, $data['store_name'], $data['slug']);
+            $store = $this->createStore($existing, $data['store_name'], $data['slug'], partner: $data['partner'] ?? null);
 
             return ['store' => $store, 'user' => $existing, 'verification' => null, 'token' => null, 'demo_code' => null];
         }
@@ -55,6 +56,7 @@ class StoreSignup
             'store_name' => $data['store_name'],
             'slug' => $data['slug'],
             'name' => $data['name'],
+            'partner' => $data['partner'] ?? null,
             'password_hash' => Hash::make($data['password']),
         ], ip: $ip);
 
@@ -83,7 +85,7 @@ class StoreSignup
             }
             $user->forceFill(['phone_verified_at' => now()])->save();
 
-            $store = $this->createStore($user, $payload['store_name'], $payload['slug']);
+            $store = $this->createStore($user, $payload['store_name'], $payload['slug'], partner: $payload['partner'] ?? null);
             $this->verifier->complete($verification);
 
             return [$user, $store];
@@ -92,8 +94,9 @@ class StoreSignup
 
     /**
      * Nouvelle boutique du propriétaire, avec l'essai de l'offre (sauf si un abonnement existant la couvre).
+     * Invitée par une entreprise de livraison de l'annuaire ($partner) : l'essai dure un mois de plus.
      */
-    public function createStore(User $owner, string $name, string $slug, bool $trial = true): Store
+    public function createStore(User $owner, string $name, string $slug, bool $trial = true, ?string $partner = null): Store
     {
         // Adresse prise entre la saisie et la vérification du numéro
         $validator = Validator::make(['slug' => $slug], ['slug' => [new StoreSlug]]);
@@ -101,7 +104,7 @@ class StoreSignup
             throw new BusinessRuleException($validator->errors()->first('slug').' Choisissez une autre adresse.', 'slug');
         }
 
-        return DB::transaction(function () use ($owner, $name, $slug, $trial) {
+        return DB::transaction(function () use ($owner, $name, $slug, $trial, $partner) {
             // Propriétaire et statut ne sont jamais remplis en masse
             $store = (new Store)->forceFill([
                 'owner_id' => $owner->id,
@@ -110,6 +113,7 @@ class StoreSignup
                 'phone' => $owner->phone,
                 'whatsapp_phone' => $owner->phone,
                 'status' => StoreStatus::Trial,
+                'referred_by' => $partner,
             ]);
             $store->save();
 
@@ -119,12 +123,13 @@ class StoreSignup
 
             $plan = Plan::where('code', config('platform.trial_plan'))->first();
             if ($trial && $plan !== null) {
+                $days = $partner !== null ? TrialOffer::partnerDays() : TrialOffer::days();
                 $store->subscriptions()->create([
                     'plan_id' => $plan->id,
                     'status' => SubscriptionStatus::Trialing,
-                    'trial_ends_at' => now()->addDays(config('platform.trial_days')),
+                    'trial_ends_at' => now()->addDays($days),
                     'current_period_start' => now(),
-                    'current_period_end' => now()->addDays(config('platform.trial_days')),
+                    'current_period_end' => now()->addDays($days),
                 ]);
             }
 

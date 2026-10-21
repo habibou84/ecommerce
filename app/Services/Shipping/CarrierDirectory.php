@@ -59,6 +59,16 @@ class CarrierDirectory
     }
 
     /**
+     * Entreprise de l'annuaire (parrainage d'un nouvel e-commerçant), null si inconnue ou annuaire injoignable.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function find(string $slug): ?array
+    {
+        return collect($this->all() ?? [])->firstWhere('slug', $slug);
+    }
+
+    /**
      * @return list<array<string, mixed>>|null null si l'annuaire ne répond pas
      */
     private function all(): ?array

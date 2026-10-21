@@ -21,6 +21,7 @@ async function save(plan) {
   try {
     const { data: res } = await http.put(`/console/plans/${plan.id}`, {
       name: plan.name, monthly_price: Number(plan.monthly_price), yearly_price: plan.yearly_price === '' || plan.yearly_price === null ? null : Number(plan.yearly_price),
+      weekly_price: plan.weekly_price === '' || plan.weekly_price === null ? null : Number(plan.weekly_price),
       limits: Object.fromEntries(Object.keys(data.value.limits).map((k) => [k, plan.limits[k] === '' || plan.limits[k] === null || plan.limits[k] === undefined ? null : Number(plan.limits[k])])),
       features: Object.fromEntries(Object.keys(data.value.features).map((k) => [k, !!plan.features?.[k]])),
       is_public: plan.is_public,
@@ -44,7 +45,8 @@ async function save(plan) {
           <code class="text-xs text-slate-500">{{ plan.code }}</code>
           <label class="ml-auto flex items-center gap-1"><input v-model="plan.is_public" type="checkbox" class="accent-emerald-700" /> Proposée</label>
         </div>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-3 gap-2">
+          <label>Par semaine <input v-model="plan.weekly_price" type="number" min="0" step="5" class="input" placeholder="non" /></label>
           <label>Par mois <input v-model="plan.monthly_price" type="number" min="0" step="5" class="input" /></label>
           <label>Par an <input v-model="plan.yearly_price" type="number" min="0" step="5" class="input" /></label>
         </div>

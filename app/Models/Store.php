@@ -57,6 +57,7 @@ class Store extends Model
             'closed_at' => 'datetime',
             'free_shipping_above' => 'integer',
             'billing_notices' => 'array',
+            'ai_credits' => 'integer',
             'marketing' => 'array',
             'delivery_calendar' => 'array',
             'alert_settings' => 'array',

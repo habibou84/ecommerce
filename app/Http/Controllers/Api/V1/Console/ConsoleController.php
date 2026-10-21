@@ -36,7 +36,11 @@ class ConsoleController extends Controller
         $since = now()->subDays(30);
         $orders = Order::withoutGlobalScopes()->where('created_at', '>=', $since);
         $monthly = Subscription::where('status', SubscriptionStatus::Active->value)->with('plan')->get()
-            ->sum(fn (Subscription $s) => $s->billing_cycle === 'yearly' ? (int) round(($s->plan->yearly_price ?? 0) / 12) : $s->plan->monthly_price);
+            ->sum(fn (Subscription $s) => match ($s->billing_cycle) {
+                'yearly' => (int) round(($s->plan->yearly_price ?? 0) / 12),
+                'weekly' => (int) round(($s->plan->weekly_price ?? 0) * 52 / 12),
+                default => $s->plan->monthly_price,
+            });
 
         return response()->json(['data' => [
             'stores' => Store::count(),
@@ -201,6 +205,7 @@ class ConsoleController extends Controller
             'name' => ['sometimes', 'string', 'max:60'],
             'monthly_price' => ['sometimes', 'integer', 'min:0', 'multiple_of:5'],
             'yearly_price' => ['sometimes', 'nullable', 'integer', 'min:0', 'multiple_of:5'],
+            'weekly_price' => ['sometimes', 'nullable', 'integer', 'min:0', 'multiple_of:5'],
             'limits' => ['sometimes', 'array'],
             'limits.*' => ['nullable', 'integer', 'min:0'],
             'features' => ['sometimes', 'array'],

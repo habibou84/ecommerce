@@ -39,7 +39,7 @@
         <thead><tr><th>Désignation</th><th>Période</th><th class="right">Montant</th></tr></thead>
         <tbody>
             <tr>
-                <td>Abonnement {{ $invoice->plan->name }} ({{ $invoice->billing_cycle === 'yearly' ? 'annuel' : 'mensuel' }}){{ $invoice->status === 'offered' ? ' — offert' : '' }}</td>
+                <td>@if ($invoice->kind === 'ai_pack')Recharge de l'assistant IA : {{ $invoice->ai_actions }} actions @else Abonnement {{ $invoice->plan?->name }} ({{ ['yearly' => 'annuel', 'weekly' => 'à la semaine'][$invoice->billing_cycle] ?? 'mensuel' }}){{ $invoice->status === 'offered' ? ' — offert' : '' }}@endif</td>
                 <td>{{ $invoice->period_start?->format('d/m/Y') }} → {{ $invoice->period_end?->format('d/m/Y') }}</td>
                 <td class="right">{{ $money($invoice->amount) }}</td>
             </tr>
