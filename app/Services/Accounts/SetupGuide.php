@@ -18,6 +18,7 @@ use App\Models\StoreInvitation;
 use App\Models\StoreUser;
 use App\Models\User;
 use App\Models\WhatsappAccount;
+use App\Support\StartSteps;
 
 /**
  * Guide de démarrage pas à pas : chaque étape dit pourquoi elle compte, quoi faire et où. Une étape est « faite »
@@ -59,6 +60,8 @@ class SetupGuide
                     'optional' => $s['optional'] ?? false,
                     'done' => $done,
                     'skipped' => ! $done && in_array($key, $skipped, true),
+                    // Courte vidéo « Les étapes essentielles pour commencer »
+                    'video' => StartSteps::forGuide($key),
                 ];
             })->values();
 
