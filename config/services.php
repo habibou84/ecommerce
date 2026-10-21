@@ -53,6 +53,14 @@ return [
         'credentials' => env('FIREBASE_CREDENTIALS'),
     ],
 
+    // Notifications push du navigateur et de l'application installée depuis le navigateur (Web Push, VAPID) :
+    // clés créées par la mise à jour du serveur (« php artisan webpush:vapid »)
+    'webpush' => [
+        'public_key' => env('VAPID_PUBLIC_KEY'),
+        'private_key' => env('VAPID_PRIVATE_KEY'),
+        'subject' => env('VAPID_SUBJECT'),
+    ],
+
     // Assistant IA (fiche produit depuis une photo, commande depuis une conversation, réponses WhatsApp)
     // Publication sur TikTok (Login Kit + Content Posting API)
     'tiktok' => [

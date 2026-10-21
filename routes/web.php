@@ -23,6 +23,7 @@ Route::middleware('zone:platform')->group(function () {
     Route::post('/facturation/valider/{invoice}', [BillingValidationController::class, 'decide'])->whereNumber('invoice')->middleware(['signed:relative', 'throttle:20,1']);
     Route::get('/cgu', [LegalController::class, 'terms'])->name('legal.terms');
     Route::get('/confidentialite', [LegalController::class, 'privacy'])->name('legal.privacy');
+    Route::get('/suppression-compte', [LegalController::class, 'accountDeletion'])->name('legal.account-deletion');
 });
 
 // admin.jibiat-marchand.com : console du super administrateur (application Vue)
@@ -34,7 +35,7 @@ Route::middleware('zone:console')->group(function () {
 Route::middleware('zone:store')->group(function () {
     Route::get('/auth/relais', HandoffController::class)->name('handoff');
     Route::get('/invitation/{token}', [PageController::class, 'spa'])->name('invitation');
-    Route::get('/gestion/{any?}', [PageController::class, 'spa'])->where('any', '.*')->name('gestion');
+    Route::get('/gestion/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest).*')->name('gestion');
     // Application des livreurs de la boutique (installable sur le téléphone)
     Route::get('/livreur/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest).*')->name('courier-app');
 });

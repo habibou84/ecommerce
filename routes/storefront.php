@@ -17,6 +17,7 @@ use App\Http\Controllers\Webhooks\PaymentWebhookController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
 /*
  * Pages publiques, sans session ni jeton CSRF : un visiteur n'a qu'un cookie de panier. Les écritures (panier,
@@ -37,6 +38,27 @@ Route::middleware('zone:store,custom_domain')->group(function () {
     Route::post('/avis/{token}', [ReviewController::class, 'store'])->where('token', '[A-Za-z0-9]{16,32}')->middleware(['ajax', 'throttle:storefront-order']);
     // Ticket de caisse (vente au comptoir ou commande payée), à imprimer ou à envoyer par WhatsApp
     Route::get('/recu/{token}', ReceiptController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('receipt');
+    // Gestion de la boutique : manifeste (installation sur l'écran d'accueil du téléphone ou de l'ordinateur)
+    Route::get('/gestion/manifest.webmanifest', function (Tenancy $tenancy) {
+        $store = $tenancy->store();
+
+        return response()->json([
+            'name' => $store->name.' · Jibiat Marchand',
+            'short_name' => Str::limit($store->name, 12, ''),
+            'start_url' => '/gestion',
+            'scope' => '/gestion',
+            'display' => 'standalone',
+            'background_color' => '#ffffff',
+            'theme_color' => '#017c40',
+            'lang' => 'fr',
+            'icons' => [
+                ['src' => '/brand/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'],
+                ['src' => '/brand/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'],
+                ['src' => '/brand/icon-maskable-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
+            ],
+        ])->header('Content-Type', 'application/manifest+json');
+    })->middleware('zone:store');
+
     // Application livreur : manifeste (installation sur l'écran d'accueil)
     Route::get('/livreur/manifest.webmanifest', function (Tenancy $tenancy) {
         $store = $tenancy->store();

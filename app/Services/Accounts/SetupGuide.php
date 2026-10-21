@@ -10,6 +10,7 @@ use App\Models\DeviceToken;
 use App\Models\Order;
 use App\Models\PaymentAccount;
 use App\Models\Product;
+use App\Models\PushSubscription;
 use App\Models\ScheduledReport;
 use App\Models\SocialAccount;
 use App\Models\Store;
@@ -100,6 +101,19 @@ class SetupGuide
     private function definitions(): array
     {
         return [
+            'mobile_app' => [
+                'phase' => 'store', 'permission' => null,
+                'title' => 'L\'application sur votre téléphone',
+                'why' => 'Votre boutique dans la poche, et les nouvelles commandes et alertes en notification, même application fermée.',
+                'todo' => [
+                    'Android : dans Chrome, touchez ⋮ puis « Installer l\'application »',
+                    'iPhone : dans Safari, touchez Partager puis « Sur l\'écran d\'accueil »',
+                    'Ouvrez-la depuis l\'icône, puis Mon compte › « Activer les notifications »',
+                    'Sur ordinateur : rien à installer, activez aussi les notifications dans Mon compte',
+                ],
+                'to' => '/gestion/compte', 'action' => 'Activer les notifications',
+                'done' => fn (Store $s, User $u) => DeviceToken::where('user_id', $u->id)->exists() || PushSubscription::where('user_id', $u->id)->exists(),
+            ],
             'store_info' => [
                 'phase' => 'store', 'permission' => Permission::StoreManage,
                 'title' => 'Les informations de votre espace marchand',
@@ -219,14 +233,6 @@ class SetupGuide
                 'to' => '/gestion/marketing/reseaux', 'action' => 'Connecter les réseaux',
                 'done' => fn (Store $s) => SocialAccount::forStore($s->id)->where('status', 'active')->exists()
                     || collect(['meta_pixel_id', 'tiktok_pixel_id', 'ga4_id'])->contains(fn ($k) => $s->marketingId($k)),
-            ],
-            'mobile_app' => [
-                'phase' => 'more', 'permission' => null, 'optional' => true,
-                'title' => 'L\'application sur votre téléphone',
-                'why' => 'Vous recevez les nouvelles commandes et les alertes en notification, même application fermée.',
-                'todo' => ['Installez l\'application Jibiat Marchand sur votre téléphone Android', 'Connectez-vous et acceptez les notifications'],
-                'to' => '/gestion/compte', 'action' => 'Voir mon compte',
-                'done' => fn (Store $s, User $u) => DeviceToken::where('user_id', $u->id)->exists(),
             ],
         ];
     }

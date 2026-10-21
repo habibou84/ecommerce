@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Enums\Role;
 use App\Enums\StoreStatus;
 use App\Enums\UserStatus;
+use App\Models\Courier;
+use App\Models\DeviceToken;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -186,5 +188,36 @@ class AuthTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors('password');
         $this->storeApi($store, 'PUT', 'auth/password', ['current_password' => 'password', 'password' => 'nouveau-mdp', 'password_confirmation' => 'nouveau-mdp'])->assertOk();
         $this->assertTrue(Hash::check('nouveau-mdp', $cashier->fresh()->password));
+    }
+
+    public function test_anyone_can_delete_their_own_account(): void
+    {
+        $store = $this->createStore(['name' => 'Awa Mode']);
+        $agent = $this->addMember($store, User::factory()->create(['phone' => '+2250102030405', 'email' => 'agent@exemple.com']), Role::ConfirmationAgent);
+        $courier = Courier::create(['store_id' => $store->id, 'user_id' => $agent->id, 'name' => 'Moussa', 'phone' => '+2250102030405', 'status' => 'active']);
+        DeviceToken::create(['user_id' => $agent->id, 'token' => 'jeton-fcm', 'platform' => 'android', 'last_seen_at' => now()]);
+        $this->actingAs($agent);
+
+        $this->storeApi($store, 'DELETE', 'auth/account', ['password' => 'mauvais'])->assertStatus(422)->assertJsonPath('errors.password.0', 'Mot de passe incorrect.');
+        $this->storeApi($store, 'DELETE', 'auth/account', ['password' => 'password'])->assertOk();
+
+        // Nom, téléphone et email effacés, accès retirés ; le numéro redevient libre
+        $deleted = User::withTrashed()->findOrFail($agent->id);
+        $this->assertTrue($deleted->trashed());
+        $this->assertSame(['Compte supprimé', 'supprime-'.$agent->id, null, null], [$deleted->name, $deleted->phone, $deleted->email, $deleted->password]);
+        $this->assertSame(0, $store->members()->where('user_id', $agent->id)->count());
+        $this->assertSame([null, 'inactive'], [$courier->fresh()->user_id, $courier->fresh()->status]);
+        $this->assertSame(0, DeviceToken::where('user_id', $agent->id)->count());
+        $this->logout();
+        $this->storeApi($store, 'POST', 'auth/login', ['phone' => '0102030405', 'password' => 'password'])->assertStatus(422);
+        User::factory()->create(['phone' => '+2250102030405']);
+
+        // Le propriétaire ferme d'abord sa boutique
+        $this->actingAs($store->owner);
+        $this->storeApi($store, 'DELETE', 'auth/account', ['password' => 'password'])->assertStatus(422)
+            ->assertJsonPath('message', 'Vous êtes propriétaire de Awa Mode : fermez d\'abord la boutique (Réglages › Données et fermeture), puis supprimez votre compte.');
+
+        // Page publique qui explique comment faire (demandée par Google Play)
+        $this->get($this->platformUrl('/suppression-compte'))->assertOk()->assertSee('Supprimer mon compte');
     }
 }

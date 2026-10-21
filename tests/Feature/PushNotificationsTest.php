@@ -5,11 +5,13 @@ namespace Tests\Feature;
 use App\Enums\Role;
 use App\Models\DeviceToken;
 use App\Models\Place;
+use App\Models\PushSubscription;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
+use App\Services\Push\WebPush;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -98,5 +100,61 @@ class PushNotificationsTest extends TestCase
         config(['services.firebase.credentials' => null]);
         $this->order($agent);
         Http::assertNothingSent();
+    }
+
+    public function test_browsers_receive_the_alerts_by_web_push(): void
+    {
+        config(['services.firebase.credentials' => null, 'services.webpush' => WebPush::generateVapidKeys() + ['subject' => 'mailto:contact@jibiat-marchand.com']]);
+        Http::fake([
+            'https://updates.push.services.mozilla.com/wpush/expire' => Http::response('', 410),
+            'https://updates.push.services.mozilla.com/*' => Http::response('', 201),
+        ]);
+        $devices = [];
+        $browser = function () use (&$devices): array {
+            $key = openssl_pkey_new(['curve_name' => 'prime256v1', 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+            $ec = openssl_pkey_get_details($key)['ec'];
+            $public = "\x04".str_pad($ec['x'], 32, "\0", STR_PAD_LEFT).str_pad($ec['y'], 32, "\0", STR_PAD_LEFT);
+            $devices[] = [$key, $public, $auth = random_bytes(16)];
+
+            return ['p256dh' => WebPush::b64($public), 'auth' => WebPush::b64($auth)];
+        };
+        // Déchiffrement « aes128gcm » comme le fait le navigateur (RFC 8291)
+        $decrypt = function (string $body, array $device): ?array {
+            [$key, $public, $auth] = $device;
+            $salt = substr($body, 0, 16);
+            $server = substr($body, 21, ord($body[20]));
+            $cipher = substr($body, 21 + ord($body[20]));
+            $prkKey = hash_hmac('sha256', openssl_pkey_derive(WebPush::publicKeyPem($server), $key, 32), $auth, true);
+            $prk = hash_hmac('sha256', substr(hash_hmac('sha256', "WebPush: info\0".$public.$server."\x01", $prkKey, true), 0, 32), $salt, true);
+            $plain = openssl_decrypt(substr($cipher, 0, -16), 'aes-128-gcm', substr(hash_hmac('sha256', "Content-Encoding: aes128gcm\0\x01", $prk, true), 0, 16),
+                OPENSSL_RAW_DATA, substr(hash_hmac('sha256', "Content-Encoding: nonce\0\x01", $prk, true), 0, 12), substr($cipher, -16));
+
+            return $plain === false ? null : json_decode(substr($plain, 0, -1), true);
+        };
+        $owner = $this->store->owner;
+        $agent = $this->addMember($this->store, User::factory()->create(), Role::ConfirmationAgent);
+
+        // L'ordinateur et le téléphone (application installée depuis le navigateur) du propriétaire s'abonnent
+        $this->actingAs($owner);
+        $this->storeApi($this->store, 'GET', 'push')->assertOk()->assertJsonPath('data.enabled', true)->assertJsonPath('data.public_key', config('services.webpush.public_key'));
+        $this->storeApi($this->store, 'POST', 'push/subscriptions', ['endpoint' => 'https://updates.push.services.mozilla.com/wpush/v2/ordinateur', 'keys' => $browser()])->assertCreated();
+        $this->storeApi($this->store, 'POST', 'push/subscriptions', ['endpoint' => 'https://updates.push.services.mozilla.com/wpush/expire', 'keys' => $browser()])->assertCreated();
+        $this->storeApi($this->store, 'POST', 'push/subscriptions', ['endpoint' => 'https://exemple.ci/x', 'keys' => ['p256dh' => 'court', 'auth' => 'court']])->assertStatus(422);
+        $this->assertSame(2, PushSubscription::where('user_id', $owner->id)->count());
+
+        // Commande saisie par l'agent : le navigateur du propriétaire reçoit l'alerte chiffrée et signée
+        $this->order($agent);
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'https://updates.push.services.mozilla.com/wpush/v2/ordinateur'
+            && $r->hasHeader('Content-Encoding', 'aes128gcm') && str_starts_with($r->header('Authorization')[0], 'vapid t=')
+            && ($decrypt($r->body(), $devices[0])['title'] ?? null) === 'Nouvelle commande #1001'
+            && str_starts_with($decrypt($r->body(), $devices[0])['url'], $this->storeUrl($this->store, '/gestion/commandes/')));
+        // Abonnement expiré : oublié
+        $this->assertSame(['https://updates.push.services.mozilla.com/wpush/v2/ordinateur'], PushSubscription::pluck('endpoint')->all());
+
+        // Essai, puis désabonnement à la déconnexion
+        $this->storeApi($this->store, 'POST', 'push/test')->assertOk()->assertJsonPath('data.devices', 1);
+        $this->storeApi($this->store, 'DELETE', 'push/subscriptions', ['endpoint' => 'https://updates.push.services.mozilla.com/wpush/v2/ordinateur'])->assertNoContent();
+        $this->assertSame(0, PushSubscription::count());
+        $this->storeApi($this->store, 'POST', 'push/test')->assertStatus(422);
     }
 }

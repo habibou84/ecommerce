@@ -19,7 +19,7 @@ onMounted(async () => {
   // Installable sur l'écran d'accueil ; la page s'ouvre même sans réseau. Les écrans de l'application sont chargés
   // tout de suite pour qu'ils soient gardés sur le téléphone avant de perdre le réseau.
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/livreur-sw.js').catch(() => {})
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
     navigator.serviceWorker.ready.then(() => {
       import('../views/courier/Missions.vue')
       import('../views/courier/Mission.vue')

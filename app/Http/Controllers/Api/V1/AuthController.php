@@ -7,6 +7,7 @@ use App\Http\Resources\StoreResource;
 use App\Models\Store;
 use App\Models\SupportSession;
 use App\Models\User;
+use App\Services\Accounts\AccountDeletion;
 use App\Services\Accounts\LoginHandoff;
 use App\Services\Accounts\StoreRoles;
 use App\Services\Ai\Assistant;
@@ -106,6 +107,21 @@ class AuthController extends Controller
         $user->update(['password' => Hash::make($request->string('password'))]);
 
         return response()->json(['message' => 'Mot de passe modifié.']);
+    }
+
+    /**
+     * Supprimer mon compte (mot de passe demandé) ; la session est fermée.
+     */
+    public function destroyAccount(Request $request, AccountDeletion $deletion): JsonResponse
+    {
+        $request->validate(['password' => ['required', 'string', 'max:100']], [], ['password' => 'mot de passe']);
+        $deletion->delete($request->user(), (string) $request->string('password'));
+
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return response()->json(['message' => 'Votre compte a été supprimé.']);
     }
 
     /**

@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\Payments\OrderPaymentController;
 use App\Http\Controllers\Api\V1\Payments\PaymentSettingsController;
 use App\Http\Controllers\Api\V1\PlatformAccountController;
+use App\Http\Controllers\Api\V1\PushSubscriptionController;
 use App\Http\Controllers\Api\V1\Reports\StatsController;
 use App\Http\Controllers\Api\V1\SetupGuideController;
 use App\Http\Controllers\Api\V1\Shipping\CarrierBalanceController;
@@ -143,8 +144,13 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('auth/switch/{store}', [AuthController::class, 'switch'])->whereNumber('store')->name('auth.switch');
             Route::post('devices', [DeviceController::class, 'store'])->name('devices.store');
             Route::delete('devices', [DeviceController::class, 'destroy'])->name('devices.destroy');
+            Route::get('push', [PushSubscriptionController::class, 'show'])->name('push.show');
+            Route::post('push/subscriptions', [PushSubscriptionController::class, 'store'])->middleware('throttle:20,1')->name('push.store');
+            Route::delete('push/subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push.destroy');
+            Route::post('push/test', [PushSubscriptionController::class, 'test'])->middleware('throttle:5,1')->name('push.test');
             Route::put('auth/account', [AuthController::class, 'updateAccount'])->name('auth.account');
             Route::put('auth/password', [AuthController::class, 'updatePassword'])->middleware('throttle:login')->name('auth.password');
+            Route::delete('auth/account', [AuthController::class, 'destroyAccount'])->middleware('throttle:login')->name('auth.account.destroy');
 
             Route::get('store', [StoreController::class, 'show'])->name('store.show');
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {

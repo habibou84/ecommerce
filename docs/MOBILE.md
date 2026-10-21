@@ -53,8 +53,14 @@ JM_DOMAIN=preprod.jibiat-marchand.com npx cap sync android
 npx cap open android        # Android Studio
 ```
 
-Icône et écran de démarrage : images sources dans `mobile/assets/`, puis
-`npx @capacitor/assets generate --android --iconBackgroundColor '#047857' --splashBackgroundColor '#047857'`.
+Icône et écran de démarrage (logo Jibiat Marchand sur fond blanc) : images sources dans `mobile/assets/`, puis
+`npx @capacitor/assets generate --android --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#ffffff' --splashBackgroundColor '#ffffff' --splashBackgroundColorDark '#0f172a'`.
+
+## Play Store
+
+Fiche, textes, images et réponses aux questionnaires de Google : `docs/PLAY-STORE.md`. Chacun peut supprimer son
+compte dans l'application (Mon compte › Supprimer mon compte), comme Google l'exige ; la page publique
+`/suppression-compte` explique comment faire.
 
 ## Notifications push (Firebase)
 

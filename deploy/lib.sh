@@ -176,6 +176,22 @@ build_app() {
     as_app "php artisan optimize"
 }
 
+# Notifications du navigateur (Web Push) : clés VAPID créées une seule fois, gardées ensuite (les changer obligerait
+# chacun à réactiver les notifications)
+configure_webpush() {
+    step "Notifications du navigateur"
+    if [[ -n "$(env_get VAPID_PUBLIC_KEY)" ]]; then
+        info "Clés déjà présentes."
+        return 0
+    fi
+    local vapid
+    vapid="$(as_app "php artisan webpush:vapid")" || { warn "Clés impossibles à créer : notifications du navigateur désactivées."; return 0; }
+    env_set VAPID_PUBLIC_KEY "$(echo "$vapid" | grep '^VAPID_PUBLIC_KEY=' | cut -d= -f2-)"
+    env_set VAPID_PRIVATE_KEY "$(echo "$vapid" | grep '^VAPID_PRIVATE_KEY=' | cut -d= -f2-)"
+    env_set VAPID_SUBJECT "mailto:$(env_get MAIL_FROM_ADDRESS | tr -d '"' | grep '@' || echo "contact@$(env_get PLATFORM_DOMAIN)")"
+    info "Clés créées."
+}
+
 # Sessions et cache dans Redis (déjà présent sur le serveur et partagé avec d'autres logiciels, dont Delivery App sur
 # ses bases 2 et 3) : bases 4 et 5, et un préfixe propre à l'installation (préproduction et production ne se mélangent
 # pas). Sans Redis qui répond, ou sans l'extension PHP, rien ne change : sessions et cache restent dans la base.

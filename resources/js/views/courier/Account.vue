@@ -2,17 +2,22 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Modal from '../../components/Modal.vue'
+import PushToggle from '../../components/PushToggle.vue'
 import { cachedGet, forgetAll, offline } from '../../lib/courierOffline'
 import { phoneDisplay } from '../../lib/format'
 import { unregisterDevice } from '../../lib/push'
 import { prefs } from '../../lib/courierPrefs'
 import { useAuthStore } from '../../stores/auth'
+import http, { errorMessage } from '../../lib/http'
 
 const auth = useAuthStore()
 const router = useRouter()
 const me = ref(null)
 const confirming = ref(false)
 const leaving = ref(false)
+const removing = ref(false)
+const removePassword = ref('')
+const removeError = ref('')
 
 onMounted(async () => {
   try {
@@ -29,6 +34,22 @@ async function logout() {
   await auth.logout().catch(() => {})
   await forgetAll()
   router.replace('/livreur/connexion')
+}
+
+// Suppression du compte : mot de passe demandé ; les missions passées restent à la boutique
+async function removeAccount() {
+  leaving.value = true
+  removeError.value = ''
+  try {
+    await unregisterDevice()
+    await http.delete('/auth/account', { data: { password: removePassword.value } })
+    await forgetAll()
+    router.replace('/livreur/connexion')
+  } catch (e) {
+    removeError.value = errorMessage(e)
+  } finally {
+    leaving.value = false
+  }
 }
 </script>
 
@@ -63,12 +84,28 @@ async function logout() {
       </label>
     </section>
 
+    <PushToggle app="livreur" class="rounded-xl bg-white p-4 text-sm shadow-sm" />
+
     <section class="rounded-xl bg-white p-4 shadow-sm text-sm text-slate-600">
       <p class="font-semibold text-slate-800">Installer l'application</p>
       <p class="mt-1">Dans le menu du navigateur, choisissez « Ajouter à l'écran d'accueil » : l'application s'ouvre ensuite comme les autres, même sans réseau.</p>
     </section>
 
     <button class="w-full rounded-xl border border-red-200 bg-white py-3 text-sm font-medium text-red-600" @click="confirming = true">Se déconnecter</button>
+
+    <button class="w-full py-2 text-sm text-slate-500 underline" @click="removing = true">Supprimer mon compte</button>
+
+    <Modal v-if="removing" title="Supprimer votre compte ?" @close="removing = false">
+      <form class="space-y-4 text-sm" @submit.prevent="removeAccount">
+        <p>Votre nom, votre téléphone et vos accès sont effacés ; les livraisons déjà faites restent à la boutique. C'est définitif : saisissez votre mot de passe pour confirmer.</p>
+        <p v-if="removeError" class="rounded-lg bg-red-50 p-3 text-red-800">{{ removeError }}</p>
+        <input v-model="removePassword" class="input" type="password" autocomplete="current-password" placeholder="Mot de passe" aria-label="Mot de passe" required />
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class="btn-secondary" @click="removing = false">Annuler</button>
+          <button class="btn-danger" :disabled="leaving">Supprimer</button>
+        </div>
+      </form>
+    </Modal>
 
     <Modal v-if="confirming" title="Se déconnecter ?" @close="confirming = false">
       <div class="space-y-4 text-sm">

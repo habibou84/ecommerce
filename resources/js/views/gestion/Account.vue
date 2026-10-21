@@ -2,6 +2,10 @@
 import { reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
+import Modal from '../../components/Modal.vue'
+import PushToggle from '../../components/PushToggle.vue'
+import { boot } from '../../lib/boot'
+import { unregisterDevice } from '../../lib/push'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { useAuthStore } from '../../stores/auth'
 
@@ -55,10 +59,32 @@ async function changePassword() {
     pwdSaving.value = false
   }
 }
+
+// Suppression du compte : mot de passe demandé ; le propriétaire ferme d'abord sa boutique
+const removing = ref(false)
+const removePassword = ref('')
+const removeError = ref('')
+const removeBusy = ref(false)
+
+async function removeAccount() {
+  removeBusy.value = true
+  removeError.value = ''
+  try {
+    await unregisterDevice()
+    await http.delete('/auth/account', { data: { password: removePassword.value } })
+    window.location.href = `${boot.platformUrl.replace(/\/$/, '')}/connexion`
+  } catch (e) {
+    removeError.value = errorMessage(e)
+  } finally {
+    removeBusy.value = false
+  }
+}
 </script>
 
 <template>
   <div class="space-y-6">
+    <PushToggle class="card p-4 sm:p-6" />
+
     <form class="card space-y-4 p-4 sm:p-6" @submit.prevent="save">
       <h2 class="font-semibold">Mes informations</h2>
       <Alert v-if="error">{{ error }}</Alert>
@@ -96,5 +122,27 @@ async function changePassword() {
       </div>
       <button class="btn-brand" :disabled="pwdSaving">{{ pwdSaving ? 'Modification…' : 'Changer le mot de passe' }}</button>
     </form>
+
+    <section class="card space-y-3 p-4 sm:p-6">
+      <h2 class="font-semibold">Supprimer mon compte</h2>
+      <p class="text-sm text-slate-600">
+        Votre nom, votre téléphone et votre email sont effacés et vous perdez l'accès à toutes vos boutiques. Les commandes que vous avez enregistrées restent dans les boutiques. Si vous êtes propriétaire, fermez d'abord la boutique (Réglages › Données et fermeture).
+      </p>
+      <button type="button" class="btn-secondary text-red-700" @click="removing = true">Supprimer mon compte</button>
+    </section>
+
+    <Modal v-if="removing" title="Supprimer votre compte ?" @close="removing = false">
+      <form class="space-y-4 text-sm" @submit.prevent="removeAccount">
+        <p>C'est définitif. Pour confirmer, saisissez votre mot de passe.</p>
+        <Alert v-if="removeError">{{ removeError }}</Alert>
+        <Field id="remove-password" label="Mot de passe">
+          <input id="remove-password" v-model="removePassword" class="input" type="password" autocomplete="current-password" required />
+        </Field>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class="btn-secondary" @click="removing = false">Annuler</button>
+          <button class="btn-danger" :disabled="removeBusy">{{ removeBusy ? 'Suppression…' : 'Supprimer' }}</button>
+        </div>
+      </form>
+    </Modal>
   </div>
 </template>
