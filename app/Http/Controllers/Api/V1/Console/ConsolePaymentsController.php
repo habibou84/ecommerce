@@ -7,6 +7,7 @@ use App\Models\AdminAction;
 use App\Models\SubscriptionInvoice;
 use App\Services\Billing\Billing;
 use App\Services\Billing\BillingSettings;
+use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -28,9 +29,18 @@ class ConsolePaymentsController extends Controller
 
     public function update(Request $request): JsonResponse
     {
+        // Lien collé sans « https:// » : complété ; {montant} est le repère du montant, pas une erreur d'adresse
+        $link = trim((string) $request->input('wave_link'));
+        if ($link !== '' && ! preg_match('#^[a-z][a-z0-9+.-]*://#i', $link)) {
+            $request->merge(['wave_link' => 'https://'.$link]);
+        }
         $data = $request->validate([
             'provider' => ['required', Rule::in(array_keys(array_filter($this->settings->available())))],
-            'wave_link' => ['nullable', 'url:https', 'max:500'],
+            'wave_link' => ['nullable', 'string', 'max:500', function (string $attribute, mixed $value, Closure $fail) {
+                if (! filter_var(str_replace('{montant}', '1000', (string) $value), FILTER_VALIDATE_URL) || ! str_starts_with((string) $value, 'https://')) {
+                    $fail('Le lien Wave doit être une adresse qui commence par https://, par exemple https://pay.wave.com/m/…');
+                }
+            }],
             'validator_email' => ['nullable', 'email', 'max:190'],
             'validator_phone' => ['nullable', new PhoneRule],
             'validator_pin' => ['nullable', 'string', 'min:4', 'max:40'],

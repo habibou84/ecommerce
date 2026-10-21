@@ -63,13 +63,19 @@ class WavePaymentConsoleTest extends TestCase
         config(['platform.billing.credentials' => []]);
         $this->console('GET', 'payments/settings')->assertOk()->assertJsonPath('data.providers.0.available', true)->assertJsonPath('data.providers.2.available', false);
         $this->console('PUT', 'payments/settings', ['provider' => 'cinetpay'])->assertStatus(422)->assertJsonValidationErrors('provider');
+        // Lien avec le repère {montant}, ou collé sans https:// : accepté ; une adresse fausse est refusée
+        $this->console('PUT', 'payments/settings', ['provider' => 'wave_link', 'wave_link' => 'https://pay.wave.com/m/M_ci_test/c/ci/?amount={montant}'])
+            ->assertOk()->assertJsonPath('data.wave_link', 'https://pay.wave.com/m/M_ci_test/c/ci/?amount={montant}');
+        $this->console('PUT', 'payments/settings', ['provider' => 'wave_link', 'wave_link' => 'pay.wave.com/m/M_ci_test/c/ci/'])
+            ->assertOk()->assertJsonPath('data.wave_link', 'https://pay.wave.com/m/M_ci_test/c/ci/');
+        $this->console('PUT', 'payments/settings', ['provider' => 'wave_link', 'wave_link' => 'pas un lien'])->assertStatus(422)->assertJsonValidationErrors('wave_link');
 
         $this->console('PUT', 'payments/settings', ['provider' => 'wave_link', 'wave_link' => 'https://pay.wave.com/m/M_ci_test/c/ci/',
             'validator_email' => 'paiements@jibiat.com', 'validator_phone' => '05 07 01 67 39', 'validator_pin' => '2468'])
             ->assertOk()->assertJsonPath('data.provider', 'wave_link')->assertJsonPath('data.pin_set', true)->assertJsonMissingPath('data.validator_pin');
         $qr = $this->apiOn(self::CONSOLE, 'POST', 'console/payments/wave-qr', ['image' => UploadedFile::fake()->image('qr.png', 400, 400)])->assertOk()->json('data.wave_qr_url');
         $this->assertNotNull($qr);
-        $this->assertSame(1, AdminAction::where('action', 'billing_settings')->count());
+        $this->assertSame(3, AdminAction::where('action', 'billing_settings')->count());
 
         $this->asMerchant();
         // L'e-commerçant voit le QR code ; « Payer » crée la facture et prévient le validateur par e-mail (pas de SMS)
