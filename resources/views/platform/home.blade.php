@@ -58,7 +58,7 @@
     <header class="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur">
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
             <a href="/" class="flex items-center gap-2 font-semibold">
-                <span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-700 font-bold text-white">J</span>
+                <img src="/brand/logo-256.png" alt="" class="h-9 w-9" width="36" height="36">
                 <span>Jibiat <span class="text-emerald-700">Marchand</span></span>
             </a>
             <nav class="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex" aria-label="Navigation principale">

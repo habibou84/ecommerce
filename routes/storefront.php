@@ -48,7 +48,7 @@ Route::middleware('zone:store,custom_domain')->group(function () {
             'scope' => '/livreur',
             'display' => 'standalone',
             'background_color' => '#ffffff',
-            'theme_color' => '#047857',
+            'theme_color' => '#017c40',
             'lang' => 'fr',
             'icons' => [['src' => '/livreur-icon.svg', 'sizes' => 'any', 'type' => 'image/svg+xml', 'purpose' => 'any maskable']],
         ])->header('Content-Type', 'application/manifest+json');

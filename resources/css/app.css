@@ -12,6 +12,19 @@
     --text-xs: 0.8125rem;
     --text-xs--line-height: 1.15rem;
     --color-slate-400: #748196;
+    /* Verts du logo Jibiat Marchand (du vert profond au vert vif) à la place du vert émeraude de Tailwind :
+       toute l'interface (boutons, liens, badges, fonds) suit la marque. 700 garde un contraste AA avec le blanc. */
+    --color-emerald-50: #ecfdf1;
+    --color-emerald-100: #d1fadf;
+    --color-emerald-200: #a6f3c2;
+    --color-emerald-300: #6be79a;
+    --color-emerald-400: #33d46d;
+    --color-emerald-500: #0fbb4f;
+    --color-emerald-600: #039a45;
+    --color-emerald-700: #017c40;
+    --color-emerald-800: #01653a;
+    --color-emerald-900: #035231;
+    --color-emerald-950: #012e1b;
 }
 
 /* Tailwind 4 colore les bordures en « currentColor » : on retrouve le gris clair */
