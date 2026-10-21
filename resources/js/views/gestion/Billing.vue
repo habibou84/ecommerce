@@ -98,6 +98,10 @@ async function claimPaid() {
 }
 
 async function pay() {
+  if (data.value.manual_payment && !choice.payer_phone.trim()) {
+    error.value = 'Indiquez le numéro Wave qui va payer.'
+    return
+  }
   busy.value = true
   error.value = ''
   try {
@@ -110,6 +114,10 @@ async function pay() {
 }
 
 async function buyAiPack() {
+  if (data.value.manual_payment && !choice.payer_phone.trim()) {
+    error.value = 'Indiquez le numéro Wave qui va payer.'
+    return
+  }
   busy.value = true
   error.value = ''
   try {
