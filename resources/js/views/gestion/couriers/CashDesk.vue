@@ -66,7 +66,7 @@ async function remit() {
 <template>
   <div class="space-y-4">
     <CashTabs />
-    <p class="text-sm text-slate-600">Espèces encaissées par vos livreurs et pas encore versées. Le paiement mobile money du client va directement à la boutique.</p>
+    <p class="text-sm text-slate-600">Espèces encaissées par vos livreurs et pas encore versées. Le paiement mobile money du client va directement à votre espace marchand.</p>
     <Alert v-if="error && !current && !deciding">{{ error }}</Alert>
 
     <section v-if="data?.declarations?.length" class="card border-amber-300 p-4 text-sm">

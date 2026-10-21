@@ -258,7 +258,7 @@ class Billing
 
             if ($sub->status === SubscriptionStatus::Trialing) {
                 if ($sub->trial_ends_at?->isPast()) {
-                    $this->expire($sub, 'Fin de l\'essai', "Votre essai de l'offre {$sub->plan->name} est terminé : la boutique passe à l'offre gratuite. Choisissez une offre pour retrouver toutes les fonctions.");
+                    $this->expire($sub, 'Fin de l\'essai', "Votre essai de l'offre {$sub->plan->name} est terminé : votre espace marchand passe à l'offre gratuite. Choisissez une offre pour retrouver toutes les fonctions.");
                     $counts['trials_ended']++;
                 } elseif ($sub->trial_ends_at?->lte($remind) && $this->once($store, 'trial_reminder', $sub->id)) {
                     $this->notify($store, 'Votre essai se termine bientôt', "Votre essai de l'offre {$sub->plan->name} se termine le {$sub->trial_ends_at->locale('fr')->isoFormat('D MMMM')}. Choisissez votre offre pour garder toutes les fonctions.");
@@ -270,7 +270,7 @@ class Billing
 
             if ($sub->status === SubscriptionStatus::Active && $end?->isPast()) {
                 if ($sub->cancel_at_period_end) {
-                    $this->expire($sub, 'Abonnement terminé', "Votre abonnement {$sub->plan->name} est terminé comme demandé : la boutique passe à l'offre gratuite.");
+                    $this->expire($sub, 'Abonnement terminé', "Votre abonnement {$sub->plan->name} est terminé comme demandé : votre espace marchand passe à l'offre gratuite.");
                     $counts['downgraded']++;
                 } else {
                     $sub->update(['status' => SubscriptionStatus::PastDue]);
@@ -288,7 +288,7 @@ class Billing
             }
 
             if ($sub->status === SubscriptionStatus::PastDue && $end?->addDays($grace)->isPast()) {
-                $this->expire($sub, 'Retour à l\'offre gratuite', "Votre abonnement {$sub->plan->name} n'a pas été renouvelé : la boutique passe à l'offre gratuite. Vos données sont conservées.");
+                $this->expire($sub, 'Retour à l\'offre gratuite', "Votre abonnement {$sub->plan->name} n'a pas été renouvelé : votre espace marchand passe à l'offre gratuite. Vos données sont conservées.");
                 $counts['downgraded']++;
             }
         }

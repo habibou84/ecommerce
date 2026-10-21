@@ -610,7 +610,7 @@ const margin = computed(() => {
             <input v-model="form.allow_backorder" type="checkbox" class="h-4 w-4 accent-emerald-700" />
             Continuer à vendre en rupture de stock
           </label>
-          <Field v-if="form.track_inventory" id="threshold" label="Alerte de stock bas" :hint="`Vide = seuil de la boutique (${auth.store?.low_stock_threshold ?? 3})`">
+          <Field v-if="form.track_inventory" id="threshold" label="Alerte de stock bas" :hint="`Vide = seuil de votre espace marchand (${auth.store?.low_stock_threshold ?? 3})`">
             <input id="threshold" v-model="form.low_stock_threshold" class="input" type="number" min="0" />
           </Field>
           <label class="flex items-center gap-2 text-sm">

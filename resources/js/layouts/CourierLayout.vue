@@ -109,7 +109,7 @@ const badge = (tab) => (tab.to === '/livreur' ? offline.offers : 0)
       </p>
     </div>
 
-    <p v-if="tracking && available" class="px-4 pt-2 text-xs text-slate-500">📍 Votre position est partagée avec la boutique pendant votre tournée.</p>
+    <p v-if="tracking && available" class="px-4 pt-2 text-xs text-slate-500">📍 Votre position est partagée avec l'espace marchand pendant votre tournée.</p>
 
     <main class="flex-1 px-4 pt-4 pb-24">
       <RouterView />

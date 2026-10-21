@@ -152,7 +152,7 @@ class SocialConnections
             $data = null;
         }
         if (! is_array($data) || ($data['provider'] ?? null) !== $provider || ($data['exp'] ?? 0) < now()->timestamp) {
-            abort(403, 'Lien de connexion expiré : recommencez depuis la gestion de la boutique.');
+            abort(403, 'Lien de connexion expiré : recommencez depuis votre espace marchand.');
         }
 
         return $data;

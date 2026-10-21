@@ -195,7 +195,7 @@ class StoreGroupController extends Controller
 
     private function owner(Request $request): User
     {
-        abort_unless($this->currentStore()->owner_id === $request->user()->id, 403, 'Réservé au propriétaire de la boutique.');
+        abort_unless($this->currentStore()->owner_id === $request->user()->id, 403, 'Réservé au propriétaire de l\'espace marchand.');
 
         return $request->user();
     }

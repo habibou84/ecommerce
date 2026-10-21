@@ -56,7 +56,7 @@ async function endSession(id) {
 
 <template>
   <div v-if="store" class="space-y-5">
-    <RouterLink to="/console/boutiques" class="text-sm text-slate-500 hover:text-emerald-700">← Boutiques</RouterLink>
+    <RouterLink to="/console/boutiques" class="text-sm text-slate-500 hover:text-emerald-700">← Espaces marchands</RouterLink>
     <div class="flex flex-wrap items-center gap-3">
       <h1 class="text-2xl font-semibold">{{ store.name }}</h1>
       <span class="rounded bg-slate-100 px-2 py-0.5 text-sm">{{ store.status_label }}</span>
@@ -127,10 +127,10 @@ async function endSession(id) {
     <Modal v-if="modal === 'support'" title="Session de support" @close="modal = null">
       <form class="space-y-4" @submit.prevent="act('support', { reason: form.reason, minutes: Number(form.minutes) })">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-sm text-slate-600">Vous entrez dans la gestion de la boutique avec le rôle « support » (sans l'abonnement, l'équipe ni les comptes de paiement). Le propriétaire est prévenu et peut mettre fin à l'accès.</p>
-        <Field id="sup-reason" label="Motif (visible par la boutique)"><input id="sup-reason" v-model="form.reason" class="input" minlength="5" maxlength="255" required placeholder="ex. Aide à la configuration des zones" /></Field>
+        <p class="text-sm text-slate-600">Vous entrez dans l'espace marchand avec le rôle « support » (sans l'abonnement, l'équipe ni les comptes de paiement). Le propriétaire est prévenu et peut mettre fin à l'accès.</p>
+        <Field id="sup-reason" label="Motif (visible dans l'espace marchand)"><input id="sup-reason" v-model="form.reason" class="input" minlength="5" maxlength="255" required placeholder="ex. Aide à la configuration des zones" /></Field>
         <Field id="sup-minutes" label="Durée (minutes)"><input id="sup-minutes" v-model="form.minutes" type="number" min="5" max="240" class="input w-32" /></Field>
-        <button class="btn-brand w-full" :disabled="busy">Ouvrir la gestion de la boutique</button>
+        <button class="btn-brand w-full" :disabled="busy">Ouvrir l'espace marchand</button>
       </form>
     </Modal>
     <Modal v-if="modal === 'trial'" title="Prolonger l'essai" @close="modal = null">
@@ -148,7 +148,7 @@ async function endSession(id) {
         <button class="btn-brand w-full" :disabled="busy">Offrir</button>
       </form>
     </Modal>
-    <Modal v-if="modal === 'suspend'" title="Suspendre la boutique" @close="modal = null">
+    <Modal v-if="modal === 'suspend'" title="Suspendre l'espace marchand" @close="modal = null">
       <form class="space-y-4" @submit.prevent="act('suspend', { reason: form.reason })">
         <Alert v-if="error">{{ error }}</Alert>
         <p class="text-sm text-slate-600">Le site et la gestion deviennent inaccessibles ; les données sont conservées.</p>

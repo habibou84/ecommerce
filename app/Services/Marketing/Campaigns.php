@@ -116,7 +116,7 @@ class Campaigns
     {
         $account = $this->account($store);
         if ($account === null) {
-            throw new BusinessRuleException('Connectez le WhatsApp de la boutique et créez le modèle « Nouveautés » (Réglages › WhatsApp › Modèles) avant d\'envoyer une relance.');
+            throw new BusinessRuleException('Connectez le WhatsApp de votre espace marchand et créez le modèle « Nouveautés » (Réglages › WhatsApp › Modèles) avant d\'envoyer une relance.');
         }
 
         return DB::transaction(function () use ($store, $campaign, $account) {

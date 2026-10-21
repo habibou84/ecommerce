@@ -19,7 +19,7 @@ class EnsureCourier
     {
         $courier = CourierRoster::of($request->user(), $this->tenancy->store());
         if ($courier === null) {
-            return response()->json(['message' => 'Vous n\'êtes pas livreur de cette boutique.'], 403);
+            return response()->json(['message' => 'Vous n\'êtes pas livreur de cet espace marchand.'], 403);
         }
 
         $request->attributes->set('courier', $courier->setRelation('store', $this->tenancy->store()));

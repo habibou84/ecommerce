@@ -261,10 +261,10 @@ async function whatsapp(s) {
               <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>
             </select>
           </Field>
-          <Field v-if="form.target?.startsWith('carrier:')" id="ship-payer" label="Livraison payée par" hint="Par la boutique : le client paie exactement le montant de la commande ; le tarif de l'entreprise est retenu sur ce qu'elle vous reverse.">
+          <Field v-if="form.target?.startsWith('carrier:')" id="ship-payer" label="Livraison payée par" hint="Par vous : le client paie exactement le montant de la commande ; le tarif de l'entreprise est retenu sur ce qu'elle vous reverse.">
             <select id="ship-payer" v-model="form.fee_payer" class="input">
               <option value="">Réglage de l'entreprise</option>
-              <option value="store">La boutique</option>
+              <option value="store">Vous</option>
               <option value="customer">Le client (tarif de l'entreprise)</option>
             </select>
           </Field>

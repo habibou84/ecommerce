@@ -53,7 +53,7 @@ const groups = [
   ] },
   { label: 'Réglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
     { to: '/gestion/demarrage', label: 'Bien démarrer' },
-    { to: '/gestion/parametres', label: 'Informations de la boutique' },
+    { to: '/gestion/parametres', label: 'Informations de l\'espace marchand' },
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/alertes', label: 'Alertes' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
@@ -133,7 +133,7 @@ async function endSupport() {
   await http.post(`/support-sessions/${support.value.id}/end`)
   await auth.fetch()
 }
-const helpUrl = computed(() => `https://wa.me/${String(boot.supportWhatsapp ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide pour ma boutique ${auth.store?.name ?? ''} (${boot.store?.slug ?? ''}).`)}`)
+const helpUrl = computed(() => `https://wa.me/${String(boot.supportWhatsapp ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide pour mon espace marchand ${auth.store?.name ?? ''} (${boot.store?.slug ?? ''}).`)}`)
 
 async function logout() {
   await unregisterDevice()
@@ -264,7 +264,7 @@ async function switchTo(store) {
       </nav>
 
       <div v-if="inApp" class="border-t border-slate-100 p-3">
-        <a :href="`${boot.platformUrl.replace(/\/$/, '')}/connexion?app=1&choisir=1`" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">⇄ Changer de boutique</a>
+        <a :href="`${boot.platformUrl.replace(/\/$/, '')}/connexion?app=1&choisir=1`" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">⇄ Changer d'espace marchand</a>
       </div>
       <div v-if="auth.profile?.other_stores?.length" class="border-t border-slate-100 p-3">
         <p class="px-3 pb-1 text-xs font-medium uppercase text-slate-400">Autres comptes</p>
@@ -313,7 +313,7 @@ async function switchTo(store) {
       </header>
 
       <div v-if="support?.self" class="bg-amber-400 px-4 py-2 text-center text-sm font-medium text-slate-900">
-        <Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Session de support jusqu'à {{ supportUntil }} — vous agissez dans la boutique d'un marchand : « {{ support.reason }} »
+        <Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Session de support jusqu'à {{ supportUntil }} — vous agissez dans l'espace marchand d'un e-commerçant : « {{ support.reason }} »
       </div>
       <div v-else-if="support && auth.can('team.manage')" class="flex flex-wrap items-center justify-center gap-3 bg-sky-50 px-4 py-2 text-sm text-sky-900">
         <span><Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Le support Jibiat Marchand ({{ support.admin }}) a accès à votre gestion jusqu'à {{ supportUntil }} : « {{ support.reason }} »</span>

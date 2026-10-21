@@ -281,7 +281,7 @@ class OrderController extends Controller
     {
         $model = Order::findOrFail($order);
         if ($messenger->requestConfirmation($model) === null) {
-            throw new BusinessRuleException('Demande impossible par WhatsApp : le client doit avoir écrit à la boutique depuis moins de 24 h, ou le modèle de confirmation doit être enregistré dans Réglages › WhatsApp.');
+            throw new BusinessRuleException('Demande impossible par WhatsApp : le client doit vous avoir écrit depuis moins de 24 h, ou le modèle de confirmation doit être enregistré dans Réglages › WhatsApp.');
         }
 
         return $this->show($order, app(CustomerBook::class), app(OrderMessages::class));

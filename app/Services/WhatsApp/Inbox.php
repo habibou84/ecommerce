@@ -160,7 +160,7 @@ class Inbox
         }
         $account = WhatsappAccount::forStore($conversation->store_id)->first();
         if ($account === null) {
-            throw new BusinessRuleException('Le WhatsApp de la boutique n\'est plus connecté (Réglages › WhatsApp).', 'body');
+            throw new BusinessRuleException('Le WhatsApp de votre espace marchand n\'est plus connecté (Réglages › WhatsApp).', 'body');
         }
 
         try {

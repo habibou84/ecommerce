@@ -30,18 +30,18 @@ class StatsQuestion
     {
         $today = CarbonImmutable::now($store->timezone);
         $system = <<<TXT
-        Tu réponds aux questions du commerçant sur les chiffres de sa boutique « {$store->name} ».
+        Tu réponds aux questions du commerçant sur les chiffres de son espace marchand « {$store->name} ».
         Aujourd'hui : {$today->locale('fr')->isoFormat('dddd D MMMM YYYY')} ({$today->toDateString()}). Les semaines vont du lundi au dimanche.
         Utilise les outils pour obtenir les vrais chiffres ; n'invente et n'estime jamais un chiffre. Si les données ne permettent pas de répondre, dis-le simplement et indique ce que tu peux dire à la place.
         Réponds en français simple, en 1 à 4 phrases, sans tableau ni markdown ; montants en francs CFA avec des espaces (15 000 F) ; pourcentages arrondis.
         « Ventes » et « chiffre d'affaires » : commandes livrées, sauf si la question vise les commandes reçues.
-        Si la question ne porte pas sur la boutique, dis gentiment que tu ne réponds qu'aux questions sur ses ventes, ses commandes, ses clients, ses livraisons et son stock.
+        Si la question ne porte pas sur l'espace marchand, dis gentiment que tu ne réponds qu'aux questions sur ses ventes, ses commandes, ses clients, ses livraisons et son stock.
         TXT;
 
         $tools = [
             [
                 'name' => 'rapport_ventes',
-                'description' => 'Statistiques de la boutique sur une période (dates incluses, fuseau de la boutique) : commandes reçues, confirmées, livrées, annulées, retournées, chiffre d\'affaires livré, panier moyen, taux de confirmation et de livraison, bénéfice estimé ; détail par canal de vente, par produit (quantités et montants), par zone de livraison, par livreur, par entreprise de livraison et par promotion. Montants en francs CFA.',
+                'description' => 'Statistiques de l\'espace marchand sur une période (dates incluses, fuseau de l\'espace marchand) : commandes reçues, confirmées, livrées, annulées, retournées, chiffre d\'affaires livré, panier moyen, taux de confirmation et de livraison, bénéfice estimé ; détail par canal de vente, par produit (quantités et montants), par zone de livraison, par livreur, par entreprise de livraison et par promotion. Montants en francs CFA.',
                 'inputSchema' => [
                     'type' => 'object',
                     'properties' => [

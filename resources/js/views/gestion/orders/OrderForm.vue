@@ -229,7 +229,7 @@ watch(earliestDate, (min) => {
   if (!form.scheduled_date) {
     form.scheduled_date = min
   } else if (form.scheduled_date < min && (!editing.value || ready.value)) {
-    dateNotice.value = `${chosenCarrier.value?.earliest_date === min ? chosenCarrier.value.name : 'La boutique'} ne livre pas plus tôt que ${dateLabel(min)} : date avancée.`
+    dateNotice.value = `${chosenCarrier.value?.earliest_date === min ? chosenCarrier.value.name : 'Votre espace marchand'} ne livre pas plus tôt que ${dateLabel(min)} : date avancée.`
     form.scheduled_date = min
   }
 }, { immediate: true })

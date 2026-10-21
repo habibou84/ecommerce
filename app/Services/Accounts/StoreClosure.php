@@ -23,14 +23,14 @@ class StoreClosure
     public function close(Store $store, User $user, string $confirmation, ?string $reason): Store
     {
         if ($store->owner_id !== $user->id) {
-            throw new BusinessRuleException('Seul le propriétaire peut fermer la boutique.');
+            throw new BusinessRuleException('Seul le propriétaire peut fermer l\'espace marchand.');
         }
         if (Str::lower(trim($confirmation)) !== Str::lower(trim($store->name))) {
-            throw new BusinessRuleException('Tapez exactement le nom de la boutique pour confirmer.', 'confirmation');
+            throw new BusinessRuleException('Tapez exactement le nom de votre espace marchand pour confirmer.', 'confirmation');
         }
         $inDelivery = Order::forStore($store->id)->where('status', OrderStatus::Shipped->value)->count();
         if ($inDelivery > 0) {
-            throw new BusinessRuleException("{$inDelivery} commande(s) sont en cours de livraison : terminez-les avant de fermer la boutique.");
+            throw new BusinessRuleException("{$inDelivery} commande(s) sont en cours de livraison : terminez-les avant de fermer l'espace marchand.");
         }
 
         return DB::transaction(function () use ($store, $reason) {

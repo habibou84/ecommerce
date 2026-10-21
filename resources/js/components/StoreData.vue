@@ -51,7 +51,7 @@ async function close() {
 <template>
   <section class="card space-y-3 p-4 text-sm sm:p-6">
     <h2 class="font-semibold">Vos données</h2>
-    <p class="text-slate-600">Téléchargez toutes les données de la boutique : produits et stock, clients, commandes et articles, paiements, livraisons, dépenses, fournisseurs, avis. Une archive de fichiers qui s'ouvrent dans Excel, gardée 7 jours.</p>
+    <p class="text-slate-600">Téléchargez toutes les données de votre espace marchand : produits et stock, clients, commandes et articles, paiements, livraisons, dépenses, fournisseurs, avis. Une archive de fichiers qui s'ouvrent dans Excel, gardée 7 jours.</p>
     <Alert v-if="error">{{ error }}</Alert>
     <ul v-if="exports.length" class="divide-y divide-slate-100">
       <li v-for="e in exports" :key="e.id" class="flex items-center gap-2 py-2">
@@ -64,20 +64,20 @@ async function close() {
     <button class="btn-secondary" :disabled="exports.some((e) => e.status === 'pending')" @click="requestExport">Exporter toutes mes données</button>
 
     <div class="border-t border-slate-200 pt-3">
-      <h3 class="font-semibold text-red-700">Fermer la boutique</h3>
+      <h3 class="font-semibold text-red-700">Fermer l'espace marchand</h3>
       <p class="text-slate-600">La boutique en ligne et la gestion ferment pour toute l'équipe, l'abonnement s'arrête à la fin de la période payée. Vos données sont conservées : exportez-les avant. Pour rouvrir, contactez le support.</p>
-      <button class="btn-ghost mt-2 text-red-600" @click="Object.assign(closing, { open: true, confirmation: '', reason: '', error: '', done: false })">Fermer la boutique…</button>
+      <button class="btn-ghost mt-2 text-red-600" @click="Object.assign(closing, { open: true, confirmation: '', reason: '', error: '', done: false })">Fermer l'espace marchand…</button>
     </div>
 
-    <Modal v-if="closing.open" title="Fermer la boutique" @close="closing.open = false">
+    <Modal v-if="closing.open" title="Fermer l'espace marchand" @close="closing.open = false">
       <div v-if="closing.done" class="space-y-3 text-sm">
-        <Alert tone="success">La boutique est fermée. Merci d'avoir utilisé Jibiat Marchand.</Alert>
+        <Alert tone="success">L'espace marchand est fermé. Merci d'avoir utilisé Jibiat Marchand.</Alert>
         <a href="/" class="btn-brand w-full">Terminer</a>
       </div>
       <form v-else class="space-y-4" @submit.prevent="close">
         <Alert v-if="closing.error">{{ closing.error }}</Alert>
-        <p class="text-sm">Pour confirmer, tapez le nom de la boutique : <strong>{{ auth.store?.name }}</strong></p>
-        <Field id="close-name" label="Nom de la boutique"><input id="close-name" v-model="closing.confirmation" class="input" autocomplete="off" required /></Field>
+        <p class="text-sm">Pour confirmer, tapez le nom de l'espace marchand : <strong>{{ auth.store?.name }}</strong></p>
+        <Field id="close-name" label="Nom de l'espace marchand"><input id="close-name" v-model="closing.confirmation" class="input" autocomplete="off" required /></Field>
         <Field id="close-reason" label="Pourquoi fermez-vous ? (facultatif)"><input id="close-reason" v-model="closing.reason" class="input" maxlength="255" /></Field>
         <button class="btn-danger w-full" :disabled="closing.busy || closing.confirmation.trim().toLowerCase() !== (auth.store?.name ?? '').trim().toLowerCase()">Fermer définitivement</button>
       </form>

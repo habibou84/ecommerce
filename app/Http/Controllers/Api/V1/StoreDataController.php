@@ -54,7 +54,7 @@ class StoreDataController extends Controller
 
     public function close(Request $request, StoreClosure $closure): JsonResponse
     {
-        $data = $request->validate(['confirmation' => ['required', 'string', 'max:120'], 'reason' => ['nullable', 'string', 'max:255']], [], ['confirmation' => 'nom de la boutique']);
+        $data = $request->validate(['confirmation' => ['required', 'string', 'max:120'], 'reason' => ['nullable', 'string', 'max:255']], [], ['confirmation' => 'nom de l\'espace marchand']);
         $store = $closure->close($this->currentStore(), $request->user(), $data['confirmation'], $data['reason'] ?? null);
 
         return response()->json(['data' => ['status' => $store->status->value, 'closed_at' => $store->closed_at->toIso8601String()]]);
@@ -62,6 +62,6 @@ class StoreDataController extends Controller
 
     private function ensureOwner(Request $request): void
     {
-        abort_unless($this->currentStore()->owner_id === $request->user()->id, 403, 'Réservé au propriétaire de la boutique.');
+        abort_unless($this->currentStore()->owner_id === $request->user()->id, 403, 'Réservé au propriétaire de l\'espace marchand.');
     }
 }

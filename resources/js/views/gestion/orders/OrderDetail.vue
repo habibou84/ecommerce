@@ -301,7 +301,7 @@ async function addNote() {
           <h3 class="font-semibold">Confirmation par WhatsApp</h3>
           <p class="text-slate-600">
             Le client reçoit le récapitulatif avec les boutons « Confirmer » et « Annuler » ; sa réponse met la commande à jour toute seule.
-            {{ order.whatsapp_confirmation === 'conversation' ? 'Gratuit : le client a écrit à la boutique il y a moins de 24 h.' : 'Par le modèle approuvé (message facturé par Meta).' }}
+            {{ order.whatsapp_confirmation === 'conversation' ? 'Gratuit : le client vous a écrit il y a moins de 24 h.' : 'Par le modèle approuvé (message facturé par Meta).' }}
           </p>
           <button type="button" class="btn-secondary w-full justify-start gap-2" :disabled="busy" @click="askOnWhatsApp"><Icon name="send" :size="16" />{{ waSent ? 'Renvoyer la demande' : 'Envoyer la demande de confirmation' }}</button>
           <p v-if="waSent" class="text-emerald-700">Demande envoyée. La réponse apparaîtra aussi dans Ventes › Messages.</p>
@@ -402,7 +402,7 @@ async function addNote() {
       <div v-if="payLink" class="space-y-3 text-sm">
         <Alert tone="success">
           Lien de {{ money(payLink.amount) }} valable jusqu'au {{ formatDateTime(payLink.expires_at) }}.
-          <template v-if="payLink.sent_by_whatsapp"> Il a été envoyé au client par le WhatsApp de la boutique.</template>
+          <template v-if="payLink.sent_by_whatsapp"> Il a été envoyé au client par votre WhatsApp.</template>
         </Alert>
         <input class="input text-xs" :value="payLink.url" readonly @focus="$event.target.select()" />
         <a v-if="!payLink.sent_by_whatsapp" :href="payLink.whatsapp_url" target="_blank" rel="noopener" class="btn-brand w-full"><Icon name="messages" :size="16" />Envoyer par WhatsApp</a>

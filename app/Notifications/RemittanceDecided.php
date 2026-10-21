@@ -27,7 +27,7 @@ class RemittanceDecided extends StoreNotification
                 : 'Versement refusé : '.Money::format($d->amount),
             'body' => $d->status === 'confirmed'
                 ? ($difference ? ($difference < 0 ? 'Manque ' : 'Excédent ').Money::format(abs($difference)) : 'Aucun écart ✓')
-                : ($d->reject_reason ?? 'Voyez avec la boutique.'),
+                : ($d->reject_reason ?? 'Voyez avec le marchand.'),
             'url' => '/livreur/caisse',
         ];
     }

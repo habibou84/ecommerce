@@ -66,7 +66,7 @@ async function save() {
 }
 
 async function disconnect() {
-  if (!window.confirm('Déconnecter le WhatsApp de la boutique ? Les messages automatiques s\'arrêtent.')) return
+  if (!window.confirm('Déconnecter votre WhatsApp ? Les messages automatiques s\'arrêtent.')) return
   data.value = (await http.delete('/whatsapp')).data.data
   fill()
 }
@@ -131,7 +131,7 @@ const META_STEPS = [
     ],
   },
   {
-    title: 'Ajouter le numéro de la boutique et copier ses identifiants',
+    title: 'Ajouter votre numéro et copier ses identifiants',
     url: 'https://developers.facebook.com/apps/', link: 'Ouvrir Mes applications',
     items: [
       'Ouvrez l\'application, puis WhatsApp › Configuration de l\'API (« API Setup »).',
@@ -162,7 +162,7 @@ const META_STEPS = [
   {
     title: 'Ajouter un moyen de paiement chez Meta',
     url: 'https://business.facebook.com/billing_hub/payment_settings', link: 'Ouvrir les paiements Meta',
-    items: ['Meta facture les messages envoyés à l\'initiative de la boutique (confirmations, suivi…). Les réponses aux clients dans les 24 h sont gratuites.'],
+    items: ['Meta facture les messages envoyés à votre initiative (confirmations, suivi…). Les réponses aux clients dans les 24 h sont gratuites.'],
   },
 ]
 </script>
@@ -170,7 +170,7 @@ const META_STEPS = [
 <template>
   <div v-if="data" class="space-y-5">
     <p class="text-sm text-slate-600">
-      Envoyez automatiquement les messages à vos clients depuis le numéro WhatsApp Business de la boutique (API Cloud de Meta).
+      Envoyez automatiquement les messages à vos clients depuis le numéro WhatsApp Business de votre espace marchand (API Cloud de Meta).
       Chaque message utilise un modèle que vous avez fait approuver chez Meta ; indiquez ici son nom.
     </p>
     <section v-if="data.embedded && (!data.account || embeddedAccount())" class="card space-y-3 border-emerald-200 p-4">
@@ -182,7 +182,7 @@ const META_STEPS = [
       <template v-else>
         <h3 class="font-semibold">Connecter WhatsApp en un clic</h3>
         <p class="text-sm text-slate-600">
-          Une fenêtre Facebook s'ouvre et vous guide : compte Business, nom affiché, numéro de la boutique et code reçu par SMS.
+          Une fenêtre Facebook s'ouvre et vous guide : compte Business, nom affiché, votre numéro et code reçu par SMS.
           L'application se branche ensuite toute seule et crée vos modèles de messages. Environ 5 minutes.
         </p>
         <label class="flex items-start gap-2 text-sm">

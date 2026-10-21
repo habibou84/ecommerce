@@ -68,10 +68,10 @@ function done(data) {
 
 <template>
   <AuthShell
-    :title="pending ? 'Vérifiez votre numéro' : 'Créez votre boutique'"
+    :title="pending ? 'Vérifiez votre numéro' : 'Créez votre espace marchand'"
     :subtitle="pending ? '' : `${boot.trialOffer} offert, sans carte bancaire ni engagement. Tout se fait depuis votre téléphone.`"
   >
-    <CodeStep v-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Créer ma boutique" @done="done" />
+    <CodeStep v-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Créer mon espace marchand" @done="done" />
 
     <form v-else class="space-y-4" @submit.prevent="submit">
       <Alert v-if="error">{{ error }}</Alert>
@@ -113,14 +113,14 @@ function done(data) {
         <input id="password" v-model="form.password" class="input" type="password" autocomplete="new-password" minlength="8" required />
       </Field>
 
-      <p class="text-xs text-slate-500">En créant votre boutique, vous acceptez les <a href="/cgu" target="_blank" class="underline">conditions d'utilisation et de vente</a> et la <a href="/confidentialite" target="_blank" class="underline">politique de confidentialité</a>.</p>
+      <p class="text-xs text-slate-500">En créant votre espace marchand, vous acceptez les <a href="/cgu" target="_blank" class="underline">conditions d'utilisation et de vente</a> et la <a href="/confidentialite" target="_blank" class="underline">politique de confidentialité</a>.</p>
       <button class="btn-brand w-full" :disabled="busy || slugState.available === false">
         {{ busy ? 'Un instant…' : 'Continuer' }}
       </button>
     </form>
 
     <template #footer>
-      Vous avez déjà une boutique ? <RouterLink to="/connexion" class="font-medium text-emerald-700 hover:underline">Se connecter</RouterLink>
+      Vous avez déjà un espace marchand ? <RouterLink to="/connexion" class="font-medium text-emerald-700 hover:underline">Se connecter</RouterLink>
     </template>
   </AuthShell>
 </template>

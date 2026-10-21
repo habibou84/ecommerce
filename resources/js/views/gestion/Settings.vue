@@ -73,7 +73,7 @@ async function changeSlug() {
 <template>
   <div class="space-y-6">
     <form class="card space-y-4 p-4 sm:p-6" @submit.prevent="save">
-      <h2 class="font-semibold">Informations de la boutique</h2>
+      <h2 class="font-semibold">Informations de l'espace marchand</h2>
       <Alert v-if="error">{{ error }}</Alert>
       <Alert v-if="saved" tone="success">Modifications enregistrées.</Alert>
       <Alert v-if="!canEdit" tone="info">Seuls le propriétaire et le gérant peuvent modifier ces informations.</Alert>

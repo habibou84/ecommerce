@@ -41,7 +41,7 @@ class LocationController extends Controller
                 throw new BusinessRuleException('Cet emplacement contient encore du stock : transférez-le ou mettez-le à zéro avant de le désactiver.', 'is_active');
             }
             if (StockLocation::where('is_active', true)->count() <= 1) {
-                throw new BusinessRuleException('La boutique doit garder au moins un emplacement actif.', 'is_active');
+                throw new BusinessRuleException('Votre espace marchand doit garder au moins un emplacement actif.', 'is_active');
             }
         }
 

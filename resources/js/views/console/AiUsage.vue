@@ -38,7 +38,7 @@ const tokens = (n) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} M` : n >=
         <div class="card p-4"><p class="text-xs text-slate-500">Coût estimé</p><p class="text-2xl font-semibold">{{ money(data.total.cost) }}</p><p class="text-xs text-slate-400">{{ data.total.cost_usd }} $</p></div>
         <div class="card p-4"><p class="text-xs text-slate-500">Actions réussies</p><p class="text-2xl font-semibold">{{ data.total.actions }}</p></div>
         <div class="card p-4"><p class="text-xs text-slate-500">Échecs (non comptés)</p><p class="text-2xl font-semibold">{{ data.total.failures }}</p></div>
-        <div class="card p-4"><p class="text-xs text-slate-500">Boutiques</p><p class="text-2xl font-semibold">{{ data.total.stores }}</p></div>
+        <div class="card p-4"><p class="text-xs text-slate-500">Espaces marchands</p><p class="text-2xl font-semibold">{{ data.total.stores }}</p></div>
       </div>
 
       <div v-if="data.models.length" class="card flex flex-wrap gap-x-6 gap-y-1 p-4 text-sm">
@@ -48,7 +48,7 @@ const tokens = (n) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} M` : n >=
       <div class="card overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="border-b border-slate-200 text-left text-xs text-slate-500">
-            <tr><th class="px-4 py-2">Boutique</th><th>Offre</th><th class="text-right">Actions</th><th class="text-right">Jetons (entrée / sortie)</th><th class="text-right">Coût estimé</th><th class="px-4 text-right">Part de l'abonnement</th></tr>
+            <tr><th class="px-4 py-2">Espace marchand</th><th>Offre</th><th class="text-right">Actions</th><th class="text-right">Jetons (entrée / sortie)</th><th class="text-right">Coût estimé</th><th class="px-4 text-right">Part de l'abonnement</th></tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-for="s in data.stores" :key="s.store.id">
@@ -65,7 +65,7 @@ const tokens = (n) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} M` : n >=
           </tbody>
         </table>
       </div>
-      <p class="text-xs text-slate-500">En rouge : l'IA coûte plus de 30 % du prix mensuel de l'offre de la boutique.</p>
+      <p class="text-xs text-slate-500">En rouge : l'IA coûte plus de 30 % du prix mensuel de l'offre de l'espace marchand.</p>
     </template>
   </div>
 </template>

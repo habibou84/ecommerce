@@ -46,7 +46,7 @@ class SignupController extends Controller
             'phone' => ['required', new PhoneRule],
             'password' => ['required', 'string', 'min:8', 'max:100'],
         ], [], [
-            'store_name' => 'nom de la boutique',
+            'store_name' => 'nom de l\'espace marchand',
             'slug' => 'adresse',
             'name' => 'votre nom',
             'phone' => 'numéro de téléphone',

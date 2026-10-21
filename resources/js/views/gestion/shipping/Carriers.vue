@@ -274,7 +274,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
       <div class="grid gap-3 sm:grid-cols-2">
         <Field :id="`payer-${c.id}`" label="Livraison payée par">
           <select :id="`payer-${c.id}`" :value="c.settings.fee_payer" class="input" @change="save(c, { fee_payer: $event.target.value })">
-            <option value="store">La boutique (le client paie le montant de la commande)</option>
+            <option value="store">Vous (le client paie le montant de la commande)</option>
             <option value="customer">Le client (tarif de l'entreprise)</option>
           </select>
         </Field>
@@ -405,13 +405,13 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <ul class="mb-4 space-y-2 text-sm">
           <li v-for="h in stock.hubs" :key="h.remote_id" class="flex items-center gap-3">
             <span class="flex-1">{{ h.name }}</span>
-            <span v-if="h.location_id" class="text-emerald-700">✓ Emplacement de stock de la boutique</span>
+            <span v-if="h.location_id" class="text-emerald-700">✓ Votre emplacement de stock</span>
             <button v-else class="btn-secondary px-2 py-1" @click="linkHub(h)">J'y dépose du stock</button>
           </li>
         </ul>
         <h4 class="mb-2 text-sm font-semibold">Produits (rapprochés par référence SKU)</h4>
         <table class="w-full text-sm">
-          <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Chez l'entreprise</th><th>Votre variante</th><th class="text-right">Entreprise</th><th class="text-right">Boutique</th></tr></thead>
+          <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Chez l'entreprise</th><th>Votre variante</th><th class="text-right">Entreprise</th><th class="text-right">Vous</th></tr></thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-for="p in stock.products" :key="p.remote_id">
               <td class="py-1.5">{{ p.name }} <span class="text-slate-400">{{ p.sku }}</span></td>

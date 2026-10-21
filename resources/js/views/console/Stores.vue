@@ -35,7 +35,7 @@ const debounced = () => { clearTimeout(timer); filters.page = 1; timer = setTime
     <Alert v-if="error">{{ error }}</Alert>
     <div v-if="result" class="card overflow-x-auto">
       <table class="w-full text-sm">
-        <thead class="border-b border-slate-200 text-left text-xs text-slate-500"><tr><th class="px-4 py-2">Boutique</th><th>Propriétaire</th><th>Offre</th><th>Statut</th><th class="text-right">Commandes 30 j</th><th class="px-4 text-right">Créée le</th></tr></thead>
+        <thead class="border-b border-slate-200 text-left text-xs text-slate-500"><tr><th class="px-4 py-2">Espace marchand</th><th>Propriétaire</th><th>Offre</th><th>Statut</th><th class="text-right">Commandes 30 j</th><th class="px-4 text-right">Créé le</th></tr></thead>
         <tbody class="divide-y divide-slate-100">
           <tr v-for="s in result.data" :key="s.id" class="hover:bg-slate-50">
             <td class="px-4 py-2"><RouterLink :to="`/console/boutiques/${s.id}`" class="font-medium text-emerald-800 hover:underline">{{ s.name }}</RouterLink><span class="block text-xs text-slate-500">{{ s.slug }}</span></td>
@@ -45,12 +45,12 @@ const debounced = () => { clearTimeout(timer); filters.page = 1; timer = setTime
             <td class="text-right">{{ s.orders_30d }}</td>
             <td class="px-4 text-right text-slate-500">{{ formatDateTime(s.created_at) }}</td>
           </tr>
-          <tr v-if="!result.data.length"><td colspan="6" class="px-4 py-6 text-slate-500">Aucune boutique.</td></tr>
+          <tr v-if="!result.data.length"><td colspan="6" class="px-4 py-6 text-slate-500">Aucun espace marchand.</td></tr>
         </tbody>
       </table>
       <div v-if="result.meta.last_page > 1" class="flex items-center gap-2 border-t border-slate-100 px-4 py-2 text-sm">
         <button class="btn-ghost px-2" :disabled="filters.page <= 1" @click="filters.page--; load()">←</button>
-        <span>Page {{ result.meta.current_page }} / {{ result.meta.last_page }} · {{ result.meta.total }} boutiques</span>
+        <span>Page {{ result.meta.current_page }} / {{ result.meta.last_page }} · {{ result.meta.total }} espaces marchands</span>
         <button class="btn-ghost px-2" :disabled="filters.page >= result.meta.last_page" @click="filters.page++; load()">→</button>
       </div>
     </div>
