@@ -48,19 +48,24 @@ Les clés ne s'envoient à personne : ni par message, ni dans une conversation.
 - **Changer les clés** : relancer `setup-auto-deploy.sh` (les anciennes cessent de fonctionner) et remplacer les secrets.
 - **Couper l'automatisme** : supprimer le secret `DEPLOY_HOST`, ou `rm /etc/sudoers.d/jibiat-deploy` sur le serveur.
 
-## Retour automatique à la version précédente
+## Mise à jour sans coupure, et retour automatique à la version précédente
 
-`deploy/update.sh` (automatique ou à la main) travaille en mode maintenance :
+`deploy/update.sh` (automatique ou à la main) ne coupe le site que s'il le faut :
 
-1. récupère la nouvelle version, installe les dépendances et compile l'interface ;
-2. copie la base (`/var/backups/<installation>/avant-mise-a-jour.dump`, remplacée à chaque mise à jour) ;
-3. applique les migrations, reconstruit les caches, redémarre les processus ;
-4. **vérifie le site avant de le rouvrir** : `/up` (application et base) et la page d'accueil, sur le serveur lui-même.
+1. **le site reste en ligne** pendant la préparation : la nouvelle version est récupérée dans une copie de travail
+   (`storage/app/deploy-build`) et son interface compilée à côté (`public/build-next`), avec les fichiers des versions
+   de la dernière semaine (les pages déjà ouvertes continuent de fonctionner ; une page plus ancienne se recharge
+   d'elle-même au premier clic). Une erreur ici ne change rien ;
+2. **bascule** : code, dépendances PHP, migrations, nouvelle interface (remplacée d'un coup), caches, puis redémarrage
+   en douceur des processus. Le **mode maintenance** n'est activé que s'il y a des migrations, le temps de les appliquer,
+   et la base est alors copiée juste avant (`/var/backups/<installation>/avant-mise-a-jour.dump`). Pour forcer la
+   maintenance pendant toute la bascule : `MAINTENANCE=1 bash deploy/update.sh` ;
+3. **vérification du site** : `/up` (application et base) et la page d'accueil, sur le serveur lui-même.
 
-Si une étape échoue ou si la vérification ne passe pas, le serveur revient à la version précédente : code, dépendances,
-et base remise exactement comme avant les migrations (en une seule transaction). Rien n'est perdu : pendant la
-maintenance, ni commande, ni file d'attente, ni tâche planifiée n'écrit dans la base. Le site rouvre sur l'ancienne
-version, le journal se termine par « Revenu à la version précédente » et l'action GitHub est en rouge.
+Si une étape de la bascule échoue ou si la vérification ne passe pas, le serveur revient à la version précédente : code,
+dépendances, interface, et base remise exactement comme avant les migrations (en une seule transaction ; rien n'est
+perdu : pendant la maintenance, ni commande, ni file d'attente, ni tâche planifiée n'écrit dans la base). Le journal se
+termine par « Revenu à la version précédente » et l'action GitHub est en rouge.
 
 La version en échec reste sur GitHub : la fusion suivante (avec la correction) relance la mise à jour normalement.
 Si le retour lui-même échoue (« intervention nécessaire »), la copie de la base reste disponible pour une restauration
