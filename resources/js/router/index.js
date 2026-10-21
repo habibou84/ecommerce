@@ -128,6 +128,7 @@ const consoleRoutes = [
       { path: '', component: () => import('../views/console/Dashboard.vue'), meta: { title: 'Tableau de bord' } },
       { path: 'boutiques', component: () => import('../views/console/Stores.vue'), meta: { title: 'Espaces marchands' } },
       { path: 'boutiques/:id(\\d+)', component: () => import('../views/console/StoreDetail.vue'), props: true, meta: { title: 'Espace marchand' } },
+      { path: 'paiements', component: () => import('../views/console/Payments.vue'), meta: { title: 'Paiements' } },
       { path: 'factures', component: () => import('../views/console/Invoices.vue'), meta: { title: 'Factures' } },
       { path: 'offres', component: () => import('../views/console/Plans.vue'), meta: { title: 'Offres' } },
       { path: 'ia', component: () => import('../views/console/AiUsage.vue'), meta: { title: 'Assistant IA' } },

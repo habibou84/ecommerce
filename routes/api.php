@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
+use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
 use App\Http\Controllers\Api\V1\Couriers\CourierController;
@@ -112,6 +113,12 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
             Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
+            Route::get('payments/settings', [ConsolePaymentsController::class, 'settings'])->name('payments.settings');
+            Route::put('payments/settings', [ConsolePaymentsController::class, 'update'])->name('payments.update');
+            Route::post('payments/wave-qr', [ConsolePaymentsController::class, 'uploadQr'])->name('payments.qr');
+            Route::delete('payments/wave-qr', [ConsolePaymentsController::class, 'removeQr'])->name('payments.qr.remove');
+            Route::get('payments/pending', [ConsolePaymentsController::class, 'pending'])->name('payments.pending');
+            Route::post('payments/{invoice}/decide', [ConsolePaymentsController::class, 'decide'])->whereNumber('invoice')->name('payments.decide');
         });
     });
 
@@ -182,6 +189,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('checkout', [BillingController::class, 'checkout'])->middleware('throttle:10,1')->name('checkout');
                 Route::post('ai-pack', [BillingController::class, 'aiPack'])->middleware('throttle:10,1')->name('ai-pack');
                 Route::post('invoices/{number}/check', [BillingController::class, 'check'])->where('number', 'JM-\\d{4}-\\d{6}')->name('check');
+                Route::post('invoices/{number}/paid', [BillingController::class, 'claimPaid'])->middleware('throttle:10,1')->where('number', 'JM-\\d{4}-\\d{6}')->name('paid');
                 Route::get('invoices/{invoice}/receipt', [BillingController::class, 'receipt'])->whereNumber('invoice')->name('receipt');
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
             });

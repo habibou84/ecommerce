@@ -3,7 +3,7 @@ import http from '../lib/http'
 
 // Session de la console (admin.jibiat-marchand.com)
 export const useConsoleStore = defineStore('console', {
-  state: () => ({ admin: null, loaded: false }),
+  state: () => ({ admin: null, loaded: false, pendingPayments: 0 }),
   actions: {
     async fetch() {
       try {
@@ -13,6 +13,14 @@ export const useConsoleStore = defineStore('console', {
         this.admin = null
       } finally {
         this.loaded = true
+      }
+    },
+    // Paiements Wave à valider : pastille du menu
+    async refreshPending() {
+      try {
+        this.pendingPayments = (await http.get('/console/payments/pending')).data.data.length
+      } catch {
+        // Pastille seulement : une erreur passagère ne bloque rien
       }
     },
     async logout() {

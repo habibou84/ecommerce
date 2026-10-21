@@ -1,0 +1,101 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1\Console;
+
+use App\Http\Controllers\Controller;
+use App\Models\AdminAction;
+use App\Models\SubscriptionInvoice;
+use App\Services\Billing\Billing;
+use App\Services\Billing\BillingSettings;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Jibiat\Socle\PhoneNumber;
+use Jibiat\Socle\Rules\PhoneNumber as PhoneRule;
+
+/**
+ * Console : réglage du paiement des abonnements (moyen actif, lien et QR code Wave, validateur) et paiements Wave
+ * à valider (l'administrateur connecté valide sans code).
+ */
+class ConsolePaymentsController extends Controller
+{
+    public function __construct(private readonly Billing $billing, private readonly BillingSettings $settings) {}
+
+    public function settings(): JsonResponse
+    {
+        return response()->json(['data' => $this->settings->present()]);
+    }
+
+    public function update(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'provider' => ['required', Rule::in(array_keys(array_filter($this->settings->available())))],
+            'wave_link' => ['nullable', 'url:https', 'max:500'],
+            'validator_email' => ['nullable', 'email', 'max:190'],
+            'validator_phone' => ['nullable', new PhoneRule],
+            'validator_pin' => ['nullable', 'string', 'min:4', 'max:40'],
+        ], ['provider.in' => 'Ce moyen de paiement n\'a pas ses clés sur le serveur.'], [
+            'provider' => 'moyen de paiement', 'wave_link' => 'lien Wave', 'validator_email' => 'e-mail du validateur',
+            'validator_phone' => 'téléphone du validateur', 'validator_pin' => 'code de validation',
+        ]);
+        if (filled($data['validator_phone'] ?? null)) {
+            $data['validator_phone'] = PhoneNumber::normalize($data['validator_phone']);
+        }
+        $this->settings->update($data);
+        $this->log($request, 'billing_settings', ['provider' => $data['provider'], 'pin_changed' => filled($data['validator_pin'] ?? null)]);
+
+        return $this->settings();
+    }
+
+    public function uploadQr(Request $request): JsonResponse
+    {
+        $request->validate(['image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096']], [], ['image' => 'QR code']);
+        $this->settings->storeQr($request->file('image'));
+        $this->log($request, 'billing_wave_qr');
+
+        return $this->settings();
+    }
+
+    public function removeQr(Request $request): JsonResponse
+    {
+        $this->settings->removeQr();
+        $this->log($request, 'billing_wave_qr_removed');
+
+        return $this->settings();
+    }
+
+    /**
+     * Paiements Wave en attente de vérification, les plus récents d'abord.
+     */
+    public function pending(): JsonResponse
+    {
+        $invoices = SubscriptionInvoice::withoutGlobalScopes()->with(['plan', 'store:id,name,slug'])
+            ->where('provider', 'wave_link')->where('status', 'pending')->latest('id')->limit(100)->get();
+
+        return response()->json([
+            'data' => $invoices->map(fn (SubscriptionInvoice $i) => $this->billing->presentInvoice($i) + [
+                'store' => ['id' => $i->store?->id, 'name' => $i->store?->name],
+                'payer_phone' => $i->raw['payer_phone'] ?? null,
+                'payer_name' => $i->raw['payer_name'] ?? null,
+                'label' => $i->raw['description'] ?? $i->number,
+                'alerts' => $i->raw['alerts'] ?? [],
+            ]),
+            'meta' => ['claimed' => $invoices->filter(fn ($i) => isset($i->raw['claimed_at']))->count()],
+        ]);
+    }
+
+    public function decide(Request $request, int $invoice): JsonResponse
+    {
+        $data = $request->validate(['decision' => ['required', 'in:received,missing']]);
+        $model = SubscriptionInvoice::withoutGlobalScopes()->where('provider', 'wave_link')->findOrFail($invoice);
+        $model = $this->billing->decide($model, $data['decision'] === 'received');
+        AdminAction::create(['admin_id' => $request->user()->id, 'store_id' => $model->store_id, 'action' => 'billing_wave_'.$data['decision'], 'data' => ['invoice' => $model->number], 'ip' => $request->ip()]);
+
+        return response()->json(['data' => ['id' => $model->id, 'status' => $model->status]]);
+    }
+
+    private function log(Request $request, string $action, array $data = []): void
+    {
+        AdminAction::create(['admin_id' => $request->user()->id, 'store_id' => null, 'action' => $action, 'data' => $data ?: null, 'ip' => $request->ip()]);
+    }
+}
