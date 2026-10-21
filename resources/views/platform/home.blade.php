@@ -21,6 +21,7 @@
         ['Et si j\'ai déjà mes propres livreurs ?', 'Gardez-les : ils ont leur application, avec leurs missions, les encaissements et les preuves de livraison. Vous pouvez mélanger vos livreurs et des entreprises de livraison.'],
         ['Je vends seulement sur WhatsApp et Facebook. C\'est pour moi ?', 'Oui. Collez le message du client : la commande est prête. Vous avez aussi une boutique en ligne à partager, sans rien installer.'],
         ['Comment je suis payé ?', 'À la livraison en espèces, ou en ligne avec Wave, Orange Money, MTN, Moov ou par carte. Les reversements des entreprises de livraison sont rapprochés de vos commandes automatiquement.'],
+        ['Ma boutique en ligne vend-elle la nuit ?', 'Oui. Elle reste ouverte jour et nuit : le client choisit, commande et peut payer par Wave, Orange Money, MTN, Moov ou carte. Il reçoit sa confirmation sur WhatsApp, et vous retrouvez la commande le matin, prête à partir.'],
         ['Faut-il un ordinateur ?', 'Non. Tout se fait depuis votre téléphone, en 5 minutes pour commencer.'],
     ];
 @endphp
@@ -62,6 +63,7 @@
             </a>
             <nav class="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex" aria-label="Navigation principale">
                 <a href="#assistant" class="hover:text-slate-900">Assistant</a>
+                <a href="#boutique" class="hover:text-slate-900">Boutique</a>
                 <a href="#livraison" class="hover:text-slate-900">Livraison</a>
                 <a href="#fonctions" class="hover:text-slate-900">Fonctions</a>
                 <a href="#tarifs" class="hover:text-slate-900">Tarifs</a>
@@ -84,8 +86,8 @@
                         Vendez partout. Livrez avec des pros. <span class="text-emerald-300">Encaissez sans courir.</span>
                     </h1>
                     <p class="mt-5 text-lg text-emerald-50/90">
-                        Votre boutique en ligne, vos commandes WhatsApp, Facebook et TikTok, votre stock et vos livraisons dans une seule application,
-                        depuis votre téléphone. Un assistant qui remplit vos commandes et vos fiches produits à votre place.
+                        Une boutique en ligne qui vend même quand vous dormez, vos commandes WhatsApp, Facebook et TikTok, votre stock et vos livraisons
+                        dans une seule application, depuis votre téléphone. Un assistant qui remplit vos commandes et vos fiches produits à votre place.
                         Et des entreprises de livraison fiables, connectées en un clic.
                     </p>
                     <div class="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -115,26 +117,28 @@
                         Il propose, vous vérifiez : rien n'est envoyé ni enregistré sans vous.
                     </p>
                 </div>
-                <div class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="mt-14 space-y-16 sm:space-y-24">
                     @foreach ([
                         ['marchand-ia-commande', '💬', 'Un message WhatsApp devient une commande', 'Collez le message du client, même mal écrit, en plusieurs fois ou en capture d\'écran : numéro, nom, quartier, articles et frais de livraison se remplissent.'],
                         ['marchand-ia-photo', '📸', 'Une photo devient une fiche produit', 'Prenez le produit en photo : nom, description, tailles et couleurs, mots-clés pour Google. Vous fixez le prix et le stock.'],
                         ['marchand-ia-reponses', '⚡', 'Vos réponses aux clients, prêtes', 'Taille disponible, prix, frais de livraison : l\'assistant prépare la réponse avec vos vrais chiffres. Vous relisez et vous envoyez.'],
                         ['marchand-ia-reseaux', '📣', 'Vos publications écrites pour vous', 'Trois textes prêts pour Facebook, Instagram et TikTok, avec le bon prix et les hashtags, en français simple ou en nouchi.'],
                         ['marchand-ia-chiffres', '📊', 'Vos chiffres, en une question', '« Qu\'est-ce qui se vend le mieux cette semaine ? » L\'assistant lit vos ventes et votre stock et vous répond simplement.'],
-                    ] as [$video, $icon, $title, $text])
-                        {{-- Téléphone : petite vidéo à côté du texte ; à partir de sm, vidéo au-dessus --}}
-                        <figure class="flex overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 sm:flex-col">
-                            <video class="aspect-[9/16] w-32 shrink-0 bg-slate-900 object-cover sm:w-full" poster="/videos/{{ $video }}-v.jpg" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : {{ $title }}">
-                                <source src="/videos/{{ $video }}-v.mp4" type="video/mp4">
-                            </video>
-                            <figcaption class="p-4 sm:p-5">
-                                <h3 class="font-semibold"><span aria-hidden="true">{{ $icon }}</span> {{ $title }}</h3>
-                                <p class="mt-1 text-sm text-slate-600">{{ $text }}</p>
-                            </figcaption>
-                        </figure>
+                    ] as $i => [$video, $icon, $title, $text])
+                        <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+                            <div @class(['flex justify-center', 'lg:order-2' => $i % 2 === 1])>
+                                <video class="w-full max-w-[20rem] rounded-[2rem] bg-slate-900 shadow-2xl ring-1 ring-slate-200" poster="/videos/{{ $video }}-v.jpg" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : {{ $title }}">
+                                    <source src="/videos/{{ $video }}-v.mp4" type="video/mp4">
+                                </video>
+                            </div>
+                            <div class="text-center lg:text-left">
+                                <span class="text-4xl" aria-hidden="true">{{ $icon }}</span>
+                                <h3 class="mt-3 text-2xl font-bold tracking-tight text-balance sm:text-3xl">{{ $title }}</h3>
+                                <p class="mt-3 text-lg text-slate-600">{{ $text }}</p>
+                            </div>
+                        </div>
                     @endforeach
-                    <div class="flex flex-col justify-center rounded-2xl bg-emerald-900 p-6 text-white">
+                    <div class="mx-auto max-w-2xl rounded-3xl bg-emerald-900 p-8 text-center text-white">
                         <p class="text-sm font-semibold uppercase tracking-wide text-emerald-300">Combien d'actions ?</p>
                         @if ($aiActions->isNotEmpty())
                             <p class="mt-3 text-2xl font-bold">Par mois : {{ $aiActions->join(', ', ' et ') }}.</p>
@@ -142,6 +146,40 @@
                         <p class="mt-3 text-emerald-100">Une action, c'est une commande remplie, une fiche écrite, une réponse ou une question. Avec l'essai, vous avez {{ $trialActions ? 'les '.number_format($trialActions, 0, ',', ' ').' actions' : 'l\'assistant' }} de l'offre {{ $trialPlan }} dès le premier jour.</p>
                         <a href="{{ $signupUrl }}" class="btn-brand mt-6 bg-white text-emerald-900 hover:bg-emerald-50">Essayer l'assistant</a>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        {{-- La boutique en ligne, ouverte jour et nuit --}}
+        <section id="boutique" class="scroll-mt-20 bg-slate-950 py-16 text-white sm:py-20">
+            <div class="mx-auto grid max-w-6xl items-center gap-12 px-4 lg:grid-cols-2">
+                <div class="flex justify-center lg:order-2">
+                    <video class="w-full max-w-[20rem] rounded-[2rem] shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-boutique-v.jpg" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : votre boutique en ligne et vos commandes">
+                        <source src="/videos/marchand-boutique-v.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div>
+                    <p class="font-semibold text-emerald-300">Votre boutique en ligne</p>
+                    <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">Elle vend même quand vous dormez</h2>
+                    <p class="mt-4 text-lg text-slate-300">
+                        Pendant que vous dormez, vos clients regardent vos produits, choisissent leur taille et commandent. Le matin,
+                        les commandes de la nuit vous attendent, confirmées et prêtes à partir.
+                    </p>
+                    <ul class="mt-8 space-y-4">
+                        @foreach ([
+                            ['🌙', 'Ouverte 24 heures sur 24', 'À votre nom : votre-nom.jibiat-marchand.com, ou votre propre nom de domaine.'],
+                            ['💳', 'Le client paie tout seul', 'Wave, Orange Money, MTN, Moov ou carte, en ligne, ou à la livraison s\'il préfère.'],
+                            ['✅', 'Confirmée sur WhatsApp', 'Le client reçoit sa confirmation et la confirme d\'un bouton, même à 3 heures du matin.'],
+                            ['🛒', 'Les paniers oubliés relancés', 'Un client hésite et part ? Il reçoit un rappel sur WhatsApp avec le lien pour finir sa commande.'],
+                            ['📦', 'Le stock suit tout seul', 'Chaque vente le met à jour : vous ne vendez pas ce que vous n\'avez plus.'],
+                        ] as [$icon, $title, $text])
+                            <li class="flex gap-4">
+                                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 text-xl" aria-hidden="true">{{ $icon }}</span>
+                                <span><span class="block font-semibold">{{ $title }}</span><span class="block text-slate-300">{{ $text }}</span></span>
+                            </li>
+                        @endforeach
+                    </ul>
+                    <a href="{{ $signupUrl }}" class="btn-brand mt-8 bg-white px-6 py-3 text-base text-emerald-900 hover:bg-emerald-50">Ouvrir ma boutique en ligne</a>
                 </div>
             </div>
         </section>
