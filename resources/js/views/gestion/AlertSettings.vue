@@ -18,7 +18,7 @@ const ALERTS = [
   { key: 'confirm', title: 'Commandes à confirmer qui attendent', text: 'Une commande attend d\'être confirmée depuis plus de', delay: true },
   { key: 'callback', title: 'Rappels de clients', text: 'À l\'heure où vous aviez prévu de rappeler un client.' },
   { key: 'unassigned', title: 'Commandes confirmées sans livreur', text: 'Le jour de la livraison, une commande confirmée n\'est confiée à personne depuis plus de', delay: true, escalate: true },
-  { key: 'cutoff', title: 'Heure limite du jour', text: 'À l\'heure limite de la boutique, les commandes du jour pas encore parties chez un livreur.' },
+  { key: 'cutoff', title: 'Heure limite du jour', text: 'À votre heure limite, les commandes du jour pas encore parties chez un livreur.' },
   { key: 'pickup', title: 'Colis pas ramassés', text: 'La course est demandée mais personne n\'est venu chercher le colis depuis plus de', delay: true, escalate: true },
   { key: 'unhandled', title: 'Problèmes de livraison sans suite', text: 'Un échec ou une décision demandée par le livreur reste sans action depuis plus de', delay: true, escalate: true },
   { key: 'stalled', title: 'Livraisons qui traînent', text: 'Colis encore en route (ni livrés ni en échec) à', time: true },

@@ -6,9 +6,9 @@
 @section('body')
     <h2>1. Objet</h2>
     <p>Jibiat Marchand (le « Service ») est une plateforme en ligne qui permet à un commerçant (le « Marchand ») de créer une boutique en ligne, de gérer ses produits, son stock, ses commandes et ses clients, de livrer avec ses propres livreurs ou avec des entreprises de livraison partenaires, et d'encaisser des paiements en ligne sur ses propres comptes. Le Service est édité par {{ config('legal.company') }} (l'« Éditeur »).</p>
-    <p>Les présentes conditions s'appliquent à tout Marchand et à chaque membre de son équipe. Créer une boutique vaut acceptation de ces conditions.</p>
+    <p>Les présentes conditions s'appliquent à tout Marchand et à chaque membre de son équipe. Créer un espace marchand vaut acceptation de ces conditions.</p>
 
-    <h2>2. Compte et boutique</h2>
+    <h2>2. Compte et espace marchand</h2>
     <ul>
         <li>Le Marchand ouvre un compte avec un numéro de téléphone vérifié par SMS. Il garde son mot de passe secret et reste responsable des actions faites depuis son compte et ceux de son équipe.</li>
         <li>Les informations fournies (nom, numéro, adresse de la boutique) doivent être exactes. L'adresse {slug}.{{ config('platform.domain') }} ne doit pas porter atteinte aux droits d'un tiers.</li>
@@ -16,14 +16,14 @@
     </ul>
 
     <h2>3. Usages interdits</h2>
-    <p>Il est interdit de vendre des produits illicites, contrefaits ou dangereux, de diffuser des contenus trompeurs ou contraires à l'ordre public, d'envoyer des messages non sollicités, de tenter d'accéder aux données d'une autre boutique ou de perturber le Service. L'Éditeur peut suspendre une boutique qui enfreint ces règles, après avoir, sauf urgence, invité le Marchand à corriger la situation.</p>
+    <p>Il est interdit de vendre des produits illicites, contrefaits ou dangereux, de diffuser des contenus trompeurs ou contraires à l'ordre public, d'envoyer des messages non sollicités, de tenter d'accéder aux données d'un autre espace marchand ou de perturber le Service. L'Éditeur peut suspendre une boutique qui enfreint ces règles, après avoir, sauf urgence, invité le Marchand à corriger la situation.</p>
 
     <h2>4. Offres, prix et paiement</h2>
     <ul>
         <li>Le Service est proposé en plusieurs offres (Gratuit, Starter, Pro, Business) dont le contenu, les limites et les prix sont indiqués sur la page Abonnement de la gestion. Les prix sont en francs CFA (XOF).</li>
-        <li>Une boutique nouvellement créée bénéficie d'un essai gratuit de {{ \App\Support\TrialOffer::duration() }} de l'offre {{ \App\Support\TrialOffer::planName() }} ({{ \App\Support\TrialOffer::days() }} jours), sans engagement ni moyen de paiement.</li>
+        <li>Un espace marchand nouvellement créé bénéficie d'un essai gratuit de {{ \App\Support\TrialOffer::duration() }} de l'offre {{ \App\Support\TrialOffer::planName() }} ({{ \App\Support\TrialOffer::days() }} jours), sans engagement ni moyen de paiement.</li>
         <li>L'abonnement est payé d'avance, au mois ou à l'année, par mobile money ou carte via notre prestataire de paiement. Une facture est disponible dans la gestion après chaque paiement.</li>
-        <li>Sans renouvellement à l'échéance, la boutique dispose d'un délai de grâce de {{ config('platform.billing.grace_days') }} jours, puis repasse à l'offre gratuite. Aucune donnée n'est supprimée ; les limites de l'offre gratuite s'appliquent aux nouveaux ajouts.</li>
+        <li>Sans renouvellement à l'échéance, l'espace marchand dispose d'un délai de grâce de {{ config('platform.billing.grace_days') }} jours, puis repasse à l'offre gratuite. Aucune donnée n'est supprimée ; les limites de l'offre gratuite s'appliquent aux nouveaux ajouts.</li>
         <li>Le Marchand peut demander à tout moment le retour à l'offre gratuite à la fin de la période payée. Les sommes payées pour une période commencée ne sont pas remboursées, sauf manquement de l'Éditeur.</li>
         <li>L'Éditeur peut modifier ses prix ; le nouveau prix s'applique à la période suivante, après information du Marchand au moins 30 jours à l'avance.</li>
     </ul>
@@ -44,7 +44,7 @@
     <p>La responsabilité de l'Éditeur est limitée aux dommages directs et prouvés, et plafonnée au montant payé par le Marchand au cours des douze derniers mois. L'Éditeur ne répond pas des ventes perdues, ni des actes des clients, livreurs, entreprises de livraison et prestataires de paiement.</p>
 
     <h2>10. Durée, résiliation</h2>
-    <p>Le contrat est conclu pour une durée indéterminée. Le Marchand peut demander la fermeture de sa boutique à tout moment. L'Éditeur peut résilier en cas de manquement grave, après mise en demeure restée sans effet pendant 15 jours.</p>
+    <p>Le contrat est conclu pour une durée indéterminée. Le Marchand peut demander la fermeture de son espace marchand à tout moment. L'Éditeur peut résilier en cas de manquement grave, après mise en demeure restée sans effet pendant 15 jours.</p>
 
     <h2>11. Droit applicable</h2>
     <p>Les présentes conditions sont régies par le droit ivoirien. À défaut d'accord amiable, tout litige relève des tribunaux d'Abidjan.</p>

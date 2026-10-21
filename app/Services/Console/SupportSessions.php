@@ -36,7 +36,7 @@ class SupportSessions
             throw new BusinessRuleException('Réservé aux administrateurs de la plateforme.');
         }
         if ($admin->activeMembershipIn($store) !== null) {
-            throw new BusinessRuleException('Vous faites déjà partie de l\'équipe de cette boutique.');
+            throw new BusinessRuleException('Vous faites déjà partie de l\'équipe de cet espace marchand.');
         }
 
         SupportSession::forStore($store->id)->where('admin_id', $admin->id)->whereNull('ended_at')->update(['ended_at' => now()]);

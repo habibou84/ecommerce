@@ -17,8 +17,8 @@ class TenancyTest extends TestCase
 {
     public function test_the_platform_address_shows_the_presentation_page(): void
     {
-        $this->get($this->platformUrl())->assertOk()->assertSee('Créer ma boutique');
-        $this->get('http://www.localhost/')->assertOk()->assertSee('Créer ma boutique');
+        $this->get($this->platformUrl())->assertOk()->assertSee('Créer mon espace marchand');
+        $this->get('http://www.localhost/')->assertOk()->assertSee('Créer mon espace marchand');
     }
 
     public function test_the_presentation_page_puts_delivery_first_and_shows_public_prices(): void

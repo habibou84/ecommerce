@@ -77,7 +77,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
 <template>
   <div class="space-y-5">
     <Alert v-if="welcome" tone="success">
-      Votre boutique <strong>{{ auth.store?.name }}</strong> est créée. Elle est à l'adresse
+      Votre espace marchand <strong>{{ auth.store?.name }}</strong> est créé. Il est à l'adresse
       <a :href="auth.store?.url" target="_blank" class="font-medium underline">{{ auth.store?.url.replace(/^https?:\/\//, '').replace(/\/$/, '') }}</a>.
       <RouterLink to="/gestion/demarrage" class="mt-1 block font-semibold underline">Suivez le guide de démarrage, étape par étape</RouterLink>
     </Alert>

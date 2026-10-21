@@ -30,7 +30,7 @@
     </table>
 
     <p style="margin-top: 24px">
-        <strong>Boutique</strong><br>
+        <strong>Espace marchand</strong><br>
         {{ $invoice->store->name }} ({{ $invoice->store->slug }}.{{ config('platform.domain') }})<br>
         {{ $invoice->store->owner?->name }} · {{ \Jibiat\Socle\PhoneNumber::display($invoice->store->owner?->phone) }}
     </p>

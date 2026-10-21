@@ -142,7 +142,7 @@ class CourierAppController extends Controller
         $courier = $this->couriers($request)->firstWhere('id', $mission->courier_id);
         SharedCouriers::within($mission->order->store, fn () => $this->responses->decline($mission, $courier, $data['reason']));
 
-        return response()->json(['message' => 'Mission refusée : la boutique est prévenue.']);
+        return response()->json(['message' => 'Mission refusée : le marchand est prévenu.']);
     }
 
     /**

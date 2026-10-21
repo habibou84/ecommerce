@@ -46,18 +46,18 @@ async function start() {
 </script>
 
 <template>
-  <AuthShell title="Connecter WhatsApp" subtitle="Avec votre compte Facebook, pour la boutique qui vous a envoyé ici.">
+  <AuthShell title="Connecter WhatsApp" subtitle="Avec votre compte Facebook, pour l'espace marchand qui vous a envoyé ici.">
     <Alert v-if="!back || !options.appId || !options.configId" tone="error">
-      Ce lien n'est pas valable. Revenez dans la gestion de votre boutique (Réglages › WhatsApp) et recommencez.
+      Ce lien n'est pas valable. Revenez dans votre espace marchand (Réglages › WhatsApp) et recommencez.
     </Alert>
     <div v-else class="space-y-4">
       <p class="text-sm text-slate-600">
-        Une fenêtre Facebook s'ouvre et vous guide : compte Business, nom affiché, numéro de la boutique et code reçu par SMS.
-        Vous revenez ensuite automatiquement sur votre boutique.
+        Une fenêtre Facebook s'ouvre et vous guide : compte Business, nom affiché, numéro de votre espace marchand et code reçu par SMS.
+        Vous revenez ensuite automatiquement sur votre espace marchand.
       </p>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
       <button type="button" class="btn-brand w-full" :disabled="busy" @click="start">{{ busy ? 'Fenêtre Facebook ouverte…' : 'Continuer avec Facebook' }}</button>
-      <button type="button" class="btn-secondary w-full" @click="goBack({ erreur: 'Connexion interrompue. Vous pouvez recommencer quand vous voulez.' })">Revenir à la boutique</button>
+      <button type="button" class="btn-secondary w-full" @click="goBack({ erreur: 'Connexion interrompue. Vous pouvez recommencer quand vous voulez.' })">Revenir à mon espace marchand</button>
     </div>
   </AuthShell>
 </template>

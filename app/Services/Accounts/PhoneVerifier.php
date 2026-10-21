@@ -195,8 +195,8 @@ class PhoneVerifier
     private function smsText(PhoneVerification $verification, string $code): string
     {
         $what = match ($verification->purpose) {
-            VerificationPurpose::Signup => 'pour créer votre boutique',
-            VerificationPurpose::Invitation => 'pour rejoindre la boutique '.$verification->store?->name,
+            VerificationPurpose::Signup => 'pour créer votre espace marchand',
+            VerificationPurpose::Invitation => 'pour rejoindre l\'espace marchand '.$verification->store?->name,
             VerificationPurpose::PasswordReset => 'pour changer votre mot de passe',
             VerificationPurpose::ConsoleLogin => 'pour vous connecter à la console Jibiat Marchand',
         };

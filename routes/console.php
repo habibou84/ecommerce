@@ -37,7 +37,7 @@ Artisan::command('shipping:sync', function (CarrierEvents $events) {
         ->where('driver', CarrierConnection::DELIVERY_APP)->where('status', 'active')->get();
 
     foreach ($connections as $connection) {
-        $this->line("{$connection->name} (boutique {$connection->store_id}) : ".$events->sync($connection).' expédition(s) mise(s) à jour');
+        $this->line("{$connection->name} (espace marchand {$connection->store_id}) : ".$events->sync($connection).' expédition(s) mise(s) à jour');
     }
 })->purpose('Synchronise les expéditions avec les entreprises de livraison');
 
@@ -52,9 +52,9 @@ Artisan::command('shipping:zones', function (CarrierConnections $connections) {
         app(Tenancy::class)->setStore($connection->store);
         try {
             $connections->syncZones($connection);
-            $this->line("{$connection->name} (boutique {$connection->store_id}) : zones à jour");
+            $this->line("{$connection->name} (espace marchand {$connection->store_id}) : zones à jour");
         } catch (CarrierException $e) {
-            $this->warn("{$connection->name} (boutique {$connection->store_id}) : {$e->getMessage()}");
+            $this->warn("{$connection->name} (espace marchand {$connection->store_id}) : {$e->getMessage()}");
         }
     }
 })->purpose('Relit les zones des entreprises de livraison');
@@ -185,7 +185,7 @@ Schedule::command('support:expire')->everyFiveMinutes();
 Artisan::command('platform:admin {phone} {--revoke}', function (string $phone) {
     $user = User::where('phone', PhoneNumber::normalize($phone))->first();
     if ($user === null) {
-        $this->error('Aucun compte avec ce numéro (créez-le d\'abord en ouvrant une boutique ou par invitation).');
+        $this->error('Aucun compte avec ce numéro (créez-le d\'abord en créant un espace marchand ou par invitation).');
 
         return 1;
     }

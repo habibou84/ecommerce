@@ -143,7 +143,7 @@ class ConsoleController extends Controller
                 $end = $trial->trial_ends_at->max(now())->addDays($data['days']);
                 $trial->update(['trial_ends_at' => $end, 'current_period_end' => $end]);
             } else {
-                abort_if($trial !== null, 422, 'La boutique a un abonnement payant en cours : offrez plutôt des mois.');
+                abort_if($trial !== null, 422, 'L\'espace marchand a un abonnement payant en cours : offrez plutôt des mois.');
                 $model->subscriptions()->create([
                     'plan_id' => Plan::where('code', config('platform.trial_plan'))->value('id'), 'status' => SubscriptionStatus::Trialing,
                     'trial_ends_at' => now()->addDays($data['days']), 'current_period_start' => now(), 'current_period_end' => now()->addDays($data['days']),
@@ -171,7 +171,7 @@ class ConsoleController extends Controller
     {
         $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:255'], 'minutes' => ['nullable', 'integer', 'between:5,240']], [], ['reason' => 'motif']);
         $model = Store::findOrFail($store);
-        abort_unless($model->isOpen(), 422, 'Boutique suspendue ou fermée : réactivez-la d\'abord.');
+        abort_unless($model->isOpen(), 422, 'Espace marchand suspendu ou fermé : réactivez-le d\'abord.');
         [$session, $url] = $sessions->start($model, $request->user(), $data['reason'], $data['minutes'] ?? config('platform.support_session_minutes'), $request->ip());
 
         return response()->json(['data' => ['id' => $session->id, 'expires_at' => $session->expires_at->toIso8601String()], 'redirect' => $url], 201);

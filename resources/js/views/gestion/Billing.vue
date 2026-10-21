@@ -83,7 +83,7 @@ async function cancel(value) {
         <span v-else-if="sub?.status === 'past_due'" class="rounded bg-amber-100 px-2 py-0.5 text-sm text-amber-900">À renouveler avant le {{ formatDateTime(sub.grace_ends_at) }}</span>
         <span v-else-if="sub" class="text-sm text-slate-600">{{ sub.cancel_at_period_end ? 'Se termine' : 'Renouvellement' }} le {{ formatDateTime(sub.current_period_end) }} · {{ sub.billing_cycle === 'yearly' ? 'annuel' : 'mensuel' }}</span>
       </div>
-      <p v-if="sub?.cancel_at_period_end" class="text-sm">La boutique passera à l'offre gratuite à l'échéance. <button class="text-emerald-700 underline" @click="cancel(false)">Garder mon abonnement</button></p>
+      <p v-if="sub?.cancel_at_period_end" class="text-sm">Votre espace marchand passera à l'offre gratuite à l'échéance. <button class="text-emerald-700 underline" @click="cancel(false)">Garder mon abonnement</button></p>
       <p v-else-if="sub && sub.status === 'active'" class="text-sm"><button class="text-slate-500 underline" @click="cancel(true)">Revenir à l'offre gratuite à l'échéance</button></p>
       <div class="grid gap-x-6 gap-y-2 pt-2 sm:grid-cols-2">
         <div v-for="(u, key) in usage" :key="key" class="text-sm">
@@ -126,7 +126,7 @@ async function cancel(value) {
           <option v-for="(label, key) in data.methods" :key="key" :value="key">{{ label }}</option>
         </select>
         <button class="btn-brand" :disabled="busy || !price" @click="pay">{{ busy ? 'Redirection…' : `Payer ${money(price)}` }}</button>
-        <span class="text-xs text-slate-500">Paiement sécurisé chez le prestataire. Sans renouvellement, la boutique repasse à l'offre gratuite (rien n'est supprimé).</span>
+        <span class="text-xs text-slate-500">Paiement sécurisé chez le prestataire. Sans renouvellement, votre espace marchand repasse à l'offre gratuite (rien n'est supprimé).</span>
       </div>
     </section>
 

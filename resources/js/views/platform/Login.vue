@@ -52,11 +52,11 @@ async function openStore(store) {
 </script>
 
 <template>
-  <AuthShell :title="account ? `Bonjour ${account.name}` : 'Se connecter'" :subtitle="account ? 'Choisissez votre boutique.' : 'Retrouvez vos boutiques Jibiat Marchand.'">
+  <AuthShell :title="account ? `Bonjour ${account.name}` : 'Se connecter'" :subtitle="account ? 'Choisissez votre espace marchand.' : 'Retrouvez vos espaces marchands Jibiat Marchand.'">
     <Alert v-if="error" class="mb-4">{{ error }}</Alert>
 
     <div v-if="account" class="space-y-2">
-      <p v-if="!account.stores.length" class="text-sm text-slate-600">Ce compte ne fait partie d'aucune boutique.</p>
+      <p v-if="!account.stores.length" class="text-sm text-slate-600">Ce compte ne fait partie d'aucun espace marchand.</p>
       <button
         v-for="store in account.stores"
         :key="store.id"
@@ -86,7 +86,7 @@ async function openStore(store) {
     </form>
 
     <template #footer>
-      Pas encore de boutique ? <RouterLink to="/creer-ma-boutique" class="font-medium text-emerald-700 hover:underline">Créer ma boutique</RouterLink>
+      Pas encore d'espace marchand ? <RouterLink to="/creer-ma-boutique" class="font-medium text-emerald-700 hover:underline">Créer mon espace marchand</RouterLink>
     </template>
   </AuthShell>
 </template>

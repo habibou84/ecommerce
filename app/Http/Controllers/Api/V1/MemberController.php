@@ -113,7 +113,7 @@ class MemberController extends Controller
     private function ensureEditable(Request $request, StoreUser $membership): void
     {
         if ($membership->user_id === $membership->store->owner_id) {
-            throw new BusinessRuleException('Le propriétaire de la boutique ne peut pas être modifié ni retiré.');
+            throw new BusinessRuleException('Le propriétaire de l\'espace marchand ne peut pas être modifié ni retiré.');
         }
         if ($membership->user_id === $request->user()->id) {
             throw new BusinessRuleException('Vous ne pouvez pas modifier votre propre accès.');

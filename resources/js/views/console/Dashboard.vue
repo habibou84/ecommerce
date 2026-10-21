@@ -34,14 +34,14 @@ const maxDay = computed(() => Math.max(1, ...days.value.map((d) => d.total)))
     <Alert v-if="error">{{ error }}</Alert>
     <template v-if="stats">
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div class="card p-4"><p class="text-sm text-slate-500">Boutiques</p><p class="text-2xl font-semibold">{{ stats.stores }}</p><p class="text-xs text-slate-500">+{{ stats.new_7d }} en 7 j · +{{ stats.new_30d }} en 30 j</p></div>
+        <div class="card p-4"><p class="text-sm text-slate-500">Espaces marchands</p><p class="text-2xl font-semibold">{{ stats.stores }}</p><p class="text-xs text-slate-500">+{{ stats.new_7d }} en 7 j · +{{ stats.new_30d }} en 30 j</p></div>
         <div class="card p-4"><p class="text-sm text-slate-500">Actives (30 j)</p><p class="text-2xl font-semibold">{{ stats.active_30d }}</p><p class="text-xs text-slate-500">au moins une commande</p></div>
         <div class="card p-4"><p class="text-sm text-slate-500">Revenu mensuel récurrent</p><p class="text-2xl font-semibold">{{ money(stats.mrr) }}</p><p class="text-xs text-slate-500">{{ money(stats.billed_30d) }} encaissés en 30 j</p></div>
         <div class="card p-4"><p class="text-sm text-slate-500">Ventes livrées (30 j)</p><p class="text-2xl font-semibold">{{ money(stats.gmv_30d) }}</p><p class="text-xs text-slate-500">{{ stats.orders_30d }} commandes</p></div>
       </div>
       <div class="grid gap-5 lg:grid-cols-[2fr_1fr]">
         <section class="card p-4">
-          <h3 class="mb-3 font-semibold">Créations de boutiques (30 jours)</h3>
+          <h3 class="mb-3 font-semibold">Créations d'espaces marchands (30 jours)</h3>
           <div class="flex h-32 items-end gap-1">
             <div v-for="d in days" :key="d.day" class="flex-1 rounded-t bg-emerald-600" :style="{ height: `${(d.total / maxDay) * 100}%`, minHeight: d.total ? '4px' : '1px' }" :title="`${d.day} : ${d.total}`" />
           </div>

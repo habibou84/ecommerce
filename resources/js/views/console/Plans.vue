@@ -35,7 +35,7 @@ async function save(plan) {
 
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-slate-600">Prix en FCFA (multiples de 5). Limite vide : illimitée. Les changements s'appliquent aussitôt à toutes les boutiques de l'offre.</p>
+    <p class="text-sm text-slate-600">Prix en FCFA (multiples de 5). Limite vide : illimitée. Les changements s'appliquent aussitôt à tous les espaces marchands de l'offre.</p>
     <Alert v-if="error">{{ error }}</Alert>
     <div v-if="data" class="grid gap-4 lg:grid-cols-2">
       <section v-for="plan in data.data" :key="plan.id" class="card space-y-3 p-4 text-sm">

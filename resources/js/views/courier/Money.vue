@@ -18,7 +18,7 @@ const errors = ref({})
 const notice = ref('')
 const form = reactive({ courier_id: null, amount: 0, method: 'cash', reference: '', note: '', photo: null })
 const METHODS = [['cash', 'Espèces à la caisse'], ['wave', 'Wave'], ['orange_money', 'Orange Money'], ['mtn_momo', 'MTN MoMo'], ['moov_money', 'Moov Money']]
-const STATUS = { pending: ['En attente de la boutique', 'bg-amber-100 text-amber-900'], confirmed: ['Confirmé', 'bg-emerald-100 text-emerald-800'], rejected: ['Refusé', 'bg-red-100 text-red-800'] }
+const STATUS = { pending: ['En attente du marchand', 'bg-amber-100 text-amber-900'], confirmed: ['Confirmé', 'bg-emerald-100 text-emerald-800'], rejected: ['Refusé', 'bg-red-100 text-red-800'] }
 
 async function load() {
   const [c, e, m] = await Promise.all([cachedGet('/courier/cash', 'cash'), cachedGet('/courier/earnings', 'earnings'), cachedGet('/courier/me', 'me')])
@@ -68,7 +68,7 @@ async function declare() {
     if (form.photo) body.append('photo', await shrinkPhoto(form.photo), 'recu.jpg')
     await http.post('/courier/remittances', body)
     declaring.value = false
-    notice.value = 'Versement déclaré ✓ La boutique est prévenue et va le confirmer.'
+    notice.value = 'Versement déclaré ✓ Le marchand est prévenu et va le confirmer.'
     await load()
   } catch (e) {
     errors.value = fieldErrors(e)
@@ -83,12 +83,12 @@ async function declare() {
   <div v-if="cash && earnings" class="space-y-4">
     <!-- Un seul gros chiffre : ce qu'il reste à verser, avec le plafond -->
     <section class="rounded-xl bg-white p-4 text-center shadow-sm">
-      <p class="text-sm text-slate-500">À verser à la boutique</p>
+      <p class="text-sm text-slate-500">À verser au marchand</p>
       <p class="text-4xl font-extrabold" :class="limitShare > 100 || (me?.cash_limit && cash.held > me.cash_limit) ? 'text-amber-700' : ''">{{ money(cash.held) }}</p>
       <template v-if="limitShare !== null">
         <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full" :class="cash.held > me.cash_limit ? 'bg-amber-500' : 'bg-emerald-600'" :style="{ width: limitShare + '%' }" /></div>
         <p class="mt-1 text-xs" :class="cash.held > me.cash_limit ? 'font-semibold text-amber-800' : 'text-slate-500'">
-          {{ cash.held > me.cash_limit ? '⚠ Plafond dépassé : versez vite à la boutique' : `Plafond : ${money(me.cash_limit)}` }}
+          {{ cash.held > me.cash_limit ? '⚠ Plafond dépassé : versez vite au marchand' : `Plafond : ${money(me.cash_limit)}` }}
         </p>
       </template>
       <button v-if="owed.length && !declaring" class="btn-brand mt-3 w-full py-3" :disabled="!offline.online" @click="startDeclare(); tab = 'cash'">💸 J'ai versé l'argent</button>
@@ -105,7 +105,7 @@ async function declare() {
         <div class="rounded-lg bg-slate-50 p-2"><p class="text-base font-bold">{{ money(me.today.earned) }}</p><p class="text-xs text-slate-500">ma paie</p></div>
       </div>
       <p class="mt-2 text-sm text-slate-600">Encaissé : <strong>{{ money(me.today.collected) }}</strong> · Versé : <strong>{{ money(me.today.remitted) }}</strong></p>
-      <a v-if="storePhone" :href="`https://wa.me/${storePhone}?text=${encodeURIComponent(summary)}`" target="_blank" rel="noopener" class="btn-secondary mt-2 w-full text-sm">💬 Envoyer mon résumé à la boutique</a>
+      <a v-if="storePhone" :href="`https://wa.me/${storePhone}?text=${encodeURIComponent(summary)}`" target="_blank" rel="noopener" class="btn-secondary mt-2 w-full text-sm">💬 Envoyer mon résumé au marchand</a>
     </section>
 
     <nav class="grid grid-cols-3 gap-1 rounded-xl bg-slate-200 p-1 text-sm">
@@ -122,11 +122,11 @@ async function declare() {
 
     <form v-if="declaring" class="space-y-3 rounded-xl bg-white p-4 shadow-sm" @submit.prevent="declare">
       <h2 class="font-semibold">Déclarer un versement</h2>
-      <p class="text-sm text-slate-600">La boutique reçoit votre déclaration et la confirme quand elle a bien l'argent.</p>
-      <Alert v-if="pending" tone="warning">Un versement attend déjà la confirmation de la boutique.</Alert>
+      <p class="text-sm text-slate-600">Le marchand reçoit votre déclaration et la confirme quand il a bien l'argent.</p>
+      <Alert v-if="pending" tone="warning">Un versement attend déjà la confirmation du marchand.</Alert>
       <Alert v-if="error">{{ error }}</Alert>
       <div v-if="owed.length > 1">
-        <p class="label">Boutique</p>
+        <p class="label">Marchand</p>
         <div class="flex flex-wrap gap-2">
           <button v-for="s in owed" :key="s.courier_id" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="form.courier_id === s.courier_id ? 'border-emerald-600 bg-emerald-50 font-medium' : 'border-slate-200'" @click="pickStore(s)">
             {{ s.store }} · {{ money(s.held) }}
@@ -188,7 +188,7 @@ async function declare() {
       </ul>
     </section>
     <section v-if="tab === 'remittances'" class="rounded-xl bg-white p-4 shadow-sm">
-      <p class="mb-1 text-sm font-semibold">Versements reçus par la boutique</p>
+      <p class="mb-1 text-sm font-semibold">Versements reçus par le marchand</p>
       <p v-if="!cash.remittances.length" class="text-sm text-slate-500">Aucun versement enregistré pour l'instant.</p>
       <ul class="divide-y divide-slate-100 text-sm">
         <li v-for="(r, i) in cash.remittances" :key="i" class="flex justify-between py-1.5">

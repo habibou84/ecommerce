@@ -27,7 +27,7 @@ onMounted(load)
     <Alert v-if="error">{{ error }}</Alert>
     <div v-if="result" class="card overflow-x-auto">
       <table class="w-full text-sm">
-        <thead class="border-b border-slate-200 text-left text-xs text-slate-500"><tr><th class="px-4 py-2">N°</th><th>Boutique</th><th>Offre</th><th>Statut</th><th>Moyen</th><th class="text-right">Montant</th><th class="px-4 text-right">Date</th></tr></thead>
+        <thead class="border-b border-slate-200 text-left text-xs text-slate-500"><tr><th class="px-4 py-2">N°</th><th>Espace marchand</th><th>Offre</th><th>Statut</th><th>Moyen</th><th class="text-right">Montant</th><th class="px-4 text-right">Date</th></tr></thead>
         <tbody class="divide-y divide-slate-100">
           <tr v-for="i in result.data" :key="i.id">
             <td class="px-4 py-2 font-mono text-xs">{{ i.number }}</td>

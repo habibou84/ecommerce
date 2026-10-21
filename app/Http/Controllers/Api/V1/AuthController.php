@@ -116,7 +116,7 @@ class AuthController extends Controller
         $target = Store::findOrFail($store);
         $user = $request->user();
 
-        abort_unless($target->isOpen() && $user->activeMembershipIn($target) !== null, 403, 'Vous n\'avez pas accès à cette boutique.');
+        abort_unless($target->isOpen() && $user->activeMembershipIn($target) !== null, 403, 'Vous n\'avez pas accès à cet espace marchand.');
 
         return response()->json(['redirect' => $handoff->url($user, $target)]);
     }

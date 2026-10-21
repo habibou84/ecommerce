@@ -34,7 +34,7 @@ class EnsureStoreMember
             // Administrateur de la plateforme pendant une session de support (durée limitée)
             $support = app(SupportSessions::class)->ongoingFor($user, $store);
             if ($support === null) {
-                return response()->json(['message' => 'Vous n\'avez pas accès à cette boutique.'], 403);
+                return response()->json(['message' => 'Vous n\'avez pas accès à cet espace marchand.'], 403);
             }
             $request->attributes->set('support_session', $support);
 

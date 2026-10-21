@@ -9,7 +9,7 @@ const console_ = useConsoleStore()
 const router = useRouter()
 const nav = [
   { to: '/console', label: 'Tableau de bord', exact: true },
-  { to: '/console/boutiques', label: 'Boutiques' },
+  { to: '/console/boutiques', label: 'Espaces marchands' },
   { to: '/console/factures', label: 'Factures' },
   { to: '/console/offres', label: 'Offres' },
   { to: '/console/ia', label: 'Assistant IA' },

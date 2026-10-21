@@ -87,7 +87,7 @@ async function decline() {
   error.value = ''
   try {
     await http.post(`/courier/missions/${declining.value.id}/decline`, { reason: reason.value })
-    notice.value = 'Mission refusée : la boutique est prévenue.'
+    notice.value = 'Mission refusée : le marchand est prévenu.'
     declining.value = null
     reason.value = ''
     await load()
@@ -105,7 +105,7 @@ async function pickUpAll() {
   let queued = 0
   try {
     for (const m of toPickUp.value) if (await sendStep(m, 'in_transit')) queued++
-    notice.value = queued ? `${toPickUp.value.length} colis récupérés. Envoi à la boutique dès que le réseau revient.` : 'Colis récupérés ✓'
+    notice.value = queued ? `${toPickUp.value.length} colis récupérés. Envoi au marchand dès que le réseau revient.` : 'Colis récupérés ✓'
   } catch (e) {
     error.value = errorMessage(e)
   } finally {

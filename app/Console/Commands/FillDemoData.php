@@ -38,9 +38,9 @@ use Throwable;
  */
 class FillDemoData extends Command
 {
-    protected $signature = 'demo:fill {store : adresse (slug) ou nom de la boutique} {--orders=60 : nombre de commandes}';
+    protected $signature = 'demo:fill {store : adresse (slug) ou nom de l\'espace marchand} {--orders=60 : nombre de commandes}';
 
-    protected $description = 'Remplir une boutique de préproduction avec des données fictives';
+    protected $description = 'Remplir un espace marchand de préproduction avec des données fictives';
 
     private const NAMES = ['Awa Koné', 'Fatou Diallo', 'Mariam Traoré', 'Aïcha Ouattara', 'Adjoua Kouassi', 'Christelle Yao', 'Salimata Bamba', 'Grace Kouamé',
         'Esther N\'Guessan', 'Rokia Coulibaly', 'Nadia Touré', 'Linda Aka', 'Bintou Cissé', 'Prisca Gnagne', 'Josiane Brou', 'Koffi Kouadio', 'Yao Serge',
@@ -58,7 +58,7 @@ class FillDemoData extends Command
         $search = (string) $this->argument('store');
         $store = Store::where('slug', Str::slug($search))->orWhere('slug', $search)->orWhereRaw('LOWER(name) = ?', [mb_strtolower($search)])->first();
         if ($store === null) {
-            $this->error("Boutique « {$search} » introuvable. Boutiques : ".Store::orderBy('name')->pluck('slug')->implode(', '));
+            $this->error("Espace marchand « {$search} » introuvable. Espaces marchands : ".Store::orderBy('name')->pluck('slug')->implode(', '));
 
             return self::FAILURE;
         }
