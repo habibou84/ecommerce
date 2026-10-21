@@ -12,7 +12,7 @@ const data = ref(null)
 const error = ref('')
 const notice = ref(null)
 const busy = ref(false)
-const choice = reactive({ plan: 'pro', cycle: 'monthly', method: 'wave' })
+const choice = reactive({ plan: 'pro', cycle: 'monthly', method: 'wave', payer_phone: '' })
 
 const FEATURES = { custom_domain: 'Domaine personnalisé', online_payment: 'Paiement en ligne', whatsapp_api: 'WhatsApp automatique', advanced_stats: 'Statistiques avancées', merchant_api: 'API marchand', multi_store: 'Plusieurs boutiques' }
 const LIMITS = { orders_per_month: 'commandes / mois', products: 'produits', members: 'membres', couriers: 'livreurs', carrier_connections: 'entreprises de livraison', payment_accounts: 'comptes de paiement', ai_actions_per_month: 'actions de l\'assistant IA / mois' }
@@ -66,13 +66,31 @@ const creditDays = computed(() => {
   return Math.min(366, Math.floor(data.value.credit / (price.value / { weekly: 7, monthly: 30, yearly: 365 }[choice.cycle])))
 })
 
+// Lien marchand Wave : le paiement s'ouvre dans Wave, l'activation suit la vérification
+// Fenêtre ouverte au toucher (sinon bloquée par le navigateur), puis dirigée vers Wave
+const openTab = () => (data.value.manual_payment ? window.open('', '_blank') : null)
+
+async function go(res, tab) {
+  if (!data.value.manual_payment) {
+    window.location.assign(res.redirect)
+    return
+  }
+  if (tab) tab.location.href = res.redirect
+  else window.location.assign(res.redirect)
+  notice.value = { tone: 'info', text: `Payez ${money(res.data.amount)} dans Wave depuis le ${choice.payer_phone}. Dès que le paiement est vérifié, votre ${res.data.kind === 'ai_pack' ? 'recharge est ajoutée' : 'offre est activée'} et vous êtes prévenu.` }
+  busy.value = false
+  await load()
+}
+
 async function pay() {
   busy.value = true
   error.value = ''
+  const tab = openTab()
   try {
     const { data: res } = await http.post('/billing/checkout', choice)
-    window.location.assign(res.redirect)
+    await go(res, tab)
   } catch (e) {
+    tab?.close()
     error.value = errorMessage(e)
     busy.value = false
   }
@@ -81,10 +99,12 @@ async function pay() {
 async function buyAiPack() {
   busy.value = true
   error.value = ''
+  const tab = openTab()
   try {
-    const { data: res } = await http.post('/billing/ai-pack', { method: choice.method })
-    window.location.assign(res.redirect)
+    const { data: res } = await http.post('/billing/ai-pack', { method: choice.method, payer_phone: choice.payer_phone })
+    await go(res, tab)
   } catch (e) {
+    tab?.close()
     error.value = errorMessage(e)
     busy.value = false
   }
@@ -152,6 +172,9 @@ async function cancel(value) {
       <p v-if="creditDays > 0" class="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
         Vos {{ money(data.credit) }} payés et non utilisés de l'offre {{ data.plan.name }} deviennent environ <strong>{{ creditDays }} jour{{ creditDays > 1 ? 's' : '' }} en plus</strong> sur l'offre {{ selected.name }}.
       </p>
+      <label v-if="data.manual_payment" class="block max-w-xs text-sm">Numéro Wave qui va payer
+        <input v-model="choice.payer_phone" type="tel" class="input mt-1" placeholder="07 00 00 00 00" />
+      </label>
       <div class="flex flex-wrap items-center gap-3">
         <select v-model="choice.method" class="input w-auto" aria-label="Moyen de paiement">
           <option v-for="(label, key) in data.methods" :key="key" :value="key">{{ label }}</option>
@@ -167,6 +190,9 @@ async function cancel(value) {
         {{ data.ai_pack.actions }} actions de plus pour {{ money(data.ai_pack.price) }}, utilisées quand celles de votre offre sont épuisées. Elles ne périment pas.
         <template v-if="data.ai_credits"> En réserve : <strong>{{ data.ai_credits }} actions</strong>.</template>
       </p>
+      <label v-if="data.manual_payment" class="block max-w-xs text-sm">Numéro Wave qui va payer
+        <input v-model="choice.payer_phone" type="tel" class="input mt-1" placeholder="07 00 00 00 00" />
+      </label>
       <div class="flex flex-wrap items-center gap-3">
         <select v-model="choice.method" class="input w-auto" aria-label="Moyen de paiement de la recharge">
           <option v-for="(label, key) in data.methods" :key="key" :value="key">{{ label }}</option>

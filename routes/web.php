@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BillingValidationController;
 use App\Http\Controllers\HandoffController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\PageController;
@@ -17,6 +18,9 @@ Route::middleware('zone:platform')->group(function () {
     Route::get('/whatsapp/facebook', [PageController::class, 'spa'])->name('whatsapp.facebook');
     // Retour des fenêtres de connexion Facebook / Instagram et TikTok (adresses déclarées chez eux)
     Route::get('/reseaux/{provider}/retour', SocialCallbackController::class)->whereIn('provider', ['meta', 'tiktok'])->name('social.callback');
+    // Paiement d'abonnement par lien marchand Wave : lien signé envoyé par SMS au validateur
+    Route::get('/facturation/valider/{invoice}', [BillingValidationController::class, 'show'])->whereNumber('invoice')->middleware('signed:relative')->name('billing.validate');
+    Route::post('/facturation/valider/{invoice}', [BillingValidationController::class, 'decide'])->whereNumber('invoice')->middleware(['signed:relative', 'throttle:20,1']);
     Route::get('/cgu', [LegalController::class, 'terms'])->name('legal.terms');
     Route::get('/confidentialite', [LegalController::class, 'privacy'])->name('legal.privacy');
 });

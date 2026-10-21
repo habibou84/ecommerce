@@ -10,6 +10,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Jibiat\Socle\PhoneNumber;
+use Jibiat\Socle\Rules\PhoneNumber as PhoneRule;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -30,20 +32,32 @@ class BillingController extends Controller
             'plan' => ['required', Rule::exists('plans', 'code')->where('is_public', true)],
             'cycle' => ['required', Rule::in(['monthly', 'weekly', 'yearly'])],
             'method' => ['required', 'string'],
-        ], [], ['plan' => 'offre', 'method' => 'moyen de paiement']);
+            'payer_phone' => [Rule::requiredIf($this->billing->manual()), 'nullable', new PhoneRule],
+        ], [], ['plan' => 'offre', 'method' => 'moyen de paiement', 'payer_phone' => 'numéro Wave']);
 
-        $invoice = $this->billing->checkout($this->currentStore(), Plan::where('code', $data['plan'])->firstOrFail(), $data['cycle'], $data['method'], $request->user());
+        $invoice = $this->billing->checkout($this->currentStore(), Plan::where('code', $data['plan'])->firstOrFail(), $data['cycle'], $data['method'], $request->user(), $this->payer($data));
 
         return response()->json(['data' => $this->billing->presentInvoice($invoice), 'redirect' => $invoice->checkout_url], 201);
     }
 
     public function aiPack(Request $request): JsonResponse
     {
-        $data = $request->validate(['method' => ['required', 'string']], [], ['method' => 'moyen de paiement']);
+        $data = $request->validate([
+            'method' => ['required', 'string'],
+            'payer_phone' => [Rule::requiredIf($this->billing->manual()), 'nullable', new PhoneRule],
+        ], [], ['method' => 'moyen de paiement', 'payer_phone' => 'numéro Wave']);
 
-        $invoice = $this->billing->buyAiPack($this->currentStore(), $data['method'], $request->user());
+        $invoice = $this->billing->buyAiPack($this->currentStore(), $data['method'], $request->user(), $this->payer($data));
 
         return response()->json(['data' => $this->billing->presentInvoice($invoice), 'redirect' => $invoice->checkout_url], 201);
+    }
+
+    /**
+     * Numéro Wave qui paie (lien marchand), au format lisible du pays.
+     */
+    private function payer(array $data): ?string
+    {
+        return filled($data['payer_phone'] ?? null) ? PhoneNumber::display(PhoneNumber::normalize($data['payer_phone'])) : null;
     }
 
     /**
