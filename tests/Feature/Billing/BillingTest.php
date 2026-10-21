@@ -139,7 +139,7 @@ class BillingTest extends TestCase
 
         // Le numéro Wave qui paie est demandé
         $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'monthly', 'method' => 'wave'])
-            ->assertStatus(422)->assertJsonValidationErrors('payer_phone');
+            ->assertStatus(422)->assertJsonValidationErrors(['payer_phone' => 'Le champ numéro Wave est obligatoire.']);
 
         $checkout = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'monthly', 'method' => 'wave', 'payer_phone' => '0708091011'])
             ->assertCreated()->assertJsonPath('redirect', 'https://pay.wave.com/m/M_ci_test/c/ci/?amount=12500');
