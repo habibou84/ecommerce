@@ -185,4 +185,26 @@ router.afterEach((to) => {
   document.title = [to.meta.title, store ?? 'Jibiat Marchand'].filter(Boolean).join(' · ')
 })
 
+// Nouvelle version mise en ligne pendant que la page était ouverte : les fichiers des pages pas encore visitées
+// ont changé de nom (et ceux de plus d'une semaine n'existent plus). Sans cela, le clic dans le menu ne fait rien
+// jusqu'au rafraîchissement. On recharge donc la page demandée (une seule fois par minute, jamais en boucle).
+const RELOAD_KEY = 'reloaded-for-new-version'
+function reloadForNewVersion(path) {
+  try {
+    const last = Number(sessionStorage.getItem(RELOAD_KEY) || 0)
+    if (Date.now() - last < 60000) return false
+    sessionStorage.setItem(RELOAD_KEY, String(Date.now()))
+  } catch {
+    // Stockage indisponible : on recharge quand même
+  }
+  window.location.assign(path)
+  return true
+}
+const isStaleChunk = (error) => /dynamically imported module|Importing a module script failed|error loading dynamically imported module|Failed to load module script/i.test(error?.message || '')
+
+router.onError((error, to) => {
+  if (isStaleChunk(error) && reloadForNewVersion(to?.fullPath || window.location.pathname)) return
+  console.error(error)
+})
+
 export default router
