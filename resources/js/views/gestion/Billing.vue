@@ -110,10 +110,11 @@ async function cancel(value) {
             <span v-if="p.code === data.plan.code && sub?.status !== 'trialing'" class="ml-auto rounded bg-white px-1.5 text-xs text-emerald-800">Actuelle</span></span>
           <span class="text-xl font-semibold">{{ money(choice.cycle === 'yearly' ? p.yearly_price : p.monthly_price) }}<span class="text-sm font-normal text-slate-500"> / {{ choice.cycle === 'yearly' ? 'an' : 'mois' }}</span></span>
           <ul class="space-y-0.5 text-slate-600">
+            <li class="text-emerald-800">✓ Boutique en ligne{{ p.features.includes('custom_domain') ? ' à votre nom de domaine' : '' }}</li>
             <li v-for="(label, key) in LIMITS" :key="key">{{ limitLine(p, key) }} {{ label }}</li>
             <li v-if="p.features.includes('multi_store')" class="text-emerald-800">✓ {{ p.limits.stores ? `Jusqu'à ${p.limits.stores} boutiques` : 'Toutes vos boutiques' }} sous un seul abonnement</li>
             <template v-for="f in p.features" :key="f">
-              <li v-if="f !== 'multi_store'" :class="data.coming_soon.includes(f) ? 'text-slate-400' : 'text-emerald-800'">✓ {{ FEATURES[f] ?? f }}<template v-if="data.coming_soon.includes(f)"> (bientôt)</template></li>
+              <li v-if="f !== 'multi_store' && f !== 'custom_domain'" :class="data.coming_soon.includes(f) ? 'text-slate-400' : 'text-emerald-800'">✓ {{ FEATURES[f] ?? f }}<template v-if="data.coming_soon.includes(f)"> (bientôt)</template></li>
             </template>
           </ul>
         </label>

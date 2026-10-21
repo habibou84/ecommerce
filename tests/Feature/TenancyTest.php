@@ -35,6 +35,17 @@ class TenancyTest extends TestCase
             ->assertSee('"@type":"FAQPage"', false);
     }
 
+    public function test_every_plan_lists_the_online_store(): void
+    {
+        $this->seed(PlanSeeder::class);
+
+        $this->get($this->platformUrl())->assertOk()
+            ->assertSee('votre-nom.'.config('platform.domain').'</span>', false)
+            ->assertSee('Boutique en ligne à votre nom de domaine', false)
+            ->assertSee('La boutique en ligne est-elle comprise ?', false)
+            ->assertSee('Jusqu&#039;à 3 boutiques sous un seul abonnement', false);
+    }
+
     public function test_the_presentation_page_shows_the_assistant_and_the_pro_trial(): void
     {
         $this->seed(PlanSeeder::class);

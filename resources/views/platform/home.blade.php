@@ -16,6 +16,7 @@
     $faq = [
         ['Combien ça coûte ?', 'Vous commencez avec '.$trial.' de l\'offre '.$trialPlan.' offert : l\'assistant, WhatsApp automatique, les statistiques avancées, le paiement en ligne, sans carte bancaire. Ensuite, l\'offre Gratuit reste disponible, et les offres payantes commencent à 5 000 F par mois.'],
         ['Que fait l\'assistant ?', 'Il transforme le message WhatsApp d\'un client (même mal écrit, ou en capture d\'écran) en commande, écrit la fiche d\'un produit à partir d\'une photo, prépare vos réponses aux clients avec vos vrais prix et votre stock, rédige vos publications et répond à vos questions sur vos chiffres. Rien n\'est envoyé ni enregistré sans vous.'],
+        ['La boutique en ligne est-elle comprise ?', 'Oui, dans toutes les offres, même Gratuit : vos produits en ligne, le panier, la commande et le suivi pour vos clients, à l\'adresse votre-nom.'.config('platform.domain').'. Les offres payantes ajoutent le paiement en ligne, et Pro et Business votre propre nom de domaine.'],
         ['Et à la fin du mois d\'essai ?', 'Rien n\'est prélevé : vous choisissez l\'offre qui vous convient, ou votre espace marchand passe sur l\'offre Gratuit. Vos produits, vos clients et vos commandes restent là.'],
         ['Comment je trouve une entreprise de livraison ?', 'Dans Livraisons › Entreprises de livraison, l\'annuaire Jibiat montre les entreprises près de chez vous avec leur réussite et leur délai réels des 90 derniers jours. Vous touchez « Connecter » et c\'est fait.'],
         ['Et si j\'ai déjà mes propres livreurs ?', 'Gardez-les : ils ont leur application, avec leurs missions, les encaissements et les preuves de livraison. Vous pouvez mélanger vos livreurs et des entreprises de livraison.'],
@@ -307,22 +308,26 @@
                         @foreach ($plans as $plan)
                             @php
                                 $limits = $plan->limits ?? [];
-                                $count = fn ($key, $one, $many) => array_key_exists($key, $limits) && $limits[$key] !== null ? ($limits[$key] === 0 ? null : $limits[$key].' '.($limits[$key] > 1 ? $many : $one)) : ucfirst($many).' illimités';
+                                $count = fn ($key, $one, $many) => array_key_exists($key, $limits) && $limits[$key] !== null ? ($limits[$key] === 0 ? null : $limits[$key].' '.($limits[$key] > 1 ? $many : $one)) : ucfirst($many).' sans limite';
                             @endphp
                             <div @class(['flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1', 'ring-2 ring-emerald-600' => $plan->code === 'pro', 'ring-slate-200' => $plan->code !== 'pro'])>
                                 <h3 class="flex items-center justify-between gap-2 font-semibold">{{ $plan->name }}@if ($plan->code === config('platform.trial_plan'))<span class="rounded-full bg-amber-300 px-2 py-0.5 text-xs font-semibold text-amber-950">{{ $trial }} offert</span>@endif</h3>
                                 <p class="mt-2"><span class="text-3xl font-bold">{{ number_format($plan->monthly_price, 0, ',', ' ') }} F</span><span class="text-slate-500"> / mois</span></p>
                                 <ul class="mt-5 space-y-2 text-sm text-slate-700">
+                                    <li class="font-medium text-emerald-800">✓ @if (! empty($plan->features['custom_domain']))Boutique en ligne à votre nom de domaine @else Boutique en ligne : <span class="whitespace-nowrap">votre-nom.{{ config('platform.domain') }}</span>@endif</li>
                                     <li>✓ {{ ($limits['orders_per_month'] ?? null) !== null ? $limits['orders_per_month'].' commandes par mois' : 'Commandes illimitées' }}</li>
                                     <li>✓ {{ ($limits['products'] ?? null) !== null ? $limits['products'].' produits' : 'Produits illimités' }}</li>
                                     <li>{{ $count('carrier_connections', 'entreprise de livraison', 'entreprises de livraison') ? '✓ '.$count('carrier_connections', 'entreprise de livraison connectée', 'entreprises de livraison connectées') : '— Vos livreurs seulement' }}</li>
                                     <li>✓ {{ $count('couriers', 'livreur', 'livreurs') }}</li>
-                                    <li>{{ ! empty($plan->features['online_payment']) ? '✓ Paiement en ligne' : '— Paiement à la livraison' }}</li>
+                                    <li>{{ ! empty($plan->features['online_payment']) ? '✓ Paiement en ligne Wave, Orange Money…' : '— Paiement à la livraison seulement' }}</li>
                                     @if (array_key_exists('ai_actions_per_month', $limits))
                                         <li>{{ $limits['ai_actions_per_month'] === 0 ? '— Sans assistant' : '✓ '.($limits['ai_actions_per_month'] === null ? 'Assistant illimité' : number_format($limits['ai_actions_per_month'], 0, ',', ' ').' actions de l\'assistant') }}</li>
                                     @endif
                                     @if (! empty($plan->features['whatsapp_api']))
                                         <li>✓ WhatsApp automatique</li>
+                                    @endif
+                                    @if (! empty($plan->features['multi_store']))
+                                        <li>✓ {{ ($limits['stores'] ?? null) !== null ? 'Jusqu\'à '.$limits['stores'].' boutiques' : 'Toutes vos boutiques' }} sous un seul abonnement</li>
                                     @endif
                                 </ul>
                                 <div class="mt-auto pt-6"><a href="{{ $signupUrl }}" class="btn-brand w-full">Commencer</a></div>
