@@ -20,7 +20,7 @@ module.exports = {
     allowMixedContent: false,
   },
   plugins: {
-    SplashScreen: { launchShowDuration: 1200, backgroundColor: '#047857', showSpinner: false },
+    SplashScreen: { launchShowDuration: 1200, backgroundColor: '#ffffff', showSpinner: false },
     // Icônes sombres sur le fond blanc de la page
     StatusBar: { style: 'LIGHT' },
     PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] },

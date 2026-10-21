@@ -20,4 +20,9 @@ class LegalController extends Controller
     {
         return view('platform.legal.privacy');
     }
+
+    public function accountDeletion(): View
+    {
+        return view('platform.legal.account-deletion');
+    }
 }
