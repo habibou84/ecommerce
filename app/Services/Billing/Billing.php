@@ -96,10 +96,13 @@ class Billing
             'features' => collect(PlanLimits::FEATURES)->map(fn ($label, $key) => ['label' => $label, 'enabled' => $plan->hasFeature($key), 'soon' => in_array($key, PlanLimits::COMING_SOON, true)])->all(),
             'coming_soon' => PlanLimits::COMING_SOON,
             'plans' => Plan::where('is_public', true)->orderBy('sort')->get()->map(fn (Plan $p) => [
-                'code' => $p->code, 'name' => $p->name, 'monthly_price' => $p->monthly_price, 'yearly_price' => $p->yearly_price,
+                'code' => $p->code, 'name' => $p->name, 'monthly_price' => $p->monthly_price, 'weekly_price' => $p->weekly_price, 'yearly_price' => $p->yearly_price,
                 'limits' => $p->limits, 'features' => array_keys(array_filter($p->features ?? [])),
             ]),
             'methods' => $this->methods(),
+            // Recharges de l'assistant : actions achetées restantes et prix d'une recharge
+            'ai_credits' => (int) $store->ai_credits,
+            'ai_pack' => config('platform.ai_pack'),
             'invoices' => SubscriptionInvoice::forStore($store->id)->with('plan')->whereIn('status', ['paid', 'offered', 'pending'])->latest('id')->limit(12)->get()
                 ->map(fn (SubscriptionInvoice $i) => $this->presentInvoice($i)),
         ];
@@ -113,19 +116,50 @@ class Billing
         if (($covering = $this->limits->coveringStore($store)) !== null) {
             throw new BusinessRuleException("Cette boutique est couverte par l'abonnement de {$covering->name}. Retirez-la de cet abonnement (Mes boutiques) pour prendre une offre séparée.", 'plan');
         }
-        $amount = $cycle === 'yearly' ? $plan->yearly_price : $plan->monthly_price;
+        $amount = match ($cycle) {
+            'yearly' => $plan->yearly_price,
+            'weekly' => $plan->weekly_price,
+            default => $plan->monthly_price,
+        };
         if (! $amount) {
-            throw new BusinessRuleException('Cette offre ne se paie pas en ligne.', 'plan');
+            throw new BusinessRuleException($cycle === 'weekly' ? 'Cette offre ne se paie pas à la semaine.' : 'Cette offre ne se paie pas en ligne.', 'plan');
         }
+
+        return $this->pay($store, $user, $method, [
+            'plan_id' => $plan->id,
+            'billing_cycle' => $cycle,
+            'amount' => $amount,
+        ], "Abonnement {$plan->name} ({$this->cycleLabel($cycle)}) · {$store->name}");
+    }
+
+    /**
+     * Recharge de l'assistant : des actions en plus, utilisées après celles de l'offre et sans date de fin.
+     */
+    public function buyAiPack(Store $store, string $method, User $user): SubscriptionInvoice
+    {
+        ['actions' => $actions, 'price' => $price] = config('platform.ai_pack');
+
+        return $this->pay($store, $user, $method, [
+            'kind' => 'ai_pack',
+            'ai_actions' => $actions,
+            'billing_cycle' => 'pack',
+            'amount' => $price,
+        ], "Recharge de l'assistant ({$actions} actions) · {$store->name}");
+    }
+
+    /**
+     * Facture en attente et page de paiement du prestataire.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function pay(Store $store, User $user, string $method, array $data, string $description): SubscriptionInvoice
+    {
         if (! array_key_exists($method, $this->methods())) {
             throw new BusinessRuleException('Moyen de paiement non disponible.', 'method');
         }
 
-        $invoice = $this->newInvoice([
+        $invoice = $this->newInvoice($data + [
             'store_id' => $store->id,
-            'plan_id' => $plan->id,
-            'billing_cycle' => $cycle,
-            'amount' => $amount,
             'status' => 'pending',
             'provider' => config('platform.billing.provider'),
             'method' => $method,
@@ -139,7 +173,7 @@ class Billing
                 'return_url' => $return,
                 'cancel_url' => $return,
                 'notify_url' => Tenancy::apiUrl('/webhooks/billing'),
-                'description' => "Abonnement {$plan->name} ({$this->cycleLabel($cycle)}) · {$store->name}",
+                'description' => $description,
                 'customer_name' => $user->name,
                 'customer_phone' => $user->phone,
                 'store_name' => 'Jibiat Marchand',
@@ -258,7 +292,7 @@ class Billing
 
             if ($sub->status === SubscriptionStatus::Trialing) {
                 if ($sub->trial_ends_at?->isPast()) {
-                    $this->expire($sub, 'Fin de l\'essai', "Votre essai de l'offre {$sub->plan->name} est terminé : la boutique passe à l'offre gratuite. Choisissez une offre pour retrouver toutes les fonctions.");
+                    $this->expire($sub, 'Fin de l\'essai', "Votre essai de l'offre {$sub->plan->name} est terminé : votre espace marchand passe à l'offre gratuite. Choisissez une offre pour retrouver toutes les fonctions.");
                     $counts['trials_ended']++;
                 } elseif ($sub->trial_ends_at?->lte($remind) && $this->once($store, 'trial_reminder', $sub->id)) {
                     $this->notify($store, 'Votre essai se termine bientôt', "Votre essai de l'offre {$sub->plan->name} se termine le {$sub->trial_ends_at->locale('fr')->isoFormat('D MMMM')}. Choisissez votre offre pour garder toutes les fonctions.");
@@ -270,7 +304,7 @@ class Billing
 
             if ($sub->status === SubscriptionStatus::Active && $end?->isPast()) {
                 if ($sub->cancel_at_period_end) {
-                    $this->expire($sub, 'Abonnement terminé', "Votre abonnement {$sub->plan->name} est terminé comme demandé : la boutique passe à l'offre gratuite.");
+                    $this->expire($sub, 'Abonnement terminé', "Votre abonnement {$sub->plan->name} est terminé comme demandé : votre espace marchand passe à l'offre gratuite.");
                     $counts['downgraded']++;
                 } else {
                     $sub->update(['status' => SubscriptionStatus::PastDue]);
@@ -288,7 +322,7 @@ class Billing
             }
 
             if ($sub->status === SubscriptionStatus::PastDue && $end?->addDays($grace)->isPast()) {
-                $this->expire($sub, 'Retour à l\'offre gratuite', "Votre abonnement {$sub->plan->name} n'a pas été renouvelé : la boutique passe à l'offre gratuite. Vos données sont conservées.");
+                $this->expire($sub, 'Retour à l\'offre gratuite', "Votre abonnement {$sub->plan->name} n'a pas été renouvelé : votre espace marchand passe à l'offre gratuite. Vos données sont conservées.");
                 $counts['downgraded']++;
             }
         }
@@ -304,7 +338,8 @@ class Billing
         return [
             'id' => $i->id,
             'number' => $i->number,
-            'plan' => $i->plan?->name,
+            'plan' => $i->kind === 'ai_pack' ? "Recharge de l'assistant ({$i->ai_actions} actions)" : $i->plan?->name,
+            'kind' => $i->kind,
             'billing_cycle' => $i->billing_cycle,
             'cycle_label' => $this->cycleLabel($i->billing_cycle),
             'amount' => $i->amount,
@@ -332,14 +367,27 @@ class Billing
             }
 
             $store = Store::findOrFail($invoice->store_id);
+
+            if ($invoice->kind === 'ai_pack') {
+                $store->increment('ai_credits', (int) $invoice->ai_actions);
+                $invoice->update(['status' => $status, 'method' => $method ?? $invoice->method, 'raw' => $raw, 'paid_at' => now()]);
+                $credits = $store->fresh()->ai_credits;
+                DB::afterCommit(fn () => $this->notify($store, 'Recharge de l\'assistant reçue',
+                    "{$invoice->ai_actions} actions de l'assistant ajoutées ({$credits} en réserve, ".Money::format($invoice->amount).' reçus). Merci !'));
+
+                return $invoice->fresh();
+            }
+
             $months = $status === 'offered' ? (int) ($raw['months'] ?? 1) : ($invoice->billing_cycle === 'yearly' ? 12 : 1);
+            // Paiement à la semaine : 7 jours au lieu d'un mois
+            $period = fn (CarbonImmutable $from) => $status !== 'offered' && $invoice->billing_cycle === 'weekly' ? $from->addWeek() : $from->addMonths($months);
             $current = $store->currentSubscription()->first();
 
             if ($current && $current->plan_id === $invoice->plan_id && $current->status !== SubscriptionStatus::Trialing) {
                 // Même offre : la nouvelle période commence à la fin de la précédente (paiement anticipé ou en retard)
                 $start = $current->current_period_end && $current->current_period_end->isFuture() ? CarbonImmutable::instance($current->current_period_end) : CarbonImmutable::now();
                 $current->update([
-                    'status' => SubscriptionStatus::Active, 'billing_cycle' => $invoice->billing_cycle, 'current_period_end' => $start->addMonths($months),
+                    'status' => SubscriptionStatus::Active, 'billing_cycle' => $invoice->billing_cycle, 'current_period_end' => $period($start),
                     'cancel_at_period_end' => false,
                 ]);
                 $subscription = $current;
@@ -351,7 +399,7 @@ class Billing
                 $start = CarbonImmutable::now();
                 $subscription = $store->subscriptions()->create([
                     'plan_id' => $invoice->plan_id, 'status' => SubscriptionStatus::Active, 'billing_cycle' => $invoice->billing_cycle,
-                    'current_period_start' => $start, 'current_period_end' => $start->addMonths($months)->addDays($days),
+                    'current_period_start' => $start, 'current_period_end' => $period($start)->addDays($days),
                 ]);
                 if ($days > 0) {
                     $invoice->update(['credit_amount' => $credit, 'credit_days' => $days]);
@@ -402,7 +450,11 @@ class Billing
      */
     private function creditDays(int $credit, Plan $plan, string $cycle): int
     {
-        $perDay = $cycle === 'yearly' ? $plan->yearly_price / 365 : $plan->monthly_price / 30;
+        $perDay = match ($cycle) {
+            'yearly' => $plan->yearly_price / 365,
+            'weekly' => $plan->weekly_price / 7,
+            default => $plan->monthly_price / 30,
+        };
 
         return $credit > 0 && $perDay > 0 ? min(366, (int) floor($credit / $perDay)) : 0;
     }
@@ -467,6 +519,11 @@ class Billing
 
     private function cycleLabel(string $cycle): string
     {
-        return $cycle === 'yearly' ? 'annuel' : 'mensuel';
+        return match ($cycle) {
+            'yearly' => 'annuel',
+            'weekly' => 'à la semaine',
+            'pack' => 'recharge',
+            default => 'mensuel',
+        };
     }
 }

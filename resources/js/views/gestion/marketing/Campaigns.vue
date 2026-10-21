@@ -116,7 +116,7 @@ const audienceText = (a) => a.type === 'inactive' ? `Sans commande depuis ${a.da
       <button class="btn-brand" @click="edit()">Nouvelle relance</button>
     </div>
     <Alert v-if="!meta.whatsapp_ready" tone="warning">
-      Pour envoyer une relance, connectez le WhatsApp de la boutique puis créez le modèle « Nouveautés » (Réglages › WhatsApp › Modèles) et attendez que Meta l'accepte.
+      Pour envoyer une relance, connectez votre WhatsApp puis créez le modèle « Nouveautés » (Réglages › WhatsApp › Modèles) et attendez que Meta l'accepte.
     </Alert>
     <Alert v-if="error">{{ error }}</Alert>
 

@@ -36,7 +36,11 @@ class ConsoleController extends Controller
         $since = now()->subDays(30);
         $orders = Order::withoutGlobalScopes()->where('created_at', '>=', $since);
         $monthly = Subscription::where('status', SubscriptionStatus::Active->value)->with('plan')->get()
-            ->sum(fn (Subscription $s) => $s->billing_cycle === 'yearly' ? (int) round(($s->plan->yearly_price ?? 0) / 12) : $s->plan->monthly_price);
+            ->sum(fn (Subscription $s) => match ($s->billing_cycle) {
+                'yearly' => (int) round(($s->plan->yearly_price ?? 0) / 12),
+                'weekly' => (int) round(($s->plan->weekly_price ?? 0) * 52 / 12),
+                default => $s->plan->monthly_price,
+            });
 
         return response()->json(['data' => [
             'stores' => Store::count(),
@@ -143,7 +147,7 @@ class ConsoleController extends Controller
                 $end = $trial->trial_ends_at->max(now())->addDays($data['days']);
                 $trial->update(['trial_ends_at' => $end, 'current_period_end' => $end]);
             } else {
-                abort_if($trial !== null, 422, 'La boutique a un abonnement payant en cours : offrez plutôt des mois.');
+                abort_if($trial !== null, 422, 'L\'espace marchand a un abonnement payant en cours : offrez plutôt des mois.');
                 $model->subscriptions()->create([
                     'plan_id' => Plan::where('code', config('platform.trial_plan'))->value('id'), 'status' => SubscriptionStatus::Trialing,
                     'trial_ends_at' => now()->addDays($data['days']), 'current_period_start' => now(), 'current_period_end' => now()->addDays($data['days']),
@@ -171,7 +175,7 @@ class ConsoleController extends Controller
     {
         $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:255'], 'minutes' => ['nullable', 'integer', 'between:5,240']], [], ['reason' => 'motif']);
         $model = Store::findOrFail($store);
-        abort_unless($model->isOpen(), 422, 'Boutique suspendue ou fermée : réactivez-la d\'abord.');
+        abort_unless($model->isOpen(), 422, 'Espace marchand suspendu ou fermé : réactivez-le d\'abord.');
         [$session, $url] = $sessions->start($model, $request->user(), $data['reason'], $data['minutes'] ?? config('platform.support_session_minutes'), $request->ip());
 
         return response()->json(['data' => ['id' => $session->id, 'expires_at' => $session->expires_at->toIso8601String()], 'redirect' => $url], 201);
@@ -201,6 +205,7 @@ class ConsoleController extends Controller
             'name' => ['sometimes', 'string', 'max:60'],
             'monthly_price' => ['sometimes', 'integer', 'min:0', 'multiple_of:5'],
             'yearly_price' => ['sometimes', 'nullable', 'integer', 'min:0', 'multiple_of:5'],
+            'weekly_price' => ['sometimes', 'nullable', 'integer', 'min:0', 'multiple_of:5'],
             'limits' => ['sometimes', 'array'],
             'limits.*' => ['nullable', 'integer', 'min:0'],
             'features' => ['sometimes', 'array'],

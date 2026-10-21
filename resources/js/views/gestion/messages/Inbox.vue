@@ -126,7 +126,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
 <template>
   <div class="space-y-4">
     <Alert v-if="listLoaded && !connected" tone="warning">
-      Les messages des clients arrivent ici quand le WhatsApp, la page Facebook ou l'Instagram de la boutique sont connectés.
+      Les messages des clients arrivent ici quand votre WhatsApp, votre page Facebook ou votre Instagram sont connectés.
       <RouterLink v-if="auth.can('store.manage')" to="/gestion/whatsapp" class="font-medium underline">Connecter WhatsApp</RouterLink>
       <RouterLink v-if="auth.can('store.manage')" to="/gestion/marketing/reseaux" class="ml-2 font-medium underline">Connecter Facebook et Instagram</RouterLink>
     </Alert>
@@ -235,7 +235,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
         <div>
           <Icon name="messages" :size="36" class="mx-auto text-slate-400" />
           <p class="mt-2">Choisissez une conversation.</p>
-          <p class="mt-1">Les messages des clients arrivent ici dès qu'ils écrivent sur le WhatsApp, la page Facebook ou l'Instagram de la boutique.</p>
+          <p class="mt-1">Les messages des clients arrivent ici dès qu'ils écrivent sur votre WhatsApp, votre page Facebook ou votre Instagram.</p>
         </div>
       </section>
     </div>

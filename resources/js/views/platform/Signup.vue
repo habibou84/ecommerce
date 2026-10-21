@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import AuthShell from '../../components/AuthShell.vue'
 import Alert from '../../components/Alert.vue'
 import CodeStep from '../../components/CodeStep.vue'
@@ -8,7 +8,21 @@ import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { boot } from '../../lib/boot'
 import { slugify } from '../../lib/format'
 
-const form = reactive({ store_name: '', slug: '', name: '', phone: '', password: '' })
+const form = reactive({ store_name: '', slug: '', name: '', phone: '', password: '', partner: null })
+// Invitation d'une entreprise de livraison de l'annuaire (lien « ?partenaire= ») : un mois d'essai en plus
+const partner = ref(null)
+
+onMounted(async () => {
+  const slug = new URLSearchParams(window.location.search).get('partenaire')
+  if (!slug) return
+  try {
+    const { data } = await http.get('/signup/partner', { params: { slug } })
+    partner.value = data.data
+    form.partner = data.data?.slug ?? null
+  } catch {
+    // Annuaire injoignable : inscription avec l'essai habituel
+  }
+})
 const slugTouched = ref(false)
 const slugState = reactive({ checking: false, available: null, message: '' })
 const errors = ref({})
@@ -68,13 +82,17 @@ function done(data) {
 
 <template>
   <AuthShell
-    :title="pending ? 'Vérifiez votre numéro' : 'Créez votre boutique'"
-    :subtitle="pending ? '' : `Gratuit pendant ${boot.trialDays} jours, sans engagement. Tout se fait depuis votre téléphone.`"
+    :title="pending ? 'Vérifiez votre numéro' : 'Créez votre espace marchand'"
+    :subtitle="pending ? '' : `${partner?.trial ?? boot.trialOffer} offert, sans carte bancaire ni engagement. Tout se fait depuis votre téléphone.`"
   >
-    <CodeStep v-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Créer ma boutique" @done="done" />
+    <CodeStep v-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Créer mon espace marchand" @done="done" />
 
     <form v-else class="space-y-4" @submit.prevent="submit">
       <Alert v-if="error">{{ error }}</Alert>
+      <div v-if="partner" class="flex items-center gap-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 ring-1 ring-emerald-200">
+        <img v-if="partner.logo_url" :src="partner.logo_url" alt="" class="h-10 w-10 shrink-0 rounded-lg bg-white object-contain" />
+        <p>Invité par <strong>{{ partner.name }}</strong> : <strong>{{ partner.trial }}</strong> offerts pour bien démarrer.</p>
+      </div>
 
       <Field id="store_name" label="Nom de la boutique" :error="errors.store_name">
         <input id="store_name" v-model="form.store_name" class="input" maxlength="80" placeholder="Awa Mode" required autofocus />
@@ -113,14 +131,14 @@ function done(data) {
         <input id="password" v-model="form.password" class="input" type="password" autocomplete="new-password" minlength="8" required />
       </Field>
 
-      <p class="text-xs text-slate-500">En créant votre boutique, vous acceptez les <a href="/cgu" target="_blank" class="underline">conditions d'utilisation et de vente</a> et la <a href="/confidentialite" target="_blank" class="underline">politique de confidentialité</a>.</p>
+      <p class="text-xs text-slate-500">En créant votre espace marchand, vous acceptez les <a href="/cgu" target="_blank" class="underline">conditions d'utilisation et de vente</a> et la <a href="/confidentialite" target="_blank" class="underline">politique de confidentialité</a>.</p>
       <button class="btn-brand w-full" :disabled="busy || slugState.available === false">
         {{ busy ? 'Un instant…' : 'Continuer' }}
       </button>
     </form>
 
     <template #footer>
-      Vous avez déjà une boutique ? <RouterLink to="/connexion" class="font-medium text-emerald-700 hover:underline">Se connecter</RouterLink>
+      Vous avez déjà un espace marchand ? <RouterLink to="/connexion" class="font-medium text-emerald-700 hover:underline">Se connecter</RouterLink>
     </template>
   </AuthShell>
 </template>

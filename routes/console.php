@@ -3,8 +3,10 @@
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Models\CarrierConnection;
+use App\Models\CarrierWebhookReceipt;
 use App\Models\Cart;
 use App\Models\Order;
+use App\Models\PaymentWebhookReceipt;
 use App\Models\StoreDomain;
 use App\Models\User;
 use App\Services\Accounts\StoreDataExport;
@@ -35,7 +37,7 @@ Artisan::command('shipping:sync', function (CarrierEvents $events) {
         ->where('driver', CarrierConnection::DELIVERY_APP)->where('status', 'active')->get();
 
     foreach ($connections as $connection) {
-        $this->line("{$connection->name} (boutique {$connection->store_id}) : ".$events->sync($connection).' expédition(s) mise(s) à jour');
+        $this->line("{$connection->name} (espace marchand {$connection->store_id}) : ".$events->sync($connection).' expédition(s) mise(s) à jour');
     }
 })->purpose('Synchronise les expéditions avec les entreprises de livraison');
 
@@ -50,9 +52,9 @@ Artisan::command('shipping:zones', function (CarrierConnections $connections) {
         app(Tenancy::class)->setStore($connection->store);
         try {
             $connections->syncZones($connection);
-            $this->line("{$connection->name} (boutique {$connection->store_id}) : zones à jour");
+            $this->line("{$connection->name} (espace marchand {$connection->store_id}) : zones à jour");
         } catch (CarrierException $e) {
-            $this->warn("{$connection->name} (boutique {$connection->store_id}) : {$e->getMessage()}");
+            $this->warn("{$connection->name} (espace marchand {$connection->store_id}) : {$e->getMessage()}");
         }
     }
 })->purpose('Relit les zones des entreprises de livraison');
@@ -153,6 +155,9 @@ Artisan::command('exports:purge', function (StoreDataExport $exports) {
 })->purpose('Supprimer les exports de données de plus de 7 jours');
 Schedule::command('exports:purge')->dailyAt('04:10');
 
+// Données personnelles gardées le temps utile : reçus de webhooks et paniers abandonnés, effacés après 90 jours
+Schedule::command('model:prune', ['--model' => [PaymentWebhookReceipt::class, CarrierWebhookReceipt::class, Cart::class]])->dailyAt('04:20');
+
 Artisan::command('billing:run', function (Billing $billing) {
     $counts = $billing->run();
     $this->line("Rappels : {$counts['reminded']} · essais terminés : {$counts['trials_ended']} · en retard : {$counts['past_due']} · retour à l'offre gratuite : {$counts['downgraded']}");
@@ -180,7 +185,7 @@ Schedule::command('support:expire')->everyFiveMinutes();
 Artisan::command('platform:admin {phone} {--revoke}', function (string $phone) {
     $user = User::where('phone', PhoneNumber::normalize($phone))->first();
     if ($user === null) {
-        $this->error('Aucun compte avec ce numéro (créez-le d\'abord en ouvrant une boutique ou par invitation).');
+        $this->error('Aucun compte avec ce numéro (créez-le d\'abord en créant un espace marchand ou par invitation).');
 
         return 1;
     }

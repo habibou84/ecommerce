@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import Icon from '../../../components/Icon.vue'
 import Field from '../../../components/Field.vue'
@@ -29,8 +30,74 @@ async function load() {
     error.value = errorMessage(e)
   }
 }
+
+// Annuaire de Jibiat : entreprises de livraison avec leurs vrais chiffres, connexion en un clic
+const route = useRoute()
+const router = useRouter()
+const directory = ref(null)
+const directoryAvailable = ref(true)
+const connecting = ref(null)
+const percent = (rate) => (rate === null || rate === undefined ? '—' : `${Math.round(rate * 100)} %`)
+const hours = (h) => (h === null || h === undefined ? '—' : `${Math.round(h)} h`)
+const money = (amount) => (amount === null || amount === undefined ? '—' : `${new Intl.NumberFormat('fr-FR').format(amount)} F`)
+
+async function loadDirectory() {
+  try {
+    const { data } = await http.get('/carriers/directory')
+    directory.value = data.data
+    directoryAvailable.value = data.available
+  } catch {
+    directory.value = []
+    directoryAvailable.value = false
+  }
+}
+
+async function connectFromDirectory(company) {
+  connecting.value = company.slug
+  error.value = ''
+  try {
+    const { data } = await http.post('/carriers/connect/start', { slug: company.slug })
+    window.location.assign(data.data.url)
+  } catch (e) {
+    error.value = errorMessage(e)
+    connecting.value = null
+  }
+}
+
+// Retour de la page « Connecter » de l'entreprise : code à échanger, demande envoyée ou refus
+async function finishReturn() {
+  const { code, state, error: refused } = route.query
+  if (!state) return
+  const query = { ...route.query }
+  delete query.code
+  delete query.state
+  delete query.error
+  router.replace({ query })
+  if (refused === 'request_pending') {
+    notice.value = 'Demande envoyée : l\'entreprise de livraison vous contacte pour ouvrir votre compte. Une fois ouvert, revenez ici et touchez de nouveau « Connecter ».'
+    return
+  }
+  if (refused || !code) {
+    error.value = 'Connexion annulée.'
+    return
+  }
+  busy.value = true
+  try {
+    const { data } = await http.post('/carriers/connect/finish', { state, code })
+    notice.value = `${data.data.name} est connecté : vos commandes peuvent lui être confiées en un clic.`
+    await load()
+    if (data.data.unmapped_count) openZones(data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 onMounted(async () => {
+  await finishReturn()
   await load()
+  loadDirectory()
   try {
     locations.value = (await http.get('/stock/locations')).data.data
   } catch {
@@ -176,8 +243,8 @@ const copy = (text) => navigator.clipboard?.writeText(text)
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
     <p v-if="carriers && !carriers.length" class="card p-6 text-sm text-slate-500">
-      Aucune entreprise de livraison connectée. Si la vôtre utilise Delivery App (adresse en …jibiat.com), connectez-la avec une clé API :
-      les courses, statuts et reversements arrivent tout seuls.
+      Aucune entreprise de livraison connectée. Choisissez-en une dans l'annuaire ci-dessous et touchez « Connecter » :
+      les courses, statuts et reversements arrivent tout seuls. Votre entreprise n'y est pas ? Connectez-la avec une clé API (« + Entreprise »).
     </p>
 
     <article v-for="c in carriers ?? []" :key="c.id" class="card space-y-3 p-4 text-sm">
@@ -207,7 +274,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
       <div class="grid gap-3 sm:grid-cols-2">
         <Field :id="`payer-${c.id}`" label="Livraison payée par">
           <select :id="`payer-${c.id}`" :value="c.settings.fee_payer" class="input" @change="save(c, { fee_payer: $event.target.value })">
-            <option value="store">La boutique (le client paie le montant de la commande)</option>
+            <option value="store">Vous (le client paie le montant de la commande)</option>
             <option value="customer">Le client (tarif de l'entreprise)</option>
           </select>
         </Field>
@@ -224,6 +291,38 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <button class="btn-ghost ml-auto px-3 py-1.5 text-red-600" @click="disconnect(c)">Déconnecter</button>
       </div>
     </article>
+
+    <section class="space-y-3">
+      <div>
+        <h2 class="text-base font-semibold">Trouver une entreprise de livraison</h2>
+        <p class="text-sm text-slate-600">Des entreprises qui livrent avec Jibiat, avec leurs vrais résultats des 90 derniers jours. Touchez « Connecter » : vous vous connectez chez elle (ou ouvrez votre compte), et c'est fait, sans clé à copier.</p>
+      </div>
+      <p v-if="directory === null" class="text-sm text-slate-500">Chargement de l'annuaire…</p>
+      <p v-else-if="!directoryAvailable" class="card p-4 text-sm text-slate-500">L'annuaire ne répond pas pour le moment. Vous pouvez connecter votre entreprise avec une clé API (« + Entreprise »).</p>
+      <p v-else-if="!directory.length" class="card p-4 text-sm text-slate-500">Aucune entreprise dans l'annuaire pour l'instant.</p>
+      <div v-else class="grid gap-3 sm:grid-cols-2">
+        <article v-for="d in directory" :key="d.slug" class="card flex flex-col gap-3 p-4 text-sm">
+          <div class="flex items-center gap-3">
+            <img v-if="d.logo_url" :src="d.logo_url" alt="" class="h-11 w-11 rounded-lg object-contain">
+            <span v-else class="grid h-11 w-11 place-items-center rounded-lg bg-emerald-700 font-bold text-white" aria-hidden="true">{{ d.name.slice(0, 1).toUpperCase() }}</span>
+            <div class="min-w-0">
+              <h3 class="truncate text-base font-semibold">{{ d.name }}</h3>
+              <p class="truncate text-slate-500">{{ d.cities.join(', ') || 'Côte d\'Ivoire' }}<template v-if="d.ships_inland"> · expédition vers l'intérieur</template></p>
+            </div>
+            <span v-if="d.near" class="ml-auto shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">Près de vous</span>
+          </div>
+          <p v-if="d.pitch" class="text-slate-700">{{ d.pitch }}</p>
+          <dl class="grid grid-cols-3 gap-2 text-center">
+            <div class="rounded-lg bg-slate-50 p-2"><dt class="text-xs text-slate-500">Réussite</dt><dd class="font-semibold">{{ percent(d.stats.success_rate) }}</dd></div>
+            <div class="rounded-lg bg-slate-50 p-2"><dt class="text-xs text-slate-500">Délai moyen</dt><dd class="font-semibold">{{ hours(d.stats.average_delivery_hours) }}</dd></div>
+            <div class="rounded-lg bg-slate-50 p-2"><dt class="text-xs text-slate-500">Dès</dt><dd class="font-semibold">{{ money(d.price_from) }}</dd></div>
+          </dl>
+          <p class="text-xs text-slate-500">{{ d.stats.deliveries_90d }} colis livrés en 90 jours<template v-if="d.stats.success_rate === null"> · chiffres affichés dès 20 courses</template><template v-if="d.accepts === 'request'"> · ouverture de compte sur demande</template></p>
+          <span v-if="d.connected" class="mt-auto rounded-lg bg-emerald-50 py-2 text-center font-medium text-emerald-800">✓ Déjà connectée</span>
+          <button v-else class="btn-brand mt-auto" :disabled="connecting === d.slug || busy" @click="connectFromDirectory(d)">{{ connecting === d.slug ? 'Ouverture…' : 'Connecter' }}</button>
+        </article>
+      </div>
+    </section>
 
     <Modal v-if="modal === 'connect'" title="Connecter une entreprise de livraison" @close="modal = null">
       <div class="mb-4 grid grid-cols-2 gap-2 text-sm">
@@ -306,13 +405,13 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <ul class="mb-4 space-y-2 text-sm">
           <li v-for="h in stock.hubs" :key="h.remote_id" class="flex items-center gap-3">
             <span class="flex-1">{{ h.name }}</span>
-            <span v-if="h.location_id" class="text-emerald-700">✓ Emplacement de stock de la boutique</span>
+            <span v-if="h.location_id" class="text-emerald-700">✓ Votre emplacement de stock</span>
             <button v-else class="btn-secondary px-2 py-1" @click="linkHub(h)">J'y dépose du stock</button>
           </li>
         </ul>
         <h4 class="mb-2 text-sm font-semibold">Produits (rapprochés par référence SKU)</h4>
         <table class="w-full text-sm">
-          <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Chez l'entreprise</th><th>Votre variante</th><th class="text-right">Entreprise</th><th class="text-right">Boutique</th></tr></thead>
+          <thead class="text-left text-xs text-slate-500"><tr><th class="py-1">Chez l'entreprise</th><th>Votre variante</th><th class="text-right">Entreprise</th><th class="text-right">Vous</th></tr></thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-for="p in stock.products" :key="p.remote_id">
               <td class="py-1.5">{{ p.name }} <span class="text-slate-400">{{ p.sku }}</span></td>

@@ -19,7 +19,7 @@ class ExportReady extends StoreNotification
         return [
             'kind' => 'export_ready',
             'title' => $this->export->status === 'ready' ? 'Export de vos données prêt' : 'Export de vos données impossible',
-            'body' => $this->export->status === 'ready' ? 'Téléchargez l\'archive dans Réglages › Informations de la boutique (pendant 7 jours).' : 'Réessayez dans quelques minutes.',
+            'body' => $this->export->status === 'ready' ? 'Téléchargez l\'archive dans Réglages › Informations de l\'espace marchand (pendant 7 jours).' : 'Réessayez dans quelques minutes.',
             'url' => '/gestion/parametres',
         ];
     }

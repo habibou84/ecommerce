@@ -16,23 +16,23 @@
     <ul>
         <li>Compte : nom, numéro de téléphone, email facultatif, mot de passe chiffré, journal de connexion — pour gérer l'accès et la sécurité.</li>
         <li>Abonnement : offre, factures, références de paiement (jamais les numéros de carte) — pour la facturation et nos obligations comptables.</li>
-        <li>Clients des boutiques : nom, téléphone, quartier et adresse, articles commandés, historique de livraison — pour traiter, livrer et suivre les commandes, et calculer un indicateur de risque propre à chaque boutique.</li>
+        <li>Clients des boutiques : nom, téléphone, quartier et adresse, articles commandés, historique de livraison — pour traiter, livrer et suivre les commandes, et calculer un indicateur de risque propre à chaque espace marchand.</li>
         <li>Livreurs : nom, téléphone, missions, encaissements, preuve de livraison (photo) — pour organiser et payer les livraisons.</li>
         <li>Mesure d'audience des boutiques : si le marchand les active, pixels Meta, TikTok et Google Analytics, et envoi des achats à Meta avec des données hachées — pour mesurer ses publicités.</li>
     </ul>
 
     <h2>3. Destinataires</h2>
-    <p>Les données ne sont jamais vendues. Elles sont communiquées seulement à : l'équipe de la boutique concernée ; les entreprises de livraison et prestataires de paiement choisis par le marchand ; nos sous-traitants techniques (hébergement, envoi de SMS, WhatsApp de Meta, supervision des erreurs), tenus à la confidentialité. Certains de ces prestataires peuvent être situés hors de Côte d'Ivoire ; ces transferts sont encadrés conformément à la loi.</p>
+    <p>Les données ne sont jamais vendues. Elles sont communiquées seulement à : l'équipe de l'espace marchand concerné ; les entreprises de livraison et prestataires de paiement choisis par le marchand ; nos sous-traitants techniques (hébergement, envoi de SMS, WhatsApp de Meta, supervision des erreurs), tenus à la confidentialité. Certains de ces prestataires peuvent être situés hors de Côte d'Ivoire ; ces transferts sont encadrés conformément à la loi.</p>
 
     <h2>4. Durées de conservation</h2>
     <ul>
-        <li>Compte et boutique : pendant toute la durée d'utilisation, puis 90 jours après la fermeture.</li>
+        <li>Compte et espace marchand : pendant toute la durée d'utilisation, puis 90 jours après la fermeture.</li>
         <li>Factures et pièces comptables : 10 ans.</li>
         <li>Codes de vérification SMS : quelques heures ; journaux techniques : 12 mois au plus.</li>
     </ul>
 
     <h2>5. Sécurité</h2>
-    <p>Accès chiffré (https), mots de passe et clés des prestataires chiffrés, cloisonnement strict entre boutiques, sauvegardes quotidiennes, accès de notre équipe limité, journalisé et soumis à une double vérification.</p>
+    <p>Accès chiffré (https), mots de passe et clés des prestataires chiffrés, cloisonnement strict entre espaces marchands, sauvegardes quotidiennes, accès de notre équipe limité, journalisé et soumis à une double vérification.</p>
 
     <h2>6. Vos droits</h2>
     <p>Vous pouvez accéder à vos données, les faire rectifier ou supprimer, vous opposer à un traitement pour un motif légitime, et en demander la portabilité. Pour les données collectées par une boutique, adressez-vous d'abord à cette boutique. Contact : {{ config('legal.privacy_email') }}. Vous pouvez aussi saisir l'ARTCI (www.artci.ci).</p>

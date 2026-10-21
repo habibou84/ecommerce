@@ -11,7 +11,7 @@ import { useAuthStore } from '../../stores/auth'
 
 const props = defineProps({
   home: { type: String, default: '/gestion' },
-  title: { type: String, default: 'Gestion de la boutique' },
+  title: { type: String, default: 'Votre espace marchand' },
 })
 const auth = useAuthStore()
 const route = useRoute()
@@ -57,7 +57,7 @@ async function submit() {
       </p>
     </form>
     <template #footer>
-      <a v-if="inApp" :href="`${boot.platformUrl.replace(/\/$/, '')}/connexion?app=1&choisir=1`" class="font-medium text-emerald-700 hover:underline">Changer de boutique</a>
+      <a v-if="inApp" :href="`${boot.platformUrl.replace(/\/$/, '')}/connexion?app=1&choisir=1`" class="font-medium text-emerald-700 hover:underline">Changer d'espace marchand</a>
       <a v-else :href="boot.platformUrl" class="hover:underline">Jibiat Marchand</a>
     </template>
   </AuthShell>

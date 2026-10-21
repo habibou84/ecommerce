@@ -158,12 +158,12 @@ async function step(status) {
     <section class="rounded-xl bg-white p-4 shadow-sm">
       <div class="flex items-center gap-2">
         <h1 class="text-lg font-bold">{{ mission.reference }}</h1>
-        <p v-if="mission.store" class="text-sm text-sky-800">Boutique {{ mission.store }}</p>
+        <p v-if="mission.store" class="text-sm text-sky-800">Marchand {{ mission.store }}</p>
         <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[mission.status]">{{ mission.status_label }}</span>
       </div>
       <template v-if="mission.pending_sync && mission.status === 'delivered'">
         <p class="mt-2 text-2xl font-bold">{{ money(mission.collected_amount) }}</p>
-        <p class="text-sm text-slate-500">encaissé · pas encore envoyé à la boutique</p>
+        <p class="text-sm text-slate-500">encaissé · pas encore envoyé au marchand</p>
       </template>
       <template v-else-if="mission.amount_due > 0">
         <p class="mt-2 text-2xl font-bold">{{ money(Math.min(mission.cod_amount, mission.amount_due)) }}</p>
@@ -185,13 +185,13 @@ async function step(status) {
       <p class="text-sm">{{ mission.place }}<template v-if="mission.address"> · {{ mission.address }}</template></p>
       <p v-if="mission.landmark" class="text-sm text-slate-600">Repère : {{ mission.landmark }}</p>
       <p v-if="mission.customer_note" class="rounded bg-amber-50 p-2 text-sm">« {{ mission.customer_note }} »</p>
-      <p v-if="mission.note" class="rounded bg-slate-50 p-2 text-sm">Boutique : {{ mission.note }}</p>
+      <p v-if="mission.note" class="rounded bg-slate-50 p-2 text-sm">Marchand : {{ mission.note }}</p>
       <div class="grid grid-cols-3 gap-2 pt-1">
         <a :href="`tel:${mission.customer_phone}`" class="btn-secondary whitespace-nowrap px-1 text-sm">📞 Appeler</a>
         <a :href="whatsapp" target="_blank" class="btn-secondary whitespace-nowrap px-1 text-sm">💬 WhatsApp</a>
         <a :href="mapsUrl" target="_blank" class="btn-secondary whitespace-nowrap px-1 text-sm">🗺️ Carte</a>
       </div>
-      <p v-if="mission.customer_notified_at && !mission.customer_response" class="text-xs text-emerald-700">✓ Client prévenu par la boutique que vous êtes en route.</p>
+      <p v-if="mission.customer_notified_at && !mission.customer_response" class="text-xs text-emerald-700">✓ Client prévenu par le marchand que vous êtes en route.</p>
       <a v-else-if="!mission.customer_notified_at && ['in_transit', 'out_for_delivery'].includes(mission.status)" :href="mission.notify_url" target="_blank" class="btn-secondary w-full text-sm">💬 Prévenir le client que j'arrive</a>
       <p class="text-xs text-slate-500">{{ mission.customer_phone_display }}<template v-if="mission.customer_phone2"> · autre : {{ mission.customer_phone2 }}</template></p>
     </section>
@@ -223,7 +223,7 @@ async function step(status) {
         <button class="btn-brand" :disabled="busy || noNetwork" @click="respond('accept')">✓ Accepter</button>
       </div>
     </section>
-    <Alert v-if="queued" tone="warning">Étape gardée sur le téléphone : elle sera envoyée à la boutique dès que le réseau revient, avec l'heure où vous l'avez faite.</Alert>
+    <Alert v-if="queued" tone="warning">Étape gardée sur le téléphone : elle sera envoyée au marchand dès que le réseau revient, avec l'heure où vous l'avez faite.</Alert>
     <p v-else-if="mission.pending_sync" class="text-sm text-amber-800">⏳ Des étapes de cette livraison ne sont pas encore envoyées.</p>
 
     <!-- Action suivante : gros bouton fixé en bas de l'écran, facile à toucher d'une main ou avec des gants -->
@@ -232,7 +232,7 @@ async function step(status) {
     </div>
     <div class="space-y-2">
       <button v-if="can('failed') && panel !== 'failed'" class="btn-secondary w-full py-3" @click="panel = 'failed'">✕ Pas livré</button>
-      <button v-if="can('returning')" class="btn-secondary w-full py-3" :disabled="busy" @click="step('returning')">↩ Je rapporte le colis à la boutique</button>
+      <button v-if="can('returning')" class="btn-secondary w-full py-3" :disabled="busy" @click="step('returning')">↩ Je rapporte le colis au marchand</button>
     </div>
 
     <form v-if="panel === 'delivered'" class="space-y-3 rounded-xl bg-white p-4 shadow-sm" @submit.prevent="step('delivered')">

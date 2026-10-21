@@ -27,7 +27,7 @@ use App\Models\WhatsappAccount;
 class SetupGuide
 {
     public const PHASES = [
-        'store' => 'Votre boutique',
+        'store' => 'Votre espace marchand',
         'catalog' => 'Vos produits',
         'delivery' => 'Vos livraisons',
         'selling' => 'Vendre et encaisser',
@@ -102,7 +102,7 @@ class SetupGuide
         return [
             'store_info' => [
                 'phase' => 'store', 'permission' => Permission::StoreManage,
-                'title' => 'Les informations de votre boutique',
+                'title' => 'Les informations de votre espace marchand',
                 'why' => 'Vos clients voient votre nom, votre slogan et votre numéro WhatsApp sur la boutique en ligne, les messages et les reçus.',
                 'todo' => ['Ajoutez un slogan court', 'Indiquez le numéro WhatsApp où vos clients vous écrivent', 'Ajoutez votre adresse si vous recevez des clients'],
                 'to' => '/gestion/parametres', 'action' => 'Compléter les informations',

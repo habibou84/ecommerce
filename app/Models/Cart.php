@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -12,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Cart extends Model
 {
-    use BelongsToStore;
+    use BelongsToStore, MassPrunable;
 
     protected $fillable = ['store_id', 'token', 'customer_id', 'name', 'phone', 'discount_code', 'utm', 'status', 'last_activity_at', 'order_id'];
 
@@ -24,5 +26,11 @@ class Cart extends Model
     public function items(): HasMany
     {
         return $this->hasMany(CartItem::class)->orderBy('id');
+    }
+
+    /** Paniers sans activité depuis 90 jours (avec le numéro laissé par le visiteur) : effacés chaque nuit */
+    public function prunable(): Builder
+    {
+        return static::withoutGlobalScopes()->where('last_activity_at', '<', now()->subDays(90));
     }
 }

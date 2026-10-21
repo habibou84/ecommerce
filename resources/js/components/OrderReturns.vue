@@ -131,7 +131,7 @@ async function act(r, action) {
 
         <Field id="ret-reason" label="Motif"><input id="ret-reason" v-model="form.reason" class="input" maxlength="255" placeholder="Ex. Taille trop petite" /></Field>
         <label class="flex items-center gap-2"><input v-model="form.restock" type="checkbox" /> Remettre les articles rendus en stock à leur réception (décochez si abîmés)</label>
-        <Field v-if="hasExchange" id="ret-fee" label="Frais de livraison de l'échange" hint="0 si la boutique offre la livraison de l'échange.">
+        <Field v-if="hasExchange" id="ret-fee" label="Frais de livraison de l'échange" hint="0 si vous offrez la livraison de l'échange.">
           <input id="ret-fee" v-model.number="form.exchange_shipping_fee" type="number" min="0" class="input" />
         </Field>
 

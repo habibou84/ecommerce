@@ -395,7 +395,7 @@ class ShipmentDesk
     {
         $connection = $shipment->connection;
         if (! $connection?->isApi() || ! $shipment->carrier_tracking_code) {
-            throw new BusinessRuleException('Cette livraison ne passe pas par une entreprise de livraison reliée à la boutique.');
+            throw new BusinessRuleException('Cette livraison ne passe pas par une entreprise de livraison reliée à votre espace marchand.');
         }
         if ($shipment->status->isFinal()) {
             throw new BusinessRuleException('Cette livraison est terminée.');

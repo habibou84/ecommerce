@@ -81,11 +81,16 @@ class DomainsTest extends TestCase
         $other = $this->createStore(['slug' => 'koffi']);
         $this->actingAs($other->owner);
         $this->storeApi($other, 'POST', 'domains', ['hostname' => 'www.awamode.ci'])->assertStatus(422)->assertJsonPath('message', 'Ce domaine est déjà déclaré par une boutique.');
+        // Un domaine déclaré mais jamais vérifié n'est retenu que 48 h
+        $this->storeApi($other, 'POST', 'domains', ['hostname' => 'awamode.ci'])->assertStatus(422);
+        $this->travel(49)->hours();
+        $this->storeApi($other, 'POST', 'domains', ['hostname' => 'awamode.ci'])->assertCreated();
+        $this->storeApi($other, 'POST', 'domains', ['hostname' => 'www.awamode.ci'])->assertStatus(422);
 
         // Retrait du domaine principal : un autre domaine vérifié prend le relais (aucun ici)
         $this->actingAs($store->owner);
         $this->storeApi($store, 'DELETE', "domains/{$id}")->assertOk();
-        $this->assertSame(1, StoreDomain::where('store_id', $store->id)->count());
+        $this->assertSame(0, StoreDomain::where('store_id', $store->id)->count());
     }
 
     public function test_custom_domain_needs_the_pro_plan(): void

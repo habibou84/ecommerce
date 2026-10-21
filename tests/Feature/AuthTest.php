@@ -62,7 +62,7 @@ class AuthTest extends TestCase
         $this->actingAs($a->owner);
 
         $this->storeApi($a, 'GET', 'store')->assertOk();
-        $this->storeApi($b, 'GET', 'store')->assertForbidden()->assertJson(['message' => 'Vous n\'avez pas accès à cette boutique.']);
+        $this->storeApi($b, 'GET', 'store')->assertForbidden()->assertJson(['message' => 'Vous n\'avez pas accès à cet espace marchand.']);
         $this->storeApi($b, 'GET', 'team/members')->assertForbidden();
     }
 

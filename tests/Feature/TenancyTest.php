@@ -4,18 +4,83 @@ namespace Tests\Feature;
 
 use App\Enums\Role;
 use App\Enums\StoreStatus;
+use App\Models\Plan;
 use App\Models\SlugHistory;
 use App\Models\StoreDomain;
 use App\Models\StoreInvitation;
 use App\Support\Tenancy;
+use App\Support\TrialOffer;
+use Database\Seeders\PlanSeeder;
 use Tests\TestCase;
 
 class TenancyTest extends TestCase
 {
     public function test_the_platform_address_shows_the_presentation_page(): void
     {
-        $this->get($this->platformUrl())->assertOk()->assertSee('Créer ma boutique');
-        $this->get('http://www.localhost/')->assertOk()->assertSee('Créer ma boutique');
+        $this->get($this->platformUrl())->assertOk()->assertSee('Créer mon espace marchand');
+        $this->get('http://www.localhost/')->assertOk()->assertSee('Créer mon espace marchand');
+    }
+
+    public function test_the_presentation_page_puts_delivery_first_and_shows_public_prices(): void
+    {
+        $this->seed(PlanSeeder::class);
+        Plan::where('code', 'business')->update(['is_public' => false]);
+
+        $this->get($this->platformUrl())->assertOk()
+            ->assertSee('Des livreurs fiables, toujours disponibles, en un clic')
+            ->assertSee('Connecter en un clic')
+            ->assertSee('3 500 F')->assertSee('12 500 F')
+            ->assertDontSee('35 000 F')
+            ->assertSee('/videos/og-marchand.jpg', false)
+            ->assertSee('"@type":"FAQPage"', false);
+    }
+
+    public function test_prices_suit_mobile_money_payments(): void
+    {
+        $this->seed(PlanSeeder::class);
+
+        $this->get($this->platformUrl())->assertOk()
+            ->assertSee("ou 1\u{00A0}500\u{00A0}F / semaine", false)
+            ->assertSee("25\u{00A0}000\u{00A0}F d'économie", false)
+            ->assertSee('Wave, Orange Money, MTN, Moov')
+            ->assertSee('60 commandes par mois')
+            ->assertSee("Rechargez 100 actions pour 1\u{00A0}000\u{00A0}F", false)
+            ->assertSee('2 mois de l&#039;offre Pro au lieu de 1 mois', false);
+    }
+
+    public function test_every_plan_lists_the_online_store(): void
+    {
+        $this->seed(PlanSeeder::class);
+
+        $this->get($this->platformUrl())->assertOk()
+            ->assertSee('votre-nom.'.config('platform.domain').'</span>', false)
+            ->assertSee('Boutique en ligne à votre nom de domaine', false)
+            ->assertSee('La boutique en ligne est-elle comprise ?', false)
+            ->assertSee('Jusqu&#039;à 3 boutiques sous un seul abonnement', false);
+    }
+
+    public function test_the_presentation_page_shows_the_assistant_and_the_pro_trial(): void
+    {
+        $this->seed(PlanSeeder::class);
+        config(['platform.trial_days' => 30, 'platform.trial_plan' => 'pro']);
+
+        $this->get($this->platformUrl())->assertOk()
+            ->assertSee('Un message WhatsApp devient une commande')
+            ->assertSee('Une photo devient une fiche produit')
+            ->assertSee('Paniers abandonnés relancés')
+            ->assertSee('1 mois de l\'offre Pro offert')
+            ->assertSee('300 actions de l\'assistant')
+            ->assertSee('/videos/marchand-ia-commande-v.mp4', false)
+            ->assertSee('Elle vend même quand vous dormez')
+            ->assertSee('/videos/marchand-boutique-v.mp4', false);
+    }
+
+    public function test_the_trial_is_announced_in_days_when_it_is_not_whole_months(): void
+    {
+        config(['platform.trial_days' => 14]);
+        $this->assertSame('14 jours', TrialOffer::duration());
+        config(['platform.trial_days' => 60]);
+        $this->assertSame('2 mois', TrialOffer::duration());
     }
 
     public function test_the_whatsapp_facebook_window_is_only_on_the_platform(): void

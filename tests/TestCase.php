@@ -85,9 +85,9 @@ abstract class TestCase extends BaseTestCase
             $store->subscriptions()->create([
                 'plan_id' => Plan::where('code', $plan)->value('id'),
                 'status' => SubscriptionStatus::Trialing,
-                'trial_ends_at' => now()->addDays(14),
+                'trial_ends_at' => now()->addDays((int) config('platform.trial_days')),
                 'current_period_start' => now(),
-                'current_period_end' => now()->addDays(14),
+                'current_period_end' => now()->addDays((int) config('platform.trial_days')),
             ]);
         }
 

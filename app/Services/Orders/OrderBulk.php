@@ -114,7 +114,7 @@ class OrderBulk
 
         return match (true) {
             $message === false => 'Pas de message prévu à cette étape',
-            $message === null => 'WhatsApp de la boutique non connecté ou client sans numéro',
+            $message === null => 'WhatsApp de l\'espace marchand non connecté ou client sans numéro',
             default => null,
         };
     }

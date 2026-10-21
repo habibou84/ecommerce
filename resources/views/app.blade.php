@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#047857">
+    <meta name="theme-color" content="#017c40">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/brand/logo-256.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <title>{{ $boot['store']['name'] ?? 'Jibiat Marchand' }}</title>
     @if (request()->is('livreur*'))
         {{-- Application livreur installable sur le téléphone --}}

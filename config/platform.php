@@ -38,12 +38,15 @@ return [
     // puis connexion transporteur (phase 4). Aucune requête n'est faite vers un autre domaine.
     'delivery_app_domains' => array_filter(array_map('trim', explode(',', (string) env('DELIVERY_APP_DOMAINS', 'jibiat.com')))),
     'delivery_app_scheme' => env('DELIVERY_APP_SCHEME', 'https'),
+    // Annuaire des entreprises de livraison de Jibiat (contrat « directory » de habibou84/socle) et connexion en un clic
+    'delivery_app_directory_url' => env('DELIVERY_APP_DIRECTORY_URL', 'https://jibiat.com/api/public/directory'),
 
     // Reversement des entreprises de livraison : une course livrée non reversée depuis ce nombre de jours est signalée en retard
     'carrier_payout_overdue_days' => (int) env('CARRIER_PAYOUT_OVERDUE_DAYS', 7),
 
-    // Durée de l'essai gratuit à la création d'une boutique (toutes les fonctions de l'offre d'essai)
-    'trial_days' => (int) env('PLATFORM_TRIAL_DAYS', 14),
+    // Essai gratuit à la création d'une boutique : un mois de l'offre Pro (annoncé sur le site et à l'inscription).
+    // Nouveau nom de variable : l'ancienne PLATFORM_TRIAL_DAYS (14 jours) restée sur les serveurs n'a plus d'effet.
+    'trial_days' => (int) env('PLATFORM_TRIAL_LENGTH_DAYS', 30),
     'trial_plan' => env('PLATFORM_TRIAL_PLAN', 'pro'),
 
     // Abonnements des boutiques, encaissés sur le compte de la plateforme (docs/PLAN.md §6.5)
@@ -65,6 +68,15 @@ return [
         'grace_days' => (int) env('BILLING_GRACE_DAYS', 7),
         'reminder_days' => (int) env('BILLING_REMINDER_DAYS', 3),
     ],
+
+    // Recharge de l'assistant IA : actions en plus de celles de l'offre, payées par Mobile Money, sans date de fin
+    'ai_pack' => [
+        'actions' => (int) env('AI_PACK_ACTIONS', 100),
+        'price' => (int) env('AI_PACK_PRICE', 1000),
+    ],
+
+    // Parrainage : jours d'essai en plus pour un e-commerçant invité par une entreprise de livraison de l'annuaire
+    'partner_bonus_days' => (int) env('PLATFORM_PARTNER_BONUS_DAYS', 30),
 
     // Domaines personnalisés : le marchand fait pointer son domaine (CNAME) vers cette adresse, ou (domaine nu)
     // vers ces adresses IP ; les certificats sont demandés à la volée par Caddy (route /_caddy/ask)

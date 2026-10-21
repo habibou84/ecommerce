@@ -49,12 +49,12 @@ function done(data) {
 </script>
 
 <template>
-  <AuthShell v-if="missing" title="Invitation expirée" subtitle="Ce lien n'est plus valable. Demandez une nouvelle invitation à la boutique." />
+  <AuthShell v-if="missing" title="Invitation expirée" subtitle="Ce lien n'est plus valable. Demandez une nouvelle invitation à l'espace marchand." />
 
   <AuthShell
     v-else-if="invitation"
     :title="`Rejoindre ${invitation.store}`"
-    :subtitle="`${invitation.inviter ?? 'La boutique'} vous invite comme ${invitation.role}.`"
+    :subtitle="`${invitation.inviter ?? 'L\'espace marchand'} vous invite comme ${invitation.role}.`"
   >
     <CodeStep v-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Rejoindre l'équipe" @done="done" />
 

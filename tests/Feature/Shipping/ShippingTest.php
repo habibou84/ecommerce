@@ -187,6 +187,54 @@ class ShippingTest extends TestCase
         $this->storeApi($this->store, 'POST', 'carriers/delivery-app', ['address' => 'rapide.jibiat.com', 'api_key' => self::KEY])->assertStatus(422);
     }
 
+    public function test_connecting_a_company_from_the_directory_in_one_click(): void
+    {
+        $this->fakeDeliveryApp();
+        $this->stub([
+            'https://jibiat.com/api/public/directory' => Http::response(Contract::example('directory')),
+            'POST https://rapide.jibiat.com/api/public/connect/token' => Http::response(['data' => [...Contract::example('connect-token')['data'], 'api_key' => self::KEY]]),
+        ]);
+
+        // Annuaire : entreprises avec leurs vrais chiffres ; aucune n'est encore connectée
+        $list = $this->storeApi($this->store, 'GET', 'carriers/directory')->assertOk()->assertJsonPath('available', true);
+        $this->assertSame(['rapide', 'awa-coursier'], array_column($list->json('data'), 'slug'));
+        $this->assertSame(0.93, $list->json('data.0.stats.success_rate'));
+        $this->assertFalse($list->json('data.0.connected'));
+
+        // « Connecter » : page de l'entreprise avec le défi PKCE et l'adresse de retour de la boutique
+        $url = $this->storeApi($this->store, 'POST', 'carriers/connect/start', ['slug' => 'rapide'])->assertOk()->json('data.url');
+        $this->assertStringStartsWith('https://rapide.jibiat.com/marchand/connecter?', $url);
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+        $this->assertSame('jibiat-marchand', $query['client_id']);
+        $this->assertSame('S256', $query['code_challenge_method']);
+        $this->assertSame('Awa Mode', $query['business_name']);
+        $this->assertStringEndsWith('/gestion/livraisons/entreprises', $query['redirect_uri']);
+
+        // Retour avec le code : échangé contre la clé, puis connexion habituelle (zones, webhook)
+        $this->storeApi($this->store, 'POST', 'carriers/connect/finish', ['state' => $query['state'], 'code' => 'code-recu'])
+            ->assertCreated()->assertJsonPath('data.name', 'Rapide Express')->assertJsonPath('data.webhook_auto', true);
+        Http::assertSent(function (HttpRequest $r) use ($query) {
+            if ($r->url() !== 'https://rapide.jibiat.com/api/public/connect/token') {
+                return false;
+            }
+            $challenge = rtrim(strtr(base64_encode(hash('sha256', $r['code_verifier'], true)), '+/', '-_'), '=');
+
+            return $r['code'] === 'code-recu' && $r['redirect_uri'] === $query['redirect_uri'] && $challenge === $query['code_challenge'];
+        });
+        $this->assertTrue($this->storeApi($this->store, 'GET', 'carriers/directory')->json('data.0.connected'));
+
+        // L'état ne sert qu'une fois ; entreprise hors annuaire refusée
+        $this->storeApi($this->store, 'POST', 'carriers/connect/finish', ['state' => $query['state'], 'code' => 'code-recu'])->assertStatus(422);
+        $this->storeApi($this->store, 'POST', 'carriers/connect/start', ['slug' => 'inconnue'])->assertStatus(422);
+    }
+
+    public function test_directory_down_is_said_plainly(): void
+    {
+        $this->stub(['https://jibiat.com/api/public/directory' => Http::response('Erreur', 500)]);
+
+        $this->storeApi($this->store, 'GET', 'carriers/directory')->assertOk()->assertJsonPath('available', false)->assertJsonPath('data', []);
+    }
+
     public function test_connection_errors_are_explained(): void
     {
         $this->storeApi($this->store, 'POST', 'carriers/delivery-app', ['address' => 'evil.example.com', 'api_key' => self::KEY])

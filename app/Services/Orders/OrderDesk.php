@@ -578,6 +578,10 @@ class OrderDesk
 
     private function applyPlace(Store $store, Order $order): void
     {
+        // Point de retrait : seulement un lieu de la boutique (jamais celui d'une autre)
+        if ($order->pickup_location_id !== null && ! StockLocation::forStore($store->id)->whereKey($order->pickup_location_id)->exists()) {
+            throw new BusinessRuleException('Choisissez un de vos points de retrait.', 'pickup_location_id');
+        }
         if ($order->delivery_method === 'pickup') {
             $order->forceFill(['delivery_zone_id' => null]);
 
@@ -607,7 +611,7 @@ class OrderDesk
             $courierId = $carrierId = null;
         }
         if ($courierId !== null && ! Courier::forStore($order->store_id)->where('status', 'active')->whereKey($courierId)->exists()) {
-            throw new BusinessRuleException('Ce livreur n\'est pas actif dans la boutique.', 'planned_courier_id');
+            throw new BusinessRuleException('Ce livreur n\'est pas actif dans votre espace marchand.', 'planned_courier_id');
         }
         if ($carrierId !== null && ! CarrierConnection::forStore($order->store_id)->where('status', 'active')->whereKey($carrierId)->exists()) {
             throw new BusinessRuleException('Cette entreprise de livraison n\'est pas connectée.', 'planned_carrier_connection_id');

@@ -73,6 +73,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
     // ── jibiat-marchand.com : création de boutique, retrouver ses boutiques ──
     Route::middleware('zone:platform')->group(function () {
         Route::get('signup/slug', [SignupController::class, 'checkSlug'])->middleware('throttle:60,1')->name('signup.slug');
+        Route::get('signup/partner', [SignupController::class, 'partner'])->middleware('throttle:60,1')->name('signup.partner');
         Route::post('signup', [SignupController::class, 'start'])->middleware('throttle:verification-start')->name('signup');
 
         Route::post('account/login', [PlatformAccountController::class, 'login'])->middleware('throttle:login')->name('account.login');
@@ -179,6 +180,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::BillingManage->value)->prefix('billing')->name('billing.')->group(function () {
                 Route::get('/', [BillingController::class, 'show'])->name('show');
                 Route::post('checkout', [BillingController::class, 'checkout'])->middleware('throttle:10,1')->name('checkout');
+                Route::post('ai-pack', [BillingController::class, 'aiPack'])->middleware('throttle:10,1')->name('ai-pack');
                 Route::post('invoices/{number}/check', [BillingController::class, 'check'])->where('number', 'JM-\\d{4}-\\d{6}')->name('check');
                 Route::get('invoices/{invoice}/receipt', [BillingController::class, 'receipt'])->whereNumber('invoice')->name('receipt');
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
@@ -276,6 +278,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::CarriersManage->value)->group(function () {
                 Route::get('carriers', [CarrierController::class, 'index'])->name('carriers.index');
                 Route::post('carriers/delivery-app', [CarrierController::class, 'connectDeliveryApp'])->middleware('throttle:10,1')->name('carriers.delivery-app');
+                // Annuaire de Jibiat et connexion en un clic (contrat « directory » et « connect-token »)
+                Route::get('carriers/directory', [CarrierController::class, 'directory'])->name('carriers.directory');
+                Route::post('carriers/connect/start', [CarrierController::class, 'connectStart'])->middleware('throttle:20,1')->name('carriers.connect.start');
+                Route::post('carriers/connect/finish', [CarrierController::class, 'connectFinish'])->middleware('throttle:10,1')->name('carriers.connect.finish');
                 Route::post('carriers/manual', [CarrierController::class, 'connectManual'])->name('carriers.manual');
                 Route::patch('carriers/{carrier}', [CarrierController::class, 'update'])->whereNumber('carrier')->name('carriers.update');
                 Route::delete('carriers/{carrier}', [CarrierController::class, 'destroy'])->whereNumber('carrier')->name('carriers.destroy');

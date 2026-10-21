@@ -28,7 +28,7 @@ enum Permission: string
     public function label(): string
     {
         return match ($this) {
-            self::StoreManage => 'Paramètres de la boutique',
+            self::StoreManage => 'Paramètres de l\'espace marchand',
             self::TeamManage => 'Gérer l\'équipe',
             self::BillingManage => 'Abonnement et facturation',
             self::ProductsView => 'Voir le catalogue',

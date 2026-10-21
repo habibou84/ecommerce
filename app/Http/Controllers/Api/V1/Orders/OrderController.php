@@ -62,13 +62,14 @@ class OrderController extends Controller
     public function export(Request $request, OrderListing $listing): Response
     {
         $request->validate(OrderListing::rules());
-        $orders = $listing->query($request)->with([...OrderListing::relations(), 'items:id,order_id,title,variant_title,quantity'])->limit(5000)->get();
+        $orders = $listing->query($request)->with([...OrderListing::relations(), 'items:id,order_id,title,variant_title,quantity'])->limit(5000);
 
+        // Lu par paquets de 500 pendant l'envoi : la mémoire reste basse même sur 5 000 commandes
         return response()->streamDownload(function () use ($orders, $listing) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\u{FEFF}");
             fputcsv($out, ['N°', 'Date', 'Client', 'Téléphone', 'Quartier', 'Adresse', 'Date de livraison', 'Articles', 'Qui livre', 'Total', 'Payé', 'Reste à encaisser', 'Paiement', 'Statut', 'Canal'], ';');
-            foreach ($orders as $o) {
+            foreach ($orders->lazy(500) as $o) {
                 $extras = $listing->extras($o);
                 fputcsv($out, SpreadsheetCell::row([
                     $o->reference(), $o->created_at->format('d/m/Y H:i'), $o->customer_name, PhoneNumber::display($o->customer_phone),
@@ -280,7 +281,7 @@ class OrderController extends Controller
     {
         $model = Order::findOrFail($order);
         if ($messenger->requestConfirmation($model) === null) {
-            throw new BusinessRuleException('Demande impossible par WhatsApp : le client doit avoir écrit à la boutique depuis moins de 24 h, ou le modèle de confirmation doit être enregistré dans Réglages › WhatsApp.');
+            throw new BusinessRuleException('Demande impossible par WhatsApp : le client doit vous avoir écrit depuis moins de 24 h, ou le modèle de confirmation doit être enregistré dans Réglages › WhatsApp.');
         }
 
         return $this->show($order, app(CustomerBook::class), app(OrderMessages::class));
