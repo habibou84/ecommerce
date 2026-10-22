@@ -119,21 +119,21 @@
             </div>
         </section>
 
-        {{-- Présentation en une minute : vidéo horizontale sur ordinateur, verticale sur téléphone --}}
+        {{-- Présentation en une minute et demie : vidéo horizontale sur ordinateur, verticale sur téléphone --}}
         <section id="presentation" class="scroll-mt-20 bg-slate-950 py-16 text-white sm:py-20">
             <div class="mx-auto max-w-5xl px-4">
                 <div class="mx-auto max-w-2xl text-center">
-                    <p class="font-semibold text-emerald-300">Jibiat Marchand en une minute</p>
+                    <p class="font-semibold text-emerald-300">Jibiat Marchand en une minute et demie</p>
                     <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">De la commande WhatsApp au bénéfice du soir</h2>
                     <p class="mt-4 text-lg text-slate-300">La commande se remplit, le stock suit, le livreur part, l'argent rentre : voyez une journée de vente, écran par écran.</p>
                 </div>
                 <div class="mt-10 flex justify-center lg:hidden">
-                    <video class="w-full max-w-[20rem] rounded-[2rem] shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-presentation-v.jpg" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : Jibiat Marchand en une minute">
+                    <video class="w-full max-w-[20rem] rounded-[2rem] shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-presentation-v.jpg" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : Jibiat Marchand en une minute et demie">
                         <source src="/videos/marchand-presentation-v.mp4" type="video/mp4">
                     </video>
                 </div>
                 <div class="mt-12 hidden lg:block">
-                    <video class="w-full rounded-3xl shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-presentation-h.jpg" width="1920" height="1080" controls playsinline preload="none" aria-label="Vidéo : Jibiat Marchand en une minute">
+                    <video class="w-full rounded-3xl shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-presentation-h.jpg" width="1920" height="1080" controls playsinline preload="none" aria-label="Vidéo : Jibiat Marchand en une minute et demie">
                         <source src="/videos/marchand-presentation-h.mp4" type="video/mp4">
                     </video>
                 </div>

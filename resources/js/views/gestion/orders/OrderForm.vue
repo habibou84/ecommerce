@@ -240,7 +240,10 @@ const closedChosen = computed(() => form.scheduled_date && calendar.value?.days.
 
 // Adresse précise et point de repère : un seul champ (les anciennes commandes réunissent les deux)
 function joinAddress(address, landmark) {
-  return [address, landmark].map((v) => String(v ?? '').trim()).filter(Boolean).join(' — ')
+  const [a, l] = [address, landmark].map((v) => String(v ?? '').trim())
+  // Repère déjà écrit dans l'adresse (« 8e tranche, près de la pharmacie ») : pas de doublon
+  if (l && a.toLowerCase().includes(l.toLowerCase())) return a
+  return [a, l].filter(Boolean).join(' — ')
 }
 
 const pickerOpen = ref(false)
