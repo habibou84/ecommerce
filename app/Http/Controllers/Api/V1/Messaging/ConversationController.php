@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\SocialAccount;
 use App\Models\WhatsappAccount;
+use App\Models\WhatsappLink;
 use App\Services\Messaging\ReplySuggester;
 use App\Services\WhatsApp\Inbox;
 use Illuminate\Http\JsonResponse;
@@ -40,7 +41,7 @@ class ConversationController extends Controller
         return response()->json([
             'data' => collect($page->items())->map(fn (Conversation $c) => $this->summary($c))->values(),
             'meta' => ['total' => $page->total(), 'last_page' => $page->lastPage(), 'unread' => $this->unreadCount()],
-            'connected' => WhatsappAccount::query()->exists() || SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists(),
+            'connected' => WhatsappAccount::query()->exists() || WhatsappLink::query()->where('status', 'connected')->exists() || SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists(),
         ]);
     }
 
@@ -105,11 +106,14 @@ class ConversationController extends Controller
     {
         $messages = $c->messages()->with('user:id,name')->latest('sent_at')->latest('id')->limit(200)->get()->reverse()->values();
         $since = $c->order?->created_at;
+        // WhatsApp relié par QR code : réponse possible à tout moment, depuis le numéro de la boutique
+        $linked = $this->inbox->linkFor($c) !== null;
 
         return $this->summary($c) + [
             'customer' => $c->customer ? ['id' => $c->customer->id, 'name' => $c->customer->name] : null,
-            'can_reply' => $c->canReply(),
-            'reply_until' => $c->last_inbound_at?->addHours(Conversation::REPLY_WINDOW_HOURS)->toIso8601String(),
+            'linked' => $linked,
+            'can_reply' => $linked || $c->canReply(),
+            'reply_until' => $linked ? null : $c->last_inbound_at?->addHours(Conversation::REPLY_WINDOW_HOURS)->toIso8601String(),
             'messages' => $messages->map(fn (ConversationMessage $m) => [
                 'id' => $m->id,
                 'direction' => $m->direction,

@@ -127,7 +127,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
   <div class="space-y-4">
     <Alert v-if="listLoaded && !connected" tone="warning">
       Les messages des clients arrivent ici quand votre WhatsApp, votre page Facebook ou votre Instagram sont connectés.
-      <RouterLink v-if="auth.can('store.manage')" to="/gestion/whatsapp" class="font-medium underline">Connecter WhatsApp</RouterLink>
+      <RouterLink v-if="auth.can('store.manage')" to="/gestion/whatsapp" class="font-medium underline">Relier WhatsApp par QR code</RouterLink>
       <RouterLink v-if="auth.can('store.manage')" to="/gestion/marketing/reseaux" class="ml-2 font-medium underline">Connecter Facebook et Instagram</RouterLink>
     </Alert>
 
@@ -224,10 +224,14 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
             <textarea v-model="reply" class="input min-h-[2.75rem]" rows="2" maxlength="4000" placeholder="Votre réponse…" @keydown.enter.exact.prevent="reply.trim() && !sending && send()" />
             <button class="btn-brand" :disabled="sending || !reply.trim()">{{ sending ? '…' : 'Envoyer' }}</button>
           </div>
-          <p class="text-xs text-slate-500">Réponse possible jusqu'au {{ replyUntil }} (24 h après le dernier message du client). Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
+          <p v-if="current.linked" class="text-xs text-slate-500">Envoyé depuis votre WhatsApp relié : le message apparaît aussi sur votre téléphone. Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
+          <p v-else class="text-xs text-slate-500">Réponse possible jusqu'au {{ replyUntil }} (24 h après le dernier message du client). Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
         </form>
         <div v-else class="border-t border-slate-100 p-3 text-sm text-slate-600">
           Le dernier message du client date de plus de 24 h : {{ channelLabel(current) }} ne permet plus d'y répondre d'ici.
+          <template v-if="current.channel === 'whatsapp' && auth.can('store.manage')">
+            Reliez votre WhatsApp par QR code (<RouterLink to="/gestion/whatsapp" class="font-medium text-emerald-700 underline">Réglages › WhatsApp</RouterLink>) pour répondre à tout moment.
+          </template>
           <a v-if="waLink" :href="waLink" target="_blank" rel="noopener" class="font-medium text-emerald-700 underline">Écrire depuis WhatsApp</a>
         </div>
       </section>

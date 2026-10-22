@@ -18,6 +18,7 @@ use App\Models\StoreInvitation;
 use App\Models\StoreUser;
 use App\Models\User;
 use App\Models\WhatsappAccount;
+use App\Models\WhatsappLink;
 use App\Support\StartSteps;
 
 /**
@@ -183,9 +184,9 @@ class SetupGuide
                 'phase' => 'selling', 'permission' => Permission::StoreManage,
                 'title' => 'Votre WhatsApp',
                 'why' => 'Les clients reçoivent la confirmation, le suivi de livraison et le reçu sur WhatsApp, et leurs messages arrivent dans votre boîte Messages.',
-                'todo' => ['Connectez votre numéro WhatsApp Business avec Facebook', 'Choisissez les messages envoyés automatiquement'],
+                'todo' => ['Reliez votre WhatsApp par QR code : les messages des clients arrivent dans Messages', 'Pour les messages automatiques, connectez aussi votre numéro WhatsApp Business avec Facebook'],
                 'to' => '/gestion/whatsapp', 'action' => 'Connecter WhatsApp',
-                'done' => fn (Store $s) => WhatsappAccount::forStore($s->id)->where('status', 'active')->exists(),
+                'done' => fn (Store $s) => WhatsappAccount::forStore($s->id)->where('status', 'active')->exists() || WhatsappLink::connectedFor($s->id) !== null,
             ],
             'online_store' => [
                 'phase' => 'selling', 'permission' => Permission::StoreManage,
