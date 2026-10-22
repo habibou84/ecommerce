@@ -110,6 +110,10 @@
                         @endif
                     </div>
                     <p class="mt-3 text-sm text-emerald-100/80">5 minutes pour commencer · <strong class="text-white">{{ $trial }} de l'offre {{ $trialPlan }} offert</strong> · Sans carte bancaire</p>
+                    <a href="#presentation" class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-200 hover:text-white">
+                        <span class="inline-flex size-7 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20" aria-hidden="true">▶</span>
+                        Voir la présentation de Jibiat Marchand (1 min 30)
+                    </a>
                 </div>
                 <div class="flex justify-center">
                     <video class="w-full max-w-[20rem] rounded-[2rem] shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-assistant-v.jpg" width="1080" height="1920" autoplay muted loop playsinline preload="metadata" aria-label="Vidéo : l'assistant de Jibiat Marchand remplit vos commandes, vos fiches produits et vos réponses">
@@ -140,6 +144,20 @@
                 <p class="mt-10 text-center">
                     <a href="/bien-demarrer" class="btn-secondary border-white/30 bg-transparent px-5 py-3 text-white hover:bg-white/10">▶ Les étapes essentielles pour commencer, en 11 courtes vidéos</a>
                 </p>
+            </div>
+        </section>
+
+        {{-- Présentation générale en vidéo (voix off et sous-titres) --}}
+        <section id="presentation" class="scroll-mt-20 py-16 sm:py-20">
+            <div class="mx-auto max-w-5xl px-4">
+                <div class="mx-auto max-w-2xl text-center">
+                    <p class="font-semibold text-emerald-700">Voir Jibiat Marchand en action</p>
+                    <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">Toute votre boutique dans une seule application</h2>
+                    <p class="mt-4 text-lg text-slate-600">Vos commandes de partout au même endroit, votre boutique en ligne, l'assistant, vos livraisons en un clic et votre argent suivi.</p>
+                </div>
+                <video class="mt-10 block w-full rounded-2xl bg-slate-950 shadow-xl ring-1 ring-slate-900/10" poster="/videos/marchand-presentation-w.jpg" width="1920" height="1080" controls playsinline preload="none" aria-label="Vidéo : présentation de Jibiat Marchand, avec voix et sous-titres">
+                    <source src="/videos/marchand-presentation-w.mp4" type="video/mp4">
+                </video>
             </div>
         </section>
 
