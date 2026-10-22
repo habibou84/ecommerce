@@ -16,6 +16,7 @@ const guide = ref(null)
 const current = ref(null)
 const error = ref('')
 const busy = ref(false)
+const playing = ref(false)
 
 const steps = computed(() => guide.value?.steps ?? [])
 const step = computed(() => steps.value.find((s) => s.key === current.value) ?? null)
@@ -35,6 +36,7 @@ async function load() {
 onMounted(load)
 
 function select(key) {
+  playing.value = false
   current.value = key
   router.replace({ query: { etape: key } })
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -93,6 +95,13 @@ const stateOf = (s) => (s.done ? 'done' : s.skipped ? 'skipped' : 'todo')
           <span v-if="step.done" class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800"><Icon name="check" :size="12" />Fait</span>
           <span v-else-if="step.skipped" class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Passée</span>
           <span v-if="step.optional" class="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800">Facultatif</span>
+        </div>
+
+        <div v-if="step.video" class="mt-4">
+          <video v-if="playing" :key="step.key" class="mx-auto aspect-[9/16] w-full max-w-[16rem] rounded-2xl bg-slate-900" :poster="step.video.poster" controls autoplay playsinline>
+            <source :src="step.video.video" type="video/mp4">
+          </video>
+          <button v-else type="button" class="btn-secondary w-full sm:w-auto" @click="playing = true">▶ Voir la vidéo de l'étape ({{ step.video.seconds }} s)</button>
         </div>
 
         <div class="mt-4 rounded-xl bg-emerald-50 p-4 text-emerald-900">

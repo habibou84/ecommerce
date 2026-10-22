@@ -23,6 +23,8 @@ class SetupGuideTest extends TestCase
         $this->assertSame('mobile_app', $guide->json('data.next'));
         $this->assertFalse($steps['products']['done']);
         $this->assertFalse($steps['mobile_app']['optional']);
+        $this->assertSame('/videos/etapes/etape-02.mp4', $steps['mobile_app']['video']['video']);
+        $this->assertNull($steps['alerts']['video']);
         $this->assertTrue($steps['alerts']['optional']);
         $total = $guide->json('data.total');
 

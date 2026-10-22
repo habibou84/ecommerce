@@ -8,6 +8,7 @@ use App\Models\Plan;
 use App\Models\SlugHistory;
 use App\Models\StoreDomain;
 use App\Models\StoreInvitation;
+use App\Support\StartSteps;
 use App\Support\Tenancy;
 use App\Support\TrialOffer;
 use Database\Seeders\PlanSeeder;
@@ -220,5 +221,20 @@ class TenancyTest extends TestCase
             ->assertJsonPath('icons.1.sizes', '512x512');
         // La plateforme n'a pas de gestion à installer
         $this->get($this->platformUrl('/connexion'))->assertDontSee('/gestion/manifest.webmanifest', false);
+    }
+
+    public function test_start_page_lists_the_essential_steps_in_video(): void
+    {
+        $this->get($this->platformUrl('/'))->assertOk()->assertSee('href="/bien-demarrer"', false);
+        $page = $this->get($this->platformUrl('/bien-demarrer'))->assertOk()
+            ->assertSee('Les étapes essentielles pour commencer')
+            ->assertSee('Étape 1 sur 11')
+            ->assertSee('Installer l\'application sur votre téléphone')
+            ->assertSee('/videos/etapes/etape-11.mp4', false);
+        foreach (StartSteps::all() as $step) {
+            $this->assertFileExists(public_path(ltrim($step['video'], '/')));
+            $this->assertFileExists(public_path(ltrim($step['poster'], '/')));
+        }
+        $this->assertSame(11, substr_count($page->getContent(), '<video'));
     }
 }
