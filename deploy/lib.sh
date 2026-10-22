@@ -173,6 +173,7 @@ build_app() {
         as_app "php artisan db:seed --class=DemoSeeder --force"
     fi
     as_app "php artisan storage:link --force >/dev/null"
+    whatsapp_bridge_deps
     as_app "php artisan optimize"
 }
 
@@ -224,6 +225,39 @@ configure_redis() {
     info "Les personnes connectées devront se reconnecter une fois."
 }
 
+# WhatsApp relié par QR code pour la boîte Messages (service whatsapp-bridge, Node) : jeton, port libre et adresse des
+# événements propres à l'installation (créés une fois), puis dépendances npm (réinstallées seulement si elles ont
+# changé). Avant « php artisan optimize » (réglages lus en cache).
+whatsapp_bridge_deps() {
+    step "WhatsApp relié par QR code (dépendances et réglages)"
+    [[ -n "$(env_get WHATSAPP_BRIDGE_TOKEN)" ]] || env_set WHATSAPP_BRIDGE_TOKEN "$(random 32)"
+    if [[ -z "$(env_get WHATSAPP_BRIDGE_PORT)" ]]; then
+        # Préproduction et production sur le même serveur (avec le service de Jibiat) : chacune son port
+        local port=3210
+        while ss -ltn 2>/dev/null | grep -q ":$port " || grep -qs "^WHATSAPP_BRIDGE_PORT=$port$" /var/www/*/.env /home/*/*/.env; do
+            port=$((port + 1))
+        done
+        env_set WHATSAPP_BRIDGE_PORT "$port"
+    fi
+    [[ -n "$(env_get WHATSAPP_BRIDGE_WEBHOOK)" ]] || env_set WHATSAPP_BRIDGE_WEBHOOK "https://api.$(env_get PLATFORM_DOMAIN)/webhooks/whatsapp-bridge"
+    local lock_sum
+    lock_sum="$(sha1sum "$APP_DIR/whatsapp-bridge/package-lock.json" | cut -d' ' -f1)"
+    if [[ "$(cat "$APP_DIR/whatsapp-bridge/node_modules/.deploy-lock" 2>/dev/null || true)" != "$lock_sum" ]]; then
+        as_app "cd whatsapp-bridge && npm ci --omit=dev --no-audit --no-fund && echo '$lock_sum' > node_modules/.deploy-lock" \
+            || warn "dépendances du service WhatsApp non installées : la connexion par QR code reste indisponible."
+    fi
+}
+
+# Processus du service WhatsApp sous Supervisor (fichier à part, relancé à chaque mise à jour)
+install_whatsapp_bridge() {
+    sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__NODE__|$(command -v node)|g" -e "s|__USER__|$APP_USER|g" \
+        -e "s|__HOME__|$APP_HOME|g" -e "s|__INSTANCE__|$INSTANCE|g" \
+        "$APP_DIR/deploy/supervisor-whatsapp.conf" > "/etc/supervisor/conf.d/$INSTANCE-whatsapp.conf"
+    supervisorctl reread >/dev/null
+    supervisorctl update >/dev/null
+    supervisorctl restart "$INSTANCE-whatsapp" || warn "service WhatsApp non démarré : voir storage/logs/whatsapp-bridge.log"
+}
+
 # File d'attente (messages WhatsApp, API Conversions, affectation automatique) sous Supervisor
 install_supervisor() {
     step "Supervisor (file d'attente)"
@@ -233,6 +267,7 @@ install_supervisor() {
     supervisorctl reread
     supervisorctl update
     supervisorctl restart "$INSTANCE-queue:*"
+    install_whatsapp_bridge
 }
 
 # Planificateur Laravel (expéditions, abonnements, rapports, domaines, support) chaque minute

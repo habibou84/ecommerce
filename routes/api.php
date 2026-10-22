@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V1\Marketing\TrackingController;
 use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\Messaging\ConversationController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
+use App\Http\Controllers\Api\V1\Messaging\WhatsAppLinkController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Orders\AlertSettingsController;
 use App\Http\Controllers\Api\V1\Orders\CustomerController;
@@ -413,6 +414,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('whatsapp', [WhatsAppController::class, 'update'])->name('whatsapp.update');
                 Route::post('whatsapp/embedded', [WhatsAppController::class, 'connectEmbedded'])->middleware('throttle:login')->name('whatsapp.embedded');
                 Route::delete('whatsapp', [WhatsAppController::class, 'destroy'])->name('whatsapp.destroy');
+                // WhatsApp relié par QR code (comme WhatsApp Web) pour la boîte Messages
+                Route::get('whatsapp/link', [WhatsAppLinkController::class, 'show'])->name('whatsapp.link.show');
+                Route::post('whatsapp/link', [WhatsAppLinkController::class, 'start'])->middleware('throttle:20,1')->name('whatsapp.link.start');
+                Route::delete('whatsapp/link', [WhatsAppLinkController::class, 'destroy'])->name('whatsapp.link.destroy');
             });
             Route::middleware('permission:'.Permission::OrdersManage->value)->group(function () {
                 Route::get('carts/abandoned', [WhatsAppController::class, 'abandonedCarts'])->name('carts.abandoned');

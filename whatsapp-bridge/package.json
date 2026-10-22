@@ -1,0 +1,17 @@
+{
+  "name": "jibiat-marchand-whatsapp-bridge",
+  "private": true,
+  "description": "WhatsApp relié par QR code pour la boîte Messages : une session par boutique, pilotée par Jibiat Marchand",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.24",
+    "pino": "9.6.0",
+    "qrcode": "1.5.4"
+  }
+}

@@ -87,7 +87,7 @@ vendor/bin/pint      # style du code
 - `.env` : `APP_URL=https://jibiat-marchand.com`, `PLATFORM_DOMAIN=jibiat-marchand.com`, `SESSION_SECURE_COOKIE=true`,
   `SESSION_DOMAIN` **vide** (cookie limité à chaque sous-domaine).
 - `api.jibiat-marchand.com` reçoit les webhooks des entreprises de livraison (`/webhooks/carriers/{uuid}`).
-- Tâches planifiées : `* * * * * php artisan schedule:run` (synchronisation des expéditions toutes les 10 minutes, relance des paniers abandonnés chaque heure, rapports du jour toutes les 15 minutes, abonnements chaque jour, contrôle des domaines chaque nuit, fin des sessions de support) ; `php artisan queue:work` pour les messages WhatsApp.
+- Tâches planifiées : `* * * * * php artisan schedule:run` (synchronisation des expéditions toutes les 10 minutes, relance des paniers abandonnés chaque heure, rapports du jour toutes les 15 minutes, abonnements chaque jour, contrôle des domaines chaque nuit, fin des sessions de support) ; `php artisan queue:work` pour les messages WhatsApp ; `node whatsapp-bridge/server.js` (après `npm ci` dans ce dossier) pour le WhatsApp relié par QR code.
 
 ## Organisation du code
 
@@ -113,7 +113,8 @@ vendor/bin/pint      # style du code
 | `app/Services/Marketing` | API Conversions de Meta (`Conversions`), lien court et image de partage d'un produit (`ShareImages`, polices dans `resources/fonts`) |
 | `app/Services/Reports` | Statistiques avancées (`StoreStats`) et rapport du jour (`DailyReport`) |
 | `app/Services/Shipping/DeliveryAdvisor.php` | Comparateur livreurs / transporteurs et règles d'affectation (suggestion ou automatique) |
-| `app/Services/WhatsApp` | WhatsApp Cloud API au nom du marchand : envoi des modèles (`WhatsAppCloud`), messages automatiques et réponses des clients (`CustomerMessenger`) |
+| `app/Services/WhatsApp` | WhatsApp Cloud API au nom du marchand : envoi des modèles (`WhatsAppCloud`), messages automatiques et réponses des clients (`CustomerMessenger`) ; boîte Messages (`Inbox`) ; WhatsApp relié par QR code (`WhatsAppBridge`) |
+| `whatsapp-bridge/` | Service Node (Baileys) du WhatsApp relié par QR code, une session par boutique, sous Supervisor (`<instance>-whatsapp`), repris de Jibiat ; installé et relancé par les scripts de `deploy/` |
 | `resources/js/views/courier`, `public/livreur-sw.js` | Application livreur `/livreur` (installable) |
 | `app/Services/Storefront`, `routes/storefront.php` | Boutique en ligne : thèmes (`config/themes.php`), catalogue public, panier par cookie, commande en une page ; routes sans session |
 | `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |

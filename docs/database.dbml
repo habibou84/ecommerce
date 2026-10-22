@@ -1502,6 +1502,17 @@ Table whatsapp_accounts {
   Note: 'WhatsApp Cloud API au nom du marchand. Réponses « Confirmer / Annuler » appliquées à la commande, seulement depuis le numéro du client.'
 }
 
+Table whatsapp_links {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, unique, not null]
+  status varchar(20) [not null, default: 'pending', note: 'pending (QR code à scanner) | connected | disconnected']
+  phone varchar(30) [note: 'numéro relié, +225…']
+  name varchar(120) [note: 'nom du profil WhatsApp']
+  connected_at timestamp
+  last_error varchar
+  Note: 'WhatsApp relié par QR code (service whatsapp-bridge, session store-{id}) : conversations des clients dans la boîte Messages, réponses sans limite de 24 h, messages écrits depuis le téléphone recopiés dans le fil. Pas d’envoi automatique.'
+}
+
 Table message_templates {
   Note: 'V2 : textes personnalisés par événement. En V1, les noms des modèles Meta sont dans whatsapp_accounts.templates et les textes des liens wa.me dans le code.'
   id bigint [pk, increment]
@@ -1551,8 +1562,9 @@ Table conversations {
   order_id bigint [ref: > orders.id, note: 'dernière commande créée depuis la conversation']
   last_preview varchar(200)
   last_message_at timestamp
-  last_inbound_at timestamp [note: 'réponse libre permise 24 h après']
+  last_inbound_at timestamp [note: 'réponse libre permise 24 h après (sans limite par le WhatsApp relié par QR code)']
   unread_count int [not null, default: 0]
+  via_link boolean [not null, default: false, note: 'dernier message du client reçu par le WhatsApp relié : la réponse repart par lui']
   created_at timestamp [not null]
   indexes {
     (store_id, channel, contact) [unique]
