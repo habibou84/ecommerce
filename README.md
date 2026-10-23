@@ -113,7 +113,8 @@ vendor/bin/pint      # style du code
 | `app/Services/Marketing` | API Conversions de Meta (`Conversions`), lien court et image de partage d'un produit (`ShareImages`, polices dans `resources/fonts`) |
 | `app/Services/Reports` | Statistiques avancées (`StoreStats`) et rapport du jour (`DailyReport`) |
 | `app/Services/Shipping/DeliveryAdvisor.php` | Comparateur livreurs / transporteurs et règles d'affectation (suggestion ou automatique) |
-| `app/Services/WhatsApp` | WhatsApp Cloud API au nom du marchand : envoi des modèles (`WhatsAppCloud`), messages automatiques et réponses des clients (`CustomerMessenger`) ; boîte Messages (`Inbox`) ; WhatsApp relié par QR code (`WhatsAppBridge`) |
+| `app/Services/WhatsApp` | WhatsApp Cloud API au nom du marchand : envoi des modèles (`WhatsAppCloud`), messages automatiques et réponses des clients (`CustomerMessenger`) ; boîte Messages (`Inbox`) ; WhatsApp relié par QR code (`WhatsAppBridge`) ; paniers du catalogue WhatsApp transformés en commandes (`CatalogOrders`) |
+| `app/Services/Messaging` | Réponses proposées par l'assistant (`ReplySuggester`) et réponses automatiques avec leurs garde-fous, désactivées par défaut (`AutoReplier`, job `SendAutoReply`) |
 | `whatsapp-bridge/` | Service Node (Baileys) du WhatsApp relié par QR code, une session par boutique, sous Supervisor (`<instance>-whatsapp`), repris de Jibiat ; installé et relancé par les scripts de `deploy/` |
 | `resources/js/views/courier`, `public/livreur-sw.js` | Application livreur `/livreur` (installable) |
 | `app/Services/Storefront`, `routes/storefront.php` | Boutique en ligne : thèmes (`config/themes.php`), catalogue public, panier par cookie, commande en une page ; routes sans session |

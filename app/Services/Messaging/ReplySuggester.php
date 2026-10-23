@@ -12,7 +12,9 @@ use Illuminate\Support\Str;
 
 /**
  * Réponse WhatsApp proposée par l'assistant IA, avec les vrais prix, le vrai stock et les vrais frais de
- * livraison de la boutique. Elle n'est jamais envoyée seule : le marchand la relit, la corrige et l'envoie.
+ * livraison de la boutique. Le marchand la relit, la corrige et l'envoie ; seules les réponses automatiques (si la
+ * boutique les a activées) partent sans relecture, et uniquement quand l'assistant juge la question simple et la
+ * réponse entièrement tirée des données de la boutique.
  */
 class ReplySuggester
 {
@@ -27,6 +29,14 @@ class ReplySuggester
     - reply : le texte du message seul, sans signature ni guillemets. to_check : ce que le commerçant doit vérifier avant d'envoyer, ou null.
     TXT;
 
+    private const AUTOMATIC = <<<'TXT'
+    Mode automatique : ta réponse partira sans relecture du commerçant.
+    send_alone = true seulement si les deux conditions sont réunies :
+    1. le client salue, demande si un article est disponible, son prix, ses tailles ou couleurs, les frais ou délais de livraison, ou vient d'envoyer un panier du catalogue (commande à compléter) ;
+    2. ta réponse s'appuie entièrement sur les informations fournies et ne promet rien d'autre (pas de remise, pas de délai non indiqué, pas d'engagement).
+    Dans tous les autres cas, send_alone = false : réclamation, retard, remboursement, négociation du prix, question personnelle ou hors vente, information manquante, message peu clair, photo, vocal ou document sans texte explicite, client agacé.
+    TXT;
+
     public function __construct(
         private readonly Assistant $assistant,
         private readonly CatalogContext $catalog,
@@ -36,6 +46,29 @@ class ReplySuggester
      * @return array{reply: string, to_check: ?string}
      */
     public function suggest(Conversation $conversation, User $user): array
+    {
+        $draft = $this->draft($conversation, $user, false);
+
+        return ['reply' => $draft['reply'], 'to_check' => $draft['to_check']];
+    }
+
+    /**
+     * Réponse automatique : send est vrai seulement si l'assistant la juge sûre (rien à vérifier).
+     *
+     * @return array{reply: string, to_check: ?string, send: bool}
+     */
+    public function automatic(Conversation $conversation): array
+    {
+        $draft = $this->draft($conversation, null, true);
+        $draft['send'] = $draft['send'] && $draft['to_check'] === null && $draft['reply'] !== '';
+
+        return $draft;
+    }
+
+    /**
+     * @return array{reply: string, to_check: ?string, send: bool}
+     */
+    private function draft(Conversation $conversation, ?User $user, bool $automatic): array
     {
         $store = $conversation->store;
         $messages = $conversation->messages()->latest('sent_at')->latest('id')->limit(20)->get()->reverse()->values();
@@ -54,16 +87,18 @@ class ReplySuggester
             "Conversation (la plus récente en dernier) :\n".($transcript !== '' ? $transcript : '(aucun message)'),
         ]))]];
 
-        $draft = $this->assistant->run($store, $user, 'reply', self::SYSTEM, $content, [
+        $properties = ['reply' => ['type' => 'string'], 'to_check' => ['type' => ['string', 'null']]] + ($automatic ? ['send_alone' => ['type' => 'boolean']] : []);
+        $draft = $this->assistant->run($store, $user, $automatic ? 'auto_reply' : 'reply', $automatic ? self::SYSTEM."\n".self::AUTOMATIC : self::SYSTEM, $content, [
             'type' => 'object',
-            'properties' => ['reply' => ['type' => 'string'], 'to_check' => ['type' => ['string', 'null']]],
-            'required' => ['reply', 'to_check'],
+            'properties' => $properties,
+            'required' => array_keys($properties),
             'additionalProperties' => false,
         ], 4000);
 
         return [
             'reply' => Str::limit(trim((string) ($draft['reply'] ?? '')), 4000, ''),
             'to_check' => filled($draft['to_check'] ?? null) ? trim($draft['to_check']) : null,
+            'send' => ($draft['send_alone'] ?? false) === true,
         ];
     }
 

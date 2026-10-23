@@ -14,6 +14,7 @@ use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Notifications\CustomerMessage;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Messaging\AutoReplier;
 use App\Services\Social\MetaSocial;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -94,6 +95,15 @@ class Inbox
     public function receive(WhatsappAccount $account, array $message, array $contacts = []): ?ConversationMessage
     {
         $from = (string) ($message['from'] ?? '');
+        if (($message['type'] ?? null) === 'order' && $from !== '') {
+            $items = collect($message['order']['product_items'] ?? [])->map(fn ($i) => [
+                'ref' => $i['product_retailer_id'] ?? null, 'quantity' => $i['quantity'] ?? 0, 'price' => $i['item_price'] ?? null,
+            ])->all();
+            $name = collect($contacts)->firstWhere('wa_id', $from)['profile']['name'] ?? null;
+
+            return $this->receiveOrder($account->store_id, '+'.ltrim($from, '+'), $name, $items, null, $message['order']['text'] ?? null,
+                $message['id'] ?? null, isset($message['timestamp']) ? Carbon::createFromTimestamp((int) $message['timestamp']) : now(), false);
+        }
         $body = self::readable($message);
         if ($from === '' || $body === null) {
             return null;
@@ -113,12 +123,19 @@ class Inbox
     /**
      * Message d'un client reçu par le WhatsApp relié par QR code (service whatsapp-bridge).
      *
-     * @param  array{id: string, from: string, name?: ?string, kind?: ?string, text?: ?string, lat?: mixed, lng?: mixed, at?: mixed}  $event
+     * @param  array{id: string, from: string, name?: ?string, kind?: ?string, text?: ?string, lat?: mixed, lng?: mixed, at?: mixed, items?: mixed, total?: mixed}  $event
      */
     public function receiveLinked(WhatsappLink $link, array $event): ?ConversationMessage
     {
         $kind = (string) ($event['kind'] ?? 'text');
         $text = isset($event['text']) ? trim((string) $event['text']) : null;
+        if ($kind === 'order') {
+            $from = '+'.ltrim((string) ($event['from'] ?? ''), '+');
+
+            return $from === '+' ? null : $this->receiveOrder($link->store_id, $from, $event['name'] ?? null, is_array($event['items'] ?? null) ? $event['items'] : [],
+                is_numeric($event['total'] ?? null) ? (int) $event['total'] : null, $text, (string) ($event['id'] ?? '') ?: null,
+                isset($event['at']) ? Carbon::createFromTimestamp((int) $event['at']) : now(), true);
+        }
         $caption = fn (string $label) => trim($label.($text ? ' : '.$text : ''));
         $body = match ($kind) {
             'text' => $text,
@@ -155,6 +172,27 @@ class Inbox
         return $conversation ? $this->record($conversation, 'text', $text, 'sent', $id) : null;
     }
 
+    /**
+     * Panier du catalogue WhatsApp : commande « à confirmer » créée tout de suite et reliée à la conversation, où le
+     * panier apparaît en clair. Une notification rejouée ne crée pas une deuxième commande.
+     *
+     * @param  list<array<string, mixed>>  $items
+     */
+    private function receiveOrder(int $storeId, string $phone, ?string $name, array $items, ?int $total, ?string $text, ?string $providerId, Carbon $sentAt, bool $viaLink): ?ConversationMessage
+    {
+        $store = Store::find($storeId);
+        if ($store === null || ($providerId && ConversationMessage::forStore($storeId)->where('provider_message_id', $providerId)->exists())) {
+            return null;
+        }
+        ['order' => $order, 'body' => $body] = app(CatalogOrders::class)->place($store, $phone, $name, $items, $total, $text);
+        $message = $this->land($storeId, $phone, $name, 'order', $body, $providerId, $sentAt, $viaLink);
+        if ($order !== null) {
+            $message->conversation->forceFill(['order_id' => $order->id])->save();
+        }
+
+        return $message;
+    }
+
     private function land(int $storeId, string $phone, ?string $name, string $type, string $body, ?string $providerId, Carbon $sentAt, bool $viaLink): ConversationMessage
     {
         $received = DB::transaction(function () use ($storeId, $phone, $name, $type, $body, $providerId, $sentAt, $viaLink) {
@@ -189,6 +227,7 @@ class Inbox
         if ($store) {
             $this->team->notify($store, Permission::OrdersConfirm->value, new CustomerMessage($conversation, $body));
         }
+        app(AutoReplier::class)->schedule($created);
 
         return $created;
     }
@@ -236,6 +275,24 @@ class Inbox
         }
 
         return $this->record($conversation, 'text', $text, 'sent', $id, $user);
+    }
+
+    /**
+     * Réponse automatique (réglages des réponses automatiques) : même chemin que celle de l'équipe, sans auteur.
+     * Une erreur d'envoi est remontée telle quelle (RuntimeException ou BusinessRuleException).
+     */
+    public function replyAutomatically(Conversation $conversation, string $text): ConversationMessage
+    {
+        $link = $this->linkFor($conversation);
+        if ($link !== null) {
+            return $this->record($conversation, 'auto', $text, 'queued', $this->bridge->send($link, $conversation->contact, $text));
+        }
+        $account = $conversation->channel === 'whatsapp' && $conversation->canReply() ? WhatsappAccount::forStore($conversation->store_id)->first() : null;
+        if ($account === null) {
+            throw new BusinessRuleException('Aucun WhatsApp connecté ne permet de répondre à ce client.');
+        }
+
+        return $this->record($conversation, 'auto', $text, 'sent', $this->cloud->sendText($account, $conversation->contact, $text));
     }
 
     /**
