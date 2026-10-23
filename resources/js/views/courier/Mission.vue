@@ -86,6 +86,8 @@ async function respond(action) {
 // Action principale du moment (bouton fixé en bas)
 const primary = computed(() => {
   if (!mission.value || panel.value) return null
+  // Nouvelle mission : d'abord accepter ou refuser (le bouton fixe cacherait ce choix)
+  if (mission.value.acceptance === 'pending' && mission.value.status === 'awaiting_pickup') return null
   if (can('in_transit')) return { label: '📦 J\'ai récupéré le colis', run: () => step('in_transit') }
   if (can('out_for_delivery')) return { label: '🛵 Je pars livrer', run: () => step('out_for_delivery') }
   if (can('delivered')) return { label: '✓ Livré', run: () => (panel.value = 'delivered') }
