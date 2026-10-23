@@ -27,7 +27,7 @@ class InboxTest extends TestCase
 
     private int $sent = 0;
 
-    private ?string $metaError = null;
+    private string|array|null $metaError = null;
 
     protected function setUp(): void
     {
@@ -35,7 +35,7 @@ class InboxTest extends TestCase
         Http::preventStrayRequests();
         Http::fake(['https://graph.facebook.com/v25.0/*' => function () {
             if ($this->metaError) {
-                return Http::response(['error' => ['message' => $this->metaError]], 400);
+                return Http::response(['error' => is_array($this->metaError) ? $this->metaError : ['message' => $this->metaError]], 400);
             }
             $this->sent++;
 
@@ -133,6 +133,11 @@ class InboxTest extends TestCase
         $this->metaError = 'Invalid token';
         $this->storeApi($this->store, 'POST', "conversations/{$conversation->id}/messages", ['body' => 'Encore là ?'])
             ->assertStatus(422)->assertJsonPath('message', 'WhatsApp : Invalid token');
+
+        // Conversation tenue par une autre application reliée au même numéro : expliqué simplement
+        $this->metaError = ['message' => '(#131070) Message failed to send because another app is controlling this thread now', 'code' => 131070];
+        $this->storeApi($this->store, 'POST', "conversations/{$conversation->id}/messages", ['body' => 'Encore là ?'])
+            ->assertStatus(422)->assertJsonPath('message', fn ($m) => str_starts_with($m, 'WhatsApp : ce client est en ce moment pris en charge par une autre application'));
         $this->metaError = null;
 
         // Plus de 24 h après le dernier message du client : réponse libre refusée
