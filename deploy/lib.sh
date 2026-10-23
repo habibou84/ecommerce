@@ -248,14 +248,27 @@ whatsapp_bridge_deps() {
     fi
 }
 
-# Processus du service WhatsApp sous Supervisor (fichier à part, relancé à chaque mise à jour)
+# Processus du service WhatsApp sous Supervisor (fichier à part). Relancé seulement quand son code ou ses réglages
+# changent : chaque redémarrage coupe les numéros reliés quelques secondes, et un arrêt mal tombé peut obliger le
+# marchand à relier son numéro de nouveau.
 install_whatsapp_bridge() {
     sed -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__NODE__|$(command -v node)|g" -e "s|__USER__|$APP_USER|g" \
         -e "s|__HOME__|$APP_HOME|g" -e "s|__INSTANCE__|$INSTANCE|g" \
         "$APP_DIR/deploy/supervisor-whatsapp.conf" > "/etc/supervisor/conf.d/$INSTANCE-whatsapp.conf"
     supervisorctl reread >/dev/null
     supervisorctl update >/dev/null
-    supervisorctl restart "$INSTANCE-whatsapp" || warn "service WhatsApp non démarré : voir storage/logs/whatsapp-bridge.log"
+    local sum_file="$APP_DIR/storage/framework/whatsapp-bridge.sum" sum
+    sum="$(cat "$APP_DIR/whatsapp-bridge/server.js" "$APP_DIR/whatsapp-bridge/package-lock.json" "/etc/supervisor/conf.d/$INSTANCE-whatsapp.conf" \
+        <(grep -E '^(WHATSAPP_BRIDGE_|APP_URL=)' "$APP_DIR/.env") | sha1sum | cut -d' ' -f1)"
+    if [[ "$(cat "$sum_file" 2>/dev/null || true)" == "$sum" ]] && supervisorctl status "$INSTANCE-whatsapp" | grep -q RUNNING; then
+        info "Service WhatsApp inchangé : laissé en marche (numéros reliés sans coupure)."
+        return 0
+    fi
+    if supervisorctl restart "$INSTANCE-whatsapp"; then
+        echo "$sum" > "$sum_file"
+    else
+        warn "service WhatsApp non démarré : voir storage/logs/whatsapp-bridge.log"
+    fi
 }
 
 # File d'attente (messages WhatsApp, API Conversions, affectation automatique) sous Supervisor
