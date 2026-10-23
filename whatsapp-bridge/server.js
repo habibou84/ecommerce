@@ -74,6 +74,23 @@ class Session {
     this.retries = 0
     // Liaison avec le numéro (« Connecter avec le numéro de téléphone à la place ») : code à 8 caractères
     this.pairingCode = null
+    // Numéro du client => conversation WhatsApp où il a écrit (souvent un identifiant masqué « @lid ») : la réponse
+    // part dans la même conversation, sinon WhatsApp peut l'accepter sans jamais la remettre
+    this.chatsFile = path.join(this.dir, 'chats.json')
+    this.chats = new Map()
+    try {
+      this.chats = new Map(Object.entries(JSON.parse(fs.readFileSync(this.chatsFile, 'utf8'))))
+    } catch {
+      // pas encore de conversation connue
+    }
+  }
+
+  rememberChat (phone, jid) {
+    const digits = String(phone).replace(/\D/g, '')
+    if (!digits || !jid || this.chats.get(digits) === jid) return
+    this.chats.set(digits, jid)
+    if (this.chats.size > 20000) this.chats.delete(this.chats.keys().next().value)
+    fs.writeFile(this.chatsFile, JSON.stringify(Object.fromEntries(this.chats)), () => {})
   }
 
   async start () {
@@ -120,11 +137,13 @@ class Session {
       const code = lastDisconnect?.error?.output?.statusCode
       if (code === DisconnectReason.loggedOut) {
         // Appareil retiré depuis le téléphone : il faudra scanner un nouveau QR code
+        log.warn({ session: this.id, code }, 'session déconnectée par WhatsApp')
         this.clear()
-        this.setStatus('logged_out', 'Le téléphone a déconnecté Jibiat Marchand : scannez un nouveau QR code.')
+        this.setStatus('logged_out', 'WhatsApp a déconnecté Jibiat Marchand (appareil retiré du téléphone, ou session refusée) : reliez de nouveau votre numéro.')
         return
       }
       if (this.stopped) return
+      log.info({ session: this.id, code }, 'connexion interrompue, reconnexion')
       this.setStatus('disconnected', `Connexion interrompue (${code || 'réseau'}) : reconnexion…`)
       this.retries++
       setTimeout(() => this.start().catch((e) => log.error({ err: e, session: this.id }, 'reconnexion impossible')),
@@ -150,6 +169,7 @@ class Session {
       : m.documentMessage || m.documentWithCaptionMessage ? 'document' : m.locationMessage || m.liveLocationMessage ? 'location'
         : textOf(m) !== null ? 'text' : 'other'
     const place = m.locationMessage || m.liveLocationMessage
+    this.rememberChat(from, msg.key.remoteJid)
 
     notify({
       type: 'message',
@@ -171,6 +191,7 @@ class Session {
     const at = Number(msg.messageTimestamp) || 0
     if (at && Date.now() / 1000 - at > RECENT_SECONDS) return
     const to = phoneOf(msg)
+    if (to) this.rememberChat(to, msg.key.remoteJid)
     const text = textOf(msg.message.ephemeralMessage?.message || msg.message)
     if (to && text) notify({ type: 'outgoing', session: this.id, id: msg.key.id, to, text })
   }
@@ -178,9 +199,10 @@ class Session {
   onReceipt ({ key, update }) {
     if (!key?.fromMe || update?.status === undefined) return
     const id = this.sent.get(key.id)
-    // 3 : remis au téléphone, 4 : lu (5 : écouté)
-    const status = update.status >= 4 ? 'read' : update.status === 3 ? 'delivered' : null
-    if (id && status) notify({ type: status, session: this.id, id })
+    // 0 : refusé par WhatsApp, 3 : remis au téléphone, 4 : lu (5 : écouté)
+    const status = update.status >= 4 ? 'read' : update.status === 3 ? 'delivered' : update.status === 0 ? 'failed' : null
+    if (id && status) notify({ type: status, session: this.id, id, error: status === 'failed' ? 'WhatsApp a refusé ce message.' : undefined })
+    if (status === 'failed') log.warn({ session: this.id, id, to: key.remoteJid }, 'message refusé par WhatsApp')
   }
 
   /** Message mis dans la file : renvoie tout de suite son identifiant, l'envoi suit (événement sent ou failed) */
@@ -195,21 +217,30 @@ class Session {
     if (wait > 0) await sleep(wait)
     this.lastSend = Date.now()
     try {
+      // Reconnexion en cours (réseau, redémarrage) : on l'attend un peu plutôt que d'échouer tout de suite
+      for (let i = 0; i < 30 && this.status !== 'connected' && this.status !== 'logged_out'; i++) await sleep(1000)
       if (this.status !== 'connected' || !this.sock) throw new Error('WhatsApp n\'est pas relié : scannez le QR code dans Jibiat Marchand.')
       const number = String(to).replace(/\D/g, '')
-      const [found] = await this.sock.onWhatsApp(number)
-      if (!found?.exists) throw new Error('Ce numéro n\'a pas de compte WhatsApp.')
-      await this.sock.presenceSubscribe(found.jid).catch(() => {})
-      await this.sock.sendPresenceUpdate('composing', found.jid).catch(() => {})
+      // La conversation où le client a écrit ; sinon son numéro, après vérification qu'il a WhatsApp
+      let jid = this.chats.get(number)
+      if (!jid) {
+        const [found] = await this.sock.onWhatsApp(number)
+        if (!found?.exists) throw new Error('Ce numéro n\'a pas de compte WhatsApp.')
+        jid = found.jid
+      }
+      await this.sock.presenceSubscribe(jid).catch(() => {})
+      await this.sock.sendPresenceUpdate('composing', jid).catch(() => {})
       await sleep(500 + Math.min(2500, text.length * 15))
-      await this.sock.sendPresenceUpdate('paused', found.jid).catch(() => {})
+      await this.sock.sendPresenceUpdate('paused', jid).catch(() => {})
       // Identifiant WhatsApp choisi avant l'envoi : le message ne revient pas comme « écrit depuis le téléphone »
       const messageId = generateMessageIDV2(this.sock.user?.id)
       this.sent.set(messageId, id)
       if (this.sent.size > 5000) this.sent.delete(this.sent.keys().next().value)
-      await this.sock.sendMessage(found.jid, { text }, { messageId })
+      await this.sock.sendMessage(jid, { text }, { messageId })
+      log.info({ session: this.id, id, jid }, 'message envoyé')
       notify({ type: 'sent', session: this.id, id })
     } catch (e) {
+      log.warn({ session: this.id, id, err: e }, 'message non envoyé')
       notify({ type: 'failed', session: this.id, id, error: e.message || String(e) })
     }
   }
@@ -348,6 +379,28 @@ for (const id of fs.readdirSync(DATA_DIR)) {
 }
 
 server.listen(PORT, '127.0.0.1', () => log.info({ port: PORT, webhook: WEBHOOK }, 'service WhatsApp prêt'))
+
+// Arrêt demandé (mise à jour du serveur) : connexions fermées proprement, le temps que les clés de session soient
+// écrites sur le disque ; un arrêt brutal pendant une écriture peut obliger à relier le numéro de nouveau
+let stopping = false
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, async () => {
+    if (stopping) return
+    stopping = true
+    log.info({ signal }, 'arrêt du service WhatsApp')
+    server.close()
+    for (const session of sessions.values()) {
+      session.stopped = true
+      try {
+        session.sock?.end(undefined)
+      } catch {
+        // déjà fermée
+      }
+    }
+    await sleep(3000)
+    process.exit(0)
+  })
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 

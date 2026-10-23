@@ -22,8 +22,27 @@ class WhatsAppLinkController extends Controller
     public function show(): JsonResponse
     {
         $link = WhatsappLink::first();
+        $live = $link ? $this->live($link) : null;
+        if ($link && $live) {
+            $this->sync($link, $live);
+        }
 
-        return response()->json(['data' => $this->describe($link, $link && ! $link->isConnected() ? $this->live($link) : null)]);
+        return response()->json(['data' => $this->describe($link, $live)]);
+    }
+
+    /**
+     * L'état gardé ici suit les événements du service ; s'il en a manqué un (mise à jour du serveur pendant la
+     * liaison, coupure), l'état réel du service fait foi : relié, ou session perdue à relier de nouveau.
+     *
+     * @param  array{status: string, qr: ?string, code: ?string, phone: ?string, name: ?string}  $live
+     */
+    private function sync(WhatsappLink $link, array $live): void
+    {
+        if ($live['status'] === 'connected' && ! $link->isConnected()) {
+            $link->forceFill(['status' => 'connected', 'phone' => $live['phone'] ?: $link->phone, 'name' => $live['name'] ?: $link->name, 'connected_at' => now(), 'last_error' => null])->save();
+        } elseif ($live['status'] === 'logged_out' && $link->isConnected()) {
+            $link->forceFill(['status' => 'disconnected', 'last_error' => 'La liaison avec WhatsApp a été perdue : reliez de nouveau votre numéro.'])->save();
+        }
     }
 
     /** Démarre la session et renvoie le QR code (ou l'état s'il est déjà relié) */
@@ -105,7 +124,7 @@ class WhatsAppLinkController extends Controller
             'qr' => $link?->isConnected() ? null : ($live['qr'] ?? null),
             'code' => $link?->isConnected() ? null : ($live['code'] ?? null),
             // Numéro proposé pour la liaison par code : celui de la boutique
-            'store_phone' => $this->currentStore()->whatsapp_phone,
+            'store_phone' => $this->currentStore()->whatsapp_phone ? PhoneNumber::display($this->currentStore()->whatsapp_phone) : null,
             'phone' => $link?->phone,
             'name' => $link?->name,
             'connected_at' => $link?->connected_at?->toIso8601String(),

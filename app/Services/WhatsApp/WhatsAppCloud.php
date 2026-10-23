@@ -19,6 +19,15 @@ class WhatsAppCloud
 
     public const GRAPH = 'https://graph.facebook.com/'.self::VERSION.'/';
 
+    // Erreurs de Meta les plus courantes, dites simplement (les autres gardent le texte de Meta)
+    private const ERRORS = [
+        // Une autre application reliée au même numéro tient la conversation
+        131070 => 'ce client est en ce moment pris en charge par une autre application reliée à votre numéro WhatsApp (un autre logiciel ou l\'application WhatsApp Business). Répondez depuis votre téléphone, ou reliez WhatsApp par QR code dans Messages pour répondre d\'ici.',
+        131047 => 'le client n\'a pas écrit depuis plus de 24 h : Meta n\'autorise plus de réponse libre par la connexion officielle.',
+        131026 => 'message non remis : ce numéro n\'a peut-être pas WhatsApp, ou n\'a pas accepté les conditions récentes de WhatsApp.',
+        190 => 'la connexion officielle a expiré : reconnectez votre numéro dans Réglages › WhatsApp.',
+    ];
+
     /**
      * @param  list<string>  $params  variables {{1}}, {{2}}… du corps du modèle
      * @param  list<string>  $buttons  charges utiles des boutons de réponse rapide, dans l'ordre
@@ -78,7 +87,8 @@ class WhatsAppCloud
         }
 
         if ($response->failed()) {
-            throw new RuntimeException('WhatsApp : '.($response->json('error.message') ?? 'erreur '.$response->status()));
+            $code = (int) $response->json('error.code');
+            throw new RuntimeException('WhatsApp : '.(self::ERRORS[$code] ?? $response->json('error.message') ?? 'erreur '.$response->status()), $code);
         }
 
         return (string) $response->json('messages.0.id');

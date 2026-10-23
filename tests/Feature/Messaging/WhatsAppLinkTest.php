@@ -23,6 +23,9 @@ class WhatsAppLinkTest extends TestCase
 
     private int $queued = 0;
 
+    /** État de la session vu par le service */
+    private array $live = ['status' => 'qr', 'qr' => 'data:image/png;base64,QR2'];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,7 +40,7 @@ class WhatsAppLinkTest extends TestCase
             },
             'http://127.0.0.1:3210/sessions/*/logout' => Http::response(['status' => 'logged_out']),
             'http://127.0.0.1:3210/sessions/*/pair' => Http::response(['status' => 'qr', 'qr' => 'data:image/png;base64,QR', 'code' => 'ABCD-EFGH']),
-            'http://127.0.0.1:3210/sessions/*' => Http::response(['status' => 'qr', 'qr' => 'data:image/png;base64,QR2']),
+            'http://127.0.0.1:3210/sessions/*' => fn () => Http::response($this->live),
         ]);
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
         $this->actingAs($this->store->owner);
@@ -111,11 +114,13 @@ class WhatsAppLinkTest extends TestCase
         // Réponse deux jours plus tard : toujours possible, envoyée par le service
         $this->travel(2)->days();
         $this->storeApi($this->store, 'POST', "conversations/{$conversation->id}/messages", ['body' => 'Oui, en M et L 🙂'])->assertCreated()
-            ->assertJsonPath('data.messages.3.direction', 'out')->assertJsonPath('data.messages.3.status', 'sent');
+            ->assertJsonPath('data.messages.3.direction', 'out')->assertJsonPath('data.messages.3.status', 'queued');
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/sessions/store-'.$this->store->id.'/send')
             && $r['to'] === '+2250506070809' && $r['text'] === 'Oui, en M et L 🙂');
 
-        // Accusés : lu, puis un « remis » en retard ne fait pas reculer
+        // Pris par WhatsApp, puis lu ; un « remis » en retard ne fait pas reculer
+        $this->event(['type' => 'sent', 'id' => 'qr-1'])->assertOk();
+        $this->assertSame('sent', ConversationMessage::where('provider_message_id', 'qr-1')->value('status'));
         $this->event(['type' => 'read', 'id' => 'qr-1'])->assertOk();
         $this->event(['type' => 'delivered', 'id' => 'qr-1'])->assertOk();
         $this->assertSame('read', ConversationMessage::where('provider_message_id', 'qr-1')->value('status'));
@@ -205,5 +210,18 @@ class WhatsAppLinkTest extends TestCase
             ->assertJsonPath('data.has_more', false)->assertJsonCount(6, 'data.messages')
             ->assertJsonPath('data.messages.0.body', 'Message 1');
         $this->storeApi($this->store, 'GET', 'conversations')->assertJsonPath('linked', true);
+    }
+
+    public function test_the_link_state_follows_the_service_when_an_event_was_missed(): void
+    {
+        // Le téléphone a scanné, mais l'événement « relié » n'est jamais arrivé (mise à jour du serveur)
+        $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
+        $this->live = ['status' => 'connected', 'phone' => '+2250700000001', 'name' => 'Awa Mode'];
+        $this->storeApi($this->store, 'GET', 'whatsapp/link')->assertJsonPath('data.status', 'connected')->assertJsonPath('data.phone', '+2250700000001');
+
+        // Session perdue côté service alors qu'elle paraît reliée ici : à relier de nouveau
+        $this->live = ['status' => 'logged_out'];
+        $this->storeApi($this->store, 'GET', 'whatsapp/link')->assertJsonPath('data.status', 'disconnected')
+            ->assertJsonPath('data.last_error', 'La liaison avec WhatsApp a été perdue : reliez de nouveau votre numéro.');
     }
 }

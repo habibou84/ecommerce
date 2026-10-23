@@ -271,8 +271,8 @@ const rows = computed(() => {
   }
   return out
 })
-const statusIcon = { sent: '✓', delivered: '✓✓', read: '✓✓', failed: '⚠' }
-const STATUS_LABEL = { sent: 'Envoyé', delivered: 'Reçu', read: 'Lu', failed: 'Non envoyé' }
+const statusIcon = { queued: '🕓', sent: '✓', delivered: '✓✓', read: '✓✓', failed: '⚠' }
+const STATUS_LABEL = { queued: 'En cours d\'envoi', sent: 'Envoyé', delivered: 'Reçu', read: 'Lu', failed: 'Non envoyé' }
 
 // Commande depuis un ou plusieurs messages précis du client (plutôt que toute la conversation)
 const selecting = ref(false)
