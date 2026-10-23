@@ -5,6 +5,7 @@ namespace Tests\Feature\Messaging;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\Store;
+use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Notifications\CustomerMessage;
 use Illuminate\Http\Client\Request as HttpRequest;
@@ -35,6 +36,7 @@ class WhatsAppLinkTest extends TestCase
                 return Http::response(['id' => 'qr-'.$this->queued], 202);
             },
             'http://127.0.0.1:3210/sessions/*/logout' => Http::response(['status' => 'logged_out']),
+            'http://127.0.0.1:3210/sessions/*/pair' => Http::response(['status' => 'qr', 'qr' => 'data:image/png;base64,QR', 'code' => 'ABCD-EFGH']),
             'http://127.0.0.1:3210/sessions/*' => Http::response(['status' => 'qr', 'qr' => 'data:image/png;base64,QR2']),
         ]);
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
@@ -160,5 +162,48 @@ class WhatsAppLinkTest extends TestCase
         $this->storeApi($this->store, 'GET', 'whatsapp/link')->assertJsonPath('data.available', false);
         $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertStatus(422)
             ->assertJsonPath('errors.link.0', 'Connexion par QR code indisponible : le service WhatsApp n\'est pas installé sur le serveur.');
+    }
+
+    public function test_link_with_the_phone_number(): void
+    {
+        $this->storeApi($this->store, 'POST', 'whatsapp/link/pair', ['phone' => '12'])->assertStatus(422)->assertJsonPath('errors.phone.0', 'Numéro WhatsApp invalide.');
+
+        $this->storeApi($this->store, 'POST', 'whatsapp/link/pair', ['phone' => '07 00 00 00 01'])->assertOk()
+            ->assertJsonPath('data.status', 'pending')->assertJsonPath('data.code', 'ABCD-EFGH');
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'http://127.0.0.1:3210/sessions/store-'.$this->store->id.'/pair' && $r['phone'] === '+2250700000001');
+    }
+
+    public function test_replies_go_through_the_linked_whatsapp_unless_the_customer_wrote_to_another_official_number(): void
+    {
+        $this->linked();
+        $conversation = Conversation::create(['store_id' => $this->store->id, 'channel' => 'whatsapp', 'contact' => '+2250506070809', 'last_message_at' => now()->subDays(3), 'last_inbound_at' => now()->subDays(3)]);
+
+        // Écrit au numéro officiel, qui est le même que le numéro relié : la réponse passe par le WhatsApp relié
+        WhatsappAccount::create(['store_id' => $this->store->id, 'phone_number_id' => '1', 'display_phone' => '+225 07 00 00 00 01', 'access_token' => 't', 'status' => 'active']);
+        $this->storeApi($this->store, 'GET', "conversations/{$conversation->id}")->assertJsonPath('data.linked', true)->assertJsonPath('data.can_reply', true);
+
+        // Numéro officiel différent : réponse officielle, soumise aux 24 h
+        WhatsappAccount::query()->update(['display_phone' => '+2250500000099']);
+        $this->storeApi($this->store, 'GET', "conversations/{$conversation->id}")->assertJsonPath('data.linked', false)->assertJsonPath('data.can_reply', false);
+    }
+
+    public function test_older_messages_and_who_wrote_them(): void
+    {
+        $this->linked();
+        foreach (range(1, 105) as $i) {
+            $this->event(['type' => 'message', 'id' => 'M'.$i, 'from' => '+2250506070809', 'kind' => 'text', 'text' => 'Message '.$i, 'at' => now()->subMinutes(200 - $i)->timestamp])->assertOk();
+        }
+        $this->event(['type' => 'outgoing', 'id' => 'P1', 'to' => '+2250506070809', 'text' => 'Réponse du téléphone'])->assertOk();
+        $conversation = Conversation::sole();
+
+        $detail = $this->storeApi($this->store, 'GET', "conversations/{$conversation->id}")->assertOk()
+            ->assertJsonPath('data.has_more', true)->assertJsonCount(100, 'data.messages')
+            ->assertJsonPath('data.messages.99.by', 'Depuis le téléphone');
+        $first = $detail->json('data.messages.0.id');
+
+        $this->storeApi($this->store, 'GET', "conversations/{$conversation->id}/messages?before={$first}")->assertOk()
+            ->assertJsonPath('data.has_more', false)->assertJsonCount(6, 'data.messages')
+            ->assertJsonPath('data.messages.0.body', 'Message 1');
+        $this->storeApi($this->store, 'GET', 'conversations')->assertJsonPath('linked', true);
     }
 }

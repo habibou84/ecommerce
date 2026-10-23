@@ -22,7 +22,7 @@ class WhatsAppBridge
     }
 
     /**
-     * @return array{status: string, qr: ?string, phone: ?string, name: ?string}
+     * @return array{status: string, qr: ?string, code: ?string, phone: ?string, name: ?string}
      */
     public function start(WhatsappLink $link): array
     {
@@ -30,7 +30,17 @@ class WhatsAppBridge
     }
 
     /**
-     * @return array{status: string, qr: ?string, phone: ?string, name: ?string}
+     * Liaison avec le numéro plutôt que le QR code : code à 8 caractères à saisir sur le téléphone.
+     *
+     * @return array{status: string, qr: ?string, code: ?string, phone: ?string, name: ?string}
+     */
+    public function pair(WhatsappLink $link, string $phone): array
+    {
+        return $this->describe($this->call(fn () => $this->http(30)->post('/sessions/'.$link->session().'/pair', ['phone' => $phone])));
+    }
+
+    /**
+     * @return array{status: string, qr: ?string, code: ?string, phone: ?string, name: ?string}
      */
     public function status(WhatsappLink $link): array
     {
@@ -81,13 +91,14 @@ class WhatsAppBridge
     }
 
     /**
-     * @return array{status: string, qr: ?string, phone: ?string, name: ?string}
+     * @return array{status: string, qr: ?string, code: ?string, phone: ?string, name: ?string}
      */
     private function describe(Response $response): array
     {
         return [
             'status' => (string) ($response->json('status') ?? 'logged_out'),
             'qr' => $response->json('qr'),
+            'code' => $response->json('code'),
             'phone' => $response->json('phone'),
             'name' => $response->json('name'),
         ];

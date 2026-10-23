@@ -261,8 +261,9 @@ class Inbox
     }
 
     /**
-     * WhatsApp relié par QR code par lequel répondre : celui de la boutique s'il est connecté, sauf si le client a
-     * écrit en dernier au numéro officiel (API de Meta) et que celui-ci est toujours là.
+     * WhatsApp relié (QR code ou numéro) par lequel répondre, sans limite de 24 h : celui de la boutique s'il est
+     * connecté. Seule exception : le client a écrit en dernier à un autre numéro, celui de la connexion officielle de
+     * Meta ; la réponse part alors de ce numéro-là, pour ne pas venir d'un numéro qu'il ne connaît pas.
      */
     public function linkFor(Conversation $conversation): ?WhatsappLink
     {
@@ -270,11 +271,13 @@ class Inbox
             return null;
         }
         $link = WhatsappLink::connectedFor($conversation->store_id);
-        if ($link === null || (! $conversation->via_link && WhatsappAccount::forStore($conversation->store_id)->exists())) {
-            return null;
+        if ($link === null || $conversation->via_link) {
+            return $link;
         }
+        $official = WhatsappAccount::forStore($conversation->store_id)->value('display_phone');
+        $digits = fn (?string $phone) => substr((string) preg_replace('/\D/', '', (string) $phone), -10);
 
-        return $link;
+        return $official === null || $digits($official) === '' || $digits($official) === $digits($link->phone) ? $link : null;
     }
 
     private function label(Conversation $conversation): string

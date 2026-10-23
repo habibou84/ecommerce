@@ -289,6 +289,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('conversations', [ConversationController::class, 'index'])->name('conversations.index');
                 Route::get('conversations/unread', [ConversationController::class, 'unread'])->name('conversations.unread');
                 Route::get('conversations/{conversation}', [ConversationController::class, 'show'])->whereNumber('conversation')->name('conversations.show');
+                Route::get('conversations/{conversation}/messages', [ConversationController::class, 'older'])->whereNumber('conversation')->name('conversations.older');
                 Route::post('conversations/{conversation}/messages', [ConversationController::class, 'reply'])->whereNumber('conversation')->name('conversations.reply');
                 Route::post('conversations/{conversation}/suggest', [ConversationController::class, 'suggest'])->whereNumber('conversation')->middleware('throttle:30,1')->name('conversations.suggest');
             });
@@ -417,6 +418,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 // WhatsApp relié par QR code (comme WhatsApp Web) pour la boîte Messages
                 Route::get('whatsapp/link', [WhatsAppLinkController::class, 'show'])->name('whatsapp.link.show');
                 Route::post('whatsapp/link', [WhatsAppLinkController::class, 'start'])->middleware('throttle:20,1')->name('whatsapp.link.start');
+                Route::post('whatsapp/link/pair', [WhatsAppLinkController::class, 'pair'])->middleware('throttle:10,1')->name('whatsapp.link.pair');
                 Route::delete('whatsapp/link', [WhatsAppLinkController::class, 'destroy'])->name('whatsapp.link.destroy');
             });
             Route::middleware('permission:'.Permission::OrdersManage->value)->group(function () {
