@@ -95,6 +95,8 @@ onMounted(() => {
 })
 onBeforeUnmount(() => clearInterval(timer))
 watch(() => props.id, () => {
+  selecting.value = false
+  selected.value = []
   reply.value = ''
   replyError.value = ''
   suggestionCheck.value = ''
@@ -120,6 +122,20 @@ const time = (iso) => {
   return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 const statusIcon = { sent: '✓', delivered: '✓✓', read: '✓✓', failed: '⚠' }
+
+// Commande depuis un ou plusieurs messages précis du client (plutôt que toute la conversation)
+const selecting = ref(false)
+const selected = ref([])
+const canOrder = computed(() => auth.can('orders.manage'))
+const orderLink = (ids) => ({ path: '/gestion/commandes/nouvelle', query: { conversation: current.value.id, messages: ids.join(',') } })
+function toggleSelecting() {
+  selecting.value = !selecting.value
+  selected.value = []
+}
+function toggleMessage(m) {
+  if (!selecting.value || m.direction !== 'in') return
+  selected.value = selected.value.includes(m.id) ? selected.value.filter((id) => id !== m.id) : [...selected.value, m.id]
+}
 const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
 </script>
 
@@ -185,18 +201,29 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
           </div>
           <div class="ml-auto flex items-center gap-2">
             <RouterLink v-if="current.order" :to="`/gestion/commandes/${current.order.id}`" class="btn-secondary px-3 py-1.5 text-sm">Commande {{ current.order.reference }}</RouterLink>
-            <RouterLink v-if="auth.can('orders.manage')" :to="{ path: '/gestion/commandes/nouvelle', query: { conversation: current.id } }" class="btn-brand px-3 py-1.5 text-sm">
+            <button v-if="canOrder" type="button" class="btn-secondary px-3 py-1.5 text-sm" @click="toggleSelecting">{{ selecting ? 'Annuler' : 'Choisir les messages' }}</button>
+            <RouterLink v-if="canOrder && !selecting" :to="{ path: '/gestion/commandes/nouvelle', query: { conversation: current.id } }" class="btn-brand px-3 py-1.5 text-sm" title="Avec les messages du client depuis la dernière commande">
               {{ current.order ? 'Nouvelle commande' : 'Créer la commande' }}
             </RouterLink>
           </div>
         </header>
 
+        <p v-if="selecting" class="border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">Touchez les messages du client qui forment la commande, puis « Créer la commande ».</p>
         <div ref="thread" class="min-h-0 flex-1 space-y-2 overflow-y-auto bg-slate-50 p-4">
-          <div v-for="m in current.messages" :key="m.id" class="flex" :class="m.direction === 'out' ? 'justify-end' : 'justify-start'">
+          <div v-for="m in current.messages" :key="m.id" class="flex flex-col" :class="m.direction === 'out' ? 'items-end' : 'items-start'">
             <div
               class="max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm"
-              :class="m.direction === 'in' ? 'rounded-bl-sm bg-white' : m.type === 'template' ? 'rounded-br-sm bg-slate-200 text-slate-700' : 'rounded-br-sm bg-emerald-100'"
+              :class="[
+                m.direction === 'in' ? 'rounded-bl-sm bg-white' : m.type === 'template' ? 'rounded-br-sm bg-slate-200 text-slate-700' : 'rounded-br-sm bg-emerald-100',
+                selecting && m.direction === 'in' ? 'cursor-pointer' : '',
+                selected.includes(m.id) ? 'ring-2 ring-emerald-600' : '',
+              ]"
+              @click="toggleMessage(m)"
             >
+              <span v-if="selecting && m.direction === 'in'" class="mb-1 flex items-center gap-1.5 text-xs font-medium" :class="selected.includes(m.id) ? 'text-emerald-700' : 'text-slate-400'">
+                <span class="grid h-4 w-4 place-items-center rounded border" :class="selected.includes(m.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'">{{ selected.includes(m.id) ? '✓' : '' }}</span>
+                {{ selected.includes(m.id) ? 'Dans la commande' : 'Ajouter à la commande' }}
+              </span>
               <p class="whitespace-pre-wrap break-words">
                 <template v-for="(part, i) in linkify(m.body ?? '')" :key="i">
                   <a v-if="i % 2" :href="part" target="_blank" rel="noopener" class="text-emerald-700 underline">{{ part }}</a>
@@ -208,10 +235,17 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
                 <span v-if="m.direction === 'out' && statusIcon[m.status]" :class="m.status === 'read' ? 'text-sky-600' : m.status === 'failed' ? 'text-red-600' : ''" :title="m.error || m.status">{{ statusIcon[m.status] }}</span>
               </p>
             </div>
+            <RouterLink v-if="m.order_hint && canOrder && !selecting" :to="orderLink([m.id])" class="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-100">
+              <Icon name="orders" :size="14" />Faire une commande
+            </RouterLink>
           </div>
         </div>
+        <div v-if="selecting" class="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-white p-3">
+          <span class="text-sm text-slate-600">{{ selected.length ? `${selected.length} message${selected.length > 1 ? 's' : ''} choisi${selected.length > 1 ? 's' : ''}` : 'Aucun message choisi' }}</span>
+          <RouterLink v-if="selected.length" :to="orderLink(current.messages.filter((m) => selected.includes(m.id)).map((m) => m.id))" class="btn-brand ml-auto px-3 py-1.5 text-sm">Créer la commande</RouterLink>
+        </div>
 
-        <form v-if="current.can_reply" class="space-y-2 border-t border-slate-100 p-3" @submit.prevent="send">
+        <form v-if="current.can_reply && !selecting" class="space-y-2 border-t border-slate-100 p-3" @submit.prevent="send">
           <p v-if="replyError" class="text-sm text-red-600">{{ replyError }}</p>
           <div v-if="ai.enabled" class="flex flex-wrap items-center gap-2">
             <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="suggesting || (ai.limit !== null && ai.used >= ai.limit)" @click="suggest">
@@ -227,7 +261,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
           <p v-if="current.linked" class="text-xs text-slate-500">Envoyé depuis votre WhatsApp relié : le message apparaît aussi sur votre téléphone. Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
           <p v-else class="text-xs text-slate-500">Réponse possible jusqu'au {{ replyUntil }} (24 h après le dernier message du client). Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
         </form>
-        <div v-else class="border-t border-slate-100 p-3 text-sm text-slate-600">
+        <div v-else-if="!selecting" class="border-t border-slate-100 p-3 text-sm text-slate-600">
           Le dernier message du client date de plus de 24 h : {{ channelLabel(current) }} ne permet plus d'y répondre d'ici.
           <template v-if="current.channel === 'whatsapp' && auth.can('store.manage')">
             Reliez votre WhatsApp par QR code (<RouterLink to="/gestion/whatsapp" class="font-medium text-emerald-700 underline">Réglages › WhatsApp</RouterLink>) pour répondre à tout moment.

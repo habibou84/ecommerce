@@ -91,7 +91,10 @@ async function fromConversation(id) {
   }
   const c = conversation.value
   form.source = { messenger: 'facebook', instagram: 'instagram' }[c.channel] ?? 'whatsapp'
-  paste.value = c.order_text
+  // Messages choisis dans la conversation (« Faire une commande ») ; sinon tout ce que le client a écrit depuis la dernière commande
+  const ids = String(route.query.messages ?? '').split(',').map(Number).filter(Boolean)
+  const picked = c.messages.filter((m) => m.direction === 'in' && ids.includes(m.id)).map((m) => m.body)
+  paste.value = picked.length ? picked.join('\n') : c.order_text
   pasteOpen.value = true
   if (paste.value.trim().length >= 5) await analyse()
   // WhatsApp : le numéro de la conversation ; un autre numéro cité devient le second numéro de livraison.
