@@ -66,7 +66,7 @@ class WhatsAppBridgeWebhookController extends Controller
         }
         $message = ConversationMessage::forStore($link->store_id)->where('provider_message_id', $id)->where('direction', 'out')->first();
         // Pas de retour en arrière : « remis » arrivé après « lu » ne change rien
-        $rank = ['sent' => 1, 'delivered' => 2, 'read' => 3, 'failed' => 4];
+        $rank = ['queued' => 0, 'sent' => 1, 'delivered' => 2, 'read' => 3, 'failed' => 4];
         if ($message === null || ($rank[$message->status] ?? 0) >= $rank[$status]) {
             return;
         }

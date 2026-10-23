@@ -207,7 +207,8 @@ class Inbox
                 throw new BusinessRuleException($e->getMessage(), 'body');
             }
 
-            return $this->record($conversation, 'text', $text, 'sent', $id, $user);
+            // En file dans le service : « envoyé » quand WhatsApp l'a pris, puis remis, lu ou en échec
+            return $this->record($conversation, 'text', $text, 'queued', $id, $user);
         }
         if (! $conversation->canReply()) {
             throw new BusinessRuleException('Le client n\'a pas écrit depuis plus de 24 h : '.$this->label($conversation).' n\'autorise plus de réponse libre. Répondez depuis votre téléphone ou attendez son prochain message.', 'body');
