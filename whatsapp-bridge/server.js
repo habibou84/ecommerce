@@ -382,7 +382,8 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && req.url === '/health') return reply(200, { ok: true, sessions: sessions.size })
 
-    const match = req.url.match(/^\/sessions\/(store-[0-9]{1,12})(\/(start|pair|send|logout))?$/)
+    // Une session par boutique (« store-12 ») et une pour le numéro du support (« platform », console)
+    const match = req.url.match(/^\/sessions\/(store-[0-9]{1,12}|platform)(\/(start|pair|send|logout))?$/)
     if (!match) return reply(404, { message: 'Adresse inconnue.' })
     const [, id, , action] = match
 

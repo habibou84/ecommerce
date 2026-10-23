@@ -61,6 +61,13 @@ En local, `PLATFORM_DOMAIN=localhost` : les navigateurs envoient `*.localhost` v
 | Application livreur de démonstration | http://demo.localhost:8000/livreur : `07 00 00 00 03` / `password` (Moussa, livreur de la boutique) |
 | Boutique en ligne de démonstration | http://demo.localhost:8000 (ouverte : catalogue, panier, commande paiement à la livraison) |
 
+Vérification des numéros (création de boutique, invitation, mot de passe oublié, connexion par WhatsApp, console) :
+**WhatsApp d'abord**. Dès que le numéro du support est relié dans la console (Console › WhatsApp, par QR code comme
+WhatsApp Web ou avec Facebook), la page ouvre WhatsApp avec le message « Code de vérification : 123456 » ; le
+serveur reçoit le message, vérifie l'expéditeur, répond, et la page (qui interroge `GET /verifications/{jeton}`
+toutes les 3 s) termine l'action. Le SMS n'est proposé que si aucun numéro n'est relié, ou si le réglage de
+plateforme `sms.fallback` vaut `on`. « Me connecter par WhatsApp » (boutique, plateforme) ouvre la session sans mot de
+passe (`POST auth/whatsapp`, `POST account/whatsapp`).
 Les SMS ne partent pas en local (`SMS_DRIVER=log`) : le code de vérification s'affiche sur la page et dans
 `storage/logs/laravel.log`. En production, `SMS_DRIVER=twilio` (le code n'est jamais affiché quand `APP_ENV=production`).
 
@@ -115,10 +122,10 @@ vendor/bin/pint      # style du code
 | `app/Services/Shipping/DeliveryAdvisor.php` | Comparateur livreurs / transporteurs et règles d'affectation (suggestion ou automatique) |
 | `app/Services/WhatsApp` | WhatsApp Cloud API au nom du marchand : envoi des modèles (`WhatsAppCloud`), messages automatiques et réponses des clients (`CustomerMessenger`) ; boîte Messages (`Inbox`) ; WhatsApp relié par QR code (`WhatsAppBridge`) ; paniers du catalogue WhatsApp transformés en commandes (`CatalogOrders`) |
 | `app/Services/Messaging` | Réponses proposées par l'assistant (`ReplySuggester`) et réponses automatiques avec leurs garde-fous, désactivées par défaut (`AutoReplier`, job `SendAutoReply`) |
-| `whatsapp-bridge/` | Service Node (Baileys) du WhatsApp relié par QR code, une session par boutique, sous Supervisor (`<instance>-whatsapp`), repris de Jibiat ; installé et relancé par les scripts de `deploy/` |
+| `whatsapp-bridge/` | Service Node (Baileys) du WhatsApp relié par QR code, une session par boutique et une pour le numéro du support (`platform`, console : messages et codes de vérification), sous Supervisor (`<instance>-whatsapp`), repris de Jibiat ; installé et relancé par les scripts de `deploy/` |
 | `resources/js/views/courier`, `public/livreur-sw.js` | Application livreur `/livreur` (installable) |
 | `app/Services/Storefront`, `routes/storefront.php` | Boutique en ligne : thèmes (`config/themes.php`), catalogue public, panier par cookie, commande en une page ; routes sans session |
-| `app/Services/Accounts` | Création de boutique, vérification des numéros par SMS, invitations, mot de passe oublié, rôles par boutique, lien de connexion |
+| `app/Services/Accounts` | Création de boutique, vérification des numéros par WhatsApp puis SMS, invitations, mot de passe oublié, connexion par WhatsApp, rôles par boutique, lien de connexion |
 | `app/Enums/Role.php`, `Permission.php` | Rôles (propriétaire, gérant, agent de confirmation, préparateur, caissier, livreur) et leurs permissions |
 | `vendor/habibou84/socle` | Code commun avec Delivery App (dépôt `habibou84/socle`) : téléphones, montants, SMS, signature des webhooks, contrat de l'API de Jibiat (`Contract`, exemples utilisés par `ShippingTest`) ; une modification se fait dans ce dépôt, puis `composer update habibou84/socle` dans les deux applications |
 | `resources/js` | Application Vue : création de boutique, connexion, gestion (`/gestion`) |
