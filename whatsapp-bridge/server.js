@@ -1,5 +1,3 @@
-'use strict'
-
 /*
  * WhatsApp de la boutique relié par QR code (comme WhatsApp Web), pour la boîte Messages de Jibiat Marchand.
  * Repris du service de Jibiat (habibou84/deliverynew, dossier whatsapp-bridge).
@@ -16,22 +14,24 @@
  * WHATSAPP_BRIDGE_WEBHOOK (adresse qui reçoit les événements, par défaut api.<domaine d'APP_URL>/webhooks/whatsapp-bridge).
  */
 
-const crypto = require('node:crypto')
-const fs = require('node:fs')
-const http = require('node:http')
-const path = require('node:path')
-const pino = require('pino')
-const QRCode = require('qrcode')
-const {
-  default: makeWASocket,
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import http from 'node:http'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import pino from 'pino'
+import QRCode from 'qrcode'
+// Baileys 7 : comprend les identifiants masqués « @lid » de WhatsApp (avec la version 6, les réponses pouvaient
+// être acceptées par WhatsApp sans jamais être remises au client)
+import makeWASocket, {
   Browsers,
   DisconnectReason,
   fetchLatestBaileysVersion,
   generateMessageIDV2,
   useMultiFileAuthState,
-} = require('@whiskeysockets/baileys')
+} from 'baileys'
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const env = { ...readEnv(path.join(ROOT, '.env')), ...process.env }
 const PORT = Number(env.WHATSAPP_BRIDGE_PORT || 3210)
 const TOKEN = env.WHATSAPP_BRIDGE_TOKEN || ''
@@ -94,7 +94,6 @@ class Session {
   }
 
   async start () {
-    this.stopped = false
     const { state, saveCreds } = await useMultiFileAuthState(this.dir)
     let version
     try {
@@ -146,7 +145,7 @@ class Session {
       log.info({ session: this.id, code }, 'connexion interrompue, reconnexion')
       this.setStatus('disconnected', `Connexion interrompue (${code || 'réseau'}) : reconnexion…`)
       this.retries++
-      setTimeout(() => this.start().catch((e) => log.error({ err: e, session: this.id }, 'reconnexion impossible')),
+      setTimeout(() => this.stopped || this.start().catch((e) => log.error({ err: e, session: this.id }, 'reconnexion impossible')),
         Math.min(60000, 2000 * this.retries))
     }
   }
@@ -284,6 +283,7 @@ async function open (id) {
     sessions.set(id, session)
   }
   if (!session.sock || session.status === 'logged_out') {
+    session.stopped = false
     session.status = 'starting'
     await session.start()
   }
@@ -409,7 +409,7 @@ function phoneOf (msg) {
   const jid = msg.key?.remoteJid || ''
   if (jid.endsWith('@g.us') || jid === 'status@broadcast' || jid.endsWith('@newsletter')) return null
   // Les comptes récents peuvent arriver sous un identifiant masqué « @lid » : le numéro est alors à côté
-  const pn = jid.endsWith('@s.whatsapp.net') ? jid : (msg.key.senderPn || msg.key.participantPn || msg.key.remoteJidAlt || '')
+  const pn = jid.endsWith('@s.whatsapp.net') ? jid : (msg.key.remoteJidAlt || msg.key.senderPn || msg.key.participantAlt || msg.key.participantPn || '')
   return pn.endsWith('@s.whatsapp.net') ? '+' + pn.split('@')[0].split(':')[0] : null
 }
 
