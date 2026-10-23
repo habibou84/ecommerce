@@ -72,6 +72,8 @@ class Session {
     this.sent = new Map()
     this.stopped = false
     this.retries = 0
+    // Liaison avec le numéro (« Connecter avec le numéro de téléphone à la place ») : code à 8 caractères
+    this.pairingCode = null
   }
 
   async start () {
@@ -107,6 +109,7 @@ class Session {
     }
     if (connection === 'open') {
       this.qr = null
+      this.pairingCode = null
       this.retries = 0
       const user = this.sock.user || {}
       this.phone = '+' + String(user.id || '').split(':')[0].split('@')[0]
@@ -229,8 +232,17 @@ class Session {
     fs.rmSync(this.dir, { recursive: true, force: true })
   }
 
+  /** Code à saisir sur le téléphone, à la place du QR code ; la session doit attendre une liaison */
+  async pair (phone) {
+    for (let i = 0; i < 40 && this.status === 'starting'; i++) await sleep(250)
+    if (this.status !== 'qr') throw new Error('WhatsApp ne répond pas pour l\'instant : réessayez dans un instant.')
+    const code = await this.sock.requestPairingCode(String(phone).replace(/\D/g, ''))
+    this.pairingCode = code.length === 8 ? code.slice(0, 4) + '-' + code.slice(4) : code
+    return this.pairingCode
+  }
+
   describe () {
-    return { session: this.id, status: this.status, qr: this.qr, phone: this.phone, name: this.name }
+    return { session: this.id, status: this.status, qr: this.qr, code: this.pairingCode, phone: this.phone, name: this.name }
   }
 }
 
@@ -286,7 +298,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && req.url === '/health') return reply(200, { ok: true, sessions: sessions.size })
 
-    const match = req.url.match(/^\/sessions\/(store-[0-9]{1,12})(\/(start|send|logout))?$/)
+    const match = req.url.match(/^\/sessions\/(store-[0-9]{1,12})(\/(start|pair|send|logout))?$/)
     if (!match) return reply(404, { message: 'Adresse inconnue.' })
     const [, id, , action] = match
 
@@ -298,6 +310,14 @@ const server = http.createServer(async (req, res) => {
       const session = await open(id)
       // Laisse le temps au premier QR code d'arriver
       for (let i = 0; i < 20 && session.status === 'starting'; i++) await sleep(250)
+      return reply(200, session.describe())
+    }
+    if (req.method === 'POST' && action === 'pair') {
+      const { phone } = JSON.parse(await readBody(req) || '{}')
+      if (!/^\+?\d{8,15}$/.test(String(phone || '').replace(/[\s.-]/g, ''))) return reply(422, { message: 'Numéro WhatsApp invalide.' })
+      const session = await open(id)
+      if (session.status === 'connected') return reply(200, session.describe())
+      await session.pair(phone)
       return reply(200, session.describe())
     }
     if (req.method === 'POST' && action === 'logout') {
