@@ -21,7 +21,7 @@ class ShipmentAlert extends StoreNotification
         return [
             'kind' => 'shipment_'.$this->shipment->status->value,
             'title' => $this->title.' · '.$order->reference(),
-            'body' => trim(($this->shipment->connection?->name ?? 'Entreprise de livraison').($this->detail ? ' : '.$this->detail : '')),
+            'body' => trim(($this->shipment->connection?->name ?? $this->shipment->courier?->name ?? 'Entreprise de livraison').($this->detail ? ' : '.$this->detail : '')),
             'url' => '/gestion/commandes/'.$order->id,
         ];
     }

@@ -64,6 +64,7 @@ class Store extends Model
             'setup_guide' => 'array',
             'loyalty_settings' => 'array',
             'message_texts' => 'array',
+            'auto_replies' => 'array',
             'meta_capi_token' => 'encrypted',
         ];
     }

@@ -307,6 +307,8 @@ class CourierTest extends TestCase
 
         $this->step($shipment, ['status' => 'out_for_delivery'])->assertOk();
         $this->step($shipment, ['status' => 'failed', 'reason' => 'Refus du client'])->assertOk()->assertJsonPath('data.status', 'failed');
+        // L'alerte nomme le livreur (pas « Entreprise de livraison »)
+        $this->assertContains($courier->name.' : Refus du client', DatabaseNotification::all()->pluck('data.body'));
         $this->step($shipment, ['status' => 'returning'])->assertOk();
         $this->assertSame(600, (int) CourierEarning::where('courier_id', $courier->id)->sum('amount'));
         $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.today.failed', 2)->assertJsonPath('data.today.earned', 600);

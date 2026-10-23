@@ -4,6 +4,7 @@ import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import WhatsAppLink from '../../../components/WhatsAppLink.vue'
+import WhatsAppSales from '../../../components/WhatsAppSales.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime } from '../../../lib/format'
 import { boot } from '../../../lib/boot'
@@ -171,6 +172,8 @@ const META_STEPS = [
 <template>
   <div v-if="data" class="space-y-5">
     <WhatsAppLink />
+    <h2 class="pt-2 text-lg font-semibold">Vendre sur WhatsApp</h2>
+    <WhatsAppSales />
     <h2 class="pt-2 text-lg font-semibold">Messages automatiques (connexion officielle de Meta)</h2>
     <p class="text-sm text-slate-600">
       Envoyez automatiquement les messages à vos clients depuis le numéro WhatsApp Business de votre espace marchand (API Cloud de Meta).

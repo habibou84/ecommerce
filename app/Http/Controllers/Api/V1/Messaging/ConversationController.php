@@ -111,7 +111,9 @@ class ConversationController extends Controller
             'status' => $m->status,
             'error' => $m->error,
             // Réponse d'un membre de l'équipe, message automatique, ou écrit depuis le téléphone de la boutique
-            'by' => $m->user?->name ?? ($m->direction === 'out' ? ($m->type === 'template' ? 'Message automatique' : 'Depuis le téléphone') : null),
+            'by' => $m->user?->name ?? ($m->direction === 'out' ? match ($m->type) {
+                'template' => 'Message automatique', 'auto' => 'Réponse automatique', default => 'Depuis le téléphone',
+            } : null),
             'sent_at' => $m->sent_at->toIso8601String(),
         ];
     }

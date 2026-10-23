@@ -94,9 +94,9 @@ async function remit() {
           <span class="min-w-0 flex-1">
             <span class="block font-medium">{{ row.name }}</span>
             <span class="block text-slate-500">{{ row.collections_count }} livraison(s)<template v-if="row.oldest_at"> depuis le {{ formatDateTime(row.oldest_at) }}</template></span>
+            <span v-if="row.over_limit" class="mt-1 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Plafond dépassé</span>
           </span>
-          <span v-if="row.over_limit" class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Plafond dépassé</span>
-          <span class="w-28 text-right text-base font-semibold">{{ money(row.held) }}</span>
+          <span class="shrink-0 text-right text-base font-semibold">{{ money(row.held) }}</span>
           <button class="btn-brand px-3 py-1.5" :disabled="!row.held" @click="open(row)">Recevoir</button>
         </li>
         <li v-if="!data.data.length" class="px-4 py-6 text-sm text-slate-500">Aucun livreur.</li>

@@ -49,6 +49,7 @@ Table stores {
   id bigint [pk, increment]
   owner_id bigint [ref: > users.id, not null]
   billing_store_id bigint [ref: > stores.id, note: 'boutique du même propriétaire dont l\'abonnement (offre Business) couvre celle-ci']
+  auto_replies json [note: 'réponses automatiques (boîte Messages) : enabled, when (always | away), from, to, per_hour ; désactivées par défaut']
   host_store_id bigint [ref: > stores.id, note: 'boutique dont l\'adresse héberge celle-ci (gestion commune, page {adresse}/{path}) ; son propre sous-domaine redirige']
   slug varchar(60) [unique, not null, note: 'sous-domaine : {slug}.jibiat-marchand.com ; liste de mots réservés côté code']
   path varchar(40) [note: 'boutique hébergée : nom de sa page à l\'adresse de la boutique hôte (unique par hôte)']
@@ -1578,10 +1579,10 @@ Table conversation_messages {
   store_id bigint [ref: > stores.id, not null]
   conversation_id bigint [ref: > conversations.id, not null]
   direction varchar(3) [not null, note: 'in | out']
-  type varchar(20) [not null, note: 'text | image | audio | video | document | location | sticker | button | interactive | template | other']
+  type varchar(20) [not null, note: 'text | image | audio | video | document | location | sticker | button | interactive | order (panier du catalogue WhatsApp) | template | auto (réponse automatique) | other']
   body text
   provider_message_id varchar [note: 'wamid… (notification rejouée ignorée)']
-  status varchar(20) [not null, note: 'received | sent | delivered | read | failed']
+  status varchar(20) [not null, note: 'received | queued | sent | delivered | read | failed']
   error varchar
   user_id bigint [ref: > users.id, note: 'membre qui a répondu']
   sent_at timestamp [not null]

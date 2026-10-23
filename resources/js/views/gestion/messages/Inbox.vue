@@ -382,7 +382,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
               <div
                 class="max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm"
                 :class="[
-                  row.message.direction === 'in' ? 'rounded-bl-sm bg-white' : row.message.type === 'template' ? 'rounded-br-sm bg-slate-200 text-slate-700' : row.message.status === 'failed' ? 'rounded-br-sm bg-red-50 ring-1 ring-red-200' : 'rounded-br-sm bg-emerald-100',
+                  row.message.direction === 'in' ? (row.message.type === 'order' ? 'rounded-bl-sm bg-amber-50 ring-1 ring-amber-200' : 'rounded-bl-sm bg-white') : row.message.type === 'template' ? 'rounded-br-sm bg-slate-200 text-slate-700' : row.message.status === 'failed' ? 'rounded-br-sm bg-red-50 ring-1 ring-red-200' : 'rounded-br-sm bg-emerald-100',
                   selecting && row.message.direction === 'in' ? 'cursor-pointer' : '',
                   selected.includes(row.message.id) ? 'ring-2 ring-emerald-600' : '',
                 ]"

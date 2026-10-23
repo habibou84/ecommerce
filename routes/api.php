@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\Messaging\ConversationController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppLinkController;
+use App\Http\Controllers\Api\V1\Messaging\WhatsAppSalesController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Orders\AlertSettingsController;
 use App\Http\Controllers\Api\V1\Orders\CustomerController;
@@ -420,6 +421,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('whatsapp/link', [WhatsAppLinkController::class, 'start'])->middleware('throttle:20,1')->name('whatsapp.link.start');
                 Route::post('whatsapp/link/pair', [WhatsAppLinkController::class, 'pair'])->middleware('throttle:10,1')->name('whatsapp.link.pair');
                 Route::delete('whatsapp/link', [WhatsAppLinkController::class, 'destroy'])->name('whatsapp.link.destroy');
+                // Vendre sur WhatsApp : réponses automatiques et catalogue
+                Route::get('whatsapp/sales', [WhatsAppSalesController::class, 'show'])->name('whatsapp.sales.show');
+                Route::put('whatsapp/sales', [WhatsAppSalesController::class, 'update'])->name('whatsapp.sales.update');
             });
             Route::middleware('permission:'.Permission::OrdersManage->value)->group(function () {
                 Route::get('carts/abandoned', [WhatsAppController::class, 'abandonedCarts'])->name('carts.abandoned');
