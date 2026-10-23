@@ -68,6 +68,16 @@ class ConsoleWhatsAppController extends Controller
         return response()->json(['data' => $this->whatsapp->present() + ['live' => $this->whatsapp->pairQr($phone)]]);
     }
 
+    /** SMS en secours pour tout le monde (même quand WhatsApp est possible) : à éviter, chaque SMS coûte */
+    public function sms(Request $request): JsonResponse
+    {
+        $data = $request->validate(['fallback' => ['required', 'boolean']]);
+        $this->whatsapp->setSmsFallback($data['fallback']);
+        $this->log($request, 'sms_fallback_'.($data['fallback'] ? 'on' : 'off'));
+
+        return $this->show();
+    }
+
     public function disconnect(Request $request): JsonResponse
     {
         $this->whatsapp->disconnect();

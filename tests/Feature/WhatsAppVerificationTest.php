@@ -6,6 +6,7 @@ use App\Models\PlatformSetting;
 use App\Models\Store;
 use App\Models\SupportConversation;
 use App\Models\User;
+use App\Services\WhatsApp\PlatformWhatsApp;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
@@ -194,7 +195,13 @@ class WhatsAppVerificationTest extends TestCase
     public function test_sms_comes_back_when_the_console_allows_it_as_fallback(): void
     {
         $this->linkSupportNumber();
-        PlatformSetting::put('sms.fallback', 'on');
+        // Interrupteur et compteur dans la console
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse'])->assertStatus(202);
+        $this->message('+2250701020304', $start->json('verification.whatsapp.text'), 'in-c')->assertOk();
+        $this->apiOn(self::CONSOLE, 'GET', 'verifications/'.$start->json('verification.token'))->assertOk();
+        $this->console('GET', 'whatsapp')->assertOk()->assertJsonPath('data.sms.fallback', false)->assertJsonPath('data.sms.month', 0);
+        $this->console('PUT', 'whatsapp/sms', ['fallback' => true])->assertOk()->assertJsonPath('data.sms.fallback', true);
+        $this->logout();
 
         $start = $this->platformApi('POST', 'signup', [
             'store_name' => 'Awa Mode', 'slug' => 'awa-mode', 'name' => 'Awa Koné', 'phone' => '07 08 09 10 11', 'password' => 'motdepasse',
@@ -205,5 +212,6 @@ class WhatsAppVerificationTest extends TestCase
         $code = $this->platformApi('POST', 'verifications/'.$start->json('verification.token').'/resend')->assertOk()->json('demo_code');
         $this->assertCount(1, $this->sentSms());
         $this->platformApi('POST', 'verifications/'.$start->json('verification.token').'/confirm', ['code' => $code])->assertCreated();
+        $this->assertSame(1, app(PlatformWhatsApp::class)->present()['sms']['month']);
     }
 }

@@ -131,6 +131,23 @@ function connect() {
   window.location.assign(facebookRelayUrl(boot.platformUrl, { appId, configId, version, coexistence: coexistence.value }, window.location.origin + window.location.pathname))
 }
 
+async function setSmsFallback(on) {
+  if (on && !window.confirm('Chaque SMS coûte. Proposer le SMS même quand WhatsApp est possible ?')) {
+    await loadAccount()
+    return
+  }
+  busy.value = true
+  error.value = ''
+  try {
+    account.value = (await http.put('/console/whatsapp/sms', { fallback: on })).data.data
+  } catch (e) {
+    error.value = errorMessage(e)
+    await loadAccount()
+  } finally {
+    busy.value = false
+  }
+}
+
 async function disconnect() {
   if (!window.confirm('Déconnecter le WhatsApp du support de la console ? Votre téléphone continue de recevoir les messages. Les inscriptions et connexions repasseront par SMS tant qu\'aucun numéro n\'est relié.')) return
   stopQr()
@@ -166,6 +183,23 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
   <div class="space-y-4">
     <Alert v-if="error">{{ error }}</Alert>
     <p v-if="!account" class="text-sm text-slate-500">Chargement…</p>
+
+    <!-- SMS : coût à surveiller, secours à n'activer qu'en connaissance de cause -->
+    <section v-if="account?.sms" class="card flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+      <div>
+        <p class="font-semibold">SMS de vérification envoyés (payants)</p>
+        <p class="text-slate-600">
+          Ce mois : <strong>{{ account.sms.month }}</strong> · mois dernier : {{ account.sms.last_month }}.
+          <span v-if="!account.sms.ready" class="text-amber-700">Les SMS sont simulés sur ce serveur (aucun envoi réel).</span>
+          <span v-else-if="account.connected">Numéro relié : les inscriptions et connexions passent par WhatsApp, aucun SMS sauf si le secours est activé.</span>
+          <span v-else class="text-amber-700">Sans numéro relié, chaque vérification de numéro part par SMS.</span>
+        </p>
+      </div>
+      <label class="flex items-center gap-2">
+        <input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="account.sms.fallback" :disabled="busy" @change="setSmsFallback($event.target.checked)" />
+        <span>Proposer aussi le SMS quand WhatsApp est possible</span>
+      </label>
+    </section>
 
     <section v-else-if="!account.connected" class="card max-w-2xl space-y-4 p-4 text-sm">
       <h3 class="text-base font-semibold">Recevoir les messages WhatsApp du support ici</h3>

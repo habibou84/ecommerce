@@ -3,6 +3,7 @@
 namespace App\Services\WhatsApp;
 
 use App\Exceptions\BusinessRuleException;
+use App\Models\PhoneVerification;
 use App\Models\PlatformSetting;
 use App\Models\SupportConversation;
 use App\Models\SupportMessage;
@@ -97,7 +98,25 @@ class PlatformWhatsApp
             'connected_at' => $s['connected_at'] ?? null,
             'embedded' => EmbeddedSignup::enabled() ? ['app_id' => config('services.meta.app_id'), 'config_id' => config('services.meta.whatsapp_config_id'), 'graph_version' => WhatsAppCloud::VERSION] : null,
             'bridge' => WhatsAppBridge::configured(),
+            // SMS (payants) : codes de vérification partis ce mois et le mois dernier, et secours activé ou non
+            'sms' => [
+                'month' => $this->smsCount(now()->startOfMonth(), now()->startOfMonth()->addMonth()),
+                'last_month' => $this->smsCount(now()->subMonthNoOverflow()->startOfMonth(), now()->startOfMonth()),
+                'fallback' => (PlatformSetting::find('sms.fallback')?->value) === 'on',
+                'ready' => ! in_array(config('services.sms.driver'), ['log', 'none', null], true),
+            ],
         ];
+    }
+
+    /** SMS proposé même quand WhatsApp est possible (réglage « sms.fallback ») : chaque SMS coûte */
+    public function setSmsFallback(bool $on): void
+    {
+        PlatformSetting::put('sms.fallback', $on ? 'on' : 'off');
+    }
+
+    private function smsCount(\DateTimeInterface $from, \DateTimeInterface $to): int
+    {
+        return (int) PhoneVerification::query()->where('sms_sent_at', '>=', $from)->where('sms_sent_at', '<', $to)->sum('sms_count');
     }
 
     /**

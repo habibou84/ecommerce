@@ -133,6 +133,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('whatsapp/qr', [ConsoleWhatsAppController::class, 'qr'])->middleware('throttle:30,1')->name('whatsapp.qr');
             Route::get('whatsapp/qr', [ConsoleWhatsAppController::class, 'qrStatus'])->middleware('throttle:90,1')->name('whatsapp.qr.status');
             Route::post('whatsapp/pair', [ConsoleWhatsAppController::class, 'pair'])->middleware('throttle:10,1')->name('whatsapp.pair');
+            Route::put('whatsapp/sms', [ConsoleWhatsAppController::class, 'sms'])->name('whatsapp.sms');
             Route::get('whatsapp/conversations', [ConsoleWhatsAppController::class, 'conversations'])->name('whatsapp.conversations');
             Route::get('whatsapp/conversations/{conversation}', [ConsoleWhatsAppController::class, 'messages'])->whereNumber('conversation')->name('whatsapp.messages');
             Route::post('whatsapp/conversations/{conversation}/reply', [ConsoleWhatsAppController::class, 'reply'])->whereNumber('conversation')->middleware('throttle:30,1')->name('whatsapp.reply');
