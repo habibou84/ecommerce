@@ -35,6 +35,12 @@ class OrderMessageParser
 
     private const STOPWORDS = ['de', 'du', 'des', 'la', 'le', 'les', 'en', 'et', 'a', 'au', 'aux', 'pour', 'avec', 'un', 'une'];
 
+    // Mots d'un message qui annonce sans doute un achat (texte normalisé : minuscules, sans accents)
+    private const ORDER_WORDS = '/(?:^| )(?:je veux|je voudrais|j aimerais|je prends|commande\w*|commander|acheter|livr\w*|dispo\w*|taille|pointure|couleur|combien|prix)(?: |$)/';
+
+    /** @var array<int, Collection<int, Product>> produits actifs, chargés une fois le temps d'un passage sur plusieurs messages */
+    private array $catalog = [];
+
     private const NUMBER_WORDS = ['un' => 1, 'une' => 1, 'deux' => 2, 'trois' => 3, 'quatre' => 4, 'cinq' => 5, 'six' => 6, 'sept' => 7, 'huit' => 8, 'neuf' => 9, 'dix' => 10];
 
     public function __construct(
@@ -86,9 +92,7 @@ class OrderMessageParser
         $normalized = ' '.PlaceMatcher::normalize($text).' ';
         $words = array_flip(explode(' ', trim($normalized)));
 
-        $products = Product::forStore($store->id)->where('status', ProductStatus::Active->value)
-            ->with(['variants' => fn ($q) => $q->where('is_active', true)->with(['option1', 'option2', 'option3'])])
-            ->limit(1000)->get();
+        $products = $this->catalog[$store->id] ?? $this->products($store);
 
         $found = fn (string $t) => isset($words[$t]) || isset($words[$t.'s']) || isset($words[$t.'x']);
         $candidates = $products->map(function (Product $product) use ($found) {
@@ -126,6 +130,43 @@ class OrderMessageParser
         usort($items, fn ($a, $b) => mb_strlen($b['title']) <=> mb_strlen($a['title']));
 
         return array_slice($items, 0, 10);
+    }
+
+    /**
+     * Messages d'une conversation qui contiennent peut-être une commande : un produit du catalogue cité, un numéro de
+     * téléphone, ou des mots d'achat (« je veux », « livraison », « taille »…). Sert à proposer « Faire une commande »
+     * sous ces messages.
+     *
+     * @param  array<int, string>  $texts  textes par identifiant de message
+     * @return list<int> identifiants des messages retenus
+     */
+    public function orderHints(Store $store, array $texts): array
+    {
+        $hints = [];
+        $this->catalog[$store->id] = $this->products($store);
+        foreach ($texts as $id => $text) {
+            if (mb_strlen(trim($text)) < 6) {
+                continue;
+            }
+            if (preg_match(self::ORDER_WORDS, ' '.PlaceMatcher::normalize($text).' ')
+                || $this->phones($text)->isNotEmpty()
+                || $this->items($store, $text) !== []) {
+                $hints[] = $id;
+            }
+        }
+        unset($this->catalog[$store->id]);
+
+        return $hints;
+    }
+
+    /**
+     * @return Collection<int, Product>
+     */
+    private function products(Store $store): Collection
+    {
+        return Product::forStore($store->id)->where('status', ProductStatus::Active->value)
+            ->with(['variants' => fn ($q) => $q->where('is_active', true)->with(['option1', 'option2', 'option3'])])
+            ->limit(1000)->get();
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Notifications\CustomerMessage;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Orders\OrderMessageParser;
 use App\Services\Places\Places;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
@@ -97,7 +98,9 @@ class InboxTest extends TestCase
 
         $detail = $this->storeApi($this->store, 'GET', "conversations/{$fatou['id']}")->assertOk()
             ->assertJsonPath('data.can_reply', true)->assertJsonCount(3, 'data.messages')
-            ->assertJsonPath('data.messages.1.body', "📍 Position : Pharmacie Angré\nhttps://maps.google.com/?q=5.39,-3.98");
+            ->assertJsonPath('data.messages.1.body', "📍 Position : Pharmacie Angré\nhttps://maps.google.com/?q=5.39,-3.98")
+            // « Faire une commande » proposé sous le message qui en contient sans doute une
+            ->assertJsonPath('data.messages.0.order_hint', true)->assertJsonPath('data.messages.1.order_hint', false)->assertJsonPath('data.messages.2.order_hint', false);
         $this->assertSame("Bonjour je veux 2 robe wax\n📍 Position : Pharmacie Angré\nhttps://maps.google.com/?q=5.39,-3.98\n📷 Photo : celle-ci", $detail->json('data.order_text'));
 
         // Ouvrir la conversation la marque comme lue
@@ -184,5 +187,18 @@ class InboxTest extends TestCase
         $this->actingAs($other->owner);
         $this->storeApi($other, 'GET', "conversations/{$id}")->assertNotFound();
         $this->storeApi($other, 'GET', 'conversations')->assertJsonCount(0, 'data')->assertJsonPath('connected', false);
+    }
+
+    public function test_messages_that_may_hold_an_order(): void
+    {
+        $hints = app(OrderMessageParser::class)->orderHints($this->store, [
+            1 => 'Bonsoir',
+            2 => 'La robe wax en rouge svp',
+            3 => 'Mon numéro : 07 99 00 12 34',
+            4 => 'Je voudrais être livrée demain',
+            5 => 'Merci beaucoup, à bientôt',
+        ]);
+
+        $this->assertSame([2, 3, 4], $hints);
     }
 }

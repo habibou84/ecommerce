@@ -14,6 +14,7 @@ use App\Http\Controllers\Webhooks\BillingWebhookController;
 use App\Http\Controllers\Webhooks\CarrierWebhookController;
 use App\Http\Controllers\Webhooks\MetaWhatsAppWebhookController;
 use App\Http\Controllers\Webhooks\PaymentWebhookController;
+use App\Http\Controllers\Webhooks\WhatsAppBridgeWebhookController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Route;
@@ -120,6 +121,9 @@ Route::middleware(['zone:api', 'throttle:carrier-webhooks'])->group(function () 
     Route::get('/webhooks/whatsapp/{uuid}', [WhatsAppWebhookController::class, 'verify'])->whereUuid('uuid');
     Route::post('/webhooks/whatsapp/{uuid}', [WhatsAppWebhookController::class, 'handle'])->whereUuid('uuid')->name('webhooks.whatsapp');
 });
+
+// api.jibiat-marchand.com : événements du service whatsapp-bridge du serveur (WhatsApp relié par QR code), signés
+Route::post('/webhooks/whatsapp-bridge', WhatsAppBridgeWebhookController::class)->middleware('zone:api')->name('webhooks.whatsapp-bridge');
 
 // api.jibiat-marchand.com : notifications du prestataire de paiement de la plateforme (abonnements)
 Route::match(['get', 'post'], '/webhooks/billing', BillingWebhookController::class)

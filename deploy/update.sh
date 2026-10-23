@@ -104,6 +104,7 @@ main() {
     as_app "composer install --no-dev --optimize-autoloader --no-interaction --no-progress"
     configure_redis
     configure_webpush
+    whatsapp_bridge_deps
     # Toujours lancé : sans effet s'il n'y a rien à appliquer
     as_app "php artisan migrate --force"
     # Rôles et offres : à jour avec le code (les prix des offres modifiés dans la console sont conservés)

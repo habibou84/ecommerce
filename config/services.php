@@ -61,6 +61,13 @@ return [
         'subject' => env('VAPID_SUBJECT'),
     ],
 
+    // WhatsApp relié par QR code (service whatsapp-bridge sur le serveur, 127.0.0.1) : jeton et port créés par la
+    // mise à jour du serveur
+    'whatsapp_bridge' => [
+        'url' => env('WHATSAPP_BRIDGE_URL', 'http://127.0.0.1:'.env('WHATSAPP_BRIDGE_PORT', 3210)),
+        'token' => env('WHATSAPP_BRIDGE_TOKEN'),
+    ],
+
     // Assistant IA (fiche produit depuis une photo, commande depuis une conversation, réponses WhatsApp)
     // Publication sur TikTok (Login Kit + Content Posting API)
     'tiktok' => [

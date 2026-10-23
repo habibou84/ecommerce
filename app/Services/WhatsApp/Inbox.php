@@ -8,8 +8,10 @@ use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\Customer;
 use App\Models\SocialAccount;
+use App\Models\Store;
 use App\Models\User;
 use App\Models\WhatsappAccount;
+use App\Models\WhatsappLink;
 use App\Notifications\CustomerMessage;
 use App\Services\Accounts\TeamNotifier;
 use App\Services\Social\MetaSocial;
@@ -20,11 +22,12 @@ use RuntimeException;
 
 /**
  * Boîte « Messages » : les messages des clients reçus sur le WhatsApp de la boutique sont rangés par conversation,
- * l'équipe y répond (dans les 24 h permises par Meta) et crée la commande depuis la conversation.
+ * l'équipe y répond (dans les 24 h permises par Meta, sans limite par le WhatsApp relié par QR code) et crée la commande
+ * depuis la conversation.
  */
 class Inbox
 {
-    public function __construct(private readonly WhatsAppCloud $cloud, private readonly TeamNotifier $team, private readonly MetaSocial $social) {}
+    public function __construct(private readonly WhatsAppCloud $cloud, private readonly TeamNotifier $team, private readonly MetaSocial $social, private readonly WhatsAppBridge $bridge) {}
 
     /**
      * Message Messenger (page Facebook) ou Instagram reçu d'un client : même boîte que WhatsApp, un fil par client.
@@ -100,28 +103,78 @@ class Inbox
             return null;
         }
 
-        $phone = '+'.ltrim($from, '+');
         $name = collect($contacts)->firstWhere('wa_id', $from)['profile']['name'] ?? null;
         $sentAt = isset($message['timestamp']) ? Carbon::createFromTimestamp((int) $message['timestamp']) : now();
+        $type = in_array($message['type'] ?? '', ['text', 'image', 'audio', 'video', 'document', 'location', 'sticker', 'button', 'interactive'], true) ? $message['type'] : 'other';
 
-        $received = DB::transaction(function () use ($account, $phone, $name, $message, $body, $providerId, $sentAt) {
-            $conversation = Conversation::forStore($account->store_id)->lockForUpdate()->firstOrNew(['channel' => 'whatsapp', 'contact' => $phone]);
+        return $this->land($account->store_id, '+'.ltrim($from, '+'), $name, $type, $body, $providerId, $sentAt, false);
+    }
+
+    /**
+     * Message d'un client reçu par le WhatsApp relié par QR code (service whatsapp-bridge).
+     *
+     * @param  array{id: string, from: string, name?: ?string, kind?: ?string, text?: ?string, lat?: mixed, lng?: mixed, at?: mixed}  $event
+     */
+    public function receiveLinked(WhatsappLink $link, array $event): ?ConversationMessage
+    {
+        $kind = (string) ($event['kind'] ?? 'text');
+        $text = isset($event['text']) ? trim((string) $event['text']) : null;
+        $caption = fn (string $label) => trim($label.($text ? ' : '.$text : ''));
+        $body = match ($kind) {
+            'text' => $text,
+            'image' => $caption('📷 Photo'),
+            'video' => $caption('🎬 Vidéo'),
+            'audio' => '🎤 Message vocal',
+            'sticker' => 'Autocollant',
+            'document' => $caption('📄 Document'),
+            'location' => self::location(['latitude' => $event['lat'] ?? null, 'longitude' => $event['lng'] ?? null, 'name' => $text]),
+            default => 'Message non affichable ici : ouvrez WhatsApp pour le voir.',
+        };
+        $from = '+'.ltrim((string) ($event['from'] ?? ''), '+');
+        $id = (string) ($event['id'] ?? '');
+        if ($body === null || $body === '' || $from === '+' || $id === '' || ConversationMessage::forStore($link->store_id)->where('provider_message_id', $id)->exists()) {
+            return null;
+        }
+        $sentAt = isset($event['at']) ? Carbon::createFromTimestamp((int) $event['at']) : now();
+        $type = in_array($kind, ['text', 'image', 'audio', 'video', 'document', 'location', 'sticker'], true) ? $kind : 'other';
+
+        return $this->land($link->store_id, $from, $event['name'] ?? null, $type, $body, $id, $sentAt, true);
+    }
+
+    /**
+     * Message écrit depuis le téléphone de la boutique (WhatsApp relié) : il apparaît aussi dans le fil, s'il existe.
+     */
+    public function fromPhone(WhatsappLink $link, string $to, string $text, string $id): ?ConversationMessage
+    {
+        $text = trim($text);
+        if ($text === '' || $id === '' || ConversationMessage::forStore($link->store_id)->where('provider_message_id', $id)->exists()) {
+            return null;
+        }
+        $conversation = Conversation::forStore($link->store_id)->where('channel', 'whatsapp')->where('contact', '+'.ltrim($to, '+'))->first();
+
+        return $conversation ? $this->record($conversation, 'text', $text, 'sent', $id) : null;
+    }
+
+    private function land(int $storeId, string $phone, ?string $name, string $type, string $body, ?string $providerId, Carbon $sentAt, bool $viaLink): ConversationMessage
+    {
+        $received = DB::transaction(function () use ($storeId, $phone, $name, $type, $body, $providerId, $sentAt, $viaLink) {
+            $conversation = Conversation::forStore($storeId)->lockForUpdate()->firstOrNew(['channel' => 'whatsapp', 'contact' => $phone]);
             // Alerte à l'équipe pour un nouveau fil de discussion, pas à chaque message d'une conversation en cours
             $alert = $conversation->unread_count === 0 || $conversation->last_inbound_at === null || $conversation->last_inbound_at->lt($sentAt->copy()->subMinutes(10));
             $conversation->fill([
-                'store_id' => $account->store_id,
+                'store_id' => $storeId,
                 'contact_name' => $name ? Str::limit($name, 117) : $conversation->contact_name,
-                'customer_id' => $conversation->customer_id ?? Customer::forStore($account->store_id)->where('phone', $phone)->value('id'),
+                'customer_id' => $conversation->customer_id ?? Customer::forStore($storeId)->where('phone', $phone)->value('id'),
                 'last_preview' => Str::limit($body, 197),
                 'last_message_at' => $sentAt,
                 'last_inbound_at' => $sentAt,
                 'unread_count' => $conversation->unread_count + 1,
-            ])->save();
+            ])->forceFill(['via_link' => $viaLink])->save();
 
             $created = $conversation->messages()->create([
-                'store_id' => $account->store_id,
+                'store_id' => $storeId,
                 'direction' => 'in',
-                'type' => in_array($message['type'] ?? '', ['text', 'image', 'audio', 'video', 'document', 'location', 'sticker', 'button', 'interactive'], true) ? $message['type'] : 'other',
+                'type' => $type,
                 'body' => $body,
                 'provider_message_id' => $providerId,
                 'status' => 'received',
@@ -132,8 +185,9 @@ class Inbox
         });
 
         [$created, $conversation, $alert] = $received;
-        if ($alert && $account->store) {
-            $this->team->notify($account->store, Permission::OrdersConfirm->value, new CustomerMessage($conversation, $body));
+        $store = $alert ? Store::find($storeId) : null;
+        if ($store) {
+            $this->team->notify($store, Permission::OrdersConfirm->value, new CustomerMessage($conversation, $body));
         }
 
         return $created;
@@ -144,6 +198,17 @@ class Inbox
      */
     public function reply(Conversation $conversation, string $text, User $user): ConversationMessage
     {
+        // WhatsApp relié par QR code : la réponse part du téléphone de la boutique, sans limite de 24 h
+        $link = $this->linkFor($conversation);
+        if ($link !== null) {
+            try {
+                $id = $this->bridge->send($link, $conversation->contact, $text);
+            } catch (RuntimeException $e) {
+                throw new BusinessRuleException($e->getMessage(), 'body');
+            }
+
+            return $this->record($conversation, 'text', $text, 'sent', $id, $user);
+        }
         if (! $conversation->canReply()) {
             throw new BusinessRuleException('Le client n\'a pas écrit depuis plus de 24 h : '.$this->label($conversation).' n\'autorise plus de réponse libre. Répondez depuis votre téléphone ou attendez son prochain message.', 'body');
         }
@@ -193,6 +258,26 @@ class Inbox
         }
         ConversationMessage::forStore($storeId)->where('provider_message_id', $providerId)->where('direction', 'out')
             ->update(array_filter(['status' => $status, 'error' => $error]));
+    }
+
+    /**
+     * WhatsApp relié (QR code ou numéro) par lequel répondre, sans limite de 24 h : celui de la boutique s'il est
+     * connecté. Seule exception : le client a écrit en dernier à un autre numéro, celui de la connexion officielle de
+     * Meta ; la réponse part alors de ce numéro-là, pour ne pas venir d'un numéro qu'il ne connaît pas.
+     */
+    public function linkFor(Conversation $conversation): ?WhatsappLink
+    {
+        if ($conversation->channel !== 'whatsapp') {
+            return null;
+        }
+        $link = WhatsappLink::connectedFor($conversation->store_id);
+        if ($link === null || $conversation->via_link) {
+            return $link;
+        }
+        $official = WhatsappAccount::forStore($conversation->store_id)->value('display_phone');
+        $digits = fn (?string $phone) => substr((string) preg_replace('/\D/', '', (string) $phone), -10);
+
+        return $official === null || $digits($official) === '' || $digits($official) === $digits($link->phone) ? $link : null;
     }
 
     private function label(Conversation $conversation): string

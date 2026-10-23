@@ -7,7 +7,9 @@ use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\SocialAccount;
 use App\Models\WhatsappAccount;
+use App\Models\WhatsappLink;
 use App\Services\Messaging\ReplySuggester;
+use App\Services\Orders\OrderMessageParser;
 use App\Services\WhatsApp\Inbox;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +21,9 @@ use Jibiat\Socle\PhoneNumber;
  */
 class ConversationController extends Controller
 {
+    // Messages chargés à la fois dans le fil (les plus récents, puis « Voir les messages précédents »)
+    private const PAGE = 100;
+
     public function __construct(private readonly Inbox $inbox) {}
 
     public function index(Request $request): JsonResponse
@@ -40,7 +45,9 @@ class ConversationController extends Controller
         return response()->json([
             'data' => collect($page->items())->map(fn (Conversation $c) => $this->summary($c))->values(),
             'meta' => ['total' => $page->total(), 'last_page' => $page->lastPage(), 'unread' => $this->unreadCount()],
-            'connected' => WhatsappAccount::query()->exists() || SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists(),
+            // WhatsApp relié (QR code ou numéro) : sinon la boîte propose de le relier
+            'linked' => WhatsappLink::query()->where('status', 'connected')->exists(),
+            'connected' => WhatsappAccount::query()->exists() || WhatsappLink::query()->where('status', 'connected')->exists() || SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists(),
         ]);
     }
 
@@ -55,6 +62,22 @@ class ConversationController extends Controller
         $this->inbox->markRead($model);
 
         return response()->json(['data' => $this->detail($model)]);
+    }
+
+    /**
+     * Messages plus anciens que le premier affiché (« Voir les messages précédents »).
+     */
+    public function older(Request $request, int $conversation): JsonResponse
+    {
+        $before = (int) $request->validate(['before' => ['required', 'integer']])['before'];
+        $model = Conversation::findOrFail($conversation);
+        $page = $model->messages()->with('user:id,name')->where('id', '<', $before)
+            ->latest('sent_at')->latest('id')->limit(self::PAGE + 1)->get();
+
+        return response()->json(['data' => [
+            'messages' => $page->take(self::PAGE)->reverse()->values()->map(fn (ConversationMessage $m) => $this->message($m)),
+            'has_more' => $page->count() > self::PAGE,
+        ]]);
     }
 
     public function reply(Request $request, int $conversation): JsonResponse
@@ -72,6 +95,25 @@ class ConversationController extends Controller
     public function suggest(Request $request, int $conversation, ReplySuggester $suggester): JsonResponse
     {
         return response()->json(['data' => $suggester->suggest(Conversation::with(['store', 'order'])->findOrFail($conversation), $request->user())]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function message(ConversationMessage $m, bool $orderHint = false): array
+    {
+        return [
+            'id' => $m->id,
+            'direction' => $m->direction,
+            'type' => $m->type,
+            'body' => $m->body,
+            'order_hint' => $orderHint,
+            'status' => $m->status,
+            'error' => $m->error,
+            // Réponse d'un membre de l'équipe, message automatique, ou écrit depuis le téléphone de la boutique
+            'by' => $m->user?->name ?? ($m->direction === 'out' ? ($m->type === 'template' ? 'Message automatique' : 'Depuis le téléphone') : null),
+            'sent_at' => $m->sent_at->toIso8601String(),
+        ];
     }
 
     private function unreadCount(): int
@@ -103,23 +145,22 @@ class ConversationController extends Controller
      */
     private function detail(Conversation $c): array
     {
-        $messages = $c->messages()->with('user:id,name')->latest('sent_at')->latest('id')->limit(200)->get()->reverse()->values();
+        $page = $c->messages()->with('user:id,name')->latest('sent_at')->latest('id')->limit(self::PAGE + 1)->get();
+        $messages = $page->take(self::PAGE)->reverse()->values();
         $since = $c->order?->created_at;
+        // WhatsApp relié par QR code : réponse possible à tout moment, depuis le numéro de la boutique
+        $linked = $this->inbox->linkFor($c) !== null;
+        // Messages récents du client qui contiennent peut-être une commande : « Faire une commande » sous chacun
+        $recent = $messages->where('direction', 'in')->take(-40);
+        $hints = array_flip(app(OrderMessageParser::class)->orderHints($c->store, $recent->pluck('body', 'id')->map(fn ($b) => (string) $b)->all()));
 
         return $this->summary($c) + [
             'customer' => $c->customer ? ['id' => $c->customer->id, 'name' => $c->customer->name] : null,
-            'can_reply' => $c->canReply(),
-            'reply_until' => $c->last_inbound_at?->addHours(Conversation::REPLY_WINDOW_HOURS)->toIso8601String(),
-            'messages' => $messages->map(fn (ConversationMessage $m) => [
-                'id' => $m->id,
-                'direction' => $m->direction,
-                'type' => $m->type,
-                'body' => $m->body,
-                'status' => $m->status,
-                'error' => $m->error,
-                'by' => $m->user?->name,
-                'sent_at' => $m->sent_at->toIso8601String(),
-            ]),
+            'linked' => $linked,
+            'can_reply' => $linked || $c->canReply(),
+            'reply_until' => $linked ? null : $c->last_inbound_at?->addHours(Conversation::REPLY_WINDOW_HOURS)->toIso8601String(),
+            'has_more' => $page->count() > self::PAGE,
+            'messages' => $messages->map(fn (ConversationMessage $m) => $this->message($m, isset($hints[$m->id]))),
             // Ce que le client a écrit depuis la dernière commande créée ici : texte proposé à l'analyse
             'order_text' => $messages->filter(fn (ConversationMessage $m) => $m->direction === 'in' && ($since === null || $m->sent_at->gt($since)))
                 ->pluck('body')->take(-20)->implode("\n"),
