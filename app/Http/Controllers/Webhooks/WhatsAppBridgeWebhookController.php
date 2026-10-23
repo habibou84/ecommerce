@@ -32,7 +32,7 @@ class WhatsAppBridgeWebhookController extends Controller
 
         match ((string) $request->input('type')) {
             'status' => $this->status($link, $request),
-            'message' => $this->inbox->receiveLinked($link, $request->only(['id', 'from', 'name', 'kind', 'text', 'lat', 'lng', 'at'])),
+            'message' => $this->inbox->receiveLinked($link, $request->only(['id', 'from', 'name', 'kind', 'text', 'lat', 'lng', 'at', 'items', 'total'])),
             'outgoing' => $this->inbox->fromPhone($link, (string) $request->input('to'), (string) $request->input('text'), (string) $request->input('id')),
             'sent', 'delivered', 'read' => $this->advance($link, (string) $request->input('id'), (string) $request->input('type')),
             'failed' => $this->advance($link, (string) $request->input('id'), 'failed', (string) $request->input('error')),

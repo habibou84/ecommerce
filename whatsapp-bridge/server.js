@@ -164,6 +164,10 @@ class Session {
     if (!from || !msg.message) return
     const m = msg.message.ephemeralMessage?.message || msg.message
     if (m.protocolMessage || m.reactionMessage) return
+    if (m.orderMessage) {
+      this.rememberChat(from, msg.key.remoteJid)
+      return this.onOrder(msg, from, m.orderMessage)
+    }
     const kind = m.imageMessage ? 'image' : m.videoMessage ? 'video' : m.audioMessage ? 'audio' : m.stickerMessage ? 'sticker'
       : m.documentMessage || m.documentWithCaptionMessage ? 'document' : m.locationMessage || m.liveLocationMessage ? 'location'
         : textOf(m) !== null ? 'text' : 'other'
@@ -182,6 +186,55 @@ class Session {
       lng: place?.degreesLongitude ?? null,
       at: Number(msg.messageTimestamp) || null,
     })
+  }
+
+  /**
+   * Panier envoyé depuis le catalogue WhatsApp : détail des articles, avec la référence du catalogue (celle du flux
+   * de Jibiat Marchand) quand WhatsApp la donne. Sans détail lisible, le panier arrive quand même avec son total.
+   */
+  async onOrder (msg, from, order) {
+    const total1000 = Number(order.totalAmount1000?.toString?.() ?? order.totalAmount1000) || 0
+    let items = []
+    try {
+      const details = await this.sock.getOrderDetails(order.orderId, order.token)
+      const refs = await this.catalogRefs().catch(() => new Map())
+      // Prix en millièmes ou en unités selon les versions : on garde l'échelle qui retombe sur le total du panier
+      const sum = details.products.reduce((s, p) => s + (p.price || 0) * (p.quantity || 1), 0)
+      const scale = total1000 && Math.abs(sum - total1000) < Math.abs(sum - total1000 / 1000) ? 1000 : 1
+      items = details.products.map((p) => ({ ref: refs.get(p.id) || p.id, name: p.name || null, quantity: p.quantity || 1, price: Math.round((p.price || 0) / scale) }))
+    } catch (e) {
+      log.warn({ session: this.id, err: e?.message }, 'détail du panier illisible')
+    }
+
+    notify({
+      type: 'message',
+      session: this.id,
+      id: msg.key.id,
+      from,
+      name: msg.pushName || null,
+      kind: 'order',
+      text: order.message || null,
+      items,
+      total: total1000 ? Math.round(total1000 / 1000) : null,
+      currency: order.totalCurrencyCode || null,
+      at: Number(msg.messageTimestamp) || null,
+    })
+  }
+
+  /** Correspondance identifiant WhatsApp → référence du catalogue (gardée dix minutes) */
+  async catalogRefs () {
+    if (this.refs && Date.now() - this.refs.at < 10 * 60e3) return this.refs.map
+    const map = new Map()
+    let cursor
+    for (let page = 0; page < 10; page++) {
+      const { products, nextPageCursor } = await this.sock.getCatalog({ limit: 100, cursor })
+      products.forEach((p) => p.retailerId && map.set(p.id, p.retailerId))
+      if (!nextPageCursor) break
+      cursor = nextPageCursor
+    }
+    this.refs = { at: Date.now(), map }
+
+    return map
   }
 
   /** Message écrit depuis le téléphone de la boutique : recopié dans la conversation du client */
