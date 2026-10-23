@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\VerificationPurpose;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StoreResource;
 use App\Models\Store;
@@ -9,6 +10,7 @@ use App\Models\SupportSession;
 use App\Models\User;
 use App\Services\Accounts\AccountDeletion;
 use App\Services\Accounts\LoginHandoff;
+use App\Services\Accounts\PhoneVerifier;
 use App\Services\Accounts\StoreRoles;
 use App\Services\Ai\Assistant;
 use App\Services\Console\SupportSessions;
@@ -60,6 +62,31 @@ class AuthController extends Controller
         $user->forceFill(['last_login_at' => now()])->save();
 
         return response()->json(['data' => $this->profile($user)]);
+    }
+
+    /**
+     * « Me connecter par WhatsApp » : sans mot de passe, la personne prouve son numéro (message WhatsApp, ou code SMS
+     * en dernier recours) et la page ouvre sa session (VerificationController). Mêmes règles que la connexion.
+     */
+    public function whatsapp(Request $request, PhoneVerifier $verifier): JsonResponse
+    {
+        $request->validate(['phone' => ['required', 'string', 'max:30']], [], ['phone' => 'numéro de téléphone']);
+        $phone = PhoneNumber::normalize($request->string('phone'));
+        $user = $phone === null ? null : User::where('phone', $phone)->first();
+        if ($user === null) {
+            throw ValidationException::withMessages(['phone' => 'Aucun compte avec ce numéro. Vérifiez-le, ou demandez une invitation.']);
+        }
+        if (! $user->isActive()) {
+            return response()->json(['message' => 'Compte suspendu.'], 403);
+        }
+        $store = $this->tenancy->store();
+        if ($this->addressStores($store)->first(fn (Store $s) => $user->activeMembershipIn($s) !== null) === null) {
+            throw ValidationException::withMessages(['phone' => 'Ce compte ne fait pas partie de l\'équipe de '.$store->name.'.']);
+        }
+
+        [$verification, $token, $demoCode] = $verifier->start(VerificationPurpose::Login, $phone, $store, $user, ip: $request->ip());
+
+        return response()->json(VerificationController::pending($verification, $token, $demoCode, $verifier), 202);
     }
 
     public function me(Request $request): JsonResponse

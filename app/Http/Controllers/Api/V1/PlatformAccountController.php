@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\VerificationPurpose;
 use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\LoginHandoff;
+use App\Services\Accounts\PhoneVerifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -35,6 +37,27 @@ class PlatformAccountController extends Controller
         $request->session()->regenerate();
 
         return $this->stores($request);
+    }
+
+    /**
+     * « Me connecter par WhatsApp » : le numéro est prouvé par un message WhatsApp (ou un code SMS), puis la page
+     * demande la liste des boutiques (VerificationController ouvre la session).
+     */
+    public function whatsapp(Request $request, PhoneVerifier $verifier): JsonResponse
+    {
+        $request->validate(['phone' => ['required', 'string', 'max:30']], [], ['phone' => 'numéro de téléphone']);
+        $phone = PhoneNumber::normalize($request->string('phone'));
+        $user = $phone === null ? null : User::where('phone', $phone)->first();
+        if ($user === null) {
+            throw ValidationException::withMessages(['phone' => 'Aucun compte Jibiat Marchand avec ce numéro.']);
+        }
+        if (! $user->isActive()) {
+            return response()->json(['message' => 'Compte suspendu.'], 403);
+        }
+
+        [$verification, $token, $demoCode] = $verifier->start(VerificationPurpose::Login, $phone, null, $user, ip: $request->ip());
+
+        return response()->json(VerificationController::pending($verification, $token, $demoCode, $verifier), 202);
     }
 
     public function stores(Request $request): JsonResponse

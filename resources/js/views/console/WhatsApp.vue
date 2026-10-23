@@ -20,6 +20,59 @@ const busy = ref(false)
 const coexistence = ref(true)
 const thread = ref(null)
 let timer
+// Connexion par QR code (service du serveur, comme WhatsApp Web) : QR code ou code à saisir avec le numéro
+const live = ref(null)
+const method = ref('qr') // qr | phone
+const pairPhone = ref('')
+let qrTimer
+
+function applyQr(data) {
+  account.value = data
+  live.value = data.live ?? null
+  if (data.connected) {
+    stopQr()
+    loadConversations().catch(() => {})
+  } else if (!qrTimer) {
+    qrTimer = setInterval(refreshQr, 3000)
+  }
+}
+
+function stopQr() {
+  clearInterval(qrTimer)
+  qrTimer = null
+}
+
+async function refreshQr() {
+  try {
+    applyQr((await http.get('/console/whatsapp/qr')).data.data)
+  } catch {
+    // Service momentanément injoignable : on réessaie au prochain tour
+  }
+}
+
+async function startQr() {
+  busy.value = true
+  error.value = ''
+  try {
+    applyQr((await http.post('/console/whatsapp/qr')).data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function pair() {
+  busy.value = true
+  error.value = ''
+  try {
+    applyQr((await http.post('/console/whatsapp/pair', { phone: pairPhone.value })).data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
 
 async function loadAccount() {
   account.value = (await http.get('/console/whatsapp')).data.data
@@ -51,6 +104,7 @@ onMounted(async () => {
     }
     if (!account.value) await loadAccount()
     if (account.value.connected) await loadConversations()
+    else if (account.value.mode === 'qr' && account.value.qr_status === 'pending') await refreshQr()
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -66,7 +120,10 @@ onMounted(async () => {
     }
   }, 20000)
 })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  clearInterval(timer)
+  stopQr()
+})
 
 function connect() {
   busy.value = true
@@ -74,9 +131,28 @@ function connect() {
   window.location.assign(facebookRelayUrl(boot.platformUrl, { appId, configId, version, coexistence: coexistence.value }, window.location.origin + window.location.pathname))
 }
 
+async function setSmsFallback(on) {
+  if (on && !window.confirm('Chaque SMS coûte. Proposer le SMS même quand WhatsApp est possible ?')) {
+    await loadAccount()
+    return
+  }
+  busy.value = true
+  error.value = ''
+  try {
+    account.value = (await http.put('/console/whatsapp/sms', { fallback: on })).data.data
+  } catch (e) {
+    error.value = errorMessage(e)
+    await loadAccount()
+  } finally {
+    busy.value = false
+  }
+}
+
 async function disconnect() {
-  if (!window.confirm('Déconnecter le WhatsApp du support de la console ? Votre téléphone continue de recevoir les messages.')) return
+  if (!window.confirm('Déconnecter le WhatsApp du support de la console ? Votre téléphone continue de recevoir les messages. Les inscriptions et connexions repasseront par SMS tant qu\'aucun numéro n\'est relié.')) return
+  stopQr()
   account.value = (await http.delete('/console/whatsapp')).data.data
+  live.value = null
   conversations.value = []
   current.value = null
 }
@@ -108,9 +184,73 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
     <Alert v-if="error">{{ error }}</Alert>
     <p v-if="!account" class="text-sm text-slate-500">Chargement…</p>
 
-    <section v-else-if="!account.connected" class="card max-w-2xl space-y-3 p-4 text-sm">
+    <!-- SMS : coût à surveiller, secours à n'activer qu'en connaissance de cause -->
+    <section v-if="account?.sms" class="card flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+      <div>
+        <p class="font-semibold">SMS de vérification envoyés (payants)</p>
+        <p class="text-slate-600">
+          Ce mois : <strong>{{ account.sms.month }}</strong> · mois dernier : {{ account.sms.last_month }}.
+          <span v-if="!account.sms.ready" class="text-amber-700">Les SMS sont simulés sur ce serveur (aucun envoi réel).</span>
+          <span v-else-if="account.connected">Numéro relié : les inscriptions et connexions passent par WhatsApp, aucun SMS sauf si le secours est activé.</span>
+          <span v-else class="text-amber-700">Sans numéro relié, chaque vérification de numéro part par SMS.</span>
+        </p>
+      </div>
+      <label class="flex items-center gap-2">
+        <input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="account.sms.fallback" :disabled="busy" @change="setSmsFallback($event.target.checked)" />
+        <span>Proposer aussi le SMS quand WhatsApp est possible</span>
+      </label>
+    </section>
+
+    <section v-else-if="!account.connected" class="card max-w-2xl space-y-4 p-4 text-sm">
       <h3 class="text-base font-semibold">Recevoir les messages WhatsApp du support ici</h3>
-      <p class="text-slate-600">Connectez le numéro WhatsApp Business de Jibiat Marchand. Les messages des clients arrivent dans la console et vous répondez depuis l'ordinateur.</p>
+      <p class="text-slate-600">
+        Reliez le numéro WhatsApp de Jibiat Marchand. Les messages des clients arrivent dans la console et vous répondez depuis l'ordinateur.
+        Ce numéro reçoit aussi les <strong>messages de vérification</strong> des inscriptions et connexions : tant qu'il est relié, aucun SMS n'est envoyé.
+      </p>
+
+      <!-- Par QR code (comme WhatsApp Web) : disponible tout de suite -->
+      <div class="space-y-3 rounded-lg border border-emerald-200 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h4 class="font-semibold">Par QR code, comme WhatsApp Web</h4>
+          <span v-if="account.qr_status === 'pending'" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">En attente du téléphone</span>
+          <span v-else-if="account.qr_status === 'disconnected'" class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">Déconnecté</span>
+        </div>
+        <p v-if="account.error" class="text-amber-700">{{ account.error }}</p>
+        <template v-if="account.bridge">
+          <div class="inline-flex rounded-lg bg-slate-100 p-1" role="tablist">
+            <button type="button" role="tab" :aria-selected="method === 'qr'" class="rounded-md px-3 py-1.5 font-medium" :class="method === 'qr' ? 'bg-white shadow-sm' : 'text-slate-600'" @click="method = 'qr'">Avec un QR code</button>
+            <button type="button" role="tab" :aria-selected="method === 'phone'" class="rounded-md px-3 py-1.5 font-medium" :class="method === 'phone' ? 'bg-white shadow-sm' : 'text-slate-600'" @click="method = 'phone'">Avec le numéro</button>
+          </div>
+          <div v-if="method === 'qr'">
+            <div v-if="live?.qr" class="flex flex-wrap items-start gap-4">
+              <img :src="live.qr" alt="QR code WhatsApp à scanner" class="h-56 w-56 rounded-lg border border-slate-200 bg-white p-2" />
+              <ol class="list-decimal space-y-1 pl-5 text-slate-700">
+                <li>Ouvrez WhatsApp sur le téléphone du support.</li>
+                <li>Touchez ⋮ (Android) ou Réglages (iPhone), puis « Appareils connectés ».</li>
+                <li>Touchez « Connecter un appareil » et visez ce QR code.</li>
+                <li>Le QR code change toutes les vingt secondes : il se met à jour tout seul.</li>
+              </ol>
+            </div>
+            <button v-else type="button" class="btn-brand" :disabled="busy" @click="startQr">{{ busy ? 'Préparation…' : 'Afficher le QR code' }}</button>
+          </div>
+          <div v-else class="space-y-2">
+            <div v-if="live?.code" class="space-y-2">
+              <p class="text-slate-600">Code à saisir sur le téléphone (« Appareils connectés » › « Connecter un appareil » › « Connecter avec le numéro de téléphone à la place ») :</p>
+              <p class="select-all font-mono text-3xl font-bold tracking-widest text-emerald-800">{{ live.code }}</p>
+              <button type="button" class="btn-ghost px-2" :disabled="busy" @click="pair">Recevoir un autre code</button>
+            </div>
+            <form v-else class="flex flex-wrap gap-2" @submit.prevent="pair">
+              <input v-model="pairPhone" class="input max-w-xs" type="tel" inputmode="tel" placeholder="Numéro WhatsApp du support" required />
+              <button class="btn-brand" :disabled="busy || !pairPhone.trim()">{{ busy ? 'Demande…' : 'Obtenir le code' }}</button>
+            </form>
+          </div>
+          <p class="text-xs text-slate-500">Connexion non officielle : le téléphone doit rester allumé avec Internet de temps en temps. Pas d'envois en masse par ce moyen.</p>
+        </template>
+        <Alert v-else tone="warning">Le service WhatsApp par QR code n'est pas installé sur le serveur (mise à jour du serveur à relancer).</Alert>
+      </div>
+
+      <!-- Avec Facebook : connexion officielle (Meta) -->
+      <h4 class="font-semibold">Ou avec Facebook (connexion officielle)</h4>
       <template v-if="account.embedded">
         <label class="flex items-start gap-2">
           <input v-model="coexistence" type="checkbox" class="mt-0.5 h-4 w-4 accent-emerald-700" />
@@ -130,7 +270,8 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
     <template v-else>
       <div class="flex flex-wrap items-center gap-3 text-sm">
         <span class="rounded bg-emerald-100 px-2 py-0.5 text-emerald-800">Connecté · {{ account.display_phone }}<template v-if="account.name"> · {{ account.name }}</template></span>
-        <span v-if="account.coexistence" class="text-slate-500">Aussi sur le téléphone (WhatsApp Business)</span>
+        <span v-if="account.mode === 'qr'" class="text-slate-500">Par QR code · reçoit les codes de vérification (aucun SMS)</span>
+        <span v-else-if="account.coexistence" class="text-slate-500">Aussi sur le téléphone (WhatsApp Business)</span>
         <button class="ml-auto text-slate-500 underline" @click="disconnect">Déconnecter</button>
       </div>
       <div class="grid gap-4 md:grid-cols-[18rem_1fr]">

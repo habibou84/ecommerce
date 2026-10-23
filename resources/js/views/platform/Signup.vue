@@ -123,7 +123,7 @@ function done(data) {
         <input id="name" v-model="form.name" class="input" maxlength="80" autocomplete="name" required />
       </Field>
 
-      <Field id="phone" label="Votre numéro de téléphone" :error="errors.phone" hint="Il sert à vous connecter. Vous recevrez un code par SMS.">
+      <Field id="phone" label="Votre numéro de téléphone" :error="errors.phone" hint="Il sert à vous connecter. Vous le vérifierez par WhatsApp : un message à envoyer, rien à recopier.">
         <input id="phone" v-model="form.phone" class="input" type="tel" inputmode="tel" autocomplete="tel" placeholder="07 07 07 07 07" required />
       </Field>
 

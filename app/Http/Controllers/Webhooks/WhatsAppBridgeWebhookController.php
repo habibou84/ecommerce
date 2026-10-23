@@ -6,13 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\ConversationMessage;
 use App\Models\WhatsappLink;
 use App\Services\WhatsApp\Inbox;
+use App\Services\WhatsApp\PlatformWhatsApp;
+use App\Services\WhatsApp\WhatsAppBridge;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
  * Événements du service whatsapp-bridge (WhatsApp relié par QR code), signés avec WHATSAPP_BRIDGE_TOKEN : état de la
  * session (QR code scanné, téléphone déconnecté), messages des clients, messages écrits depuis le téléphone,
- * réponses envoyées, remises, lues ou en échec.
+ * réponses envoyées, remises, lues ou en échec. La session « platform » est le numéro du support (console).
  */
 class WhatsAppBridgeWebhookController extends Controller
 {
@@ -23,6 +25,13 @@ class WhatsAppBridgeWebhookController extends Controller
         $token = (string) config('services.whatsapp_bridge.token');
         $expected = hash_hmac('sha256', $request->getContent(), $token);
         abort_unless($token !== '' && hash_equals($expected, (string) $request->header('X-Bridge-Signature')), 403, 'Signature invalide.');
+
+        // Numéro du support Jibiat Marchand : messagerie de la console et codes de vérification
+        if ($request->input('session') === WhatsAppBridge::PLATFORM) {
+            app(PlatformWhatsApp::class)->handleBridge($request->all());
+
+            return response()->json(['received' => true]);
+        }
 
         $link = preg_match('/^store-(\d+)$/', (string) $request->input('session'), $m)
             ? WhatsappLink::withoutGlobalScopes()->where('store_id', (int) $m[1])->first() : null;

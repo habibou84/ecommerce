@@ -43,7 +43,7 @@ function done(data) {
 </script>
 
 <template>
-  <AuthShell title="Mot de passe oublié" subtitle="Recevez un code par SMS pour choisir un nouveau mot de passe.">
+  <AuthShell title="Mot de passe oublié" :subtitle="pending ? '' : 'Prouvez votre numéro par WhatsApp (ou par SMS), puis choisissez un nouveau mot de passe.'">
     <div v-if="success" class="space-y-4">
       <Alert tone="success">{{ success }}</Alert>
       <button class="btn-brand w-full" @click="router.push(props.loginPath)">Se connecter</button>
@@ -56,7 +56,7 @@ function done(data) {
       <Field id="phone" label="Numéro de téléphone" :error="errors.phone">
         <input id="phone" v-model="phone" class="input" type="tel" inputmode="tel" autocomplete="tel" required autofocus />
       </Field>
-      <button class="btn-brand w-full" :disabled="busy">{{ busy ? 'Envoi…' : 'Recevoir un code' }}</button>
+      <button class="btn-brand w-full" :disabled="busy">{{ busy ? 'Un instant…' : 'Continuer' }}</button>
     </form>
 
     <template #footer>
