@@ -9,6 +9,7 @@ use App\Models\SocialAccount;
 use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Services\Messaging\ReplySuggester;
+use App\Services\Orders\OrderMessageParser;
 use App\Services\WhatsApp\Inbox;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -108,6 +109,9 @@ class ConversationController extends Controller
         $since = $c->order?->created_at;
         // WhatsApp relié par QR code : réponse possible à tout moment, depuis le numéro de la boutique
         $linked = $this->inbox->linkFor($c) !== null;
+        // Messages récents du client qui contiennent peut-être une commande : « Faire une commande » sous chacun
+        $recent = $messages->where('direction', 'in')->take(-40);
+        $hints = array_flip(app(OrderMessageParser::class)->orderHints($c->store, $recent->pluck('body', 'id')->map(fn ($b) => (string) $b)->all()));
 
         return $this->summary($c) + [
             'customer' => $c->customer ? ['id' => $c->customer->id, 'name' => $c->customer->name] : null,
@@ -119,6 +123,7 @@ class ConversationController extends Controller
                 'direction' => $m->direction,
                 'type' => $m->type,
                 'body' => $m->body,
+                'order_hint' => isset($hints[$m->id]),
                 'status' => $m->status,
                 'error' => $m->error,
                 'by' => $m->user?->name,
