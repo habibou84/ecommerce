@@ -105,7 +105,7 @@ class WhatsAppLinkController extends Controller
             'qr' => $link?->isConnected() ? null : ($live['qr'] ?? null),
             'code' => $link?->isConnected() ? null : ($live['code'] ?? null),
             // Numéro proposé pour la liaison par code : celui de la boutique
-            'store_phone' => $this->currentStore()->whatsapp_phone,
+            'store_phone' => $this->currentStore()->whatsapp_phone ? PhoneNumber::display($this->currentStore()->whatsapp_phone) : null,
             'phone' => $link?->phone,
             'name' => $link?->name,
             'connected_at' => $link?->connected_at?->toIso8601String(),
