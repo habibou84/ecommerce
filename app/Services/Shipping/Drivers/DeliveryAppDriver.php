@@ -131,6 +131,20 @@ class DeliveryAppDriver implements CarrierDriver
         return RemoteShipment::fromDeliveryApp($response->json('data'));
     }
 
+    /**
+     * Note du livreur par la boutique (contrat 1.3).
+     *
+     * @param  list<string>  $tags
+     */
+    public function rate(CarrierConnection $connection, Shipment $shipment, int $score, array $tags, ?string $comment): RemoteShipment
+    {
+        $response = $this->send($connection, fn (PendingRequest $http) => $http->post($this->orderPath($shipment).'/rating', array_filter([
+            'score' => $score, 'tags' => $tags, 'comment' => $comment,
+        ], fn ($v) => $v !== null && $v !== '' && $v !== [])));
+
+        return RemoteShipment::fromDeliveryApp($response->json('data'));
+    }
+
     public function note(CarrierConnection $connection, Shipment $shipment, string $note): void
     {
         $this->send($connection, fn (PendingRequest $http) => $http->post($this->orderPath($shipment).'/notes', ['note' => $note]));

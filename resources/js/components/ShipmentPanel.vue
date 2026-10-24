@@ -129,6 +129,27 @@ const decide = (decision) => run(() => http.post(`/shipments/${current.value.id}
 const askReturn = () => run(() => http.post(`/shipments/${current.value.id}/return-request`, { note: form.note || null }))
 const sendNote = () => run(() => http.post(`/shipments/${current.value.id}/notes`, { note: form.note }))
 
+// Noter le livreur chez l'entreprise de livraison (remarques du contrat : Contract::MERCHANT_RATING_TAGS)
+const RATING_TAGS = [
+  { code: 'pickup_on_time', label: 'Ramassage à l\'heure', good: true },
+  { code: 'careful', label: 'Colis bien traité', good: true },
+  { code: 'good_with_customers', label: 'Bon contact avec mes clients', good: true },
+  { code: 'cash_returned', label: 'Argent bien rendu', good: true },
+  { code: 'pickup_late', label: 'Ramassage en retard', good: false },
+  { code: 'customer_mistreated', label: 'Client mal traité', good: false },
+  { code: 'unreachable', label: 'Pas joignable', good: false },
+]
+const rating = reactive({ score: 0, tags: [], comment: '' })
+const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
+function openRating(s) {
+  Object.assign(rating, { score: 0, tags: [], comment: '' })
+  openModal('rate', s)
+}
+function toggleTag(code) {
+  rating.tags = rating.tags.includes(code) ? rating.tags.filter((c) => c !== code) : [...rating.tags, code]
+}
+const sendRating = () => run(() => http.post(`/shipments/${current.value.id}/rating`, { score: rating.score, tags: rating.tags, comment: rating.comment || null }))
+
 function openModal(name, s) {
   current.value = s
   form.note = ''
@@ -186,6 +207,12 @@ async function whatsapp(s) {
       <p v-else-if="s.return_requested && !s.is_final" class="rounded bg-violet-50 p-2 text-violet-900">Retour du colis demandé.</p>
       <p v-if="s.failure_reason" class="rounded bg-amber-50 p-2 text-amber-900">{{ s.failure_reason }}<template v-if="s.attempts_count"> ({{ s.attempts_count }} tentative{{ s.attempts_count > 1 ? 's' : '' }})</template></p>
       <a v-if="s.proof_photo_url" :href="s.proof_photo_url" target="_blank" rel="noopener" class="text-emerald-700 underline">Photo de livraison</a>
+      <!-- Notes du livreur chez l'entreprise de livraison -->
+      <div v-if="s.carrier_ratings && (s.can_rate_courier || s.carrier_ratings.merchant || s.carrier_ratings.recipient)" class="rounded bg-slate-50 p-2 space-y-1">
+        <p v-if="s.carrier_ratings.merchant">Votre note du livreur : <span class="text-amber-500" aria-hidden="true">{{ stars(s.carrier_ratings.merchant.score) }}</span> <strong>{{ s.carrier_ratings.merchant.score }}/5</strong><template v-if="s.carrier_ratings.merchant.comment"> · « {{ s.carrier_ratings.merchant.comment }} »</template></p>
+        <p v-if="s.carrier_ratings.recipient">Note du client : <span class="text-amber-500" aria-hidden="true">{{ stars(s.carrier_ratings.recipient.score) }}</span> <strong>{{ s.carrier_ratings.recipient.score }}/5</strong><template v-if="s.carrier_ratings.recipient.comment"> · « {{ s.carrier_ratings.recipient.comment }} »</template></p>
+        <button v-if="s.can_rate_courier" class="btn-secondary px-2 py-1" @click="openRating(s)">⭐ Noter le livreur</button>
+      </div>
       <ol class="space-y-1 border-l-2 border-slate-100 pl-3 text-xs text-slate-600">
         <li v-for="(e, i) in s.events" :key="i">
           <span class="text-slate-400">{{ formatDateTime(e.occurred_at) }}</span> · {{ e.status_label }}
@@ -350,6 +377,27 @@ async function whatsapp(s) {
         <Alert v-if="error">{{ error }}</Alert>
         <Field id="cn-note" label="Note pour l'agence et le livreur"><textarea id="cn-note" v-model="form.note" class="input" rows="3" maxlength="2000" required placeholder="Ex. appeler avant, portail bleu" /></Field>
         <button class="btn-brand w-full" :disabled="busy">Envoyer</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'rate'" :title="`Noter le livreur de ${current.reference}`" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="sendRating">
+        <Alert v-if="error">{{ error }}</Alert>
+        <div>
+          <p class="mb-1 text-sm font-medium">Note</p>
+          <div class="flex gap-1" role="radiogroup" aria-label="Note du livreur">
+            <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rating.score === n" :aria-label="`${n} sur 5`" :class="['text-3xl leading-none', n <= rating.score ? 'text-amber-500' : 'text-slate-300']" @click="rating.score = n">★</button>
+          </div>
+        </div>
+        <div>
+          <p class="mb-1 text-sm font-medium">Remarques (facultatif)</p>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="t in RATING_TAGS" :key="t.code" type="button" :aria-pressed="rating.tags.includes(t.code)" :class="['rounded-full border px-3 py-1 text-sm', rating.tags.includes(t.code) ? (t.good ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-red-400 bg-red-50 text-red-800') : 'border-slate-300']" @click="toggleTag(t.code)">{{ t.label }}</button>
+          </div>
+        </div>
+        <Field id="rt-comment" label="Commentaire (facultatif)"><textarea id="rt-comment" v-model="rating.comment" class="input" rows="2" maxlength="500" /></Field>
+        <p class="text-xs text-slate-500">Envoyé à {{ current.carrier?.name }}. Votre note reste anonyme pour le livreur.</p>
+        <button class="btn-brand w-full" :disabled="busy || !rating.score">Enregistrer la note</button>
       </form>
     </Modal>
 

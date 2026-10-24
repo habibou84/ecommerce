@@ -506,6 +506,40 @@ class ShippingTest extends TestCase
         $delivered = $read('order-delivered');
         $this->assertSame([ShipmentStatus::Delivered, 31500], [$delivered->status, $delivered->collected]);
         $this->assertStringStartsWith('https://', (string) $delivered->proofPhotoUrl);
+        // Contrat 1.3 : notes du livreur ; absentes avec une version plus ancienne de Jibiat
+        $this->assertSame([true, null], [$delivered->ratings['can_rate'], $delivered->ratings['merchant']]);
+        $rated = $read('order-delivered-rated');
+        $this->assertSame([false, 4, 5], [$rated->ratings['can_rate'], $rated->ratings['merchant']['score'], $rated->ratings['recipient']['score']]);
+        $this->assertNull($pending->ratings);
+    }
+
+    public function test_the_store_rates_the_courier_at_the_carrier(): void
+    {
+        $connection = $this->connect();
+        $shipment = $this->ship($this->confirmedOrder(), $connection);
+
+        // Pas encore livrée : rien à noter
+        $this->storeApi($this->store, 'GET', "orders/{$shipment->order_id}")->assertJsonPath('data.shipments.0.can_rate_courier', false);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/rating", ['score' => 4])->assertUnprocessable();
+
+        $delivered = Contract::example('order-delivered')['data'];
+        $this->webhook($connection, 'order.status_changed', ['order' => $delivered], 'evt-d')->assertOk();
+        $this->storeApi($this->store, 'GET', "orders/{$shipment->order_id}")->assertOk()
+            ->assertJsonPath('data.shipments.0.status', 'delivered')
+            ->assertJsonPath('data.shipments.0.can_rate_courier', true);
+
+        $this->stub([self::API.'/orders/LV-7K2M-QX9P/rating' => Http::response(Contract::example('order-delivered-rated'))]);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/rating", ['score' => 4, 'tags' => ['pickup_on_time', 'careful'], 'comment' => 'Appeler avant'])->assertOk()
+            ->assertJsonPath('data.can_rate_courier', false)
+            ->assertJsonPath('data.carrier_ratings.merchant.score', 4)
+            ->assertJsonPath('data.carrier_ratings.recipient.score', 5);
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API.'/orders/LV-7K2M-QX9P/rating' && $r['score'] === 4 && $r['tags'] === ['pickup_on_time', 'careful'] && $r['comment'] === 'Appeler avant');
+        $this->assertSame('Livreur noté 4/5 : Appeler avant', $shipment->events()->reorder('id', 'desc')->first()->note);
+        $this->assertSame('delivered', $shipment->fresh()->status->value);
+
+        // Une seule fois, et seulement avec les remarques du contrat
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/rating", ['score' => 5])->assertUnprocessable();
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/rating", ['score' => 5, 'tags' => ['inconnue']])->assertJsonValidationErrors('tags.0');
     }
 
     public function test_every_webhook_of_the_contract_is_understood(): void
