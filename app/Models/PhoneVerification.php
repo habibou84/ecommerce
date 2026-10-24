@@ -8,14 +8,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Vérification d'un numéro par code SMS (création de boutique, invitation, mot de passe oublié).
+ * Vérification d'un numéro (création de boutique, invitation, mot de passe oublié, connexion) : par un message
+ * WhatsApp envoyé depuis ce numéro (code prérempli « whatsapp_code »), ou par un code reçu par SMS.
  * Le navigateur garde un jeton secret ; la base n'en garde que l'empreinte.
  */
 class PhoneVerification extends Model
 {
     protected $fillable = [
-        'purpose', 'phone', 'store_id', 'user_id', 'token_hash', 'sms_code_hash', 'sms_count', 'sms_sent_at',
-        'attempts', 'payload', 'ip', 'verified_at', 'completed_at', 'expires_at',
+        'purpose', 'phone', 'store_id', 'user_id', 'token_hash', 'whatsapp_code', 'sms_code_hash', 'sms_count', 'sms_sent_at',
+        'attempts', 'payload', 'ip', 'verified_via', 'verified_at', 'completed_at', 'expires_at',
     ];
 
     protected $hidden = ['token_hash', 'sms_code_hash', 'payload'];

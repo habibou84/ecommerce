@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Console;
 
 use App\Enums\VerificationPurpose;
+use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAction;
 use App\Models\User;
@@ -15,7 +16,8 @@ use Illuminate\Validation\ValidationException;
 use Jibiat\Socle\PhoneNumber;
 
 /**
- * Connexion à la console (admin.jibiat-marchand.com) : mot de passe, puis code reçu par SMS.
+ * Connexion à la console (admin.jibiat-marchand.com) : mot de passe, puis preuve du numéro par WhatsApp (message
+ * envoyé au numéro du support) ou, à défaut, par code SMS.
  */
 class ConsoleAuthController extends Controller
 {
@@ -30,9 +32,9 @@ class ConsoleAuthController extends Controller
             throw ValidationException::withMessages(['phone' => 'Numéro ou mot de passe incorrect.']);
         }
 
-        [, $token, $demoCode] = $this->verifier->start(VerificationPurpose::ConsoleLogin, $user->phone, user: $user, ip: $request->ip());
+        [$verification, $token, $demoCode] = $this->verifier->start(VerificationPurpose::ConsoleLogin, $user->phone, user: $user, ip: $request->ip());
 
-        return response()->json(['verification' => ['token' => $token, 'phone' => PhoneNumber::display($user->phone)]] + ($demoCode ? ['demo_code' => $demoCode] : []), 202);
+        return response()->json(VerificationController::pending($verification, $token, $demoCode, $this->verifier), 202);
     }
 
     public function verify(Request $request): JsonResponse
@@ -45,15 +47,21 @@ class ConsoleAuthController extends Controller
 
         $this->verifier->check($verification, $request->string('code'));
         $this->verifier->complete($verification);
-        $user = $verification->user;
+        self::open($request, $verification->user);
 
+        return $this->me($request);
+    }
+
+    /**
+     * Numéro prouvé (code SMS ou message WhatsApp) : ouvre la session de la console.
+     */
+    public static function open(Request $request, User $user): void
+    {
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
         $request->session()->put('console_admin', $user->id);
         $user->forceFill(['last_login_at' => now()])->save();
         AdminAction::create(['admin_id' => $user->id, 'action' => 'console_login', 'ip' => $request->ip()]);
-
-        return $this->me($request);
     }
 
     public function me(Request $request): JsonResponse

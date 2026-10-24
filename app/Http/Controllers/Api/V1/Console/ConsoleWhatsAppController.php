@@ -9,10 +9,12 @@ use App\Models\SupportMessage;
 use App\Services\WhatsApp\PlatformWhatsApp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Jibiat\Socle\PhoneNumber;
 
 /**
- * Console : WhatsApp du support (connexion du numéro, conversations, réponses).
+ * Console : WhatsApp du support (connexion du numéro avec Facebook ou par QR code, conversations, réponses).
+ * Ce numéro reçoit aussi les messages de vérification des numéros (inscription, connexion), sans SMS.
  */
 class ConsoleWhatsAppController extends Controller
 {
@@ -33,6 +35,45 @@ class ConsoleWhatsAppController extends Controller
         ]);
         $this->whatsapp->connect($data['code'], $data['waba_id'], $data['phone_number_id'] ?? null, (bool) ($data['coexistence'] ?? false));
         $this->log($request, 'support_whatsapp_connected', ['waba_id' => $data['waba_id']]);
+
+        return $this->show();
+    }
+
+    /** Connexion par QR code : démarre la session du service et renvoie le QR code (ou l'état si déjà relié) */
+    public function qr(Request $request): JsonResponse
+    {
+        $live = $this->whatsapp->startQr();
+        if ($live['status'] === 'connected') {
+            $this->log($request, 'support_whatsapp_connected', ['mode' => 'qr']);
+        }
+
+        return response()->json(['data' => $this->whatsapp->present() + ['live' => $live]]);
+    }
+
+    /** État de la session QR (QR code rafraîchi, téléphone relié) */
+    public function qrStatus(): JsonResponse
+    {
+        return response()->json(['data' => $this->whatsapp->present() + ['live' => $this->whatsapp->qrStatus()]]);
+    }
+
+    /** Liaison avec le numéro plutôt que le QR code : code à saisir sur le téléphone */
+    public function pair(Request $request): JsonResponse
+    {
+        $data = $request->validate(['phone' => ['required', 'string', 'max:30']], [], ['phone' => 'numéro WhatsApp']);
+        $phone = PhoneNumber::normalize($data['phone']);
+        if ($phone === null) {
+            throw ValidationException::withMessages(['phone' => 'Numéro WhatsApp invalide.']);
+        }
+
+        return response()->json(['data' => $this->whatsapp->present() + ['live' => $this->whatsapp->pairQr($phone)]]);
+    }
+
+    /** SMS en secours pour tout le monde (même quand WhatsApp est possible) : à éviter, chaque SMS coûte */
+    public function sms(Request $request): JsonResponse
+    {
+        $data = $request->validate(['fallback' => ['required', 'boolean']]);
+        $this->whatsapp->setSmsFallback($data['fallback']);
+        $this->log($request, 'sms_fallback_'.($data['fallback'] ? 'on' : 'off'));
 
         return $this->show();
     }
@@ -82,7 +123,8 @@ class ConsoleWhatsAppController extends Controller
         return [
             'id' => $c->id, 'contact' => PhoneNumber::display($c->contact), 'phone' => $c->contact, 'contact_name' => $c->contact_name,
             'last_preview' => $c->last_preview, 'last_message_at' => $c->last_message_at?->toIso8601String(),
-            'unread_count' => $c->unread_count, 'can_reply' => $c->canReply(),
+            // Par QR code (téléphone relié) : réponse libre à tout moment ; avec Meta : dans les 24 h du dernier message
+            'unread_count' => $c->unread_count, 'can_reply' => $this->whatsapp->isQr() || $c->canReply(),
         ];
     }
 

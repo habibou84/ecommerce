@@ -387,6 +387,29 @@ class ShipmentDesk
     }
 
     /**
+     * La boutique note le livreur qui a livré le colis (course livrée, 7 jours au plus, une fois) : la note part chez
+     * l'entreprise de livraison, qui renvoie la course avec ses notes.
+     *
+     * @param  list<string>  $tags
+     */
+    public function rateCourier(Shipment $shipment, int $score, array $tags, ?string $comment, ?User $actor): Shipment
+    {
+        $connection = $shipment->connection;
+        if (! $connection?->isApi() || ! $shipment->carrier_tracking_code) {
+            throw new BusinessRuleException('Cette livraison ne passe pas par une entreprise de livraison reliée à votre espace marchand.');
+        }
+        if (! ($shipment->carrier_ratings['can_rate'] ?? false)) {
+            throw new BusinessRuleException('Ce livreur ne peut plus être noté pour cette livraison.');
+        }
+
+        $remote = app(DeliveryAppDriver::class)->rate($connection, $shipment, $score, $tags, $comment);
+        $this->apply($shipment, $remote, 'user', null, $actor);
+        $this->event($shipment->fresh(), $shipment->status, $remote->rawStatus, 'user', "Livreur noté {$score}/5".($comment ? ' : '.$comment : ''), $actor);
+
+        return $shipment->fresh();
+    }
+
+    /**
      * Livraison suivie par une entreprise reliée à la boutique (Delivery App), pas encore terminée.
      *
      * @return array{0: CarrierConnection, 1: DeliveryAppDriver}
@@ -473,6 +496,7 @@ class ShipmentDesk
                 'scheduled_date' => $stale ? null : $remote->scheduledDate,
                 'needs_decision' => $stale ? null : $remote->needsDecision,
                 'return_requested' => $stale ? null : $remote->returnRequested,
+                'carrier_ratings' => $remote->ratings,
             ], fn ($v) => $v !== null))->forceFill(['last_synced_at' => $source === 'user' ? $shipment->last_synced_at : now()]);
             $newDate = $shipment->scheduled_date?->toDateString();
 

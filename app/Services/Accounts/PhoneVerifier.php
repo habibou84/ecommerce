@@ -5,8 +5,10 @@ namespace App\Services\Accounts;
 use App\Enums\VerificationPurpose;
 use App\Exceptions\BusinessRuleException;
 use App\Models\PhoneVerification;
+use App\Models\PlatformSetting;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\WhatsApp\PlatformWhatsApp;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -16,11 +18,13 @@ use Jibiat\Socle\Sms\SmsException;
 use Jibiat\Socle\Sms\SmsGateway;
 
 /**
- * Vérification d'un numéro par code SMS. Le navigateur reçoit un jeton secret qui désigne la demande ;
- * le code envoyé par SMS prouve que la personne a le téléphone en main.
- *
- * Reprise de la vérification de Delivery App, sans la preuve par WhatsApp entrant : la plateforme n'a pas
- * encore de numéro WhatsApp Business (phase 6).
+ * Vérification d'un numéro, pour la création d'une boutique, une invitation, un mot de passe oublié ou une connexion :
+ *  - WhatsApp (gratuit, d'abord) : la personne envoie depuis son WhatsApp un message prérempli contenant un code au
+ *    numéro du support Jibiat Marchand (relié dans la console, par QR code ou avec Facebook) ; l'expéditeur prouve le
+ *    numéro ;
+ *  - SMS (payant, dernier recours) : un code secret envoyé au numéro et saisi sur la page, proposé seulement quand
+ *    aucun numéro WhatsApp n'est relié (ou si la console autorise le SMS en secours, réglage « sms.fallback »).
+ * Le navigateur reçoit un jeton secret qui désigne la demande.
  */
 class PhoneVerifier
 {
@@ -37,10 +41,13 @@ class PhoneVerifier
 
     public const MAX_SMS_PER_HOUR = 4;
 
-    public function __construct(private readonly SmsGateway $sms) {}
+    // Début du message WhatsApp prérempli, reconnu à la réception
+    public const WHATSAPP_PREFIX = 'Code de vérification';
+
+    public function __construct(private readonly SmsGateway $sms, private readonly PlatformWhatsApp $whatsapp) {}
 
     /**
-     * Ouvre une vérification et envoie le premier code.
+     * Ouvre une vérification. Sans WhatsApp relié, le premier code SMS part tout de suite.
      *
      * @param  array<string, mixed>|null  $payload  données à conserver jusqu'à la fin (chiffrées)
      * @return array{0: PhoneVerification, 1: string, 2: ?string} vérification, jeton du navigateur, code (démonstration)
@@ -49,7 +56,7 @@ class PhoneVerifier
     {
         $phone = PhoneNumber::normalize($phone) ?? throw new BusinessRuleException('Numéro de téléphone invalide.', 'phone');
 
-        if (! $this->smsAvailable($phone)) {
+        if ($this->whatsappNumber() === null && ! $this->smsAvailable($phone)) {
             throw new BusinessRuleException('Pour le moment, seuls les numéros mobiles de Côte d\'Ivoire (01, 05, 07) sont acceptés.', 'phone');
         }
 
@@ -69,18 +76,61 @@ class PhoneVerifier
                 'store_id' => $store?->id,
                 'user_id' => $user?->id,
                 'token_hash' => PhoneVerification::hashToken($token),
+                'whatsapp_code' => $this->uniqueWhatsAppCode(),
                 'payload' => $payload,
                 'ip' => $ip,
                 'expires_at' => now()->addMinutes(self::TTL_MINUTES),
             ]);
         });
 
-        return [$verification, $token, $this->sendSms($verification)];
+        // WhatsApp possible : rien n'est envoyé, la personne envoie elle-même le message (aucun SMS)
+        return [$verification, $token, $this->whatsappNumber() === null && $this->smsOffered($verification) ? $this->sendSms($verification) : null];
     }
 
     public function find(string $token): ?PhoneVerification
     {
         return PhoneVerification::where('token_hash', PhoneVerification::hashToken($token))->first();
+    }
+
+    /**
+     * Numéro WhatsApp du support auquel envoyer le message de vérification ; null si aucun n'est relié.
+     */
+    public function whatsappNumber(): ?string
+    {
+        return $this->whatsapp->phone();
+    }
+
+    /**
+     * Texte prérempli du message WhatsApp et lien qui l'ouvre.
+     *
+     * @return array{number: string, text: string, link: string}|null
+     */
+    public function whatsappInstructions(PhoneVerification $verification): ?array
+    {
+        $number = $this->whatsappNumber();
+        if ($number === null || $verification->whatsapp_code === null) {
+            return null;
+        }
+        $text = self::WHATSAPP_PREFIX.' : '.$verification->whatsapp_code;
+
+        return [
+            'number' => PhoneNumber::display($number),
+            'text' => $text,
+            'link' => 'https://wa.me/'.ltrim($number, '+').'?text='.rawurlencode($text),
+        ];
+    }
+
+    /**
+     * SMS proposé pour cette vérification : seulement quand WhatsApp n'est pas possible (aucun numéro relié), sauf
+     * si la console autorise le SMS en secours pour tout le monde (« sms.fallback »).
+     */
+    public function smsOffered(PhoneVerification $verification): bool
+    {
+        if (! $this->smsAvailable($verification->phone)) {
+            return false;
+        }
+
+        return $this->whatsappNumber() === null || PlatformSetting::find('sms.fallback')?->value === 'on';
     }
 
     /**
@@ -107,6 +157,10 @@ class PhoneVerifier
     {
         $this->ensureOpen($verification);
 
+        if (! $this->smsOffered($verification)) {
+            throw new BusinessRuleException('L\'envoi de SMS n\'est pas possible vers ce numéro. Utilisez la vérification par WhatsApp.');
+        }
+
         $wait = $this->smsWaitSeconds($verification);
         if ($wait > 0) {
             throw new BusinessRuleException("Patientez {$wait} secondes avant de demander un nouveau code.");
@@ -125,8 +179,8 @@ class PhoneVerifier
             'attempts' => 0,
         ])->save();
 
-        // Mot de passe oublié pour un numéro sans compte : rien n'est envoyé, sans le révéler
-        if ($verification->purpose === VerificationPurpose::PasswordReset && $verification->user_id === null) {
+        // Mot de passe oublié ou connexion pour un numéro sans compte : rien n'est envoyé, sans le révéler
+        if (in_array($verification->purpose, [VerificationPurpose::PasswordReset, VerificationPurpose::Login], true) && $verification->user_id === null) {
             return null;
         }
 
@@ -152,7 +206,7 @@ class PhoneVerifier
     }
 
     /**
-     * Vérifie le code saisi. Ne termine pas la demande : l'appelant le fait une fois l'action effectuée.
+     * Vérifie le code SMS saisi. Ne termine pas la demande : l'appelant le fait une fois l'action effectuée.
      */
     public function check(PhoneVerification $verification, string $code): void
     {
@@ -177,7 +231,50 @@ class PhoneVerifier
             throw new BusinessRuleException($left > 0 ? "Code incorrect. Encore {$left} essai(s)." : 'Code incorrect. Demandez un nouveau code.', 'code');
         }
 
-        $verification->forceFill(['verified_at' => now()])->save();
+        $verification->forceFill(['verified_at' => now(), 'verified_via' => 'sms'])->save();
+    }
+
+    /**
+     * Message WhatsApp reçu sur le numéro du support : s'il porte un code de vérification, prouve le numéro et renvoie
+     * la réponse à faire ; null si le message ne concerne pas une vérification. La page de la personne constate la
+     * vérification à sa prochaine lecture et termine l'action (création de la boutique, connexion…).
+     */
+    public function handleWhatsApp(string $from, ?string $text): ?string
+    {
+        if (! preg_match('/code\s+de\s+v[ée]rification\D{0,10}(\d{6})/iu', (string) $text, $m)) {
+            return null;
+        }
+        $from = PhoneNumber::normalize($from) ?? $from;
+
+        $candidates = PhoneVerification::where('whatsapp_code', $m[1])->pending()->latest('id')->get();
+        $verification = $candidates->first(fn (PhoneVerification $v) => PhoneNumber::sameNumber($v->phone, $from)) ?? $candidates->first();
+
+        if ($verification === null) {
+            return "Ce code n'est plus valable (il expire au bout de ".self::TTL_MINUTES.' minutes). Recommencez depuis la page Jibiat Marchand.';
+        }
+        // Le WhatsApp de l'expéditeur peut encore porter l'ancien numéro ivoirien à 8 chiffres
+        if (! PhoneNumber::sameNumber($verification->phone, $from)) {
+            Log::info('Code de vérification envoyé depuis un autre numéro', ['expected' => $verification->phone, 'from' => $from]);
+
+            return 'Ce code a été demandé pour le numéro '.PhoneNumber::display($verification->phone)
+                .', mais votre message arrive du numéro '.PhoneNumber::display($from)
+                .'. Envoyez-le depuis le WhatsApp du '.PhoneNumber::display($verification->phone).'.';
+        }
+
+        if (! $verification->isVerified()) {
+            $verification->forceFill(['verified_at' => now(), 'verified_via' => 'whatsapp'])->save();
+        }
+
+        return match ($verification->purpose) {
+            VerificationPurpose::Signup => '✅ Numéro vérifié ! Retournez sur la page Jibiat Marchand : votre espace marchand s\'ouvre.',
+            VerificationPurpose::Invitation => '✅ Numéro vérifié ! Retournez sur la page : vous rejoignez l\'équipe de '.($verification->store?->name ?? 'la boutique').'.',
+            VerificationPurpose::PasswordReset => $verification->user_id
+                ? '✅ Numéro vérifié. Retournez sur la page pour choisir votre nouveau mot de passe.'
+                : 'Aucun compte Jibiat Marchand n\'est associé à ce numéro.',
+            VerificationPurpose::ConsoleLogin, VerificationPurpose::Login => $verification->user_id
+                ? '✅ Numéro vérifié. Retournez sur la page : vous y êtes connecté.'
+                : 'Aucun compte Jibiat Marchand n\'est associé à ce numéro.',
+        };
     }
 
     public function complete(PhoneVerification $verification): void
@@ -199,8 +296,18 @@ class PhoneVerifier
             VerificationPurpose::Invitation => 'pour rejoindre l\'espace marchand '.$verification->store?->name,
             VerificationPurpose::PasswordReset => 'pour changer votre mot de passe',
             VerificationPurpose::ConsoleLogin => 'pour vous connecter à la console Jibiat Marchand',
+            VerificationPurpose::Login => 'pour vous connecter',
         };
 
         return "{$code} est votre code Jibiat Marchand {$what}. Il expire dans ".self::TTL_MINUTES.' minutes. Ne le communiquez à personne.';
+    }
+
+    private function uniqueWhatsAppCode(): string
+    {
+        do {
+            $code = (string) random_int(100000, 999999);
+        } while (PhoneVerification::where('whatsapp_code', $code)->pending()->exists());
+
+        return $code;
     }
 }

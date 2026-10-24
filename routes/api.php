@@ -82,6 +82,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
         Route::post('signup', [SignupController::class, 'start'])->middleware('throttle:verification-start')->name('signup');
 
         Route::post('account/login', [PlatformAccountController::class, 'login'])->middleware('throttle:login')->name('account.login');
+        Route::post('account/whatsapp', [PlatformAccountController::class, 'whatsapp'])->middleware('throttle:verification-start')->name('account.whatsapp');
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('account/stores', [PlatformAccountController::class, 'stores'])->name('account.stores');
             Route::post('account/stores/{store}/open', [PlatformAccountController::class, 'open'])->whereNumber('store')->name('account.open');
@@ -89,9 +90,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
         });
     });
 
-    // ── Code SMS et mot de passe oublié : plateforme et boutiques ──
-    Route::middleware('zone:platform,store')->group(function () {
+    // ── Vérification d'un numéro (WhatsApp, code SMS en dernier recours) et mot de passe oublié : plateforme, boutiques, console ──
+    Route::middleware('zone:platform,store,console')->group(function () {
         Route::post('password/forgot', [PasswordResetController::class, 'start'])->middleware('throttle:verification-start')->name('password.forgot');
+        Route::get('verifications/{token}', [VerificationController::class, 'show'])->middleware('throttle:90,1')->name('verifications.show');
         Route::post('verifications/{token}/resend', [VerificationController::class, 'resend'])->middleware('throttle:verification-code')->name('verifications.resend');
         Route::post('verifications/{token}/confirm', [VerificationController::class, 'confirm'])->middleware('throttle:verification-code')->name('verifications.confirm');
     });
@@ -128,6 +130,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('whatsapp', [ConsoleWhatsAppController::class, 'show'])->name('whatsapp.show');
             Route::post('whatsapp/embedded', [ConsoleWhatsAppController::class, 'connect'])->middleware('throttle:login')->name('whatsapp.connect');
             Route::delete('whatsapp', [ConsoleWhatsAppController::class, 'disconnect'])->name('whatsapp.disconnect');
+            Route::post('whatsapp/qr', [ConsoleWhatsAppController::class, 'qr'])->middleware('throttle:30,1')->name('whatsapp.qr');
+            Route::get('whatsapp/qr', [ConsoleWhatsAppController::class, 'qrStatus'])->middleware('throttle:90,1')->name('whatsapp.qr.status');
+            Route::post('whatsapp/pair', [ConsoleWhatsAppController::class, 'pair'])->middleware('throttle:10,1')->name('whatsapp.pair');
+            Route::put('whatsapp/sms', [ConsoleWhatsAppController::class, 'sms'])->name('whatsapp.sms');
             Route::get('whatsapp/conversations', [ConsoleWhatsAppController::class, 'conversations'])->name('whatsapp.conversations');
             Route::get('whatsapp/conversations/{conversation}', [ConsoleWhatsAppController::class, 'messages'])->whereNumber('conversation')->name('whatsapp.messages');
             Route::post('whatsapp/conversations/{conversation}/reply', [ConsoleWhatsAppController::class, 'reply'])->whereNumber('conversation')->middleware('throttle:30,1')->name('whatsapp.reply');
@@ -137,6 +143,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
     // ── {slug}.jibiat-marchand.com : gestion de la boutique ──
     Route::middleware('zone:store')->group(function () {
         Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login')->name('auth.login');
+        Route::post('auth/whatsapp', [AuthController::class, 'whatsapp'])->middleware('throttle:verification-start')->name('auth.whatsapp');
         Route::get('invitations/{token}', [InvitationController::class, 'show'])->name('invitations.show');
         Route::post('invitations/{token}/accept', [InvitationController::class, 'accept'])->middleware('throttle:login')->name('invitations.accept');
 
@@ -337,6 +344,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('shipments/{shipment}/decision', [ShipmentController::class, 'decide'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.decision');
                 Route::post('shipments/{shipment}/return-request', [ShipmentController::class, 'requestReturn'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.return-request');
                 Route::post('shipments/{shipment}/notes', [ShipmentController::class, 'note'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.notes');
+                Route::post('shipments/{shipment}/rating', [ShipmentController::class, 'rate'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.rating');
                 Route::post('shipments/{shipment}/status', [ShipmentController::class, 'status'])->whereNumber('shipment')->name('shipments.status');
                 Route::post('shipments/{shipment}/refresh', [ShipmentController::class, 'refresh'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.refresh');
                 Route::get('shipments/{shipment}/message', [ShipmentController::class, 'message'])->whereNumber('shipment')->name('shipments.message');
