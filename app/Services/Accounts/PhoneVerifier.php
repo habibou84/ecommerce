@@ -247,13 +247,18 @@ class PhoneVerifier
         $from = PhoneNumber::normalize($from) ?? $from;
 
         $candidates = PhoneVerification::where('whatsapp_code', $m[1])->pending()->latest('id')->get();
-        $verification = $candidates->firstWhere('phone', $from) ?? $candidates->first();
+        $verification = $candidates->first(fn (PhoneVerification $v) => PhoneNumber::sameNumber($v->phone, $from)) ?? $candidates->first();
 
         if ($verification === null) {
             return "Ce code n'est plus valable (il expire au bout de ".self::TTL_MINUTES.' minutes). Recommencez depuis la page Jibiat Marchand.';
         }
-        if ($verification->phone !== $from) {
-            return 'Ce code a été demandé pour le numéro '.PhoneNumber::display($verification->phone).'. Envoyez-le depuis le WhatsApp de ce numéro.';
+        // Le WhatsApp de l'expéditeur peut encore porter l'ancien numéro ivoirien à 8 chiffres
+        if (! PhoneNumber::sameNumber($verification->phone, $from)) {
+            Log::info('Code de vérification envoyé depuis un autre numéro', ['expected' => $verification->phone, 'from' => $from]);
+
+            return 'Ce code a été demandé pour le numéro '.PhoneNumber::display($verification->phone)
+                .', mais votre message arrive du numéro '.PhoneNumber::display($from)
+                .'. Envoyez-le depuis le WhatsApp du '.PhoneNumber::display($verification->phone).'.';
         }
 
         if (! $verification->isVerified()) {

@@ -175,6 +175,26 @@ class WhatsAppVerificationTest extends TestCase
         $this->console('GET', 'auth/me')->assertOk()->assertJsonPath('data.name', 'Équipe Jibiat');
     }
 
+    public function test_whatsapp_still_under_the_old_8_digit_number_logs_in(): void
+    {
+        $this->linkSupportNumber();
+        $store = $this->createStore(['slug' => 'awa']);
+        $member = $this->addMember($store, User::factory()->create(['phone' => '+2250747123456']));
+
+        $start = $this->storeApi($store, 'POST', 'auth/whatsapp', ['phone' => '07 47 12 34 56'])->assertStatus(202);
+        $token = $start->json('verification.token');
+        $text = $start->json('verification.whatsapp.text');
+
+        // Un autre numéro qui finit pareil n'est pas le même
+        $this->message('+2250547123456', $text)->assertOk();
+        $this->storeApi($store, 'GET', "verifications/{$token}")->assertOk()->assertJsonPath('verification.status', 'pending');
+
+        // Compte WhatsApp jamais passé à 10 chiffres : +225 47 12 34 56 est le 07 47 12 34 56
+        $this->message('+22547123456', $text, 'in-2')->assertOk();
+        $this->storeApi($store, 'GET', "verifications/{$token}")->assertOk()->assertJsonPath('status', 'completed');
+        $this->assertAuthenticatedAs($member, 'web');
+    }
+
     public function test_forgotten_password_is_verified_by_whatsapp_then_changed_without_code(): void
     {
         $this->linkSupportNumber();
