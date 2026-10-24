@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import http, { errorMessage, fieldErrors } from '../lib/http'
 import Alert from './Alert.vue'
 import Field from './Field.vue'
+import WhatsAppSendButton from './WhatsAppSendButton.vue'
 
 /**
  * Preuve du numéro d'une vérification (création de boutique, invitation, mot de passe oublié, connexion) :
@@ -139,13 +140,11 @@ onBeforeUnmount(() => {
     <!-- WhatsApp : la personne envoie le message prérempli depuis son téléphone -->
     <div v-else-if="state.whatsapp && !smsMode" class="space-y-3">
       <ol class="list-decimal space-y-1 pl-5 text-sm text-slate-700">
-        <li>Appuyez sur le bouton : WhatsApp s'ouvre avec un message déjà écrit.</li>
+        <li>Appuyez sur le bouton (sur Android, choisissez WhatsApp ou WhatsApp Business) : le message est déjà écrit.</li>
         <li>Envoyez-le <strong>depuis le WhatsApp du {{ state.phone }}</strong>, sans le modifier.</li>
         <li>Revenez ici : la page continue toute seule.</li>
       </ol>
-      <a :href="state.whatsapp.link" target="_blank" rel="noopener" class="flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] py-3 font-semibold text-white hover:bg-[#1ebe5b]">
-        <span aria-hidden="true">💬</span> Envoyer le message WhatsApp
-      </a>
+      <WhatsAppSendButton :link="state.whatsapp.link" :text="state.whatsapp.text" />
       <p class="flex items-center justify-center gap-2 text-sm text-slate-500" aria-live="polite">
         <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-500" aria-hidden="true"></span> En attente de votre message…
       </p>
