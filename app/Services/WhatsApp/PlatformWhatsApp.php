@@ -169,10 +169,25 @@ class PlatformWhatsApp
     }
 
     /**
-     * Réponse depuis la console (dans les 24 h qui suivent le dernier message du client, règle de Meta).
+     * Réponse depuis la console : par le numéro relié par QR code s'il l'est (sans limite de 24 h), sinon par la
+     * connexion officielle, dans les 24 h qui suivent le dernier message du client (règle de Meta).
      */
     public function reply(SupportConversation $conversation, string $text, User $user): SupportMessage
     {
+        $link = app(SupportLink::class);
+        if ($link->isConnected()) {
+            try {
+                $id = $link->send($conversation->contact, $text);
+            } catch (RuntimeException $e) {
+                throw new BusinessRuleException($e->getMessage(), 'body');
+            }
+            $conversation->forceFill(['last_preview' => Str::limit($text, 197), 'last_message_at' => now()])->save();
+
+            return $conversation->messages()->create([
+                'direction' => 'out', 'type' => 'text', 'body' => $text, 'provider_message_id' => $id,
+                'status' => 'queued', 'user_id' => $user->id, 'sent_at' => now(),
+            ]);
+        }
         if (! $conversation->canReply()) {
             throw new BusinessRuleException('Le client n\'a pas écrit depuis plus de 24 h : WhatsApp n\'autorise plus de réponse libre. Répondez depuis votre téléphone.', 'body');
         }

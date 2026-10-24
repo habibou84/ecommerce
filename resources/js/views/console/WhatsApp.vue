@@ -1,14 +1,15 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
+import WhatsAppLink from '../../components/WhatsAppLink.vue'
 import http, { errorMessage } from '../../lib/http'
 import { boot } from '../../lib/boot'
 import { facebookRelayUrl, takeFacebookResult } from '../../lib/facebook'
 import { formatDateTime } from '../../lib/format'
 import { useConsoleStore } from '../../stores/console'
 
-// WhatsApp du support : le numéro reste dans l'application WhatsApp Business du téléphone (coexistence) et les
-// messages arrivent aussi ici, où l'on peut répondre
+// WhatsApp du support : relié par QR code ou par numéro (comme WhatsApp Web), ou connexion officielle de Meta où le
+// numéro reste dans l'application WhatsApp Business du téléphone (coexistence). Les messages arrivent ici, où l'on répond
 const console_ = useConsoleStore()
 const account = ref(null)
 const conversations = ref([])
@@ -50,7 +51,7 @@ onMounted(async () => {
       account.value = (await http.post('/console/whatsapp/embedded', result)).data.data
     }
     if (!account.value) await loadAccount()
-    if (account.value.connected) await loadConversations()
+    if (account.value.connected || account.value.linked) await loadConversations()
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -58,7 +59,7 @@ onMounted(async () => {
   }
   // Nouveaux messages relus toutes les 20 secondes
   timer = setInterval(async () => {
-    if (!account.value?.connected) return
+    if (!account.value?.connected && !account.value?.linked) return
     await loadConversations().catch(() => {})
     if (current.value) {
       const fresh = conversations.value.find((c) => c.id === current.value.id)
@@ -67,6 +68,11 @@ onMounted(async () => {
   }, 20000)
 })
 onUnmounted(() => clearInterval(timer))
+
+async function onLinked() {
+  account.value.linked = true
+  await loadConversations().catch(() => {})
+}
 
 function connect() {
   busy.value = true
@@ -77,8 +83,10 @@ function connect() {
 async function disconnect() {
   if (!window.confirm('Déconnecter le WhatsApp du support de la console ? Votre téléphone continue de recevoir les messages.')) return
   account.value = (await http.delete('/console/whatsapp')).data.data
-  conversations.value = []
-  current.value = null
+  if (!account.value.linked) {
+    conversations.value = []
+    current.value = null
+  }
 }
 
 async function send() {
@@ -99,7 +107,7 @@ async function send() {
   }
 }
 
-const STATUS = { sent: '✓', delivered: '✓✓', read: '✓✓ lu', failed: 'échec' }
+const STATUS = { queued: '🕓', sent: '✓', delivered: '✓✓', read: '✓✓ lu', failed: 'échec' }
 const title = computed(() => current.value ? (current.value.contact_name ? `${current.value.contact_name} · ${current.value.contact}` : current.value.contact) : '')
 </script>
 
@@ -108,8 +116,10 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
     <Alert v-if="error">{{ error }}</Alert>
     <p v-if="!account" class="text-sm text-slate-500">Chargement…</p>
 
-    <section v-else-if="!account.connected" class="card max-w-2xl space-y-3 p-4 text-sm">
-      <h3 class="text-base font-semibold">Recevoir les messages WhatsApp du support ici</h3>
+    <template v-else>
+      <WhatsAppLink support class="max-w-2xl" @linked="onLinked" />
+    <section v-if="!account.connected" class="card max-w-2xl space-y-3 p-4 text-sm">
+      <h3 class="text-base font-semibold">Ou : connexion officielle de Meta</h3>
       <p class="text-slate-600">Connectez le numéro WhatsApp Business de Jibiat Marchand. Les messages des clients arrivent dans la console et vous répondez depuis l'ordinateur.</p>
       <template v-if="account.embedded">
         <label class="flex items-start gap-2">
@@ -126,14 +136,12 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
       </template>
       <Alert v-else tone="warning">La connexion avec Facebook n'est pas encore activée sur le serveur (application Meta de la plateforme).</Alert>
     </section>
-
-    <template v-else>
-      <div class="flex flex-wrap items-center gap-3 text-sm">
+      <div v-else class="flex flex-wrap items-center gap-3 text-sm">
         <span class="rounded bg-emerald-100 px-2 py-0.5 text-emerald-800">Connecté · {{ account.display_phone }}<template v-if="account.name"> · {{ account.name }}</template></span>
         <span v-if="account.coexistence" class="text-slate-500">Aussi sur le téléphone (WhatsApp Business)</span>
         <button class="ml-auto text-slate-500 underline" @click="disconnect">Déconnecter</button>
       </div>
-      <div class="grid gap-4 md:grid-cols-[18rem_1fr]">
+      <div v-if="account.connected || account.linked" class="grid gap-4 md:grid-cols-[18rem_1fr]">
         <aside class="card overflow-hidden" :class="current ? 'hidden md:block' : ''">
           <input v-model="search" class="input m-2 w-[calc(100%-1rem)]" placeholder="Nom ou numéro" @input="loadConversations" />
           <p v-if="!conversations.length" class="p-4 text-sm text-slate-500">Aucun message pour l'instant.</p>

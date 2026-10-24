@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ConversationMessage;
 use App\Models\WhatsappLink;
 use App\Services\WhatsApp\Inbox;
+use App\Services\WhatsApp\SupportLink;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,6 +25,12 @@ class WhatsAppBridgeWebhookController extends Controller
         $expected = hash_hmac('sha256', $request->getContent(), $token);
         abort_unless($token !== '' && hash_equals($expected, (string) $request->header('X-Bridge-Signature')), 403, 'Signature invalide.');
 
+        // Numéro du support de la plateforme (console)
+        if ($request->input('session') === SupportLink::SESSION) {
+            $this->support($request);
+
+            return response()->json(['received' => true]);
+        }
         $link = preg_match('/^store-(\d+)$/', (string) $request->input('session'), $m)
             ? WhatsappLink::withoutGlobalScopes()->where('store_id', (int) $m[1])->first() : null;
         if ($link === null) {
@@ -40,6 +47,19 @@ class WhatsAppBridgeWebhookController extends Controller
         };
 
         return response()->json(['received' => true]);
+    }
+
+    private function support(Request $request): void
+    {
+        $support = app(SupportLink::class);
+        match ((string) $request->input('type')) {
+            'status' => $support->status((string) $request->input('status'), $request->input('phone'), $request->input('name'), $request->input('error')),
+            'message' => $support->receive($request->only(['id', 'from', 'name', 'kind', 'text', 'lat', 'lng', 'at'])),
+            'outgoing' => $support->fromPhone((string) $request->input('to'), (string) $request->input('text'), (string) $request->input('id')),
+            'sent', 'delivered', 'read' => $support->advance((string) $request->input('id'), (string) $request->input('type')),
+            'failed' => $support->advance((string) $request->input('id'), 'failed', (string) $request->input('error')),
+            default => null,
+        };
     }
 
     private function status(WhatsappLink $link, Request $request): void

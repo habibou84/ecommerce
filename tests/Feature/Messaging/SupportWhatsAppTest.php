@@ -31,9 +31,15 @@ class SupportWhatsAppTest extends TestCase
                 str_ends_with($path, '/subscribed_apps') => Http::response(['success' => true]),
                 str_ends_with($path, '/9001') => Http::response(['display_phone_number' => '+225 05 07 01 67 39', 'verified_name' => 'Jibiat Marchand', 'id' => '9001']),
                 str_ends_with($path, '/9001/messages') => Http::response(['messages' => [['id' => 'wamid.reponse']]]),
+                str_ends_with($r->url(), '/sessions/support/start') => Http::response(['session' => 'support', 'status' => 'qr', 'qr' => 'data:image/png;base64,QR']),
+                str_ends_with($r->url(), '/sessions/support/pair') => Http::response(['session' => 'support', 'status' => 'qr', 'code' => 'ABCD-EFGH']),
+                str_ends_with($r->url(), '/sessions/support/send') => Http::response(['id' => 'qr-1'], 202),
+                str_ends_with($r->url(), '/sessions/support/logout') => Http::response(['status' => 'logged_out']),
+                str_ends_with($r->url(), '/sessions/support') => Http::response(['session' => 'support', 'status' => 'connected', 'phone' => '+2250507016739']),
                 default => Http::response(['error' => ['message' => 'inattendu '.$path]], 404),
             };
         });
+        config(['services.whatsapp_bridge' => ['url' => 'http://127.0.0.1:3210', 'token' => 'bridge-secret']]);
         $admin = User::factory()->create(['phone' => '+2250701020304', 'password' => 'motdepasse', 'name' => 'Équipe Jibiat']);
         $admin->forceFill(['is_super_admin' => true])->save();
     }
@@ -50,6 +56,54 @@ class SupportWhatsAppTest extends TestCase
         return $this->call('POST', 'http://api.localhost/webhooks/whatsapp', [], [], [], [
             'CONTENT_TYPE' => 'application/json', 'HTTP_X_HUB_SIGNATURE_256' => 'sha256='.hash_hmac('sha256', $body, 'platform-secret'),
         ], $body);
+    }
+
+    private function bridge(array $event): TestResponse
+    {
+        $body = json_encode($event + ['session' => 'support']);
+
+        return $this->call('POST', 'http://api.localhost/webhooks/whatsapp-bridge', [], [], [], [
+            'CONTENT_TYPE' => 'application/json', 'HTTP_X_BRIDGE_SIGNATURE' => hash_hmac('sha256', $body, 'bridge-secret'),
+        ], $body);
+    }
+
+    public function test_support_number_linked_with_a_qr_code_or_the_number(): void
+    {
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse'])->assertStatus(202);
+        $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+
+        $this->console('GET', 'whatsapp')->assertOk()->assertJsonPath('data.connected', false)->assertJsonPath('data.linked', false);
+        $this->console('GET', 'whatsapp/link')->assertOk()->assertJsonPath('data.available', true)->assertJsonPath('data.status', 'none');
+        // QR code, ou code à saisir avec le numéro
+        $this->console('POST', 'whatsapp/link')->assertOk()->assertJsonPath('data.status', 'pending')->assertJsonPath('data.qr', 'data:image/png;base64,QR');
+        $this->console('POST', 'whatsapp/link/pair', ['phone' => '05 07 01 67 39'])->assertOk()->assertJsonPath('data.code', 'ABCD-EFGH');
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/sessions/support/pair') && $r['phone'] === '+2250507016739' && $r->hasHeader('Authorization', 'Bearer bridge-secret'));
+
+        // Le téléphone a scanné
+        $this->bridge(['type' => 'status', 'status' => 'connected', 'phone' => '+2250507016739', 'name' => 'Jibiat Support'])->assertOk();
+        $this->console('GET', 'whatsapp')->assertJsonPath('data.linked', true);
+        $this->console('GET', 'whatsapp/link')->assertJsonPath('data.status', 'connected')->assertJsonPath('data.qr', null);
+
+        // Message d'un marchand, reçu une fois même rejoué
+        $event = ['type' => 'message', 'id' => 'IN1', 'from' => '2250708091011', 'name' => 'Awa', 'kind' => 'text', 'text' => 'Bonjour, je n\'arrive pas à me connecter'];
+        $this->bridge($event)->assertOk();
+        $this->bridge($event)->assertOk();
+        $id = $this->console('GET', 'whatsapp/conversations')->assertJsonPath('meta.unread', 1)->assertJsonPath('data.0.can_reply', true)->json('data.0.id');
+        $this->travel(2)->days();
+
+        // Réponse sans limite de 24 h, par le numéro relié
+        $this->console('POST', "whatsapp/conversations/{$id}/reply", ['body' => 'Bonjour Awa, on regarde.'])->assertCreated()->assertJsonPath('data.status', 'queued');
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/sessions/support/send') && $r['to'] === '+2250708091011');
+        $this->bridge(['type' => 'read', 'id' => 'qr-1'])->assertOk();
+        $this->bridge(['type' => 'delivered', 'id' => 'qr-1'])->assertOk(); // pas de retour en arrière
+        // Écrit depuis le téléphone du support : recopié dans le fil
+        $this->bridge(['type' => 'outgoing', 'id' => 'TEL1', 'to' => '2250708091011', 'text' => 'Réglé ✅'])->assertOk();
+        $messages = $this->console('GET', "whatsapp/conversations/{$id}")->assertJsonCount(3, 'data.messages')->json('data.messages');
+        $this->assertSame(['read', 'Équipe Jibiat', 'Téléphone'], [$messages[1]['status'], $messages[1]['author'], $messages[2]['author']]);
+
+        // Déconnexion
+        $this->console('DELETE', 'whatsapp/link')->assertOk()->assertJsonPath('data.status', 'none');
+        $this->console('GET', 'whatsapp')->assertJsonPath('data.linked', false);
     }
 
     public function test_support_number_is_connected_and_messages_are_read_and_answered_in_the_console(): void

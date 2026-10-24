@@ -11,7 +11,7 @@ use RuntimeException;
 
 /**
  * Service whatsapp-bridge (dossier whatsapp-bridge, sur le serveur) : WhatsApp relié par QR code, une session par
- * boutique. Démarrer la session et lire son QR code, envoyer un message (mis en file, réponse immédiate), se
+ * boutique (« store-12 ») et une pour le support de la plateforme (« support »). Démarrer la session et lire son QR code, envoyer un message (mis en file, réponse immédiate), se
  * déconnecter. Les événements du service arrivent sur WhatsAppBridgeWebhookController.
  */
 class WhatsAppBridge
@@ -24,9 +24,9 @@ class WhatsAppBridge
     /**
      * @return array{status: string, qr: ?string, code: ?string, phone: ?string, name: ?string}
      */
-    public function start(WhatsappLink $link): array
+    public function start(WhatsappLink|string $link): array
     {
-        return $this->describe($this->call(fn () => $this->http(30)->post('/sessions/'.$link->session().'/start')));
+        return $this->describe($this->call(fn () => $this->http(30)->post('/sessions/'.self::session($link).'/start')));
     }
 
     /**
@@ -34,22 +34,22 @@ class WhatsAppBridge
      *
      * @return array{status: string, qr: ?string, code: ?string, phone: ?string, name: ?string}
      */
-    public function pair(WhatsappLink $link, string $phone): array
+    public function pair(WhatsappLink|string $link, string $phone): array
     {
-        return $this->describe($this->call(fn () => $this->http(30)->post('/sessions/'.$link->session().'/pair', ['phone' => $phone])));
+        return $this->describe($this->call(fn () => $this->http(30)->post('/sessions/'.self::session($link).'/pair', ['phone' => $phone])));
     }
 
     /**
      * @return array{status: string, qr: ?string, code: ?string, phone: ?string, name: ?string}
      */
-    public function status(WhatsappLink $link): array
+    public function status(WhatsappLink|string $link): array
     {
-        return $this->describe($this->call(fn () => $this->http()->get('/sessions/'.$link->session())));
+        return $this->describe($this->call(fn () => $this->http()->get('/sessions/'.self::session($link))));
     }
 
-    public function logout(WhatsappLink $link): void
+    public function logout(WhatsappLink|string $link): void
     {
-        $this->call(fn () => $this->http(30)->post('/sessions/'.$link->session().'/logout'));
+        $this->call(fn () => $this->http(30)->post('/sessions/'.self::session($link).'/logout'));
     }
 
     /**
@@ -57,9 +57,14 @@ class WhatsAppBridge
      *
      * @return string identifiant donné par le service
      */
-    public function send(WhatsappLink $link, string $to, string $text): string
+    public function send(WhatsappLink|string $link, string $to, string $text): string
     {
-        return (string) $this->call(fn () => $this->http()->post('/sessions/'.$link->session().'/send', ['to' => $to, 'text' => $text]))->json('id');
+        return (string) $this->call(fn () => $this->http()->post('/sessions/'.self::session($link).'/send', ['to' => $to, 'text' => $text]))->json('id');
+    }
+
+    private static function session(WhatsappLink|string $link): string
+    {
+        return is_string($link) ? $link : $link->session();
     }
 
     private function http(int $timeout = 15): PendingRequest

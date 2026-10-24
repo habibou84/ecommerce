@@ -2,7 +2,7 @@
  * WhatsApp de la boutique relié par QR code (comme WhatsApp Web), pour la boîte Messages de Jibiat Marchand.
  * Repris du service de Jibiat (habibou84/deliverynew, dossier whatsapp-bridge).
  *
- * Une session par boutique (« store-12 »), gardée dans storage/app/whatsapp-bridge/<session>. Jibiat Marchand pilote
+ * Une session par boutique (« store-12 »), plus « support » pour le numéro du support de la plateforme, gardée dans storage/app/whatsapp-bridge/<session>. Jibiat Marchand pilote
  * ce service sur le serveur lui-même (127.0.0.1, jeton WHATSAPP_BRIDGE_TOKEN) : démarrer une session et lire son QR
  * code, envoyer une réponse, se déconnecter. Le service prévient Jibiat Marchand (webhook signé avec le même jeton) :
  * état de la session, messages des clients, messages écrits depuis le téléphone, réponses envoyées, remises ou lues.
@@ -382,7 +382,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && req.url === '/health') return reply(200, { ok: true, sessions: sessions.size })
 
-    const match = req.url.match(/^\/sessions\/(store-[0-9]{1,12})(\/(start|pair|send|logout))?$/)
+    const match = req.url.match(/^\/sessions\/(store-[0-9]{1,12}|support)(\/(start|pair|send|logout))?$/)
     if (!match) return reply(404, { message: 'Adresse inconnue.' })
     const [, id, , action] = match
 
@@ -426,7 +426,7 @@ const server = http.createServer(async (req, res) => {
 
 // Sessions déjà reliées : reprises au démarrage, sans nouveau QR code
 for (const id of fs.readdirSync(DATA_DIR)) {
-  if (/^store-[0-9]{1,12}$/.test(id) && fs.existsSync(path.join(DATA_DIR, id, 'creds.json'))) {
+  if (/^(store-[0-9]{1,12}|support)$/.test(id) && fs.existsSync(path.join(DATA_DIR, id, 'creds.json'))) {
     open(id).catch((e) => log.error({ err: e, session: id }, 'session non reprise'))
   }
 }

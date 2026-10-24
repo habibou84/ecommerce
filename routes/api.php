@@ -128,6 +128,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('whatsapp', [ConsoleWhatsAppController::class, 'show'])->name('whatsapp.show');
             Route::post('whatsapp/embedded', [ConsoleWhatsAppController::class, 'connect'])->middleware('throttle:login')->name('whatsapp.connect');
             Route::delete('whatsapp', [ConsoleWhatsAppController::class, 'disconnect'])->name('whatsapp.disconnect');
+            Route::get('whatsapp/link', [ConsoleWhatsAppController::class, 'link'])->name('whatsapp.link');
+            Route::post('whatsapp/link', [ConsoleWhatsAppController::class, 'linkStart'])->middleware('throttle:20,1')->name('whatsapp.link.start');
+            Route::post('whatsapp/link/pair', [ConsoleWhatsAppController::class, 'linkPair'])->middleware('throttle:10,1')->name('whatsapp.link.pair');
+            Route::delete('whatsapp/link', [ConsoleWhatsAppController::class, 'unlink'])->name('whatsapp.link.unlink');
             Route::get('whatsapp/conversations', [ConsoleWhatsAppController::class, 'conversations'])->name('whatsapp.conversations');
             Route::get('whatsapp/conversations/{conversation}', [ConsoleWhatsAppController::class, 'messages'])->whereNumber('conversation')->name('whatsapp.messages');
             Route::post('whatsapp/conversations/{conversation}/reply', [ConsoleWhatsAppController::class, 'reply'])->whereNumber('conversation')->middleware('throttle:30,1')->name('whatsapp.reply');

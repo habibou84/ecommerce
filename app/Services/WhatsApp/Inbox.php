@@ -136,17 +136,7 @@ class Inbox
                 is_numeric($event['total'] ?? null) ? (int) $event['total'] : null, $text, (string) ($event['id'] ?? '') ?: null,
                 isset($event['at']) ? Carbon::createFromTimestamp((int) $event['at']) : now(), true);
         }
-        $caption = fn (string $label) => trim($label.($text ? ' : '.$text : ''));
-        $body = match ($kind) {
-            'text' => $text,
-            'image' => $caption('📷 Photo'),
-            'video' => $caption('🎬 Vidéo'),
-            'audio' => '🎤 Message vocal',
-            'sticker' => 'Autocollant',
-            'document' => $caption('📄 Document'),
-            'location' => self::location(['latitude' => $event['lat'] ?? null, 'longitude' => $event['lng'] ?? null, 'name' => $text]),
-            default => 'Message non affichable ici : ouvrez WhatsApp pour le voir.',
-        };
+        $body = self::linkedBody($event);
         $from = '+'.ltrim((string) ($event['from'] ?? ''), '+');
         $id = (string) ($event['id'] ?? '');
         if ($body === null || $body === '' || $from === '+' || $id === '' || ConversationMessage::forStore($link->store_id)->where('provider_message_id', $id)->exists()) {
@@ -156,6 +146,28 @@ class Inbox
         $type = in_array($kind, ['text', 'image', 'audio', 'video', 'document', 'location', 'sticker'], true) ? $kind : 'other';
 
         return $this->land($link->store_id, $from, $event['name'] ?? null, $type, $body, $id, $sentAt, true);
+    }
+
+    /**
+     * Texte lisible d'un message reçu par le WhatsApp relié (boîte Messages et support de la plateforme).
+     *
+     * @param  array<string, mixed>  $event
+     */
+    public static function linkedBody(array $event): ?string
+    {
+        $text = isset($event['text']) ? trim((string) $event['text']) : null;
+        $caption = fn (string $label) => trim($label.($text ? ' : '.$text : ''));
+
+        return match ((string) ($event['kind'] ?? 'text')) {
+            'text' => $text,
+            'image' => $caption('📷 Photo'),
+            'video' => $caption('🎬 Vidéo'),
+            'audio' => '🎤 Message vocal',
+            'sticker' => 'Autocollant',
+            'document' => $caption('📄 Document'),
+            'location' => self::location(['latitude' => $event['lat'] ?? null, 'longitude' => $event['lng'] ?? null, 'name' => $text]),
+            default => 'Message non affichable ici : ouvrez WhatsApp pour le voir.',
+        };
     }
 
     /**

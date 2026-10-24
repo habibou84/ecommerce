@@ -7,20 +7,63 @@ use App\Models\AdminAction;
 use App\Models\SupportConversation;
 use App\Models\SupportMessage;
 use App\Services\WhatsApp\PlatformWhatsApp;
+use App\Services\WhatsApp\SupportLink;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Jibiat\Socle\PhoneNumber;
+use RuntimeException;
 
 /**
- * Console : WhatsApp du support (connexion du numéro, conversations, réponses).
+ * Console : WhatsApp du support (connexion officielle de Meta ou numéro relié par QR code, conversations, réponses).
  */
 class ConsoleWhatsAppController extends Controller
 {
-    public function __construct(private readonly PlatformWhatsApp $whatsapp) {}
+    public function __construct(private readonly PlatformWhatsApp $whatsapp, private readonly SupportLink $link) {}
 
     public function show(): JsonResponse
     {
-        return response()->json(['data' => $this->whatsapp->present()]);
+        return response()->json(['data' => $this->whatsapp->present() + ['linked' => $this->link->isConnected()]]);
+    }
+
+    /** Numéro du support relié par QR code ou par numéro (comme WhatsApp Web) */
+    public function link(): JsonResponse
+    {
+        return response()->json(['data' => $this->link->present()]);
+    }
+
+    public function linkStart(Request $request): JsonResponse
+    {
+        try {
+            $data = $this->link->start();
+        } catch (RuntimeException $e) {
+            throw ValidationException::withMessages(['link' => $e->getMessage()]);
+        }
+        $this->log($request, 'support_whatsapp_link_started');
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function linkPair(Request $request): JsonResponse
+    {
+        $data = $request->validate(['phone' => ['required', 'string', 'max:30']], [], ['phone' => 'numéro WhatsApp']);
+        $phone = PhoneNumber::normalize($data['phone']) ?? throw ValidationException::withMessages(['phone' => 'Numéro WhatsApp invalide.']);
+        try {
+            $result = $this->link->pair($phone);
+        } catch (RuntimeException $e) {
+            throw ValidationException::withMessages(['phone' => $e->getMessage()]);
+        }
+        $this->log($request, 'support_whatsapp_link_started');
+
+        return response()->json(['data' => $result]);
+    }
+
+    public function unlink(Request $request): JsonResponse
+    {
+        $this->link->logout();
+        $this->log($request, 'support_whatsapp_unlinked');
+
+        return response()->json(['data' => $this->link->present()]);
     }
 
     public function connect(Request $request): JsonResponse
@@ -82,7 +125,7 @@ class ConsoleWhatsAppController extends Controller
         return [
             'id' => $c->id, 'contact' => PhoneNumber::display($c->contact), 'phone' => $c->contact, 'contact_name' => $c->contact_name,
             'last_preview' => $c->last_preview, 'last_message_at' => $c->last_message_at?->toIso8601String(),
-            'unread_count' => $c->unread_count, 'can_reply' => $c->canReply(),
+            'unread_count' => $c->unread_count, 'can_reply' => $c->canReply() || $this->link->isConnected(),
         ];
     }
 
