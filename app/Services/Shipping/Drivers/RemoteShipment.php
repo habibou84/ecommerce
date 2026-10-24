@@ -28,6 +28,8 @@ final class RemoteShipment
         public readonly ?string $scheduledDate = null,
         public readonly ?bool $needsDecision = null,
         public readonly ?bool $returnRequested = null,
+        /** Notes du livreur (contrat 1.3) : can_rate, merchant, recipient ; null si l'entreprise ne les envoie pas */
+        public readonly ?array $ratings = null,
     ) {}
 
     /**
@@ -61,6 +63,7 @@ final class RemoteShipment
             scheduledDate: $scheduled,
             needsDecision: array_key_exists('needs_decision', $order) ? (bool) $order['needs_decision'] : null,
             returnRequested: array_key_exists('return_requested', $order) ? (bool) $order['return_requested'] : null,
+            ratings: is_array($order['ratings'] ?? null) ? $order['ratings'] : null,
         );
     }
 }

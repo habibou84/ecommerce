@@ -344,6 +344,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('shipments/{shipment}/decision', [ShipmentController::class, 'decide'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.decision');
                 Route::post('shipments/{shipment}/return-request', [ShipmentController::class, 'requestReturn'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.return-request');
                 Route::post('shipments/{shipment}/notes', [ShipmentController::class, 'note'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.notes');
+                Route::post('shipments/{shipment}/rating', [ShipmentController::class, 'rate'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.rating');
                 Route::post('shipments/{shipment}/status', [ShipmentController::class, 'status'])->whereNumber('shipment')->name('shipments.status');
                 Route::post('shipments/{shipment}/refresh', [ShipmentController::class, 'refresh'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.refresh');
                 Route::get('shipments/{shipment}/message', [ShipmentController::class, 'message'])->whereNumber('shipment')->name('shipments.message');

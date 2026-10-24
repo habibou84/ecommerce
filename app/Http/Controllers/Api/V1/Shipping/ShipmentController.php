@@ -18,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Jibiat\Socle\Contract\Contract;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -172,6 +173,19 @@ class ShipmentController extends Controller
     {
         $data = $request->validate(['note' => ['required', 'string', 'max:2000']], [], ['note' => 'note']);
         $model = $this->desk->noteToCarrier(Shipment::findOrFail($shipment), $data['note'], $request->user());
+
+        return response()->json(['data' => $this->present($model)]);
+    }
+
+    public function rate(Request $request, int $shipment): JsonResponse
+    {
+        $data = $request->validate([
+            'score' => ['required', 'integer', 'between:1,5'],
+            'tags' => ['nullable', 'array', 'max:7'],
+            'tags.*' => ['string', Rule::in(array_keys(Contract::MERCHANT_RATING_TAGS))],
+            'comment' => ['nullable', 'string', 'max:500'],
+        ], [], ['score' => 'note', 'tags' => 'remarques', 'comment' => 'commentaire']);
+        $model = $this->desk->rateCourier(Shipment::findOrFail($shipment), $data['score'], $data['tags'] ?? [], $data['comment'] ?? null, $request->user());
 
         return response()->json(['data' => $this->present($model)]);
     }

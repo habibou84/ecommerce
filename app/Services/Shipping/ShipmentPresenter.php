@@ -76,6 +76,9 @@ class ShipmentPresenter
             'return_requested' => $s->return_requested,
             // Actions possibles sur la course chez l'entreprise de livraison (Delivery App)
             'carrier_actions' => self::carrierActions($s),
+            // Notes du livreur chez l'entreprise de livraison : peut-on le noter, note de la boutique, note du client
+            'carrier_ratings' => $s->carrier_ratings,
+            'can_rate_courier' => $s->connection?->isApi() && $s->carrier_tracking_code && ($s->carrier_ratings['can_rate'] ?? false),
             'attempts_count' => $s->attempts_count,
             'failure_reason' => $s->failure_reason,
             'requested_at' => $s->requested_at?->toIso8601String(),
