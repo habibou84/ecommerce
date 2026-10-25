@@ -6,14 +6,23 @@ export const LIVE_TRAINING = [
       points: ['Vos clients voient le vrai produit, porté, en vraie couleur : la confiance s\'installe', 'Ils posent leurs questions et achètent tout de suite : les pièces sont limitées', 'Codes, réservations, liste d\'attente et commandes : Jibiat Marchand s\'en occupe'],
       checklist: ['Je sais pourquoi le live fait vendre', 'J\'ai choisi le jour et l\'heure de mon premier live'],
     },
-    { n: 2, title: 'Choisir ses articles' },
+    {
+      n: 2, title: 'Choisir ses articles', seconds: 60,
+      points: ['8 à 15 articles qui passent bien en vidéo : ils se portent, de la couleur, une belle matière', 'Stock vérifié (tailles comprises) et un prix spécial live, un peu plus bas', 'D\'abord un article qui attire, puis on alterne ; une surprise pour la fin'],
+      checklist: ['J\'ai choisi 8 à 15 articles', 'J\'ai vérifié les pièces et les tailles disponibles', 'Chaque article a son prix du live', 'Mon article surprise est prévu', 'Mes articles et leurs cartons sont prêts, dans l\'ordre'],
+      action: { label: 'Préparer un live', prepare: true },
+    },
     {
       n: 3, title: 'Préparer votre live dans Jibiat Marchand', seconds: 61,
       points: ['Ventes › Vendre en live › « Préparer un live »', 'Ajoutez vos articles dans l\'ordre : chacun reçoit son code (A1, A2…)', 'Prix du live et pièces proposées : épuisé, la liste d\'attente prend le relais'],
       checklist: ['Mon live a un nom', 'Mes articles sont dans l\'ordre de présentation', 'Chaque article a son prix du live et ses pièces'],
       action: { label: 'Préparer un live', prepare: true },
     },
-    { n: 4, title: 'Installer son coin live' },
+    {
+      n: 4, title: 'Installer son coin live', seconds: 69,
+      points: ['Lumière face à vous (fenêtre le jour, lampe ou anneau le soir), téléphone sur trépied, vertical', 'Fond simple et rangé, endroit calme ; un micro-cravate aide beaucoup', 'Connexion testée, téléphone branché, un 2e téléphone pour les réservations et le code'],
+      checklist: ['Je suis face à la lumière', 'Mon téléphone est sur un trépied, à hauteur des yeux', 'Mon fond est rangé et l\'endroit est calme', 'Connexion testée, téléphone branché', 'J\'ai fait un essai de 5 minutes'],
+    },
   ] },
   { part: 'Afficher les bonnes informations', modules: [
     {
