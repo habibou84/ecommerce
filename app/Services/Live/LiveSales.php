@@ -51,6 +51,10 @@ class LiveSales
         if ($session?->status === 'ended') {
             throw new BusinessRuleException('Ce live est terminé : créez-en un nouveau.');
         }
+        if ($session?->status === 'live') {
+            // Les codes déjà annoncés ne doivent pas changer : pendant le live, on ajoute (addItems)
+            throw new BusinessRuleException('Le live est en cours : ajoutez les articles depuis l\'écran du live.');
+        }
         $variants = ProductVariant::forStore($store->id)->with('product')->whereIn('id', collect($data['items'])->pluck('variant_id'))->get()->keyBy('id');
 
         return DB::transaction(function () use ($store, $session, $data, $user, $variants) {
@@ -87,6 +91,60 @@ class LiveSales
 
             return $session->fresh('items.variant.product');
         });
+    }
+
+    /**
+     * Articles ajoutés pendant le live (ou avant) : les codes déjà annoncés ne changent pas, un nouvel article prend
+     * le code libre suivant ; un article déjà présent reçoit les pièces en plus (liste d'attente servie).
+     *
+     * @param  list<array{variant_id: int, price?: ?int, quantity: int}>  $lines
+     * @return Collection<int, LiveItem> articles ajoutés ou complétés
+     */
+    public function addItems(LiveSession $session, array $lines): Collection
+    {
+        if ($session->status === 'ended') {
+            throw new BusinessRuleException('Ce live est terminé : créez-en un nouveau.');
+        }
+        $variants = ProductVariant::forStore($session->store_id)->with('product')->whereIn('id', collect($lines)->pluck('variant_id'))->get()->keyBy('id');
+
+        $touched = DB::transaction(function () use ($session, $lines, $variants) {
+            LiveSession::forStore($session->store_id)->lockForUpdate()->find($session->id);
+            $existing = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->get();
+            if ($existing->count() + count($lines) > 60) {
+                throw new BusinessRuleException('60 articles au plus dans un live.');
+            }
+            $used = $existing->pluck('code')->all();
+            $position = (int) $existing->max('position');
+            $index = 0;
+            $touched = collect();
+            foreach (array_values($lines) as $i => $line) {
+                $variant = $variants->get($line['variant_id']);
+                if ($variant === null || $variant->product === null) {
+                    throw new BusinessRuleException('Cet article n\'existe plus dans votre catalogue.', "items.{$i}.variant_id");
+                }
+                $item = $existing->firstWhere('variant_id', $variant->id);
+                if ($item !== null) {
+                    $item->update(['quantity' => $item->quantity + $line['quantity']]);
+                } else {
+                    while (in_array($code = self::code($index), $used, true)) {
+                        $index++;
+                    }
+                    $used[] = $code;
+                    $item = LiveItem::create([
+                        'store_id' => $session->store_id, 'live_session_id' => $session->id, 'variant_id' => $variant->id,
+                        'code' => $code, 'price' => $line['price'] ?? $variant->price, 'quantity' => $line['quantity'], 'position' => ++$position,
+                    ]);
+                    $existing->push($item);
+                }
+                $touched->push($item);
+            }
+
+            return $touched;
+        });
+        // Pièces en plus sur un article épuisé : la liste d'attente est servie
+        $touched->each(fn (LiveItem $item) => $this->promote($item->fresh()));
+
+        return $touched;
     }
 
     public function start(LiveSession $session): LiveSession
@@ -181,6 +239,58 @@ class LiveSales
         }
 
         return $reservation->fresh(['item', 'order']);
+    }
+
+    /**
+     * Réservation depuis la page du live : plusieurs articles, et plusieurs pièces d'un même article, en une fois.
+     * Une seule commande pour tout ce qui est disponible ; le reste passe en liste d'attente.
+     *
+     * @param  array<int, int>  $lines  live_item_id => pièces
+     * @param  array{name?: ?string, phone?: ?string, place_id?: ?int, address?: ?string}  $customer
+     * @return Collection<int, LiveReservation>
+     */
+    public function reserveLines(LiveSession $session, array $lines, array $customer, string $source): Collection
+    {
+        if ($session->status !== 'live') {
+            throw new BusinessRuleException('Ce live n\'est pas en cours.');
+        }
+        $items = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->whereIn('id', array_keys($lines))->orderBy('position')->get();
+        if ($items->count() !== count($lines)) {
+            throw new BusinessRuleException('Un des articles n\'est plus proposé dans ce live : rechargez la page.');
+        }
+        $phone = PhoneNumber::normalize($customer['phone'] ?? null);
+        $placeId = isset($customer['place_id']) ? $this->places->forStore($session->store)->firstWhere('id', (int) $customer['place_id'])?->id : null;
+        $complete = $phone !== null && ($placeId !== null || filled($customer['address'] ?? null));
+
+        $created = DB::transaction(function () use ($session, $items, $lines, $customer, $source, $phone, $placeId, $complete) {
+            LiveItem::forStore($session->store_id)->whereIn('id', $items->pluck('id'))->lockForUpdate()->get();
+            $created = collect();
+            foreach ($items as $item) {
+                for ($i = 0; $i < $lines[$item->id]; $i++) {
+                    $created->push(LiveReservation::create([
+                        'store_id' => $session->store_id,
+                        'live_session_id' => $session->id,
+                        'live_item_id' => $item->id,
+                        'source' => $source,
+                        'status' => $this->remaining($item) > 0 ? 'reserved' : 'waiting',
+                        'customer_name' => filled($customer['name'] ?? null) ? mb_substr(trim($customer['name']), 0, 120) : null,
+                        'customer_phone' => $phone,
+                        'shipping_place_id' => $placeId,
+                        'shipping_address' => filled($customer['address'] ?? null) ? mb_substr(trim($customer['address']), 0, 255) : null,
+                        'expires_at' => ! $complete && $phone !== null ? now()->addMinutes($session->hold_minutes) : null,
+                    ]));
+                }
+            }
+
+            return $created;
+        });
+
+        $held = $created->where('status', 'reserved');
+        if ($complete && $held->isNotEmpty()) {
+            $this->order($held);
+        }
+
+        return LiveReservation::with('item', 'order')->whereIn('id', $created->pluck('id'))->orderBy('id')->get();
     }
 
     /**
@@ -444,6 +554,7 @@ class LiveSales
         $session = $first->session;
         $store = Store::find($first->store_id);
         $items = LiveItem::forStore($store->id)->whereIn('id', $reservations->pluck('live_item_id'))->get()->keyBy('id');
+        $byItem = $reservations->groupBy('live_item_id');
         try {
             $order = $this->desk->create($store, [
                 'source' => 'live',
@@ -452,9 +563,10 @@ class LiveSales
                 'delivery_method' => 'delivery',
                 'shipping_place_id' => $first->shipping_place_id,
                 'shipping_address' => $first->shipping_address,
-                'internal_note' => "Live « {$session->title} » : ".$reservations->map(fn ($r) => $items->get($r->live_item_id)?->code)->implode(', '),
-                'items' => $reservations->map(fn ($r) => [
-                    'variant_id' => $items->get($r->live_item_id)->variant_id, 'quantity' => 1, 'unit_price' => $items->get($r->live_item_id)->price,
+                'internal_note' => "Live « {$session->title} » : ".$byItem->map(fn ($rs, $id) => $items->get($id)?->code.($rs->count() > 1 ? ' ×'.$rs->count() : ''))->implode(', '),
+                // Une ligne par article, une pièce par réservation
+                'items' => $byItem->map(fn ($rs, $id) => [
+                    'variant_id' => $items->get($id)->variant_id, 'quantity' => $rs->count(), 'unit_price' => $items->get($id)->price,
                 ])->values()->all(),
             ], null, 'customer');
         } catch (BusinessRuleException|QuotaExceededException $e) {

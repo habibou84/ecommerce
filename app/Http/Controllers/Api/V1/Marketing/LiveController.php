@@ -70,6 +70,23 @@ class LiveController extends Controller
         return $this->state($this->live->save($this->currentStore(), $this->session($session), $this->validated($request), $request->user()));
     }
 
+    /**
+     * Articles ajoutés pendant le live : codes déjà annoncés inchangés.
+     */
+    public function addItems(Request $request, int $session): JsonResponse
+    {
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1', 'max:20'],
+            'items.*.variant_id' => ['required', 'integer', 'distinct'],
+            'items.*.price' => ['nullable', 'integer', 'min:0', 'max:100000000'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:9999'],
+        ]);
+        $live = $this->session($session);
+        $added = $this->live->addItems($live, $data['items']);
+
+        return response()->json(['data' => $this->live->state($live->fresh()), 'meta' => ['codes' => $added->pluck('code')->unique()->values()]]);
+    }
+
     public function start(int $session): JsonResponse
     {
         return $this->state($this->live->start($this->session($session)));

@@ -465,9 +465,24 @@ function livePage() {
   const dialog = $('[data-live-dialog]')
   if (!root || !dialog) return
   const form = $('[data-live-form]')
+  const bar = $('[data-live-bar]')
   const placeInput = $('[data-place-search]', form)
   const options = $('[data-place-options]', form)
   let searchTimer
+
+  // Articles du live (mis à jour toutes les 5 s) et sélection du client : id → pièces
+  let items = JSON.parse($('#live-data')?.textContent || '[]')
+  const picked = new Map()
+  const byId = (id) => items.find((item) => item.id === id)
+  // Sélection gardée quand la page se recharge pour montrer un article ajouté pendant le live
+  try {
+    JSON.parse(sessionStorage.getItem('jm_live_picked') || '[]').forEach(([id, qty]) => byId(id) && picked.set(id, qty))
+    sessionStorage.removeItem('jm_live_picked')
+  } catch {
+    // stockage indisponible : sélection vide
+  }
+  // Épuisé : une place sur la liste d'attente ; sinon jusqu'aux pièces restantes (10 au plus)
+  const max = (item) => (item.remaining > 0 ? Math.min(item.remaining, 10) : 1)
 
   // Nom, numéro et quartier gardés sur le téléphone : la prochaine réservation se fait en deux touches
   const saved = (() => { try { return JSON.parse(localStorage.getItem('jm_live_customer') || '{}') } catch { return {} } })()
@@ -478,18 +493,48 @@ function livePage() {
     el.hidden = !message
   }
 
-  function render(items) {
+  function render() {
     items.forEach((item) => {
       const row = $(`[data-live-item="${item.id}"]`, root)
       if (!row) return
+      if (picked.has(item.id)) picked.set(item.id, Math.min(picked.get(item.id), max(item)))
+      const qty = picked.get(item.id) || 0
       $('[data-remaining]', row).textContent = item.remaining > 0 ? `Il en reste ${item.remaining}` : "Épuisé · liste d'attente"
       $('[data-take]', row).textContent = item.remaining > 0 ? 'Je prends' : "M'inscrire"
+      $('[data-take]', row).hidden = qty > 0
+      $('[data-stepper]', row).hidden = qty === 0
+      $('[data-qty]', row).textContent = qty
+      $('[data-plus]', row).disabled = qty >= max(item)
     })
+    const lines = [...picked].map(([id, qty]) => ({ item: byId(id), qty })).filter((line) => line.item)
+    const count = lines.reduce((sum, line) => sum + line.qty, 0)
+    bar.hidden = count === 0
+    $('[data-bar-count]', bar).textContent = `${count} article${count > 1 ? 's' : ''}`
+    $('[data-bar-total]', bar).textContent = money(lines.reduce((sum, line) => sum + line.qty * line.item.price, 0))
+    return lines
   }
 
-  $$('[data-take]', root).forEach((button) => button.addEventListener('click', () => {
-    form.elements.item_id.value = button.dataset.take
-    $('[data-live-title]', form).textContent = `Réserver la ${button.dataset.code}`
+  $$('[data-pick]', root).forEach((pick) => {
+    const id = Number(pick.dataset.pick)
+    $('[data-take]', pick).addEventListener('click', () => { picked.set(id, 1); render() })
+    $('[data-plus]', pick).addEventListener('click', () => { picked.set(id, Math.min((picked.get(id) || 0) + 1, max(byId(id)))); render() })
+    $('[data-minus]', pick).addEventListener('click', () => {
+      const qty = (picked.get(id) || 0) - 1
+      if (qty > 0) picked.set(id, qty)
+      else picked.delete(id)
+      render()
+    })
+  })
+
+  $('[data-live-open]', bar).addEventListener('click', () => {
+    const lines = render()
+    if (!lines.length) return
+    const count = lines.reduce((sum, line) => sum + line.qty, 0)
+    $('[data-live-title]', form).textContent = `Réserver ${count} article${count > 1 ? 's' : ''}`
+    $('[data-live-summary]', form).innerHTML = lines.map(({ item, qty }) => `<li class="flex gap-2 px-3 py-2">
+      <span class="font-bold text-red-600">${escapeHtml(item.code)}</span>
+      <span class="min-w-0 flex-1 [overflow-wrap:anywhere]">${escapeHtml(item.title)}${qty > 1 ? ` × ${qty}` : ''}${item.remaining > 0 ? '' : ' <span class="text-slate-500">(liste d\'attente)</span>'}</span>
+      <span class="shrink-0 font-semibold whitespace-nowrap">${money(qty * item.price)}</span></li>`).join('')
     form.elements.name.value = saved.name || ''
     form.elements.phone.value = saved.phone || ''
     form.elements.place_id.value = saved.place_id || ''
@@ -497,7 +542,7 @@ function livePage() {
     form.elements.address.value = saved.address || ''
     $$('[data-error]', form).forEach((el) => (el.hidden = true))
     dialog.showModal()
-  }))
+  })
   $('[data-live-close]', form).addEventListener('click', () => dialog.close())
 
   placeInput.addEventListener('input', () => {
@@ -532,7 +577,8 @@ function livePage() {
     const submit = $('[data-live-submit]', form)
     submit.disabled = true
     const body = {
-      item_id: Number(form.elements.item_id.value), name: form.elements.name.value, phone: form.elements.phone.value,
+      items: [...picked].map(([id, qty]) => ({ item_id: id, quantity: qty })),
+      name: form.elements.name.value, phone: form.elements.phone.value,
       place_id: Number(form.elements.place_id.value), address: form.elements.address.value || null,
     }
     try {
@@ -543,6 +589,7 @@ function livePage() {
       } catch {
         // stockage indisponible : le client retapera ses informations
       }
+      picked.clear()
       dialog.close()
       toast(escapeHtml(result.message))
       refresh()
@@ -559,11 +606,20 @@ function livePage() {
     try {
       const { data } = await api('GET', '/live/etat')
       if (!data) { location.reload(); return }
-      render(data.items)
+      // Article ajouté pendant le live : page rechargée (sauf formulaire ouvert), sélection gardée
+      if (data.items.some((item) => !$(`[data-live-item="${item.id}"]`, root))) {
+        if (dialog.open) return
+        try { sessionStorage.setItem('jm_live_picked', JSON.stringify([...picked])) } catch { /* sélection perdue */ }
+        location.reload()
+        return
+      }
+      items = data.items
+      render()
     } catch {
       // réseau momentané : prochain tour
     }
   }
+  render()
   setInterval(refresh, 5000)
 }
 

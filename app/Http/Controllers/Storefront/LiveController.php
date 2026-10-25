@@ -50,8 +50,14 @@ class LiveController extends Controller
             ->map(fn ($p) => ['id' => $p->id, 'label' => $p->label()])->values()]);
     }
 
+    /**
+     * Réservation : plusieurs articles et plusieurs pièces (items), ou un seul article (item_id, ancienne page).
+     */
     public function reserve(Request $request): JsonResponse
     {
+        if ($request->has('items')) {
+            return $this->reserveLines($request);
+        }
         $data = $request->validate([
             'item_id' => ['required', 'integer'],
             'name' => ['required', 'string', 'max:120'],
@@ -71,6 +77,47 @@ class LiveController extends Controller
                 $reservation->order !== null => "C'est réservé ! Commande {$reservation->order->reference()} enregistrée : la boutique vous appelle pour confirmer la livraison.",
                 default => "C'est réservé ! La boutique vous appelle pour confirmer la livraison.",
             },
+        ]);
+    }
+
+    private function reserveLines(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1', 'max:20'],
+            'items.*.item_id' => ['required', 'integer', 'distinct'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:10'],
+            'name' => ['required', 'string', 'max:120'],
+            'phone' => ['required', 'string', 'max:30', new PhoneNumber],
+            'place_id' => ['required', 'integer'],
+            'address' => ['nullable', 'string', 'max:255'],
+        ], [], ['items' => 'articles', 'name' => 'nom', 'phone' => 'numéro', 'place_id' => 'quartier']);
+        $session = LiveSales::current($this->currentStore()->id) ?? abort(404, 'Le live est terminé.');
+        $lines = collect($data['items'])->mapWithKeys(fn ($line) => [(int) $line['item_id'] => (int) $line['quantity']])->all();
+
+        $reservations = $this->live->reserveLines($session, $lines, $data, 'page');
+        $held = $reservations->where('status', '!=', 'waiting');
+        $order = $held->first()?->order;
+        $waiting = $reservations->where('status', 'waiting')->map(fn ($r) => $r->item->code)->unique()->values();
+        $pieces = $held->count();
+
+        $message = match (true) {
+            $pieces === 0 => ($waiting->count() > 1 ? 'Ces articles sont déjà partis' : "La {$waiting->first()} est déjà partie")
+                .' : vous êtes sur la liste d\'attente. Si une pièce se libère, elle est pour vous.',
+            $order !== null => "C'est réservé ! Commande {$order->reference()} enregistrée ({$pieces} article".($pieces > 1 ? 's' : '').') : la boutique vous appelle pour confirmer la livraison.',
+            default => "C'est réservé ! La boutique vous appelle pour confirmer la livraison.",
+        };
+        if ($pieces > 0 && $waiting->isNotEmpty()) {
+            $message .= ' Déjà parti : '.$waiting->implode(', ').' (vous êtes sur la liste d\'attente).';
+        }
+
+        return response()->json([
+            'data' => [
+                'status' => $pieces === 0 ? 'waiting' : ($order !== null ? 'ordered' : 'reserved'),
+                'order' => $order?->reference(),
+                'reserved' => $pieces,
+                'waiting' => $waiting->all(),
+            ],
+            'message' => $message,
         ]);
     }
 }
