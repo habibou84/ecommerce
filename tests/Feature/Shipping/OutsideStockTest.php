@@ -138,11 +138,11 @@ class OutsideStockTest extends TestCase
 
         $this->assertSame([], $this->alertsAt('2026-10-19 20:00:00'));
         // 24 h : argent chez Koffi
-        $this->assertSame(['courier_cash : Koffi garde 60 000 F depuis 24 h'], $this->alertsAt('2026-10-20 08:30:00'));
+        $this->assertSame(['courier_cash : Koffi vous doit 60 000 F depuis hier'], $this->alertsAt('2026-10-20 08:30:00'));
         $this->assertSame([], $this->alertsAt('2026-10-20 12:00:00'));
         // 48 h : au propriétaire (rouge), et le colis pas rapporté
         $this->assertSame([
-            'courier_cash_escalated : Koffi garde 60 000 F depuis 2 jours',
+            'courier_cash_escalated : Koffi vous doit 60 000 F depuis le 19 octobre',
             'returns : Un colis pas encore rapporté',
         ], $this->alertsAt('2026-10-21 08:30:00'));
 
@@ -150,10 +150,10 @@ class OutsideStockTest extends TestCase
         app(CashDesk::class)->remit($this->koffi, 60000, 'cash', null, $this->store->owner);
         // 7 jours : l'entreprise n'a pas reversé ; le colis toujours pas rapporté après trois fois le délai : au propriétaire
         $this->assertSame([
-            'carrier_payout : Moto Express vous doit 115 000 F depuis 7 jours',
+            'carrier_payout : Moto Express vous doit 115 000 F depuis le 19 octobre',
             'returns_escalated : Un colis pas encore rapporté depuis 6 jours',
         ], $this->alertsAt('2026-10-26 08:30:00'));
-        $this->assertSame(['carrier_payout_escalated : Moto Express vous doit 115 000 F depuis 14 jours'], $this->alertsAt('2026-11-02 08:30:00'));
+        $this->assertSame(['carrier_payout_escalated : Moto Express vous doit 115 000 F depuis le 19 octobre'], $this->alertsAt('2026-11-02 08:30:00'));
 
         // Rien la nuit
         $this->collect(5000);
@@ -168,7 +168,7 @@ class OutsideStockTest extends TestCase
             'carrier_payout' => ['on' => true, 'days' => 2], 'courier_cash' => ['on' => false, 'hours' => 12], 'cutoff_time' => '14:00',
         ]))->assertOk()->assertJsonPath('data.carrier_payout.days', 2);
 
-        $this->assertSame(['carrier_payout : Moto Express vous doit 9 000 F depuis 2 jours'], $this->alertsAt('2026-10-21 09:00:00'));
+        $this->assertSame(['carrier_payout : Moto Express vous doit 9 000 F depuis le 19 octobre'], $this->alertsAt('2026-10-21 09:00:00'));
         $this->storeApi($this->store, 'GET', 'carrier-balances')->assertJsonPath('overdue_days', 2)->assertJsonPath('data.0.overdue_count', 1);
 
         $this->storeApi($this->store, 'PUT', 'alert-settings', array_merge(app(OrderAlerts::class)->settings($this->store->fresh()), [
