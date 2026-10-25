@@ -421,34 +421,6 @@ class PlatformWhatsApp
     /**
      * Réponse depuis la console (dans les 24 h qui suivent le dernier message du client, règle de Meta).
      */
-    /**
-     * Message du support à un numéro (alerte à l'équipe : paiement à valider…). Relié par QR code : message libre ;
-     * avec Facebook, WhatsApp n'autorise un message libre que dans les 24 h qui suivent un message de ce numéro.
-     *
-     * @return string|null null si le message est parti, sinon la raison
-     */
-    public function notify(string $phone, string $text): ?string
-    {
-        $phone = PhoneNumber::normalize($phone);
-        if ($phone === null) {
-            return 'Numéro invalide.';
-        }
-        if (! $this->connected()) {
-            return 'Le WhatsApp du support n\'est pas relié (Console › WhatsApp).';
-        }
-        try {
-            if ($this->isQr()) {
-                $this->bridge->sendFrom(WhatsAppBridge::PLATFORM, $phone, $text);
-            } else {
-                $this->cloud->sendText($this->account(), $phone, $text);
-            }
-
-            return null;
-        } catch (RuntimeException $e) {
-            return 'WhatsApp a refusé le message : '.mb_substr($e->getMessage(), 0, 200);
-        }
-    }
-
     public function reply(SupportConversation $conversation, string $text, User $user): SupportMessage
     {
         if ($this->isQr()) {

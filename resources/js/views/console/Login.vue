@@ -78,7 +78,7 @@ async function done() {
       <button class="btn-brand w-full" :disabled="busy || code.length < 6">{{ busy ? '…' : 'Ouvrir la console' }}</button>
       <div class="flex flex-wrap justify-between gap-2 text-sm">
         <button type="button" class="text-emerald-700 hover:underline" :disabled="busy" @click="submit('email')">Renvoyer un code</button>
-        <button type="button" class="text-slate-600 hover:underline" :disabled="busy" @click="submit('phone')">Recevoir plutôt par WhatsApp</button>
+        <button type="button" class="text-slate-600 hover:underline" :disabled="busy" @click="submit('phone')">Vérifier plutôt par mon numéro</button>
       </div>
     </form>
     <CodeStep v-else-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Ouvrir la console" @done="done" />

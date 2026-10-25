@@ -127,6 +127,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
             Route::get('payments/settings', [ConsolePaymentsController::class, 'settings'])->name('payments.settings');
             Route::put('payments/settings', [ConsolePaymentsController::class, 'update'])->name('payments.update');
+            Route::put('payments/gmail/client', [ConsolePaymentsController::class, 'updateGmailClient'])->name('payments.gmail.client');
+            Route::post('payments/gmail/connect', [ConsolePaymentsController::class, 'connectGmail'])->name('payments.gmail.connect');
+            Route::delete('payments/gmail', [ConsolePaymentsController::class, 'disconnectGmail'])->name('payments.gmail.disconnect');
             Route::post('payments/wave-qr', [ConsolePaymentsController::class, 'uploadQr'])->name('payments.qr');
             Route::put('payments/mail', [ConsolePaymentsController::class, 'updateMail'])->name('payments.mail');
             Route::post('payments/test-alert', [ConsolePaymentsController::class, 'testAlert'])->middleware('throttle:5,1')->name('payments.test-alert');

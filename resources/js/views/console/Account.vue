@@ -51,7 +51,7 @@ async function sendTest() {
         <p class="font-semibold">Code de connexion par e-mail</p>
         <p class="text-slate-600">
           À chaque connexion, après le mot de passe, un code à 6 chiffres arrive à cette adresse. Sans adresse (ou si l'e-mail ne part pas),
-          la connexion repasse par WhatsApp.
+          la connexion repasse par la preuve de votre numéro.
         </p>
       </div>
       <Field id="email" label="Adresse e-mail" :error="errors.email"><input id="email" v-model="form.email" type="email" class="input" autocomplete="email" /></Field>

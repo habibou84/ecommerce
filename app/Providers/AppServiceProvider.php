@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Enums\OrderStatus;
 use App\Jobs\AutoAssignOrder;
+use App\Mail\GmailApiTransport;
 use App\Models\Customer;
 use App\Models\InventoryCount;
 use App\Models\Order;
@@ -16,6 +17,7 @@ use App\Models\StoreTransfer;
 use App\Services\Ai\AiClient;
 use App\Services\Ai\AnthropicAiClient;
 use App\Services\Customers\Loyalty;
+use App\Services\Mail\GoogleMail;
 use App\Services\Places\Places;
 use App\Services\Sms\OrangeSmsGateway;
 use App\Services\WhatsApp\CustomerMessenger;
@@ -27,6 +29,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Jibiat\Socle\PhoneNumber;
@@ -56,6 +59,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // E-mails envoyés par le compte Gmail connecté avec Google dans la console (API Gmail, sans mot de passe d'application)
+        Mail::extend('gmail_api', fn () => new GmailApiTransport(app(GoogleMail::class)));
+
         // Messages WhatsApp automatiques aux clients (confirmation, expédition, livraison), une fois l'opération validée
         OrderEvent::created(fn (OrderEvent $event) => DB::afterCommit(fn () => app(CustomerMessenger::class)->onOrderEvent($event)));
         // Fidélité : points gagnés à la livraison, rendus ou retirés si la commande est annulée ou retournée

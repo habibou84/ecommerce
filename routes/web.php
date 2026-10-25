@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BillingValidationController;
+use App\Http\Controllers\Console\GmailCallbackController;
 use App\Http\Controllers\HandoffController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\PageController;
@@ -47,7 +48,9 @@ Route::middleware('zone:console')->group(function () {
             ['src' => '/brand/icon-maskable-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
         ],
     ])->header('Content-Type', 'application/manifest+json'))->name('console.manifest');
-    Route::get('/console/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest).*')->name('console');
+    // Retour de Google après « Se connecter avec Google » (envoi des e-mails par Gmail)
+    Route::get('/console/gmail/retour', GmailCallbackController::class)->middleware('throttle:20,1')->name('console.gmail.callback');
+    Route::get('/console/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest|gmail/retour).*')->name('console');
 });
 
 // {slug}.jibiat-marchand.com : gestion de la boutique (application Vue)

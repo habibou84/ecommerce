@@ -13,7 +13,7 @@ console (champs masqués) ou directement sur le serveur.
 |---|---|---|
 | Sauvegarde de la base | Serveur | Chaque nuit à 2 h 30 (`/var/backups/jibiat-production`, 7 copies tournantes) |
 | Copie de la base avant chaque mise à jour | Serveur | `deploy/update.sh` ; retour automatique à la version précédente si la mise à jour échoue |
-| Paiements Wave à valider | Moi | Alerte WhatsApp (puis e-mail) ; Console › Paiements |
+| Paiements Wave à valider | Moi | Alerte par e-mail (Gmail) ; Console › Paiements |
 | Erreurs du jour | Moi | E-mails de Sentry (si `SENTRY_LARAVEL_DSN` est réglé) |
 | Purges (exports, reçus de webhooks, paniers) | Serveur | Tâches planifiées 4 h 10 et 4 h 20 |
 
@@ -22,8 +22,8 @@ console (champs masqués) ou directement sur le serveur.
 | Quoi | Qui | Comment |
 |---|---|---|
 | Lire le **Journal** de la console | Moi | Console › Journal : connexions inattendues, réglages changés |
-| WhatsApp du support toujours relié | Moi | Console › WhatsApp (pastille verte) ; sinon le relier (QR code) |
-| Alerte d'essai | Moi | Console › Paiements › « Envoyer une alerte d'essai » : WhatsApp ✓, e-mail ✓ |
+| Gmail toujours connecté | Moi | Console › Paiements › Envoi des e-mails : « ✓ Gmail connecté » ; sinon « Reconnecter » |
+| Alerte d'essai | Moi | Console › Paiements › « Envoyer une alerte d'essai » : e-mail ✓ |
 | Espaces marchands en essai qui finit | Moi | Console › Tableau de bord |
 | Mises à jour de sécurité des dépendances | Claude | `composer audit` et `npm audit --omit=dev` ; correctif, tests, PR |
 
@@ -44,7 +44,7 @@ console (champs masqués) ou directement sur le serveur.
 |---|---|---|
 | Diagnostic de sécurité complet | Claude | Contrôle d'accès, webhooks, injections, dépendances (comme le diagnostic d'octobre 2026) |
 | Changer le mot de passe de la console | Moi | Console › Mon compte (10 caractères au moins, jamais réutilisé ailleurs) |
-| Renouveler les clés qui le permettent | Moi | Clé SMTP Brevo, jeton du service WhatsApp, clés des prestataires de paiement : nouvelle clé, puis suppression de l'ancienne |
+| Renouveler les clés qui le permettent | Moi | Code secret de l'application Google (Google Cloud › Identifiants), jeton du service WhatsApp, clés des prestataires de paiement : nouvelle clé, puis suppression de l'ancienne |
 | Performance | Claude | Requêtes lentes (journal PostgreSQL), index manquants, taille des images, poids des pages |
 | Laravel, PHP, PostgreSQL, Node : versions encore suivies | Claude | Planifier la montée de version avant la fin du support |
 
@@ -57,7 +57,7 @@ console (champs masqués) ou directement sur le serveur.
 ## Bonnes pratiques retenues
 
 **Sécurité**
-- Console : mot de passe + code à usage unique (e-mail, sinon WhatsApp), session limitée à 12 h, e-mail d'alerte à
+- Console : mot de passe + code à usage unique par e-mail (Gmail connecté avec Google, sans mot de passe d'application), session limitée à 12 h, e-mail d'alerte à
   chaque connexion, journal des actions. Ne jamais partager le compte : un compte par personne.
 - Moindre privilège : chaque membre d'une boutique n'a que les droits de son rôle.
 - Secrets chiffrés en base ou sur le serveur, jamais dans le code ni dans Git.
@@ -73,7 +73,8 @@ console (champs masqués) ou directement sur le serveur.
 1. **Site en panne** : vérifier l'hébergeur (serveur allumé, disque plein ?), puis la dernière mise à jour (le retour
    automatique a-t-il eu lieu ?). Ouvrir une session Claude avec le message d'erreur.
 2. **Connexion suspecte** (e-mail d'alerte que vous n'attendiez pas) : changer tout de suite le mot de passe dans
-   Mon compte (les autres sessions se ferment), lire le Journal, prévenir l'équipe.
-3. **Fuite d'une clé** : la révoquer chez le fournisseur (Brevo, Wave, Meta…), en créer une nouvelle, la saisir dans la
+   Mon compte (les autres sessions se ferment), lire le Journal, prévenir l'équipe. Si le compte Gmail lui-même est
+   en cause : myaccount.google.com › Sécurité, puis « Reconnecter » Gmail dans la console.
+3. **Fuite d'une clé** : la révoquer chez le fournisseur (Google, Wave, Meta…), en créer une nouvelle, la saisir dans la
    console ou sur le serveur.
 4. **Perte de données** : restaurer la dernière sauvegarde sur la préproduction, vérifier, puis en production.
