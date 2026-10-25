@@ -10,6 +10,26 @@ export const STATUS_TONES = {
   returned: 'bg-red-100 text-red-700',
 }
 
+// Statut = couleur + icône + mot (jamais la couleur seule)
+export const STATUS_ICONS = {
+  pending_confirmation: 'clock',
+  confirmed: 'check',
+  processing: 'box',
+  shipped: 'truck',
+  completed: 'check',
+  cancelled: 'close',
+  returned: 'alert',
+}
+
+// Pastille du client : initiales sur une couleur douce, toujours la même pour un même nom
+const AVATAR_TONES = ['bg-ocre-100 text-ocre-800', 'bg-sky-100 text-sky-800', 'bg-pink-100 text-pink-800', 'bg-indigo-100 text-indigo-800', 'bg-emerald-100 text-emerald-800', 'bg-amber-100 text-amber-900']
+export function avatar(name) {
+  const words = (name ?? '').trim().split(/\s+/).filter((w) => /\p{L}/u.test(w))
+  const initials = words.slice(0, 2).map((w) => w.match(/\p{L}/u)[0]).join('').toUpperCase() || '?'
+  const hash = [...(name ?? '')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 0)
+  return { initials, tone: AVATAR_TONES[hash % AVATAR_TONES.length] }
+}
+
 export const PAYMENT_TONES = {
   unpaid: 'text-ocre-700',
   partially_paid: 'text-amber-700',
