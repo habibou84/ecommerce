@@ -86,6 +86,7 @@ async function done() {
       <Field id="phone" label="Numéro de téléphone" :error="errors.phone"><input id="phone" v-model="form.phone" class="input" type="tel" autocomplete="tel" required autofocus /></Field>
       <Field id="password" label="Mot de passe" :error="errors.password"><input id="password" v-model="form.password" class="input" type="password" autocomplete="current-password" required /></Field>
       <button class="btn-brand w-full" :disabled="busy">{{ busy ? '…' : 'Continuer' }}</button>
+      <p class="text-center text-sm"><RouterLink to="/console/mot-de-passe-oublie" class="text-emerald-700 hover:underline">Mot de passe oublié ? (ou premier accès)</RouterLink></p>
     </form>
   </AuthShell>
 </template>

@@ -11,8 +11,10 @@ use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
+use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
+use App\Http\Controllers\Api\V1\Console\ConsoleTeamController;
 use App\Http\Controllers\Api\V1\Console\ConsoleWhatsAppController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
@@ -113,6 +115,15 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('account/test-email', [ConsoleAuthController::class, 'testEmail'])->middleware('throttle:verification-start')->name('account.test-email');
             Route::get('stats', [ConsoleController::class, 'stats'])->name('stats');
             Route::get('journal', [ConsoleController::class, 'journal'])->name('journal');
+            // Équipe de la console, mes sessions, recherche d'utilisateurs, santé de la plateforme
+            Route::get('team', [ConsoleTeamController::class, 'index'])->name('team');
+            Route::post('team', [ConsoleTeamController::class, 'store'])->middleware('throttle:login')->name('team.store');
+            Route::post('team/{admin}/revoke', [ConsoleTeamController::class, 'revoke'])->whereNumber('admin')->middleware('throttle:login')->name('team.revoke');
+            Route::get('sessions', [ConsoleTeamController::class, 'sessions'])->name('sessions');
+            Route::delete('sessions/{session}', [ConsoleTeamController::class, 'closeSession'])->where('session', 'others|[a-f0-9]{64}')->name('sessions.close');
+            Route::get('users', [ConsoleTeamController::class, 'users'])->middleware('throttle:60,1')->name('users');
+            Route::get('health', [ConsoleHealthController::class, 'show'])->name('health');
+            Route::post('health/failed-jobs/{uuid}', [ConsoleHealthController::class, 'failedJob'])->whereUuid('uuid')->name('health.failed-job');
             Route::get('stores', [ConsoleController::class, 'stores'])->name('stores');
             Route::get('stores/{store}', [ConsoleController::class, 'store'])->whereNumber('store')->name('stores.show');
             Route::post('stores/{store}/suspend', [ConsoleController::class, 'suspend'])->whereNumber('store')->name('stores.suspend');

@@ -123,6 +123,7 @@ const storeRoutes = [
 // admin.jibiat-marchand.com : console du super administrateur
 const consoleRoutes = [
   { path: '/console/connexion', component: () => import('../views/console/Login.vue'), meta: { guest: true, title: 'Connexion' } },
+  { path: '/console/mot-de-passe-oublie', component: () => import('../views/auth/ForgotPassword.vue'), props: { loginPath: '/console/connexion' }, meta: { guest: true, title: 'Mot de passe oublié' } },
   {
     path: '/console',
     component: () => import('../layouts/ConsoleLayout.vue'),
@@ -139,6 +140,9 @@ const consoleRoutes = [
       { path: 'ia', component: () => import('../views/console/AiUsage.vue'), meta: { title: 'Assistant IA' } },
       { path: 'compte', component: () => import('../views/console/Account.vue'), meta: { title: 'Mon compte' } },
       { path: 'journal', component: () => import('../views/console/Journal.vue'), meta: { title: 'Journal' } },
+      { path: 'equipe', component: () => import('../views/console/Team.vue'), meta: { title: 'Équipe' } },
+      { path: 'sante', component: () => import('../views/console/Health.vue'), meta: { title: 'Santé de la plateforme' } },
+      { path: 'utilisateurs', component: () => import('../views/console/Users.vue'), meta: { title: 'Utilisateurs' } },
     ],
   },
   { path: '/:any(.*)*', redirect: '/console' },

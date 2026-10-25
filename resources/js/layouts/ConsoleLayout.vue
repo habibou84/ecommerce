@@ -18,6 +18,9 @@ const nav = [
   { to: '/console/parrainage', label: 'Parrainage' },
   { to: '/console/offres', label: 'Offres' },
   { to: '/console/ia', label: 'Assistant IA' },
+  { to: '/console/utilisateurs', label: 'Utilisateurs' },
+  { to: '/console/equipe', label: 'Équipe' },
+  { to: '/console/sante', label: 'Santé' },
   { to: '/console/journal', label: 'Journal' },
 ]
 

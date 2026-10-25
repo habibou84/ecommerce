@@ -25,8 +25,16 @@ const LABELS = {
   referral_settings_updated: 'Réglages du parrainage',
   support_whatsapp_connected: 'WhatsApp du support relié',
   support_whatsapp_disconnected: 'WhatsApp du support déconnecté',
+  console_admin_added: 'Administrateur ajouté',
+  console_admin_removed: 'Administrateur retiré',
+  console_sessions_closed: 'Sessions fermées',
+  failed_job_retry: 'Tâche en échec relancée',
+  failed_job_forget: 'Tâche en échec effacée',
+  gmail_client: 'Application Google réglée',
+  gmail_connected: 'Gmail connecté',
+  gmail_disconnected: 'Gmail déconnecté',
 }
-const FILTERS = [['', 'Tout'], ['console_', 'Connexions et compte'], ['billing_', 'Paiements'], ['support', 'Support']]
+const FILTERS = [['', 'Tout'], ['console_', 'Connexions, compte et équipe'], ['billing_', 'Paiements'], ['gmail', 'E-mails'], ['support', 'Support']]
 
 const rows = ref(null)
 const filter = ref('')
