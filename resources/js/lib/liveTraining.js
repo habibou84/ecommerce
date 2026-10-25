@@ -36,7 +36,11 @@ export const LIVE_TRAINING = [
       checklist: ['Le lien est dans ma bio', 'J\'ai copié le message à épingler', 'Je sais l\'épingler en commentaire'],
       action: { label: 'Copier le lien de vos lives', link: true },
     },
-    { n: 7, title: 'Ce qu\'il faut dire et répéter' },
+    {
+      n: 7, title: 'Ce qu\'il faut dire et répéter', seconds: 65,
+      points: ['Des gens arrivent sans arrêt : répétez le code, le prix et comment réserver', 'Pour chaque article : « C\'est la A3, robe en wax, 20 000 F, tailles S et M »', 'Remerciez par le prénom, répondez aux questions à voix haute, pas de prix en privé'],
+      checklist: ['Je répète le code et le prix de chaque article', 'Je dis comment réserver : lien en bio ou code sur WhatsApp', 'Je remercie ceux qui réservent par leur prénom'],
+    },
   ] },
   { part: 'Animer un live efficace', modules: [
     {
@@ -44,8 +48,16 @@ export const LIVE_TRAINING = [
       points: ['5 minutes d\'accueil, puis un article à la fois (≈ 3 min chacun)', 'Une relance toutes les 5 à 10 minutes : lien, comment réserver, ce qui part vite', 'L\'article surprise vers la 35e minute, puis récap et rendez-vous au prochain live'],
       checklist: ['Mon premier article attire, à bon prix', 'J\'ai gardé un article surprise pour la fin', 'Je connais la date de mon prochain live'],
     },
-    { n: 9, title: 'Créer l\'envie et l\'urgence' },
-    { n: 10, title: 'Travailler à deux' },
+    {
+      n: 9, title: 'Créer l\'envie et l\'urgence', seconds: 62,
+      points: ['Montrez l\'article porté, de près, et racontez son histoire (occasion, assortiment)', 'Annoncez les pièces restantes et lisez les réservations à voix haute', 'Prix du live valable seulement pendant le live ; épuisé : liste d\'attente. Toujours honnête'],
+      checklist: ['Je sais raconter chacun de mes articles', 'J\'annonce les pièces restantes', 'Je propose la liste d\'attente quand c\'est épuisé'],
+    },
+    {
+      n: 10, title: 'Travailler à deux', seconds: 56,
+      points: ['Une personne présente face à la caméra, l\'autre gère sur le 2e téléphone', 'L\'assistant saisit les réservations vues en commentaire (mode assistant) et suit les pièces', 'Il épingle le lien, répond aux questions, prépare l\'article suivant ; des signes convenus avant'],
+      checklist: ['J\'ai quelqu\'un pour m\'assister', 'Mon assistant connaît le mode assistant', 'Nous avons convenu de nos petits signes'],
+    },
   ] },
   { part: 'Après le live', modules: [
     { n: 11, title: 'Transformer les réservations en livraisons' },
