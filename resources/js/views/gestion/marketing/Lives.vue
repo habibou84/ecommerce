@@ -3,11 +3,10 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
-import MarketingTabs from '../../../components/MarketingTabs.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 
-// Ventes en live : on prépare les articles (code, prix du live, pièces), puis l'écran du live suit les réservations
+// Vendre en live (menu Ventes) : on prépare les articles (code, prix du live, pièces), puis l'écran du live suit les réservations
 const router = useRouter()
 const lives = ref(null)
 const pageUrl = ref('')
@@ -63,7 +62,7 @@ async function save() {
       title: form.title, hold_minutes: Number(form.hold_minutes),
       items: form.items.map((i) => ({ variant_id: i.variant_id, price: Number(i.price), quantity: Number(i.quantity) })),
     })
-    router.push(`/gestion/marketing/live/${data.data.id}`)
+    router.push(`/gestion/live/${data.data.id}`)
   } catch (e) {
     errors.value = fieldErrors(e)
     error.value = errorMessage(e)
@@ -75,7 +74,6 @@ async function save() {
 
 <template>
   <div class="space-y-4">
-    <MarketingTabs />
     <Alert v-if="error">{{ error }}</Alert>
 
     <template v-if="!editing">
@@ -90,7 +88,7 @@ async function save() {
       </section>
 
       <p v-if="lives && !lives.length" class="card p-6 text-sm text-slate-500">Aucun live pour l'instant.</p>
-      <RouterLink v-for="l in lives ?? []" :key="l.id" :to="`/gestion/marketing/live/${l.id}`" class="card flex flex-wrap items-center justify-between gap-2 p-4 text-sm hover:bg-slate-50">
+      <RouterLink v-for="l in lives ?? []" :key="l.id" :to="`/gestion/live/${l.id}`" class="card flex flex-wrap items-center justify-between gap-2 p-4 text-sm hover:bg-slate-50">
         <span>
           <span class="font-semibold">{{ l.title }}</span>
           <span class="ml-2 rounded-full px-2 py-0.5 text-xs" :class="STATUS[l.status][1]">{{ STATUS[l.status][0] }}</span>

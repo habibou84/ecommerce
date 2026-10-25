@@ -188,7 +188,7 @@ Table live_sessions {
   started_at timestamp
   ended_at timestamp
   created_by bigint [ref: > users.id]
-  Note: 'Vente en live (Marketing › Ventes en live) ; page publique fixe {boutique}/live ; codes reçus par WhatsApp (Inbox → LiveSales).'
+  Note: 'Vente en live (Ventes › Vendre en live) ; page publique fixe {boutique}/live ; codes reçus par WhatsApp (Inbox → LiveSales).'
 }
 
 Table live_items {
