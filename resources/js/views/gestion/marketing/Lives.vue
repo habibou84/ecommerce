@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import LiveLink from '../../../components/LiveLink.vue'
+import LiveTraining from '../../../components/LiveTraining.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 
@@ -32,6 +33,8 @@ async function load() {
   }
 }
 onMounted(load)
+
+const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
 function startNew() {
   Object.assign(form, { title: `Live du ${new Date().toLocaleDateString('fr-FR')}`, hold_minutes: 120, items: [] })
@@ -87,6 +90,10 @@ async function save() {
         <button class="btn-brand" @click="startNew">+ Préparer un live</button>
       </section>
 
+      <p v-if="lives && !lives.length" class="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+        Premier live ? Regardez d'abord le module « Préparer votre live » (1 minute), plus bas dans « Se former au live ».
+      </p>
+
       <LiveLink v-if="pageUrl" :url="pageUrl" />
 
       <p v-if="lives && !lives.length" class="card p-6 text-sm text-slate-500">Aucun live pour l'instant.</p>
@@ -98,6 +105,8 @@ async function save() {
         </span>
         <span v-if="l.summary" class="text-slate-600">{{ l.summary.orders }} commande(s) · {{ money(l.summary.amount) }}</span>
       </RouterLink>
+
+      <LiveTraining :url="pageUrl" @prepare="startNew(); scrollTop()" />
     </template>
 
     <form v-else class="space-y-4" @submit.prevent="save">

@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import LiveLink from '../../../components/LiveLink.vue'
+import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 
@@ -21,6 +22,9 @@ const results = ref([])
 const notice = ref('')
 let timer
 let searchTimer
+// « Avant de lancer le live » : cases gardées sur cet appareil, par live
+const ready = ref(loadChecks(`live${props.id}`))
+watch(ready, (v) => saveChecks(`live${props.id}`, v), { deep: true })
 
 const SOURCE = { page: 'Page du live', whatsapp: 'WhatsApp', manual: 'Équipe' }
 const STATUS = {
@@ -127,6 +131,15 @@ async function addQuick() {
         </div>
         <button v-if="live.status === 'draft'" class="btn-brand" :disabled="busy" @click="act('start')">Lancer le live</button>
         <button v-else-if="live.status === 'live'" class="btn-secondary" :disabled="busy" @click="end">Terminer le live</button>
+      </section>
+
+      <section v-if="live.status === 'draft'" class="card space-y-2 p-4 text-sm">
+        <p class="font-semibold">Avant de lancer le live <span class="font-normal text-slate-500">· {{ ready.length }} / {{ BEFORE_LIVE.length }}</span></p>
+        <label v-for="c in BEFORE_LIVE" :key="c" class="flex items-start gap-2">
+          <input v-model="ready" type="checkbox" :value="c" class="mt-0.5 h-4 w-4 accent-emerald-700" />
+          <span :class="{ 'text-slate-400 line-through': ready.includes(c) }">{{ c }}</span>
+        </label>
+        <RouterLink to="/gestion/live" class="inline-block text-emerald-700 hover:underline">🎓 Revoir les vidéos « Se former au live »</RouterLink>
       </section>
 
       <LiveLink v-if="live.status !== 'ended'" :url="pageUrl" :compact="live.status === 'live'" />
