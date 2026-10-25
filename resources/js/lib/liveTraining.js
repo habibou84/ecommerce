@@ -1,4 +1,4 @@
-// Formation « Vendre en live » : 12 modules en 4 parties ; les vidéos sont dans public/videos/live (les autres arrivent)
+// Formation « Vendre en live » : 12 modules en 4 parties ; les vidéos sont dans public/videos/live
 export const LIVE_TRAINING = [
   { part: 'Préparer son live', modules: [
     {
@@ -60,8 +60,16 @@ export const LIVE_TRAINING = [
     },
   ] },
   { part: 'Après le live', modules: [
-    { n: 11, title: 'Transformer les réservations en livraisons' },
-    { n: 12, title: 'Progresser d\'un live à l\'autre' },
+    {
+      n: 11, title: 'Transformer les réservations en livraisons', seconds: 61,
+      points: ['Regardez le bilan du live : réservations, commandes, quartiers encore attendus', 'Confirmez dans Ventes › À confirmer (adresse et moment) ; un client = une seule commande', 'Confiez les livraisons, livrez dès le lendemain et suivez jusqu\'à la Caisse'],
+      checklist: ['J\'ai regardé le bilan de mon live', 'J\'ai confirmé les commandes du live', 'Les livraisons sont confiées pour le lendemain'],
+    },
+    {
+      n: 12, title: 'Progresser d\'un live à l\'autre', seconds: 63,
+      points: ['Après chaque live : réservations, commandes livrées, montant encaissé', 'Repérez ce qui part vite et ce qui reste ; changez une seule chose à la fois', 'Un rendez-vous fixe, annoncé à l\'avance, et un merci après la livraison'],
+      checklist: ['J\'ai noté les chiffres de mon dernier live', 'J\'ai choisi la chose à changer la prochaine fois', 'Mon prochain live est annoncé'],
+    },
   ] },
 ]
 
