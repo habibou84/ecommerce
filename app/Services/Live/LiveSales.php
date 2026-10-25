@@ -591,8 +591,16 @@ class LiveSales
             ])->values()->all(),
             'summary' => $team ? $this->summary($session) : null,
             // WhatsApp qui répond aux clients pendant le live : official (Meta), link (relié par QR code) ou null
-            'whatsapp' => $team ? (WhatsappAccount::forStore($session->store_id)->exists() ? 'official' : (WhatsappLink::connectedFor($session->store_id) ? 'link' : null)) : null,
+            'whatsapp' => $team ? self::whatsapp($session->store_id) : null,
         ];
+    }
+
+    /**
+     * WhatsApp qui lit les messages des clients pendant le live : official (Meta), link (relié par QR code) ou null.
+     */
+    public static function whatsapp(int $storeId): ?string
+    {
+        return WhatsappAccount::forStore($storeId)->exists() ? 'official' : (WhatsappLink::connectedFor($storeId) ? 'link' : null);
     }
 
     /**

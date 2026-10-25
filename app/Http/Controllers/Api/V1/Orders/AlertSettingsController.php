@@ -9,8 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Réglages des alertes sur les commandes qui attendent : chaque alerte activée ou non, avec son délai, et les heures
- * pendant lesquelles elles partent.
+ * Réglages des alertes sur les commandes qui attendent (et l'argent ou les colis qui traînent chez les livreurs) :
+ * chaque alerte activée ou non, avec son délai, et les heures pendant lesquelles elles partent.
  */
 class AlertSettingsController extends Controller
 {
@@ -36,10 +36,15 @@ class AlertSettingsController extends Controller
         foreach (['unassigned', 'pickup', 'confirm', 'unhandled'] as $key) {
             $rules["{$key}.minutes"] = ['required', 'integer', 'between:10,1440'];
         }
+        $rules['courier_cash.hours'] = ['required', 'integer', 'between:1,168'];
+        $rules['returns.hours'] = ['required', 'integer', 'between:1,336'];
+        $rules['carrier_payout.days'] = ['required', 'integer', 'between:1,60'];
         $data = $request->validate($rules, [], [
             'hours.from' => 'début des alertes', 'hours.to' => 'fin des alertes', 'stalled.time' => 'heure de fin des livraisons',
             'unassigned.minutes' => 'délai « sans livreur »', 'pickup.minutes' => 'délai « pas ramassé »',
             'confirm.minutes' => 'délai « à confirmer »', 'unhandled.minutes' => 'délai « problème sans suite »',
+            'courier_cash.hours' => 'délai « argent chez un livreur »', 'returns.hours' => 'délai « colis pas rapporté »',
+            'carrier_payout.days' => 'délai « reversement en retard »',
         ]);
 
         $this->currentStore()->forceFill(['alert_settings' => $data])->save();

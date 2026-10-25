@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import LiveLink from '../../../components/LiveLink.vue'
+import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
@@ -101,6 +102,12 @@ async function addItems() {
   }
 }
 
+// Dernier rappel sans WhatsApp relié : les commandes envoyées sur WhatsApp ne seraient pas lues
+async function start() {
+  if (live.value.whatsapp === null && !window.confirm('Votre WhatsApp n\'est pas relié : les codes et captures envoyés sur WhatsApp ne seront pas lus, les clients réserveront seulement par le lien du live.\n\nLancer le live quand même ? (Annuler pour relier d\'abord votre WhatsApp, juste en dessous.)')) return
+  await act('start')
+}
+
 async function end() {
   if (window.confirm('Terminer le live ? Les clients ne pourront plus réserver ; ceux qui ont une pièce gardée peuvent encore donner leur quartier.')) await act('end')
 }
@@ -129,7 +136,7 @@ async function addQuick() {
             <template v-else>Terminé le {{ formatDateTime(live.ended_at) }}</template>
           </p>
         </div>
-        <button v-if="live.status === 'draft'" class="btn-brand" :disabled="busy" @click="act('start')">Lancer le live</button>
+        <button v-if="live.status === 'draft'" class="btn-brand" :disabled="busy" @click="start">Lancer le live</button>
         <button v-else-if="live.status === 'live'" class="btn-secondary" :disabled="busy" @click="end">Terminer le live</button>
       </section>
 
@@ -145,10 +152,7 @@ async function addQuick() {
       <LiveLink v-if="live.status !== 'ended'" :url="pageUrl" :compact="live.status === 'live'" />
 
       <!-- WhatsApp qui répond aux clients : conseils selon le mode -->
-      <Alert v-if="live.status !== 'ended' && live.whatsapp === null" tone="warning">
-        Aucun WhatsApp n'est relié : les clients peuvent réserver sur la page du live, mais leurs codes et captures envoyés sur WhatsApp ne seront pas lus.
-        Reliez votre WhatsApp dans Messages.
-      </Alert>
+      <LiveWhatsApp v-if="live.status !== 'ended' && live.whatsapp === null" @linked="load" />
       <p v-else-if="live.status !== 'ended' && live.whatsapp === 'link'" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
         WhatsApp relié par QR code : idéal pour démarrer. Les réponses automatiques partent quelques secondes après chaque message, sans rafale, pour protéger votre numéro.
         Si vous faites de gros lives, passez au WhatsApp officiel (Messages › WhatsApp), sans risque de blocage.

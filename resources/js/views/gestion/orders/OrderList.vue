@@ -114,7 +114,7 @@ const delivererLabel = (key) => {
   return (type === 'courier' ? options.value?.couriers : options.value?.carriers)?.find((d) => String(d.id) === id)?.name ?? 'Livreur'
 }
 // Files des alertes (ouvertes depuis une notification ou l'accueil)
-const ALERTS = { unassigned: 'Sans livreur', not_picked: 'Pas encore ramassées', on_the_way: 'Encore en route', unhandled: 'Problème de livraison à traiter' }
+const ALERTS = { unassigned: 'Sans livreur', not_picked: 'Pas encore ramassées', on_the_way: 'Encore en route', unhandled: 'Problème de livraison à traiter', to_bring_back: 'Colis à rapporter' }
 watch(() => route.query.alert, (v) => { if ((v ?? '') !== filters.alert) filters.alert = v ?? '' })
 const activeFilters = computed(() => [
   filters.alert && ALERTS[filters.alert] && { key: 'alert', label: ALERTS[filters.alert] },

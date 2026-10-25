@@ -6,6 +6,7 @@ use App\Enums\ShipmentStatus;
 use App\Models\CarrierConnection;
 use App\Models\Shipment;
 use App\Models\Store;
+use App\Services\Orders\OrderAlerts;
 use App\Support\SpreadsheetCell;
 use Illuminate\Support\Collection;
 
@@ -51,7 +52,7 @@ class CarrierBalances
      */
     public function pending(Store $store, ?CarrierConnection $connection = null): Collection
     {
-        $overdueDays = $this->overdueDays();
+        $overdueDays = $this->overdueDays($store);
 
         return Shipment::forStore($store->id)
             // Boutique explicite : aussi juste hors requête (rapport du jour), quelle que soit la boutique courante
@@ -105,8 +106,9 @@ class CarrierBalances
         return (string) stream_get_contents($out);
     }
 
-    public function overdueDays(): int
+    /** Reversement en retard après ce nombre de jours (réglage de l'alerte « reversement en retard ») */
+    public function overdueDays(Store $store): int
     {
-        return max(1, (int) config('platform.carrier_payout_overdue_days', 7));
+        return max(1, (int) app(OrderAlerts::class)->settings($store)['carrier_payout']['days']);
     }
 }

@@ -9,6 +9,7 @@ use App\Models\Conversation;
 use App\Models\Order;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Reports\DailyAdvice;
+use App\Services\Shipping\OutsideStock;
 use App\Services\Stock\StockLevels;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,15 @@ class DashboardController extends Controller
             // Conseils tirés des chiffres des 30 derniers jours : recalculés au plus toutes les 30 minutes
             $store = $this->currentStore();
             $data['tips'] = Cache::remember("daily-advice:{$store->id}", 1800, fn () => app(DailyAdvice::class)->tips($store));
+        }
+
+        // Dehors en ce moment : argent et colis chez les livreurs de la boutique et chez les entreprises de livraison
+        $outside = app(OutsideStock::class);
+        if ($user->can(Permission::CouriersManage->value) || $user->can(Permission::FinanceView->value)) {
+            $data['couriers'] = $outside->couriers($this->currentStore());
+        }
+        if ($user->can(Permission::CarriersManage->value) || $user->can(Permission::FinanceView->value)) {
+            $data['carriers'] = $outside->carriers($this->currentStore());
         }
 
         if ($user->can(Permission::StockManage->value)) {

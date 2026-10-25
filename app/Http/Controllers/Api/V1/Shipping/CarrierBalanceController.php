@@ -28,7 +28,7 @@ class CarrierBalanceController extends Controller
         return response()->json([
             'data' => $carriers,
             'total' => array_sum(array_column($carriers, 'amount')),
-            'overdue_days' => $this->balances->overdueDays(),
+            'overdue_days' => $this->balances->overdueDays($this->currentStore()),
         ]);
     }
 
