@@ -1,7 +1,11 @@
 // Formation « Vendre en live » : 12 modules en 4 parties ; les vidéos sont dans public/videos/live (les autres arrivent)
 export const LIVE_TRAINING = [
   { part: 'Préparer son live', modules: [
-    { n: 1, title: 'Pourquoi vendre en live marche' },
+    {
+      n: 1, title: 'Pourquoi vendre en live marche', seconds: 68,
+      points: ['Vos clients voient le vrai produit, porté, en vraie couleur : la confiance s\'installe', 'Ils posent leurs questions et achètent tout de suite : les pièces sont limitées', 'Codes, réservations, liste d\'attente et commandes : Jibiat Marchand s\'en occupe'],
+      checklist: ['Je sais pourquoi le live fait vendre', 'J\'ai choisi le jour et l\'heure de mon premier live'],
+    },
     { n: 2, title: 'Choisir ses articles' },
     {
       n: 3, title: 'Préparer votre live dans Jibiat Marchand', seconds: 61,
