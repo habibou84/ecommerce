@@ -4,6 +4,7 @@ namespace App\Services\Live;
 
 use App\Exceptions\BusinessRuleException;
 use App\Exceptions\QuotaExceededException;
+use App\Jobs\ReadLiveCapture;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\LiveItem;
@@ -13,10 +14,15 @@ use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
+use App\Models\WhatsappAccount;
+use App\Models\WhatsappLink;
+use App\Services\Ai\Assistant;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\Inbox;
+use App\Services\WhatsApp\WhatsAppBridge;
+use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -247,32 +253,35 @@ class LiveSales
     }
 
     /**
-     * Message WhatsApp reçu : code(s) du live en cours, ou quartier attendu. Vrai si le message a été traité.
+     * Message WhatsApp reçu : code(s) du live en cours, capture d'écran d'un article (lue à part, ReadLiveCapture),
+     * ou quartier attendu. Vrai si le message a été traité.
      */
     public function fromWhatsApp(Conversation $conversation, ConversationMessage $message): bool
     {
-        if ($conversation->channel !== 'whatsapp' || $message->type !== 'text' || blank($message->body)) {
+        if ($conversation->channel !== 'whatsapp' || blank($message->body)) {
             return false;
         }
-        $phone = PhoneNumber::normalize($conversation->contact);
         $session = self::current($conversation->store_id);
+        if ($message->type === 'image') {
+            if ($session === null) {
+                return false;
+            }
+            // Lecture de la photo (téléchargement, IA) hors de la notification de WhatsApp
+            ReadLiveCapture::dispatch($message->id)->afterCommit();
+
+            return true;
+        }
+        if ($message->type !== 'text') {
+            return false;
+        }
         $items = $session ? $this->codesIn($session, $message->body) : collect();
-
         if ($items->isNotEmpty()) {
-            $lines = $items->map(function (LiveItem $item) use ($phone, $conversation) {
-                $r = $this->reserve($item, ['name' => $conversation->contact_name, 'phone' => $phone], 'whatsapp');
-
-                return $r->status === 'waiting'
-                    ? "⏳ {$item->code} ({$this->label($item)}) : déjà partie, vous êtes n°{$this->position($r)} sur la liste d'attente."
-                    : "✅ {$item->code} ({$this->label($item)}, ".Money::format($item->price).') : réservée pour vous.';
-            });
-            $held = LiveReservation::forStore($conversation->store_id)->where('customer_phone', $phone)->where('status', 'reserved')->whereNull('order_id')->exists();
-            $this->reply($conversation, $lines->implode("\n").($held ? "\nPour la livraison, répondez avec votre quartier (et un repère)." : ''));
+            $this->reserveFor($conversation, $items);
 
             return true;
         }
 
-        $order = $this->complete($conversation->store, $phone, $message->body);
+        $order = $this->complete($conversation->store, PhoneNumber::normalize($conversation->contact), $message->body);
         if ($order !== null) {
             $this->reply($conversation, "Merci ! Commande {$order->reference()} enregistrée ({$order->items->map(fn ($i) => $i->title)->implode(', ')}), "
                 .'livraison : '.($order->shipping_address ?? 'à préciser').'. Nous vous appelons pour confirmer.');
@@ -281,6 +290,79 @@ class LiveSales
         }
 
         return false;
+    }
+
+    /**
+     * Capture d'écran envoyée pendant le live : le code de l'article montré à l'écran (A3) est lu sur la photo,
+     * d'abord dans la légende, sinon par l'IA. Sans code lisible, on demande au client de l'écrire.
+     */
+    public function readCapture(ConversationMessage $message): void
+    {
+        $conversation = Conversation::forStore($message->store_id)->find($message->conversation_id);
+        $session = self::current($message->store_id);
+        if ($conversation === null || $session === null) {
+            return;
+        }
+        $items = $this->codesIn($session, preg_replace('/^📷 Photo( : )?/u', '', (string) $message->body));
+        if ($items->isEmpty()) {
+            $code = $this->codeOnPhoto($conversation, $message, $session);
+            $items = $code !== null ? $session->items()->with('session', 'variant.product')->where('code', $code)->get() : collect();
+        }
+        if ($items->isEmpty()) {
+            $codes = $session->items->pluck('code')->take(3)->implode(', ');
+            $this->reply($conversation, "Nous n'avons pas trouvé le code de l'article sur votre capture. Écrivez-nous le code affiché pendant le live (par exemple {$codes}).");
+
+            return;
+        }
+        $this->reserveFor($conversation, $items->take(1));
+    }
+
+    /**
+     * @param  Collection<int, LiveItem>  $items
+     */
+    private function reserveFor(Conversation $conversation, Collection $items): void
+    {
+        $phone = PhoneNumber::normalize($conversation->contact);
+        $lines = $items->map(function (LiveItem $item) use ($phone, $conversation) {
+            $r = $this->reserve($item, ['name' => $conversation->contact_name, 'phone' => $phone], 'whatsapp');
+
+            return $r->status === 'waiting'
+                ? "⏳ {$item->code} ({$this->label($item)}) : déjà partie, vous êtes n°{$this->position($r)} sur la liste d'attente."
+                : "✅ {$item->code} ({$this->label($item)}, ".Money::format($item->price).') : réservée pour vous.';
+        });
+        $held = LiveReservation::forStore($conversation->store_id)->where('customer_phone', $phone)->where('status', 'reserved')->whereNull('order_id')->exists();
+        $this->reply($conversation, $lines->implode("\n").($held ? "\nPour la livraison, répondez avec votre quartier (et un repère)." : ''));
+    }
+
+    /**
+     * Code du live lu sur la photo par l'IA (compté comme une action de l'assistant) ; null si illisible ou indisponible.
+     */
+    private function codeOnPhoto(Conversation $conversation, ConversationMessage $message, LiveSession $session): ?string
+    {
+        $bytes = $conversation->via_link
+            ? (($link = app(Inbox::class)->linkFor($conversation)) && $message->provider_message_id ? app(WhatsAppBridge::class)->image($link, $message->provider_message_id) : null)
+            : (($account = WhatsappAccount::forStore($message->store_id)->first()) && $message->media_id ? app(WhatsAppCloud::class)->image($account, $message->media_id) : null);
+        if ($bytes === null) {
+            return null;
+        }
+        $codes = $session->items->map(fn (LiveItem $i) => "{$i->code} : {$this->label($i)}")->implode("\n");
+        try {
+            $assistant = app(Assistant::class);
+            $result = $assistant->run($conversation->store, null, 'live_capture',
+                "Tu aides une boutique qui vend en live. Le client a envoyé une capture d'écran du live. Pendant le live, chaque article "
+                .'est montré avec un code court (une lettre et un chiffre, par exemple A3) écrit sur une carte, un écran ou en surimpression. '
+                ."Trouve ce code sur l'image. Codes de ce live :\n{$codes}\nRéponds code = null si aucun de ces codes n'est lisible ; n'invente rien.",
+                [$assistant->imageFrom($bytes), ['type' => 'text', 'text' => 'Quel code d\'article voit-on sur cette capture ?']],
+                ['type' => 'object', 'properties' => ['code' => ['type' => ['string', 'null']]], 'required' => ['code'], 'additionalProperties' => false],
+                200);
+        } catch (BusinessRuleException|QuotaExceededException $e) {
+            Log::info('Live : capture non lue', ['message' => $message->id, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+        $code = strtoupper(trim((string) ($result['code'] ?? '')));
+
+        return $session->items->contains('code', $code) ? $code : null;
     }
 
     /**
@@ -327,6 +409,8 @@ class LiveSales
                 'created_at' => $r->created_at->toIso8601String(),
             ])->values()->all(),
             'summary' => $team ? $this->summary($session) : null,
+            // WhatsApp qui répond aux clients pendant le live : official (Meta), link (relié par QR code) ou null
+            'whatsapp' => $team ? (WhatsappAccount::forStore($session->store_id)->exists() ? 'official' : (WhatsappLink::connectedFor($session->store_id) ? 'link' : null)) : null,
         ];
     }
 

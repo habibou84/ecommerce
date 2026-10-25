@@ -118,7 +118,8 @@ class Inbox
         $sentAt = isset($message['timestamp']) ? Carbon::createFromTimestamp((int) $message['timestamp']) : now();
         $type = in_array($message['type'] ?? '', ['text', 'image', 'audio', 'video', 'document', 'location', 'sticker', 'button', 'interactive'], true) ? $message['type'] : 'other';
 
-        return $this->land($account->store_id, '+'.ltrim($from, '+'), $name, $type, $body, $providerId, $sentAt, false);
+        return $this->land($account->store_id, '+'.ltrim($from, '+'), $name, $type, $body, $providerId, $sentAt, false,
+            $type === 'image' ? ($message['image']['id'] ?? null) : null);
     }
 
     /**
@@ -194,9 +195,12 @@ class Inbox
         return $message;
     }
 
-    private function land(int $storeId, string $phone, ?string $name, string $type, string $body, ?string $providerId, Carbon $sentAt, bool $viaLink): ConversationMessage
+    /**
+     * @param  ?string  $mediaId  photo reçue par le WhatsApp officiel (identifiant de média de Meta, lu à la demande)
+     */
+    private function land(int $storeId, string $phone, ?string $name, string $type, string $body, ?string $providerId, Carbon $sentAt, bool $viaLink, ?string $mediaId = null): ConversationMessage
     {
-        $received = DB::transaction(function () use ($storeId, $phone, $name, $type, $body, $providerId, $sentAt, $viaLink) {
+        $received = DB::transaction(function () use ($storeId, $phone, $name, $type, $body, $providerId, $sentAt, $viaLink, $mediaId) {
             $conversation = Conversation::forStore($storeId)->lockForUpdate()->firstOrNew(['channel' => 'whatsapp', 'contact' => $phone]);
             // Alerte à l'équipe pour un nouveau fil de discussion, pas à chaque message d'une conversation en cours
             $alert = $conversation->unread_count === 0 || $conversation->last_inbound_at === null || $conversation->last_inbound_at->lt($sentAt->copy()->subMinutes(10));
@@ -216,6 +220,7 @@ class Inbox
                 'type' => $type,
                 'body' => $body,
                 'provider_message_id' => $providerId,
+                'media_id' => $mediaId,
                 'status' => 'received',
                 'sent_at' => $sentAt,
             ]);
@@ -289,7 +294,7 @@ class Inbox
     {
         $link = $this->linkFor($conversation);
         if ($link !== null) {
-            return $this->record($conversation, 'auto', $text, 'queued', $this->bridge->send($link, $conversation->contact, $text));
+            return $this->record($conversation, 'auto', $text, 'queued', $this->bridge->send($link, $conversation->contact, $text, slow: true));
         }
         $account = $conversation->channel === 'whatsapp' && $conversation->canReply() ? WhatsappAccount::forStore($conversation->store_id)->first() : null;
         if ($account === null) {

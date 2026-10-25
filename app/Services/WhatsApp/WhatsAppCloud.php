@@ -95,6 +95,25 @@ class WhatsAppCloud
     }
 
     /**
+     * Photo reçue (identifiant de média de Meta) en octets : adresse temporaire lue avec le jeton, puis téléchargée ;
+     * null si Meta ne la donne plus.
+     */
+    public function image(WhatsappAccount $account, string $mediaId): ?string
+    {
+        try {
+            $url = Http::withToken($account->access_token)->acceptJson()->timeout(15)->get(self::GRAPH.$mediaId)->json('url');
+            if (! is_string($url) || ! str_starts_with($url, 'https://')) {
+                return null;
+            }
+            $response = Http::withToken($account->access_token)->timeout(30)->get($url);
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        return $response->successful() ? $response->body() : null;
+    }
+
+    /**
      * Appel à l'API Graph (inscription intégrée : jeton, abonnement du compte, numéro, modèles).
      *
      * @param  array<string, mixed>  $data

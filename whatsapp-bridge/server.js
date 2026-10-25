@@ -8,7 +8,9 @@
  * état de la session, messages des clients, messages écrits depuis le téléphone, réponses envoyées, remises ou lues.
  *
  * Seulement des conversations : les clients écrivent, l'équipe répond. Pas d'envois en masse. Les réponses passent par
- * une file par session, avec une courte pause et « en train d'écrire » pour garder un rythme humain.
+ * une file par session, avec une courte pause et « en train d'écrire » pour garder un rythme humain ; les réponses
+ * automatiques (pace « slow ») sont plus espacées et plafonnées par minute. Les photos reçues restent un moment en
+ * mémoire, lisibles par Jibiat Marchand (POST /sessions/<session>/media).
  *
  * Réglages lus dans le .env de Jibiat Marchand (dossier parent) : WHATSAPP_BRIDGE_PORT (3210), WHATSAPP_BRIDGE_TOKEN,
  * WHATSAPP_BRIDGE_WEBHOOK (adresse qui reçoit les événements, par défaut api.<domaine d'APP_URL>/webhooks/whatsapp-bridge).
@@ -26,6 +28,7 @@ import QRCode from 'qrcode'
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  downloadMediaMessage,
   fetchLatestBaileysVersion,
   generateMessageIDV2,
   useMultiFileAuthState,
@@ -39,6 +42,13 @@ const WEBHOOK = env.WHATSAPP_BRIDGE_WEBHOOK || defaultWebhook(env.APP_URL || 'ht
 const DATA_DIR = env.WHATSAPP_BRIDGE_DATA || path.join(ROOT, 'storage', 'app', 'whatsapp-bridge')
 const MIN_DELAY = Number(env.WHATSAPP_BRIDGE_MIN_DELAY_MS || 1500)
 const EXTRA_DELAY = Number(env.WHATSAPP_BRIDGE_EXTRA_DELAY_MS || 1500)
+// Réponses automatiques (live, réponses de nuit) : plus espacées, et pas plus de SLOW_PER_MINUTE par minute, pour
+// qu'une rafale après un live ne ressemble pas à des envois en masse
+const SLOW_MIN_DELAY = Number(env.WHATSAPP_BRIDGE_SLOW_MIN_DELAY_MS || 4000)
+const SLOW_EXTRA_DELAY = Number(env.WHATSAPP_BRIDGE_SLOW_EXTRA_DELAY_MS || 5000)
+const SLOW_PER_MINUTE = Number(env.WHATSAPP_BRIDGE_SLOW_PER_MINUTE || 8)
+// Photos reçues gardées un moment en mémoire : Jibiat Marchand peut les lire (capture d'un article pendant un live)
+const MEDIA_KEEP = 300
 // Message écrit depuis le téléphone : recopié dans la boîte Messages s'il est récent (pas l'historique)
 const RECENT_SECONDS = 120
 
@@ -68,6 +78,9 @@ class Session {
     this.sock = null
     this.queue = Promise.resolve()
     this.lastSend = 0
+    this.slowSends = []
+    // Identifiant du message => message WhatsApp d'une photo reçue (les plus récentes)
+    this.media = new Map()
     // Identifiant WhatsApp d'un message envoyé => identifiant donné à Jibiat Marchand (accusés de réception)
     this.sent = new Map()
     this.stopped = false
@@ -173,6 +186,10 @@ class Session {
         : textOf(m) !== null ? 'text' : 'other'
     const place = m.locationMessage || m.liveLocationMessage
     this.rememberChat(from, msg.key.remoteJid)
+    if (kind === 'image') {
+      this.media.set(msg.key.id, msg)
+      if (this.media.size > MEDIA_KEEP) this.media.delete(this.media.keys().next().value)
+    }
 
     notify({
       type: 'message',
@@ -258,15 +275,21 @@ class Session {
   }
 
   /** Message mis dans la file : renvoie tout de suite son identifiant, l'envoi suit (événement sent ou failed) */
-  enqueue (to, text) {
+  enqueue (to, text, slow = false) {
     const id = 'qr-' + crypto.randomUUID()
-    this.queue = this.queue.then(() => this.deliver(id, to, text)).catch(() => {})
+    this.queue = this.queue.then(() => this.deliver(id, to, text, slow)).catch(() => {})
     return id
   }
 
-  async deliver (id, to, text) {
-    const wait = this.lastSend + MIN_DELAY + Math.floor(Math.random() * EXTRA_DELAY) - Date.now()
+  async deliver (id, to, text, slow = false) {
+    const wait = this.lastSend + (slow ? SLOW_MIN_DELAY + Math.floor(Math.random() * SLOW_EXTRA_DELAY) : MIN_DELAY + Math.floor(Math.random() * EXTRA_DELAY)) - Date.now()
     if (wait > 0) await sleep(wait)
+    if (slow) {
+      // Plafond par minute des réponses automatiques : on attend que la plus ancienne de la minute soit passée
+      this.slowSends = this.slowSends.filter((t) => t > Date.now() - 60000)
+      if (this.slowSends.length >= SLOW_PER_MINUTE) await sleep(this.slowSends[0] + 60000 - Date.now())
+      this.slowSends.push(Date.now())
+    }
     this.lastSend = Date.now()
     try {
       // Reconnexion en cours (réseau, redémarrage) : on l'attend un peu plutôt que d'échouer tout de suite
@@ -327,6 +350,15 @@ class Session {
   describe () {
     return { session: this.id, status: this.status, qr: this.qr, code: this.pairingCode, phone: this.phone, name: this.name }
   }
+
+  /** Photo d'un message reçu, en base64 (null si elle n'est plus en mémoire) */
+  async image (id) {
+    const msg = this.media.get(id)
+    if (!msg || !this.sock) return null
+    const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: quiet, reuploadRequest: this.sock.updateMediaMessage })
+    const m = msg.message.ephemeralMessage?.message || msg.message
+    return { mime: m.imageMessage?.mimetype || 'image/jpeg', data: buffer.toString('base64') }
+  }
 }
 
 async function open (id) {
@@ -383,7 +415,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/health') return reply(200, { ok: true, sessions: sessions.size })
 
     // Une session par boutique (« store-12 ») et une pour le numéro du support (« platform », console)
-    const match = req.url.match(/^\/sessions\/(store-[0-9]{1,12}|platform)(\/(start|pair|send|logout))?$/)
+    const match = req.url.match(/^\/sessions\/(store-[0-9]{1,12}|platform)(\/(start|pair|send|logout|media))?$/)
     if (!match) return reply(404, { message: 'Adresse inconnue.' })
     const [, id, , action] = match
 
@@ -412,11 +444,17 @@ const server = http.createServer(async (req, res) => {
       return reply(200, { session: id, status: 'logged_out' })
     }
     if (req.method === 'POST' && action === 'send') {
-      const { to, text } = JSON.parse(await readBody(req) || '{}')
+      const { to, text, pace } = JSON.parse(await readBody(req) || '{}')
       const session = sessions.get(id)
       if (!session || session.status !== 'connected') return reply(409, { message: 'WhatsApp n\'est pas relié : scannez le QR code dans Réglages › WhatsApp.' })
       if (!to || !text) return reply(422, { message: 'Destinataire et texte obligatoires.' })
-      return reply(202, { id: session.enqueue(to, String(text)) })
+      return reply(202, { id: session.enqueue(to, String(text), pace === 'slow') })
+    }
+    if (req.method === 'POST' && action === 'media') {
+      const { id: messageId } = JSON.parse(await readBody(req) || '{}')
+      const session = sessions.get(id)
+      const image = session && messageId ? await session.image(String(messageId)).catch(() => null) : null
+      return image ? reply(200, image) : reply(404, { message: 'Photo introuvable.' })
     }
     return reply(405, { message: 'Méthode non autorisée.' })
   } catch (e) {

@@ -13,7 +13,7 @@ class ConversationMessage extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'conversation_id', 'direction', 'type', 'body', 'provider_message_id', 'status', 'error', 'user_id', 'sent_at'];
+    protected $fillable = ['store_id', 'conversation_id', 'direction', 'type', 'body', 'provider_message_id', 'media_id', 'status', 'error', 'user_id', 'sent_at'];
 
     protected function casts(): array
     {

@@ -11,6 +11,8 @@ const live = ref(null)
 const error = ref('')
 const busy = ref(false)
 const quick = reactive({ code: '', name: '', phone: '' })
+// Code affiché en plein écran : le téléphone posé à côté de l'article pendant le live
+const big = ref(null)
 let timer
 
 const SOURCE = { page: 'Page du live', whatsapp: 'WhatsApp', manual: 'Équipe' }
@@ -81,6 +83,19 @@ async function addQuick() {
         <button v-else-if="live.status === 'live'" class="btn-secondary" :disabled="busy" @click="end">Terminer le live</button>
       </section>
 
+      <!-- WhatsApp qui répond aux clients : conseils selon le mode -->
+      <Alert v-if="live.status !== 'ended' && live.whatsapp === null" tone="warning">
+        Aucun WhatsApp n'est relié : les clients peuvent réserver sur la page du live, mais leurs codes et captures envoyés sur WhatsApp ne seront pas lus.
+        Reliez votre WhatsApp dans Messages.
+      </Alert>
+      <p v-else-if="live.status !== 'ended' && live.whatsapp === 'link'" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+        WhatsApp relié par QR code : idéal pour démarrer. Les réponses automatiques partent quelques secondes après chaque message, sans rafale, pour protéger votre numéro.
+        Si vous faites de gros lives, passez au WhatsApp officiel (Messages › WhatsApp), sans risque de blocage.
+      </p>
+      <p v-if="live.status === 'live'" class="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+        📷 Montrez le code de l'article à l'écran (carte, ou ce téléphone : touchez le code pour l'afficher en grand) : quand un client envoie sa capture sur WhatsApp, le code est lu et l'article réservé.
+      </p>
+
       <section class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
         <div class="card p-3"><span class="block text-xs text-slate-500">Réservations</span><strong class="text-lg">{{ live.summary.reservations }}</strong></div>
         <div class="card p-3"><span class="block text-xs text-slate-500">Commandes créées</span><strong class="text-lg">{{ live.summary.orders }}</strong></div>
@@ -90,7 +105,7 @@ async function addQuick() {
 
       <section class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <div v-for="i in live.items" :key="i.id" class="card flex items-center gap-3 p-3 text-sm" :class="{ 'opacity-60': i.remaining === 0 }">
-          <span class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-red-600 text-lg font-bold text-white">{{ i.code }}</span>
+          <button type="button" class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-red-600 text-lg font-bold text-white" :aria-label="`Afficher ${i.code} en grand`" @click="big = i">{{ i.code }}</button>
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium">{{ i.title }}</span>
             <span class="text-slate-500">{{ money(i.price) }}</span>
@@ -128,5 +143,11 @@ async function addQuick() {
         </ul>
       </section>
     </template>
+
+    <button v-if="big" type="button" class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-red-600 text-white" @click="big = null">
+      <span class="text-[38vmin] font-black leading-none">{{ big.code }}</span>
+      <span class="text-[7vmin] font-bold">{{ money(big.price) }}</span>
+      <span class="text-sm opacity-80">Touchez pour fermer</span>
+    </button>
   </div>
 </template>

@@ -8,11 +8,13 @@ use App\Models\Order;
 use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
+use App\Services\Ai\AiClient;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Live\LiveSales;
 use App\Services\Places\Places;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
+use Tests\Support\FakeAiClient;
 use Tests\TestCase;
 
 /**
@@ -30,6 +32,14 @@ class LiveSalesTest extends TestCase
     /** @var list<string> */
     private array $whatsapp = [];
 
+    /** @var list<string> */
+    private array $paces = [];
+
+    private FakeAiClient $ai;
+
+    /** Image PNG de 1 × 1 pixel (capture simulée) */
+    private const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,13 +47,17 @@ class LiveSalesTest extends TestCase
         Http::preventStrayRequests();
         Http::fake([
             'http://127.0.0.1:3210/sessions/*/start' => Http::response(['session' => 'x', 'status' => 'qr', 'qr' => 'data:image/png;base64,QR']),
+            'http://127.0.0.1:3210/sessions/*/media' => fn () => Http::response(['mime' => 'image/png', 'data' => self::PNG]),
             'http://127.0.0.1:3210/sessions/*/send' => function ($request) {
                 $this->whatsapp[] = $request->data()['text'] ?? '';
+                $this->paces[] = $request->data()['pace'] ?? 'normal';
 
                 return Http::response(['id' => 'qr-'.count($this->whatsapp)], 202);
             },
             'http://127.0.0.1:3210/sessions/*' => Http::response(['status' => 'connected', 'phone' => '+2250700000001']),
         ]);
+        $this->ai = new FakeAiClient;
+        $this->app->instance(AiClient::class, $this->ai);
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
         app(Places::class)->provisionDefaultZone($this->store);
         $this->robe = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Robe wax', 'variants' => [['price' => 15000, 'on_hand' => 10]]]);
@@ -183,5 +197,40 @@ class LiveSalesTest extends TestCase
         $mimi = LiveReservation::where('customer_name', 'mimi_225')->sole();
         $this->storeApi($this->store, 'POST', "lives/{$id}/reservations/{$mimi->id}/cancel")->assertOk();
         $this->assertSame('cancelled', $mimi->fresh()->status);
+    }
+
+    public function test_a_screenshot_sent_on_whatsapp_is_read_and_reserves_the_article(): void
+    {
+        $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
+        $this->bridge(['type' => 'status', 'status' => 'connected', 'phone' => '+2250700000001'])->assertOk();
+        $id = $this->prepare(robes: 1);
+
+        // Capture où l'on voit « A2 » : lue par l'IA, l'article est réservé et le quartier demandé (réponse espacée)
+        $this->ai->respond(['code' => 'A2']);
+        $this->bridge(['type' => 'message', 'id' => 'IMG1', 'from' => '2250506070809', 'name' => 'Fatou', 'kind' => 'image', 'text' => null, 'at' => now()->timestamp])->assertOk();
+        $this->assertSame(['reserved'], LiveReservation::pluck('status')->all());
+        $this->assertSame('A2', LiveReservation::sole()->item->code);
+        $this->assertStringContainsString('A2', end($this->whatsapp));
+        $this->assertSame('slow', end($this->paces));
+        $this->assertStringContainsString('A1 : ', $this->ai->calls[0]['system']);
+
+        // Légende avec le code : pas besoin de l'IA
+        $this->bridge(['type' => 'message', 'id' => 'IMG2', 'from' => '2250701020304', 'kind' => 'image', 'text' => 'A1 svp', 'at' => now()->timestamp])->assertOk();
+        $this->assertCount(1, $this->ai->calls);
+        $this->assertSame(2, LiveReservation::count());
+
+        // Code illisible : on demande au client de l'écrire
+        $this->ai->respond(['code' => null]);
+        $this->bridge(['type' => 'message', 'id' => 'IMG3', 'from' => '2250708091011', 'kind' => 'image', 'text' => null, 'at' => now()->timestamp])->assertOk();
+        $this->assertStringContainsString('pas trouvé le code', end($this->whatsapp));
+        $this->assertSame(2, LiveReservation::count());
+
+        // Écran de l'équipe : WhatsApp relié par QR code
+        $this->storeApi($this->store, 'GET', "lives/{$id}")->assertJsonPath('data.whatsapp', 'link');
+
+        // Sans live en cours, une photo reste un message ordinaire
+        $this->storeApi($this->store, 'POST', "lives/{$id}/end")->assertOk();
+        $this->bridge(['type' => 'message', 'id' => 'IMG4', 'from' => '2250506070809', 'kind' => 'image', 'text' => null, 'at' => now()->timestamp])->assertOk();
+        $this->assertCount(2, $this->ai->calls);
     }
 }
