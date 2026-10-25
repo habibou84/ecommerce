@@ -14,10 +14,10 @@
         @else
             <p class="flex items-center gap-2 text-sm font-semibold text-red-600"><span class="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-600"></span>En direct maintenant</p>
             <h1 class="mt-1 text-2xl font-bold">{{ $live['title'] }}</h1>
-            <p class="mt-1 text-slate-600">Touchez « Je prends » sous l'article : c'est réservé à votre nom.</p>
+            <p class="mt-1 text-slate-600">Touchez « Je prends » sur chaque article qui vous plaît (choisissez le nombre de pièces), puis « Réserver » : une seule commande pour tout.</p>
 
             <script type="application/json" id="live-data">@json($live['items'], JSON_HEX_TAG)</script>
-            <ul class="mt-5 space-y-3" data-live-items>
+            <ul class="mt-5 space-y-3 pb-24" data-live-items>
                 @foreach ($live['items'] as $item)
                     <li class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3" data-live-item="{{ $item['id'] }}">
                         @if ($item['image'])
@@ -31,15 +31,29 @@
                             <p class="mt-0.5 font-bold">{{ \Jibiat\Socle\Money::format($item['price']) }}</p>
                             <p class="text-sm text-slate-500" data-remaining>{{ $item['remaining'] > 0 ? 'Il en reste '.$item['remaining'] : 'Épuisé · liste d\'attente' }}</p>
                         </div>
-                        <button type="button" class="btn-store shrink-0 px-4" data-take="{{ $item['id'] }}" data-code="{{ $item['code'] }}">{{ $item['remaining'] > 0 ? 'Je prends' : 'M\'inscrire' }}</button>
+                        <div class="shrink-0" data-pick="{{ $item['id'] }}">
+                            <button type="button" class="btn-store px-4" data-take>{{ $item['remaining'] > 0 ? 'Je prends' : 'M\'inscrire' }}</button>
+                            <div class="flex items-center gap-1" data-stepper hidden>
+                                <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-xl font-bold" data-minus aria-label="Une pièce de moins">−</button>
+                                <span class="w-7 text-center text-lg font-bold" data-qty aria-live="polite">1</span>
+                                <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-xl font-bold disabled:opacity-30" data-plus aria-label="Une pièce de plus">+</button>
+                            </div>
+                        </div>
                     </li>
                 @endforeach
             </ul>
 
+            <div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur" data-live-bar hidden>
+                <div class="mx-auto flex max-w-xl items-center gap-3">
+                    <p class="min-w-0 flex-1 leading-tight"><span class="block text-sm text-slate-600" data-bar-count></span><strong class="text-lg" data-bar-total></strong></p>
+                    <button type="button" class="btn-store px-6" data-live-open>Réserver</button>
+                </div>
+            </div>
+
             <dialog data-live-dialog class="m-auto w-[min(28rem,92vw)] rounded-2xl p-0 backdrop:bg-black/50">
                 <form method="dialog" data-live-form class="space-y-4 p-5">
                     <h2 class="text-lg font-bold" data-live-title>Réserver</h2>
-                    <input type="hidden" name="item_id">
+                    <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm" data-live-summary></ul>
                     <div>
                         <label for="live-name" class="field-label">Votre nom</label>
                         <input id="live-name" name="name" class="field" autocomplete="name" required maxlength="120">
