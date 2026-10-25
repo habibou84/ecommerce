@@ -31,6 +31,7 @@ const entries = computed(() => [
   ...(props.options?.carriers ?? []).map((c) => ({
     key: `carrier:${c.id}`, type: 'carrier', name: c.name, price: c.covered ? c.fee : null, faded: !c.covered, disabled: !c.covered && !!props.placeLabel,
     cheapest: c.id === cheapest.value,
+    partner: !!c.partner,
     sub: [
       c.is_api ? 'Entreprise · Delivery App' : `Entreprise · ${c.zones_count ? `${c.zones_count} zone(s)` : 'sans grille de tarifs'}`,
       props.placeLabel ? (c.covered ? `livre ${place.value}${c.zone ? ` · zone ${c.zone}` : ''}` : `ne livre pas ${place.value}`) : '',
@@ -81,7 +82,7 @@ function pick(key) {
         >
           <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-bold" :class="e.type === 'courier' ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800'">{{ initials(e.name) }}</span>
           <span class="min-w-0 flex-1">
-            <span class="flex flex-wrap items-center gap-2 text-base font-semibold">{{ e.name }}<span v-if="e.cheapest" class="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Le moins cher</span></span>
+            <span class="flex flex-wrap items-center gap-2 text-base font-semibold">{{ e.name }}<span v-if="e.partner" class="rounded-full bg-sky-600 px-2 py-0.5 text-xs font-semibold text-white">Votre entreprise</span><span v-if="e.cheapest" class="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Le moins cher</span></span>
             <span class="block text-sm text-slate-500">{{ e.sub }}</span>
           </span>
           <span v-if="e.price !== null" class="text-base font-bold tabular-nums">{{ money(e.price) }}</span>

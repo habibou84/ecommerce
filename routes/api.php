@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
+use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
 use App\Http\Controllers\Api\V1\Console\ConsoleWhatsAppController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\CampaignController;
+use App\Http\Controllers\Api\V1\Marketing\LiveController;
 use App\Http\Controllers\Api\V1\Marketing\LoyaltyController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
@@ -127,6 +129,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::delete('payments/wave-qr', [ConsolePaymentsController::class, 'removeQr'])->name('payments.qr.remove');
             Route::get('payments/pending', [ConsolePaymentsController::class, 'pending'])->name('payments.pending');
             Route::post('payments/{invoice}/decide', [ConsolePaymentsController::class, 'decide'])->whereNumber('invoice')->name('payments.decide');
+            Route::get('referrals', [ConsoleReferralController::class, 'index'])->name('referrals');
+            Route::put('referrals/settings', [ConsoleReferralController::class, 'settings'])->name('referrals.settings');
+            Route::post('referrals/{partner}/pay', [ConsoleReferralController::class, 'pay'])->where('partner', '[a-z0-9-]{1,80}')->name('referrals.pay');
             Route::get('whatsapp', [ConsoleWhatsAppController::class, 'show'])->name('whatsapp.show');
             Route::post('whatsapp/embedded', [ConsoleWhatsAppController::class, 'connect'])->middleware('throttle:login')->name('whatsapp.connect');
             Route::delete('whatsapp', [ConsoleWhatsAppController::class, 'disconnect'])->name('whatsapp.disconnect');
@@ -436,6 +441,17 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::OrdersManage->value)->group(function () {
                 Route::get('carts/abandoned', [WhatsAppController::class, 'abandonedCarts'])->name('carts.abandoned');
                 Route::post('carts/{cart}/recovery', [WhatsAppController::class, 'markRecovered'])->whereNumber('cart')->name('carts.recovery');
+
+                // Vente en live : préparation, écran du live, mode assistant, bilan
+                Route::get('lives', [LiveController::class, 'index'])->name('lives.index');
+                Route::post('lives', [LiveController::class, 'store'])->name('lives.store');
+                Route::get('lives/variants', [LiveController::class, 'variants'])->name('lives.variants');
+                Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->name('lives.show');
+                Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->name('lives.update');
+                Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->name('lives.start');
+                Route::post('lives/{session}/end', [LiveController::class, 'end'])->whereNumber('session')->name('lives.end');
+                Route::post('lives/{session}/reservations', [LiveController::class, 'reserve'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.reserve');
+                Route::post('lives/{session}/reservations/{reservation}/cancel', [LiveController::class, 'cancel'])->whereNumber(['session', 'reservation'])->name('lives.cancel');
             });
 
             // ── Livreurs de la boutique ──

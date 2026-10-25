@@ -48,12 +48,13 @@ class CarrierDirectory
             ->map(fn (string $url) => mb_strtolower((string) parse_url($url, PHP_URL_HOST)))->all();
         $city = mb_strtolower(trim((string) $store->address));
 
-        $list = collect($companies)->map(function (array $c) use ($connected, $city) {
+        $list = collect($companies)->map(function (array $c) use ($connected, $city, $store) {
             $host = mb_strtolower((string) parse_url($c['url'], PHP_URL_HOST));
             $local = $city !== '' && collect($c['cities'])->contains(fn (string $name) => str_contains($city, mb_strtolower($name)));
 
-            return [...$c, 'connected' => in_array($host, $connected, true), 'near' => $local];
-        })->sortByDesc(fn (array $c) => [$c['near'] ? 1 : 0, $c['stats']['deliveries_90d'] ?? 0])->values()->all();
+            // partner : l'entreprise qui a invité la boutique, toujours en premier
+            return [...$c, 'connected' => in_array($host, $connected, true), 'near' => $local, 'partner' => $store->referred_by === $c['slug']];
+        })->sortByDesc(fn (array $c) => [$c['partner'] ? 1 : 0, $c['near'] ? 1 : 0, $c['stats']['deliveries_90d'] ?? 0])->values()->all();
 
         return ['companies' => $list, 'available' => true];
     }

@@ -7,6 +7,7 @@ use App\Models\CarrierConnection;
 use App\Models\CarrierPayout;
 use App\Models\CarrierZone;
 use App\Models\CarrierZoneMapping;
+use App\Services\Partners\PartnerReferrals;
 use App\Services\Places\Places;
 use App\Services\Shipping\CarrierConnections;
 use App\Services\Shipping\CarrierDirectory;
@@ -287,6 +288,7 @@ class CarrierController extends Controller
             'api_key_prefix' => $c->api_key_prefix,
             'scopes' => $c->scopes ?? [],
             'merchant_name' => $c->remote_account['merchant']['business_name'] ?? null,
+            'partner' => PartnerReferrals::isPartner($this->currentStore(), $c),
             'contact_phone' => $c->contact_phone,
             'webhook_url' => $c->isApi() ? $this->connections->webhookUrl($c) : null,
             'webhook_ready' => $c->webhook_secret !== null,

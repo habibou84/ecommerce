@@ -90,17 +90,36 @@ class WhatsAppBridge
      *
      * @return string identifiant donné par le service
      */
-    public function send(WhatsappLink $link, string $to, string $text): string
+    /**
+     * @param  bool  $slow  réponse automatique : plus espacée et plafonnée par minute dans le service
+     */
+    public function send(WhatsappLink $link, string $to, string $text, bool $slow = false): string
     {
-        return $this->sendFrom($link->session(), $to, $text);
+        return $this->sendFrom($link->session(), $to, $text, $slow);
     }
 
     /**
      * @return string identifiant donné par le service
      */
-    public function sendFrom(string $session, string $to, string $text): string
+    public function sendFrom(string $session, string $to, string $text, bool $slow = false): string
     {
-        return (string) $this->call(fn () => $this->http()->post('/sessions/'.$session.'/send', ['to' => $to, 'text' => $text]))->json('id');
+        $body = ['to' => $to, 'text' => $text] + ($slow ? ['pace' => 'slow'] : []);
+
+        return (string) $this->call(fn () => $this->http()->post('/sessions/'.$session.'/send', $body))->json('id');
+    }
+
+    /**
+     * Photo d'un message reçu (gardée un moment par le service), en octets ; null si elle n'est plus disponible.
+     */
+    public function image(WhatsappLink $link, string $messageId): ?string
+    {
+        try {
+            $data = $this->call(fn () => $this->http(30)->post('/sessions/'.$link->session().'/media', ['id' => $messageId]))->json('data');
+        } catch (RuntimeException) {
+            return null;
+        }
+
+        return is_string($data) ? (base64_decode($data, true) ?: null) : null;
     }
 
     private function http(int $timeout = 15): PendingRequest
