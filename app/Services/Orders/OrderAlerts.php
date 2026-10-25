@@ -237,14 +237,14 @@ class OrderAlerts
             // Un nouveau sujet quand le livreur a versé puis réencaissé : l'attente repart de son plus ancien encaissement
             $late = collect($couriers['late'])->keyBy(fn (array $c) => "courier:{$c['courier_id']}:".CarbonImmutable::parse($c['since'])->timestamp);
             $sent += $this->money($store, 'courier_cash', $late, Permission::CouriersManage, '/gestion/caisse/livreurs',
-                fn (array $c) => "{$c['name']} garde ".Money::format($c['held']).' depuis '.$this->age($c['hours']),
-                fn (int $n, int $total) => "{$n} livreurs gardent ".Money::format($total).' depuis longtemps',
+                fn (array $c) => "{$c['name']} vous doit ".Money::format($c['held']).' '.$this->since($c['since'], $now),
+                fn (int $n, int $total) => "{$n} livreurs vous doivent ".Money::format($total).' pas encore versés',
                 'Argent encaissé et pas encore versé : demandez le versement.');
         }
         if ($settings['carrier_payout']['on'] && ($carriers = $outside->carriers($store, $now)) !== null) {
             $late = collect($carriers['overdue'])->keyBy(fn (array $c) => "carrier:{$c['connection_id']}:".CarbonImmutable::parse($c['since'])->timestamp);
             $sent += $this->money($store, 'carrier_payout', $late, Permission::CarriersManage, '/gestion/caisse/a-recevoir',
-                fn (array $c) => "{$c['carrier']} vous doit ".Money::format($c['amount']).' depuis '.$c['days'].' jours',
+                fn (array $c) => "{$c['carrier']} vous doit ".Money::format($c['amount']).' '.$this->since($c['since'], $now),
                 fn (int $n, int $total) => "{$n} entreprises vous doivent ".Money::format($total).' en retard',
                 'Courses livrées pas encore reversées : réclamez le reversement.');
         }
@@ -284,9 +284,17 @@ class OrderAlerts
         return $sent;
     }
 
-    private function age(int $hours): string
+    /** « depuis hier », « depuis le 23 octobre » (jour de la boutique) */
+    private function since(string $at, CarbonImmutable $now): string
     {
-        return $hours < 48 ? "{$hours} h" : intdiv($hours, 24).' jours';
+        $day = CarbonImmutable::parse($at)->setTimezone($now->getTimezone())->startOfDay();
+        $days = (int) $day->diffInDays($now->startOfDay());
+
+        return match ($days) {
+            0 => "depuis aujourd'hui",
+            1 => 'depuis hier',
+            default => 'depuis le '.$day->locale('fr')->translatedFormat('j F'),
+        };
     }
 
     /**

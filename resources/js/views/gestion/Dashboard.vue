@@ -63,7 +63,7 @@ const todo = computed(() => {
   if (s.couriers) {
     const late = s.couriers.late
     items.push({ key: 'courier_cash', icon: 'cash', label: 'Argent à récupérer chez les livreurs', count: late.length, to: '/gestion/caisse/livreurs',
-      hint: late.length ? `${money(late.reduce((sum, c) => sum + c.held, 0))} gardés trop longtemps` : '', urgent: late.length > 0 })
+      hint: late.length ? `${money(late.reduce((sum, c) => sum + c.held, 0))} pas encore versés depuis trop longtemps` : '', urgent: late.length > 0 })
   }
   if (s.carriers) {
     const overdue = s.carriers.overdue
@@ -80,7 +80,12 @@ const todo = computed(() => {
   return items
 })
 // Dehors en ce moment : argent et colis chez les livreurs et les entreprises de livraison
-const age = (hours) => (hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} jours`)
+// « depuis hier », « depuis le 23 octobre »
+function since(at) {
+  const day = new Date(at)
+  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(day).setHours(0, 0, 0, 0)) / 86400000)
+  return days <= 0 ? 'depuis aujourd\'hui' : days === 1 ? 'depuis hier' : `depuis le ${day.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
+}
 const lateTone = (level) => (level > 1 ? 'bg-red-50 text-red-800' : 'bg-ocre-50 text-ocre-800')
 const pending = computed(() => todo.value.filter((t) => t.count > 0 || t.hint))
 
@@ -151,7 +156,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
               </RouterLink>
               <ul v-if="stats.couriers.late.length || stats.couriers.over_limit.length" class="mt-3 space-y-1.5">
                 <li v-for="c in stats.couriers.late" :key="c.courier_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
-                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.name }} garde {{ money(c.held) }} depuis {{ age(c.hours) }}</span>
+                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.name }} vous doit {{ money(c.held) }} {{ since(c.since) }}</span>
                 </li>
                 <li v-for="name in stats.couriers.over_limit.filter((n) => !stats.couriers.late.some((c) => c.name === n))" :key="name" class="flex items-center gap-2 rounded-xl bg-ocre-50 px-3 py-2 text-sm font-semibold text-ocre-800">
                   <Icon name="alert" :size="16" class="shrink-0" />{{ name }} a dépassé son plafond
@@ -170,7 +175,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
               </RouterLink>
               <ul v-if="stats.carriers.overdue.length" class="mt-3 space-y-1.5">
                 <li v-for="c in stats.carriers.overdue" :key="c.connection_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
-                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.carrier }} : {{ money(c.amount) }} en retard ({{ c.days }} jours)</span>
+                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.carrier }} vous doit {{ money(c.amount) }} {{ since(c.since) }}</span>
                 </li>
               </ul>
               <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
