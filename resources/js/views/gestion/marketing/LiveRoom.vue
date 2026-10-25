@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
-import MarketingTabs from '../../../components/MarketingTabs.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 
@@ -65,7 +64,7 @@ async function addQuick() {
 
 <template>
   <div class="space-y-4">
-    <MarketingTabs />
+    <RouterLink to="/gestion/live" class="text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
     <p v-if="!live" class="text-sm text-slate-500">Chargement…</p>
 
