@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage } from '../../lib/http'
 import { formatDateTime, money } from '../../lib/format'
@@ -14,12 +14,16 @@ const saved = ref(false)
 const busy = ref(null)
 const CHANNELS = { mail: 'e-mail', sms: 'SMS', journal: 'SMS non envoyé (pas de fournisseur)' }
 const mail = reactive({ host: '', port: 587, username: '', password: '', from_address: '' })
+const google = reactive({ client_id: '', client_secret: '' })
+const gmailNotice = ref(null)
 const mailSaved = ref(false)
 const testResult = ref(null)
 const testing = ref(false)
 
 function fill(data) {
   settings.value = data
+  google.client_id = data.mail.gmail?.client_id ?? ''
+  google.client_secret = ''
   Object.assign(mail, { host: data.mail.host ?? '', port: Number(data.mail.port ?? 587), username: data.mail.username ?? '', password: '', from_address: data.mail.from_address ?? '' })
   Object.assign(form, { provider: data.provider, wave_link: data.wave_link ?? '', validator_email: data.validator_email ?? '', validator_phone: data.validator_phone ?? '', validator_pin: '' })
 }
@@ -29,7 +33,20 @@ async function loadPending() {
   console_.pendingPayments = pending.value.data.length
 }
 
+// Retour de Google après « Se connecter avec Google »
+const GMAIL_RETURNS = {
+  ok: ['success', 'Gmail est connecté : les e-mails partent maintenant par votre compte Gmail.'],
+  annule: ['warning', 'Connexion à Google annulée.'],
+  expire: ['warning', 'La demande a expiré : recommencez « Se connecter avec Google ».'],
+  erreur: ['error', 'Google a refusé la connexion.'],
+}
 onMounted(async () => {
+  const back = new URLSearchParams(window.location.search)
+  if (GMAIL_RETURNS[back.get('gmail')]) {
+    const [tone, text] = GMAIL_RETURNS[back.get('gmail')]
+    gmailNotice.value = { tone, text: back.get('detail') ? `${text} ${back.get('detail')}` : text }
+    window.history.replaceState(null, '', window.location.pathname)
+  }
   try {
     fill((await http.get('/console/payments/settings')).data.data)
     await loadPending()
@@ -66,9 +83,32 @@ async function save() {
   }
 }
 
-// Gmail : serveur et port tout prêts ; le mot de passe est un « mot de passe d'application » Google
-function gmail() {
-  Object.assign(mail, { host: 'smtp.gmail.com', port: 587 })
+// Gmail connecté avec Google (recommandé par Google, sans mot de passe d'application)
+const gmail = computed(() => settings.value?.mail.gmail ?? {})
+async function saveGoogleClient() {
+  error.value = ''
+  try {
+    fill((await http.put('/console/payments/gmail/client', google)).data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+async function connectGmail() {
+  error.value = ''
+  try {
+    window.location.href = (await http.post('/console/payments/gmail/connect')).data.data.url
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+async function disconnectGmail() {
+  if (!window.confirm('Déconnecter Gmail ? Les e-mails (alertes, code de connexion) ne partiront plus par ce compte.')) return
+  fill((await http.delete('/console/payments/gmail')).data.data)
+}
+const copied = ref(false)
+async function copyRedirect() {
+  await navigator.clipboard?.writeText(gmail.value.redirect_uri)
+  copied.value = true
 }
 
 async function saveMail() {
@@ -170,7 +210,6 @@ async function removeQr() {
         </div>
         <p class="text-xs text-slate-500">
           À chaque paiement, un e-mail part d'abord ; s'il ne part pas (ou sans adresse), un SMS est envoyé. Les paiements apparaissent aussi ici.
-          <template v-if="!settings.mail_ready"> L'envoi d'e-mails n'est pas encore configuré sur le serveur : les alertes partent par SMS.</template>
         </p>
         <label class="block max-w-xs">Code de validation
           <input v-model="form.validator_pin" type="password" inputmode="numeric" autocomplete="new-password" class="input mt-1" :placeholder="settings.pin_set ? 'Déjà défini : laisser vide pour le garder' : 'Au moins 4 chiffres'" />
@@ -186,31 +225,13 @@ async function removeQr() {
       <ul class="space-y-1">
         <li>
           <span :class="settings.mail.source ? 'text-emerald-700' : 'text-amber-800'">{{ settings.mail.source ? '✓' : '✗' }} E-mail :</span>
-          {{ settings.mail.source === 'console' ? `par ${settings.mail.host} (réglé ci-dessous)` : settings.mail.source === 'server' ? 'par le serveur' : 'aucun serveur d\'e-mail : les e-mails ne partent pas' }}
+          {{ settings.mail.source === 'gmail' ? `par Gmail (${settings.mail.gmail.email})` : settings.mail.source === 'console' ? `par ${settings.mail.host} (réglé plus bas)` : settings.mail.source === 'server' ? 'par le serveur' : 'aucun serveur d\'e-mail : les e-mails ne partent pas' }}
         </li>
         <li>
           <span :class="settings.sms_ready ? 'text-emerald-700' : 'text-amber-800'">{{ settings.sms_ready ? '✓' : '✗' }} SMS :</span>
           {{ settings.sms_ready ? 'le serveur envoie les SMS' : 'pas de fournisseur de SMS sur le serveur : les SMS ne partent pas' }}
         </li>
       </ul>
-
-      <div class="space-y-3 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-        <p class="font-medium">Envoi des e-mails</p>
-        <p class="text-xs text-slate-600">
-          Avec Gmail : activez la validation en deux étapes de votre compte Google, puis créez un « mot de passe d'application »
-          (Compte Google › Sécurité › Mots de passe des applications). Collez-le ici, pas votre mot de passe habituel.
-        </p>
-        <button class="btn-ghost" type="button" @click="gmail">Utiliser Gmail</button>
-        <div class="grid max-w-xl gap-3 sm:grid-cols-[1fr_6rem]">
-          <label>Serveur<input v-model="mail.host" class="input mt-1" placeholder="smtp.gmail.com" /></label>
-          <label>Port<input v-model.number="mail.port" type="number" class="input mt-1" /></label>
-        </div>
-        <div class="grid max-w-xl gap-3 sm:grid-cols-2">
-          <label>Adresse Gmail (identifiant)<input v-model="mail.username" type="email" class="input mt-1" placeholder="vous@gmail.com" autocomplete="off" /></label>
-          <label>Mot de passe d'application<input v-model="mail.password" type="password" class="input mt-1" autocomplete="new-password" :placeholder="settings.mail.password_set ? 'Déjà enregistré : laisser vide pour le garder' : '16 lettres'" /></label>
-        </div>
-        <div class="flex items-center gap-2"><button class="btn-brand" @click="saveMail">Enregistrer l'envoi des e-mails</button><span v-if="mailSaved" class="text-emerald-700">Enregistré ✓</span></div>
-      </div>
 
       <div class="space-y-2">
         <button class="btn-ghost" :disabled="testing" @click="testAlert">{{ testing ? 'Envoi…' : 'Envoyer une alerte d\'essai' }}</button>
@@ -219,6 +240,59 @@ async function removeQr() {
           <li :class="testResult.sms.ok ? 'text-emerald-700' : 'text-red-700'">{{ testResult.sms.ok ? '✓' : '✗' }} SMS : {{ testResult.sms.detail }}</li>
         </ul>
       </div>
+    </section>
+
+    <!-- Envoi des e-mails : alertes de paiement et code de connexion à la console -->
+    <section v-if="settings" class="card space-y-4 p-4 text-sm">
+      <div>
+        <h3 class="text-base font-semibold">Envoi des e-mails</h3>
+        <p class="text-slate-600">Alertes de paiement et code de connexion à la console partent de votre compte Gmail.</p>
+      </div>
+      <Alert v-if="gmailNotice" :tone="gmailNotice.tone">{{ gmailNotice.text }}</Alert>
+
+      <div v-if="gmail.connected" class="flex flex-wrap items-center gap-3 rounded-lg bg-emerald-50 p-3 ring-1 ring-emerald-200">
+        <span class="font-semibold text-emerald-800">✓ Gmail connecté : {{ gmail.email }}</span>
+        <button class="btn-ghost ml-auto" type="button" @click="connectGmail">Reconnecter</button>
+        <button class="text-red-700 underline" type="button" @click="disconnectGmail">Déconnecter</button>
+      </div>
+
+      <template v-else>
+        <p v-if="gmail.configured" class="text-slate-600">Dernière étape : autorisez l'envoi d'e-mails depuis votre compte Gmail.</p>
+        <button v-if="gmail.configured" class="btn-brand" type="button" @click="connectGmail">Se connecter avec Google</button>
+
+        <details class="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200" :open="!gmail.configured">
+          <summary class="cursor-pointer font-medium">{{ gmail.configured ? 'Application Google (réglée)' : 'Une seule fois : créer l\'application Google (5 minutes)' }}</summary>
+          <ol class="mt-3 list-decimal space-y-2 pl-5 text-slate-700">
+            <li>Ouvrez <a href="https://console.cloud.google.com/" target="_blank" rel="noopener" class="text-emerald-700 underline">console.cloud.google.com</a> avec votre compte Gmail et créez un projet (par exemple « Jibiat Marchand »).</li>
+            <li>API et services › Bibliothèque : activez « Gmail API ».</li>
+            <li>API et services › Écran de consentement OAuth : type « Externe », nom « Jibiat Marchand », votre adresse ; ajoutez votre Gmail comme utilisateur test, puis touchez « Publier l'application » (sinon la connexion expire au bout de 7 jours).</li>
+            <li>API et services › Identifiants › Créer des identifiants › « ID client OAuth », type « Application Web ». Dans « URI de redirection autorisés », collez :
+              <span class="mt-1 flex flex-wrap items-center gap-2"><code class="rounded bg-white px-2 py-1 ring-1 ring-slate-200">{{ gmail.redirect_uri }}</code><button type="button" class="text-emerald-700 underline" @click="copyRedirect">{{ copied ? 'Copié ✓' : 'Copier' }}</button></span>
+            </li>
+            <li>Copiez l'« ID client » et le « Code secret du client » ci-dessous, puis « Se connecter avec Google ». Google affichera peut-être « Google n'a pas validé cette application » : c'est normal pour votre propre application, touchez « Paramètres avancés » puis « Accéder à Jibiat Marchand ».</li>
+          </ol>
+          <div class="mt-3 grid max-w-2xl gap-3 sm:grid-cols-2">
+            <label>ID client<input v-model="google.client_id" class="input mt-1" placeholder="….apps.googleusercontent.com" autocomplete="off" /></label>
+            <label>Code secret du client<input v-model="google.client_secret" type="password" class="input mt-1" autocomplete="new-password" :placeholder="gmail.configured ? 'Déjà enregistré : laisser vide pour le garder' : 'GOCSPX-…'" /></label>
+          </div>
+          <button class="btn-secondary mt-3" type="button" @click="saveGoogleClient">Enregistrer l'application Google</button>
+        </details>
+      </template>
+
+      <details class="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
+        <summary class="cursor-pointer font-medium text-slate-600">Autre serveur d'e-mail (SMTP, avancé)</summary>
+        <p class="mt-2 text-xs text-slate-600">Utilisé seulement si Gmail n'est pas connecté.</p>
+        <div class="mt-2 grid max-w-xl gap-3 sm:grid-cols-[1fr_6rem]">
+          <label>Serveur<input v-model="mail.host" class="input mt-1" placeholder="smtp.exemple.com" /></label>
+          <label>Port<input v-model.number="mail.port" type="number" class="input mt-1" /></label>
+        </div>
+        <div class="mt-3 grid max-w-xl gap-3 sm:grid-cols-2">
+          <label>Identifiant<input v-model="mail.username" class="input mt-1" autocomplete="off" /></label>
+          <label>Mot de passe<input v-model="mail.password" type="password" class="input mt-1" autocomplete="new-password" :placeholder="settings.mail.password_set ? 'Déjà enregistré : laisser vide pour le garder' : ''" /></label>
+          <label class="sm:col-span-2">Adresse d'expédition<input v-model="mail.from_address" type="email" class="input mt-1" /></label>
+        </div>
+        <div class="mt-3 flex items-center gap-2"><button class="btn-secondary" @click="saveMail">Enregistrer</button><span v-if="mailSaved" class="text-emerald-700">Enregistré ✓</span></div>
+      </details>
     </section>
   </div>
 </template>

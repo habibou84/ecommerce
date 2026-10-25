@@ -8,9 +8,11 @@ use App\Models\SubscriptionInvoice;
 use App\Services\Billing\Billing;
 use App\Services\Billing\BillingSettings;
 use App\Services\Billing\PaymentAlerts;
+use App\Services\Mail\GoogleMail;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Jibiat\Socle\PhoneNumber;
 use Jibiat\Socle\Rules\PhoneNumber as PhoneRule;
@@ -59,7 +61,7 @@ class ConsolePaymentsController extends Controller
     }
 
     /**
-     * Serveur d'e-mail des alertes (Gmail : smtp.gmail.com, port 587, mot de passe d'application). Le mot de passe
+     * Autre serveur d'e-mail (SMTP, avancé), utilisé seulement si Gmail n'est pas connecté avec Google. Le mot de passe
      * n'est jamais renvoyé ; un hôte vide retire le réglage.
      */
     public function updateMail(Request $request): JsonResponse
@@ -73,6 +75,41 @@ class ConsolePaymentsController extends Controller
         ], [], ['host' => 'serveur', 'port' => 'port', 'username' => 'identifiant', 'password' => 'mot de passe', 'from_address' => 'adresse d\'envoi']);
         $this->settings->updateMail($data);
         $this->log($request, 'billing_mail_settings', ['host' => $data['host'] ?? null]);
+
+        return $this->settings();
+    }
+
+    /**
+     * Application Google (client OAuth) qui permet de connecter Gmail : identifiant et code secret (jamais renvoyé).
+     */
+    public function updateGmailClient(Request $request, GoogleMail $gmail): JsonResponse
+    {
+        $data = $request->validate([
+            'client_id' => ['required', 'string', 'max:190', 'regex:/^[A-Za-z0-9.\-_]+\.apps\.googleusercontent\.com$/'],
+            'client_secret' => ['nullable', 'string', 'max:190'],
+        ], ['client_id.regex' => 'L\'identifiant du client se termine par .apps.googleusercontent.com.'], ['client_id' => 'ID client', 'client_secret' => 'code secret du client']);
+        $gmail->saveClient($data['client_id'], $data['client_secret'] ?? null);
+        $this->log($request, 'gmail_client');
+
+        return $this->settings();
+    }
+
+    /**
+     * « Se connecter avec Google » : adresse de la page Google où l'administrateur autorise l'envoi d'e-mails.
+     */
+    public function connectGmail(Request $request, GoogleMail $gmail): JsonResponse
+    {
+        abort_unless($gmail->configured(), 422, 'Réglez d\'abord l\'application Google (ID client et code secret).');
+        $state = Str::random(40);
+        $request->session()->put('gmail_state', $state);
+
+        return response()->json(['data' => ['url' => $gmail->authUrl($state)]]);
+    }
+
+    public function disconnectGmail(Request $request, GoogleMail $gmail): JsonResponse
+    {
+        $gmail->disconnect();
+        $this->log($request, 'gmail_disconnected');
 
         return $this->settings();
     }

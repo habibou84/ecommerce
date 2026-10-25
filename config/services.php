@@ -61,6 +61,13 @@ return [
         'subject' => env('VAPID_SUBJECT'),
     ],
 
+    // Application Google (client OAuth « Application Web ») pour connecter le Gmail qui envoie les e-mails de la
+    // plateforme ; peut aussi être saisie dans la console (Paiements › Envoi des e-mails)
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+    ],
+
     // WhatsApp relié par QR code (service whatsapp-bridge sur le serveur, 127.0.0.1) : jeton et port créés par la
     // mise à jour du serveur
     'whatsapp_bridge' => [

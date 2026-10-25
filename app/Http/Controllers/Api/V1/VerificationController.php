@@ -213,7 +213,7 @@ class VerificationController extends Controller
 
     /**
      * Les vérifications d'une boutique ne se terminent que sur son adresse, la création de boutique que sur la plateforme,
-     * la connexion à la console que sur la console.
+     * la connexion à la console que sur la console ; le mot de passe oublié sans boutique sur la plateforme ou la console.
      */
     private function findForHere(string $token): PhoneVerification
     {
@@ -223,7 +223,11 @@ class VerificationController extends Controller
             VerificationPurpose::Signup => $this->tenancy->zone() === Tenancy::PLATFORM,
             VerificationPurpose::Invitation => $this->tenancy->store()?->id === $verification->store_id,
             VerificationPurpose::ConsoleLogin => $this->tenancy->zone() === Tenancy::CONSOLE,
-            VerificationPurpose::PasswordReset, VerificationPurpose::Login => $verification->store_id === null
+            // Mot de passe oublié sans boutique : sur la plateforme ou sur la console (nouvel administrateur, oubli)
+            VerificationPurpose::PasswordReset => $verification->store_id === null
+                ? in_array($this->tenancy->zone(), [Tenancy::PLATFORM, Tenancy::CONSOLE], true)
+                : $this->tenancy->store()?->id === $verification->store_id,
+            VerificationPurpose::Login => $verification->store_id === null
                 ? $this->tenancy->zone() === Tenancy::PLATFORM
                 : $this->tenancy->store()?->id === $verification->store_id,
         };

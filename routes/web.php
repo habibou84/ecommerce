@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BillingValidationController;
+use App\Http\Controllers\Console\GmailCallbackController;
 use App\Http\Controllers\HandoffController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\PageController;
@@ -31,7 +32,25 @@ Route::middleware('zone:platform')->group(function () {
 
 // admin.jibiat-marchand.com : console du super administrateur (application Vue)
 Route::middleware('zone:console')->group(function () {
-    Route::get('/console/{any?}', [PageController::class, 'spa'])->where('any', '.*')->name('console');
+    // Console installable sur l'écran d'accueil (téléphone) ou comme application (ordinateur)
+    Route::get('/console/manifest.webmanifest', fn () => response()->json([
+        'name' => 'Console Jibiat Marchand',
+        'short_name' => 'Console',
+        'start_url' => '/console',
+        'scope' => '/console',
+        'display' => 'standalone',
+        'background_color' => '#0f172a',
+        'theme_color' => '#0f172a',
+        'lang' => 'fr',
+        'icons' => [
+            ['src' => '/brand/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'],
+            ['src' => '/brand/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'],
+            ['src' => '/brand/icon-maskable-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
+        ],
+    ])->header('Content-Type', 'application/manifest+json'))->name('console.manifest');
+    // Retour de Google après « Se connecter avec Google » (envoi des e-mails par Gmail)
+    Route::get('/console/gmail/retour', GmailCallbackController::class)->middleware('throttle:20,1')->name('console.gmail.callback');
+    Route::get('/console/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest|gmail/retour).*')->name('console');
 });
 
 // {slug}.jibiat-marchand.com : gestion de la boutique (application Vue)

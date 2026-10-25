@@ -62,6 +62,24 @@ class WebPush
      * @param  array<string, mixed>  $payload
      * @return 'ok'|'gone'|'error'
      */
+    /** Services de notifications des navigateurs (Chrome, Firefox, Safari, Edge) */
+    private const PUSH_HOSTS = ['fcm.googleapis.com', 'updates.push.services.mozilla.com', 'push.apple.com', 'notify.windows.com'];
+
+    /**
+     * Adresse d'abonnement acceptée : HTTPS, chez un service de notifications connu (pas une adresse quelconque que le
+     * serveur irait appeler).
+     */
+    public static function allowedEndpoint(string $endpoint): bool
+    {
+        $parts = parse_url($endpoint);
+        if (($parts['scheme'] ?? null) !== 'https' || ! isset($parts['host']) || isset($parts['port']) || isset($parts['user'])) {
+            return false;
+        }
+        $host = strtolower($parts['host']);
+
+        return collect(self::PUSH_HOSTS)->contains(fn (string $allowed) => $host === $allowed || str_ends_with($host, '.'.$allowed));
+    }
+
     private function post(PushSubscription $subscription, array $payload, int $ttl, string $urgency): string
     {
         try {
@@ -71,7 +89,11 @@ class WebPush
                 self::unb64($subscription->auth),
             );
 
-            $response = Http::timeout(10)
+            if (! self::allowedEndpoint($subscription->endpoint)) {
+                return 'error';
+            }
+            // Jamais de redirection : l'adresse ne doit mener qu'au service de notifications du navigateur
+            $response = Http::timeout(10)->withoutRedirecting()
                 ->withHeaders([
                     'Authorization' => $this->vapidHeader($subscription->endpoint),
                     'Content-Encoding' => 'aes128gcm',

@@ -9,7 +9,10 @@ use App\Models\AiUsage;
 use App\Models\Store;
 use App\Models\SupportSession;
 use App\Models\User;
+use App\Notifications\ConsoleLoginCode;
 use App\Notifications\SupportAccess;
+use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -37,7 +40,7 @@ class ConsoleTest extends TestCase
 
     private function signIn(): void
     {
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse'])->assertStatus(202);
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])
             ->assertOk()->assertJsonPath('data.name', 'Équipe Jibiat');
     }
@@ -51,7 +54,7 @@ class ConsoleTest extends TestCase
         $this->console('POST', 'auth/login', ['phone' => $this->store->owner->phone, 'password' => 'secret123'])->assertStatus(422);
 
         // Mot de passe juste mais code pas encore saisi : pas d'accès
-        $start = $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'motdepasse'])->assertStatus(202);
+        $start = $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
         $this->console('GET', 'stats')->assertUnauthorized();
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => '000000'])->assertStatus(422);
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
@@ -60,6 +63,69 @@ class ConsoleTest extends TestCase
         // La console n'existe que sur admin.* ; une session de boutique n'y donne pas accès
         $this->storeApi($this->store, 'GET', 'console/stats')->assertNotFound();
         $this->assertSame(1, AdminAction::where('action', 'console_login')->count());
+    }
+
+    public function test_console_login_code_by_email_and_account(): void
+    {
+        Notification::fake();
+        $this->admin->forceFill(['email' => 'equipe@jibiat.com'])->save();
+
+        $start = $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'motdepasse'])->assertStatus(202)
+            ->assertJsonPath('method', 'email')->assertJsonPath('email', 'e•••@jibiat.com');
+        $code = null;
+        Notification::assertSentOnDemand(ConsoleLoginCode::class, function (ConsoleLoginCode $n, $channels, AnonymousNotifiable $to) use (&$code) {
+            $code = $n->code;
+
+            return $to->routes['mail'] === 'equipe@jibiat.com';
+        });
+
+        $this->console('POST', 'auth/email', ['token' => $start->json('token'), 'code' => '000000'])->assertStatus(422);
+        $this->console('GET', 'stats')->assertUnauthorized();
+        $this->console('POST', 'auth/email', ['token' => $start->json('token'), 'code' => $code])->assertOk()->assertJsonPath('data.email', 'equipe@jibiat.com');
+        $this->console('GET', 'stats')->assertOk();
+        // Un code ne sert qu'une fois
+        $this->console('POST', 'auth/logout')->assertOk();
+        $this->console('POST', 'auth/email', ['token' => $start->json('token'), 'code' => $code])->assertStatus(422);
+
+        // Trop d'essais : la demande est annulée, même avec le bon code ensuite
+        Notification::fake();
+        $again = $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'motdepasse'])->assertStatus(202);
+        Notification::assertSentOnDemand(ConsoleLoginCode::class, function (ConsoleLoginCode $n) use (&$code) {
+            $code = $n->code;
+
+            return true;
+        });
+        foreach (range(1, 5) as $i) {
+            $this->console('POST', 'auth/email', ['token' => $again->json('token'), 'code' => '000000'])->assertStatus(422);
+        }
+        $this->console('POST', 'auth/email', ['token' => $again->json('token'), 'code' => $code])->assertStatus(422);
+
+        // Mon compte : l'adresse et le mot de passe changent avec le mot de passe actuel
+        $this->signIn();
+        $this->console('PUT', 'account', ['current_password' => 'mauvais', 'email' => 'autre@jibiat.com'])->assertStatus(422)->assertJsonValidationErrors('current_password');
+        $this->console('PUT', 'account', ['current_password' => 'motdepasse', 'email' => 'autre@jibiat.com', 'password' => 'nouveau-mot-de-passe', 'password_confirmation' => 'nouveau-mot-de-passe'])
+            ->assertOk()->assertJsonPath('data.email', 'autre@jibiat.com');
+        $this->assertTrue(Hash::check('nouveau-mot-de-passe', $this->admin->fresh()->password));
+
+        // Journal : connexions et changements du compte, avec l'adresse IP
+        $this->console('GET', 'journal?action=console_')->assertOk()->assertJsonPath('data.0.action', 'console_account')
+            ->assertJsonPath('data.1.action', 'console_login');
+        // Session limitée à 12 heures : il faut un nouveau code
+        $this->travel(13)->hours();
+        $this->console('GET', 'stats')->assertUnauthorized();
+        $this->travelBack();
+
+        // Sans adresse : retour à la preuve par WhatsApp ou SMS
+        $this->admin->forceFill(['email' => null])->save();
+        $this->console('POST', 'auth/logout');
+        $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'nouveau-mot-de-passe'])->assertStatus(202)->assertJsonMissingPath('method');
+    }
+
+    public function test_the_console_is_installable(): void
+    {
+        $this->get(self::CONSOLE.'/console/manifest.webmanifest')->assertOk()->assertHeader('Content-Type', 'application/manifest+json')
+            ->assertJsonPath('start_url', '/console')->assertJsonPath('display', 'standalone');
+        $this->get(self::CONSOLE.'/console/connexion')->assertOk()->assertSee('/console/manifest.webmanifest', false);
     }
 
     public function test_managing_stores_and_plans(): void

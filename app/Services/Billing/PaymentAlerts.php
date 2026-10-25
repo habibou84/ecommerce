@@ -13,8 +13,9 @@ use Jibiat\Socle\Sms\SmsGateway;
 use Throwable;
 
 /**
- * Alerte du validateur sur un paiement par lien Wave : e-mail d'abord (gratuit), SMS si l'e-mail ne part pas ou
- * qu'aucune adresse n'est réglée. Le paiement apparaît aussi dans la console (Paiements à valider), quoi qu'il arrive.
+ * Alerte du validateur sur un paiement par lien Wave : e-mail d'abord (Gmail connecté dans la console, gratuit), SMS
+ * si l'e-mail ne part pas ou qu'aucune adresse n'est réglée. Le paiement apparaît aussi dans la console (Paiements à
+ * valider), quoi qu'il arrive.
  */
 class PaymentAlerts
 {
@@ -41,7 +42,11 @@ class PaymentAlerts
         ];
 
         // E-mail d'abord ; SMS sinon (« journal » : le serveur n'envoie pas encore de vrais SMS)
-        $channel = $this->mail($details) === null ? 'mail' : ($this->text($details) === null ? ($this->settings->smsReady() ? 'sms' : 'journal') : null);
+        $channel = match (true) {
+            $this->mail($details) === null => 'mail',
+            $this->text($details) === null => $this->settings->smsReady() ? 'sms' : 'journal',
+            default => null,
+        };
         $raw['alerts'][] = ['at' => now()->toIso8601String(), 'claimed' => $claimed, 'channel' => $channel];
         $invoice->update(['raw' => $raw]);
 
