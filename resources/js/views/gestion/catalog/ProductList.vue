@@ -61,9 +61,13 @@ onMounted(async () => {
 })
 
 function stockLabel(p) {
-  if (!p.track_inventory) return 'Non suivi'
-  return `${p.available} disponible${p.available > 1 ? 's' : ''}${p.has_variants ? ` · ${p.variants_count} variantes` : ''}`
+  if (!p.track_inventory) return 'Stock non suivi'
+  if (p.available <= 0) return 'Épuisé'
+  return `${p.available} en stock`
 }
+// Pastille de stock : vert s'il en reste, ocre si stock bas, rouge si épuisé
+const stockTone = (p) => (!p.track_inventory ? 'bg-slate-100 text-slate-600' : p.available <= 0 ? 'bg-red-50 text-red-700' : p.low_variants ? 'bg-ocre-50 text-ocre-700' : 'bg-emerald-50 text-emerald-800')
+const STOCK_CHIPS = [['', 'Tous'], ['low', 'Stock bas'], ['out', 'Épuisés']]
 </script>
 
 <template>
@@ -72,16 +76,11 @@ function stockLabel(p) {
       <input v-model="filters.search" type="search" class="input lg:max-w-xs" placeholder="Rechercher (nom, SKU, code-barres)" />
       <!-- Filtres : deux par ligne sur téléphone, à la suite sur ordinateur, jamais coupés -->
       <div class="grid flex-1 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        <select v-model="filters.status" class="input sm:w-auto">
+        <select v-model="filters.status" class="input col-span-2 sm:w-auto">
           <option value="">Tous les statuts</option>
           <option value="active">Actifs</option>
           <option value="draft">Brouillons</option>
           <option value="archived">Archivés</option>
-        </select>
-        <select v-model="filters.stock" class="input sm:w-auto">
-          <option value="">Tout le stock</option>
-          <option value="low">Stock bas</option>
-          <option value="out">Épuisés</option>
         </select>
         <select v-if="collections.length" v-model="filters.collection_id" class="input col-span-2 sm:w-auto sm:min-w-52">
           <option value="">Toutes les collections</option>
@@ -94,33 +93,42 @@ function stockLabel(p) {
       </div>
     </div>
 
+    <div class="flex gap-2">
+      <button v-for="c in STOCK_CHIPS" :key="c[0]" type="button" class="min-h-10 rounded-xl border px-3.5 text-sm font-semibold" :class="filters.stock === c[0] ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700'" @click="filters.stock = c[0]">{{ c[1] }}</button>
+    </div>
+
     <Alert v-if="error">{{ error }}</Alert>
 
-    <div class="card overflow-hidden">
-      <p v-if="loading && !products.length" class="p-6 text-sm text-slate-500">Chargement…</p>
-      <div v-else-if="!products.length" class="p-8 text-center">
-        <p class="font-medium">{{ filters.search || filters.status || filters.stock ? 'Aucun produit ne correspond.' : 'Votre catalogue est vide.' }}</p>
-        <p v-if="!filters.search && auth.can('products.manage')" class="mt-1 text-sm text-slate-500">
-          Ajoutez votre premier produit, ou importez un fichier Excel.
-        </p>
-      </div>
-      <ul v-else class="divide-y divide-slate-100">
-        <li v-for="p in products" :key="p.id">
-          <RouterLink :to="`/gestion/catalogue/${p.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
-            <img v-if="p.thumb" :src="p.thumb" alt="" class="h-12 w-12 shrink-0 rounded-lg object-cover" loading="lazy" />
-            <span v-else class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400"><Icon name="image" /></span>
-            <span class="min-w-0 flex-1">
-              <span class="block truncate font-medium">{{ p.title }}</span>
-              <span class="block text-sm" :class="p.track_inventory && p.available <= 0 ? 'text-red-600' : p.low_variants ? 'text-amber-700' : 'text-slate-500'">
-                {{ stockLabel(p) }}
-              </span>
-            </span>
-            <span class="hidden text-right text-sm sm:block">{{ priceRange(p.price_min, p.price_max) }}</span>
-            <StatusBadge :status="p.status" :label="p.status_label" />
-          </RouterLink>
-        </li>
-      </ul>
+    <p v-if="loading && !products.length" class="text-sm text-slate-500">Chargement…</p>
+    <div v-else-if="!products.length" class="card p-8 text-center">
+      <p class="font-medium">{{ filters.search || filters.status || filters.stock ? 'Aucun produit ne correspond.' : 'Votre catalogue est vide.' }}</p>
+      <p v-if="!filters.search && auth.can('products.manage')" class="mt-1 text-sm text-slate-500">
+        Ajoutez votre premier produit, ou importez un fichier Excel.
+      </p>
     </div>
+    <!-- Grille de cartes : photo (ou symbole photo), nom, prix, stock -->
+    <ul v-else class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <li v-for="p in products" :key="p.id">
+        <RouterLink :to="`/gestion/catalogue/${p.id}`" class="card block h-full p-2 transition hover:border-emerald-600">
+          <span class="relative block aspect-square overflow-hidden rounded-xl bg-slate-100">
+            <img v-if="p.thumb" :src="p.thumb" alt="" class="h-full w-full object-cover" loading="lazy" />
+            <span v-else class="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-400">
+              <Icon name="image" :size="34" />
+              <span v-if="auth.can('products.manage')" class="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-emerald-700">+ Ajouter une photo</span>
+            </span>
+            <span v-if="p.status !== 'active'" class="absolute left-2 top-2"><StatusBadge :status="p.status" :label="p.status_label" /></span>
+          </span>
+          <span class="block px-1 pb-1 pt-2">
+            <span class="block truncate text-sm font-bold">{{ p.title }}</span>
+            <span class="mt-0.5 block font-display text-base font-extrabold">{{ priceRange(p.price_min, p.price_max) }}</span>
+            <span class="mt-1.5 flex flex-wrap items-center gap-1">
+              <span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="stockTone(p)">{{ stockLabel(p) }}</span>
+              <span v-if="p.has_variants" class="text-xs text-slate-500">{{ p.variants_count }} variantes</span>
+            </span>
+          </span>
+        </RouterLink>
+      </li>
+    </ul>
 
     <Pagination :meta="meta" @page="(page) => { filters.page = page; load() }" />
   </div>

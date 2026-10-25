@@ -46,6 +46,8 @@ export const SOURCES = [
   { value: 'manual', label: 'Autre' },
 ]
 
+export const SOURCE_ICONS = { whatsapp: 'whatsapp', facebook: 'messages', instagram: 'image', tiktok: 'live', phone: 'phone', in_store: 'home', manual: 'more' }
+
 export const PAYMENT_METHODS = [
   { value: 'cash', label: 'Espèces' },
   { value: 'wave', label: 'Wave' },

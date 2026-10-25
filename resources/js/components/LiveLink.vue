@@ -25,10 +25,7 @@ async function copy(text, what) {
   <section class="card space-y-3 p-4 text-sm">
     <div>
       <h3 class="font-semibold">Le lien de vos lives</h3>
-      <p class="mt-1 text-slate-600">
-        C'est toujours le même lien : il affiche le live en cours. Vos clients y voient les articles avec leur code et leur prix,
-        et réservent en deux touches, sans vous écrire. La commande arrive ici tout de suite.
-      </p>
+      <p class="mt-1 text-slate-600">Toujours le même lien : il affiche le live en cours. Vos clients y réservent en deux touches, sans vous écrire.</p>
     </div>
     <div class="flex gap-2">
       <input :value="url" readonly class="input min-w-0 flex-1" aria-label="Lien de vos lives" @focus="$event.target.select()" />
