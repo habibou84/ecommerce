@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\CampaignController;
+use App\Http\Controllers\Api\V1\Marketing\LiveController;
 use App\Http\Controllers\Api\V1\Marketing\LoyaltyController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
@@ -440,6 +441,17 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::OrdersManage->value)->group(function () {
                 Route::get('carts/abandoned', [WhatsAppController::class, 'abandonedCarts'])->name('carts.abandoned');
                 Route::post('carts/{cart}/recovery', [WhatsAppController::class, 'markRecovered'])->whereNumber('cart')->name('carts.recovery');
+
+                // Vente en live : préparation, écran du live, mode assistant, bilan
+                Route::get('lives', [LiveController::class, 'index'])->name('lives.index');
+                Route::post('lives', [LiveController::class, 'store'])->name('lives.store');
+                Route::get('lives/variants', [LiveController::class, 'variants'])->name('lives.variants');
+                Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->name('lives.show');
+                Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->name('lives.update');
+                Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->name('lives.start');
+                Route::post('lives/{session}/end', [LiveController::class, 'end'])->whereNumber('session')->name('lives.end');
+                Route::post('lives/{session}/reservations', [LiveController::class, 'reserve'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.reserve');
+                Route::post('lives/{session}/reservations/{reservation}/cancel', [LiveController::class, 'cancel'])->whereNumber(['session', 'reservation'])->name('lives.cancel');
             });
 
             // ── Livreurs de la boutique ──

@@ -14,6 +14,7 @@ use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Notifications\CustomerMessage;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Live\LiveSales;
 use App\Services\Messaging\AutoReplier;
 use App\Services\Social\MetaSocial;
 use Illuminate\Support\Carbon;
@@ -227,7 +228,10 @@ class Inbox
         if ($store) {
             $this->team->notify($store, Permission::OrdersConfirm->value, new CustomerMessage($conversation, $body));
         }
-        app(AutoReplier::class)->schedule($created);
+        // Vente en live : code d'un article (« A3 ») ou quartier attendu ; sinon, réponse automatique habituelle
+        if (! app(LiveSales::class)->fromWhatsApp($conversation, $created)) {
+            app(AutoReplier::class)->schedule($created);
+        }
 
         return $created;
     }

@@ -179,6 +179,44 @@ Table subscription_invoices {
   Note: 'Paiement validé seulement après relecture chez le prestataire (retour, notification signée). Même offre : la période s’ajoute à la précédente.'
 }
 
+Table live_sessions {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  title varchar(120) [not null]
+  status varchar(10) [not null, default: 'draft', note: 'draft | live | ended ; un seul live en cours par boutique']
+  hold_minutes smallint [not null, default: 120, note: 'pièce gardée sans quartier (WhatsApp, équipe) : libérée pour la liste d\'attente après']
+  started_at timestamp
+  ended_at timestamp
+  created_by bigint [ref: > users.id]
+  Note: 'Vente en live (Marketing › Ventes en live) ; page publique fixe {boutique}/live ; codes reçus par WhatsApp (Inbox → LiveSales).'
+}
+
+Table live_items {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  live_session_id bigint [ref: > live_sessions.id, not null]
+  variant_id bigint [ref: > product_variants.id, not null]
+  code varchar(8) [not null, note: 'A1…A9, B1… dans l\'ordre de présentation ; unique dans le live']
+  price int [not null, note: 'prix du live (prix de la variante par défaut)']
+  quantity smallint [not null, note: 'pièces proposées pendant le live']
+  position smallint [not null, default: 0]
+}
+
+Table live_reservations {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  live_session_id bigint [ref: > live_sessions.id, not null]
+  live_item_id bigint [ref: > live_items.id, not null]
+  source varchar(10) [not null, note: 'page | whatsapp | manual']
+  status varchar(10) [not null, note: 'reserved (quartier attendu) | ordered | waiting | expired | cancelled']
+  customer_name varchar(120)
+  customer_phone varchar(20)
+  shipping_place_id bigint [ref: > places.id]
+  shipping_address varchar(255)
+  order_id bigint [ref: > orders.id, note: 'commande « à confirmer » (source live) ; annulée : la pièce revient à la liste d\'attente']
+  expires_at timestamp [note: 'reserved sans quartier : live:expire libère la pièce']
+}
+
 Table referral_commissions {
   id bigint [pk, increment]
   store_id bigint [ref: > stores.id, not null]

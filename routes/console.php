@@ -16,6 +16,7 @@ use App\Services\Console\SupportSessions;
 use App\Services\Couriers\MissionResponses;
 use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
+use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Orders\OrderDesk;
 use App\Services\Partners\PartnerReferrals;
@@ -166,6 +167,12 @@ Artisan::command('billing:run', function (Billing $billing) {
 })->purpose('Abonnements : rappels, fins d\'essai, échéances et retards');
 
 Schedule::command('billing:run')->dailyAt('07:10')->withoutOverlapping();
+
+Artisan::command('live:expire', function (LiveSales $live) {
+    $this->line($live->expire().' réservation(s) de live libérée(s)');
+})->purpose('Vente en live : pièces gardées sans quartier à temps rendues à la liste d\'attente');
+
+Schedule::command('live:expire')->everyMinute()->withoutOverlapping();
 
 Artisan::command('referrals:report', function (PartnerReferrals $referrals) {
     $sent = Store::whereNotNull('referred_by')->get()->filter(fn (Store $store) => $referrals->push($store))->count();

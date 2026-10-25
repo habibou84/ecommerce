@@ -121,7 +121,7 @@ const activeFilters = computed(() => [
   filters.deliverer && { key: 'deliverer', label: `Qui livre : ${delivererLabel(filters.deliverer)}` },
   filters.commune_id && { key: 'commune_id', label: `Commune : ${communes.value.find((c) => String(c.id) === String(filters.commune_id))?.name ?? '…'}` },
   filters.payment && { key: 'payment', label: filters.payment === 'paid' ? 'Payées' : 'À encaisser' },
-  filters.source && { key: 'source', label: `Canal : ${[{ value: 'online_store', label: 'Site' }, ...SOURCES].find((s) => s.value === filters.source)?.label}` },
+  filters.source && { key: 'source', label: `Canal : ${[{ value: 'online_store', label: 'Site' }, { value: 'live', label: 'Live' }, ...SOURCES].find((s) => s.value === filters.source)?.label}` },
 ].filter(Boolean))
 const filtersOpen = ref(false)
 function clearFilters() {
@@ -480,6 +480,7 @@ async function exportList() {
           <select v-model="filters.source" class="input-lg">
             <option value="">Tous les canaux</option>
             <option value="online_store">Site</option>
+            <option value="live">Live</option>
             <option v-for="s in SOURCES" :key="s.value" :value="s.value">{{ s.label }}</option>
           </select>
         </div>
