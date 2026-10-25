@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
+use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
 use App\Http\Controllers\Api\V1\Console\ConsoleWhatsAppController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
@@ -127,6 +128,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::delete('payments/wave-qr', [ConsolePaymentsController::class, 'removeQr'])->name('payments.qr.remove');
             Route::get('payments/pending', [ConsolePaymentsController::class, 'pending'])->name('payments.pending');
             Route::post('payments/{invoice}/decide', [ConsolePaymentsController::class, 'decide'])->whereNumber('invoice')->name('payments.decide');
+            Route::get('referrals', [ConsoleReferralController::class, 'index'])->name('referrals');
+            Route::put('referrals/settings', [ConsoleReferralController::class, 'settings'])->name('referrals.settings');
+            Route::post('referrals/{partner}/pay', [ConsoleReferralController::class, 'pay'])->where('partner', '[a-z0-9-]{1,80}')->name('referrals.pay');
             Route::get('whatsapp', [ConsoleWhatsAppController::class, 'show'])->name('whatsapp.show');
             Route::post('whatsapp/embedded', [ConsoleWhatsAppController::class, 'connect'])->middleware('throttle:login')->name('whatsapp.connect');
             Route::delete('whatsapp', [ConsoleWhatsAppController::class, 'disconnect'])->name('whatsapp.disconnect');

@@ -7,6 +7,7 @@ use App\Models\CarrierWebhookReceipt;
 use App\Models\Cart;
 use App\Models\Order;
 use App\Models\PaymentWebhookReceipt;
+use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\User;
 use App\Services\Accounts\StoreDataExport;
@@ -17,6 +18,7 @@ use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Orders\OrderDesk;
+use App\Services\Partners\PartnerReferrals;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierConnections;
 use App\Services\Shipping\CarrierEvents;
@@ -164,6 +166,13 @@ Artisan::command('billing:run', function (Billing $billing) {
 })->purpose('Abonnements : rappels, fins d\'essai, échéances et retards');
 
 Schedule::command('billing:run')->dailyAt('07:10')->withoutOverlapping();
+
+Artisan::command('referrals:report', function (PartnerReferrals $referrals) {
+    $sent = Store::whereNotNull('referred_by')->get()->filter(fn (Store $store) => $referrals->push($store))->count();
+    $this->line("{$sent} boutique(s) parrainée(s) envoyée(s) à leur entreprise de livraison");
+})->purpose('Parrainage : abonnement et part gagnée envoyés chaque jour aux entreprises de livraison');
+
+Schedule::command('referrals:report')->dailyAt('07:40')->withoutOverlapping();
 
 Artisan::command('domains:check', function (CustomDomains $domains) {
     $count = 0;

@@ -94,7 +94,7 @@ vendor/bin/pint      # style du code
 - `.env` : `APP_URL=https://jibiat-marchand.com`, `PLATFORM_DOMAIN=jibiat-marchand.com`, `SESSION_SECURE_COOKIE=true`,
   `SESSION_DOMAIN` **vide** (cookie limité à chaque sous-domaine).
 - `api.jibiat-marchand.com` reçoit les webhooks des entreprises de livraison (`/webhooks/carriers/{uuid}`).
-- Tâches planifiées : `* * * * * php artisan schedule:run` (synchronisation des expéditions toutes les 10 minutes, relance des paniers abandonnés chaque heure, rapports du jour toutes les 15 minutes, abonnements chaque jour, contrôle des domaines chaque nuit, fin des sessions de support) ; `php artisan queue:work` pour les messages WhatsApp ; `node whatsapp-bridge/server.js` (après `npm ci` dans ce dossier) pour le WhatsApp relié par QR code.
+- Tâches planifiées : `* * * * * php artisan schedule:run` (synchronisation des expéditions toutes les 10 minutes, relance des paniers abandonnés chaque heure, rapports du jour toutes les 15 minutes, abonnements chaque jour, parrainages envoyés aux entreprises de livraison chaque jour, contrôle des domaines chaque nuit, fin des sessions de support) ; `php artisan queue:work` pour les messages WhatsApp ; `node whatsapp-bridge/server.js` (après `npm ci` dans ce dossier) pour le WhatsApp relié par QR code.
 
 ## Organisation du code
 
@@ -112,6 +112,7 @@ vendor/bin/pint      # style du code
 | `app/Services/Payments` | Paiement en ligne sur les comptes du marchand : pilotes `Gateways/` (Wave, CinetPay, PayDunya), `PaymentDesk` (routage et secours, vérification, webhooks, remboursements), `FeeSimulator` |
 | `app/Services/Finance` | Caisse de la boutique (`CashOverview`) : où est l'argent (livreurs, transporteurs, clients à crédit, à payer) et entrées / sorties par canal, avec la part en espèces ; tiroir-caisse (`CashRegister` : ouverture, dépenses, retraits, clôture avec écart) et vente au comptoir en une fois (`CounterSales`) |
 | `app/Services/Billing` | Offres et quotas (`PlanLimits`), abonnements payés sur le compte de la plateforme (`Billing`) |
+| `app/Services/Partners` | Parrainage par les entreprises de livraison (`PartnerReferrals`) : part de l'abonnement payé (20 % pendant 12 mois, console › Parrainage), compte envoyé à l'entreprise (`PUT merchant-app`, `referrals:report` chaque jour), entreprise attitrée |
 | `app/Services/Domains` | Domaines personnalisés : vérification DNS, autorisation des certificats Caddy (`CustomDomains`) |
 | `app/Services/Console`, `resources/js/views/console` | Console du super administrateur (`admin.`) et sessions de support (`SupportSessions`) ; accès donné par `php artisan platform:admin {téléphone}` |
 | `docs/LANCEMENT.md` | Mise en production (Caddy, tâches, sauvegardes), supervision, déclaration ARTCI, pilote |

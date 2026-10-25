@@ -3,6 +3,7 @@
 namespace App\Services\Shipping;
 
 use App\Exceptions\BusinessRuleException;
+use App\Jobs\ReportPartnerReferral;
 use App\Models\CarrierConnection;
 use App\Models\CarrierZone;
 use App\Models\CarrierZoneMapping;
@@ -10,6 +11,7 @@ use App\Models\Place;
 use App\Models\Store;
 use App\Services\Billing\PlanLimits;
 use App\Services\Catalog\DeliveryAppImporter;
+use App\Services\Partners\PartnerReferrals;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\Shipping\Drivers\CarrierDriver;
@@ -87,6 +89,11 @@ class CarrierConnections
             $this->registerWebhook($connection);
         } catch (CarrierException $e) {
             $connection->forceFill(['last_error' => mb_substr('Webhook non créé : '.$e->getMessage(), 0, 250)])->save();
+        }
+
+        // Entreprise qui a parrainé la boutique : elle voit tout de suite son e-commerçant parrainé
+        if (PartnerReferrals::isPartner($store, $connection)) {
+            ReportPartnerReferral::dispatch($store->id)->afterCommit();
         }
 
         return $connection;

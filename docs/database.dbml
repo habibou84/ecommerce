@@ -49,6 +49,7 @@ Table stores {
   id bigint [pk, increment]
   owner_id bigint [ref: > users.id, not null]
   billing_store_id bigint [ref: > stores.id, note: 'boutique du même propriétaire dont l\'abonnement (offre Business) couvre celle-ci']
+  referred_by varchar(80) [note: 'slug de l\'entreprise de livraison (annuaire de Jibiat) qui a parrainé la boutique : mois d\'essai en plus, part de l\'abonnement (referral_commissions)']
   auto_replies json [note: 'réponses automatiques (boîte Messages) : enabled, when (always | away), from, to, per_hour ; désactivées par défaut']
   host_store_id bigint [ref: > stores.id, note: 'boutique dont l\'adresse héberge celle-ci (gestion commune, page {adresse}/{path}) ; son propre sous-domaine redirige']
   slug varchar(60) [unique, not null, note: 'sous-domaine : {slug}.jibiat-marchand.com ; liste de mots réservés côté code']
@@ -176,6 +177,31 @@ Table subscription_invoices {
   created_by bigint [ref: > users.id]
   paid_at timestamp
   Note: 'Paiement validé seulement après relecture chez le prestataire (retour, notification signée). Même offre : la période s’ajoute à la précédente.'
+}
+
+Table referral_commissions {
+  id bigint [pk, increment]
+  store_id bigint [ref: > stores.id, not null]
+  partner varchar(80) [not null, note: 'stores.referred_by au moment du paiement']
+  subscription_invoice_id bigint [ref: > subscription_invoices.id, unique, not null, note: 'abonnement payé (pas les recharges de l\'assistant ni les mois offerts)']
+  invoice_amount int [not null]
+  rate decimal(5,4) [not null, note: 'part de l\'entreprise (réglage referral.rate, 0,2 par défaut)']
+  amount int [not null]
+  earned_at timestamp [not null, note: 'durée referral.months (12 par défaut) comptée à partir de la première part de la boutique']
+  referral_payout_id bigint [ref: > referral_payouts.id, note: 'null : pas encore versée']
+  Note: 'Parrainage par les entreprises de livraison. Compte envoyé à l\'entreprise (PUT /api/public/v1/merchant-app, contrat merchant-app de habibou84/socle) à chaque paiement, à la connexion et chaque jour (referrals:report).'
+}
+
+Table referral_payouts {
+  id bigint [pk, increment]
+  partner varchar(80) [not null]
+  amount int [not null]
+  method varchar(30)
+  reference varchar(120)
+  note varchar(500)
+  created_by bigint [ref: > users.id]
+  paid_at timestamp [not null]
+  Note: 'Versement par la console (Parrainage) de toutes les parts pas encore versées à une entreprise.'
 }
 
 Table usage_counters {

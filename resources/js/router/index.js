@@ -131,6 +131,7 @@ const consoleRoutes = [
       { path: 'paiements', component: () => import('../views/console/Payments.vue'), meta: { title: 'Paiements' } },
       { path: 'whatsapp', component: () => import('../views/console/WhatsApp.vue'), meta: { title: 'WhatsApp' } },
       { path: 'factures', component: () => import('../views/console/Invoices.vue'), meta: { title: 'Factures' } },
+      { path: 'parrainage', component: () => import('../views/console/Referrals.vue'), meta: { title: 'Parrainage' } },
       { path: 'offres', component: () => import('../views/console/Plans.vue'), meta: { title: 'Offres' } },
       { path: 'ia', component: () => import('../views/console/AiUsage.vue'), meta: { title: 'Assistant IA' } },
     ],
