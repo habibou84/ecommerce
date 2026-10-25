@@ -111,10 +111,10 @@ async function save() {
         <p v-if="!form.items.length" class="text-slate-500">Cherchez vos articles ci-dessous et ajoutez-les dans l'ordre où vous les présenterez.</p>
         <div v-for="(i, index) in form.items" :key="i.variant_id" class="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-red-600 font-bold text-white">{{ code(index) }}</span>
-          <span class="min-w-0 flex-1 font-medium">{{ i.title }}<span class="block text-xs font-normal text-slate-500">{{ i.available }} en stock</span></span>
+          <span class="min-w-0 flex-1 basis-[calc(100%-6.5rem)] font-medium [overflow-wrap:anywhere] sm:basis-0">{{ i.title }}<span class="block text-xs font-normal text-slate-500">{{ i.available }} en stock</span></span>
+          <button type="button" class="btn-ghost order-last px-2 text-red-600 max-sm:order-none" aria-label="Retirer" @click="form.items.splice(index, 1)">✕</button>
           <label class="flex items-center gap-1">Prix <input v-model="i.price" type="number" min="0" class="input w-28" /></label>
           <label class="flex items-center gap-1">Pièces <input v-model="i.quantity" type="number" min="1" class="input w-20" /></label>
-          <button type="button" class="btn-ghost px-2 text-red-600" aria-label="Retirer" @click="form.items.splice(index, 1)">✕</button>
         </div>
         <p v-if="errors.items" class="text-red-600">{{ errors.items }}</p>
         <input v-model="search" class="input" placeholder="Chercher un article (nom ou référence)" @input="find" @focus="find" />

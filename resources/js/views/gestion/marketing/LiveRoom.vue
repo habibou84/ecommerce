@@ -12,7 +12,14 @@ const busy = ref(false)
 const quick = reactive({ code: '', name: '', phone: '' })
 // Code affiché en plein écran : le téléphone posé à côté de l'article pendant le live
 const big = ref(null)
+// Articles ajoutés en cours de live : recherche dans le catalogue, prix et pièces, puis ajout (codes suivants)
+const adding = ref(false)
+const extra = ref([])
+const search = ref('')
+const results = ref([])
+const notice = ref('')
 let timer
+let searchTimer
 
 const SOURCE = { page: 'Page du live', whatsapp: 'WhatsApp', manual: 'Équipe' }
 const STATUS = {
@@ -51,6 +58,44 @@ async function act(path, body) {
   }
 }
 
+function find() {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(async () => {
+    results.value = (await http.get('/lives/variants', { params: { search: search.value || undefined } }).catch(() => ({ data: { data: [] } }))).data.data
+  }, 250)
+}
+
+const inLive = (variantId) => live.value?.items.find((i) => i.variant_id === variantId)
+
+function pick(v) {
+  if (extra.value.some((i) => i.variant_id === v.id)) return
+  extra.value.push({ variant_id: v.id, title: v.title, price: inLive(v.id)?.price ?? v.price, quantity: Math.max(1, Math.min(v.available || 1, 10)), available: v.available })
+}
+
+function closeAdding() {
+  adding.value = false
+  extra.value = []
+  search.value = ''
+  results.value = []
+}
+
+async function addItems() {
+  busy.value = true
+  error.value = ''
+  try {
+    const { data } = await http.post(`/lives/${props.id}/items`, {
+      items: extra.value.map((i) => ({ variant_id: i.variant_id, price: Number(i.price), quantity: Number(i.quantity) })),
+    })
+    live.value = data.data
+    notice.value = `Ajouté : ${data.meta.codes.join(', ')}. Montrez le code à l'écran, les clients peuvent réserver tout de suite.`
+    closeAdding()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function end() {
   if (window.confirm('Terminer le live ? Les clients ne pourront plus réserver ; ceux qui ont une pièce gardée peuvent encore donner leur quartier.')) await act('end')
 }
@@ -66,6 +111,7 @@ async function addQuick() {
   <div class="space-y-4">
     <RouterLink to="/gestion/live" class="text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
+    <p v-if="notice" class="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">{{ notice }}</p>
     <p v-if="!live" class="text-sm text-slate-500">Chargement…</p>
 
     <template v-else>
@@ -114,6 +160,35 @@ async function addQuick() {
             <span v-if="i.waiting" class="text-xs text-sky-700">{{ i.waiting }} en attente</span>
           </span>
         </div>
+      </section>
+
+      <section v-if="live.status !== 'ended'" class="card space-y-3 p-3 text-sm">
+        <button v-if="!adding" type="button" class="btn-secondary" @click="adding = true; notice = ''; find()">+ Ajouter des articles</button>
+        <template v-else>
+          <p class="font-semibold">Ajouter des articles{{ live.status === 'live' ? ' pendant le live' : '' }}</p>
+          <p class="text-xs text-slate-500">Les codes déjà annoncés ne changent pas : un nouvel article prend le code suivant. Un article déjà dans le live reçoit les pièces en plus.</p>
+          <div v-for="(i, index) in extra" :key="i.variant_id" class="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2">
+            <span class="min-w-0 flex-1 basis-[calc(100%-3rem)] font-medium [overflow-wrap:anywhere] sm:basis-0">
+              {{ i.title }}
+              <span class="block text-xs font-normal text-slate-500">{{ inLive(i.variant_id) ? `Déjà dans le live (${inLive(i.variant_id).code}) : pièces en plus` : `${i.available} en stock` }}</span>
+            </span>
+            <button type="button" class="btn-ghost order-last px-2 text-red-600 max-sm:order-none" aria-label="Retirer" @click="extra.splice(index, 1)">✕</button>
+            <label v-if="!inLive(i.variant_id)" class="flex items-center gap-1">Prix <input v-model="i.price" type="number" min="0" class="input w-28" /></label>
+            <label class="flex items-center gap-1">Pièces <input v-model="i.quantity" type="number" min="1" class="input w-20" /></label>
+          </div>
+          <input v-model="search" class="input" placeholder="Chercher un article (nom ou référence)" @input="find" />
+          <div v-if="results.length" class="max-h-72 divide-y divide-slate-100 overflow-auto rounded-lg border border-slate-200">
+            <button v-for="v in results" :key="v.id" type="button" class="flex w-full items-center gap-3 p-2 text-left hover:bg-slate-50" @click="pick(v)">
+              <img v-if="v.image" :src="v.image" alt="" class="h-9 w-9 rounded object-cover" />
+              <span class="min-w-0 flex-1">{{ v.title }}<span v-if="inLive(v.id)" class="ml-1 text-xs text-red-600">{{ inLive(v.id).code }}</span></span>
+              <span class="text-slate-500">{{ money(v.price) }} · {{ v.available }} en stock</span>
+            </button>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" class="btn-ghost" @click="closeAdding">Annuler</button>
+            <button type="button" class="btn-brand" :disabled="busy || !extra.length" @click="addItems">Ajouter au live</button>
+          </div>
+        </template>
       </section>
 
       <form v-if="live.status === 'live'" class="card flex flex-wrap items-end gap-2 p-3 text-sm" @submit.prevent="addQuick">

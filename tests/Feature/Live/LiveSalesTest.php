@@ -136,6 +136,67 @@ class LiveSalesTest extends TestCase
         $this->page('POST', '/live/reserver', ['item_id' => $items[1]['id'], 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $angre->id])->assertNotFound();
     }
 
+    public function test_the_live_page_takes_several_items_and_pieces_in_one_order(): void
+    {
+        $this->prepare(robes: 1);
+        [$robe, $sac] = $this->page('GET', '/live/etat')->json('data.items');
+        $angre = $this->place('Angré');
+        $customer = ['name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $angre->id];
+
+        // Une robe et trois sacs : une seule commande, une ligne par article
+        $this->page('POST', '/live/reserver', $customer + ['items' => [['item_id' => $robe['id'], 'quantity' => 1], ['item_id' => $sac['id'], 'quantity' => 3]]])
+            ->assertOk()->assertJsonPath('data.status', 'ordered')->assertJsonPath('data.reserved', 4)->assertJsonPath('data.waiting', [])
+            ->assertJsonPath('message', fn ($m) => str_contains($m, '4 articles'));
+        $order = Order::forStore($this->store->id)->with('items')->sole();
+        $this->assertSame([12000 + 3 * 8000, [1, 3]], [(int) $order->items->sum('total'), $order->items->sortBy('quantity')->pluck('quantity')->map(fn ($q) => (int) $q)->values()->all()]);
+        $this->assertStringContainsString('A1, A2 ×3', $order->internal_note);
+        $this->page('GET', '/live/etat')->assertJsonPath('data.items.0.remaining', 0)->assertJsonPath('data.items.1.remaining', 2);
+
+        // Autre client : la robe est partie, deux sacs sur trois restent : commande des deux, le reste en attente
+        $this->page('POST', '/live/reserver', ['name' => 'Awa', 'phone' => '0701020304', 'place_id' => $angre->id,
+            'items' => [['item_id' => $robe['id'], 'quantity' => 1], ['item_id' => $sac['id'], 'quantity' => 3]]])
+            ->assertOk()->assertJsonPath('data.reserved', 2)->assertJsonPath('data.waiting', ['A1', 'A2'])
+            ->assertJsonPath('message', fn ($m) => str_contains($m, 'Déjà parti : A1, A2'));
+        $this->assertSame([2, 16000], [Order::count(), (int) Order::latest('id')->first()->items->sum('total')]);
+        $this->page('GET', '/live/etat')->assertJsonPath('data.items.0.waiting', 1)->assertJsonPath('data.items.1.waiting', 1);
+
+        // Tout est parti : liste d'attente seulement ; trop de pièces ou article inconnu refusés
+        $this->page('POST', '/live/reserver', $customer + ['items' => [['item_id' => $sac['id'], 'quantity' => 1]]])
+            ->assertOk()->assertJsonPath('data.status', 'waiting')->assertJsonPath('data.order', null);
+        $this->page('POST', '/live/reserver', $customer + ['items' => [['item_id' => $sac['id'], 'quantity' => 11]]])->assertStatus(422);
+        $this->page('POST', '/live/reserver', $customer + ['items' => [['item_id' => 999999, 'quantity' => 1]]])->assertStatus(422);
+        $this->assertSame(2, Order::count());
+    }
+
+    public function test_items_are_added_during_the_live_without_changing_announced_codes(): void
+    {
+        $id = $this->prepare(robes: 1);
+        [$robe] = $this->page('GET', '/live/etat')->json('data.items');
+        $angre = $this->place('Angré');
+        $this->page('POST', '/live/reserver', ['item_id' => $robe['id'], 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $angre->id])->assertOk();
+        $this->page('POST', '/live/reserver', ['item_id' => $robe['id'], 'name' => 'Awa', 'phone' => '0701020304', 'place_id' => $angre->id])
+            ->assertJsonPath('data.status', 'waiting');
+        $foulard = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Foulard', 'variants' => [['price' => 4500, 'on_hand' => 10]]]);
+
+        // Modifier la liste pendant le live renumérotait les codes : refusé, on ajoute à la place
+        $this->storeApi($this->store, 'PUT', "lives/{$id}", ['title' => 'Live du soir', 'items' => [['variant_id' => $foulard->variants()->value('id'), 'quantity' => 1]]])
+            ->assertStatus(422);
+
+        // Nouvel article : code suivant (A3) ; deux robes en plus : A1 garde son code et Awa est servie
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items", ['items' => [
+            ['variant_id' => $foulard->variants()->value('id'), 'price' => 4000, 'quantity' => 3],
+            ['variant_id' => $this->robe->variants()->value('id'), 'quantity' => 2],
+        ]])->assertOk()->assertJsonPath('meta.codes', ['A3', 'A1'])
+            ->assertJsonPath('data.items.0.code', 'A1')->assertJsonPath('data.items.0.quantity', 3)->assertJsonPath('data.items.0.remaining', 1)
+            ->assertJsonPath('data.items.1.code', 'A2')->assertJsonPath('data.items.2.code', 'A3')->assertJsonPath('data.items.2.price', 4000);
+        $this->assertSame(['ordered'], LiveReservation::where('customer_phone', '+2250701020304')->pluck('status')->all());
+        $this->page('GET', '/live/etat')->assertJsonPath('data.items.2.remaining', 3);
+
+        // Live terminé : plus d'ajout
+        $this->storeApi($this->store, 'POST', "lives/{$id}/end")->assertOk();
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items", ['items' => [['variant_id' => $foulard->variants()->value('id'), 'quantity' => 1]]])->assertStatus(422);
+    }
+
     public function test_whatsapp_codes_reserve_then_the_neighbourhood_creates_the_order(): void
     {
         $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
