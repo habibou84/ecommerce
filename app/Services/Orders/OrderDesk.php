@@ -192,6 +192,34 @@ class OrderDesk
     }
 
     /**
+     * Articles ajoutés à une commande encore à confirmer (le client renvoie un panier, donne un nouveau code pendant un
+     * live) : une seule commande, une seule livraison. Une variante déjà présente voit sa quantité augmenter.
+     *
+     * @param  list<array{variant_id?: ?int, title?: ?string, quantity: int, unit_price?: ?int}>  $lines
+     */
+    public function addItems(Order $order, array $lines, string $note, ?User $actor = null, string $actorType = 'customer'): Order
+    {
+        if ($order->status !== OrderStatus::PendingConfirmation) {
+            throw new BusinessRuleException('Seule une commande encore à confirmer reçoit des articles en plus.');
+        }
+        $items = $order->items()->orderBy('id')->get()->map(fn (OrderItem $i) => $i->variant_id
+            ? ['variant_id' => $i->variant_id, 'quantity' => $i->quantity, 'unit_price' => $i->unit_price]
+            : ['title' => $i->title, 'quantity' => $i->quantity, 'unit_price' => $i->unit_price])->all();
+        foreach ($lines as $line) {
+            $same = isset($line['variant_id']) ? array_search($line['variant_id'], array_map(fn ($i) => $i['variant_id'] ?? null, $items), true) : false;
+            if ($same !== false) {
+                $items[$same]['quantity'] += (int) $line['quantity'];
+            } else {
+                $items[] = $line;
+            }
+        }
+        $order = $this->update($order, ['items' => $items], $actor);
+        $this->log($order, 'items_added', ['note' => $note, 'total' => $order->total], $actor, $actorType);
+
+        return $order;
+    }
+
+    /**
      * @param  array{note?: string, reason?: CancelReason, collect_payment?: bool, method?: PaymentMethod, restock?: bool}  $context
      */
     public function transition(Order $order, OrderStatus $to, ?User $actor, array $context = []): Order

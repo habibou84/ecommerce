@@ -2,6 +2,8 @@
 
 namespace App\Services\WhatsApp;
 
+use App\Enums\OrderSource;
+use App\Enums\OrderStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Exceptions\QuotaExceededException;
 use App\Models\Order;
@@ -10,12 +12,16 @@ use App\Models\Store;
 use App\Services\Orders\OrderDesk;
 use Illuminate\Support\Collection;
 use Jibiat\Socle\Money;
+use Jibiat\Socle\PhoneNumber;
 
 /**
  * Panier envoyé par un client depuis le catalogue WhatsApp (connexion officielle de Meta ou WhatsApp relié) : il
  * devient une commande « à confirmer ». Chaque article du catalogue porte la référence du flux de la boutique (code
  * de la variante ou « V12 ») ; un article inconnu est repris avec son nom et son prix. Quartier, adresse et date
  * restent à demander au client.
+ *
+ * Panier renvoyé alors que la commande WhatsApp du client (moins de 24 h) est encore à confirmer : le même panier ne crée
+ * rien de plus, un panier différent est ajouté à cette commande (une seule livraison).
  */
 class CatalogOrders
 {
@@ -39,6 +45,23 @@ class CatalogOrders
             return ['order' => null, 'body' => $body."\nWhatsApp n'a pas transmis le détail du panier : ouvrez-le sur le téléphone, puis créez la commande depuis la conversation."];
         }
 
+        $lineData = $lines->map(fn ($l) => $l['variant_id']
+            ? ['variant_id' => $l['variant_id'], 'quantity' => $l['quantity']]
+            : ['title' => $l['label'], 'quantity' => $l['quantity'], 'unit_price' => $l['price'] ?? 0])->values()->all();
+        $open = $this->openOrder($store, $phone);
+        if ($open !== null) {
+            if ($this->sameCart($open, $lines)) {
+                return ['order' => $open, 'body' => $body."\nMême panier que la commande {$open->reference()}, déjà reçue : pas de nouvelle commande."];
+            }
+            try {
+                $order = $this->desk->addItems($open, $lineData, 'nouveau panier WhatsApp');
+
+                return ['order' => $order, 'body' => $body."\nArticles ajoutés à la commande {$order->reference()}, toujours à confirmer : une seule livraison."];
+            } catch (BusinessRuleException) {
+                // ajout impossible (stock…) : nouvelle commande comme avant
+            }
+        }
+
         try {
             $order = $this->desk->create($store, [
                 'source' => 'whatsapp',
@@ -47,15 +70,40 @@ class CatalogOrders
                 'delivery_method' => 'delivery',
                 'customer_note' => filled($text) ? mb_substr(trim($text), 0, 1000) : null,
                 'internal_note' => self::NOTE,
-                'items' => $lines->map(fn ($l) => $l['variant_id']
-                    ? ['variant_id' => $l['variant_id'], 'quantity' => $l['quantity']]
-                    : ['title' => $l['label'], 'quantity' => $l['quantity'], 'unit_price' => $l['price'] ?? 0])->values()->all(),
+                'items' => $lineData,
             ], null, 'customer');
         } catch (BusinessRuleException|QuotaExceededException $e) {
             return ['order' => null, 'body' => $body."\nLa commande n'a pas pu être créée seule ({$e->getMessage()}) : créez-la depuis la conversation."];
         }
 
         return ['order' => $order, 'body' => $body."\nCommande {$order->reference()} créée, à confirmer : demandez au client son quartier et son adresse."];
+    }
+
+    /**
+     * Commande WhatsApp du même client, passée depuis moins de 24 h et encore à confirmer.
+     */
+    private function openOrder(Store $store, string $phone): ?Order
+    {
+        $phone = PhoneNumber::normalize($phone) ?? $phone;
+
+        return Order::forStore($store->id)->where('source', OrderSource::Whatsapp->value)->where('status', OrderStatus::PendingConfirmation->value)
+            ->where('created_at', '>=', now()->subDay())->whereHas('customer', fn ($q) => $q->where('phone', $phone))
+            ->latest('id')->first();
+    }
+
+    /**
+     * Mêmes articles, mêmes quantités (le client a renvoyé son panier).
+     *
+     * @param  Collection<int, array{variant_id: ?int, label: string, quantity: int, price: ?int}>  $lines
+     */
+    private function sameCart(Order $order, Collection $lines): bool
+    {
+        $key = fn ($variantId, $title, $quantity) => ($variantId ? "v{$variantId}" : 't'.mb_strtolower(trim($title))).'×'.$quantity;
+        $mine = $order->items()->get()->map(fn ($i) => $key($i->variant_id, $i->title, (int) $i->quantity))->sort()->values()->all();
+        $sent = $lines->groupBy(fn ($l) => $l['variant_id'] ? "v{$l['variant_id']}" : 't'.mb_strtolower(trim($l['label'])))
+            ->map(fn ($g, $k) => $k.'×'.$g->sum('quantity'))->sort()->values()->all();
+
+        return $mine === $sent;
     }
 
     /**

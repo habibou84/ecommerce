@@ -148,6 +148,36 @@ class WhatsAppSalesTest extends TestCase
             ->assertJsonPath('data.channel', 'official');
     }
 
+    public function test_a_resent_cart_does_not_duplicate_and_a_new_cart_joins_the_pending_order(): void
+    {
+        $account = $this->connect();
+        $cart = fn (string $id, array $items) => ['from' => '2250506070809', 'id' => $id, 'timestamp' => (string) now()->timestamp, 'type' => 'order',
+            'order' => ['catalog_id' => '777', 'product_items' => $items]];
+        $robe = ['product_retailer_id' => $this->variantRef(), 'quantity' => 2, 'item_price' => 15000, 'currency' => 'XOF'];
+
+        // Même panier renvoyé : pas de deuxième commande
+        $this->inbound($account, [$cart('wamid.c1', [$robe])])->assertOk();
+        $this->inbound($account, [$cart('wamid.c2', [$robe])])->assertOk();
+        $order = Order::forStore($this->store->id)->sole();
+        $this->assertStringContainsString("Même panier que la commande {$order->reference()}", $this->lastIncoming()->body);
+
+        // Autre panier : ajouté à la commande encore à confirmer (une robe de plus, un nouvel article)
+        $this->inbound($account, [$cart('wamid.c3', [['product_retailer_id' => $this->variantRef(), 'quantity' => 1, 'item_price' => 15000, 'currency' => 'XOF'],
+            ['product_retailer_id' => 'FOULARD', 'quantity' => 2, 'item_price' => 3000, 'currency' => 'XOF']])])->assertOk();
+        $order = Order::forStore($this->store->id)->with('items', 'events')->sole();
+        $this->assertSame([[3, 2], 51000], [$order->items->pluck('quantity')->map(fn ($q) => (int) $q)->all(), (int) $order->items->sum('total')]);
+        $this->assertStringContainsString("Articles ajoutés à la commande {$order->reference()}", $this->lastIncoming()->body);
+        $this->assertTrue($order->events->contains('type', 'items_added'));
+        $this->storeApi($this->store, 'GET', 'orders')->assertOk()->assertJsonPath('data.0.possible_duplicate', false);
+
+        // Commande déjà confirmée : le panier suivant est une nouvelle commande, signalée « Doublon ? »
+        $order->forceFill(['status' => OrderStatus::Confirmed])->save();
+        $this->inbound($account, [$cart('wamid.c4', [$robe])])->assertOk();
+        $this->assertSame(2, Order::forStore($this->store->id)->count());
+        $this->storeApi($this->store, 'GET', 'orders')->assertOk()->assertJsonPath('data.0.possible_duplicate', true)->assertJsonPath('data.1.possible_duplicate', true);
+        $this->storeApi($this->store, 'GET', 'orders/confirmation-queue')->assertOk()->assertJsonPath('data.0.possible_duplicate', true);
+    }
+
     public function test_a_cart_from_the_linked_whatsapp_catalog(): void
     {
         $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();

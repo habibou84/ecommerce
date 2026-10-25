@@ -376,7 +376,7 @@ async function exportList() {
               <td class="py-3 pr-3"><RouterLink :to="`/gestion/commandes/${o.id}`" class="font-semibold hover:text-emerald-700">{{ o.reference }}</RouterLink><p class="text-xs text-slate-500">{{ timeOf(o) }}</p></td>
               <td class="py-3 pr-3">
                 <RouterLink :to="`/gestion/commandes/${o.id}`" class="font-medium hover:text-emerald-700">{{ o.customer_name || phone(o) || 'Client au comptoir' }}</RouterLink>
-                <p class="text-slate-500">{{ phone(o) }}<span v-if="riskLabel(o.risk_score)" class="ml-1 rounded-full px-1.5 text-xs" :class="riskLabel(o.risk_score).tone">{{ riskLabel(o.risk_score).label }}</span></p>
+                <p class="text-slate-500">{{ phone(o) }}<span v-if="riskLabel(o.risk_score)" class="ml-1 rounded-full px-1.5 text-xs" :class="riskLabel(o.risk_score).tone">{{ riskLabel(o.risk_score).label }}</span><span v-if="o.possible_duplicate" class="ml-1 rounded-full bg-amber-100 px-1.5 text-xs text-amber-900" title="Autre commande en cours de ce client à moins de 24 h">Doublon ?</span></p>
               </td>
               <td class="py-3 pr-3">
                 <p>{{ o.delivery_method === 'pickup' ? 'Retrait au magasin' : o.shipping_place_label || 'Quartier à préciser' }}</p>
@@ -423,6 +423,7 @@ async function exportList() {
           <p class="mt-1.5 text-sm text-slate-600">{{ o.items_label }}</p>
           <div class="mt-2 flex flex-wrap items-center gap-1.5">
             <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS_TONES[o.status]">{{ o.status_label }}</span>
+            <span v-if="o.possible_duplicate" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Doublon ?</span>
             <span v-if="deliveryBadge(o)" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="deliveryBadge(o).tone"><Icon :name="deliveryBadge(o).late ? 'alert' : 'truck'" :size="12" />{{ deliveryBadge(o).text }}</span>
             <span v-if="o.deliverer" class="text-xs text-slate-500">· {{ o.deliverer }}</span>
           </div>

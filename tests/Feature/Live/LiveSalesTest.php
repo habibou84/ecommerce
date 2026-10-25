@@ -197,6 +197,44 @@ class LiveSalesTest extends TestCase
         $this->storeApi($this->store, 'POST', "lives/{$id}/items", ['items' => [['variant_id' => $foulard->variants()->value('id'), 'quantity' => 1]]])->assertStatus(422);
     }
 
+    public function test_whatsapp_codes_with_quantities_and_new_codes_join_the_pending_order(): void
+    {
+        $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
+        $this->bridge(['type' => 'status', 'status' => 'connected', 'phone' => '+2250700000001'])->assertOk();
+        $this->prepare(robes: 2);
+
+        $this->assertSame(['A2' => 3, 'A1' => 1], LiveSales::quantities('A2 x3 et A1'));
+        $this->assertSame(['A2' => 2, 'A3' => 4], LiveSales::quantities('je prends 2 A2 puis A3 4 pièces'));
+        $this->assertSame(['A2' => 3], LiveSales::quantities('3xA2'));
+        $this->assertSame(['A1' => 1], LiveSales::quantities('A1, 15000 F, Riviera 3'));
+
+        // « A2 x3 » : trois sacs gardés ; renvoyer le même message ne réserve rien de plus
+        $this->message('Q1', 'A2 x3 svp');
+        $this->assertStringContainsString('× 3 : réservées', end($this->whatsapp));
+        $this->message('Q2', 'A2 x3 svp');
+        $this->assertSame(3, LiveReservation::count());
+
+        $this->message('Q3', 'Yopougon, carrefour Siporex');
+        $order = Order::forStore($this->store->id)->with('items')->sole();
+        $this->assertSame([3, 24000], [(int) $order->items->sole()->quantity, (int) $order->items->sum('total')]);
+
+        // Nouveau code après la commande : ajouté à la même commande, sans redemander le quartier
+        $this->message('Q4', '2 A1');
+        $this->assertStringContainsString("Ajouté à votre commande {$order->reference()}", end($this->whatsapp));
+        $this->assertSame(1, Order::count());
+        $order->refresh()->load('items');
+        $this->assertSame([24000 + 2 * 12000, 'Yopougon, carrefour Siporex'], [(int) $order->items->sum('total'), $order->shipping_address]);
+        $this->assertSame(['ordered'], LiveReservation::distinct()->pluck('status')->all());
+
+        // Commande confirmée par l'équipe : un nouveau code redemande le quartier (nouvelle commande ensuite)
+        $order->forceFill(['status' => 'confirmed'])->save();
+        $this->message('Q5', 'A2');
+        $this->assertStringContainsString('répondez avec votre quartier', end($this->whatsapp));
+        $this->assertSame(6, LiveReservation::where('customer_phone', '+2250506070809')->count());
+        $this->message('Q6', 'A2');
+        $this->assertSame(6, LiveReservation::where('customer_phone', '+2250506070809')->count());
+    }
+
     public function test_whatsapp_codes_reserve_then_the_neighbourhood_creates_the_order(): void
     {
         $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
