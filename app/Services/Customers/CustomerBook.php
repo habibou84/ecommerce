@@ -133,6 +133,30 @@ class CustomerBook
     }
 
     /**
+     * Commandes affichées qui ont une autre commande en cours du même client, passée à moins de 24 h d'écart
+     * (badge « Doublon ? » dans la liste et la file de confirmation).
+     *
+     * @param  iterable<Order>  $orders
+     * @return list<int>
+     */
+    public function duplicateIds(iterable $orders): array
+    {
+        $open = [OrderStatus::PendingConfirmation, OrderStatus::Confirmed, OrderStatus::Processing];
+        $orders = collect($orders)->filter(fn (Order $o) => $o->customer_id !== null && in_array($o->status, $open, true));
+        if ($orders->isEmpty()) {
+            return [];
+        }
+        $others = Order::forStore($orders->first()->store_id)->whereIn('customer_id', $orders->pluck('customer_id')->unique())
+            ->whereIn('status', array_map(fn ($s) => $s->value, $open))
+            ->where('created_at', '>=', $orders->min('created_at')->copy()->subDay())
+            ->get(['id', 'customer_id', 'created_at'])->groupBy('customer_id');
+
+        return $orders->filter(fn (Order $o) => $others->get($o->customer_id, collect())
+            ->contains(fn ($x) => $x->id !== $o->id && abs($x->created_at->diffInSeconds($o->created_at)) <= 86400))
+            ->pluck('id')->values()->all();
+    }
+
+    /**
      * Le même client (même numéro) dans les autres boutiques de l'adresse où l'on voit les clients :
      * de quoi remplir la commande et juger du risque sans tout ressaisir.
      *

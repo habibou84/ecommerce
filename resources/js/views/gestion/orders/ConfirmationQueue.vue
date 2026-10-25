@@ -76,6 +76,7 @@ function later(order, hours) {
       <p class="text-sm">{{ o.items.map((i) => `${i.quantity} × ${i.label}`).join(', ') }}</p>
       <div class="flex flex-wrap gap-2 text-xs">
         <span v-if="riskLabel(o.risk_score)" class="rounded-full px-2 py-0.5" :class="riskLabel(o.risk_score).tone">{{ riskLabel(o.risk_score).label }}</span>
+        <span v-if="o.possible_duplicate" class="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900" title="Autre commande en cours de ce client à moins de 24 h">Doublon ?</span>
         <span v-if="o.attempts" class="rounded-full bg-slate-100 px-2 py-0.5">{{ o.attempts }} tentative(s) · dernière : {{ o.last_attempt?.outcome_label }}</span>
         <span v-if="o.callback_at" class="rounded-full px-2 py-0.5" :class="due(o) ? 'bg-amber-100 text-amber-900' : 'bg-slate-100'">Rappel {{ formatDateTime(o.callback_at) }}</span>
       </div>

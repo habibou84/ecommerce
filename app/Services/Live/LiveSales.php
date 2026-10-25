@@ -2,6 +2,7 @@
 
 namespace App\Services\Live;
 
+use App\Enums\OrderStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Exceptions\QuotaExceededException;
 use App\Jobs\ReadLiveCapture;
@@ -386,7 +387,7 @@ class LiveSales
         }
         $items = $session ? $this->codesIn($session, $message->body) : collect();
         if ($items->isNotEmpty()) {
-            $this->reserveFor($conversation, $items);
+            $this->reserveFor($conversation, $items, self::quantities($message->body));
 
             return true;
         }
@@ -430,18 +431,88 @@ class LiveSales
     /**
      * @param  Collection<int, LiveItem>  $items
      */
-    private function reserveFor(Conversation $conversation, Collection $items): void
+    /**
+     * Codes reçus par WhatsApp : pièces voulues par article (« A2 x3 » = 3 pièces en tout ; renvoyer le même message
+     * ne réserve rien de plus, tant que la commande n'est pas confirmée). Client qui a déjà une commande du live à confirmer : ajouté à cette commande, sans
+     * redemander le quartier.
+     *
+     * @param  Collection<int, LiveItem>  $items
+     * @param  array<string, int>  $quantities  code => pièces voulues (1 par défaut)
+     */
+    private function reserveFor(Conversation $conversation, Collection $items, array $quantities = []): void
     {
         $phone = PhoneNumber::normalize($conversation->contact);
-        $lines = $items->map(function (LiveItem $item) use ($phone, $conversation) {
-            $r = $this->reserve($item, ['name' => $conversation->contact_name, 'phone' => $phone], 'whatsapp');
+        $session = $items->first()->session;
+        $open = $this->openOrder($session, $phone);
+        $mine = fn (LiveItem $item, array $statuses) => LiveReservation::forStore($session->store_id)->where('live_item_id', $item->id)
+            ->where('customer_phone', $phone)->whereIn('status', $statuses);
+        // Pièces déjà demandées et pas encore confirmées (gardées, en attente, ou dans la commande à confirmer)
+        $asked = fn (LiveItem $item) => $mine($item, ['reserved', 'waiting'])->count()
+            + $mine($item, ['ordered'])->whereHas('order', fn ($o) => $o->where('status', OrderStatus::PendingConfirmation->value))->count();
+        $lines = [];
+        foreach ($items as $item) {
+            $missing = min(10, $quantities[$item->code] ?? 1) - $asked($item);
+            if ($missing > 0) {
+                $lines[$item->id] = $missing;
+            }
+        }
+        $customer = ['name' => $conversation->contact_name, 'phone' => $phone]
+            + ($open ? ['place_id' => $open->shipping_place_id, 'address' => $open->shipping_address] : []);
+        $created = $lines === [] ? collect() : $this->reserveLines($session, $lines, $customer, 'whatsapp');
 
-            return $r->status === 'waiting'
-                ? "⏳ {$item->code} ({$this->label($item)}) : déjà partie, vous êtes n°{$this->position($r)} sur la liste d'attente."
-                : "✅ {$item->code} ({$this->label($item)}, ".Money::format($item->price).') : réservée pour vous.';
-        });
+        $text = $items->map(function (LiveItem $item) use ($mine) {
+            $held = $mine($item, LiveReservation::HOLDING)->count();
+            $waiting = $mine($item, ['waiting'])->oldest('id')->get();
+            $label = "{$item->code} ({$this->label($item)}";
+
+            return collect([
+                $held > 0 ? "✅ {$label}, ".Money::format($item->price).')'.($held > 1 ? " × {$held} : réservées" : ' : réservée').' pour vous.' : null,
+                $waiting->isEmpty() ? null : ($held > 0
+                    ? "⏳ {$item->code} : {$waiting->count()} de plus sur la liste d'attente (il n'en restait pas assez)."
+                    : "⏳ {$label}) : déjà partie, vous êtes n°{$this->position($waiting->first())} sur la liste d'attente."),
+            ])->filter()->implode("\n");
+        })->implode("\n");
+        $added = $created->firstWhere('status', 'ordered')?->order;
         $held = LiveReservation::forStore($conversation->store_id)->where('customer_phone', $phone)->where('status', 'reserved')->whereNull('order_id')->exists();
-        $this->reply($conversation, $lines->implode("\n").($held ? "\nPour la livraison, répondez avec votre quartier (et un repère)." : ''));
+        $this->reply($conversation, $text.match (true) {
+            $added !== null && $open !== null && $added->id === $open->id => "\nAjouté à votre commande {$added->reference()}, livraison : ".($added->shipping_address ?? 'à préciser').'.',
+            $held => "\nPour la livraison, répondez avec votre quartier (et un repère).",
+            default => '',
+        });
+    }
+
+    /**
+     * Commande du live encore à confirmer de ce client : les articles suivants s'y ajoutent (une seule livraison).
+     */
+    private function openOrder(LiveSession $session, ?string $phone): ?Order
+    {
+        if ($phone === null) {
+            return null;
+        }
+
+        return Order::forStore($session->store_id)->where('status', OrderStatus::PendingConfirmation->value)
+            ->whereIn('id', LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)
+                ->where('customer_phone', $phone)->whereNotNull('order_id')->select('order_id'))
+            ->latest('id')->first();
+    }
+
+    /**
+     * Pièces voulues par code dans un message : « A2 x3 », « A2×3 », « 3 A2 », « 3xA2 », « A2 3 pièces » (10 au plus).
+     *
+     * @return array<string, int>
+     */
+    public static function quantities(string $text): array
+    {
+        preg_match_all('/(?<![A-Za-z0-9])(?:(\d{1,2})\s*[x×*]?\s*)?([A-Za-z])\s?(\d{1,2})(?![0-9])(?:\s*[x×*]\s*(\d{1,2})(?![0-9])|\s+(\d{1,2})\s*(?:pi[eè]ces?|pcs?|fois|exemplaires?)(?![A-Za-z]))?/iu',
+            $text, $m, PREG_SET_ORDER);
+        $out = [];
+        foreach ($m as $x) {
+            $code = strtoupper($x[2]).(int) $x[3];
+            $qty = (int) (($x[4] ?? '') !== '' ? $x[4] : (($x[5] ?? '') !== '' ? $x[5] : (($x[1] ?? '') !== '' ? $x[1] : 1)));
+            $out[$code] = max($out[$code] ?? 0, min(10, max(1, $qty)));
+        }
+
+        return $out;
     }
 
     /**
@@ -555,20 +626,25 @@ class LiveSales
         $store = Store::find($first->store_id);
         $items = LiveItem::forStore($store->id)->whereIn('id', $reservations->pluck('live_item_id'))->get()->keyBy('id');
         $byItem = $reservations->groupBy('live_item_id');
+        $lines = $byItem->map(fn ($rs, $id) => [
+            'variant_id' => $items->get($id)->variant_id, 'quantity' => $rs->count(), 'unit_price' => $items->get($id)->price,
+        ])->values()->all();
+        $codes = $byItem->map(fn ($rs, $id) => $items->get($id)?->code.($rs->count() > 1 ? ' ×'.$rs->count() : ''))->implode(', ');
+        $open = $this->openOrder($session, $first->customer_phone);
         try {
-            $order = $this->desk->create($store, [
-                'source' => 'live',
-                'customer_name' => $first->customer_name,
-                'customer_phone' => $first->customer_phone,
-                'delivery_method' => 'delivery',
-                'shipping_place_id' => $first->shipping_place_id,
-                'shipping_address' => $first->shipping_address,
-                'internal_note' => "Live « {$session->title} » : ".$byItem->map(fn ($rs, $id) => $items->get($id)?->code.($rs->count() > 1 ? ' ×'.$rs->count() : ''))->implode(', '),
-                // Une ligne par article, une pièce par réservation
-                'items' => $byItem->map(fn ($rs, $id) => [
-                    'variant_id' => $items->get($id)->variant_id, 'quantity' => $rs->count(), 'unit_price' => $items->get($id)->price,
-                ])->values()->all(),
-            ], null, 'customer');
+            $order = $open !== null
+                ? $this->desk->addItems($open, $lines, "live : {$codes}")
+                : $this->desk->create($store, [
+                    'source' => 'live',
+                    'customer_name' => $first->customer_name,
+                    'customer_phone' => $first->customer_phone,
+                    'delivery_method' => 'delivery',
+                    'shipping_place_id' => $first->shipping_place_id,
+                    'shipping_address' => $first->shipping_address,
+                    'internal_note' => "Live « {$session->title} » : {$codes}",
+                    // Une ligne par article, une pièce par réservation
+                    'items' => $lines,
+                ], null, 'customer');
         } catch (BusinessRuleException|QuotaExceededException $e) {
             // Commande impossible (stock, quota) : la réservation reste, l'équipe la traite à la main
             Log::info('Live : commande non créée', ['reservations' => $reservations->pluck('id')->all(), 'error' => $e->getMessage()]);
@@ -585,8 +661,7 @@ class LiveSales
      */
     private function codesIn(LiveSession $session, string $text): Collection
     {
-        preg_match_all('/(?<![A-Za-z0-9])([A-Za-z])\s?(\d{1,2})(?![0-9])/u', $text, $m, PREG_SET_ORDER);
-        $codes = collect($m)->map(fn ($x) => strtoupper($x[1]).(int) $x[2])->unique();
+        $codes = collect(array_keys(self::quantities($text)));
 
         return $codes->isEmpty() ? collect() : $session->items()->with('session', 'variant.product')->whereIn('code', $codes)->get();
     }

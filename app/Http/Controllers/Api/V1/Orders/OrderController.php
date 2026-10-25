@@ -47,8 +47,11 @@ class OrderController extends Controller
             ->with(OrderListing::relations())->withCount('items')
             ->paginate($request->integer('per_page', 50));
 
+        $duplicates = app(CustomerBook::class)->duplicateIds($page->getCollection());
+
         return response()->json([
-            'data' => $page->getCollection()->map(fn (Order $o) => OrderResource::make($o)->resolve() + $listing->extras($o) + ['day' => $o->list_day])->values(),
+            'data' => $page->getCollection()->map(fn (Order $o) => OrderResource::make($o)->resolve() + $listing->extras($o)
+                + ['day' => $o->list_day, 'possible_duplicate' => in_array($o->id, $duplicates, true)])->values(),
             'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()],
             'days' => $listing->dayTotals($request, $page->getCollection()->pluck('list_day')->unique()->values()->all()),
             'counts' => $listing->counts($request),
@@ -126,8 +129,10 @@ class OrderController extends Controller
             ->limit(100)->get();
 
         $messages = app(OrderMessages::class);
+        $duplicates = $orders->groupBy('store_id')->flatMap(fn ($group) => app(CustomerBook::class)->duplicateIds($group))->all();
 
         return response()->json(['data' => $orders->map(fn (Order $o) => OrderResource::make($o)->resolve() + [
+            'possible_duplicate' => in_array($o->id, $duplicates, true),
             'items' => $o->items->map(fn ($i) => ['label' => $i->label(), 'quantity' => $i->quantity]),
             'attempts' => $o->confirmations_count,
             'last_attempt' => $o->confirmations->first() ? [

@@ -138,7 +138,7 @@ async function addQuick() {
         Si vous faites de gros lives, passez au WhatsApp officiel (Messages › WhatsApp), sans risque de blocage.
       </p>
       <p v-if="live.status === 'live'" class="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-        📷 Montrez le code de l'article à l'écran (carte, ou ce téléphone : touchez le code pour l'afficher en grand) : quand un client envoie sa capture sur WhatsApp, le code est lu et l'article réservé.
+        📷 Montrez le code de l'article à l'écran (carte, ou ce téléphone : touchez le code pour l'afficher en grand) : quand un client envoie sa capture sur WhatsApp, le code est lu et l'article réservé. Pour plusieurs pièces, le client écrit par exemple « A2 x3 ».
       </p>
 
       <section class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
