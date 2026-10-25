@@ -201,7 +201,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
       </label>
     </section>
 
-    <section v-else-if="!account.connected" class="card max-w-2xl space-y-4 p-4 text-sm">
+    <section v-if="account && !account.connected" class="card max-w-2xl space-y-4 p-4 text-sm">
       <h3 class="text-base font-semibold">Recevoir les messages WhatsApp du support ici</h3>
       <p class="text-slate-600">
         Reliez le numéro WhatsApp de Jibiat Marchand. Les messages des clients arrivent dans la console et vous répondez depuis l'ordinateur.
@@ -267,7 +267,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
       <Alert v-else tone="warning">La connexion avec Facebook n'est pas encore activée sur le serveur (application Meta de la plateforme).</Alert>
     </section>
 
-    <template v-else>
+    <template v-else-if="account">
       <div class="flex flex-wrap items-center gap-3 text-sm">
         <span class="rounded bg-emerald-100 px-2 py-0.5 text-emerald-800">Connecté · {{ account.display_phone }}<template v-if="account.name"> · {{ account.name }}</template></span>
         <span v-if="account.mode === 'qr'" class="text-slate-500">Par QR code · reçoit les codes de vérification (aucun SMS)</span>
