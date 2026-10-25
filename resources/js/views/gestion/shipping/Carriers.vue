@@ -35,6 +35,10 @@ async function load() {
 const route = useRoute()
 const router = useRouter()
 const directory = ref(null)
+// Entreprise qui a invité la boutique : en premier, les autres seulement à la demande (aucun démarchage)
+const partner = computed(() => directory.value?.find((d) => d.partner) ?? null)
+const showOthers = ref(false)
+const shownDirectory = computed(() => (partner.value && !showOthers.value ? [partner.value] : directory.value ?? []))
 const directoryAvailable = ref(true)
 const connecting = ref(null)
 const percent = (rate) => (rate === null || rate === undefined ? '—' : `${Math.round(rate * 100)} %`)
@@ -250,6 +254,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
     <article v-for="c in carriers ?? []" :key="c.id" class="card space-y-3 p-4 text-sm">
       <div class="flex flex-wrap items-center gap-2">
         <h3 class="text-base font-semibold">{{ c.name }}</h3>
+        <span v-if="c.partner" class="rounded-full bg-sky-600 px-2 py-0.5 text-xs font-semibold text-white">Votre entreprise · vous a invité</span>
         <span class="rounded-full px-2 py-0.5 text-xs" :class="c.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'">{{ c.status === 'active' ? 'Connecté' : c.status }}</span>
         <span class="text-slate-500">{{ c.driver === 'delivery_app' ? `Delivery App · compte ${c.merchant_name ?? ''} · clé ${c.api_key_prefix}…` : `Sans API${c.contact_phone ? ` · ${c.contact_phone}` : ''}` }}</span>
       </div>
@@ -300,8 +305,12 @@ const copy = (text) => navigator.clipboard?.writeText(text)
       <p v-if="directory === null" class="text-sm text-slate-500">Chargement de l'annuaire…</p>
       <p v-else-if="!directoryAvailable" class="card p-4 text-sm text-slate-500">L'annuaire ne répond pas pour le moment. Vous pouvez connecter votre entreprise avec une clé API (« + Entreprise »).</p>
       <p v-else-if="!directory.length" class="card p-4 text-sm text-slate-500">Aucune entreprise dans l'annuaire pour l'instant.</p>
-      <div v-else class="grid gap-3 sm:grid-cols-2">
-        <article v-for="d in directory" :key="d.slug" class="card flex flex-col gap-3 p-4 text-sm">
+      <template v-else>
+      <p v-if="partner && !partner.connected" class="rounded-lg bg-sky-50 p-3 text-sm text-sky-900">
+        Vous êtes arrivé sur Jibiat Marchand avec <strong>{{ partner.name }}</strong>. Connectez-la en un clic : vos courses lui sont envoyées toutes seules.
+      </p>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <article v-for="d in shownDirectory" :key="d.slug" class="card flex flex-col gap-3 p-4 text-sm" :class="{ 'ring-2 ring-sky-500': d.partner }">
           <div class="flex items-center gap-3">
             <img v-if="d.logo_url" :src="d.logo_url" alt="" class="h-11 w-11 rounded-lg object-contain">
             <span v-else class="grid h-11 w-11 place-items-center rounded-lg bg-emerald-700 font-bold text-white" aria-hidden="true">{{ d.name.slice(0, 1).toUpperCase() }}</span>
@@ -309,7 +318,8 @@ const copy = (text) => navigator.clipboard?.writeText(text)
               <h3 class="truncate text-base font-semibold">{{ d.name }}</h3>
               <p class="truncate text-slate-500">{{ d.cities.join(', ') || 'Côte d\'Ivoire' }}<template v-if="d.ships_inland"> · expédition vers l'intérieur</template></p>
             </div>
-            <span v-if="d.near" class="ml-auto shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">Près de vous</span>
+            <span v-if="d.partner" class="ml-auto shrink-0 rounded-full bg-sky-600 px-2 py-0.5 text-xs font-semibold text-white">Vous a invité</span>
+            <span v-else-if="d.near" class="ml-auto shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">Près de vous</span>
           </div>
           <p v-if="d.pitch" class="text-slate-700">{{ d.pitch }}</p>
           <dl class="grid grid-cols-3 gap-2 text-center">
@@ -322,6 +332,9 @@ const copy = (text) => navigator.clipboard?.writeText(text)
           <button v-else class="btn-brand mt-auto" :disabled="connecting === d.slug || busy" @click="connectFromDirectory(d)">{{ connecting === d.slug ? 'Ouverture…' : 'Connecter' }}</button>
         </article>
       </div>
+      <!-- Boutique invitée par une entreprise : les autres entreprises ne sont montrées que si on les demande -->
+      <button v-if="partner && !showOthers && directory.length > 1" type="button" class="btn-ghost w-full" @click="showOthers = true">Voir les autres entreprises de l'annuaire ({{ directory.length - 1 }})</button>
+      </template>
     </section>
 
     <Modal v-if="modal === 'connect'" title="Connecter une entreprise de livraison" @close="modal = null">

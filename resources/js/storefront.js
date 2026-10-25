@@ -458,6 +458,115 @@ function reviewForm() {
   })
 }
 
+/* ---------- Page du live : pièces restantes en direct, réservation en deux touches ---------- */
+
+function livePage() {
+  const root = $('[data-live]')
+  const dialog = $('[data-live-dialog]')
+  if (!root || !dialog) return
+  const form = $('[data-live-form]')
+  const placeInput = $('[data-place-search]', form)
+  const options = $('[data-place-options]', form)
+  let searchTimer
+
+  // Nom, numéro et quartier gardés sur le téléphone : la prochaine réservation se fait en deux touches
+  const saved = (() => { try { return JSON.parse(localStorage.getItem('jm_live_customer') || '{}') } catch { return {} } })()
+
+  function showError(field, message) {
+    const el = $(`[data-error="${field}"]`, form) || $('[data-error="form"]', form)
+    el.textContent = message
+    el.hidden = !message
+  }
+
+  function render(items) {
+    items.forEach((item) => {
+      const row = $(`[data-live-item="${item.id}"]`, root)
+      if (!row) return
+      $('[data-remaining]', row).textContent = item.remaining > 0 ? `Il en reste ${item.remaining}` : "Épuisé · liste d'attente"
+      $('[data-take]', row).textContent = item.remaining > 0 ? 'Je prends' : "M'inscrire"
+    })
+  }
+
+  $$('[data-take]', root).forEach((button) => button.addEventListener('click', () => {
+    form.elements.item_id.value = button.dataset.take
+    $('[data-live-title]', form).textContent = `Réserver la ${button.dataset.code}`
+    form.elements.name.value = saved.name || ''
+    form.elements.phone.value = saved.phone || ''
+    form.elements.place_id.value = saved.place_id || ''
+    placeInput.value = saved.place_label || ''
+    form.elements.address.value = saved.address || ''
+    $$('[data-error]', form).forEach((el) => (el.hidden = true))
+    dialog.showModal()
+  }))
+  $('[data-live-close]', form).addEventListener('click', () => dialog.close())
+
+  placeInput.addEventListener('input', () => {
+    form.elements.place_id.value = ''
+    clearTimeout(searchTimer)
+    const q = placeInput.value.trim()
+    if (q.length < 2) { options.hidden = true; return }
+    searchTimer = setTimeout(async () => {
+      try {
+        const { data } = await api('GET', `/live/lieux?q=${encodeURIComponent(q)}`)
+        options.innerHTML = data.length
+          ? data.map((p) => `<li role="option" tabindex="-1" data-id="${p.id}" class="cursor-pointer px-3 py-2.5 hover:bg-slate-100">${escapeHtml(p.label)}</li>`).join('')
+          : '<li class="px-3 py-2.5 text-sm text-slate-500">Aucun lieu trouvé : essayez la commune.</li>'
+        options.hidden = false
+      } catch {
+        options.hidden = true
+      }
+    }, 250)
+  })
+  options.addEventListener('click', (event) => {
+    const li = event.target.closest('[data-id]')
+    if (!li) return
+    form.elements.place_id.value = li.dataset.id
+    placeInput.value = li.textContent
+    options.hidden = true
+    showError('place_id', '')
+  })
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    if (!form.elements.place_id.value) { showError('place_id', 'Choisissez votre quartier dans la liste.'); return }
+    const submit = $('[data-live-submit]', form)
+    submit.disabled = true
+    const body = {
+      item_id: Number(form.elements.item_id.value), name: form.elements.name.value, phone: form.elements.phone.value,
+      place_id: Number(form.elements.place_id.value), address: form.elements.address.value || null,
+    }
+    try {
+      const result = await api('POST', '/live/reserver', body)
+      try {
+        localStorage.setItem('jm_live_customer', JSON.stringify({ name: body.name, phone: body.phone, place_id: body.place_id, place_label: placeInput.value, address: body.address }))
+        Object.assign(saved, { name: body.name, phone: body.phone, place_id: body.place_id, place_label: placeInput.value, address: body.address })
+      } catch {
+        // stockage indisponible : le client retapera ses informations
+      }
+      dialog.close()
+      toast(escapeHtml(result.message))
+      refresh()
+    } catch (error) {
+      const fields = Object.entries(error.errors || {})
+      if (fields.length) fields.forEach(([field, messages]) => showError(field, messages[0]))
+      else showError('form', error.message || 'Réservation impossible, réessayez.')
+    } finally {
+      submit.disabled = false
+    }
+  })
+
+  async function refresh() {
+    try {
+      const { data } = await api('GET', '/live/etat')
+      if (!data) { location.reload(); return }
+      render(data.items)
+    } catch {
+      // réseau momentané : prochain tour
+    }
+  }
+  setInterval(refresh, 5000)
+}
+
 /* ---------- Commun ---------- */
 
 $$('[data-autosubmit]').forEach((el) => el.addEventListener('change', () => el.form.submit()))
@@ -465,6 +574,7 @@ $$('[data-autosubmit]').forEach((el) => el.addEventListener('change', () => el.f
 productPage()
 cartPage()
 checkoutPage()
+livePage()
 
 // Lien de parrainage (?parrain=CODE) : code gardé sur le téléphone et proposé à la commande
 try {

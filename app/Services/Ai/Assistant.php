@@ -89,8 +89,19 @@ class Assistant
      */
     public function image(UploadedFile $file): array
     {
+        return $this->imageFrom($file->getRealPath());
+    }
+
+    /**
+     * Même chose pour une image reçue en octets (photo d'un message WhatsApp).
+     *
+     * @param  string  $source  chemin du fichier ou contenu de l'image
+     * @return array<string, mixed>
+     */
+    public function imageFrom(string $source): array
+    {
         try {
-            $image = (new ImageManager(new Driver))->read($file->getRealPath());
+            $image = (new ImageManager(new Driver))->read($source);
         } catch (Throwable) {
             throw new BusinessRuleException('Ce fichier n\'est pas une image lisible (JPEG, PNG, WebP).', 'image');
         }

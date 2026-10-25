@@ -14,6 +14,7 @@ const nav = [
   { to: '/console/paiements', label: 'Paiements', badge: 'pendingPayments' },
   { to: '/console/whatsapp', label: 'WhatsApp', badge: 'unreadMessages' },
   { to: '/console/factures', label: 'Factures' },
+  { to: '/console/parrainage', label: 'Parrainage' },
   { to: '/console/offres', label: 'Offres' },
   { to: '/console/ia', label: 'Assistant IA' },
 ]

@@ -11,6 +11,7 @@ use App\Models\Place;
 use App\Models\ProductVariant;
 use App\Models\Shipment;
 use App\Services\Orders\DeliveryCalendar;
+use App\Services\Partners\PartnerReferrals;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\Shipping\ShipmentDesk;
@@ -57,6 +58,8 @@ class DeliveryOptionsController extends Controller
         $carriers = array_map(fn (array $q) => [
             'id' => $q['connection_id'],
             'name' => $q['name'],
+            // Entreprise qui a invité la boutique : proposée en premier (« votre entreprise »)
+            'partner' => $connections->has($q['connection_id']) && PartnerReferrals::isPartner($store, $connections->get($q['connection_id'])),
             'is_api' => $connections->get($q['connection_id'])?->isApi() ?? false,
             'zones_count' => $connections->get($q['connection_id'])?->zones_count ?? 0,
             'zone' => $q['zone'],
@@ -66,6 +69,7 @@ class DeliveryOptionsController extends Controller
             'earliest_date' => $q['earliest_date'] ?? null,
             'day_message' => $q['day_message'] ?? null,
         ], $shipments->quotesFor($store->id, $place?->id, $fragile, $grams ? round($grams / 1000, 2) : null));
+        usort($carriers, fn (array $a, array $b) => $b['partner'] <=> $a['partner']);
 
         // Récemment utilisés : les derniers livreurs et entreprises à qui la boutique a confié une course
         $recent = Shipment::latest('id')->limit(50)->get(['courier_id', 'carrier_connection_id'])

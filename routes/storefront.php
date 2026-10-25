@@ -5,6 +5,7 @@ use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CatalogFeedController;
 use App\Http\Controllers\Storefront\CheckoutController;
+use App\Http\Controllers\Storefront\LiveController;
 use App\Http\Controllers\Storefront\PaymentPageController;
 use App\Http\Controllers\Storefront\ReviewController;
 use App\Http\Controllers\Storefront\ShortLinkController;
@@ -38,6 +39,14 @@ Route::middleware('zone:store,custom_domain')->group(function () {
     Route::get('/avis/{token}', [ReviewController::class, 'show'])->where('token', '[A-Za-z0-9]{16,32}')->name('review');
     Route::post('/avis/{token}', [ReviewController::class, 'store'])->where('token', '[A-Za-z0-9]{16,32}')->middleware(['ajax', 'throttle:storefront-order']);
     // Ticket de caisse (vente au comptoir ou commande payée), à imprimer ou à envoyer par WhatsApp
+    // Vente en live : page fixe à mettre dans la bio, pièces restantes en direct, réservation
+    Route::get('/live', [LiveController::class, 'show'])->name('storefront.live');
+    Route::middleware('ajax')->group(function () {
+        Route::get('/live/etat', [LiveController::class, 'state'])->middleware('throttle:storefront');
+        Route::post('/live/reserver', [LiveController::class, 'reserve'])->middleware('throttle:storefront-order');
+        Route::get('/live/lieux', [LiveController::class, 'places'])->middleware('throttle:storefront');
+    });
+
     Route::get('/recu/{token}', ReceiptController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('receipt');
     // Gestion de la boutique : manifeste (installation sur l'écran d'accueil du téléphone ou de l'ordinateur)
     Route::get('/gestion/manifest.webmanifest', function (Tenancy $tenancy) {

@@ -2,6 +2,7 @@
 const tabs = [
   { to: '/gestion/marketing', label: 'Promotions', exact: true },
   { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' },
+  { to: '/gestion/marketing/live', label: 'Ventes en live' },
   { to: '/gestion/marketing/relances', label: 'Relances WhatsApp' },
   { to: '/gestion/marketing/avis', label: 'Avis clients' },
   { to: '/gestion/marketing/fidelite', label: 'Fidélité' },

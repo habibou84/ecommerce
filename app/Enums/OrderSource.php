@@ -17,6 +17,7 @@ enum OrderSource: string
     case Manual = 'manual';
     case Import = 'import';
     case Api = 'api';
+    case Live = 'live';
 
     public function label(): string
     {
@@ -31,6 +32,7 @@ enum OrderSource: string
             self::Manual => 'Autre',
             self::Import => 'Import',
             self::Api => 'API',
+            self::Live => 'Live',
         };
     }
 

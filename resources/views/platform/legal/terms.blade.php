@@ -33,6 +33,7 @@
 
     <h2>6. Livraison et partenaires</h2>
     <p>Lorsqu'il confie une livraison à une entreprise de livraison connectée, le Marchand contracte directement avec elle. L'Éditeur transmet les informations nécessaires à la course mais n'est pas partie à ce contrat et ne répond pas de son exécution.</p>
+    <p>Un espace marchand créé avec le lien d'invitation d'une entreprise de livraison est parrainé par elle : elle reçoit de l'Éditeur une part de l'abonnement payé, sans changer son prix pour le Marchand, et voit le nom de l'espace, son adresse, l'état de son abonnement et la part gagnée. L'Éditeur ne propose pas d'autres entreprises de livraison au Marchand parrainé ; celui-ci reste libre d'en connecter d'autres depuis l'annuaire.</p>
 
     <h2>7. Disponibilité et support</h2>
     <p>L'Éditeur s'efforce d'assurer un accès continu au Service et sauvegarde les données chaque jour, sans garantir l'absence d'interruption (maintenance, réseau, prestataires). Le support est joignable par WhatsApp depuis la gestion. Avec l'accord implicite du Marchand, l'équipe de support peut ouvrir une session d'assistance temporaire dans sa gestion : elle est limitée dans le temps, signalée au Marchand qui peut y mettre fin, et journalisée.</p>

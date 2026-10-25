@@ -15,6 +15,7 @@ use App\Models\SubscriptionInvoice;
 use App\Models\User;
 use App\Notifications\BillingNotice;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Partners\PartnerReferrals;
 use App\Services\Payments\Gateways\GatewayResult;
 use App\Services\Payments\PaymentDesk;
 use App\Support\Tenancy;
@@ -506,6 +507,11 @@ class Billing
                 $store->forceFill(['status' => StoreStatus::Active])->save();
             }
             $store->forceFill(['billing_notices' => null])->save();
+
+            // Boutique parrainée par une entreprise de livraison : sa part de l'abonnement payé
+            if ($status === 'paid') {
+                app(PartnerReferrals::class)->record($invoice->fresh());
+            }
 
             $plan = $invoice->plan;
             DB::afterCommit(fn () => $this->notify($store, $status === 'offered' ? 'Abonnement offert' : 'Paiement reçu',
