@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
+import LiveLink from '../../../components/LiveLink.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 
@@ -119,7 +120,7 @@ async function addQuick() {
         <div>
           <h2 class="text-lg font-semibold">{{ live.title }}</h2>
           <p class="text-sm text-slate-500">
-            <template v-if="live.status === 'live'"><span class="font-semibold text-red-600">● En direct</span> · page du live : <a :href="pageUrl" target="_blank" rel="noopener" class="underline">{{ pageUrl }}</a></template>
+            <template v-if="live.status === 'live'"><span class="font-semibold text-red-600">● En direct</span> · vos clients réservent avec le lien ci-dessous.</template>
             <template v-else-if="live.status === 'draft'">En préparation : lancez le live au moment où vous passez à l'antenne.</template>
             <template v-else>Terminé le {{ formatDateTime(live.ended_at) }}</template>
           </p>
@@ -127,6 +128,8 @@ async function addQuick() {
         <button v-if="live.status === 'draft'" class="btn-brand" :disabled="busy" @click="act('start')">Lancer le live</button>
         <button v-else-if="live.status === 'live'" class="btn-secondary" :disabled="busy" @click="end">Terminer le live</button>
       </section>
+
+      <LiveLink v-if="live.status !== 'ended'" :url="pageUrl" :compact="live.status === 'live'" />
 
       <!-- WhatsApp qui répond aux clients : conseils selon le mode -->
       <Alert v-if="live.status !== 'ended' && live.whatsapp === null" tone="warning">
@@ -148,14 +151,14 @@ async function addQuick() {
         <div class="card p-3"><span class="block text-xs text-slate-500">Quartier attendu · attente</span><strong class="text-lg">{{ live.summary.pending }} · {{ live.summary.waiting }}</strong></div>
       </section>
 
-      <section class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        <div v-for="i in live.items" :key="i.id" class="card flex items-center gap-3 p-3 text-sm" :class="{ 'opacity-60': i.remaining === 0 }">
+      <section class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div v-for="i in live.items" :key="i.id" class="card flex min-w-0 items-center gap-3 p-3 text-sm" :class="{ 'opacity-60': i.remaining === 0 }">
           <button type="button" class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-red-600 text-lg font-bold text-white" :aria-label="`Afficher ${i.code} en grand`" @click="big = i">{{ i.code }}</button>
           <span class="min-w-0 flex-1">
-            <span class="block truncate font-medium">{{ i.title }}</span>
+            <span class="block font-medium leading-snug [overflow-wrap:anywhere]">{{ i.title }}</span>
             <span class="text-slate-500">{{ money(i.price) }}</span>
           </span>
-          <span class="text-right">
+          <span class="shrink-0 text-right">
             <strong class="block text-lg" :class="i.remaining ? 'text-emerald-700' : 'text-red-600'">{{ i.remaining ? `${i.remaining} / ${i.quantity}` : 'Épuisé' }}</strong>
             <span v-if="i.waiting" class="text-xs text-sky-700">{{ i.waiting }} en attente</span>
           </span>
@@ -206,7 +209,7 @@ async function addQuick() {
         <ul class="divide-y divide-slate-100 text-sm">
           <li v-for="r in live.reservations" :key="r.id" class="flex flex-wrap items-center gap-2 p-3">
             <span class="grid h-8 w-8 shrink-0 place-items-center rounded bg-red-600 text-xs font-bold text-white">{{ r.code }}</span>
-            <span class="min-w-0 flex-1">
+            <span class="min-w-0 flex-1 [overflow-wrap:anywhere]">
               <span class="font-medium">{{ r.customer_name || r.customer_phone || 'Client' }}</span>
               <span class="text-slate-500"> · {{ SOURCE[r.source] }}<template v-if="r.shipping_address"> · {{ r.shipping_address }}</template></span>
             </span>

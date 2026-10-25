@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
+import LiveLink from '../../../components/LiveLink.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 
@@ -80,12 +81,13 @@ async function save() {
       <section class="card space-y-2 p-4 text-sm">
         <p class="text-slate-700">
           Pendant un live Facebook, TikTok ou Instagram, chaque article a un code (A1, A2…). Vos clients réservent de deux façons :
-          sur la <strong>page du live</strong> (lien à mettre dans votre bio, toujours le même) ou en envoyant le <strong>code sur WhatsApp</strong>.
+          avec le <strong>lien de vos lives</strong> (ci-dessous) ou en envoyant le <strong>code sur WhatsApp</strong> (« A2 », ou « A2 x3 » pour trois pièces).
           Quand c'est épuisé, ils passent sur la liste d'attente.
         </p>
-        <p v-if="pageUrl" class="flex flex-wrap items-center gap-2"><span class="text-slate-500">Page du live :</span><a :href="pageUrl" target="_blank" rel="noopener" class="font-medium text-emerald-700 underline">{{ pageUrl }}</a></p>
         <button class="btn-brand" @click="startNew">+ Préparer un live</button>
       </section>
+
+      <LiveLink v-if="pageUrl" :url="pageUrl" />
 
       <p v-if="lives && !lives.length" class="card p-6 text-sm text-slate-500">Aucun live pour l'instant.</p>
       <RouterLink v-for="l in lives ?? []" :key="l.id" :to="`/gestion/live/${l.id}`" class="card flex flex-wrap items-center justify-between gap-2 p-4 text-sm hover:bg-slate-50">
