@@ -233,6 +233,12 @@ async function uploadFiles(productId, files) {
   }
 }
 
+// Photo choisie avant la création du produit : retirée avant l'envoi
+function removePending(index) {
+  URL.revokeObjectURL(pendingFiles.value[index].url)
+  pendingFiles.value.splice(index, 1)
+}
+
 async function onFiles(event) {
   const files = [...event.target.files]
   event.target.value = ''
@@ -448,15 +454,18 @@ const margin = computed(() => {
           <div v-for="(image, index) in images" :key="image.id" class="group relative">
             <img :src="image.urls.thumb" :alt="image.alt" class="aspect-square w-full rounded-lg border border-slate-200 object-cover" />
             <span v-if="index === 0" class="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-[10px] font-medium">Principale</span>
-            <div v-if="canEdit" class="mt-1 flex justify-center gap-1 text-xs">
-              <button type="button" class="btn-ghost px-1.5 py-0.5" :disabled="index === 0" @click="moveImage(index, -1)">←</button>
-              <button type="button" class="btn-ghost px-1.5 py-0.5 text-red-600" @click="removeImage(image)">Suppr.</button>
-              <button type="button" class="btn-ghost px-1.5 py-0.5" :disabled="index === images.length - 1" @click="moveImage(index, 1)">→</button>
-            </div>
+            <template v-if="canEdit">
+              <button type="button" class="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-base font-bold text-red-600 shadow ring-1 ring-slate-200" aria-label="Retirer cette photo" title="Retirer cette photo" @click="removeImage(image)">✕</button>
+              <div class="mt-1 flex justify-center gap-1 text-xs">
+                <button type="button" class="btn-ghost px-2 py-0.5" :disabled="index === 0" aria-label="Avancer la photo" @click="moveImage(index, -1)">←</button>
+                <button type="button" class="btn-ghost px-2 py-0.5" :disabled="index === images.length - 1" aria-label="Reculer la photo" @click="moveImage(index, 1)">→</button>
+              </div>
+            </template>
           </div>
-          <div v-for="pending in pendingFiles" :key="pending.url">
+          <div v-for="(pending, index) in pendingFiles" :key="pending.url" class="relative">
             <img :src="pending.url" alt="" class="aspect-square w-full rounded-lg border border-dashed border-slate-300 object-cover opacity-80" />
-            <p class="mt-1 text-center text-xs text-slate-500">À l'enregistrement</p>
+            <button type="button" class="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-base font-bold text-red-600 shadow ring-1 ring-slate-200" aria-label="Retirer cette photo" title="Retirer cette photo" @click="removePending(index)">✕</button>
+            <p class="mt-1 text-center text-xs leading-tight text-slate-500">Envoyée à l'enregistrement</p>
           </div>
         </div>
       </section>
