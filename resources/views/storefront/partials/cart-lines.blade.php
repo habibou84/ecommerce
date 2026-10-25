@@ -5,6 +5,8 @@
             <a href="/produits/{{ $line['product_slug'] }}" class="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100">
                 @if ($line['image'])
                     <img src="{{ $line['image'] }}" alt="" width="80" height="80" loading="lazy" class="h-full w-full object-cover">
+                @else
+                    @include('storefront.partials.no-photo', ['size' => 'h-7 w-7'])
                 @endif
             </a>
             <div class="min-w-0 flex-1">

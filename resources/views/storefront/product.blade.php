@@ -48,6 +48,8 @@
                     <img data-main-image src="{{ $main['medium'] }}" srcset="{{ $main['medium'] }} 800w, {{ $main['large'] }} 1600w"
                          sizes="(min-width: 768px) 50vw, 100vw" alt="{{ $images->first()['alt'] }}" width="800" height="800"
                          fetchpriority="high" class="h-full w-full object-cover">
+                @else
+                    @include('storefront.partials.no-photo', ['size' => 'h-16 w-16', 'label' => true])
                 @endif
             </div>
             @if ($images->count() > 1)
