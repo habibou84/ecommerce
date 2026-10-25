@@ -448,6 +448,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('lives/variants', [LiveController::class, 'variants'])->name('lives.variants');
                 Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->name('lives.show');
                 Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->name('lives.update');
+                Route::post('lives/{session}/items', [LiveController::class, 'addItems'])->whereNumber('session')->name('lives.items');
                 Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->name('lives.start');
                 Route::post('lives/{session}/end', [LiveController::class, 'end'])->whereNumber('session')->name('lives.end');
                 Route::post('lives/{session}/reservations', [LiveController::class, 'reserve'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.reserve');

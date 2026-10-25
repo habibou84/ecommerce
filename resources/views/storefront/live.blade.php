@@ -19,24 +19,29 @@
             <script type="application/json" id="live-data">@json($live['items'], JSON_HEX_TAG)</script>
             <ul class="mt-5 space-y-3 pb-24" data-live-items>
                 @foreach ($live['items'] as $item)
-                    <li class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3" data-live-item="{{ $item['id'] }}">
-                        @if ($item['image'])
-                            <img src="{{ $item['image'] }}" alt="" class="h-20 w-20 shrink-0 rounded-xl object-cover" width="80" height="80" loading="lazy">
-                        @else
-                            <span class="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-slate-100 text-2xl font-bold text-slate-500">{{ $item['code'] }}</span>
-                        @endif
-                        <div class="min-w-0 flex-1">
-                            <p class="text-xs font-bold text-red-600">{{ $item['code'] }}</p>
-                            <p class="font-semibold leading-tight">{{ $item['title'] }}</p>
-                            <p class="mt-0.5 font-bold">{{ \Jibiat\Socle\Money::format($item['price']) }}</p>
-                            <p class="text-sm text-slate-500" data-remaining>{{ $item['remaining'] > 0 ? 'Il en reste '.$item['remaining'] : 'Épuisé · liste d\'attente' }}</p>
+                    <li class="rounded-2xl border border-slate-200 bg-white p-3" data-live-item="{{ $item['id'] }}">
+                        {{-- Nom sur toute la largeur, bouton en dessous : rien ne dépasse, même sur un petit téléphone --}}
+                        <div class="flex gap-3">
+                            @if ($item['image'])
+                                <img src="{{ $item['image'] }}" alt="" class="h-16 w-16 shrink-0 rounded-xl object-cover" width="64" height="64" loading="lazy">
+                            @else
+                                <span class="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-xl font-bold text-slate-500">{{ $item['code'] }}</span>
+                            @endif
+                            <div class="min-w-0 flex-1">
+                                <p class="text-xs font-bold text-red-600">{{ $item['code'] }}</p>
+                                <p class="font-semibold leading-tight [overflow-wrap:anywhere]">{{ $item['title'] }}</p>
+                                <p class="mt-0.5 font-bold whitespace-nowrap">{{ \Jibiat\Socle\Money::format($item['price']) }}</p>
+                            </div>
                         </div>
-                        <div class="shrink-0" data-pick="{{ $item['id'] }}">
-                            <button type="button" class="btn-store px-4" data-take>{{ $item['remaining'] > 0 ? 'Je prends' : 'M\'inscrire' }}</button>
-                            <div class="flex items-center gap-1" data-stepper hidden>
-                                <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-xl font-bold" data-minus aria-label="Une pièce de moins">−</button>
-                                <span class="w-7 text-center text-lg font-bold" data-qty aria-live="polite">1</span>
-                                <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-xl font-bold disabled:opacity-30" data-plus aria-label="Une pièce de plus">+</button>
+                        <div class="mt-2 flex items-center justify-between gap-2">
+                            <p class="text-sm text-slate-500" data-remaining>{{ $item['remaining'] > 0 ? 'Il en reste '.$item['remaining'] : 'Épuisé · liste d\'attente' }}</p>
+                            <div class="shrink-0" data-pick="{{ $item['id'] }}">
+                                <button type="button" class="btn-store px-4" data-take>{{ $item['remaining'] > 0 ? 'Je prends' : 'M\'inscrire' }}</button>
+                                <div class="flex items-center gap-1" data-stepper hidden>
+                                    <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-xl font-bold" data-minus aria-label="Une pièce de moins">−</button>
+                                    <span class="w-7 text-center text-lg font-bold" data-qty aria-live="polite">1</span>
+                                    <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-xl font-bold disabled:opacity-30" data-plus aria-label="Une pièce de plus">+</button>
+                                </div>
                             </div>
                         </div>
                     </li>

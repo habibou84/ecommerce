@@ -474,6 +474,13 @@ function livePage() {
   let items = JSON.parse($('#live-data')?.textContent || '[]')
   const picked = new Map()
   const byId = (id) => items.find((item) => item.id === id)
+  // Sélection gardée quand la page se recharge pour montrer un article ajouté pendant le live
+  try {
+    JSON.parse(sessionStorage.getItem('jm_live_picked') || '[]').forEach(([id, qty]) => byId(id) && picked.set(id, qty))
+    sessionStorage.removeItem('jm_live_picked')
+  } catch {
+    // stockage indisponible : sélection vide
+  }
   // Épuisé : une place sur la liste d'attente ; sinon jusqu'aux pièces restantes (10 au plus)
   const max = (item) => (item.remaining > 0 ? Math.min(item.remaining, 10) : 1)
 
@@ -526,8 +533,8 @@ function livePage() {
     $('[data-live-title]', form).textContent = `Réserver ${count} article${count > 1 ? 's' : ''}`
     $('[data-live-summary]', form).innerHTML = lines.map(({ item, qty }) => `<li class="flex gap-2 px-3 py-2">
       <span class="font-bold text-red-600">${escapeHtml(item.code)}</span>
-      <span class="min-w-0 flex-1">${escapeHtml(item.title)}${qty > 1 ? ` × ${qty}` : ''}${item.remaining > 0 ? '' : ' <span class="text-slate-500">(liste d\'attente)</span>'}</span>
-      <span class="font-semibold">${money(qty * item.price)}</span></li>`).join('')
+      <span class="min-w-0 flex-1 [overflow-wrap:anywhere]">${escapeHtml(item.title)}${qty > 1 ? ` × ${qty}` : ''}${item.remaining > 0 ? '' : ' <span class="text-slate-500">(liste d\'attente)</span>'}</span>
+      <span class="shrink-0 font-semibold whitespace-nowrap">${money(qty * item.price)}</span></li>`).join('')
     form.elements.name.value = saved.name || ''
     form.elements.phone.value = saved.phone || ''
     form.elements.place_id.value = saved.place_id || ''
@@ -599,6 +606,13 @@ function livePage() {
     try {
       const { data } = await api('GET', '/live/etat')
       if (!data) { location.reload(); return }
+      // Article ajouté pendant le live : page rechargée (sauf formulaire ouvert), sélection gardée
+      if (data.items.some((item) => !$(`[data-live-item="${item.id}"]`, root))) {
+        if (dialog.open) return
+        try { sessionStorage.setItem('jm_live_picked', JSON.stringify([...picked])) } catch { /* sélection perdue */ }
+        location.reload()
+        return
+      }
       items = data.items
       render()
     } catch {
