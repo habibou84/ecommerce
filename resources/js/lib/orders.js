@@ -11,7 +11,7 @@ export const STATUS_TONES = {
 }
 
 export const PAYMENT_TONES = {
-  unpaid: 'text-slate-500',
+  unpaid: 'text-ocre-700',
   partially_paid: 'text-amber-700',
   paid: 'text-emerald-700',
 }
