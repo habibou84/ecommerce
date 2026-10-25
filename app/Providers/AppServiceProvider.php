@@ -93,6 +93,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('login', fn (Request $request) => [
             Limit::perMinute(10)->by('login-ip:'.$request->ip()),
             Limit::perMinute(5)->by('login-phone:'.PhoneNumber::normalize((string) $request->input('phone'))),
+            // Plafond par heure et par numéro : on ne teste pas des milliers de mots de passe sur un compte
+            Limit::perHour(30)->by('login-phone-hour:'.PhoneNumber::normalize((string) $request->input('phone'))),
         ]);
 
         // Ouverture d'une vérification par SMS (création de boutique, mot de passe oublié)

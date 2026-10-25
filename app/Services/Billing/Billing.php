@@ -286,7 +286,8 @@ class Billing
         }
 
         $result = $this->payments->gateway($invoice->provider)->verify($this->account(), $this->payment($invoice));
-        if ($result->status === GatewayResult::SUCCEEDED && ($result->amount === null || $result->amount >= $invoice->amount)) {
+        // Comme pour les commandes : sans montant confirmé par le prestataire (ou s'il manque), l'offre n'est pas activée
+        if ($result->status === GatewayResult::SUCCEEDED && $result->amount !== null && $result->amount >= $invoice->amount) {
             return $this->activate($invoice, 'paid', $result->method, $result->raw);
         }
         if ($result->status === GatewayResult::FAILED) {

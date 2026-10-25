@@ -59,7 +59,7 @@ class ConsolePaymentsController extends Controller
     }
 
     /**
-     * Serveur d'e-mail des alertes (Gmail : smtp.gmail.com, port 587, mot de passe d'application). Le mot de passe
+     * Serveur d'e-mail des alertes et du code de connexion (Brevo : smtp-relay.brevo.com et clé SMTP ; Gmail : smtp.gmail.com et mot de passe d'application). Le mot de passe
      * n'est jamais renvoyé ; un hôte vide retire le réglage.
      */
     public function updateMail(Request $request): JsonResponse

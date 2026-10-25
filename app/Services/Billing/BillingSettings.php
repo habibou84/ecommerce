@@ -3,6 +3,7 @@
 namespace App\Services\Billing;
 
 use App\Models\PlatformSetting;
+use App\Services\WhatsApp\PlatformWhatsApp;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
@@ -158,6 +159,8 @@ class BillingSettings
             'validator_email' => $this->validatorEmail(),
             'pin_set' => $this->pinSet(),
             'mail_ready' => $this->mailReady(),
+            // WhatsApp du support relié dans la console : les alertes partent d'abord par là
+            'whatsapp_ready' => app(PlatformWhatsApp::class)->connected(),
             // Envoi des alertes : serveur d'e-mail (console ou serveur) et SMS (pilote du serveur)
             'mail' => $this->presentMail(),
             'sms_ready' => $this->smsReady(),

@@ -4,6 +4,7 @@ namespace App\Services\Billing;
 
 use App\Models\SubscriptionInvoice;
 use App\Notifications\WavePaymentToValidate;
+use App\Services\WhatsApp\PlatformWhatsApp;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -13,15 +14,16 @@ use Jibiat\Socle\Sms\SmsGateway;
 use Throwable;
 
 /**
- * Alerte du validateur sur un paiement par lien Wave : e-mail d'abord (gratuit), SMS si l'e-mail ne part pas ou
- * qu'aucune adresse n'est réglée. Le paiement apparaît aussi dans la console (Paiements à valider), quoi qu'il arrive.
+ * Alerte du validateur sur un paiement par lien Wave : WhatsApp d'abord (message du numéro du support relié dans la
+ * console, gratuit, rien à régler de plus), puis e-mail, puis SMS en dernier recours. Le paiement apparaît aussi dans
+ * la console (Paiements à valider), quoi qu'il arrive.
  */
 class PaymentAlerts
 {
-    public function __construct(private readonly BillingSettings $settings, private readonly SmsGateway $sms) {}
+    public function __construct(private readonly BillingSettings $settings, private readonly SmsGateway $sms, private readonly PlatformWhatsApp $whatsapp) {}
 
     /**
-     * @return string|null canal utilisé : mail, sms, ou null si rien n'est parti
+     * @return string|null canal utilisé : whatsapp, mail, sms, ou null si rien n'est parti
      */
     public function alert(SubscriptionInvoice $invoice, bool $claimed): ?string
     {
@@ -40,8 +42,13 @@ class PaymentAlerts
             'console_url' => Tenancy::consoleUrl('/console/paiements'),
         ];
 
-        // E-mail d'abord ; SMS sinon (« journal » : le serveur n'envoie pas encore de vrais SMS)
-        $channel = $this->mail($details) === null ? 'mail' : ($this->text($details) === null ? ($this->settings->smsReady() ? 'sms' : 'journal') : null);
+        // WhatsApp d'abord, puis e-mail ; SMS sinon (« journal » : le serveur n'envoie pas encore de vrais SMS)
+        $channel = match (true) {
+            $this->whatsapp($details) === null => 'whatsapp',
+            $this->mail($details) === null => 'mail',
+            $this->text($details) === null => $this->settings->smsReady() ? 'sms' : 'journal',
+            default => null,
+        };
         $raw['alerts'][] = ['at' => now()->toIso8601String(), 'claimed' => $claimed, 'channel' => $channel];
         $invoice->update(['raw' => $raw]);
 
@@ -49,20 +56,45 @@ class PaymentAlerts
     }
 
     /**
-     * Alerte d'essai depuis la console : e-mail et SMS au validateur, avec ce qui a bloqué.
+     * Alerte d'essai depuis la console : WhatsApp, e-mail et SMS au validateur, avec ce qui a bloqué.
      *
-     * @return array{mail: array{ok: bool, detail: string}, sms: array{ok: bool, detail: string}}
+     * @return array{whatsapp: array{ok: bool, detail: string}, mail: array{ok: bool, detail: string}, sms: array{ok: bool, detail: string}}
      */
     public function test(): array
     {
         $details = ['test' => true, 'console_url' => Tenancy::consoleUrl('/console/paiements')];
+        $whatsapp = $this->whatsapp($details);
         $mail = $this->mail($details);
         $sms = $this->settings->smsReady() ? $this->text($details) : 'Le serveur n\'envoie pas encore de vrais SMS (fournisseur de SMS non configuré).';
 
         return [
+            'whatsapp' => ['ok' => $whatsapp === null, 'detail' => $whatsapp ?? 'Message WhatsApp envoyé au '.$this->settings->validatorPhone().'.'],
             'mail' => ['ok' => $mail === null, 'detail' => $mail ?? 'E-mail envoyé à '.$this->settings->validatorEmail().'. Regardez aussi dans les spams.'],
             'sms' => ['ok' => $sms === null, 'detail' => $sms ?? 'SMS envoyé au '.$this->settings->validatorPhone().'.'],
         ];
+    }
+
+    /**
+     * @return string|null null si le message WhatsApp est parti, sinon la raison
+     */
+    private function whatsapp(array $details): ?string
+    {
+        $phone = $this->settings->validatorPhone();
+        if ($phone === null) {
+            return 'Aucun téléphone de validateur.';
+        }
+        $text = ($details['test'] ?? false)
+            ? "Jibiat Marchand · Essai : les alertes de paiement par WhatsApp fonctionnent.\nConsole : {$details['console_url']}"
+            : '💰 '.($details['claimed'] ? 'Paiement Wave déclaré payé' : 'Paiement Wave à vérifier')."\n"
+                ."Montant : {$details['amount']}\nNuméro Wave : ".($details['payer'] ?? 'non indiqué')."\n"
+                .'Espace marchand : '.($details['store'] ?? '—')."\n{$details['label']} ({$details['number']})\n\n"
+                ."Vérifiez dans Wave, puis confirmez : {$details['validate_url']}";
+        $error = $this->whatsapp->notify($phone, $text);
+        if ($error !== null && ! ($details['test'] ?? false)) {
+            Log::info('Alerte Wave par WhatsApp non envoyée, passage à l\'e-mail', ['invoice' => $details['number'] ?? null, 'error' => $error]);
+        }
+
+        return $error;
     }
 
     /**

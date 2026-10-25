@@ -54,7 +54,7 @@ class SupportWhatsAppTest extends TestCase
 
     public function test_support_number_is_connected_and_messages_are_read_and_answered_in_the_console(): void
     {
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse'])->assertStatus(202);
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
 
         $this->console('GET', 'whatsapp')->assertOk()->assertJsonPath('data.connected', false)->assertJsonPath('data.embedded.app_id', '7777');

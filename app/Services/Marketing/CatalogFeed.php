@@ -8,6 +8,7 @@ use App\Models\Store;
 use App\Services\Promotions\Pricing;
 use App\Services\Storefront\StorefrontCatalog;
 use App\Services\Storefront\StorefrontView;
+use App\Support\SpreadsheetCell;
 use Illuminate\Support\Str;
 
 /**
@@ -93,7 +94,8 @@ class CatalogFeed
         $out = fopen('php://temp', 'r+');
         fputcsv($out, self::COLUMNS);
         foreach ($this->rows($store) as $row) {
-            fputcsv($out, array_map(fn ($c) => $row[$c], self::COLUMNS));
+            // Une cellule qui commence par =, +, - ou @ n'est pas lue comme une formule si le fichier est ouvert dans un tableur
+            fputcsv($out, SpreadsheetCell::row(array_map(fn ($c) => $row[$c], self::COLUMNS)));
         }
         rewind($out);
 

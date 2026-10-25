@@ -156,5 +156,13 @@ class PushNotificationsTest extends TestCase
         $this->storeApi($this->store, 'DELETE', 'push/subscriptions', ['endpoint' => 'https://updates.push.services.mozilla.com/wpush/v2/ordinateur'])->assertNoContent();
         $this->assertSame(0, PushSubscription::count());
         $this->storeApi($this->store, 'POST', 'push/test')->assertStatus(422);
+
+        // Seuls les services de notifications des navigateurs sont appelés (pas une adresse quelconque, ni ses redirections)
+        $this->assertTrue(WebPush::allowedEndpoint('https://fcm.googleapis.com/fcm/send/abc'));
+        $this->assertTrue(WebPush::allowedEndpoint('https://web.push.apple.com/abc'));
+        $this->assertFalse(WebPush::allowedEndpoint('https://attaquant.tld/r'));
+        $this->assertFalse(WebPush::allowedEndpoint('https://fcm.googleapis.com.attaquant.tld/r'));
+        $this->assertFalse(WebPush::allowedEndpoint('http://fcm.googleapis.com/x'));
+        $this->assertFalse(WebPush::allowedEndpoint('https://fcm.googleapis.com:8443/x'));
     }
 }

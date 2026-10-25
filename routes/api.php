@@ -104,11 +104,15 @@ Route::prefix('v1')->name('v1.')->group(function () {
     Route::middleware('zone:console')->prefix('console')->name('console.')->group(function () {
         Route::post('auth/login', [ConsoleAuthController::class, 'login'])->middleware('throttle:login')->name('login');
         Route::post('auth/verify', [ConsoleAuthController::class, 'verify'])->middleware('throttle:verification-code')->name('verify');
+        Route::post('auth/email', [ConsoleAuthController::class, 'verifyEmail'])->middleware('throttle:verification-code')->name('verify-email');
 
         Route::middleware(['auth:sanctum', 'super_admin'])->group(function () {
             Route::get('auth/me', [ConsoleAuthController::class, 'me'])->name('me');
             Route::post('auth/logout', [ConsoleAuthController::class, 'logout'])->name('logout');
+            Route::put('account', [ConsoleAuthController::class, 'updateAccount'])->middleware('throttle:login')->name('account.update');
+            Route::post('account/test-email', [ConsoleAuthController::class, 'testEmail'])->middleware('throttle:verification-start')->name('account.test-email');
             Route::get('stats', [ConsoleController::class, 'stats'])->name('stats');
+            Route::get('journal', [ConsoleController::class, 'journal'])->name('journal');
             Route::get('stores', [ConsoleController::class, 'stores'])->name('stores');
             Route::get('stores/{store}', [ConsoleController::class, 'store'])->whereNumber('store')->name('stores.show');
             Route::post('stores/{store}/suspend', [ConsoleController::class, 'suspend'])->whereNumber('store')->name('stores.suspend');

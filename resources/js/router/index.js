@@ -137,6 +137,8 @@ const consoleRoutes = [
       { path: 'parrainage', component: () => import('../views/console/Referrals.vue'), meta: { title: 'Parrainage' } },
       { path: 'offres', component: () => import('../views/console/Plans.vue'), meta: { title: 'Offres' } },
       { path: 'ia', component: () => import('../views/console/AiUsage.vue'), meta: { title: 'Assistant IA' } },
+      { path: 'compte', component: () => import('../views/console/Account.vue'), meta: { title: 'Mon compte' } },
+      { path: 'journal', component: () => import('../views/console/Journal.vue'), meta: { title: 'Journal' } },
     ],
   },
   { path: '/:any(.*)*', redirect: '/console' },

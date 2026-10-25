@@ -268,6 +268,21 @@ class ConsoleController extends Controller
         ];
     }
 
+    /**
+     * Journal de la console : qui a fait quoi, quand et d'où (200 dernières actions, filtrables par type).
+     */
+    public function journal(Request $request): JsonResponse
+    {
+        $actions = AdminAction::query()->with(['admin:id,name', 'store:id,name'])
+            ->when($request->query('action'), fn ($q, $a) => $q->where('action', 'like', mb_substr((string) $a, 0, 40).'%'))
+            ->latest('id')->limit(200)->get();
+
+        return response()->json(['data' => $actions->map(fn (AdminAction $a) => [
+            'id' => $a->id, 'action' => $a->action, 'admin' => $a->admin?->name, 'store' => $a->store ? ['id' => $a->store->id, 'name' => $a->store->name] : null,
+            'data' => $a->data, 'ip' => $a->ip, 'at' => $a->created_at?->toIso8601String(),
+        ])]);
+    }
+
     private function log(Request $request, ?Store $store, string $action, array $data = []): void
     {
         AdminAction::create(['admin_id' => $request->user()->id, 'store_id' => $store?->id, 'action' => $action, 'data' => $data ?: null, 'ip' => $request->ip()]);

@@ -1,5 +1,6 @@
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { install, isIos, promptInstall } from '../lib/install'
 import { useRouter } from 'vue-router'
 import { useConsoleStore } from '../stores/console'
 
@@ -17,11 +18,20 @@ const nav = [
   { to: '/console/parrainage', label: 'Parrainage' },
   { to: '/console/offres', label: 'Offres' },
   { to: '/console/ia', label: 'Assistant IA' },
+  { to: '/console/journal', label: 'Journal' },
 ]
 
 // Paiements à valider : relus chaque minute pour la pastille du menu
 let timer
+// Console installable : le service worker (notifications, démarrage hors ligne) et le bouton « Installer »
+const iosHelp = ref(false)
+const showInstall = () => !install.installed && (install.prompt || isIos())
+async function installApp() {
+  if (install.prompt) await promptInstall()
+  else iosHelp.value = !iosHelp.value
+}
 onMounted(() => {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
   console_.refreshPending()
   timer = setInterval(() => console_.refreshPending(), 60000)
 })
@@ -42,9 +52,11 @@ async function logout() {
           <RouterLink v-for="item in nav" :key="item.to" :to="item.to" class="rounded px-3 py-1.5"
                       :class="(item.exact ? $route.path === item.to : $route.path.startsWith(item.to)) ? 'bg-white/15' : 'text-slate-300 hover:text-white'">{{ item.label }}<span v-if="item.badge && console_[item.badge]" class="ml-1.5 rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-slate-900">{{ console_[item.badge] }}</span></RouterLink>
         </nav>
-        <span class="ml-auto text-sm text-slate-300">{{ console_.admin?.name }}</span>
+        <RouterLink to="/console/compte" class="ml-auto text-sm text-slate-300 hover:text-white">{{ console_.admin?.name }}<span v-if="console_.admin && !console_.admin.email" class="ml-1.5 rounded-full bg-amber-400 px-1.5 text-xs font-semibold text-slate-900" title="Ajoutez votre e-mail pour recevoir le code de connexion">!</span></RouterLink>
+        <button v-if="showInstall()" class="rounded bg-white/10 px-2.5 py-1 text-sm text-white hover:bg-white/20" @click="installApp">Installer</button>
         <button class="text-sm text-slate-300 hover:text-white" @click="logout">Déconnexion</button>
       </div>
+      <p v-if="iosHelp" class="mx-auto max-w-6xl px-4 pb-3 text-sm text-slate-300">Sur iPhone : touchez le bouton Partager de Safari, puis « Sur l'écran d'accueil ».</p>
     </header>
     <main class="mx-auto max-w-6xl px-4 py-6">
       <RouterView />

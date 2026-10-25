@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\WavePaymentToValidate;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
@@ -49,7 +50,7 @@ class WavePaymentConsoleTest extends TestCase
     private function signIn(): void
     {
         $this->logout();
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse'])->assertStatus(202);
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
     }
 
@@ -122,6 +123,23 @@ class WavePaymentConsoleTest extends TestCase
         $this->assertStringNotContainsString('2468', (string) PlatformSetting::find('billing.validator_pin')->value);
         $this->post($m[1], ['code' => '2468', 'decision' => 'received'])->assertOk()->assertSee('Paiement confirmé');
         $this->assertSame(100, $this->store->fresh()->ai_credits);
+    }
+
+    public function test_alerts_go_first_by_the_support_whatsapp(): void
+    {
+        Notification::fake();
+        config(['services.whatsapp_bridge.token' => 'jeton']);
+        Http::fake(['*/sessions/platform/send' => Http::response(['id' => 'MSG1'])]);
+        $this->signIn();
+        // WhatsApp du support relié par QR code
+        PlatformSetting::put('whatsapp.mode', 'qr');
+        PlatformSetting::put('whatsapp.qr_status', 'connected');
+        PlatformSetting::put('whatsapp.display_phone', '+2250700000001');
+        $this->console('PUT', 'payments/settings', ['provider' => 'wave_link', 'wave_link' => 'https://pay.wave.com/m/M_ci_test/c/ci/',
+            'validator_email' => 'paiements@jibiat.com', 'validator_phone' => '0507016739'])->assertOk()->assertJsonPath('data.whatsapp_ready', true);
+
+        $this->console('POST', 'payments/test-alert')->assertOk()->assertJsonPath('data.whatsapp.ok', true);
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/sessions/platform/send') && $r['to'] === '+2250507016739' && str_contains($r['text'], 'WhatsApp fonctionnent'));
     }
 
     public function test_mail_server_is_set_in_the_console_and_a_test_alert_reports_what_went_out(): void

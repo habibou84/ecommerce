@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage } from '../../lib/http'
 import { formatDateTime, money } from '../../lib/format'
@@ -12,7 +12,7 @@ const form = reactive({ provider: 'wave_link', wave_link: '', validator_email: '
 const error = ref('')
 const saved = ref(false)
 const busy = ref(null)
-const CHANNELS = { mail: 'e-mail', sms: 'SMS', journal: 'SMS non envoyé (pas de fournisseur)' }
+const CHANNELS = { whatsapp: 'WhatsApp', mail: 'e-mail', sms: 'SMS', journal: 'SMS non envoyé (pas de fournisseur)' }
 const mail = reactive({ host: '', port: 587, username: '', password: '', from_address: '' })
 const mailSaved = ref(false)
 const testResult = ref(null)
@@ -66,9 +66,15 @@ async function save() {
   }
 }
 
-// Gmail : serveur et port tout prêts ; le mot de passe est un « mot de passe d'application » Google
-function gmail() {
-  Object.assign(mail, { host: 'smtp.gmail.com', port: 587 })
+// Préréglages : Brevo (gratuit jusqu'à 300 e-mails par jour, une simple clé SMTP, sans validation en deux étapes)
+// ou Gmail (demande un « mot de passe d'application », donc la validation en deux étapes du compte Google)
+const PRESETS = {
+  brevo: { host: 'smtp-relay.brevo.com', port: 587 },
+  gmail: { host: 'smtp.gmail.com', port: 587 },
+}
+const preset = computed(() => (mail.host === PRESETS.gmail.host ? 'gmail' : mail.host === PRESETS.brevo.host ? 'brevo' : mail.host ? 'other' : null))
+function use(name) {
+  Object.assign(mail, PRESETS[name])
 }
 
 async function saveMail() {
@@ -169,12 +175,12 @@ async function removeQr() {
           <label>Téléphone du validateur<input v-model="form.validator_phone" type="tel" class="input mt-1" placeholder="07 00 00 00 00" /></label>
         </div>
         <p class="text-xs text-slate-500">
-          À chaque paiement, un e-mail part d'abord ; s'il ne part pas (ou sans adresse), un SMS est envoyé. Les paiements apparaissent aussi ici.
-          <template v-if="!settings.mail_ready"> L'envoi d'e-mails n'est pas encore configuré sur le serveur : les alertes partent par SMS.</template>
+          À chaque paiement, un message WhatsApp part d'abord au téléphone du validateur, depuis le WhatsApp du support relié dans la console (rien d'autre à régler).
+          S'il ne part pas, un e-mail est envoyé, puis un SMS en dernier recours. Les paiements apparaissent aussi ici.
         </p>
         <label class="block max-w-xs">Code de validation
           <input v-model="form.validator_pin" type="password" inputmode="numeric" autocomplete="new-password" class="input mt-1" :placeholder="settings.pin_set ? 'Déjà défini : laisser vide pour le garder' : 'Au moins 4 chiffres'" />
-          <span class="text-xs text-slate-500">Demandé quand vous validez depuis le lien reçu par e-mail ou SMS.</span>
+          <span class="text-xs text-slate-500">Demandé quand vous validez depuis le lien reçu par WhatsApp, e-mail ou SMS.</span>
         </label>
       </template>
 
@@ -184,6 +190,11 @@ async function removeQr() {
     <section v-if="settings && form.provider === 'wave_link'" class="card space-y-4 p-4 text-sm">
       <h3 class="text-base font-semibold">Envoi des alertes</h3>
       <ul class="space-y-1">
+        <li>
+          <span :class="settings.whatsapp_ready ? 'text-emerald-700' : 'text-amber-800'">{{ settings.whatsapp_ready ? '✓' : '✗' }} WhatsApp :</span>{{ ' ' }}
+          <template v-if="settings.whatsapp_ready">par le WhatsApp du support (recommandé, gratuit)</template>
+          <template v-else>le WhatsApp du support n'est pas relié : <RouterLink to="/console/whatsapp" class="text-emerald-700 underline">le relier</RouterLink></template>
+        </li>
         <li>
           <span :class="settings.mail.source ? 'text-emerald-700' : 'text-amber-800'">{{ settings.mail.source ? '✓' : '✗' }} E-mail :</span>
           {{ settings.mail.source === 'console' ? `par ${settings.mail.host} (réglé ci-dessous)` : settings.mail.source === 'server' ? 'par le serveur' : 'aucun serveur d\'e-mail : les e-mails ne partent pas' }}
@@ -195,19 +206,28 @@ async function removeQr() {
       </ul>
 
       <div class="space-y-3 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-        <p class="font-medium">Envoi des e-mails</p>
-        <p class="text-xs text-slate-600">
-          Avec Gmail : activez la validation en deux étapes de votre compte Google, puis créez un « mot de passe d'application »
-          (Compte Google › Sécurité › Mots de passe des applications). Collez-le ici, pas votre mot de passe habituel.
+        <p class="font-medium">Envoi des e-mails <span class="font-normal text-slate-500">(alertes de secours et code de connexion à la console)</span></p>
+        <div class="flex flex-wrap gap-2">
+          <button class="btn-secondary" :class="{ 'ring-2 ring-emerald-600': preset === 'brevo' }" type="button" @click="use('brevo')">Brevo (le plus simple)</button>
+          <button class="btn-secondary" :class="{ 'ring-2 ring-emerald-600': preset === 'gmail' }" type="button" @click="use('gmail')">Gmail</button>
+        </div>
+        <ol v-if="preset !== 'gmail'" class="list-decimal space-y-1 pl-5 text-xs text-slate-600">
+          <li>Créez un compte gratuit sur brevo.com (300 e-mails par jour, sans carte bancaire).</li>
+          <li>Dans Brevo › Expéditeurs, ajoutez l'adresse qui enverra les e-mails (par exemple votre Gmail) et confirmez-la depuis le message reçu.</li>
+          <li>Dans Brevo › SMTP et API › SMTP, copiez l'« identifiant » et générez une « clé SMTP » : collez-les ci-dessous. Pas besoin de mot de passe d'application Google.</li>
+        </ol>
+        <p v-else class="text-xs text-slate-600">
+          Gmail demande un « mot de passe d'application », qui n'existe que si la validation en deux étapes est activée sur le compte Google
+          (sinon Google affiche que ce réglage n'est pas disponible). Si vous ne voulez pas l'activer, choisissez Brevo.
         </p>
-        <button class="btn-ghost" type="button" @click="gmail">Utiliser Gmail</button>
         <div class="grid max-w-xl gap-3 sm:grid-cols-[1fr_6rem]">
           <label>Serveur<input v-model="mail.host" class="input mt-1" placeholder="smtp.gmail.com" /></label>
           <label>Port<input v-model.number="mail.port" type="number" class="input mt-1" /></label>
         </div>
         <div class="grid max-w-xl gap-3 sm:grid-cols-2">
-          <label>Adresse Gmail (identifiant)<input v-model="mail.username" type="email" class="input mt-1" placeholder="vous@gmail.com" autocomplete="off" /></label>
-          <label>Mot de passe d'application<input v-model="mail.password" type="password" class="input mt-1" autocomplete="new-password" :placeholder="settings.mail.password_set ? 'Déjà enregistré : laisser vide pour le garder' : '16 lettres'" /></label>
+          <label>Identifiant<input v-model="mail.username" class="input mt-1" :placeholder="preset === 'gmail' ? 'vous@gmail.com' : 'xxxx@smtp-brevo.com'" autocomplete="off" /></label>
+          <label>{{ preset === 'gmail' ? 'Mot de passe d\'application' : 'Clé SMTP' }}<input v-model="mail.password" type="password" class="input mt-1" autocomplete="new-password" :placeholder="settings.mail.password_set ? 'Déjà enregistrée : laisser vide pour la garder' : ''" /></label>
+          <label class="sm:col-span-2">Adresse d'expédition<input v-model="mail.from_address" type="email" class="input mt-1" :placeholder="preset === 'gmail' ? 'Votre adresse Gmail' : 'L\'adresse confirmée dans Brevo'" /></label>
         </div>
         <div class="flex items-center gap-2"><button class="btn-brand" @click="saveMail">Enregistrer l'envoi des e-mails</button><span v-if="mailSaved" class="text-emerald-700">Enregistré ✓</span></div>
       </div>
@@ -215,6 +235,7 @@ async function removeQr() {
       <div class="space-y-2">
         <button class="btn-ghost" :disabled="testing" @click="testAlert">{{ testing ? 'Envoi…' : 'Envoyer une alerte d\'essai' }}</button>
         <ul v-if="testResult" class="space-y-1">
+          <li :class="testResult.whatsapp.ok ? 'text-emerald-700' : 'text-red-700'">{{ testResult.whatsapp.ok ? '✓' : '✗' }} WhatsApp : {{ testResult.whatsapp.detail }}</li>
           <li :class="testResult.mail.ok ? 'text-emerald-700' : 'text-red-700'">{{ testResult.mail.ok ? '✓' : '✗' }} E-mail : {{ testResult.mail.detail }}</li>
           <li :class="testResult.sms.ok ? 'text-emerald-700' : 'text-red-700'">{{ testResult.sms.ok ? '✓' : '✗' }} SMS : {{ testResult.sms.detail }}</li>
         </ul>
