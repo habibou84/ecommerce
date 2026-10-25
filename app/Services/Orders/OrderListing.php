@@ -45,7 +45,7 @@ class OrderListing
             'deliverer' => ['nullable', 'string', 'regex:/^(none|courier:\d+|carrier:\d+)$/'],
             'commune_id' => ['nullable', 'integer'],
             'payment' => ['nullable', Rule::in(['to_collect', 'paid'])],
-            'alert' => ['nullable', Rule::in(['unassigned', 'not_picked', 'on_the_way', 'unhandled'])],
+            'alert' => ['nullable', Rule::in(['unassigned', 'not_picked', 'on_the_way', 'unhandled', 'to_bring_back'])],
             'sort' => ['nullable', Rule::in(['recent', 'oldest', 'scheduled', 'amount'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
@@ -83,6 +83,7 @@ class OrderListing
                 'unassigned' => OrderAlerts::unassigned($q),
                 'not_picked' => OrderAlerts::notPicked($q),
                 'on_the_way' => OrderAlerts::onTheWay($q),
+                'to_bring_back' => OrderAlerts::toBringBack($q),
                 default => OrderAlerts::unhandled($q),
             })
             ->when($request->query('commune_id'), function (Builder $q, $commune) {

@@ -59,10 +59,29 @@ const todo = computed(() => {
       items.push({ key: 'unhandled', icon: 'alert', label: 'Problèmes de livraison à traiter', count: s.orders.waiting.unhandled, to: '/gestion/commandes?alert=unhandled', urgent: s.orders.waiting.unhandled > 0 })
     }
   }
+  // Argent et colis qui traînent chez les livreurs (délais des alertes)
+  if (s.couriers) {
+    const late = s.couriers.late
+    items.push({ key: 'courier_cash', icon: 'cash', label: 'Argent à récupérer chez les livreurs', count: late.length, to: '/gestion/caisse/livreurs',
+      hint: late.length ? `${money(late.reduce((sum, c) => sum + c.held, 0))} gardés trop longtemps` : '', urgent: late.length > 0 })
+  }
+  if (s.carriers) {
+    const overdue = s.carriers.overdue
+    items.push({ key: 'carrier_payout', icon: 'receipt', label: 'Reversements en retard', count: overdue.length, to: '/gestion/caisse/a-recevoir',
+      hint: overdue.length ? `${money(overdue.reduce((sum, c) => sum + c.amount, 0))} pas encore reversés` : '', urgent: overdue.length > 0 })
+  }
+  if (s.couriers || s.carriers) {
+    const late = (s.couriers?.late_returns ?? 0) + (s.carriers?.late_returns ?? 0)
+    items.push({ key: 'returns', icon: 'box', label: 'Colis à rapporter', count: (s.couriers?.to_bring_back ?? 0) + (s.carriers?.to_bring_back ?? 0), to: '/gestion/commandes?alert=to_bring_back',
+      hint: late ? `dont ${late} pas rapporté(s) depuis trop longtemps` : '', urgent: late > 0 })
+  }
   if (s.unread_messages !== undefined) items.push({ key: 'messages', icon: 'messages', label: 'Messages non lus', count: s.unread_messages, to: '/gestion/messages' })
   if (s.stock) items.push({ key: 'stock', icon: 'box', label: 'Articles épuisés', count: s.stock.out, to: '/gestion/stock', hint: s.stock.low ? `et ${s.stock.low} en stock bas` : '', urgent: s.stock.out > 0 })
   return items
 })
+// Dehors en ce moment : argent et colis chez les livreurs et les entreprises de livraison
+const age = (hours) => (hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} jours`)
+const lateTone = (level) => (level > 1 ? 'bg-red-50 text-red-800' : 'bg-ocre-50 text-ocre-800')
 const pending = computed(() => todo.value.filter((t) => t.count > 0 || t.hint))
 
 // Guide de démarrage : avancement et prochaine étape (le détail est sur sa page)
@@ -118,6 +137,48 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
           <p class="mt-4 border-t border-white/20 pt-3 text-sm text-white/85">
             Livré ce mois-ci : <strong class="font-bold text-white">{{ money(stats.orders.month_revenue) }}</strong> · {{ stats.orders.month_delivered }} commande(s)
           </p>
+        </section>
+
+        <!-- Dehors en ce moment : argent et colis chez les livreurs et les entreprises -->
+        <section v-if="stats?.couriers || stats?.carriers">
+          <h3 class="mb-2 text-[17px] font-extrabold">Dehors en ce moment</h3>
+          <div class="grid gap-3" :class="stats.couriers && stats.carriers ? 'sm:grid-cols-2' : ''">
+            <div v-if="stats.couriers" class="card p-4">
+              <RouterLink to="/gestion/caisse/livreurs" class="group block">
+                <span class="flex items-center gap-2 text-sm font-semibold text-slate-600"><Icon name="cash" :size="17" class="text-emerald-700" />Argent chez mes livreurs<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
+                <span class="mt-1 block text-3xl font-extrabold group-hover:text-emerald-800">{{ money(stats.couriers.cash) }}</span>
+                <span class="block text-sm text-slate-500">{{ stats.couriers.holders ? `chez ${stats.couriers.holders} livreur${stats.couriers.holders > 1 ? 's' : ''}, pas encore versé` : 'Tout a été versé.' }}</span>
+              </RouterLink>
+              <ul v-if="stats.couriers.late.length || stats.couriers.over_limit.length" class="mt-3 space-y-1.5">
+                <li v-for="c in stats.couriers.late" :key="c.courier_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
+                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.name }} garde {{ money(c.held) }} depuis {{ age(c.hours) }}</span>
+                </li>
+                <li v-for="name in stats.couriers.over_limit.filter((n) => !stats.couriers.late.some((c) => c.name === n))" :key="name" class="flex items-center gap-2 rounded-xl bg-ocre-50 px-3 py-2 text-sm font-semibold text-ocre-800">
+                  <Icon name="alert" :size="16" class="shrink-0" />{{ name }} a dépassé son plafond
+                </li>
+              </ul>
+              <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
+                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700 hover:bg-slate-200"><Icon name="truck" :size="15" />{{ stats.couriers.on_the_way }} colis en route</RouterLink>
+                <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="stats.couriers.late_returns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ stats.couriers.to_bring_back }} à rapporter</RouterLink>
+              </div>
+            </div>
+            <div v-if="stats.carriers" class="card p-4">
+              <RouterLink to="/gestion/caisse/a-recevoir" class="group block">
+                <span class="flex items-center gap-2 text-sm font-semibold text-slate-600"><Icon name="receipt" :size="17" class="text-emerald-700" />À recevoir des entreprises<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
+                <span class="mt-1 block text-3xl font-extrabold group-hover:text-emerald-800">{{ money(stats.carriers.amount) }}</span>
+                <span class="block text-sm text-slate-500">{{ stats.carriers.amount ? 'courses livrées, pas encore reversées' : 'Rien en attente.' }}</span>
+              </RouterLink>
+              <ul v-if="stats.carriers.overdue.length" class="mt-3 space-y-1.5">
+                <li v-for="c in stats.carriers.overdue" :key="c.connection_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
+                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.carrier }} : {{ money(c.amount) }} en retard ({{ c.days }} jours)</span>
+                </li>
+              </ul>
+              <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
+                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700 hover:bg-slate-200"><Icon name="truck" :size="15" />{{ stats.carriers.on_the_way }} colis en route</RouterLink>
+                <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="stats.carriers.late_returns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ stats.carriers.to_bring_back }} à rapporter</RouterLink>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- À faire maintenant : téléphone, juste sous les ventes -->

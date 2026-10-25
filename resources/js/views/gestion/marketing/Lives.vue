@@ -6,6 +6,7 @@ import Field from '../../../components/Field.vue'
 import Icon from '../../../components/Icon.vue'
 import LiveLink from '../../../components/LiveLink.vue'
 import LiveTraining from '../../../components/LiveTraining.vue'
+import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 
@@ -13,6 +14,7 @@ import { formatDateTime, money } from '../../../lib/format'
 const router = useRouter()
 const lives = ref(null)
 const pageUrl = ref('')
+const whatsapp = ref(null)
 const error = ref('')
 const errors = ref({})
 const busy = ref(false)
@@ -29,6 +31,7 @@ async function load() {
     const { data } = await http.get('/lives')
     lives.value = data.data
     pageUrl.value = data.meta.page_url
+    whatsapp.value = data.meta.whatsapp
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -95,6 +98,9 @@ async function save() {
         </details>
         <button class="btn-brand mt-4 w-full sm:w-auto" @click="startNew"><Icon name="plus" :size="18" />Préparer un live</button>
       </section>
+
+      <!-- Pas de WhatsApp relié : le proposer ici, avant de préparer le live -->
+      <LiveWhatsApp v-if="lives" :status="whatsapp" @linked="load" />
 
       <p v-if="lives && !lives.length" class="rounded-2xl bg-ocre-50 p-4 text-sm text-ocre-800">
         Premier live ? Regardez d'abord le module « Préparer votre live » (1 minute), plus bas dans « Se former au live ».
