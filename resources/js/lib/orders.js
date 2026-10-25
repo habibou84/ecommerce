@@ -62,6 +62,7 @@ export function eventLabel(event) {
   switch (event.type) {
     case 'created': return 'Commande créée'
     case 'edited': return 'Commande modifiée'
+    case 'items_added': return `Articles ajoutés par le client${d.note ? ` (${d.note})` : ''}`
     case 'status_changed': return `Statut : ${STATUS_LABELS[d.to] ?? d.to}${d.note ? ` (${d.note})` : ''}`
     case 'payment_recorded': return `Paiement de ${new Intl.NumberFormat('fr-FR').format(d.amount)} F${d.online ? ' en ligne' : ''}`
     case 'confirmation_attempt': return `Confirmation : ${OUTCOME_LABELS[d.outcome] ?? d.outcome}${d.note ? ` (${d.note})` : ''}`
