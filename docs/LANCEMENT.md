@@ -49,6 +49,8 @@ Caddy doit être compilé avec le module DNS de Cloudflare (`xcaddy build --with
 ```caddyfile
 {
     email admin@jibiat-marchand.com
+    # Pas d'API d'administration sur localhost:2019 : un appel interne ne doit pas pouvoir arrêter le serveur web
+    admin off
     # Domaines personnalisés : certificat demandé au premier visiteur, seulement si l'application l'autorise
     on_demand_tls {
         ask http://127.0.0.1:8080/_caddy/ask

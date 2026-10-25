@@ -17,7 +17,7 @@ class SecurityHardeningTest extends TestCase
         $store = $this->createStore(['slug' => 'awa']);
         foreach ([$this->get('http://awa.localhost/'), $this->storeApi($store, 'GET', 'auth/me')] as $response) {
             $response->assertHeader('X-Frame-Options', 'SAMEORIGIN')->assertHeader('X-Content-Type-Options', 'nosniff')
-                ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')->assertHeader('Content-Security-Policy', "frame-ancestors 'self'");
+                ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')->assertHeader('Content-Security-Policy', "frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
         }
     }
 

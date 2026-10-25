@@ -74,7 +74,7 @@ class WhatsAppVerificationTest extends TestCase
     public function test_console_links_the_support_number_with_a_qr_code_and_answers_without_time_limit(): void
     {
         // Connexion à la console : mot de passe, puis code SMS (aucun WhatsApp relié pour l'instant)
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse'])->assertStatus(202)
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202)
             ->assertJsonPath('verification.whatsapp', null)->assertJsonPath('verification.sms.available', true);
         $this->assertCount(1, $this->sentSms());
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
@@ -167,7 +167,7 @@ class WhatsAppVerificationTest extends TestCase
 
         // Console : mot de passe puis message WhatsApp, sans SMS
         $this->logout();
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse'])->assertStatus(202)
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202)
             ->assertJsonPath('verification.sms.available', false);
         $this->assertCount(0, $this->sentSms());
         $this->message('+2250701020304', $start->json('verification.whatsapp.text'), 'in-2')->assertOk();
@@ -216,7 +216,7 @@ class WhatsAppVerificationTest extends TestCase
     {
         $this->linkSupportNumber();
         // Interrupteur et compteur dans la console
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse'])->assertStatus(202);
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
         $this->message('+2250701020304', $start->json('verification.whatsapp.text'), 'in-c')->assertOk();
         $this->apiOn(self::CONSOLE, 'GET', 'verifications/'.$start->json('verification.token'))->assertOk();
         $this->console('GET', 'whatsapp')->assertOk()->assertJsonPath('data.sms.fallback', false)->assertJsonPath('data.sms.month', 0);

@@ -220,11 +220,12 @@ class PhoneVerifier
             throw new BusinessRuleException('Demandez d\'abord un code.', 'code');
         }
 
-        if ($verification->attempts >= self::MAX_ATTEMPTS) {
+        // Essai compté avant la vérification, en une seule requête : des demandes simultanées ne dépassent pas la limite
+        $counted = PhoneVerification::whereKey($verification->id)->where('attempts', '<', self::MAX_ATTEMPTS)->increment('attempts');
+        if ($counted === 0) {
             throw new BusinessRuleException('Trop d\'essais. Demandez un nouveau code.', 'code');
         }
-
-        $verification->increment('attempts');
+        $verification->refresh();
 
         if (! Hash::check(preg_replace('/\D+/', '', $code), $verification->sms_code_hash)) {
             $left = self::MAX_ATTEMPTS - $verification->attempts;

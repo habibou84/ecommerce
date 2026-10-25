@@ -18,6 +18,12 @@
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-title" content="{{ \Illuminate\Support\Str::limit($boot['store']['name'], 12, '') }}">
+    @elseif (request()->is('console*'))
+        {{-- Console installable (ordinateur : icône d'installation de la barre d'adresse ; téléphone : « Installer l'application ») --}}
+        <link rel="manifest" href="/console/manifest.webmanifest">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="Console">
     @endif
     <script>window.__BOOT__ = @json($boot);</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])

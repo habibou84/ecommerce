@@ -3,6 +3,7 @@
 namespace App\Services\Billing;
 
 use App\Models\PlatformSetting;
+use App\Services\Mail\GoogleMail;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
@@ -169,7 +170,12 @@ class BillingSettings
      */
     public function mailReady(): bool
     {
-        return $this->smtp() !== null || config('mail.default') !== 'log';
+        return $this->gmail()->connected() || $this->smtp() !== null || config('mail.default') !== 'log';
+    }
+
+    private function gmail(): GoogleMail
+    {
+        return app(GoogleMail::class);
     }
 
     /**
@@ -181,12 +187,18 @@ class BillingSettings
     }
 
     /**
-     * Messagerie à utiliser pour les alertes : le serveur SMTP réglé dans la console (Gmail…), sinon celle du serveur.
+     * Messagerie à utiliser pour les alertes et le code de connexion : le Gmail connecté avec Google dans la console,
+     * sinon un serveur SMTP réglé dans la console, sinon celle du serveur.
      *
      * @return array{mailer: string, from: ?string}|null
      */
     public function mailer(): ?array
     {
+        if ($this->gmail()->connected()) {
+            config(['mail.mailers.console_gmail' => ['transport' => 'gmail_api']]);
+
+            return ['mailer' => 'console_gmail', 'from' => $this->gmail()->email()];
+        }
         if (($smtp = $this->smtp()) !== null) {
             config(['mail.mailers.console_smtp' => [
                 'transport' => 'smtp',
@@ -249,8 +261,18 @@ class BillingSettings
     {
         $s = PlatformSetting::group('mail');
 
+        $gmail = $this->gmail();
+
         return [
-            'source' => filled($s['host'] ?? null) ? 'console' : (config('mail.default') !== 'log' ? 'server' : null),
+            'source' => $gmail->connected() ? 'gmail' : (filled($s['host'] ?? null) ? 'console' : (config('mail.default') !== 'log' ? 'server' : null)),
+            // Gmail connecté avec Google : application réglée, compte connecté, adresse de retour à déclarer chez Google
+            'gmail' => [
+                'configured' => $gmail->configured(),
+                'client_id' => $gmail->clientId(),
+                'connected' => $gmail->connected(),
+                'email' => $gmail->email(),
+                'redirect_uri' => $gmail->redirectUri(),
+            ],
             'host' => $s['host'] ?? null,
             'port' => $s['port'] ?? null,
             'username' => $s['username'] ?? null,

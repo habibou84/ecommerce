@@ -2,6 +2,7 @@
 
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
+use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
 use App\Models\CarrierConnection;
 use App\Models\CarrierWebhookReceipt;
 use App\Models\Cart;
@@ -28,6 +29,7 @@ use App\Services\Social\SocialPublisher;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schedule;
 use Jibiat\Socle\PhoneNumber;
 
@@ -208,3 +210,6 @@ Artisan::command('platform:admin {phone} {--revoke}', function (string $phone) {
     $user->forceFill(['is_super_admin' => ! $this->option('revoke')])->save();
     $this->info($user->name.($this->option('revoke') ? ' n\'a plus accès' : ' a accès').' à la console.');
 })->purpose('Donne (ou retire) l\'accès à la console du super administrateur');
+
+// Battement du planificateur : la console (Santé de la plateforme) voit qu'il tourne bien
+Schedule::call(fn () => Cache::put(ConsoleHealthController::HEARTBEAT, now()->toIso8601String(), now()->addDay()))->everyMinute()->name('scheduler-heartbeat');

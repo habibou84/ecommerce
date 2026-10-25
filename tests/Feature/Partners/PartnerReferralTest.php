@@ -139,7 +139,7 @@ class PartnerReferralTest extends TestCase
         $this->paidInvoice();
         $admin = User::factory()->create(['phone' => '+2250701020304', 'password' => 'motdepasse']);
         $admin->forceFill(['is_super_admin' => true])->save();
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse'])->assertStatus(202);
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
 
         $this->console('GET', 'referrals')->assertOk()

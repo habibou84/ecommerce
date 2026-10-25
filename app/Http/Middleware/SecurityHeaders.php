@@ -21,7 +21,7 @@ class SecurityHeaders
         $headers = $response->headers;
 
         $headers->set('X-Frame-Options', 'SAMEORIGIN', false);
-        $headers->set('Content-Security-Policy', "frame-ancestors 'self'", false);
+        $headers->set('Content-Security-Policy', "frame-ancestors 'self'; object-src 'none'; base-uri 'self'", false);
         $headers->set('X-Content-Type-Options', 'nosniff', false);
         $headers->set('Referrer-Policy', 'strict-origin-when-cross-origin', false);
         if ($request->isSecure()) {

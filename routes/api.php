@@ -11,8 +11,10 @@ use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
+use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
+use App\Http\Controllers\Api\V1\Console\ConsoleTeamController;
 use App\Http\Controllers\Api\V1\Console\ConsoleWhatsAppController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
@@ -104,11 +106,24 @@ Route::prefix('v1')->name('v1.')->group(function () {
     Route::middleware('zone:console')->prefix('console')->name('console.')->group(function () {
         Route::post('auth/login', [ConsoleAuthController::class, 'login'])->middleware('throttle:login')->name('login');
         Route::post('auth/verify', [ConsoleAuthController::class, 'verify'])->middleware('throttle:verification-code')->name('verify');
+        Route::post('auth/email', [ConsoleAuthController::class, 'verifyEmail'])->middleware('throttle:verification-code')->name('verify-email');
 
         Route::middleware(['auth:sanctum', 'super_admin'])->group(function () {
             Route::get('auth/me', [ConsoleAuthController::class, 'me'])->name('me');
             Route::post('auth/logout', [ConsoleAuthController::class, 'logout'])->name('logout');
+            Route::put('account', [ConsoleAuthController::class, 'updateAccount'])->middleware('throttle:login')->name('account.update');
+            Route::post('account/test-email', [ConsoleAuthController::class, 'testEmail'])->middleware('throttle:verification-start')->name('account.test-email');
             Route::get('stats', [ConsoleController::class, 'stats'])->name('stats');
+            Route::get('journal', [ConsoleController::class, 'journal'])->name('journal');
+            // Équipe de la console, mes sessions, recherche d'utilisateurs, santé de la plateforme
+            Route::get('team', [ConsoleTeamController::class, 'index'])->name('team');
+            Route::post('team', [ConsoleTeamController::class, 'store'])->middleware('throttle:login')->name('team.store');
+            Route::post('team/{admin}/revoke', [ConsoleTeamController::class, 'revoke'])->whereNumber('admin')->middleware('throttle:login')->name('team.revoke');
+            Route::get('sessions', [ConsoleTeamController::class, 'sessions'])->name('sessions');
+            Route::delete('sessions/{session}', [ConsoleTeamController::class, 'closeSession'])->where('session', 'others|[a-f0-9]{64}')->name('sessions.close');
+            Route::get('users', [ConsoleTeamController::class, 'users'])->middleware('throttle:60,1')->name('users');
+            Route::get('health', [ConsoleHealthController::class, 'show'])->name('health');
+            Route::post('health/failed-jobs/{uuid}', [ConsoleHealthController::class, 'failedJob'])->whereUuid('uuid')->name('health.failed-job');
             Route::get('stores', [ConsoleController::class, 'stores'])->name('stores');
             Route::get('stores/{store}', [ConsoleController::class, 'store'])->whereNumber('store')->name('stores.show');
             Route::post('stores/{store}/suspend', [ConsoleController::class, 'suspend'])->whereNumber('store')->name('stores.suspend');
@@ -123,6 +138,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
             Route::get('payments/settings', [ConsolePaymentsController::class, 'settings'])->name('payments.settings');
             Route::put('payments/settings', [ConsolePaymentsController::class, 'update'])->name('payments.update');
+            Route::put('payments/gmail/client', [ConsolePaymentsController::class, 'updateGmailClient'])->name('payments.gmail.client');
+            Route::post('payments/gmail/connect', [ConsolePaymentsController::class, 'connectGmail'])->name('payments.gmail.connect');
+            Route::delete('payments/gmail', [ConsolePaymentsController::class, 'disconnectGmail'])->name('payments.gmail.disconnect');
             Route::post('payments/wave-qr', [ConsolePaymentsController::class, 'uploadQr'])->name('payments.qr');
             Route::put('payments/mail', [ConsolePaymentsController::class, 'updateMail'])->name('payments.mail');
             Route::post('payments/test-alert', [ConsolePaymentsController::class, 'testAlert'])->middleware('throttle:5,1')->name('payments.test-alert');

@@ -35,6 +35,9 @@ class PushSubscriptionController extends Controller
             'keys.p256dh' => ['required', 'string', 'max:120'],
             'keys.auth' => ['required', 'string', 'max:40'],
         ]);
+        if (! WebPush::allowedEndpoint($data['endpoint'])) {
+            abort(422, 'Service de notifications non reconnu.');
+        }
         if (strlen(WebPush::unb64($data['keys']['p256dh'])) !== 65 || strlen(WebPush::unb64($data['keys']['auth'])) !== 16) {
             abort(422, 'Abonnement de l\'appareil invalide.');
         }
