@@ -3,8 +3,10 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
+import Icon from '../../../components/Icon.vue'
 import LiveLink from '../../../components/LiveLink.vue'
 import LiveTraining from '../../../components/LiveTraining.vue'
+import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 
@@ -12,6 +14,7 @@ import { formatDateTime, money } from '../../../lib/format'
 const router = useRouter()
 const lives = ref(null)
 const pageUrl = ref('')
+const whatsapp = ref(null)
 const error = ref('')
 const errors = ref({})
 const busy = ref(false)
@@ -28,6 +31,7 @@ async function load() {
     const { data } = await http.get('/lives')
     lives.value = data.data
     pageUrl.value = data.meta.page_url
+    whatsapp.value = data.meta.whatsapp
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -81,29 +85,38 @@ async function save() {
     <Alert v-if="error">{{ error }}</Alert>
 
     <template v-if="!editing">
-      <section class="card space-y-2 p-4 text-sm">
-        <p class="text-slate-700">
-          Pendant un live Facebook, TikTok ou Instagram, chaque article a un code (A1, A2…). Vos clients réservent de deux façons :
-          avec le <strong>lien de vos lives</strong> (ci-dessous) ou en envoyant le <strong>code sur WhatsApp</strong> (« A2 », ou « A2 x3 » pour trois pièces).
-          Quand c'est épuisé, ils passent sur la liste d'attente.
-        </p>
-        <button class="btn-brand" @click="startNew">+ Préparer un live</button>
+      <section class="card p-5">
+        <h2 class="text-xl font-extrabold leading-tight">Vendez en live,<br />sans rien noter</h2>
+        <ol class="mt-4 space-y-3 text-[15px]">
+          <li class="flex items-center gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-sm font-extrabold text-emerald-800">A1</span>Chaque article reçoit un code</li>
+          <li class="flex items-center gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-800"><Icon name="share" :size="17" /></span>Le client réserve par le lien ou sur WhatsApp</li>
+          <li class="flex items-center gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-800"><Icon name="check" :size="17" /></span>La commande se crée toute seule</li>
+        </ol>
+        <details class="mt-3 text-sm text-slate-600">
+          <summary class="cursor-pointer font-semibold text-emerald-700">En savoir plus</summary>
+          <p class="mt-2">Sur WhatsApp, le client envoie le code (« A2 ») ou le code et le nombre de pièces (« A2 x3 »). Quand un article est épuisé, il passe sur la liste d'attente et récupère la pièce si une réservation est annulée.</p>
+        </details>
+        <button class="btn-brand mt-4 w-full sm:w-auto" @click="startNew"><Icon name="plus" :size="18" />Préparer un live</button>
       </section>
 
-      <p v-if="lives && !lives.length" class="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+      <!-- Pas de WhatsApp relié : le proposer ici, avant de préparer le live -->
+      <LiveWhatsApp v-if="lives" :status="whatsapp" @linked="load" />
+
+      <p v-if="lives && !lives.length" class="rounded-2xl bg-ocre-50 p-4 text-sm text-ocre-800">
         Premier live ? Regardez d'abord le module « Préparer votre live » (1 minute), plus bas dans « Se former au live ».
       </p>
 
-      <LiveLink v-if="pageUrl" :url="pageUrl" />
+      <LiveLink v-if="pageUrl" :url="pageUrl" compact />
 
+      <h3 v-if="lives?.length" class="px-0.5 pt-1 text-[17px] font-extrabold">Vos lives</h3>
       <p v-if="lives && !lives.length" class="card p-6 text-sm text-slate-500">Aucun live pour l'instant.</p>
-      <RouterLink v-for="l in lives ?? []" :key="l.id" :to="`/gestion/live/${l.id}`" class="card flex flex-wrap items-center justify-between gap-2 p-4 text-sm hover:bg-slate-50">
-        <span>
-          <span class="font-semibold">{{ l.title }}</span>
-          <span class="ml-2 rounded-full px-2 py-0.5 text-xs" :class="STATUS[l.status][1]">{{ STATUS[l.status][0] }}</span>
-          <span class="block text-slate-500">{{ l.items_count }} article(s)<template v-if="l.started_at"> · {{ formatDateTime(l.started_at) }}</template></span>
+      <RouterLink v-for="l in lives ?? []" :key="l.id" :to="`/gestion/live/${l.id}`" class="card flex items-center gap-3 p-4 text-sm hover:border-emerald-600">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl" :class="l.status === 'live' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'"><Icon name="live" :size="20" /></span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-[15px] font-bold">{{ l.title }}</span>
+          <span class="block text-slate-500">{{ l.items_count }} article(s)<template v-if="l.started_at"> · {{ formatDateTime(l.started_at) }}</template><template v-if="l.summary"> · {{ l.summary.orders }} commande(s) · {{ money(l.summary.amount) }}</template></span>
         </span>
-        <span v-if="l.summary" class="text-slate-600">{{ l.summary.orders }} commande(s) · {{ money(l.summary.amount) }}</span>
+        <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS[l.status][1]"><template v-if="l.status === 'live'">● </template>{{ STATUS[l.status][0] }}</span>
       </RouterLink>
 
       <LiveTraining :url="pageUrl" @prepare="startNew(); scrollTop()" />

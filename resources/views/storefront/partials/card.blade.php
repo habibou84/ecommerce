@@ -5,6 +5,8 @@
             <img src="{{ $card['image']['thumb'] }}" srcset="{{ $card['image']['thumb'] }} 400w, {{ $card['image']['medium'] }} 800w"
                  sizes="(min-width: 1024px) 25vw, 50vw" alt="{{ $card['image_alt'] }}" width="400" height="400"
                  loading="{{ ($eager ?? false) ? 'eager' : 'lazy' }}" decoding="async" class="h-full w-full object-cover transition group-hover:scale-105">
+        @else
+            @include('storefront.partials.no-photo')
         @endif
         @if (! $card['in_stock'])
             <span class="absolute top-2 left-2 rounded bg-white/90 px-2 py-0.5 text-xs font-medium text-slate-700">Épuisé</span>

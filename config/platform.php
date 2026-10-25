@@ -41,9 +41,6 @@ return [
     // Annuaire des entreprises de livraison de Jibiat (contrat « directory » de habibou84/socle) et connexion en un clic
     'delivery_app_directory_url' => env('DELIVERY_APP_DIRECTORY_URL', 'https://jibiat.com/api/public/directory'),
 
-    // Reversement des entreprises de livraison : une course livrée non reversée depuis ce nombre de jours est signalée en retard
-    'carrier_payout_overdue_days' => (int) env('CARRIER_PAYOUT_OVERDUE_DAYS', 7),
-
     // Essai gratuit à la création d'une boutique : un mois de l'offre Pro (annoncé sur le site et à l'inscription).
     // Nouveau nom de variable : l'ancienne PLATFORM_TRIAL_DAYS (14 jours) restée sur les serveurs n'a plus d'effet.
     'trial_days' => (int) env('PLATFORM_TRIAL_LENGTH_DAYS', 30),

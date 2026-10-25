@@ -8,7 +8,7 @@ import Modal from '../../../components/Modal.vue'
 import Pagination from '../../../components/Pagination.vue'
 import http, { download, errorMessage } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
-import { CANCEL_REASONS, PAYMENT_TONES, SOURCES, STATUS_TONES, riskLabel } from '../../../lib/orders'
+import { CANCEL_REASONS, PAYMENT_TONES, SOURCES, STATUS_ICONS, STATUS_TONES, avatar, riskLabel } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
 
 const auth = useAuthStore()
@@ -114,7 +114,7 @@ const delivererLabel = (key) => {
   return (type === 'courier' ? options.value?.couriers : options.value?.carriers)?.find((d) => String(d.id) === id)?.name ?? 'Livreur'
 }
 // Files des alertes (ouvertes depuis une notification ou l'accueil)
-const ALERTS = { unassigned: 'Sans livreur', not_picked: 'Pas encore ramassées', on_the_way: 'Encore en route', unhandled: 'Problème de livraison à traiter' }
+const ALERTS = { unassigned: 'Sans livreur', not_picked: 'Pas encore ramassées', on_the_way: 'Encore en route', unhandled: 'Problème de livraison à traiter', to_bring_back: 'Colis à rapporter' }
 watch(() => route.query.alert, (v) => { if ((v ?? '') !== filters.alert) filters.alert = v ?? '' })
 const activeFilters = computed(() => [
   filters.alert && ALERTS[filters.alert] && { key: 'alert', label: ALERTS[filters.alert] },
@@ -164,9 +164,9 @@ function deliveryBadge(o) {
 
 // Action principale de chaque ligne, selon l'étape
 function mainAction(o) {
-  if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', run: () => confirmOrder(o) }
-  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && (!o.deliverer || o.deliverer_planned)) return { label: 'Faire livrer', run: () => openAssign([o.id]) }
-  if (o.status === 'shipped' && canManage.value) return { label: 'Livrée', run: () => openComplete(o) }
+  if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-ocre-700 hover:bg-ocre-800', run: () => confirmOrder(o) }
+  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && (!o.deliverer || o.deliverer_planned)) return { label: 'Faire livrer', icon: 'truck', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openAssign([o.id]) }
+  if (o.status === 'shipped' && canManage.value) return { label: 'Livrée', icon: 'check', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openComplete(o) }
   return null
 }
 
@@ -292,8 +292,8 @@ async function exportList() {
         v-for="p in PERIODS"
         :key="p.value"
         type="button"
-        class="shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium"
-        :class="filters.period === p.value ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+        class="shrink-0 rounded-full px-3 py-1 text-sm font-semibold"
+        :class="filters.period === p.value ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'"
         @click="setPeriod(p.value)"
       >
         {{ p.label }}
@@ -311,26 +311,35 @@ async function exportList() {
       <button type="button" class="text-emerald-700 hover:underline" @click="clearFilters">Tout effacer</button>
     </div>
 
-    <nav v-tab-strip class="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">
+    <nav v-tab-strip class="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <button
         v-for="tab in TABS"
         :key="tab.value"
-        class="whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium"
-        :class="[filters.status === tab.value ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-600 hover:text-slate-900', tab.alert && counts.late ? 'text-red-700' : '']"
+        class="inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3.5 text-sm font-semibold"
+        :class="filters.status === tab.value ? 'border-slate-900 bg-slate-900 text-white' : tab.alert && counts.late ? 'border-red-200 bg-white text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'"
         @click="filters.status = tab.value"
       >
         {{ tab.label }}
-        <span class="ml-1 rounded-full px-1.5 text-xs" :class="tab.alert && counts.late ? 'bg-red-100 text-red-800' : 'bg-slate-100'">{{ tab.value ? counts[tab.value] ?? 0 : total(counts) }}</span>
+        <span class="rounded-md px-1.5 text-xs font-bold" :class="filters.status === tab.value ? 'bg-white/20' : tab.alert && counts.late ? 'bg-red-100 text-red-800' : 'bg-slate-100'">{{ tab.value ? counts[tab.value] ?? 0 : total(counts) }}</span>
       </button>
     </nav>
 
     <!-- Résumé de la liste affichée -->
-    <div v-if="summary" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <div class="card p-3"><p class="text-sm text-slate-500">Commandes</p><p class="text-xl font-bold tabular-nums">{{ summary.count }}</p></div>
-      <div class="card p-3"><p class="text-sm text-slate-500">Montant</p><p class="text-xl font-bold tabular-nums">{{ money(summary.amount) }}</p></div>
-      <div class="card p-3"><p class="text-sm text-slate-500">À encaisser</p><p class="text-xl font-bold tabular-nums" :class="summary.to_collect ? 'text-amber-800' : ''">{{ money(summary.to_collect) }}</p></div>
-      <button type="button" class="card p-3 text-left hover:border-emerald-600" @click="Object.assign(filters, { period: 'today', date_field: 'scheduled', status: '' })">
-        <p class="text-sm text-slate-500">À livrer aujourd'hui</p><p class="text-xl font-bold tabular-nums text-emerald-800">{{ summary.due_today }}</p>
+    <!-- Téléphone : les trois chiffres sur une seule ligne -->
+    <div v-if="summary" class="card flex py-3 lg:hidden">
+      <div class="min-w-0 flex-1 px-3"><p class="text-xs font-semibold text-slate-500">Montant</p><p class="truncate font-display text-base font-extrabold">{{ money(summary.amount) }}</p></div>
+      <div class="min-w-0 flex-1 border-l border-slate-200 px-3"><p class="text-xs font-semibold text-slate-500">À encaisser</p><p class="truncate font-display text-base font-extrabold" :class="summary.to_collect ? 'text-ocre-700' : ''">{{ money(summary.to_collect) }}</p></div>
+      <button type="button" class="min-w-0 flex-1 border-l border-slate-200 px-3 text-left" @click="Object.assign(filters, { period: 'today', date_field: 'scheduled', status: '' })">
+        <p class="text-xs font-semibold text-slate-500">Aujourd'hui</p><p class="truncate font-display text-base font-extrabold text-emerald-800">{{ summary.due_today }} à livrer</p>
+      </button>
+    </div>
+    <!-- Ordinateur : quatre cartes -->
+    <div v-if="summary" class="hidden grid-cols-4 gap-3 lg:grid">
+      <div class="card p-4"><p class="text-sm font-semibold text-slate-500">Commandes</p><p class="mt-1 text-2xl font-extrabold">{{ summary.count }}</p></div>
+      <div class="card p-4"><p class="text-sm font-semibold text-slate-500">Montant</p><p class="mt-1 text-2xl font-extrabold">{{ money(summary.amount) }}</p></div>
+      <div class="card p-4"><p class="text-sm font-semibold text-slate-500">À encaisser</p><p class="mt-1 text-2xl font-extrabold" :class="summary.to_collect ? 'text-ocre-700' : ''">{{ money(summary.to_collect) }}</p></div>
+      <button type="button" class="card p-4 text-left hover:border-emerald-600" @click="Object.assign(filters, { period: 'today', date_field: 'scheduled', status: '' })">
+        <p class="text-sm font-semibold text-slate-500">À livrer aujourd'hui</p><p class="mt-1 text-2xl font-extrabold text-emerald-800">{{ summary.due_today }}</p>
       </button>
     </div>
 
@@ -352,15 +361,14 @@ async function exportList() {
 
     <!-- Ordinateur : tableau groupé par jour -->
     <div v-if="orders.length" class="card hidden overflow-x-auto lg:block">
-      <table class="w-full text-left text-sm">
+      <table class="w-full table-fixed text-left text-sm">
+        <colgroup><col class="w-12" /><col class="w-[25%]" /><col class="w-[17%]" /><col class="w-[15%]" /><col class="w-[11%]" /><col class="w-[13%]" /><col class="w-[19%]" /></colgroup>
         <thead class="text-xs font-semibold uppercase tracking-wide text-slate-500">
           <tr>
-            <th class="w-10 py-2.5 pl-4"><input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="allSelected" aria-label="Tout sélectionner" @change="toggleAll" /></th>
-            <th class="py-2.5 pr-3">N°</th>
-            <th class="pr-3">Client</th>
+            <th class="w-12 py-2.5 pl-4 pr-2"><input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="allSelected" aria-label="Tout sélectionner" @change="toggleAll" /></th>
+            <th class="py-3 pr-3">Client</th>
             <th class="pr-3">Livraison</th>
             <th class="pr-3">Articles</th>
-            <th class="pr-3">Qui livre</th>
             <th class="pr-3 text-right">Montant</th>
             <th class="pr-3">Statut</th>
             <th class="pr-4 text-right">Actions</th>
@@ -369,33 +377,37 @@ async function exportList() {
         <tbody>
           <template v-for="g in groups" :key="g.key ?? 'sans-date'">
             <tr class="bg-slate-50">
-              <td colspan="9" class="px-4 py-2"><span class="font-bold text-slate-800">{{ dayLabel(g.key) }}</span><span class="text-slate-500"> · {{ g.count }} commande{{ g.count > 1 ? 's' : '' }} · {{ money(g.amount) }}</span><span v-if="g.count > g.orders.length" class="text-slate-500"> ({{ g.orders.length }} sur cette page)</span></td>
+              <td colspan="8" class="px-4 py-2.5"><span class="font-bold text-slate-800">{{ dayLabel(g.key) }}</span><span class="text-slate-500"> · {{ g.count }} commande{{ g.count > 1 ? 's' : '' }} · {{ money(g.amount) }}</span><span v-if="g.count > g.orders.length" class="text-slate-500"> ({{ g.orders.length }} sur cette page)</span></td>
             </tr>
             <tr v-for="o in g.orders" :key="o.id" class="border-t border-slate-100" :class="selected.has(o.id) ? 'bg-emerald-50/60' : 'hover:bg-slate-50'">
-              <td class="py-3 pl-4"><input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="selected.has(o.id)" :aria-label="`Sélectionner ${o.reference}`" @change="toggle(o.id)" /></td>
-              <td class="py-3 pr-3"><RouterLink :to="`/gestion/commandes/${o.id}`" class="font-semibold hover:text-emerald-700">{{ o.reference }}</RouterLink><p class="text-xs text-slate-500">{{ timeOf(o) }}</p></td>
+              <td class="py-3 pl-4 pr-2"><input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="selected.has(o.id)" :aria-label="`Sélectionner ${o.reference}`" @change="toggle(o.id)" /></td>
               <td class="py-3 pr-3">
-                <RouterLink :to="`/gestion/commandes/${o.id}`" class="font-medium hover:text-emerald-700">{{ o.customer_name || phone(o) || 'Client au comptoir' }}</RouterLink>
-                <p class="text-slate-500">{{ phone(o) }}<span v-if="riskLabel(o.risk_score)" class="ml-1 rounded-full px-1.5 text-xs" :class="riskLabel(o.risk_score).tone">{{ riskLabel(o.risk_score).label }}</span><span v-if="o.possible_duplicate" class="ml-1 rounded-full bg-amber-100 px-1.5 text-xs text-amber-900" title="Autre commande en cours de ce client à moins de 24 h">Doublon ?</span></p>
+                <div class="flex items-center gap-3">
+                  <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-extrabold" :class="avatar(o.customer_name || phone(o)).tone">{{ avatar(o.customer_name || phone(o)).initials }}</span>
+                  <div class="min-w-0">
+                    <RouterLink :to="`/gestion/commandes/${o.id}`" class="block truncate font-semibold hover:text-emerald-700">{{ o.customer_name || phone(o) || 'Client au comptoir' }}</RouterLink>
+                    <p class="truncate text-slate-500" :title="phone(o)"><RouterLink :to="`/gestion/commandes/${o.id}`" class="font-semibold text-slate-700 hover:text-emerald-700">{{ o.reference }}</RouterLink> · {{ timeOf(o) }}<span v-if="riskLabel(o.risk_score)" class="ml-1 rounded-full px-1.5 text-xs" :class="riskLabel(o.risk_score).tone">{{ riskLabel(o.risk_score).label }}</span><span v-if="o.possible_duplicate" class="ml-1 rounded-full bg-amber-100 px-1.5 text-xs text-amber-900" title="Autre commande en cours de ce client à moins de 24 h">Doublon ?</span></p>
+                  </div>
+                </div>
               </td>
               <td class="py-3 pr-3">
                 <p>{{ o.delivery_method === 'pickup' ? 'Retrait au magasin' : o.shipping_place_label || 'Quartier à préciser' }}</p>
-                <span v-if="deliveryBadge(o)" class="mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="deliveryBadge(o).tone">
+                <span v-if="deliveryBadge(o)" class="mt-0.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="deliveryBadge(o).tone">
                   <Icon :name="deliveryBadge(o).late ? 'alert' : 'truck'" :size="12" />{{ deliveryBadge(o).text }}
                 </span>
+                <p v-if="o.deliverer" class="mt-0.5 flex items-center gap-1 whitespace-nowrap text-xs text-slate-500"><Icon name="truck" :size="12" />{{ o.deliverer }}<template v-if="o.deliverer_planned"> (prévu)</template></p>
               </td>
-              <td class="max-w-56 py-3 pr-3 text-slate-600">{{ o.items_label }}</td>
-              <td class="py-3 pr-3 whitespace-nowrap">{{ o.deliverer ?? '—' }}<span v-if="o.deliverer_planned" class="block text-xs text-slate-500">prévu</span></td>
-              <td class="py-3 pr-3 text-right"><p class="font-semibold tabular-nums">{{ money(o.total) }}</p><p class="whitespace-nowrap text-xs" :class="PAYMENT_TONES[o.payment_status]">{{ o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status) ? 'À encaisser' : o.payment_status_label }}</p></td>
+              <td class="truncate py-3 pr-3 text-slate-600" :title="o.items_label">{{ o.items_label }}</td>
+              <td class="py-3 pr-3 text-right"><p class="font-bold">{{ money(o.total) }}</p><p class="whitespace-nowrap text-xs" :class="PAYMENT_TONES[o.payment_status]">{{ o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status) ? 'À encaisser' : o.payment_status_label }}</p></td>
               <td class="py-3 pr-3">
-                <span class="whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS_TONES[o.status]">{{ o.status_label }}</span>
+                <span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS_TONES[o.status]"><Icon :name="STATUS_ICONS[o.status] ?? 'more'" :size="13" />{{ o.status_label }}</span>
                 <p v-if="o.callback_at && o.status === 'pending_confirmation'" class="mt-0.5 text-xs text-amber-800">Rappel {{ new Date(o.callback_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</p>
               </td>
               <td class="py-3 pr-4">
                 <div class="flex items-center justify-end gap-1.5">
-                  <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" :title="`Appeler ${o.customer_name ?? ''}`"><Icon name="phone" :size="15" /></a>
-                  <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" title="WhatsApp"><Icon name="messages" :size="15" /></a>
-                  <button v-if="mainAction(o)" type="button" class="whitespace-nowrap rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800" :disabled="busy" @click="mainAction(o).run()">{{ mainAction(o).label }}</button>
+                  <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50" :title="`Appeler ${o.customer_name ?? ''}`"><Icon name="phone" :size="16" /></a>
+                  <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50" title="WhatsApp"><Icon name="whatsapp" :size="16" /></a>
+                  <button v-if="mainAction(o)" type="button" class="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 text-sm font-semibold text-white" :class="mainAction(o).tone" :disabled="busy" @click="mainAction(o).run()"><Icon :name="mainAction(o).icon" :size="15" />{{ mainAction(o).label }}</button>
                 </div>
               </td>
             </tr>
@@ -407,31 +419,35 @@ async function exportList() {
     <!-- Téléphone et tablette : une carte par commande, groupées par jour -->
     <div class="space-y-3 lg:hidden">
       <template v-for="g in groups" :key="g.key ?? 'sans-date'">
-        <p class="flex items-baseline justify-between pt-1 text-sm"><span class="font-bold text-slate-800">{{ dayLabel(g.key).split(',')[0] }} · {{ g.count }} commande{{ g.count > 1 ? 's' : '' }}</span><span class="font-semibold tabular-nums">{{ money(g.amount) }}</span></p>
-        <div v-for="o in g.orders" :key="o.id" class="card p-4" :class="{ 'ring-2 ring-emerald-600': selected.has(o.id) }">
+        <p class="flex items-baseline justify-between gap-2 px-0.5 pt-2 text-sm"><span class="truncate font-display text-[15px] font-extrabold text-slate-800">{{ g.key ? dayLabel(g.key).split(',')[0] : 'Date à fixer' }} · {{ g.count }}</span><span class="shrink-0 font-semibold text-slate-600">{{ money(g.amount) }}</span></p>
+        <div v-for="o in g.orders" :key="o.id" class="card p-3.5" :class="{ 'ring-2 ring-emerald-600': selected.has(o.id) }">
           <div class="flex items-start gap-3">
-            <input type="checkbox" class="mt-1 h-5 w-5 shrink-0 accent-emerald-700" :checked="selected.has(o.id)" :aria-label="`Sélectionner ${o.reference}`" @change="toggle(o.id)" />
+            <button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold" :class="selected.has(o.id) ? 'bg-emerald-700 text-white' : avatar(o.customer_name || phone(o)).tone" :aria-label="`Sélectionner ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)">
+              <Icon v-if="selected.has(o.id)" name="check" :size="20" /><template v-else>{{ avatar(o.customer_name || phone(o)).initials }}</template>
+            </button>
             <RouterLink :to="`/gestion/commandes/${o.id}`" class="min-w-0 flex-1">
-              <p class="text-base font-semibold leading-snug">{{ o.customer_name || phone(o) || 'Client au comptoir' }}</p>
-              <p class="text-sm text-slate-500">{{ o.reference }} · {{ timeOf(o) }} · {{ o.delivery_method === 'pickup' ? 'Retrait' : o.shipping_place_label || 'Quartier à préciser' }}</p>
+              <span class="flex items-baseline justify-between gap-2">
+                <span class="truncate text-base font-bold">{{ o.customer_name || phone(o) || 'Client au comptoir' }}</span>
+                <span class="shrink-0 text-base font-extrabold">{{ money(o.total) }}</span>
+              </span>
+              <span class="flex items-baseline justify-between gap-2 text-sm">
+                <span class="truncate text-slate-500">{{ o.reference }} · {{ timeOf(o) }} · {{ o.delivery_method === 'pickup' ? 'Retrait' : o.shipping_place_label || 'Quartier à préciser' }}</span>
+                <span class="shrink-0 font-semibold" :class="PAYMENT_TONES[o.payment_status]">{{ o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status) ? 'À encaisser' : o.payment_status_label }}</span>
+              </span>
+              <span class="mt-2 block truncate text-sm text-slate-700">{{ o.items_label }}</span>
             </RouterLink>
-            <div class="text-right">
-              <p class="font-bold tabular-nums">{{ money(o.total) }}</p>
-              <p class="text-xs" :class="PAYMENT_TONES[o.payment_status]">{{ o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status) ? 'À encaisser' : o.payment_status_label }}</p>
-            </div>
           </div>
-          <p class="mt-1.5 text-sm text-slate-600">{{ o.items_label }}</p>
-          <div class="mt-2 flex flex-wrap items-center gap-1.5">
-            <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS_TONES[o.status]">{{ o.status_label }}</span>
-            <span v-if="o.possible_duplicate" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Doublon ?</span>
-            <span v-if="deliveryBadge(o)" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="deliveryBadge(o).tone"><Icon :name="deliveryBadge(o).late ? 'alert' : 'truck'" :size="12" />{{ deliveryBadge(o).text }}</span>
-            <span v-if="o.deliverer" class="text-xs text-slate-500">· {{ o.deliverer }}</span>
+          <div class="mt-2 flex flex-wrap items-center gap-1.5 pl-14">
+            <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS_TONES[o.status]"><Icon :name="STATUS_ICONS[o.status] ?? 'more'" :size="13" />{{ o.status_label }}</span>
+            <span v-if="deliveryBadge(o)" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" :class="deliveryBadge(o).tone"><Icon :name="deliveryBadge(o).late ? 'alert' : 'calendar'" :size="13" />{{ deliveryBadge(o).text }}</span>
+            <span v-if="o.possible_duplicate" class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">Doublon ?</span>
+            <span v-if="o.deliverer" class="inline-flex items-center gap-1 text-xs text-slate-500"><Icon name="truck" :size="13" />{{ o.deliverer }}</span>
           </div>
           <div class="mt-3 flex gap-2">
-            <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600" aria-label="Appeler"><Icon name="phone" :size="18" /></a>
-            <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600" aria-label="WhatsApp"><Icon name="messages" :size="18" /></a>
-            <button v-if="mainAction(o)" type="button" class="h-10 flex-1 rounded-xl bg-emerald-700 text-sm font-semibold text-white" :disabled="busy" @click="mainAction(o).run()">{{ mainAction(o).label }}</button>
-            <RouterLink v-else :to="`/gestion/commandes/${o.id}`" class="grid h-10 flex-1 place-items-center rounded-xl border border-slate-200 text-sm font-medium text-slate-700">Voir la commande</RouterLink>
+            <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600" aria-label="Appeler"><Icon name="phone" :size="18" /></a>
+            <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600" aria-label="WhatsApp"><Icon name="whatsapp" :size="18" /></a>
+            <button v-if="mainAction(o)" type="button" class="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white" :class="mainAction(o).tone" :disabled="busy" @click="mainAction(o).run()"><Icon :name="mainAction(o).icon" :size="17" />{{ mainAction(o).label }}</button>
+            <RouterLink v-else :to="`/gestion/commandes/${o.id}`" class="grid h-11 flex-1 place-items-center rounded-xl border border-slate-200 text-sm font-semibold text-slate-700">Voir la commande</RouterLink>
           </div>
         </div>
       </template>

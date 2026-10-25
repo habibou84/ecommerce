@@ -30,7 +30,7 @@ class LiveController extends Controller
                 'started_at' => $s->started_at?->toIso8601String(), 'ended_at' => $s->ended_at?->toIso8601String(),
                 'summary' => $s->status === 'draft' ? null : $this->live->summary($s),
             ])->values(),
-            'meta' => ['page_url' => $store->url('/live')],
+            'meta' => ['page_url' => $store->url('/live'), 'whatsapp' => LiveSales::whatsapp($store->id)],
         ]);
     }
 

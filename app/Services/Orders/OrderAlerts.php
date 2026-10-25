@@ -10,12 +10,14 @@ use App\Models\Shipment;
 use App\Models\Store;
 use App\Notifications\OrderAlertNotice;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Shipping\OutsideStock;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Jibiat\Socle\Money;
 
 /**
  * Alertes sur les commandes qui attendent quelqu'un, reprises des alertes de Jibiat et adaptées au marchand :
@@ -25,7 +27,11 @@ use Illuminate\Support\Facades\DB;
  *  - à confirmer : commande en attente de confirmation depuis longtemps, et rappels arrivés à l'heure ;
  *  - point du matin : un résumé de la journée à l'heure d'ouverture ;
  *  - livraisons qui traînent : colis encore en route à l'heure de fin des livraisons ;
- *  - problème non traité : échec de livraison ou décision demandée par le transporteur, sans suite.
+ *  - problème non traité : échec de livraison ou décision demandée par le transporteur, sans suite ;
+ *  - argent chez un livreur : espèces encaissées pas versées depuis le délai (24 h), puis au propriétaire à deux fois le délai ;
+ *  - reversement en retard : une entreprise de livraison n'a pas reversé des courses livrées depuis le délai (7 jours),
+ *    puis au propriétaire à deux fois le délai ;
+ *  - colis pas rapporté : livraison ratée ou retour, le colis est encore chez le livreur après le délai (48 h).
  * Le délai d'une commande part de l'entrée dans son état (ou du début de son jour de livraison s'il est plus tard).
  * Chaque alerte part une seule fois, regroupée (« 3 commandes… »), dans la cloche et sur le téléphone de l'équipe ;
  * passé trois fois le délai, le propriétaire est prévenu. Rien la nuit : seulement pendant les heures d'alerte.
@@ -42,6 +48,9 @@ class OrderAlerts
         'morning' => ['on' => true],
         'stalled' => ['on' => true, 'time' => '19:00'],
         'unhandled' => ['on' => true, 'minutes' => 30],
+        'courier_cash' => ['on' => true, 'hours' => 24],
+        'carrier_payout' => ['on' => true, 'days' => 7],
+        'returns' => ['on' => true, 'hours' => 48],
     ];
 
     /** Ancienneté maximale d'une attente alertée (jours) ; les alertes envoyées sont gardées 30 jours */
@@ -101,6 +110,12 @@ class OrderAlerts
     {
         return $orders->whereHas('shipments', fn (Builder $s) => $s->whereNotIn('status', self::values(self::FINAL))
             ->where(fn (Builder $q) => $q->where('status', ShipmentStatus::Failed->value)->orWhere('needs_decision', true)));
+    }
+
+    /** Livraison ratée ou retour : colis encore chez le livreur, à rapporter à la boutique */
+    public static function toBringBack(Builder $orders): Builder
+    {
+        return $orders->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', self::values(OutsideStock::TO_BRING_BACK)));
     }
 
     /**
@@ -217,8 +232,61 @@ class OrderAlerts
                 fn (int $n) => $n > 1 ? "{$n} problèmes de livraison sans suite" : 'Un problème de livraison sans suite',
                 'Échec ou décision demandée : reprogrammez, changez de livreur ou annulez.', '/gestion/commandes?alert=unhandled', 'shipment');
         }
+        $outside = app(OutsideStock::class);
+        if ($settings['courier_cash']['on'] && ($couriers = $outside->couriers($store, $now)) !== null) {
+            // Un nouveau sujet quand le livreur a versé puis réencaissé : l'attente repart de son plus ancien encaissement
+            $late = collect($couriers['late'])->keyBy(fn (array $c) => "courier:{$c['courier_id']}:".CarbonImmutable::parse($c['since'])->timestamp);
+            $sent += $this->money($store, 'courier_cash', $late, Permission::CouriersManage, '/gestion/caisse/livreurs',
+                fn (array $c) => "{$c['name']} garde ".Money::format($c['held']).' depuis '.$this->age($c['hours']),
+                fn (int $n, int $total) => "{$n} livreurs gardent ".Money::format($total).' depuis longtemps',
+                'Argent encaissé et pas encore versé : demandez le versement.');
+        }
+        if ($settings['carrier_payout']['on'] && ($carriers = $outside->carriers($store, $now)) !== null) {
+            $late = collect($carriers['overdue'])->keyBy(fn (array $c) => "carrier:{$c['connection_id']}:".CarbonImmutable::parse($c['since'])->timestamp);
+            $sent += $this->money($store, 'carrier_payout', $late, Permission::CarriersManage, '/gestion/caisse/a-recevoir',
+                fn (array $c) => "{$c['carrier']} vous doit ".Money::format($c['amount']).' depuis '.$c['days'].' jours',
+                fn (int $n, int $total) => "{$n} entreprises vous doivent ".Money::format($total).' en retard',
+                'Courses livrées pas encore reversées : réclamez le reversement.');
+        }
+        if ($settings['returns']['on']) {
+            $shipments = $outside->lateReturnsQuery($store, $now)->get(['id', 'status_changed_at', 'updated_at'])
+                ->mapWithKeys(fn (Shipment $s) => [$s->id => CarbonImmutable::parse($s->status_changed_at ?? $s->updated_at)]);
+            $sent += $this->delays($store, 'returns', $shipments, $settings['returns']['hours'] * 60, $now,
+                fn (int $n) => $n > 1 ? "{$n} colis pas encore rapportés" : 'Un colis pas encore rapporté',
+                'Livraison ratée ou retour : le colis est toujours chez le livreur.', '/gestion/commandes?alert=to_bring_back', 'shipment');
+        }
 
         return $sent;
+    }
+
+    /**
+     * Argent qui traîne (niveau 1 ou 2 calculé par OutsideStock) : à l'équipe une fois au niveau 1, au propriétaire
+     * une fois au niveau 2. Une seule alerte regroupée quand plusieurs livreurs ou entreprises sont concernés.
+     *
+     * @param  Collection<string, array<string, mixed>>  $late  par sujet
+     */
+    private function money(Store $store, string $kind, Collection $late, Permission $permission, string $url, \Closure $one, \Closure $many, string $body): int
+    {
+        $title = fn (Collection $items) => $items->count() > 1
+            ? $many($items->count(), (int) $items->sum(fn (array $c) => $c['amount'] ?? $c['held']))
+            : $one($items->first());
+        $sent = 0;
+        $first = $this->fresh($store, $kind, $late);
+        if ($first->isNotEmpty()) {
+            $sent += $this->send($store, $permission, $kind, $title($first), $body, $url);
+        }
+        $second = $store->owner !== null ? $this->fresh($store, $kind, $late->where('level', 2), 2) : collect();
+        if ($second->isNotEmpty()) {
+            $store->owner->notify(new OrderAlertNotice($store->id, $kind.'_escalated', $title($second), 'Toujours pas réglé : deux fois le délai est passé.', $url));
+            $sent++;
+        }
+
+        return $sent;
+    }
+
+    private function age(int $hours): string
+    {
+        return $hours < 48 ? "{$hours} h" : intdiv($hours, 24).' jours';
     }
 
     /**
@@ -340,6 +408,10 @@ class OrderAlerts
 
     private function duration(int $minutes): string
     {
+        if ($minutes >= 2880 && $minutes % 1440 === 0) {
+            return intdiv($minutes, 1440).' jours';
+        }
+
         return $minutes < 60 ? "{$minutes} min" : intdiv($minutes, 60).' h'.($minutes % 60 ? ' '.str_pad((string) ($minutes % 60), 2, '0', STR_PAD_LEFT) : '');
     }
 

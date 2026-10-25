@@ -10,7 +10,7 @@ import DeliveryPlacePicker from '../../../components/DeliveryPlacePicker.vue'
 import ProductPicker from '../../../components/ProductPicker.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
-import { SOURCES } from '../../../lib/orders'
+import { SOURCES, SOURCE_ICONS } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
 
 const props = defineProps({ id: { type: String, default: null } })
@@ -544,16 +544,16 @@ async function save() {
     <Alert v-if="error">{{ error }}</Alert>
 
     <!-- Saisie rapide : un bandeau, ouvert seulement quand on en a besoin -->
-    <section v-if="!editing" class="card">
+    <section v-if="!editing" class="card border-emerald-100 bg-emerald-50/60">
       <button type="button" class="flex w-full items-center gap-3 p-4 text-left" :aria-expanded="pasteOpen" @click="pasteOpen = !pasteOpen">
-        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-700"><Icon name="messages" :size="18" /></span>
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm"><Icon name="file" :size="20" /></span>
         <span class="min-w-0 flex-1">
-          <span class="block font-medium">Coller le message du client</span>
+          <span class="block font-bold">Coller le message du client</span>
           <span class="block text-sm text-slate-500">WhatsApp, Facebook… : numéro, nom, quartier et produits se remplissent.</span>
         </span>
         <Icon name="chevron" :size="18" class="text-slate-400 transition" :class="{ 'rotate-90': pasteOpen }" />
       </button>
-      <div v-if="pasteOpen" class="space-y-3 border-t border-slate-100 p-4">
+      <div v-if="pasteOpen" class="space-y-3 border-t border-emerald-100 p-4">
         <textarea v-model="paste" class="input" rows="3" placeholder="Bonsoir, je veux 2 robes wax taille M. Je suis à Yop Siporex, 07 07 07 07 07…" />
         <div class="flex flex-wrap items-center gap-2">
           <button type="button" class="btn-secondary" :disabled="parsing || paste.trim().length < 5" @click="analyse(false)">{{ parsing ? 'Analyse…' : 'Analyser le message' }}</button>
@@ -580,8 +580,8 @@ async function save() {
       <div class="min-w-0 space-y-5">
         <!-- 1. Client -->
         <section class="card space-y-5 p-4 sm:p-6">
-          <h2 class="flex items-center gap-2.5 text-lg font-bold">
-            <span class="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-sm text-white">1</span>Client
+          <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
+            <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">1</span>Client
           </h2>
 
           <div v-if="!editing">
@@ -591,12 +591,12 @@ async function save() {
                 v-for="s in SOURCES"
                 :key="s.value"
                 type="button"
-                class="rounded-full border px-4 py-2 text-[15px]"
-                :class="form.source === s.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700 hover:border-slate-400'"
+                class="inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 text-[15px] font-semibold"
+                :class="form.source === s.value ? 'border-2 border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'"
                 :aria-pressed="form.source === s.value"
                 @click="form.source = s.value"
               >
-                {{ s.label }}
+                <Icon :name="SOURCE_ICONS[s.value] ?? 'more'" :size="17" />{{ s.label }}
               </button>
             </div>
           </div>
@@ -638,8 +638,8 @@ async function save() {
 
         <!-- 2. Livraison : qui livre d'abord, puis le quartier (limité aux zones de l'entreprise choisie) -->
         <section class="card space-y-5 p-4 sm:p-6">
-          <h2 class="flex items-center gap-2.5 text-lg font-bold">
-            <span class="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-sm text-white">2</span>Livraison
+          <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
+            <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">2</span>Livraison
           </h2>
           <div class="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-base font-semibold sm:w-96">
             <button type="button" class="rounded-lg py-2.5" :class="form.delivery_method === 'delivery' ? 'bg-white shadow-sm' : 'text-slate-600'" @click="form.delivery_method = 'delivery'">Livraison</button>
@@ -729,8 +729,8 @@ async function save() {
 
         <!-- 2. Articles -->
         <section class="card space-y-4 p-4 sm:p-6">
-          <h2 class="flex items-center gap-2.5 text-lg font-bold">
-            <span class="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-sm text-white">3</span>Articles
+          <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
+            <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">3</span>Articles
             <span v-if="items.length" class="text-sm font-normal text-slate-500">· {{ items.length }}</span>
           </h2>
           <p v-if="errors.items" class="text-sm text-red-600">{{ errors.items }}</p>
@@ -798,8 +798,8 @@ async function save() {
       <!-- 3. Paiement et validation -->
       <aside class="space-y-4 lg:sticky lg:top-20 lg:self-start">
         <section class="card space-y-3 p-4 text-[15px] sm:p-5">
-          <h2 class="flex items-center gap-2.5 text-lg font-bold">
-            <span class="grid h-7 w-7 place-items-center rounded-full bg-slate-900 text-sm text-white">4</span>Paiement
+          <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
+            <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">4</span>Paiement
           </h2>
           <div class="flex justify-between"><span class="text-slate-600">Articles</span><span class="tabular-nums">{{ money(subtotal) }}</span></div>
           <div class="flex justify-between gap-2"><span class="text-slate-600">Livraison<template v-if="delivererName && form.delivery_method === 'delivery'"> · {{ delivererName }}</template></span><span class="tabular-nums">{{ form.delivery_method === 'pickup' ? '—' : fee ? money(fee) : 'Offerte' }}</span></div>
@@ -857,7 +857,7 @@ async function save() {
         <p class="text-xs text-slate-500">Total</p>
         <p class="text-lg font-extrabold leading-tight tabular-nums">{{ money(total) }}</p>
       </div>
-      <button class="btn-brand ml-auto flex-1 py-3 text-base" :disabled="saving">{{ saving ? 'Enregistrement…' : editing ? 'Enregistrer' : 'Créer la commande' }}</button>
+      <button class="btn-brand ml-auto min-h-12 flex-1 text-base" :disabled="saving">{{ saving ? 'Enregistrement…' : editing ? 'Enregistrer' : 'Créer la commande' }}</button>
     </div>
 
     <DelivererPicker v-if="pickerOpen" v-model="chosen" :options="options" :place-label="place?.label ?? ''" @close="pickerOpen = false" />
