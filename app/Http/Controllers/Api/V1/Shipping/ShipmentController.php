@@ -125,6 +125,27 @@ class ShipmentController extends Controller
     }
 
     /**
+     * Étiquette de la course chez l'entreprise de livraison (lien signé, valable 7 jours) : redemandée quand elle
+     * expire bientôt.
+     */
+    public function label(int $shipment): RedirectResponse
+    {
+        $model = Shipment::findOrFail($shipment);
+        abort_unless($model->carrier_label_url, 404);
+        // …/etiquette-partagee/{course}/{expiration}/{jeton}
+        $expires = preg_match('#/(\d{9,})/[0-9a-f]+$#', (string) parse_url($model->carrier_label_url, PHP_URL_PATH), $m) ? (int) $m[1] : 0;
+        if ($expires <= now()->addMinutes(5)->timestamp && $model->connection?->isApi()) {
+            try {
+                $model = $this->desk->refresh($model);
+            } catch (CarrierException) {
+                // Entreprise injoignable : l'ancien lien est rendu tel quel
+            }
+        }
+
+        return redirect()->away($model->carrier_label_url);
+    }
+
+    /**
      * Course chez l'entreprise de livraison : modification (champs choisis, ou reprise de la commande modifiée).
      */
     public function updateAtCarrier(Request $request, int $shipment): JsonResponse

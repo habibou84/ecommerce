@@ -636,6 +636,26 @@ class ShippingTest extends TestCase
         $this->assertSame($fresh, $shipment->fresh()->proof_photo_url);
     }
 
+    public function test_the_carrier_label_is_printed_from_the_store_and_asked_again_when_expired(): void
+    {
+        $connection = $this->connect();
+        $shipment = $this->ship($this->confirmedOrder(), $connection);
+        $link = fn (int $expires, string $token) => "https://rapide.jibiat.com/etiquette-partagee/12/{$expires}/{$token}";
+        $old = $link(now()->subHour()->timestamp, str_repeat('a', 40));
+        $fresh = $link(now()->addDays(7)->timestamp, str_repeat('b', 40));
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('confirmed', ['label_url' => $old])], 'evt-1')->assertOk();
+        $this->storeApi($this->store, 'GET', "orders/{$shipment->order_id}")->assertJsonPath('data.shipments.0.label_url', '/api/v1/shipments/'.$shipment->id.'/label');
+
+        // Lien expiré : redemandé à l'entreprise ; une course sans label_url (ancienne version) garde le dernier lien
+        $this->stub([self::API.'/orders/LV-7K2M-QX9P' => Http::response(['data' => $this->remoteOrder('confirmed', ['label_url' => $fresh])])]);
+        $this->storeApi($this->store, 'GET', "shipments/{$shipment->id}/label")->assertRedirect($fresh);
+        $this->storeApi($this->store, 'GET', "shipments/{$shipment->id}/label")->assertRedirect($fresh);
+        $without = $this->remoteOrder('picked_up');
+        unset($without['label_url']);
+        $this->webhook($connection, 'order.status_changed', ['order' => $without], 'evt-2')->assertOk();
+        $this->assertSame($fresh, $shipment->fresh()->carrier_label_url);
+    }
+
     public function test_carrier_zones_are_read_again_every_night(): void
     {
         $connection = $this->connect();
