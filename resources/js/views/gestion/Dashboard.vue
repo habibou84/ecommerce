@@ -54,7 +54,7 @@ const welcome = computed(() => route.query.bienvenue === '1')
 const subscription = computed(() => auth.store?.subscription)
 // L'abonnement ne concerne que le propriétaire
 const trialDays = computed(() =>
-  auth.can('billing.manage') && subscription.value?.status === 'trialing' ? daysUntil(subscription.value.trial_ends_at) : null,
+  auth.can('billing.manage') && !auth.store?.free && subscription.value?.status === 'trialing' ? daysUntil(subscription.value.trial_ends_at) : null,
 )
 const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
 

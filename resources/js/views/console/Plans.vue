@@ -7,13 +7,34 @@ const data = ref(null)
 const error = ref('')
 const saved = ref(null)
 
+// Gratuité pour tous : offre donnée, date de fin facultative, bandeau, délai donné à la fin
+const free = ref(null)
+const freeError = ref('')
+const freeSaved = ref('')
+
 onMounted(async () => {
   try {
     data.value = (await http.get('/console/plans')).data
+    free.value = (await http.get('/console/free')).data.data
+    free.value.plan ??= 'pro'
   } catch (e) {
     error.value = errorMessage(e)
   }
 })
+
+async function saveFree(enabled = free.value.enabled) {
+  freeError.value = ''
+  freeSaved.value = ''
+  if (!enabled && free.value.active && !window.confirm(`Arrêter la gratuité ? Chaque espace marchand qui ne paie pas gardera l'offre ${free.value.plan} pendant ${free.value.grace_days} jours, puis devra choisir une offre.`)) return
+  try {
+    free.value = (await http.put('/console/free', {
+      enabled, plan: free.value.plan, until: free.value.until || null, banner: free.value.banner || null, grace_days: Number(free.value.grace_days),
+    })).data.data
+    freeSaved.value = enabled ? 'Gratuité en place ✓' : 'Gratuité arrêtée ✓'
+  } catch (e) {
+    freeError.value = errorMessage(e)
+  }
+}
 
 async function save(plan) {
   error.value = ''
@@ -36,6 +57,35 @@ async function save(plan) {
 
 <template>
   <div class="space-y-4">
+    <section v-if="free" class="card space-y-3 p-4 text-sm" :class="free.active ? 'border-emerald-600 ring-1 ring-emerald-600' : ''">
+      <div class="flex flex-wrap items-center gap-2">
+        <h2 class="text-base font-semibold">Jibiat Marchand gratuit pour tous</h2>
+        <span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="free.active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'">{{ free.active ? 'En cours' : 'Arrêtée' }}</span>
+      </div>
+      <p class="text-slate-600">
+        Tous les espaces marchands ont l'offre choisie sans payer : pas de fin d'essai ni de relance. Un abonnement payé plus élevé est gardé.
+        Les limites de l'offre restent appliquées (dont l'assistant IA). À l'arrêt, chaque espace marchand qui ne paie pas garde l'offre pendant le délai, puis choisit la sienne.
+      </p>
+      <Alert v-if="freeError">{{ freeError }}</Alert>
+      <div class="grid gap-3 sm:grid-cols-3">
+        <label>Offre donnée
+          <select v-model="free.plan" class="input"><option v-for="p in data?.data.filter((x) => x.code !== 'free')" :key="p.code" :value="p.code">{{ p.name }}</option></select>
+        </label>
+        <label>Jusqu'au (facultatif)<input v-model="free.until" type="date" class="input" /></label>
+        <label>Délai à l'arrêt (jours)<input v-model="free.grace_days" type="number" min="1" max="90" class="input" /></label>
+      </div>
+      <label class="block">Bandeau affiché aux marchands (facultatif)<input v-model="free.banner" class="input" maxlength="160" placeholder="ex. Jibiat Marchand est gratuit en ce moment 🎉" /></label>
+      <div class="flex flex-wrap items-center gap-2">
+        <template v-if="free.active">
+          <button class="btn-brand" @click="saveFree(true)">Enregistrer</button>
+          <button class="btn-ghost text-red-600" @click="saveFree(false)">Arrêter la gratuité</button>
+        </template>
+        <button v-else class="btn-brand" :disabled="!free.plan" @click="saveFree(true)">Rendre gratuit pour tous</button>
+        <span v-if="freeSaved" class="text-emerald-700">{{ freeSaved }}</span>
+        <span class="ml-auto text-xs text-slate-500">{{ free.forever_count }} espace(s) marchand(s) « gratuit à vie »</span>
+      </div>
+    </section>
+
     <p class="text-sm text-slate-600">Prix en FCFA (multiples de 5). Limite vide : illimitée. Les changements s'appliquent aussitôt à tous les espaces marchands de l'offre.</p>
     <Alert v-if="error">{{ error }}</Alert>
     <div v-if="data" class="grid gap-4 lg:grid-cols-2">

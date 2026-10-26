@@ -91,6 +91,14 @@ class Store extends Model
     }
 
     /**
+     * Offre « gratuit à vie » donnée depuis la console.
+     */
+    public function freePlan(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class, 'free_plan_id');
+    }
+
+    /**
      * Boutique dont l'adresse héberge celle-ci (offre Business).
      */
     public function host(): BelongsTo

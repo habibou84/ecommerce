@@ -132,6 +132,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('stores/{store}/offer', [ConsoleController::class, 'offer'])->whereNumber('store')->name('stores.offer');
             Route::post('stores/{store}/support', [ConsoleController::class, 'support'])->whereNumber('store')->name('stores.support');
             Route::post('support-sessions/{session}/end', [ConsoleController::class, 'endSupport'])->whereNumber('session')->name('support.end');
+            Route::post('stores/{store}/free', [ConsoleController::class, 'storeFree'])->whereNumber('store')->name('stores.free');
+            Route::get('free', [ConsoleController::class, 'free'])->name('free');
+            Route::put('free', [ConsoleController::class, 'updateFree'])->name('free.update');
             Route::get('plans', [ConsoleController::class, 'plans'])->name('plans');
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');

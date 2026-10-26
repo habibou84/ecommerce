@@ -15,6 +15,7 @@ use App\Models\SubscriptionInvoice;
 use App\Models\SupportSession;
 use App\Services\Ai\AiCosts;
 use App\Services\Billing\Billing;
+use App\Services\Billing\FreeAccess;
 use App\Services\Billing\PlanLimits;
 use App\Services\Console\SupportSessions;
 use Illuminate\Http\JsonResponse;
@@ -91,6 +92,8 @@ class ConsoleController extends Controller
             'suspended_reason' => $model->suspended_reason,
             'owner' => ['id' => $model->owner->id, 'name' => $model->owner->name, 'phone' => PhoneNumber::display($model->owner->phone), 'email' => $model->owner->email],
             'members' => $model->members()->where('status', 'active')->count(),
+            'free_forever' => $model->freePlan?->code,
+            'free' => app(FreeAccess::class)->present($model),
             'subscription' => ($sub = $model->currentSubscription) ? [
                 'status' => $sub->status->value, 'billing_cycle' => $sub->billing_cycle, 'trial_ends_at' => $sub->trial_ends_at?->toIso8601String(),
                 'current_period_end' => $sub->current_period_end?->toIso8601String(), 'cancel_at_period_end' => $sub->cancel_at_period_end,
@@ -187,6 +190,44 @@ class ConsoleController extends Controller
         $sessions->end($model, $request->user());
 
         return response()->json(['message' => 'Session terminée.']);
+    }
+
+    /**
+     * Gratuité pour tous : offre donnée, date de fin facultative, bandeau, délai donné à la fin.
+     */
+    public function free(FreeAccess $free): JsonResponse
+    {
+        return response()->json(['data' => $free->settings() + ['active' => $free->globalPlan() !== null, 'forever_count' => Store::whereNotNull('free_plan_id')->count()]]);
+    }
+
+    public function updateFree(Request $request, FreeAccess $free): JsonResponse
+    {
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'plan' => ['required', Rule::exists('plans', 'code')->whereNot('code', 'free')],
+            'until' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'banner' => ['nullable', 'string', 'max:160'],
+            'grace_days' => ['required', 'integer', 'between:1,90'],
+        ], [], ['plan' => 'offre', 'until' => 'date de fin', 'banner' => 'bandeau', 'grace_days' => 'délai']);
+        $before = $free->settings();
+        $ended = $free->update($data);
+        $this->log($request, null, 'free_updated', ['before' => $before, 'after' => $data, 'grace_given' => $ended]);
+
+        return $this->free(app(FreeAccess::class));
+    }
+
+    /**
+     * « Gratuit à vie » pour un espace marchand (offre au choix), ou retrait.
+     */
+    public function storeFree(Request $request, int $store): JsonResponse
+    {
+        $data = $request->validate(['plan' => ['nullable', Rule::exists('plans', 'code')->whereNot('code', 'free')]], [], ['plan' => 'offre']);
+        $model = Store::findOrFail($store);
+        $plan = $data['plan'] ? Plan::where('code', $data['plan'])->firstOrFail() : null;
+        $model->forceFill(['free_plan_id' => $plan?->id])->save();
+        $this->log($request, $model, $plan ? 'free_forever' : 'free_forever_removed', $plan ? ['plan' => $plan->code] : []);
+
+        return $this->store($model->id);
     }
 
     public function plans(): JsonResponse

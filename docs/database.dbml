@@ -49,6 +49,7 @@ Table stores {
   id bigint [pk, increment]
   owner_id bigint [ref: > users.id, not null]
   billing_store_id bigint [ref: > stores.id, note: 'boutique du même propriétaire dont l\'abonnement (offre Business) couvre celle-ci']
+  free_plan_id bigint [ref: > plans.id, note: 'offre « gratuit à vie » donnée depuis la console']
   referred_by varchar(80) [note: 'slug de l\'entreprise de livraison (annuaire de Jibiat) qui a parrainé la boutique : mois d\'essai en plus, part de l\'abonnement (referral_commissions)']
   auto_replies json [note: 'réponses automatiques (boîte Messages) : enabled, when (always | away), from, to, per_hour ; désactivées par défaut']
   host_store_id bigint [ref: > stores.id, note: 'boutique dont l\'adresse héberge celle-ci (gestion commune, page {adresse}/{path}) ; son propre sous-domaine redirige']
