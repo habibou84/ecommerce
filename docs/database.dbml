@@ -2097,3 +2097,47 @@ Table store_exports {
   updated_at timestamp
   Note: 'Export complet des données (archive ZIP de CSV). stores.closed_reason : motif donné à la fermeture en libre-service.'
 }
+
+Table accessories {
+  id bigint [pk]
+  name varchar
+  category varchar [note: 'impression, live, caisse, consommables']
+  description text
+  price int
+  cost_price int [note: 'prix d\'achat (stock de la plateforme) : marge']
+  stock int [note: 'vide : non suivi']
+  supplier varchar [note: 'own (stock de la plateforme) ou partner']
+  partner_name varchar
+  partner_phone varchar
+  commission_type varchar [note: 'percent ou amount']
+  commission_value int
+  image_path varchar
+  is_active boolean
+  sort int
+  Note: 'Matériel vendu aux e-commerçants par la plateforme (Console › Matériel)'
+}
+
+Table accessory_orders {
+  id bigint [pk]
+  number varchar [unique, note: 'MAT-AAAA-000001']
+  store_id bigint [ref: > stores.id]
+  user_id bigint [ref: > users.id]
+  status varchar [note: 'pending, confirmed, preparing, shipping, delivered, cancelled']
+  items json [note: 'lignes figées : nom, prix, quantité, fournisseur, gain']
+  subtotal int
+  delivery json [note: 'option de livraison choisie (nom, prix, adresse demandée)']
+  delivery_fee int
+  total int
+  earnings int [note: 'marge + commissions ; vide si inconnu']
+  payment_method varchar [note: 'wave ou cod (à la livraison)']
+  payment_status varchar [note: 'unpaid, claimed, paid']
+  payer_phone varchar
+  contact_name varchar
+  contact_phone varchar
+  address varchar
+  notes varchar
+  claimed_at timestamp
+  paid_at timestamp
+  delivered_at timestamp
+  Note: 'Commandes de matériel des espaces marchands'
+}

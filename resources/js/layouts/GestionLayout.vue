@@ -60,6 +60,7 @@ const groups = [
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/whatsapp', label: 'WhatsApp' },
     { to: '/gestion/textes-messages', label: 'Textes des messages' },
+    { to: '/gestion/materiel', label: 'Matériel (étiquettes, live…)' },
     { to: '/gestion/mes-boutiques', label: 'Ajouter une boutique', single: true },
   ] },
 ]
@@ -67,6 +68,8 @@ const groups = [
 function canOpen(path) {
   const { meta } = router.resolve(path)
   if (meta.owner && !auth.profile?.is_owner) return false
+  // Page proposée seulement quand la plateforme l'ouvre (ex. matériel)
+  if (meta.feature && !auth.profile?.[meta.feature]) return false
   if (meta.permissionAny) return meta.permissionAny.some((p) => auth.can(p))
   return !meta.permission || auth.can(meta.permission)
 }
