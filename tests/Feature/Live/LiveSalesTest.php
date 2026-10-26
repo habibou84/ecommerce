@@ -138,6 +138,33 @@ class LiveSalesTest extends TestCase
         $this->page('POST', '/live/reserver', ['item_id' => $items[1]['id'], 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $angre->id])->assertNotFound();
     }
 
+    public function test_the_dashboard_puts_the_live_first(): void
+    {
+        // Aucun live : invitation à en préparer un
+        $this->storeApi($this->store, 'GET', 'dashboard')->assertOk()->assertJsonPath('data.live.state', 'idle')
+            ->assertJsonPath('data.live.session', null)->assertJsonPath('data.live.last', null);
+
+        // Live préparé, pas encore lancé
+        $draft = $this->storeApi($this->store, 'POST', 'lives', ['title' => 'Arrivage wax', 'hold_minutes' => 30, 'items' => [
+            ['variant_id' => $this->robe->variants()->value('id'), 'quantity' => 1],
+        ]])->assertCreated()->json('data.id');
+        $this->storeApi($this->store, 'GET', 'dashboard')->assertJsonPath('data.live.state', 'ready')
+            ->assertJsonPath('data.live.session.id', $draft)->assertJsonPath('data.live.session.items_count', 1);
+
+        // En direct : montant vendu, réservations, articles épuisés
+        $this->storeApi($this->store, 'POST', "lives/{$draft}/start")->assertOk();
+        $item = $this->page('GET', '/live/etat')->json('data.items.0.id');
+        $this->page('POST', '/live/reserver', ['item_id' => $item, 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $this->place('Angré')->id])->assertOk();
+        $this->storeApi($this->store, 'GET', 'dashboard')->assertJsonPath('data.live.state', 'live')
+            ->assertJsonPath('data.live.session.summary.amount', 15000)->assertJsonPath('data.live.session.summary.reservations', 1)
+            ->assertJsonPath('data.live.session.sold_out', 1);
+
+        // Terminé : de nouveau l'invitation, avec le résultat du dernier live
+        $this->storeApi($this->store, 'POST', "lives/{$draft}/end")->assertOk();
+        $this->storeApi($this->store, 'GET', 'dashboard')->assertJsonPath('data.live.state', 'idle')
+            ->assertJsonPath('data.live.last.id', $draft)->assertJsonPath('data.live.last.orders', 1)->assertJsonPath('data.live.last.amount', 15000);
+    }
+
     public function test_the_live_page_takes_several_items_and_pieces_in_one_order(): void
     {
         $this->prepare(robes: 1);
