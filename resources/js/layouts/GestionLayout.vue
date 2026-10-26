@@ -120,7 +120,7 @@ watch(() => route.path, refreshBadges)
 const guideStep = ref(guideCurrent())
 watch(() => route.fullPath, () => { guideStep.value = guideCurrent() })
 
-// Barre du bas (téléphone) : accueil, commandes, nouvelle commande, messages, le reste du menu
+// Barre du bas (téléphone) : accueil, commandes, nouvelle commande, live, messages, le reste du menu
 const bottomTabs = computed(() => [
   { to: '/gestion', label: 'Accueil', icon: 'home', exact: true },
   { to: '/gestion/commandes', label: 'Commandes', icon: 'orders' },
@@ -336,7 +336,7 @@ async function switchTo(store) {
     </div>
     <!-- Téléphone : les gestes de tous les jours sous le pouce -->
     <nav class="hide-on-keyboard fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
-      <div class="mx-auto grid max-w-md grid-cols-5 items-end">
+      <div class="mx-auto grid max-w-md items-end" :class="canOpen('/gestion/live') ? 'grid-cols-6' : 'grid-cols-5'">
         <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
           <Icon :name="tab.icon" :size="22" />{{ tab.label }}
         </RouterLink>
@@ -345,6 +345,9 @@ async function switchTo(store) {
             <Icon name="plus" :size="26" />
           </RouterLink>
         </div>
+        <RouterLink v-if="canOpen('/gestion/live')" to="/gestion/live" class="flex flex-col items-center gap-0.5 py-2 text-[11px] font-bold" :class="isActive({ to: '/gestion/live' }) ? 'text-ocre-700' : 'text-ocre-600'">
+          <Icon name="live" :size="22" />Live
+        </RouterLink>
         <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium" :class="isActive({ to: '/gestion/messages' }) ? 'text-emerald-700' : 'text-slate-600'">
           <Icon name="messages" :size="22" />Messages
           <span v-if="badges.messages" class="absolute right-[calc(50%-20px)] top-1 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-semibold leading-[18px] text-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>

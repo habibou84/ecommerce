@@ -6,7 +6,9 @@ use App\Enums\OrderStatus;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
+use App\Models\LiveSession;
 use App\Models\Order;
+use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Reports\DailyAdvice;
 use App\Services\Shipping\OutsideStock;
@@ -46,6 +48,11 @@ class DashboardController extends Controller
             $data['week'] = $this->week();
         }
 
+        // Vendre en live : en tête de l'accueil
+        if ($user->can(Permission::OrdersManage->value)) {
+            $data['live'] = $this->live();
+        }
+
         // Boîte Messages : conversations pas encore lues
         if ($user->can(Permission::OrdersManage->value) || $user->can(Permission::OrdersConfirm->value)) {
             $data['unread_messages'] = Conversation::query()->where('unread_count', '>', 0)->count();
@@ -72,6 +79,38 @@ class DashboardController extends Controller
         }
 
         return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Carte « Vendre en live » : le live en cours avec ses chiffres, sinon le live prêt à lancer, sinon une invitation
+     * avec le résultat du dernier live.
+     *
+     * @return array<string, mixed>
+     */
+    private function live(): array
+    {
+        $store = $this->currentStore();
+        $sales = app(LiveSales::class);
+        $present = fn (LiveSession $s) => ['id' => $s->id, 'title' => $s->title, 'items_count' => $s->items()->count()];
+
+        if (($current = LiveSales::current($store->id)) !== null) {
+            $items = $current->items()->get();
+
+            return ['state' => 'live', 'page_url' => $store->url('/live'), 'session' => $present($current) + [
+                'started_at' => $current->started_at?->toIso8601String(),
+                'summary' => $sales->summary($current),
+                'sold_out' => $items->filter(fn ($item) => $sales->remaining($item) === 0)->count(),
+            ]];
+        }
+        $draft = LiveSession::forStore($store->id)->where('status', 'draft')->latest('id')->first();
+        $last = LiveSession::forStore($store->id)->where('status', 'ended')->latest('ended_at')->first();
+
+        return [
+            'state' => $draft !== null ? 'ready' : 'idle',
+            'page_url' => $store->url('/live'),
+            'session' => $draft !== null ? $present($draft) : null,
+            'last' => $last !== null ? ['id' => $last->id, 'title' => $last->title, 'ended_at' => $last->ended_at?->toIso8601String()] + array_intersect_key($sales->summary($last), array_flip(['orders', 'amount'])) : null,
+        ];
     }
 
     /**
