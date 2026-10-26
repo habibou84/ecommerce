@@ -2141,3 +2141,37 @@ Table accessory_orders {
   delivered_at timestamp
   Note: 'Commandes de matériel des espaces marchands'
 }
+
+Table access_key_batches {
+  id bigint [pk]
+  kind varchar [note: 'founder (offre à vie, cartes numérotées) ou timed (durée en mois)']
+  plan_id bigint [ref: > plans.id]
+  months smallint [note: 'clés à durée seulement']
+  quantity int
+  distributor_name varchar
+  distributor_phone varchar
+  note varchar
+  created_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Lots de clés d’accès (cartes à QR code) créés dans la console'
+}
+
+Table access_keys {
+  id bigint [pk]
+  batch_id bigint [ref: > access_key_batches.id]
+  number int [note: 'numéro de la carte dans le lot']
+  code varchar [unique, note: '8 caractères, dans le QR code (jibiat-marchand.com/cle/CODE)']
+  store_id bigint [ref: > stores.id, note: 'espace marchand qui l’a activée (une seule fois)']
+  activated_at timestamp
+  expires_at timestamp [note: 'clés à durée']
+  paused_at timestamp [note: 'fondateur : en pause sans commande depuis 60 jours (rallumée à la commande suivante)']
+  warned_at timestamp
+  ended_at timestamp
+  revoked_at timestamp [note: 'annulée depuis la console']
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (batch_id, number) [unique]
+  }
+}

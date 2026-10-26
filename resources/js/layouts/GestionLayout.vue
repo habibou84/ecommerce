@@ -288,7 +288,7 @@ async function switchTo(store) {
         <div v-if="profileMenu" class="absolute inset-x-3 bottom-full mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
           <RouterLink to="/gestion/compte" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">Mon compte</RouterLink>
           <RouterLink v-if="auth.can('billing.manage')" to="/gestion/abonnement" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">
-            Abonnement<span v-if="auth.store?.subscription" class="block text-xs text-slate-500">Offre {{ auth.store.free?.plan ?? auth.store.subscription.plan }}<template v-if="auth.store.free"> · offerte</template><template v-else-if="auth.store.subscription.status === 'trialing'"> · essai</template></span>
+            Abonnement<span v-if="auth.store?.free || auth.store?.subscription" class="block text-xs text-slate-500">Offre {{ auth.store.free?.plan ?? auth.store.subscription.plan }}<template v-if="auth.store.free"> · offerte</template><template v-else-if="auth.store.subscription.status === 'trialing'"> · essai</template></span>
           </RouterLink>
           <button type="button" class="block w-full rounded-lg border-t border-slate-100 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50" @click="logout">Déconnexion</button>
         </div>
@@ -297,6 +297,7 @@ async function switchTo(store) {
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-medium">{{ auth.user?.name }}</span>
             <span class="block truncate text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
+            <span v-if="auth.store?.access_key?.founder" class="block truncate text-xs font-semibold text-amber-700">🏅 {{ auth.store.access_key.badge }}</span>
           </span>
           <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400 transition" :class="{ 'rotate-180': profileMenu }" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 14 5-5 5 5" /></svg>
         </button>

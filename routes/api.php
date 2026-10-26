@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\Api\V1\AccessKeyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingController;
 use App\Http\Controllers\Api\V1\Catalog\BundleController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Api\V1\Catalog\CollectionController;
 use App\Http\Controllers\Api\V1\Catalog\ProductController;
 use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
+use App\Http\Controllers\Api\V1\Console\ConsoleAccessKeyController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
@@ -86,6 +88,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
         Route::get('signup/slug', [SignupController::class, 'checkSlug'])->middleware('throttle:60,1')->name('signup.slug');
         Route::get('signup/partner', [SignupController::class, 'partner'])->middleware('throttle:60,1')->name('signup.partner');
         Route::post('signup', [SignupController::class, 'start'])->middleware('throttle:verification-start')->name('signup');
+        // Clé d'accès d'une carte à QR code (page jibiat-marchand.com/cle/CODE)
+        Route::get('access-keys/{code}', [AccessKeyController::class, 'show'])->where('code', '[A-Za-z0-9-]{1,20}')->middleware('throttle:20,1')->name('access-keys.show');
 
         Route::post('account/login', [PlatformAccountController::class, 'login'])->middleware('throttle:login')->name('account.login');
         Route::post('account/whatsapp', [PlatformAccountController::class, 'whatsapp'])->middleware('throttle:verification-start')->name('account.whatsapp');
@@ -138,6 +142,12 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('free', [ConsoleController::class, 'free'])->name('free');
             Route::put('free', [ConsoleController::class, 'updateFree'])->name('free.update');
             Route::get('plans', [ConsoleController::class, 'plans'])->name('plans');
+            // Clés d'accès (cartes à QR code) : lots, cartes à imprimer, annulation
+            Route::get('access-keys', [ConsoleAccessKeyController::class, 'index'])->name('access-keys');
+            Route::post('access-keys', [ConsoleAccessKeyController::class, 'store'])->name('access-keys.store');
+            Route::get('access-keys/{batch}', [ConsoleAccessKeyController::class, 'show'])->whereNumber('batch')->name('access-keys.show');
+            Route::get('access-keys/{batch}/cards', [ConsoleAccessKeyController::class, 'cards'])->whereNumber('batch')->name('access-keys.cards');
+            Route::post('access-keys/keys/{key}/revoke', [ConsoleAccessKeyController::class, 'revoke'])->whereNumber('key')->name('access-keys.revoke');
             // Matériel vendu aux e-commerçants : produits, commandes, réglages
             Route::get('materiel', [ConsoleMaterielController::class, 'index'])->name('materiel');
             Route::put('materiel/settings', [ConsoleMaterielController::class, 'settings'])->name('materiel.settings');
@@ -248,6 +258,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('/', [BillingController::class, 'show'])->name('show');
                 Route::post('checkout', [BillingController::class, 'checkout'])->middleware('throttle:10,1')->name('checkout');
                 Route::post('ai-pack', [BillingController::class, 'aiPack'])->middleware('throttle:10,1')->name('ai-pack');
+                Route::post('access-key', [AccessKeyController::class, 'redeem'])->middleware('throttle:10,1')->name('access-key');
                 Route::post('invoices/{number}/check', [BillingController::class, 'check'])->where('number', 'JM-\\d{4}-\\d{6}')->name('check');
                 Route::post('invoices/{number}/paid', [BillingController::class, 'claimPaid'])->middleware('throttle:10,1')->where('number', 'JM-\\d{4}-\\d{6}')->name('paid');
                 Route::get('invoices/{invoice}/receipt', [BillingController::class, 'receipt'])->whereNumber('invoice')->name('receipt');
