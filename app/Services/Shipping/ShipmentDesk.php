@@ -156,6 +156,7 @@ class ShipmentDesk
             $shipment->forceFill([
                 'carrier_tracking_code' => $remote->trackingCode !== '' ? $remote->trackingCode : null,
                 'carrier_tracking_url' => $remote->trackingUrl,
+                'carrier_label_url' => $remote->labelUrl,
                 'carrier_status' => $remote->rawStatus,
                 'carrier_fee' => $remote->fee,
                 'delivery_code' => $remote->deliveryCode,
@@ -485,6 +486,8 @@ class ShipmentDesk
             $shipment->forceFill(array_filter([
                 'carrier_status' => $stale ? null : $remote->rawStatus,
                 'carrier_tracking_url' => $remote->trackingUrl,
+                // Étiquette : le dernier lien reçu (une ancienne version de l'entreprise n'en envoie pas)
+                'carrier_label_url' => $remote->labelUrl ?? $shipment->carrier_label_url,
                 'carrier_fee' => $remote->fee,
                 'collected_amount' => $remote->collected,
                 'delivery_code' => $remote->deliveryCode,
