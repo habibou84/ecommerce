@@ -21,6 +21,8 @@ class OrderDraftTest extends TestCase
     {
         parent::setUp();
         $this->store = $this->createStore(['name' => 'Awa Mode']);
+        // L'assistant IA n'est compris dans aucune offre : actions rechargées
+        $this->store->forceFill(['ai_credits' => 100])->save();
         $this->actingAs($this->store->owner);
         $this->ai = new FakeAiClient;
         $this->app->instance(AiClient::class, $this->ai);

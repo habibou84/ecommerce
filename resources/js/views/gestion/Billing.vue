@@ -63,8 +63,10 @@ const weekly = computed(() => paidPlans.value.some((p) => p.weekly_price))
 const yearlySaving = (p) => (p.yearly_price ? Math.max(0, p.monthly_price * 12 - p.yearly_price) : 0)
 const bestSaving = computed(() => Math.max(0, ...paidPlans.value.map(yearlySaving)))
 const percent = (u) => (u.limit ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0)
-// Utilisation affichée : le nombre de boutiques seulement pour une offre qui en couvre plusieurs
-const usage = computed(() => Object.fromEntries(Object.entries(data.value?.usage ?? {}).filter(([key, u]) => key !== 'stores' || (u.limit !== 1 && !data.value.covered_by))))
+// Utilisation affichée : le nombre de boutiques seulement pour une offre qui en couvre plusieurs ; l'assistant IA
+// seulement si l'offre en comprend (sinon il marche avec les recharges)
+const usage = computed(() => Object.fromEntries(Object.entries(data.value?.usage ?? {}).filter(([key, u]) => (key !== 'stores' || (u.limit !== 1 && !data.value.covered_by)) && (key !== 'ai_actions_per_month' || u.limit !== 0))))
+const aiInPlan = computed(() => data.value?.usage?.ai_actions_per_month?.limit !== 0)
 const changing = computed(() => !!selected.value && (selected.value.code !== data.value?.plan.code))
 // Jours payés non utilisés : convertis en jours de la nouvelle offre
 const creditDays = computed(() => {
@@ -187,7 +189,7 @@ async function cancel(value) {
           <span v-if="choice.cycle === 'yearly' && yearlySaving(p)" class="text-xs font-medium text-emerald-700">{{ money(yearlySaving(p)) }} d'économie par an</span>
           <ul class="space-y-0.5 text-slate-600">
             <li class="text-emerald-800">✓ Boutique en ligne{{ p.features.includes('custom_domain') ? ' à votre nom de domaine' : '' }}</li>
-            <li v-for="(label, key) in LIMITS" :key="key">{{ limitLine(p, key) }} {{ label }}</li>
+            <template v-for="(label, key) in LIMITS" :key="key"><li v-if="key !== 'ai_actions_per_month' || p.limits[key] !== 0">{{ limitLine(p, key) }} {{ label }}</li></template>
             <li v-if="p.features.includes('multi_store')" class="text-emerald-800">✓ {{ p.limits.stores ? `Jusqu'à ${p.limits.stores} boutiques` : 'Toutes vos boutiques' }} sous un seul abonnement</li>
             <template v-for="f in p.features" :key="f">
               <li v-if="f !== 'multi_store' && f !== 'custom_domain'" :class="data.coming_soon.includes(f) ? 'text-slate-400' : 'text-emerald-800'">✓ {{ FEATURES[f] ?? f }}<template v-if="data.coming_soon.includes(f)"> (bientôt)</template></li>
@@ -210,10 +212,12 @@ async function cancel(value) {
       </div>
     </section>
 
-    <section v-if="data.ai_pack && usage.ai_actions_per_month" class="card space-y-3 p-4 text-sm">
-      <h3 class="font-semibold">Recharger l'assistant</h3>
+    <section v-if="data.ai_pack" class="card space-y-3 p-4 text-sm">
+      <h3 class="font-semibold">{{ aiInPlan ? 'Recharger l\'assistant' : 'Assistant IA' }}</h3>
       <p class="text-slate-600">
-        {{ data.ai_pack.actions }} actions de plus pour {{ money(data.ai_pack.price) }}, utilisées quand celles de votre offre sont épuisées. Elles ne périment pas.
+        <template v-if="aiInPlan">{{ data.ai_pack.actions }} actions de plus pour {{ money(data.ai_pack.price) }}, utilisées quand celles de votre offre sont épuisées.</template>
+        <template v-else>L'assistant IA se paie à part, quelle que soit votre offre : {{ data.ai_pack.actions }} actions pour {{ money(data.ai_pack.price) }}. Une action, c'est une commande remplie, une fiche produit écrite ou une réponse préparée.</template>
+        Elles ne périment pas.
         <template v-if="data.ai_credits"> En réserve : <strong>{{ data.ai_credits }} actions</strong>.</template>
       </p>
       <label v-if="data.manual_payment" class="block max-w-xs text-sm">Numéro Wave qui va payer

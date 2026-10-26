@@ -23,6 +23,8 @@ class StatsQuestionTest extends TestCase
     {
         parent::setUp();
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
+        // L'assistant IA n'est compris dans aucune offre : actions rechargées
+        $this->store->forceFill(['ai_credits' => 100])->save();
         app(Places::class)->provisionDefaultZone($this->store);
         $this->actingAs($this->store->owner);
         $this->ai = new FakeAiClient;

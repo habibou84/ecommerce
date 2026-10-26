@@ -21,9 +21,9 @@
     $aiPack = config('platform.ai_pack');
     $partnerTrial = \App\Support\TrialOffer::duration(\App\Support\TrialOffer::partnerDays());
     $faq = [
-        ['Combien ça coûte ?', 'Vous commencez avec '.$trial.' de l\'offre '.$trialPlan.' offert : l\'assistant, WhatsApp automatique, les statistiques avancées, le paiement en ligne, sans carte bancaire. Ensuite, l\'offre Gratuit reste disponible'.($fromMonthly ? ', et les offres payantes commencent à '.$f($fromMonthly).' par mois'.($fromWeekly ? ', ou '.$f($fromWeekly).' par semaine' : '') : '').'.'],
+        ['Combien ça coûte ?', 'Vous commencez avec '.$trial.' de l\'offre '.$trialPlan.' offert : WhatsApp automatique, les statistiques avancées, le paiement en ligne, sans carte bancaire. Ensuite, l\'offre Gratuit reste disponible'.($fromMonthly ? ', et les offres payantes commencent à '.$f($fromMonthly).' par mois'.($fromWeekly ? ', ou '.$f($fromWeekly).' par semaine' : '') : '').'. L\'assistant IA se paie à part, par recharge.'],
         ['Comment je paie mon abonnement ?', 'Sans carte bancaire : par Wave, Orange Money, MTN ou Moov, depuis votre téléphone. À la semaine, au mois ou à l\'année (12 mois pour le prix de 10). Vous recevez une facture à chaque paiement, et rien n\'est prélevé tout seul.'],
-        ['Et si j\'utilise beaucoup l\'assistant ?', 'Quand les actions de votre offre sont épuisées, rechargez '.$aiPack['actions'].' actions pour '.$f($aiPack['price']).' par Mobile Money, sans changer d\'offre. Elles ne périment pas.'],
+        ['Combien coûte l\'assistant ?', 'Il se paie à part, quelle que soit votre offre : '.$aiPack['actions'].' actions pour '.$f($aiPack['price']).' par Mobile Money. Vous rechargez quand vous voulez, et elles ne périment pas.'],
         ['Mon entreprise de livraison m\'a envoyé un lien. Qu\'est-ce que j\'y gagne ?', 'Si elle est dans l\'annuaire Jibiat, son lien vous offre '.$partnerTrial.' de l\'offre '.$trialPlan.' au lieu de '.$trial.', et vous la connectez en un clic.'],
         ['Que fait l\'assistant ?', 'Il transforme le message WhatsApp d\'un client (même mal écrit, ou en capture d\'écran) en commande, écrit la fiche d\'un produit à partir d\'une photo, prépare vos réponses aux clients avec vos vrais prix et votre stock, rédige vos publications et répond à vos questions sur vos chiffres. Rien n\'est envoyé ni enregistré sans vous.'],
         ['La boutique en ligne est-elle comprise ?', 'Oui, dans toutes les offres, même Gratuit : vos produits en ligne, le panier, la commande et le suivi pour vos clients, à l\'adresse votre-nom.'.config('platform.domain').'. Les offres payantes ajoutent le paiement en ligne, et Pro et Business votre propre nom de domaine.'],
@@ -165,7 +165,7 @@
         <section id="assistant" class="scroll-mt-20 py-16 sm:py-20">
             <div class="mx-auto max-w-6xl px-4">
                 <div class="mx-auto max-w-2xl text-center">
-                    <p class="font-semibold text-emerald-700">Votre assistant, compris dans l'offre</p>
+                    <p class="font-semibold text-emerald-700">Votre assistant, à la recharge</p>
                     <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">Il fait le travail répétitif. Vous vendez.</h2>
                     <p class="mt-4 text-lg text-slate-600">
                         Un assistant d'intelligence artificielle travaille dans votre espace marchand, avec vos vrais produits, vos prix, votre stock et vos frais de livraison.
@@ -198,7 +198,10 @@
                         @if ($aiActions->isNotEmpty())
                             <p class="mt-3 text-2xl font-bold">Par mois : {{ $aiActions->join(', ', ' et ') }}.</p>
                         @endif
-                        <p class="mt-3 text-emerald-100">Une action, c'est une commande remplie, une fiche écrite, une réponse ou une question. Avec l'essai, vous avez {{ $trialActions ? 'les '.number_format($trialActions, 0, ',', ' ').' actions' : 'l\'assistant' }} de l'offre {{ $trialPlan }} dès le premier jour.</p>
+                        @if ($aiActions->isEmpty())
+                            <p class="mt-3 text-2xl font-bold">{{ $aiPack['actions'] }} actions pour {{ $f($aiPack['price']) }}, quelle que soit votre offre.</p>
+                        @endif
+                        <p class="mt-3 text-emerald-100">Une action, c'est une commande remplie, une fiche écrite, une réponse ou une question. Vous rechargez par Mobile Money quand vous voulez, et les actions ne périment pas.</p>
                         <a href="{{ $signupUrl }}" class="btn-brand mt-6 bg-white text-emerald-900 hover:bg-emerald-50">Essayer l'assistant</a>
                     </div>
                 </div>
@@ -336,7 +339,7 @@
                     <h2 class="mt-4 text-4xl font-bold tracking-tight text-balance text-slate-900 sm:text-5xl">{{ ucfirst($trial) }} de l'offre {{ $trialPlan }}, gratuit</h2>
                     <p class="mt-4 text-lg text-slate-800">Toutes les fonctions de l'offre {{ $trialPlan }} dès la création de votre espace marchand. Sans carte bancaire, sans engagement : à la fin, vous choisissez.</p>
                     <ul class="mt-6 grid gap-3 text-slate-900 sm:grid-cols-2">
-                        @foreach ([$trialActions ? number_format($trialActions, 0, ',', ' ').' actions de l\'assistant par mois' : 'L\'assistant', 'Commandes et produits illimités', 'WhatsApp automatique', 'Statistiques avancées', 'Votre nom de domaine', 'Paiement en ligne', 'Livreurs et entreprises de livraison', 'Votre équipe avec ses rôles'] as $item)
+                        @foreach ([...($trialActions ? [number_format($trialActions, 0, ',', ' ').' actions de l\'assistant par mois'] : []), 'Commandes et produits illimités', 'WhatsApp automatique', 'Statistiques avancées', 'Votre nom de domaine', 'Paiement en ligne', 'Livreurs et entreprises de livraison', 'Votre équipe avec ses rôles'] as $item)
                             <li class="flex items-center gap-2 font-medium"><span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-700 text-xs text-white" aria-hidden="true">✓</span>{{ $item }}</li>
                         @endforeach
                     </ul>
@@ -383,8 +386,8 @@
                                     <li>{{ $count('carrier_connections', 'entreprise de livraison', 'entreprises de livraison') ? '✓ '.$count('carrier_connections', 'entreprise de livraison connectée', 'entreprises de livraison connectées') : '— Vos livreurs seulement' }}</li>
                                     <li>✓ {{ $count('couriers', 'livreur', 'livreurs') }}</li>
                                     <li>{{ ! empty($plan->features['online_payment']) ? '✓ Paiement en ligne Wave, Orange Money…' : '— Paiement à la livraison seulement' }}</li>
-                                    @if (array_key_exists('ai_actions_per_month', $limits))
-                                        <li>{{ $limits['ai_actions_per_month'] === 0 ? '— Sans assistant' : '✓ '.($limits['ai_actions_per_month'] === null ? 'Assistant illimité' : number_format($limits['ai_actions_per_month'], 0, ',', ' ').' actions de l\'assistant') }}</li>
+                                    @if (($limits['ai_actions_per_month'] ?? 0) !== 0)
+                                        <li>{{ '✓ '.($limits['ai_actions_per_month'] === null ? 'Assistant illimité' : number_format($limits['ai_actions_per_month'], 0, ',', ' ').' actions de l\'assistant') }}</li>
                                     @endif
                                     @if (! empty($plan->features['whatsapp_api']))
                                         <li>✓ WhatsApp automatique</li>
@@ -397,7 +400,7 @@
                             </div>
                         @endforeach
                     </div>
-                    <p class="mt-6 text-center text-sm text-slate-600">Besoin de plus d'assistant ? Rechargez {{ $aiPack['actions'] }} actions pour {{ $f($aiPack['price']) }}, sans changer d'offre.</p>
+                    <p class="mt-6 text-center text-sm text-slate-600">{{ $aiActions->isEmpty() ? 'L\'assistant IA se paie à part :' : 'Besoin de plus d\'assistant ? Rechargez' }} {{ $aiPack['actions'] }} actions pour {{ $f($aiPack['price']) }}, sans changer d'offre.</p>
                 </div>
             </section>
         @endif

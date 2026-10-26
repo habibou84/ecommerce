@@ -120,10 +120,10 @@ class Assistant
         if ($this->overQuota($store, $limit) && (int) $store->fresh()->ai_credits <= 0) {
             $plan = $this->limits->plan($store)?->name;
             ['actions' => $actions, 'price' => $price] = config('platform.ai_pack');
-            $recharge = "Rechargez {$actions} actions pour ".number_format($price, 0, ',', ' ').' F, ou changez d\'offre, dans Réglages › Abonnement.';
+            $recharge = "Rechargez {$actions} actions pour ".number_format($price, 0, ',', ' ').' F dans Réglages › Abonnement.';
 
             throw new QuotaExceededException($limit === 0
-                ? "L'assistant IA n'est pas compris dans l'offre {$plan}. {$recharge}"
+                ? "L'assistant IA marche avec des recharges, à part de l'offre. {$recharge}"
                 : "Les {$limit} actions de l'assistant IA de l'offre {$plan} sont utilisées ce mois-ci. {$recharge}");
         }
     }
