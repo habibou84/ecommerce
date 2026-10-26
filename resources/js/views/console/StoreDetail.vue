@@ -11,8 +11,13 @@ const store = ref(null)
 const error = ref('')
 const modal = ref(null) // suspend | trial | offer | support
 const form = reactive({ reason: '', days: 14, plan: 'pro', months: 1, minutes: 30 })
+const PLAN_NAMES = { starter: 'Starter', pro: 'Pro', business: 'Business' }
 const busy = ref(false)
-const ACTIONS = { suspend: 'Suspension', reactivate: 'Réactivation', extend_trial: 'Essai prolongé', offer: 'Mois offerts', support_session: 'Session de support' }
+const ACTIONS = { suspend: 'Suspension', reactivate: 'Réactivation', extend_trial: 'Essai prolongé', offer: 'Mois offerts', support_session: 'Session de support', free_forever: 'Gratuit à vie', free_forever_removed: 'Gratuit à vie retiré' }
+
+async function removeFree() {
+  if (window.confirm('Retirer « gratuit à vie » ? L\'espace marchand revient à son abonnement (ou à la gratuité pour tous si elle est en cours).')) await act('free', { plan: null })
+}
 
 async function load() {
   try {
@@ -69,6 +74,8 @@ async function endSession(id) {
       <button class="btn-brand" @click="open('support')">🛟 Session de support</button>
       <button class="btn-secondary" @click="open('trial')">Prolonger l'essai</button>
       <button class="btn-secondary" @click="open('offer')">Offrir des mois</button>
+      <button v-if="!store.free_forever" class="btn-secondary" @click="open('free')">Gratuit à vie</button>
+      <button v-else class="btn-ghost" :disabled="busy" @click="removeFree">Retirer « gratuit à vie »</button>
       <button v-if="store.status !== 'suspended'" class="btn-ghost text-red-600" @click="open('suspend')">Suspendre</button>
       <button v-else class="btn-secondary" :disabled="busy" @click="act('reactivate')">Réactiver</button>
     </div>
@@ -83,6 +90,9 @@ async function endSession(id) {
       </section>
       <section class="card space-y-1 p-4 text-sm">
         <h3 class="mb-1 font-semibold">Abonnement : {{ store.plan }}</h3>
+        <p v-if="store.free" class="rounded-lg bg-emerald-50 px-2 py-1 font-medium text-emerald-800">
+          🎁 {{ store.free.forever ? `Gratuit à vie (offre ${store.free.plan})` : `Gratuité pour tous (offre ${store.free.plan})` }}
+        </p>
         <template v-if="store.subscription">
           <p v-if="store.subscription.status === 'trialing'">Essai jusqu'au {{ formatDateTime(store.subscription.trial_ends_at) }}</p>
           <p v-else>{{ store.subscription.status === 'past_due' ? 'En retard depuis' : 'Jusqu\'au' }} {{ formatDateTime(store.subscription.current_period_end) }} ({{ store.subscription.billing_cycle === 'yearly' ? 'annuel' : 'mensuel' }})</p>
@@ -146,6 +156,14 @@ async function endSession(id) {
         <Field id="offer-plan" label="Offre"><select id="offer-plan" v-model="form.plan" class="input"><option value="starter">Starter</option><option value="pro">Pro</option><option value="business">Business</option></select></Field>
         <Field id="offer-months" label="Mois"><input id="offer-months" v-model="form.months" type="number" min="1" max="24" class="input w-32" /></Field>
         <button class="btn-brand w-full" :disabled="busy">Offrir</button>
+      </form>
+    </Modal>
+    <Modal v-if="modal === 'free'" title="Gratuit à vie" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="act('free', { plan: form.plan })">
+        <Alert v-if="error">{{ error }}</Alert>
+        <p class="text-sm text-slate-600">L'espace marchand a cette offre sans payer et sans date de fin, même quand la gratuité pour tous est arrêtée. Les limites de l'offre s'appliquent.</p>
+        <Field id="free-plan" label="Offre"><select id="free-plan" v-model="form.plan" class="input"><option v-for="(name, code) in PLAN_NAMES" :key="code" :value="code">{{ name }}</option></select></Field>
+        <button class="btn-brand w-full" :disabled="busy">Offrir à vie</button>
       </form>
     </Modal>
     <Modal v-if="modal === 'suspend'" title="Suspendre l'espace marchand" @close="modal = null">

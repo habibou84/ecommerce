@@ -15,6 +15,7 @@ use App\Services\Accounts\StoreRoles;
 use App\Services\Ai\Assistant;
 use App\Services\Console\SupportSessions;
 use App\Services\Couriers\CourierRoster;
+use App\Services\Materiel\MaterielShop;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -192,6 +193,8 @@ class AuthController extends Controller
             'role' => $role ? ['value' => $role->value, 'label' => $role->label()] : null,
             'permissions' => $this->roles->permissionsOf($user, $store),
             'is_owner' => $store->owner_id === $user->id,
+            // Matériel de la plateforme proposé (page « Matériel » et suggestions)
+            'materiel' => app(MaterielShop::class)->open(),
             // Fiche livreur de la personne dans cette boutique : accès à l'application /livreur
             'courier' => ($courier = CourierRoster::of($user, $store)) ? ['id' => $courier->id, 'name' => $courier->name] : null,
             // Session de support : la personne connectée est le support (bandeau), ou un accès du support est ouvert

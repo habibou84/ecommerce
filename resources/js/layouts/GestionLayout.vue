@@ -60,6 +60,7 @@ const groups = [
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/whatsapp', label: 'WhatsApp' },
     { to: '/gestion/textes-messages', label: 'Textes des messages' },
+    { to: '/gestion/materiel', label: 'Matériel (étiquettes, live…)' },
     { to: '/gestion/mes-boutiques', label: 'Ajouter une boutique', single: true },
   ] },
 ]
@@ -67,6 +68,8 @@ const groups = [
 function canOpen(path) {
   const { meta } = router.resolve(path)
   if (meta.owner && !auth.profile?.is_owner) return false
+  // Page proposée seulement quand la plateforme l'ouvre (ex. matériel)
+  if (meta.feature && !auth.profile?.[meta.feature]) return false
   if (meta.permissionAny) return meta.permissionAny.some((p) => auth.can(p))
   return !meta.permission || auth.can(meta.permission)
 }
@@ -285,7 +288,7 @@ async function switchTo(store) {
         <div v-if="profileMenu" class="absolute inset-x-3 bottom-full mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
           <RouterLink to="/gestion/compte" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">Mon compte</RouterLink>
           <RouterLink v-if="auth.can('billing.manage')" to="/gestion/abonnement" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">
-            Abonnement<span v-if="auth.store?.subscription" class="block text-xs text-slate-500">Offre {{ auth.store.subscription.plan }}<template v-if="auth.store.subscription.status === 'trialing'"> · essai</template></span>
+            Abonnement<span v-if="auth.store?.subscription" class="block text-xs text-slate-500">Offre {{ auth.store.free?.plan ?? auth.store.subscription.plan }}<template v-if="auth.store.free"> · offerte</template><template v-else-if="auth.store.subscription.status === 'trialing'"> · essai</template></span>
           </RouterLink>
           <button type="button" class="block w-full rounded-lg border-t border-slate-100 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50" @click="logout">Déconnexion</button>
         </div>
@@ -320,6 +323,8 @@ async function switchTo(store) {
         <span><Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Le support Jibiat Marchand ({{ support.admin }}) a accès à votre gestion jusqu'à {{ supportUntil }} : « {{ support.reason }} »</span>
         <button class="underline" @click="endSupport">Mettre fin</button>
       </div>
+      <!-- Gratuité pour tous, avec le message choisi dans la console -->
+      <div v-if="auth.store?.free?.banner" class="bg-emerald-700 px-4 py-2 text-center text-sm font-semibold text-white">🎁 {{ auth.store.free.banner }}</div>
       <!-- Venu du guide de démarrage : un bandeau pour y revenir une fois le réglage fait -->
       <div v-if="guideStep && route.path !== '/gestion/demarrage'" class="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">
         <Icon name="lightbulb" :size="16" class="shrink-0" />

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
+use App\Http\Controllers\Api\V1\Console\ConsoleMaterielController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
 use App\Http\Controllers\Api\V1\Console\ConsoleTeamController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\Api\V1\Marketing\ReviewController;
 use App\Http\Controllers\Api\V1\Marketing\ShareController;
 use App\Http\Controllers\Api\V1\Marketing\SocialController;
 use App\Http\Controllers\Api\V1\Marketing\TrackingController;
+use App\Http\Controllers\Api\V1\MaterielController;
 use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\Messaging\ConversationController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
@@ -132,7 +134,18 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('stores/{store}/offer', [ConsoleController::class, 'offer'])->whereNumber('store')->name('stores.offer');
             Route::post('stores/{store}/support', [ConsoleController::class, 'support'])->whereNumber('store')->name('stores.support');
             Route::post('support-sessions/{session}/end', [ConsoleController::class, 'endSupport'])->whereNumber('session')->name('support.end');
+            Route::post('stores/{store}/free', [ConsoleController::class, 'storeFree'])->whereNumber('store')->name('stores.free');
+            Route::get('free', [ConsoleController::class, 'free'])->name('free');
+            Route::put('free', [ConsoleController::class, 'updateFree'])->name('free.update');
             Route::get('plans', [ConsoleController::class, 'plans'])->name('plans');
+            // Matériel vendu aux e-commerçants : produits, commandes, réglages
+            Route::get('materiel', [ConsoleMaterielController::class, 'index'])->name('materiel');
+            Route::put('materiel/settings', [ConsoleMaterielController::class, 'settings'])->name('materiel.settings');
+            Route::post('materiel/products', [ConsoleMaterielController::class, 'storeProduct'])->name('materiel.products.store');
+            Route::put('materiel/products/{product}', [ConsoleMaterielController::class, 'updateProduct'])->whereNumber('product')->name('materiel.products.update');
+            Route::post('materiel/products/{product}/image', [ConsoleMaterielController::class, 'image'])->whereNumber('product')->name('materiel.products.image');
+            Route::post('materiel/orders/{order}/status', [ConsoleMaterielController::class, 'advance'])->whereNumber('order')->name('materiel.orders.status');
+            Route::post('materiel/orders/{order}/paid', [ConsoleMaterielController::class, 'paid'])->whereNumber('order')->name('materiel.orders.paid');
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
             Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
@@ -239,6 +252,14 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('invoices/{number}/paid', [BillingController::class, 'claimPaid'])->middleware('throttle:10,1')->where('number', 'JM-\\d{4}-\\d{6}')->name('paid');
                 Route::get('invoices/{invoice}/receipt', [BillingController::class, 'receipt'])->whereNumber('invoice')->name('receipt');
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
+            });
+            // ── Matériel de la plateforme (étiquettes, imprimantes, accessoires de live) ──
+            Route::get('materiel/suggest', [MaterielController::class, 'suggest'])->name('materiel.suggest');
+            Route::middleware('permission:'.Permission::BillingManage->value)->prefix('materiel')->name('materiel.')->group(function () {
+                Route::get('/', [MaterielController::class, 'index'])->name('index');
+                Route::post('orders', [MaterielController::class, 'store'])->middleware('throttle:10,1')->name('orders.store');
+                Route::post('orders/{order}/paid', [MaterielController::class, 'claim'])->whereNumber('order')->middleware('throttle:10,1')->name('orders.paid');
+                Route::post('orders/{order}/cancel', [MaterielController::class, 'cancel'])->whereNumber('order')->name('orders.cancel');
             });
             Route::get('stats', [StatsController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('stats');
             Route::post('stats/ask', [StatsController::class, 'ask'])->middleware(['permission:'.Permission::FinanceView->value, 'throttle:30,1'])->name('stats.ask');

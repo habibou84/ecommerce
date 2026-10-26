@@ -85,6 +85,8 @@ class Billing
 
         return [
             'plan' => ['code' => $plan->code, 'name' => $plan->name],
+            // Gratuité donnée depuis la console (pour tous ou « gratuit à vie »)
+            'free' => app(FreeAccess::class)->present($store),
             // Abonnement d'une autre boutique du propriétaire qui couvre celle-ci
             'covered_by' => $covering ? ['id' => $covering->id, 'name' => $covering->name, 'url' => $covering->url('/gestion/abonnement')] : null,
             // Jours payés non utilisés, convertis en jours supplémentaires en cas de changement d'offre
@@ -358,7 +360,9 @@ class Billing
      */
     public function run(): array
     {
-        $counts = ['reminded' => 0, 'trials_ended' => 0, 'past_due' => 0, 'downgraded' => 0];
+        $free = app(FreeAccess::class);
+        // Fin de la gratuité générale à sa date : chacun reçoit son délai avant les échéances ci-dessous
+        $counts = ['free_ended' => $free->sweep(), 'reminded' => 0, 'trials_ended' => 0, 'past_due' => 0, 'downgraded' => 0];
         $grace = config('platform.billing.grace_days');
         $remind = now()->addDays(config('platform.billing.reminder_days'));
 
@@ -368,6 +372,10 @@ class Billing
         foreach ($subscriptions as $sub) {
             $store = $sub->store;
             if ($store === null || $store->status === StoreStatus::Closed) {
+                continue;
+            }
+            // Gratuité en cours : ni fin d'essai, ni relance, ni retard de paiement
+            if ($free->planFor($store) !== null) {
                 continue;
             }
             $end = $sub->current_period_end;

@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import Modal from '../../components/Modal.vue'
 import http, { download, errorMessage } from '../../lib/http'
-import { formatDateTime, money } from '../../lib/format'
+import { formatDate, formatDateTime, money } from '../../lib/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -148,12 +148,14 @@ async function cancel(value) {
     <section class="card space-y-2 p-4">
       <div class="flex flex-wrap items-baseline gap-2">
         <h3 class="text-lg font-semibold">Offre {{ data.plan.name }}</h3>
-        <span v-if="sub?.status === 'trialing'" class="rounded bg-sky-100 px-2 py-0.5 text-sm text-sky-800">Essai gratuit jusqu'au {{ formatDateTime(sub.trial_ends_at) }}</span>
+        <span v-if="data.free" class="rounded bg-emerald-100 px-2 py-0.5 text-sm font-medium text-emerald-800">🎁 Offerte {{ data.free.forever ? 'sans limite de temps' : data.free.until ? `jusqu'au ${formatDate(data.free.until)}` : 'en ce moment' }}</span>
+        <span v-else-if="sub?.status === 'trialing'" class="rounded bg-sky-100 px-2 py-0.5 text-sm text-sky-800">Essai gratuit jusqu'au {{ formatDateTime(sub.trial_ends_at) }}</span>
         <span v-else-if="sub?.status === 'past_due'" class="rounded bg-amber-100 px-2 py-0.5 text-sm text-amber-900">À renouveler avant le {{ formatDateTime(sub.grace_ends_at) }}</span>
         <span v-else-if="sub" class="text-sm text-slate-600">{{ sub.cancel_at_period_end ? 'Se termine' : 'Renouvellement' }} le {{ formatDateTime(sub.current_period_end) }} · {{ CYCLE_LABEL[sub.billing_cycle] ?? 'mensuel' }}</span>
       </div>
-      <p v-if="sub?.cancel_at_period_end" class="text-sm">Votre espace marchand passera à l'offre gratuite à l'échéance. <button class="text-emerald-700 underline" @click="cancel(false)">Garder mon abonnement</button></p>
-      <p v-else-if="sub && sub.status === 'active'" class="text-sm"><button class="text-slate-500 underline" @click="cancel(true)">Revenir à l'offre gratuite à l'échéance</button></p>
+      <p v-if="data.free" class="text-sm text-slate-600">Jibiat Marchand vous offre l'offre {{ data.free.plan }} : rien à payer{{ data.free.forever ? '' : ' pendant cette période' }}. Ses limites s'appliquent.</p>
+      <p v-else-if="sub?.cancel_at_period_end" class="text-sm">Votre espace marchand passera à l'offre gratuite à l'échéance. <button class="text-emerald-700 underline" @click="cancel(false)">Garder mon abonnement</button></p>
+      <p v-else-if="sub && sub.status === 'active' && !data.free" class="text-sm"><button class="text-slate-500 underline" @click="cancel(true)">Revenir à l'offre gratuite à l'échéance</button></p>
       <div class="grid gap-x-6 gap-y-2 pt-2 sm:grid-cols-2">
         <div v-for="(u, key) in usage" :key="key" class="text-sm">
           <div class="flex justify-between"><span>{{ u.label }}</span><span :class="u.limit !== null && u.used >= u.limit ? 'font-medium text-red-700' : 'text-slate-600'">{{ u.used }}{{ u.limit !== null ? ` / ${u.limit}` : ' · illimité' }}</span></div>
