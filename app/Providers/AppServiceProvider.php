@@ -18,6 +18,7 @@ use App\Services\Ai\AiClient;
 use App\Services\Ai\AnthropicAiClient;
 use App\Services\Billing\AccessKeys;
 use App\Services\Billing\FreeAccess;
+use App\Services\Billing\PremiumCards;
 use App\Services\Customers\Loyalty;
 use App\Services\Mail\GoogleMail;
 use App\Services\Places\Places;
@@ -48,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
         // Gratuité donnée depuis la console : réglages lus une fois par requête
         $this->app->scoped(FreeAccess::class);
         $this->app->scoped(AccessKeys::class);
+        $this->app->scoped(PremiumCards::class);
         // Assistant IA (Claude) ; remplacé par un faux dans les tests
         $this->app->singleton(AiClient::class, fn () => new AnthropicAiClient(config('services.anthropic.key'), (string) config('services.anthropic.model')));
 

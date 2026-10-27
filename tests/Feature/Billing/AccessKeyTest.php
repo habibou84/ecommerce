@@ -92,21 +92,21 @@ class AccessKeyTest extends TestCase
         // Page publique du QR code : sans rien sur la boutique
         $display = substr($codes[1], 0, 4).'-'.substr($codes[1], 4);
         $this->platformApi('GET', 'access-keys/'.strtolower($display))->assertOk()
-            ->assertJsonPath('data.badge', 'Membre fondateur n° 002 / 3')->assertJsonPath('data.plan', 'Pro')->assertJsonPath('data.available', true);
+            ->assertJsonPath('data.badge', 'Membre Premium Jibiat Marchand n° 002 / 3')->assertJsonPath('data.plan', 'Pro')->assertJsonPath('data.available', true);
         $this->platformApi('GET', 'access-keys/AAAA-BBBB')->assertNotFound();
 
         // Activation dans Réglages › Abonnement (boutique à l'offre gratuite)
         $awa = $this->createStore(['slug' => 'awa'], plan: null);
         $this->redeem($awa, 'ZZZZ-ZZZZ')->assertStatus(422)->assertJsonValidationErrors('code');
-        $this->redeem($awa, strtolower($display))->assertOk()->assertJsonPath('data.badge', 'Membre fondateur n° 002')->assertJsonPath('data.state', 'active');
+        $this->redeem($awa, strtolower($display))->assertOk()->assertJsonPath('data.badge', 'Membre Premium Jibiat Marchand n° 002')->assertJsonPath('data.state', 'active');
         $this->billing($awa)->assertJsonPath('data.plan.code', 'pro')->assertJsonPath('data.free.forever', true)->assertJsonPath('data.free.from', 'key')
             ->assertJsonPath('data.access_key.founder', true)->assertJsonPath('data.usage.ai_actions_per_month.limit', 0);
-        $this->storeApi($awa, 'GET', 'auth/me')->assertJsonPath('data.store.access_key.badge', 'Membre fondateur n° 002');
+        $this->storeApi($awa, 'GET', 'auth/me')->assertJsonPath('data.store.access_key.badge', 'Membre Premium Jibiat Marchand n° 002');
 
         // Une seule fois, une seule carte fondateur par boutique
         $this->platformApi('GET', 'access-keys/'.$codes[1])->assertJsonPath('data.available', false);
         $this->redeem($awa, $codes[1])->assertStatus(422)->assertJsonPath('errors.code.0', 'Cette clé est déjà activée sur votre espace marchand.');
-        $this->redeem($awa, $codes[0])->assertStatus(422)->assertJsonPath('errors.code.0', 'Votre espace marchand a déjà sa carte de membre fondateur.');
+        $this->redeem($awa, $codes[0])->assertStatus(422)->assertJsonPath('errors.code.0', 'Votre espace marchand a déjà sa carte Membre Premium.');
         $koffi = $this->createStore(['slug' => 'koffi'], plan: null);
         $this->redeem($koffi, $codes[1])->assertStatus(422)->assertJsonPath('errors.code.0', 'Cette clé a déjà été utilisée.');
 
@@ -130,10 +130,10 @@ class AccessKeyTest extends TestCase
         // Prévenu 15 jours avant la pause, puis en pause
         $this->travel(46)->days();
         app()->forgetScopedInstances();
-        $this->assertSame(['warned' => 1, 'paused' => 0, 'ended' => 0], app(Billing::class)->run()['keys']);
+        $this->assertSame(['warned' => 1, 'paused' => 0, 'ended' => 0, 'discount' => 0], app(Billing::class)->run()['keys']);
         $this->travel(15)->days();
         app()->forgetScopedInstances();
-        $this->assertSame(['warned' => 0, 'paused' => 1, 'ended' => 0], app(Billing::class)->run()['keys']);
+        $this->assertSame(['warned' => 0, 'paused' => 1, 'ended' => 0, 'discount' => 0], app(Billing::class)->run()['keys']);
         $this->billing($awa)->assertJsonPath('data.plan.code', 'free')->assertJsonPath('data.free', null)->assertJsonPath('data.access_key.state', 'paused');
         Notification::assertSentToTimes($awa->owner, BillingNotice::class, 2);
 

@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class AccessKey extends Model
 {
-    protected $fillable = ['batch_id', 'number', 'code', 'store_id', 'activated_at', 'expires_at', 'paused_at', 'warned_at', 'ended_at', 'revoked_at'];
+    protected $fillable = ['batch_id', 'number', 'code', 'partner_reference', 'partner_reason', 'merchant_name', 'merchant_phone', 'store_id', 'activated_at', 'expires_at', 'paused_at', 'warned_at', 'ended_at', 'revoked_at'];
 
     protected function casts(): array
     {
@@ -22,6 +22,8 @@ class AccessKey extends Model
             'warned_at' => 'datetime',
             'ended_at' => 'datetime',
             'revoked_at' => 'datetime',
+            'discount_warned_at' => 'datetime',
+            'discount_on' => 'boolean',
         ];
     }
 

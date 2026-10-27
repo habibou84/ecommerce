@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\Api\Partners\PremiumCardController;
 use App\Http\Controllers\Api\V1\AccessKeyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingController;
@@ -80,7 +81,15 @@ use App\Http\Controllers\Api\V1\Storefront\PageController as StorePageController
 use App\Http\Controllers\Api\V1\StoreGroupController;
 use App\Http\Controllers\Api\V1\SupportSessionController;
 use App\Http\Controllers\Api\V1\VerificationController;
+use App\Http\Middleware\VerifyPartnerSignature;
 use Illuminate\Support\Facades\Route;
+
+// ── api.jibiat-marchand.com : cartes Membre Premium demandées par les entreprises de Jibiat (serveur à serveur) ──
+Route::prefix('partners/v1')->name('partners.')->middleware(['zone:api', 'throttle:120,1', VerifyPartnerSignature::class])->group(function () {
+    Route::post('premium-cards', [PremiumCardController::class, 'store'])->name('premium-cards.store');
+    Route::get('premium-cards', [PremiumCardController::class, 'index'])->name('premium-cards.index');
+    Route::delete('premium-cards/{code}', [PremiumCardController::class, 'destroy'])->where('code', '[A-Za-z0-9-]{1,20}')->name('premium-cards.destroy');
+});
 
 Route::prefix('v1')->name('v1.')->group(function () {
     // ── jibiat-marchand.com : création de boutique, retrouver ses boutiques ──
@@ -148,6 +157,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('access-keys/{batch}', [ConsoleAccessKeyController::class, 'show'])->whereNumber('batch')->name('access-keys.show');
             Route::get('access-keys/{batch}/cards', [ConsoleAccessKeyController::class, 'cards'])->whereNumber('batch')->name('access-keys.cards');
             Route::post('access-keys/keys/{key}/revoke', [ConsoleAccessKeyController::class, 'revoke'])->whereNumber('key')->name('access-keys.revoke');
+            Route::put('access-keys/premium', [ConsoleAccessKeyController::class, 'premium'])->name('access-keys.premium');
             // Matériel vendu aux e-commerçants : produits, commandes, réglages
             Route::get('materiel', [ConsoleMaterielController::class, 'index'])->name('materiel');
             Route::put('materiel/settings', [ConsoleMaterielController::class, 'settings'])->name('materiel.settings');

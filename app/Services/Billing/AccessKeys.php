@@ -8,8 +8,10 @@ use App\Enums\SubscriptionStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Models\AccessKey;
 use App\Models\AccessKeyBatch;
+use App\Models\CarrierConnection;
 use App\Models\Order;
 use App\Models\Plan;
+use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\User;
 use App\Notifications\BillingNotice;
@@ -23,9 +25,11 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Clés d'accès imprimées en cartes à QR code (console › Clés d'accès) :
- *  - « Membre fondateur » : offre à vie, carte numérotée, tant que la boutique vit (sans commande pendant
- *    IDLE_DAYS jours, la clé se met en pause et se rallume à la commande suivante) ;
- *  - « Durée » : l'offre pendant quelques mois, puis retour à l'offre gratuite.
+ *  - « Membre Premium » à vie (valeur interne « founder ») : carte numérotée, tant que la boutique vit (sans commande
+ *    pendant IDLE_DAYS jours, la clé se met en pause et se rallume à la commande suivante) ;
+ *  - « Durée » : l'offre pendant quelques mois, puis retour à l'offre gratuite ;
+ *  - « Membre Premium » offerte par une entreprise de livraison de Jibiat (« partner », voir PremiumCards) : l'offre
+ *    pendant les mois offerts, puis une réduction sur l'abonnement tant que la boutique livre avec cette entreprise.
  * Une clé sert une seule fois, pour un seul espace marchand ; elle s'annule depuis la console.
  * L'assistant IA n'est dans aucune offre : il reste à la recharge.
  */
@@ -40,11 +44,16 @@ class AccessKeys
 
     public const END_WARNING_DAYS = 7;
 
+    public const PREMIUM_LABEL = 'Membre Premium Jibiat Marchand';
+
     /** @var array<int, AccessKey|false> */
     private array $keys = [];
 
     /** @var array<int, CarbonImmutable> */
     private array $activity = [];
+
+    /** @var array<int, bool> */
+    private array $delivering = [];
 
     public function __construct(private readonly TeamNotifier $notifier) {}
 
@@ -91,7 +100,7 @@ class AccessKeys
         });
     }
 
-    private function newCode(): string
+    public function newCode(): string
     {
         do {
             $code = '';
@@ -117,18 +126,48 @@ class AccessKeys
     }
 
     /**
-     * État d'une clé : available (pas encore activée), active, paused (fondateur sans commande), ended (durée
-     * terminée), revoked.
+     * État d'une clé : available (pas encore activée), active, paused (carte à vie sans commande), ended (durée
+     * terminée), revoked. Carte offerte par une entreprise : free (mois offerts), discount (réduction, la boutique
+     * livre avec l'entreprise), lapsed (elle ne livre plus avec elle), comme Contract::PREMIUM_CARD_STATES.
      */
     public function state(AccessKey $key): string
     {
+        if ($key->revoked_at !== null) {
+            return 'revoked';
+        }
+        if ($key->store_id === null || $key->activated_at === null) {
+            return 'available';
+        }
+        if ($key->batch->isPartner()) {
+            if ($key->expires_at !== null && $key->expires_at->isFuture()) {
+                return 'free';
+            }
+
+            return $this->deliversWithPartner($key) ? 'discount' : 'lapsed';
+        }
+
         return match (true) {
-            $key->revoked_at !== null => 'revoked',
-            $key->store_id === null || $key->activated_at === null => 'available',
             $key->expires_at !== null && $key->expires_at->isPast() => 'ended',
             $key->batch->isFounder() && $this->idleSince($key)->lt(now()->subDays(self::IDLE_DAYS)) => 'paused',
             default => 'active',
         };
+    }
+
+    /**
+     * La boutique livre toujours avec l'entreprise qui lui a offert la carte : connexion active à cette entreprise
+     * et une expédition confiée dans les derniers jours (réglage « active_days »).
+     */
+    public function deliversWithPartner(AccessKey $key): bool
+    {
+        if (! array_key_exists($key->id, $this->delivering)) {
+            $slug = $key->batch->partner_slug;
+            $connections = CarrierConnection::forStore($key->store_id)->where('driver', CarrierConnection::DELIVERY_APP)->where('status', 'active')->get()
+                ->filter(fn (CarrierConnection $c) => ($c->remote_account['company']['slug'] ?? null) === $slug)->pluck('id');
+            $this->delivering[$key->id] = $connections->isNotEmpty() && Shipment::forStore($key->store_id)->whereIn('carrier_connection_id', $connections)
+                ->where('created_at', '>=', now()->subDays(app(PremiumCards::class)->settings()['active_days']))->exists();
+        }
+
+        return $this->delivering[$key->id];
     }
 
     /**
@@ -152,12 +191,29 @@ class AccessKeys
     {
         $key = $this->keyOf($store);
 
-        return $key !== null && $this->state($key) === 'active' ? $key->batch->plan : null;
+        return $key !== null && in_array($this->state($key), ['active', 'free'], true) ? $key->batch->plan : null;
     }
 
     /**
-     * Activation par l'espace marchand. Une boutique n'a qu'une clé : une carte fondateur peut remplacer une clé à
-     * durée, jamais l'inverse, et une seule clé à durée par boutique.
+     * Réduction sur l'abonnement donnée par la carte de la boutique (carte offerte par une entreprise, après les mois
+     * offerts, tant que la boutique livre avec elle), sinon null.
+     *
+     * @return array{rate: float, company: string}|null
+     */
+    public function discountFor(Store $store): ?array
+    {
+        $key = $this->keyOf($store);
+        if ($key === null || ! $key->batch->isPartner() || $this->state($key) !== 'discount' || ($key->batch->discount_rate ?? 0) <= 0) {
+            return null;
+        }
+
+        return ['rate' => (float) $key->batch->discount_rate, 'company' => (string) $key->batch->distributor_name];
+    }
+
+    /**
+     * Activation par l'espace marchand. Une boutique n'a qu'une clé : une carte Membre Premium (à vie ou offerte par
+     * une entreprise) peut remplacer une clé à durée, jamais l'inverse, et une seule clé à durée par boutique. Une
+     * carte offerte par une entreprise rattache la boutique à son parrainage si elle n'en a pas.
      */
     public function redeem(string $code, Store $store): AccessKey
     {
@@ -173,10 +229,10 @@ class AccessKeys
             }
             $current = $this->keyOf($store);
             if ($current !== null) {
-                if ($current->batch->isFounder()) {
-                    throw new BusinessRuleException('Votre espace marchand a déjà sa carte de membre fondateur.', 'code');
+                if ($current->batch->isPremium()) {
+                    throw new BusinessRuleException('Votre espace marchand a déjà sa carte Membre Premium.', 'code');
                 }
-                if (! $found->batch->isFounder()) {
+                if (! $found->batch->isPremium()) {
                     throw new BusinessRuleException('Votre espace marchand a déjà utilisé une clé à durée : une seule par boutique.', 'code');
                 }
             }
@@ -187,6 +243,9 @@ class AccessKeys
                 'activated_at' => now(),
                 'expires_at' => $found->batch->isFounder() ? null : now()->addMonthsNoOverflow((int) $months)->endOfDay(),
             ])->save();
+            if ($found->batch->isPartner() && blank($store->referred_by)) {
+                $store->forceFill(['referred_by' => $found->batch->partner_slug])->save();
+            }
 
             return $key;
         });
@@ -234,19 +293,25 @@ class AccessKeys
             return null;
         }
         $state = $this->state($key);
-        $founder = $key->batch->isFounder();
+        $batch = $key->batch;
+        $founder = $batch->isFounder();
 
         return [
-            'kind' => $key->batch->kind,
+            'kind' => $batch->kind,
+            // Carte à vie (offre sans fin) ; « premium » : toute carte Membre Premium, à vie ou offerte par une entreprise
             'founder' => $founder,
-            'badge' => $founder ? 'Membre fondateur n° '.$this->number($key) : null,
+            'premium' => $batch->isPremium(),
+            'badge' => $batch->isPremium() ? self::PREMIUM_LABEL.' n° '.$this->number($key) : null,
+            'offered_by' => $batch->isPartner() ? $batch->distributor_name : null,
+            'free_months' => $batch->isPartner() ? $batch->months : null,
+            'discount_rate' => $batch->isPartner() ? $batch->discount_rate : null,
             'number' => $key->number,
             'quantity' => $key->batch->quantity,
             'plan' => $key->batch->plan->name,
             'state' => $state,
             'activated_at' => $key->activated_at?->toIso8601String(),
             'until' => $key->expires_at?->toDateString(),
-            // Fondateur : date à laquelle la clé se met en pause sans nouvelle commande
+            // Carte à vie : date à laquelle la clé se met en pause sans nouvelle commande
             'pause_on' => $founder && $state === 'active' ? $this->idleSince($key)->addDays(self::IDLE_DAYS)->toDateString() : null,
         ];
     }
@@ -272,7 +337,15 @@ class AccessKeys
         return [
             'code' => $key->displayCode(),
             'founder' => $batch->isFounder(),
-            'badge' => $batch->isFounder() ? 'Membre fondateur n° '.$this->number($key).' / '.$batch->quantity : null,
+            'premium' => $batch->isPremium(),
+            'badge' => match (true) {
+                $batch->isFounder() => self::PREMIUM_LABEL.' n° '.$this->number($key).' / '.$batch->quantity,
+                $batch->isPartner() => self::PREMIUM_LABEL.' n° '.$this->number($key),
+                default => null,
+            },
+            // Carte offerte par une entreprise : son nom, son adresse dans l'annuaire (parrainage) et la formule
+            'offered_by' => $batch->isPartner() ? ['slug' => $batch->partner_slug, 'name' => $batch->distributor_name] : null,
+            'discount_rate' => $batch->isPartner() ? $batch->discount_rate : null,
             'plan' => $batch->plan->name,
             'months' => $batch->months,
             'available' => $key->store_id === null,
@@ -294,6 +367,8 @@ class AccessKeys
             'activated_at' => $key->activated_at?->toIso8601String(),
             'expires_at' => $key->expires_at?->toIso8601String(),
             'revoked_at' => $key->revoked_at?->toIso8601String(),
+            'merchant_name' => $key->merchant_name,
+            'partner_reason' => $key->partner_reason,
         ];
     }
 
@@ -308,7 +383,9 @@ class AccessKeys
         return [
             'id' => $batch->id,
             'kind' => $batch->kind,
-            'kind_label' => AccessKeyBatch::KINDS[$batch->kind] ?? $batch->kind,
+            'kind_label' => AccessKeyBatch::LABELS[$batch->kind] ?? $batch->kind,
+            'partner_slug' => $batch->partner_slug,
+            'discount_rate' => $batch->discount_rate,
             'plan' => $batch->plan->name,
             'plan_code' => $batch->plan->code,
             'months' => $batch->months,
@@ -324,6 +401,9 @@ class AccessKeys
                 'paused' => $states['paused'] ?? 0,
                 'ended' => $states['ended'] ?? 0,
                 'revoked' => $states['revoked'] ?? 0,
+                'free' => $states['free'] ?? 0,
+                'discount' => $states['discount'] ?? 0,
+                'lapsed' => $states['lapsed'] ?? 0,
             ],
             'keys' => $withKeys ? $keys->map(fn (AccessKey $k) => $this->presentKey($k))->values() : null,
         ];
@@ -338,7 +418,11 @@ class AccessKeys
         $cards = $batch->keys()->whereNull('store_id')->whereNull('revoked_at')->orderBy('number')->get()
             ->map(fn (AccessKey $k) => [
                 'code' => $k->displayCode(),
-                'number' => $batch->isFounder() ? $this->number($k->setRelation('batch', $batch)).' / '.$batch->quantity : null,
+                'number' => match (true) {
+                    $batch->isFounder() => $this->number($k->setRelation('batch', $batch)).' / '.$batch->quantity,
+                    $batch->isPartner() => $this->number($k->setRelation('batch', $batch)),
+                    default => null,
+                },
                 'qr' => $docs->qr($this->url($k)),
             ]);
 
@@ -350,14 +434,15 @@ class AccessKeys
     }
 
     /**
-     * Tâche quotidienne : préviens avant la pause d'une carte fondateur et avant la fin d'une clé à durée, puis à
-     * la pause et à la fin.
+     * Tâche quotidienne : préviens avant la pause d'une carte à vie et avant la fin d'une clé à durée, puis à la pause
+     * et à la fin. Carte offerte par une entreprise : prévient avant la fin des mois offerts, puis quand la réduction
+     * commence, s'arrête ou reprend (« discount »).
      *
-     * @return array{warned: int, paused: int, ended: int}
+     * @return array{warned: int, paused: int, ended: int, discount: int}
      */
     public function sweep(): array
     {
-        $counts = ['warned' => 0, 'paused' => 0, 'ended' => 0];
+        $counts = ['warned' => 0, 'paused' => 0, 'ended' => 0, 'discount' => 0];
 
         AccessKey::with(['batch.plan', 'store'])->whereNotNull('store_id')->whereNull('revoked_at')->whereNull('ended_at')
             ->chunkById(200, function ($keys) use (&$counts) {
@@ -368,6 +453,12 @@ class AccessKeys
                     }
                     $state = $this->state($key);
                     $plan = $key->batch->plan->name;
+
+                    if ($key->batch->isPartner()) {
+                        $this->sweepPartner($key, $store, $state, $counts);
+
+                        continue;
+                    }
 
                     if (! $key->batch->isFounder()) {
                         if ($state === 'ended') {
@@ -383,7 +474,7 @@ class AccessKeys
                         continue;
                     }
 
-                    // Carte fondateur : rallumée par une commande (l'état se calcule à chaque lecture)
+                    // Carte à vie : rallumée par une commande (l'état se calcule à chaque lecture)
                     $idle = $this->idleSince($key);
                     if ($state === 'active') {
                         $warnFrom = $idle->addDays(self::IDLE_DAYS - self::IDLE_WARNING_DAYS);
@@ -394,7 +485,7 @@ class AccessKeys
                         $warned = array_key_exists('warned_at', $changes) ? $changes['warned_at'] : $key->warned_at;
                         if ($warned === null && now()->gte($warnFrom)) {
                             $changes['warned_at'] = now();
-                            $this->notify($store, 'Votre carte de membre fondateur', "Aucune commande depuis le {$idle->locale('fr')->isoFormat('D MMMM')} : votre carte de membre fondateur se met en pause le {$idle->addDays(self::IDLE_DAYS)->locale('fr')->isoFormat('D MMMM')}. Enregistrez une commande pour la garder active.");
+                            $this->notify($store, 'Votre carte Membre Premium', "Aucune commande depuis le {$idle->locale('fr')->isoFormat('D MMMM')} : votre carte Membre Premium se met en pause le {$idle->addDays(self::IDLE_DAYS)->locale('fr')->isoFormat('D MMMM')}. Enregistrez une commande pour la garder active.");
                             $counts['warned']++;
                         }
                         if ($changes) {
@@ -402,13 +493,48 @@ class AccessKeys
                         }
                     } elseif ($state === 'paused' && $key->paused_at === null) {
                         $key->forceFill(['paused_at' => now()])->save();
-                        $this->notify($store, 'Carte de membre fondateur en pause', 'Sans commande depuis '.self::IDLE_DAYS." jours, votre carte de membre fondateur est en pause : votre espace marchand passe à l'offre gratuite, sans rien perdre. Elle se rallume toute seule dès votre prochaine commande.");
+                        $this->notify($store, 'Carte Membre Premium en pause', 'Sans commande depuis '.self::IDLE_DAYS." jours, votre carte Membre Premium est en pause : votre espace marchand passe à l'offre gratuite, sans rien perdre. Elle se rallume toute seule dès votre prochaine commande.");
                         $counts['paused']++;
                     }
                 }
             });
 
         return $counts;
+    }
+
+    /**
+     * Carte offerte par une entreprise : prévient END_WARNING_DAYS jours avant la fin des mois offerts, puis quand la
+     * réduction commence, s'arrête (plus d'expédition avec l'entreprise) ou reprend.
+     *
+     * @param  array<string, int>  $counts
+     */
+    private function sweepPartner(AccessKey $key, Store $store, string $state, array &$counts): void
+    {
+        $batch = $key->batch;
+        $company = (string) $batch->distributor_name;
+        $rate = (int) round(($batch->discount_rate ?? 0) * 100);
+        if ($state === 'free') {
+            if ($key->warned_at === null && $key->expires_at->lte(now()->addDays(self::END_WARNING_DAYS))) {
+                $key->forceFill(['warned_at' => now()])->save();
+                $this->notify($store, 'Vos mois offerts se terminent bientôt', "Vos mois offerts de l'offre {$batch->plan->name} se terminent le {$key->expires_at->locale('fr')->isoFormat('D MMMM')}. Ensuite, votre carte Membre Premium vous donne −{$rate} % sur votre abonnement tant que vous livrez avec {$company}. Choisissez votre offre dans Réglages › Abonnement.");
+                $counts['warned']++;
+            }
+
+            return;
+        }
+        $on = $state === 'discount';
+        if ($key->discount_on === $on) {
+            return;
+        }
+        $first = $key->discount_on === null;
+        $key->forceFill(['discount_on' => $on])->save();
+        $days = app(PremiumCards::class)->settings()['active_days'];
+        match (true) {
+            $on => $this->notify($store, 'Votre réduction Membre Premium', "Votre carte Membre Premium vous donne −{$rate} % sur votre abonnement Jibiat Marchand, tant que vous livrez avec {$company}."),
+            $first => $this->notify($store, 'Fin de vos mois offerts', "Vos mois offerts sont terminés. Confiez vos livraisons à {$company} depuis Jibiat Marchand : votre carte Membre Premium vous donne alors −{$rate} % sur votre abonnement."),
+            default => $this->notify($store, 'Réduction Membre Premium arrêtée', "Aucune livraison confiée à {$company} depuis {$days} jours : la réduction de {$rate} % de votre carte Membre Premium est arrêtée. Elle reprend dès votre prochaine livraison avec {$company}."),
+        };
+        $counts['discount']++;
     }
 
     private function notify(Store $store, string $title, string $body): void

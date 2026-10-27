@@ -105,12 +105,13 @@ function done(data) {
 
     <form v-else class="space-y-4" @submit.prevent="submit">
       <Alert v-if="error">{{ error }}</Alert>
-      <div v-if="accessKey" class="rounded-xl bg-emerald-900 p-3 text-sm text-white">
-        <p v-if="accessKey.founder" class="font-semibold text-amber-300">🏅 {{ accessKey.badge }}</p>
-        <p>Offre <strong>{{ accessKey.plan }}</strong> {{ accessKey.founder ? 'à vie' : `pendant ${accessKey.months} mois` }} · clé {{ accessKey.code }}</p>
+      <div v-if="accessKey" class="rounded-xl p-3 text-sm text-white" :class="accessKey.premium ? 'bg-slate-950' : 'bg-emerald-900'">
+        <p v-if="accessKey.premium" class="font-semibold text-amber-300">🏅 {{ accessKey.badge }}</p>
+        <p v-if="accessKey.offered_by">Offerte par <strong>{{ accessKey.offered_by.name }}</strong></p>
+        <p>Offre <strong>{{ accessKey.plan }}</strong> {{ accessKey.founder ? 'à vie' : `pendant ${accessKey.months} mois` }}<template v-if="accessKey.offered_by">, puis −{{ Math.round(accessKey.discount_rate * 100) }} %</template> · clé {{ accessKey.code }}</p>
       </div>
       <p v-if="errors.key" class="text-sm text-red-700">{{ errors.key }}</p>
-      <div v-if="partner" class="flex items-center gap-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 ring-1 ring-emerald-200">
+      <div v-if="partner && !accessKey" class="flex items-center gap-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 ring-1 ring-emerald-200">
         <img v-if="partner.logo_url" :src="partner.logo_url" alt="" class="h-10 w-10 shrink-0 rounded-lg bg-white object-contain" />
         <p>Invité par <strong>{{ partner.name }}</strong> : <strong>{{ partner.trial }}</strong> offerts pour bien démarrer.</p>
       </div>
