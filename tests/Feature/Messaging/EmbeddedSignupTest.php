@@ -9,7 +9,10 @@ use App\Models\WhatsappAccount;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Services\WhatsApp\TemplateLibrary;
 use Illuminate\Http\Client\Request as HttpRequest;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -152,5 +155,26 @@ class EmbeddedSignupTest extends TestCase
         $manual($this->createStore(['slug' => 'autre']));
         $this->platformWebhook([$message('wamid.2')])->assertOk();
         $this->assertSame(1, ConversationMessage::withoutGlobalScopes()->count());
+    }
+
+    public function test_the_platform_webhook_has_its_own_wide_rate_limit(): void
+    {
+        // Une seule adresse pour toutes les boutiques : sa limite n'est partagée ni avec les paiements ni avec les transporteurs
+        $route = Route::getRoutes()->getByName('webhooks.whatsapp.platform');
+        $this->assertContains('throttle:meta-webhooks', $route->gatherMiddleware());
+        $this->assertNotContains('throttle:carrier-webhooks', $route->gatherMiddleware());
+        $this->assertGreaterThanOrEqual(20000, RateLimiter::limiter('meta-webhooks')(Request::create('/'))->maxAttempts);
+
+        // Les autres adresses sans identifiant ne partagent plus la même limite
+        $billing = Request::create('/webhooks/billing', 'POST');
+        $billingRoute = Route::getRoutes()->getByName('webhooks.billing')->bind($billing);
+        $billing->setRouteResolver(fn () => $billingRoute);
+        $this->assertSame('carrier-webhooks:webhooks.billing', RateLimiter::limiter('carrier-webhooks')($billing)->key);
+
+        // Une rafale de notifications (live chargé) passe au-delà de l'ancienne limite de 600 par minute
+        for ($i = 0; $i < 620; $i++) {
+            $status = $this->platformWebhook([])->status();
+        }
+        $this->assertSame(200, $status);
     }
 }

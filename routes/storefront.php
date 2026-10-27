@@ -123,10 +123,12 @@ Route::middleware('zone:store,custom_domain')->group(function () {
 });
 
 // api.jibiat-marchand.com : notifications de Meta pour le WhatsApp des boutiques
-Route::middleware(['zone:api', 'throttle:carrier-webhooks'])->group(function () {
-    // Application Meta de la plateforme : numéros connectés en un clic
+// Application Meta de la plateforme : numéros connectés en un clic, Messenger et Instagram (limite propre, large)
+Route::middleware(['zone:api', 'throttle:meta-webhooks'])->group(function () {
     Route::get('/webhooks/whatsapp', [MetaWhatsAppWebhookController::class, 'verify']);
     Route::post('/webhooks/whatsapp', [MetaWhatsAppWebhookController::class, 'handle'])->name('webhooks.whatsapp.platform');
+});
+Route::middleware(['zone:api', 'throttle:carrier-webhooks'])->group(function () {
     Route::get('/webhooks/whatsapp/{uuid}', [WhatsAppWebhookController::class, 'verify'])->whereUuid('uuid');
     Route::post('/webhooks/whatsapp/{uuid}', [WhatsAppWebhookController::class, 'handle'])->whereUuid('uuid')->name('webhooks.whatsapp');
 });
