@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\OrderSource;
 use App\Enums\OrderStatus;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
+use App\Models\Cart;
 use App\Models\Conversation;
+use App\Models\Customer;
+use App\Models\Discount;
 use App\Models\LiveSession;
 use App\Models\Order;
 use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Reports\DailyAdvice;
+use App\Services\Reports\DailyReport;
 use App\Services\Shipping\OutsideStock;
 use App\Services\Stock\StockLevels;
 use Illuminate\Http\JsonResponse;
@@ -46,12 +51,21 @@ class DashboardController extends Controller
                 'month_delivered' => (clone $month)->count(),
             ];
             $data['week'] = $this->week();
+            // Ce qui distingue Jibiat Marchand : on vend partout (canaux) et sur sa propre boutique en ligne
+            $data['channels'] = $this->channels();
         }
 
         // Vendre en live : en tête de l'accueil
         if ($user->can(Permission::OrdersManage->value)) {
             $data['live'] = $this->live();
+            $data['shop'] = $this->shop();
         }
+
+        // De l'argent à aller chercher : clientes fidèles sans commande depuis 30 jours, promotions en cours
+        if ($user->can(Permission::CustomersView->value)) {
+            $data['to_relaunch'] = Customer::toRelaunch()->count();
+        }
+        $data['promotions'] = $this->promotions();
 
         // Boîte Messages : conversations pas encore lues
         if ($user->can(Permission::OrdersManage->value) || $user->can(Permission::OrdersConfirm->value)) {
@@ -63,6 +77,8 @@ class DashboardController extends Controller
             // Conseils tirés des chiffres des 30 derniers jours : recalculés au plus toutes les 30 minutes
             $store = $this->currentStore();
             $data['tips'] = Cache::remember("daily-advice:{$store->id}", 1800, fn () => app(DailyAdvice::class)->tips($store));
+            // Bénéfice du mois (ventes moins achats, livraison et dépenses), le même que dans le rapport du soir
+            $data['profit'] = Cache::remember("month-profit:{$store->id}", 1800, fn () => app(DailyReport::class)->monthProfit($store, now()->toImmutable()));
         }
 
         // Dehors en ce moment : argent et colis chez les livreurs de la boutique et chez les entreprises de livraison
@@ -134,5 +150,64 @@ class DashboardController extends Controller
                 'count' => $orders->get($date)?->count() ?? 0,
             ];
         })->all();
+    }
+
+    /**
+     * Ventes du jour par canal (WhatsApp, Facebook, live, boutique en ligne…), le plus fort en premier.
+     * Saisie à la main, import et API sont regroupés dans « Autre ».
+     *
+     * @return list<array{source: string, label: string, amount: int, count: int}>
+     */
+    private function channels(): array
+    {
+        $other = [OrderSource::Manual->value, OrderSource::Import->value, OrderSource::Api->value];
+
+        return Order::where('created_at', '>=', now()->startOfDay())->where('status', '!=', OrderStatus::Cancelled->value)
+            ->get(['source', 'total'])
+            ->groupBy(fn (Order $o) => in_array($o->source?->value, $other, true) || $o->source === null ? 'other' : $o->source->value)
+            ->map(fn ($orders, string $source) => [
+                'source' => $source,
+                'label' => $source === 'other' ? 'Autre' : OrderSource::from($source)->label(),
+                'amount' => (int) $orders->sum('total'),
+                'count' => $orders->count(),
+            ])
+            ->sortByDesc('amount')->values()->all();
+    }
+
+    /**
+     * Boutique en ligne : son adresse, ses commandes du jour et du mois, et les paniers laissés à relancer
+     * (même règle que la page Paniers abandonnés : plus d'une heure, moins de 7 jours, avec un téléphone).
+     *
+     * @return array{url: string, today: int, month: int, abandoned: int}
+     */
+    private function shop(): array
+    {
+        $site = Order::where('source', OrderSource::OnlineStore->value);
+
+        return [
+            'url' => $this->currentStore()->url('/'),
+            'today' => (clone $site)->where('created_at', '>=', now()->startOfDay())->count(),
+            'month' => (clone $site)->where('created_at', '>=', now()->startOfMonth())->count(),
+            'abandoned' => Cart::where('status', 'active')->whereNotNull('phone')->where('last_activity_at', '<=', now()->subHour())
+                ->where('last_activity_at', '>=', now()->subDays(7))->whereHas('items')->count(),
+        ];
+    }
+
+    /**
+     * Promotions en cours : leur nombre et celle qui se termine le plus tôt.
+     *
+     * @return array{active: int, ending: ?array{title: string, ends_at: string}}
+     */
+    private function promotions(): array
+    {
+        $active = Discount::where('is_active', true)
+            ->where(fn ($q) => $q->whereNull('starts_at')->orWhere('starts_at', '<=', now()))
+            ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', now()));
+        $ending = (clone $active)->whereNotNull('ends_at')->orderBy('ends_at')->first();
+
+        return [
+            'active' => (clone $active)->count(),
+            'ending' => $ending ? ['title' => $ending->title ?: $ending->code, 'ends_at' => $ending->ends_at->toIso8601String()] : null,
+        ];
     }
 }

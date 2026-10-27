@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import ColorIcon from '../components/ColorIcon.vue'
 import Icon from '../components/Icon.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 import { inApp } from '../lib/app'
@@ -19,7 +20,7 @@ const switchError = ref('')
 // Menu en groupes : un groupe n'affiche que les pages que le rôle peut ouvrir (droits lus sur les routes),
 // disparaît s'il est vide et devient un lien direct s'il ne garde qu'une page
 const groups = [
-  { label: 'Ventes', icon: 'M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2', items: [
+  { label: 'Ventes', color: 'panier', icon: 'M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2', items: [
     { to: '/gestion/commandes', label: 'Commandes' },
     { to: '/gestion/messages', label: 'Messages', badge: 'messages' },
     { to: '/gestion/confirmation', label: 'À confirmer' },
@@ -29,30 +30,30 @@ const groups = [
     { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' },
     { to: '/gestion/statistiques', label: 'Statistiques' },
   ] },
-  { label: 'Produits', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', items: [
+  { label: 'Produits', color: 'produit', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', items: [
     { to: '/gestion/catalogue', label: 'Mes produits' },
     { to: '/gestion/collections', label: 'Collections' },
     { to: '/gestion/stock', label: 'Stock' },
   ] },
-  { label: 'Livraisons', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', items: [
+  { label: 'Livraisons', color: 'moto', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', items: [
     { to: '/gestion/livraisons', label: 'En cours', exact: true },
     { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
     { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' },
     { to: '/gestion/livraisons/zones', label: 'Zones et tarifs' },
     { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' },
   ] },
-  { label: 'Caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', items: [
+  { label: 'Caisse', color: 'caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', items: [
     { to: '/gestion/caisse', label: 'Vue d\'ensemble', exact: true },
     { to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' },
     { to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' },
   ] },
-  { label: 'Boutique en ligne', icon: 'M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8M10 20v-5h4v5', items: [
+  { label: 'Boutique en ligne', color: 'boutique', icon: 'M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8M10 20v-5h4v5', items: [
     { to: '/gestion/boutique-en-ligne', label: 'Apparence', exact: true },
     { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus', also: ['/gestion/boutique-en-ligne/menus'] },
     { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' },
     { to: '/gestion/marketing', label: 'Promotions' },
   ] },
-  { label: 'Réglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
+  { label: 'Réglages', color: 'reglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
     { to: '/gestion/demarrage', label: 'Bien démarrer' },
     { to: '/gestion/parametres', label: 'Informations de l\'espace marchand' },
     { to: '/gestion/equipe', label: 'Équipe' },
@@ -77,12 +78,12 @@ function canOpen(path) {
 // Propriétaire de plusieurs boutiques : vue d'ensemble en haut du menu (sinon « Ajouter une boutique » dans Réglages)
 const several = computed(() => !!auth.profile?.is_owner && ((auth.profile?.stores?.length ?? 0) > 1 || !!auth.profile?.owns_several))
 const nav = computed(() => [
-  { to: '/gestion', label: 'Accueil', icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z', exact: true },
-  ...(several.value ? [{ to: '/gestion/mes-boutiques', label: 'Vue d\'ensemble', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' }] : []),
+  { to: '/gestion', label: 'Accueil', color: 'accueil', icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z', exact: true },
+  ...(several.value ? [{ to: '/gestion/mes-boutiques', label: 'Vue d\'ensemble', color: 'menu', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' }] : []),
   ...groups.flatMap((group) => {
     const items = group.items.filter((item) => canOpen(item.to) && !(item.single && several.value))
     if (!items.length) return []
-    return items.length === 1 ? [{ ...items[0], label: group.label, icon: group.icon }] : [{ ...group, items }]
+    return items.length === 1 ? [{ ...items[0], label: group.label, icon: group.icon, color: group.color }] : [{ ...group, items }]
   }),
 ])
 
@@ -129,6 +130,28 @@ const bottomTabs = computed(() => [
   { to: '/gestion/commandes', label: 'Commandes', icon: 'orders' },
 ])
 const canOrder = computed(() => canOpen('/gestion/commandes/nouvelle'))
+const todayLabel = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+const bottomColor = { home: 'accueil', orders: 'panier' }
+
+// « Plus » : tout Jibiat Marchand en tuiles de couleur (seulement les pages que le rôle peut ouvrir) ;
+// le menu complet reste à un toucher
+const plusOpen = ref(false)
+const PLUS_TILES = [
+  { to: '/gestion/catalogue', label: 'Produits', color: 'produit' },
+  { to: '/gestion/stock', label: 'Stock', color: 'stock' },
+  { to: '/gestion/clients', label: 'Clients', color: 'clients' },
+  { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
+  { to: '/gestion/caisse', label: 'Caisse', color: 'caisse' },
+  { to: '/gestion/live', label: 'Vendre en live', color: 'live' },
+  { to: '/gestion/boutique-en-ligne', label: 'Boutique en ligne', color: 'boutique' },
+  { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
+  { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
+  { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés', color: 'panier' },
+  { to: '/gestion/confirmation', label: 'À confirmer', color: 'telephone' },
+  { to: '/gestion/demarrage', label: 'Bien démarrer', color: 'aide' },
+]
+const plusTiles = computed(() => PLUS_TILES.filter((tile) => canOpen(tile.to)))
+watch(() => route.path, () => { plusOpen.value = false })
 
 // Session de support de la plateforme : bandeau pour le support (lui-même) et pour la boutique
 const support = computed(() => auth.profile?.support ?? null)
@@ -187,13 +210,13 @@ async function switchTo(store) {
       <div class="relative border-b border-slate-100">
         <button
           type="button"
-          class="flex h-16 w-full items-center gap-2 px-4 text-left"
+          class="flex h-[72px] w-full items-center gap-2.5 px-4 text-left"
           :class="{ 'hover:bg-slate-50': addressStores.length > 1 }"
           :disabled="addressStores.length < 2"
           :aria-expanded="storeMenu"
           @click="storeMenu = !storeMenu"
         >
-          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-700 font-semibold text-white">
+          <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-brand-grad font-bold text-white">
             {{ (auth.store?.name ?? '?').charAt(0).toUpperCase() }}
           </span>
           <span class="min-w-0 flex-1">
@@ -204,7 +227,7 @@ async function switchTo(store) {
           <svg v-if="addressStores.length > 1" viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 10 5 5 5-5" /></svg>
         </button>
         <!-- Sous le nom, à sa place (plus de chevauchement) -->
-        <a v-if="addressStores.length < 2" :href="auth.store?.url" target="_blank" class="absolute bottom-2.5 left-14 inline-flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-700">Voir le site <Icon name="external" :size="12" /></a>
+        <a v-if="addressStores.length < 2" :href="auth.store?.url" target="_blank" class="absolute bottom-2.5 left-16 inline-flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-700">Voir le site <Icon name="external" :size="12" /></a>
         <div v-if="storeMenu" class="absolute inset-x-2 top-14 z-40 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
           <button
             v-for="s in addressStores"
@@ -230,17 +253,18 @@ async function switchTo(store) {
           <div v-if="item.items">
             <button
               type="button"
-              class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium"
+              class="flex w-full items-center gap-3 rounded-2xl px-2.5 py-1.5 text-[14.5px] font-semibold"
               :class="isActive(item) ? 'text-emerald-800' : 'text-slate-700 hover:bg-slate-50'"
               :aria-expanded="openGroup === item.label"
               @click="toggle(item)"
             >
-              <svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
+              <ColorIcon v-if="item.color" :name="item.color" :size="30" />
+              <svg v-else viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
               {{ item.label }}
               <span v-if="groupBadge(item) && openGroup !== item.label" class="ml-auto rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white">{{ groupBadge(item) }}</span>
               <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400 transition" :class="[{ 'rotate-90': openGroup === item.label }, groupBadge(item) && openGroup !== item.label ? '' : 'ml-auto']" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" /></svg>
             </button>
-            <div v-show="openGroup === item.label" class="mb-1 ml-5 space-y-0.5 border-l border-slate-200 pl-3">
+            <div v-show="openGroup === item.label" class="mb-1 ml-[26px] space-y-0.5 border-l border-slate-200 pl-3">
               <RouterLink
                 v-for="sub in item.items"
                 :key="sub.to"
@@ -257,11 +281,12 @@ async function switchTo(store) {
           <RouterLink
             v-else
             :to="item.to"
-            class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium"
+            class="flex items-center gap-3 rounded-2xl px-2.5 py-1.5 text-[14.5px] font-semibold"
             :class="isActive(item) ? 'bg-emerald-50 text-emerald-800' : 'text-slate-700 hover:bg-slate-50'"
             @click="menuOpen = false"
           >
-            <svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
+            <ColorIcon v-if="item.color" :name="item.color" :size="30" />
+              <svg v-else viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
             {{ item.label }}
           </RouterLink>
         </template>
@@ -293,7 +318,7 @@ async function switchTo(store) {
           <button type="button" class="block w-full rounded-lg border-t border-slate-100 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50" @click="logout">Déconnexion</button>
         </div>
         <button type="button" class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-50" :aria-expanded="profileMenu" @click="profileMenu = !profileMenu">
-          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">{{ (auth.user?.name ?? '?').charAt(0).toUpperCase() }}</span>
+          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold text-white" style="background:linear-gradient(135deg,#b49dff,#7c5ce8)">{{ (auth.user?.name ?? '?').charAt(0).toUpperCase() }}</span>
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-medium">{{ auth.user?.name }}</span>
             <span class="block truncate text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
@@ -306,14 +331,17 @@ async function switchTo(store) {
     <div v-if="menuOpen" class="fixed inset-0 z-20 bg-slate-900/30 lg:hidden" @click="menuOpen = false" />
 
     <div class="min-w-0 flex-1">
-      <header class="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur">
-        <button class="btn-ghost -ml-2 px-2 lg:hidden" aria-label="Menu" @click="menuOpen = true">
-          <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+      <header class="sticky top-0 z-10 flex h-16 items-center gap-2.5 bg-slate-50/90 px-4 backdrop-blur sm:px-6">
+        <button class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-slate-700 shadow-soft lg:hidden" aria-label="Menu" @click="menuOpen = true">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <h1 class="min-w-0 truncate text-base font-semibold sm:text-lg">{{ route.meta.title }}</h1>
-        <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">
-          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="btn-ghost gap-1.5 px-2 text-sm" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide"><Icon name="help" /><span class="hidden sm:inline">Aide</span></a>
-          <NotificationBell />
+        <div class="min-w-0">
+          <h1 class="truncate text-[17px] font-bold leading-tight sm:text-xl">{{ route.meta.title }}</h1>
+          <p v-if="route.path === '/gestion'" class="truncate text-[12.5px] leading-tight text-slate-500 first-letter:uppercase sm:text-sm">{{ todayLabel }}</p>
+        </div>
+        <div class="ml-auto flex shrink-0 items-center gap-2">
+          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-2.5 text-sm font-semibold text-slate-700 shadow-soft sm:px-3.5" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide"><ColorIcon name="aide" :size="24" :tile="false" /><span class="hidden sm:inline">Aide</span></a>
+          <span class="rounded-full bg-white shadow-soft"><NotificationBell /></span>
         </div>
       </header>
 
@@ -340,30 +368,59 @@ async function switchTo(store) {
         </RouterView>
       </main>
     </div>
-    <!-- Téléphone : les gestes de tous les jours sous le pouce -->
-    <nav class="hide-on-keyboard fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
-      <div class="mx-auto grid max-w-md items-end" :class="canOpen('/gestion/live') ? 'grid-cols-6' : 'grid-cols-5'">
-        <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
-          <Icon :name="tab.icon" :size="22" />{{ tab.label }}
+    <!-- Téléphone : les gestes de tous les jours sous le pouce (onglet actif en couleur sur une pastille, comme dans Jibiat) -->
+    <nav class="hide-on-keyboard fixed inset-x-0 bottom-0 z-10 border-t border-slate-200/70 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
+      <div class="mx-auto grid h-[66px] max-w-md items-start px-1 pt-1.5" :class="canOpen('/gestion/live') ? 'grid-cols-6' : 'grid-cols-5'">
+        <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
+          <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive(tab) ? 'bg-emerald-50' : ''">
+            <ColorIcon v-if="isActive(tab)" :name="bottomColor[tab.icon]" :size="26" :tile="false" />
+            <Icon v-else :name="tab.icon" :size="22" />
+          </span>{{ tab.label }}
         </RouterLink>
         <div class="flex justify-center">
-          <RouterLink v-if="canOrder" to="/gestion/commandes/nouvelle" class="-mt-5 mb-1 grid h-14 w-14 place-items-center rounded-full bg-emerald-700 text-white shadow-lg ring-4 ring-white active:scale-95" aria-label="Nouvelle commande">
+          <RouterLink v-if="canOrder" to="/gestion/commandes/nouvelle" class="-mt-5 grid h-[56px] w-[56px] place-items-center rounded-[20px] bg-brand-grad text-white shadow-[0_10px_24px_-8px_rgb(1_124_64/0.7)] active:scale-95 transition" aria-label="Nouvelle commande">
             <Icon name="plus" :size="26" />
           </RouterLink>
         </div>
-        <RouterLink v-if="canOpen('/gestion/live')" to="/gestion/live" class="flex flex-col items-center gap-0.5 py-2 text-[11px] font-bold" :class="isActive({ to: '/gestion/live' }) ? 'text-ocre-700' : 'text-ocre-600'">
-          <Icon name="live" :size="22" />Live
+        <!-- Le live garde sa couleur : c'est ce qui distingue Jibiat Marchand -->
+        <RouterLink v-if="canOpen('/gestion/live')" to="/gestion/live" class="flex flex-col items-center gap-0.5 text-[11px] font-bold text-[#c02a4e]">
+          <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/live' }) ? 'bg-[#ffecef]' : ''"><ColorIcon name="live" :size="26" :tile="false" /></span>Live
         </RouterLink>
-        <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium" :class="isActive({ to: '/gestion/messages' }) ? 'text-emerald-700' : 'text-slate-600'">
-          <Icon name="messages" :size="22" />Messages
-          <span v-if="badges.messages" class="absolute right-[calc(50%-20px)] top-1 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-semibold leading-[18px] text-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
+        <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="isActive({ to: '/gestion/messages' }) ? 'text-emerald-700' : 'text-slate-600'">
+          <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/messages' }) ? 'bg-emerald-50' : ''">
+            <ColorIcon v-if="isActive({ to: '/gestion/messages' })" name="whatsapp" :size="26" :tile="false" />
+            <Icon v-else name="messages" :size="22" />
+          </span>Messages
+          <span v-if="badges.messages" class="absolute right-[calc(50%-22px)] -top-0.5 min-w-[18px] rounded-full bg-[#e54a6e] px-1 text-center text-[10px] font-bold leading-[18px] text-white ring-2 ring-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
         </RouterLink>
         <span v-else />
-        <button type="button" class="flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium text-slate-600" @click="menuOpen = true">
-          <Icon name="menu" :size="22" />Plus
+        <button type="button" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="plusOpen ? 'text-emerald-700' : 'text-slate-600'" @click="plusOpen = true">
+          <span class="grid h-8 w-12 place-items-center rounded-full" :class="plusOpen ? 'bg-emerald-50' : ''">
+            <ColorIcon v-if="plusOpen" name="menu" :size="26" :tile="false" />
+            <Icon v-else name="menu" :size="22" />
+          </span>Plus
         </button>
       </div>
     </nav>
+
+    <!-- Plus : tout Jibiat Marchand en tuiles -->
+    <div v-if="plusOpen" class="fixed inset-0 z-30 bg-slate-900/40 lg:hidden" @click="plusOpen = false" />
+    <div v-if="plusOpen" class="fixed inset-x-0 bottom-0 z-40 max-h-[85vh] overflow-y-auto rounded-t-[28px] bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] lg:hidden" role="dialog" aria-label="Tout Jibiat Marchand">
+      <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200" />
+      <div class="mb-3 flex items-center justify-between px-1">
+        <p class="text-[19px] font-extrabold">Tout Jibiat Marchand</p>
+        <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600" aria-label="Fermer" @click="plusOpen = false"><Icon name="close" :size="18" /></button>
+      </div>
+      <div class="grid grid-cols-3 gap-2.5">
+        <RouterLink v-for="tile in plusTiles" :key="tile.to" :to="tile.to" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-slate-50 px-1 py-3 text-center active:scale-95 transition">
+          <ColorIcon :name="tile.color" :size="44" />
+          <span class="text-[12.5px] font-semibold leading-tight text-slate-700">{{ tile.label }}</span>
+        </RouterLink>
+      </div>
+      <button type="button" class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 py-3 text-sm font-bold text-slate-700" @click="plusOpen = false; menuOpen = true">
+        <ColorIcon name="reglages" :size="22" :tile="false" />Tout le menu et les réglages
+      </button>
+    </div>
     <div v-if="switchNotice" class="fixed inset-x-4 bottom-20 lg:bottom-4 z-50 mx-auto max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-center text-sm font-medium text-white shadow-lg" role="status">
       {{ switchNotice }}
     </div>

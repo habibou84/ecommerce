@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import Alert from '../../components/Alert.vue'
+import ColorIcon from '../../components/ColorIcon.vue'
 import Icon from '../../components/Icon.vue'
 import http from '../../lib/http'
 import { daysUntil, formatDate, money } from '../../lib/format'
@@ -42,7 +43,7 @@ async function copyLink() {
   }
 }
 
-// Le reste (raccourcis, semaine, conseils) derrière « Tout voir » ; le choix est retenu sur cet appareil
+// Le reste (semaine, conseils) derrière « Tout voir » ; le choix est retenu sur cet appareil
 const more = ref(false)
 try { more.value = localStorage.getItem('dashboard-more') === '1' } catch {}
 function toggleMore() {
@@ -56,7 +57,6 @@ const subscription = computed(() => auth.store?.subscription)
 const trialDays = computed(() =>
   auth.can('billing.manage') && !auth.store?.free && subscription.value?.status === 'trialing' ? daysUntil(subscription.value.trial_ends_at) : null,
 )
-const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
 
 // Aujourd'hui comparé à hier à la même heure : flèche verte si ça monte, rouge si ça baisse
 function trend(now, before, format = String) {
@@ -136,21 +136,49 @@ const guide = ref(null)
 onMounted(async () => {
   guide.value = (await http.get('/setup-guide').catch(() => ({ data: { data: null } }))).data.data
 })
-// Raccourcis : les actions les plus fréquentes, selon les droits
-const shortcuts = computed(() => [
-  auth.can('orders.manage') && { to: '/gestion/commandes/nouvelle', icon: 'orders', label: 'Nouvelle commande' },
-  auth.can('orders.manage') && { to: '/gestion/live', icon: 'live', label: 'Vendre en live' },
-  auth.can('cash.manage') && { to: '/gestion/caisse/vente', icon: 'cash', label: 'Vente au comptoir' },
-  auth.can('products.manage') && { to: '/gestion/catalogue/nouveau', icon: 'box', label: 'Ajouter un produit' },
+// Icône en couleur de chaque ligne « À faire maintenant » (les mêmes que dans Jibiat)
+const TODO_COLORS = { live: 'live', phone: 'telephone', truck: 'colis', box: 'colis', alert: 'aregler', cash: 'moto', receipt: 'camion', messages: 'whatsapp' }
+const todoColor = (t) => (t.key === 'stock' ? 'stock' : TODO_COLORS[t.icon] ?? 'colis')
+
+// Actions rapides, toujours visibles (selon les droits)
+const quick = computed(() => [
+  auth.can('orders.manage') && { to: '/gestion/commandes/nouvelle', color: 'panier', label: 'Nouvelle commande' },
+  auth.can('orders.manage') && { to: '/gestion/commandes/nouvelle?coller=1', color: 'coller', label: 'Coller WhatsApp' },
+  auth.can('products.manage') && { to: '/gestion/catalogue/nouveau', color: 'produit', label: 'Ajouter un produit' },
+  auth.can('cash.manage') && { to: '/gestion/caisse/vente', color: 'caisse', label: 'Vente comptoir' },
 ].filter(Boolean))
-const initials = computed(() => (auth.store?.name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase())
+
+// Ventes du jour par canal : une barre par canal, le plus fort en premier
+const CHANNEL_COLORS = { whatsapp: 'whatsapp', facebook: 'partage', instagram: 'partage', tiktok: 'live', live: 'live', online_store: 'boutique', in_store: 'caisse', phone: 'telephone', other: 'panier' }
+const channels = computed(() => stats.value?.channels ?? [])
+const channelMax = computed(() => Math.max(...channels.value.map((c) => c.amount), 1))
+
+// Boutique en ligne : l'adresse lisible et le partage sur WhatsApp
+const shop = computed(() => stats.value?.shop ?? null)
+const shopHost = computed(() => (shop.value?.url ?? '').replace(/^https?:\/\//, '').replace(/\/$/, ''))
+const shopShare = computed(() => `https://wa.me/?text=${encodeURIComponent(`Découvrez ma boutique ${auth.store?.name ?? ''} : ${shop.value?.url ?? ''}`)}`)
+
+// De l'argent à aller chercher : paniers laissés, clientes fidèles à relancer, promotion qui se termine
+const endsIn = (at) => {
+  const days = Math.ceil((new Date(at) - Date.now()) / 86400000)
+  return days <= 1 ? 'se termine aujourd\'hui' : `encore ${days} jours`
+}
+const chances = computed(() => {
+  const s = stats.value
+  if (!s) return []
+  return [
+    s.shop?.abandoned && { key: 'carts', color: 'panier', to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés', hint: `${s.shop.abandoned} cliente${s.shop.abandoned > 1 ? 's ont' : ' a'} laissé des articles : relancez-les sur WhatsApp`, action: 'Relancer' },
+    s.to_relaunch && { key: 'relaunch', color: 'clients', to: '/gestion/clients?filtre=to_relaunch', label: 'Clientes fidèles à relancer', hint: `${s.to_relaunch} n'ont pas commandé depuis 30 jours`, action: 'Écrire' },
+    s.promotions?.active && { key: 'promo', color: 'promo', to: '/gestion/marketing', label: s.promotions.active > 1 ? `${s.promotions.active} promotions en cours` : 'Promotion en cours', hint: s.promotions.ending ? `${s.promotions.ending.title} : ${endsIn(s.promotions.ending.ends_at)}` : 'sans date de fin' },
+  ].filter(Boolean)
+})
 
 const guideNext = computed(() => guide.value?.steps.find((s) => s.key === guide.value.next) ?? null)
 const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.value.done < guide.value.total)
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-4">
     <Alert v-if="welcome" tone="success">
       Votre espace marchand <strong>{{ auth.store?.name }}</strong> est créé. Il est à l'adresse
       <a :href="auth.store?.url" target="_blank" class="font-medium underline">{{ auth.store?.url.replace(/^https?:\/\//, '').replace(/\/$/, '') }}</a>.
@@ -162,19 +190,11 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
       (jusqu'au {{ formatDate(subscription.trial_ends_at) }}).
     </Alert>
 
-    <section class="flex items-center gap-3">
-      <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-700 text-sm font-extrabold text-white">{{ initials }}</span>
-      <div class="min-w-0 flex-1">
-        <p class="text-sm text-slate-500 first-letter:uppercase">{{ today }}</p>
-        <h2 class="text-xl font-extrabold sm:text-2xl">Bonjour {{ auth.user?.name?.split(' ')[0] }} 👋</h2>
-      </div>
-      <RouterLink v-if="auth.can('orders.manage')" to="/gestion/commandes/nouvelle" class="btn-brand hidden lg:inline-flex"><Icon name="plus" :size="18" />Nouvelle commande</RouterLink>
-    </section>
-
-    <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
-      <div class="min-w-0 space-y-5">
-        <!-- Vendre en live, en tête : invitation, live prêt à lancer ou live en direct -->
-        <section v-if="live" class="relative overflow-hidden rounded-3xl p-5 text-white shadow-sm" :class="live.state === 'live' ? 'bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400' : 'bg-gradient-to-br from-emerald-900 to-emerald-700'">
+    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+      <div class="min-w-0 space-y-4">
+        <!-- Vendre en live, en tête : invitation, live prêt à lancer ou live en direct (rose et violet, la couleur du live) -->
+        <section v-if="live" class="relative overflow-hidden rounded-[24px] p-5 text-white" :class="live.state === 'live' ? 'bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400' : 'bg-live-grad'">
+          <svg class="pointer-events-none absolute -right-8 -top-8 opacity-[.16]" width="180" height="180" viewBox="0 0 48 48" aria-hidden="true"><path d="M15.5 15.5a12 12 0 0 0 0 17M32.5 15.5a12 12 0 0 1 0 17M9.5 9.5a20 20 0 0 0 0 29M38.5 9.5a20 20 0 0 1 0 29" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" /><circle cx="24" cy="24" r="6" fill="#fff" /></svg>
           <template v-if="live.state === 'live'">
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide">
               <span class="h-2 w-2 animate-pulse rounded-full bg-white" />EN DIRECT<template v-if="liveMinutes"> · {{ liveMinutes }}</template>
@@ -186,37 +206,119 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
               <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ live.session.summary.pending }}</b>en attente</span>
               <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ live.session.sold_out }}</b>épuisé{{ live.session.sold_out > 1 ? 's' : '' }}</span>
             </div>
-            <RouterLink :to="`/gestion/live/${live.session.id}`" class="mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-ocre-700 active:scale-[.99]">Revenir au live</RouterLink>
+            <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-ocre-700 active:scale-[.99]">Revenir au live</RouterLink>
           </template>
           <template v-else-if="live.state === 'ready'">
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
             <h3 class="mt-3 text-xl font-extrabold leading-tight">{{ live.session.title }}</h3>
             <p class="mt-1 text-sm text-white/90">{{ live.session.items_count }} article{{ live.session.items_count > 1 ? 's' : '' }} prêt{{ live.session.items_count > 1 ? 's' : '' }} · partagez le lien avant de commencer.</p>
-            <RouterLink :to="`/gestion/live/${live.session.id}`" class="mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-emerald-800 active:scale-[.99]">Lancer le live</RouterLink>
-            <button type="button" class="mt-2 block w-full text-center text-sm text-white/90 underline" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien pour WhatsApp et Facebook' }}</button>
+            <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-[#c02a4e] active:scale-[.99]">Lancer le live</RouterLink>
+            <button type="button" class="relative mt-2 block w-full text-center text-sm text-white/90 underline" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien pour WhatsApp et Facebook' }}</button>
           </template>
           <template v-else>
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />VENDRE EN LIVE</span>
-            <h3 class="mt-3 text-xl font-extrabold leading-tight">Votre prochain live peut rapporter plus qu'une semaine de ventes.</h3>
-            <p class="mt-1 text-sm text-white/90">Choisissez vos articles, partagez le lien : les clients commandent avec un code, sans vous écrire.</p>
-            <RouterLink to="/gestion/live" class="mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-emerald-800 active:scale-[.99]">Préparer un live</RouterLink>
-            <RouterLink v-if="live.last" :to="`/gestion/live/${live.last.id}`" class="mt-2 block text-center text-sm text-white/90 underline">
-              Dernier live : {{ live.last.orders }} commande{{ live.last.orders > 1 ? 's' : '' }} · {{ money(live.last.amount) }}
-            </RouterLink>
+            <h3 class="mt-3 text-xl font-extrabold leading-tight sm:text-2xl">Votre prochain live peut rapporter plus qu'une semaine de ventes.</h3>
+            <p class="mt-1 text-sm text-white/95">
+              <template v-if="live.last">Dernier live : <b>{{ live.last.orders }} commande{{ live.last.orders > 1 ? 's' : '' }} · {{ money(live.last.amount) }}</b></template>
+              <template v-else>Choisissez vos articles, partagez le lien : les clients commandent avec un code, sans vous écrire.</template>
+            </p>
+            <div class="relative mt-4 flex gap-2">
+              <RouterLink to="/gestion/live" class="flex-1 rounded-2xl bg-white py-3 text-center text-base font-extrabold text-[#c02a4e] active:scale-[.99]">Préparer un live</RouterLink>
+              <RouterLink v-if="live.last" :to="`/gestion/live/${live.last.id}`" class="rounded-2xl bg-white/20 px-4 py-3 text-sm font-bold">Revoir</RouterLink>
+            </div>
           </template>
         </section>
 
-        <!-- Ventes du jour, en petit -->
+        <!-- Actions rapides : les gestes de commerçant -->
+        <section v-if="quick.length" class="grid gap-2" :class="['grid-cols-1', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][quick.length]">
+          <RouterLink v-for="a in quick" :key="a.to" :to="a.to" class="flex flex-col items-center gap-1.5 rounded-[20px] bg-white px-1 py-3 text-center shadow-soft transition active:scale-95 hover:ring-1 hover:ring-emerald-600">
+            <ColorIcon :name="a.color" :size="44" />
+            <span class="text-xs font-semibold leading-tight text-slate-700">{{ a.label }}</span>
+          </RouterLink>
+        </section>
+
+        <!-- Ventes du jour, par canal : on vend partout -->
         <RouterLink v-if="stats?.orders" to="/gestion/commandes" class="card block p-4 hover:border-emerald-600">
-          <span class="flex items-center justify-between gap-2">
-            <span class="text-[15px] font-extrabold">Aujourd'hui</span>
-            <span class="inline-flex items-center gap-1 text-sm font-semibold" :class="amountTrend.tone"><Icon v-if="amountTrend.icon" :name="amountTrend.icon" :size="15" />{{ amountTrend.text }}</span>
-          </span>
-          <span class="mt-1 flex items-baseline justify-between gap-2">
+          <span class="flex items-baseline justify-between gap-2">
+            <span class="text-[16px] font-extrabold">Mes ventes du jour</span>
             <span class="text-2xl font-extrabold">{{ money(stats.orders.today_amount) }}</span>
-            <span class="text-sm text-slate-500">{{ stats.orders.today_count }} commande{{ stats.orders.today_count > 1 ? 's' : '' }}</span>
           </span>
-          <span class="mt-2 block border-t border-slate-100 pt-2 text-sm text-slate-500">Livré ce mois-ci : <strong class="text-slate-800">{{ money(stats.orders.month_revenue) }}</strong> · {{ stats.orders.month_delivered }} commande(s)</span>
+          <span class="mt-0.5 flex items-center justify-between gap-2 text-sm">
+            <span class="text-slate-500">{{ stats.orders.today_count }} commande{{ stats.orders.today_count > 1 ? 's' : '' }}<template v-if="channels.length > 1"> sur {{ channels.length }} canaux</template></span>
+            <span class="inline-flex items-center gap-1 font-semibold" :class="amountTrend.tone"><Icon v-if="amountTrend.icon" :name="amountTrend.icon" :size="15" />{{ amountTrend.text }}</span>
+          </span>
+          <span v-if="channels.length" class="mt-3 block space-y-2">
+            <span v-for="c in channels" :key="c.source" class="flex items-center gap-2.5">
+              <ColorIcon :name="CHANNEL_COLORS[c.source] ?? 'panier'" :size="30" />
+              <span class="w-28 shrink-0 truncate text-sm font-semibold text-slate-700">{{ c.label }}</span>
+              <span class="h-2 min-w-0 flex-1 rounded-full bg-slate-100"><span class="block h-full rounded-full bg-gradient-to-r from-[#8c95ff] to-[#545fe0]" :style="{ width: `${Math.max(4, (c.amount / channelMax) * 100)}%` }" /></span>
+              <span class="w-[78px] shrink-0 text-right text-sm font-bold">{{ money(c.amount) }}</span>
+            </span>
+          </span>
+          <span class="mt-3 block border-t border-slate-100 pt-2 text-sm text-slate-500">Livré ce mois-ci : <strong class="text-slate-800">{{ money(stats.orders.month_revenue) }}</strong> · {{ stats.orders.month_delivered }} commande(s)</span>
+        </RouterLink>
+
+        <!-- À faire maintenant : téléphone, juste sous les ventes -->
+        <section v-if="todo.length" class="lg:hidden">
+          <h3 class="mb-2 text-[17px] font-extrabold">À faire maintenant</h3>
+          <div class="card">
+            <p v-if="!pending.length" class="flex items-center gap-2 p-4 text-sm font-medium text-emerald-800"><ColorIcon name="livre" :size="26" :tile="false" />Tout est à jour.</p>
+            <RouterLink v-for="t in (more ? pending : pendingShort)" :key="t.key" :to="t.to" class="flex items-center gap-3 border-t border-slate-100 px-4 py-3 first:border-t-0 hover:bg-slate-50">
+              <ColorIcon :name="todoColor(t)" :size="40" />
+              <span class="min-w-0 flex-1">
+                <span class="block text-[15px] font-semibold">{{ t.label }}</span>
+                <span v-if="t.hint" class="block text-sm" :class="t.urgent ? 'text-ocre-700' : 'text-slate-500'">{{ t.hint }}</span>
+              </span>
+              <span class="grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm font-bold" :class="t.urgent ? 'bg-ocre-50 text-ocre-800' : 'bg-emerald-50 text-emerald-800'">{{ t.count }}</span>
+            </RouterLink>
+            <button v-if="pendingHidden > 0 && !more" type="button" class="block w-full border-t border-slate-100 px-4 py-2.5 text-left text-sm font-semibold text-emerald-700" @click="toggleMore">
+              Et {{ pendingHidden }} autre{{ pendingHidden > 1 ? 's' : '' }} ›
+            </button>
+          </div>
+        </section>
+
+        <!-- Ma boutique en ligne : son adresse, ses commandes, les paniers laissés -->
+        <section v-if="shop" class="card p-4">
+          <div class="flex items-center gap-3">
+            <ColorIcon name="boutique" :size="46" />
+            <div class="min-w-0 flex-1">
+              <p class="text-[15.5px] font-bold">Ma boutique en ligne</p>
+              <a :href="shop.url" target="_blank" rel="noopener" class="block truncate text-sm text-slate-500 hover:text-emerald-700">{{ shopHost }}</a>
+            </div>
+          </div>
+          <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div class="rounded-2xl bg-[#f1ecff] py-2.5"><p class="text-xl font-extrabold text-[#5b3fc4]">{{ shop.today }}</p><p class="text-xs text-slate-600">commande{{ shop.today > 1 ? 's' : '' }} aujourd'hui</p></div>
+            <div class="rounded-2xl bg-[#eceeff] py-2.5"><p class="text-xl font-extrabold text-[#3a43b5]">{{ shop.month }}</p><p class="text-xs text-slate-600">ce mois-ci</p></div>
+            <RouterLink to="/gestion/paniers-abandonnes" class="rounded-2xl bg-[#ffecef] py-2.5"><p class="text-xl font-extrabold text-[#c02a4e]">{{ shop.abandoned }}</p><p class="text-xs text-slate-600">panier{{ shop.abandoned > 1 ? 's' : '' }} laissé{{ shop.abandoned > 1 ? 's' : '' }}</p></RouterLink>
+          </div>
+          <div class="mt-3 flex gap-2">
+            <a :href="shopShare" target="_blank" rel="noopener" class="btn-brand flex-1 justify-center"><Icon name="share" :size="17" />Partager sur WhatsApp</a>
+            <RouterLink v-if="auth.can('store.manage')" to="/gestion/boutique-en-ligne" class="btn-secondary">Modifier</RouterLink>
+          </div>
+        </section>
+
+        <!-- De l'argent à aller chercher -->
+        <section v-if="chances.length">
+          <h3 class="mb-2 text-[17px] font-extrabold">De l'argent à aller chercher</h3>
+          <div class="card divide-y divide-slate-100">
+            <RouterLink v-for="c in chances" :key="c.key" :to="c.to" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+              <ColorIcon :name="c.color" :size="42" />
+              <span class="min-w-0 flex-1"><span class="block text-[15px] font-semibold">{{ c.label }}</span><span class="block text-sm text-slate-500">{{ c.hint }}</span></span>
+              <span v-if="c.action" class="shrink-0 rounded-xl bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-800">{{ c.action }}</span>
+              <Icon v-else name="chevron" :size="16" class="text-slate-400" />
+            </RouterLink>
+          </div>
+        </section>
+
+        <!-- Le bénéfice du mois (pour qui voit les finances) -->
+        <RouterLink v-if="stats?.profit" to="/gestion/statistiques" class="card flex items-center gap-3 p-4 hover:border-emerald-600">
+          <ColorIcon name="stats" :size="46" />
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm text-slate-500">Mon bénéfice du mois</span>
+            <span class="block text-2xl font-extrabold" :class="stats.profit.profit < 0 ? 'text-red-700' : 'text-emerald-800'">{{ money(stats.profit.profit) }}</span>
+            <span v-if="stats.profit.per_delivered !== null" class="block text-sm text-slate-500">{{ money(stats.profit.per_delivered) }} gagnés par commande livrée</span>
+          </span>
+          <Icon name="chevron" :size="16" class="text-slate-400" />
         </RouterLink>
 
         <!-- Dehors en ce moment : argent et colis chez les livreurs et les entreprises -->
@@ -224,10 +326,13 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
           <h3 class="mb-2 text-[17px] font-extrabold">Dehors en ce moment</h3>
           <div class="grid gap-3" :class="stats.couriers && stats.carriers ? 'sm:grid-cols-2' : ''">
             <div v-if="stats.couriers" class="card p-4">
-              <RouterLink to="/gestion/caisse/livreurs" class="group block">
-                <span class="flex items-center gap-2 text-sm font-semibold text-slate-600"><Icon name="cash" :size="17" class="text-emerald-700" />Argent chez mes livreurs<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
-                <span class="mt-1 block text-3xl font-extrabold group-hover:text-emerald-800">{{ money(stats.couriers.cash) }}</span>
-                <span class="block text-sm text-slate-500">{{ stats.couriers.holders ? `chez ${stats.couriers.holders} livreur${stats.couriers.holders > 1 ? 's' : ''}, pas encore versé` : 'Tout a été versé.' }}</span>
+              <RouterLink to="/gestion/caisse/livreurs" class="group flex items-center gap-3">
+                <ColorIcon name="moto" :size="42" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">Argent chez mes livreurs<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
+                  <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.couriers.cash) }}</span>
+                  <span class="block text-sm text-slate-500">{{ stats.couriers.holders ? `chez ${stats.couriers.holders} livreur${stats.couriers.holders > 1 ? 's' : ''}, pas encore versé` : 'Tout a été versé.' }}</span>
+                </span>
               </RouterLink>
               <ul v-if="stats.couriers.late.length || stats.couriers.over_limit.length" class="mt-3 space-y-1.5">
                 <li v-for="c in stats.couriers.late" :key="c.courier_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
@@ -238,15 +343,18 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
                 </li>
               </ul>
               <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
-                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700 hover:bg-slate-200"><Icon name="truck" :size="15" />{{ stats.couriers.on_the_way }} colis en route</RouterLink>
+                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f1ff] px-3 py-1 text-[#1d5bc7]"><Icon name="truck" :size="15" />{{ stats.couriers.on_the_way }} colis en route</RouterLink>
                 <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="stats.couriers.late_returns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ stats.couriers.to_bring_back }} à rapporter</RouterLink>
               </div>
             </div>
             <div v-if="stats.carriers" class="card p-4">
-              <RouterLink to="/gestion/caisse/a-recevoir" class="group block">
-                <span class="flex items-center gap-2 text-sm font-semibold text-slate-600"><Icon name="receipt" :size="17" class="text-emerald-700" />À recevoir des entreprises<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
-                <span class="mt-1 block text-3xl font-extrabold group-hover:text-emerald-800">{{ money(stats.carriers.amount) }}</span>
-                <span class="block text-sm text-slate-500">{{ stats.carriers.amount ? 'courses livrées, pas encore reversées' : 'Rien en attente.' }}</span>
+              <RouterLink to="/gestion/caisse/a-recevoir" class="group flex items-center gap-3">
+                <ColorIcon name="camion" :size="42" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">À recevoir des entreprises<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
+                  <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.carriers.amount) }}</span>
+                  <span class="block text-sm text-slate-500">{{ stats.carriers.amount ? 'courses livrées, pas encore reversées' : 'Rien en attente.' }}</span>
+                </span>
               </RouterLink>
               <ul v-if="stats.carriers.overdue.length" class="mt-3 space-y-1.5">
                 <li v-for="c in stats.carriers.overdue" :key="c.connection_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
@@ -254,58 +362,27 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
                 </li>
               </ul>
               <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
-                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700 hover:bg-slate-200"><Icon name="truck" :size="15" />{{ stats.carriers.on_the_way }} colis en route</RouterLink>
+                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f1ff] px-3 py-1 text-[#1d5bc7]"><Icon name="truck" :size="15" />{{ stats.carriers.on_the_way }} colis en route</RouterLink>
                 <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="stats.carriers.late_returns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ stats.carriers.to_bring_back }} à rapporter</RouterLink>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- À faire maintenant : téléphone, juste sous les ventes -->
-        <section v-if="todo.length" class="lg:hidden">
-          <h3 class="mb-2 text-[17px] font-extrabold">À faire maintenant</h3>
-          <div class="card">
-            <p v-if="!pending.length" class="flex items-center gap-2 p-4 text-sm font-medium text-emerald-800"><Icon name="check" :size="18" />Tout est à jour.</p>
-            <RouterLink v-for="t in (more ? pending : pendingShort)" :key="t.key" :to="t.to" class="flex items-center gap-3 border-t border-slate-100 px-4 py-3 first:border-t-0 hover:bg-slate-50">
-              <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl" :class="t.urgent ? 'bg-ocre-50 text-ocre-700' : 'bg-emerald-50 text-emerald-800'"><Icon :name="t.icon" :size="19" /></span>
-              <span class="min-w-0 flex-1">
-                <span class="block text-[15px] font-semibold">{{ t.label }}</span>
-                <span v-if="t.hint" class="block text-sm" :class="t.urgent ? 'text-ocre-700' : 'text-slate-500'">{{ t.hint }}</span>
-              </span>
-              <span class="text-lg font-bold">{{ t.count }}</span>
-              <Icon name="chevron" :size="16" class="text-slate-400" />
-            </RouterLink>
-            <button v-if="pendingHidden > 0 && !more" type="button" class="block w-full border-t border-slate-100 px-4 py-2.5 text-left text-sm font-semibold text-emerald-700" @click="toggleMore">
-              Et {{ pendingHidden }} autre{{ pendingHidden > 1 ? 's' : '' }} ›
-            </button>
-          </div>
-        </section>
-
         <!-- Guide de démarrage : disparaît quand l'essentiel est fait -->
         <section v-if="showGuide" class="card flex flex-wrap items-center gap-4 p-4 sm:p-5">
-          <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-800"><Icon name="lightbulb" :size="22" /></span>
+          <ColorIcon name="aide" :size="44" />
           <div class="min-w-0 flex-1">
             <p class="font-semibold">Bien démarrer : {{ guide.done }} sur {{ guide.total }} étapes faites</p>
             <p v-if="guideNext" class="text-sm text-slate-600">Prochaine étape : {{ guideNext.title }}</p>
-            <div class="mt-2 h-2 max-w-xs overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-emerald-600" :style="{ width: `${(guide.done / guide.total) * 100}%` }" /></div>
+            <div class="mt-2 h-2 max-w-xs overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-gradient-to-r from-[#5ed39c] to-[#1c9262]" :style="{ width: `${(guide.done / guide.total) * 100}%` }" /></div>
           </div>
           <RouterLink :to="guideNext ? `/gestion/demarrage?etape=${guideNext.key}` : '/gestion/demarrage'" class="btn-brand w-full justify-center sm:w-auto">{{ guide.done ? 'Continuer le guide' : 'Commencer le guide' }}</RouterLink>
         </section>
 
         <button type="button" class="flex w-full items-center justify-center gap-1 py-1 text-sm font-semibold text-emerald-700" :aria-expanded="more" @click="toggleMore">
-          {{ more ? 'Voir moins' : 'Tout voir : raccourcis, semaine, conseils' }}<Icon name="chevron" :size="15" :class="more ? '-rotate-90' : 'rotate-90'" />
+          {{ more ? 'Voir moins' : 'Tout voir : semaine, conseils' }}<Icon name="chevron" :size="15" :class="more ? '-rotate-90' : 'rotate-90'" />
         </button>
-
-        <!-- Raccourcis -->
-        <section v-if="more && shortcuts.length">
-          <h3 class="mb-2 text-[17px] font-extrabold">Raccourcis</h3>
-          <div class="grid grid-cols-4 gap-2.5">
-            <RouterLink v-for="a in shortcuts" :key="a.to" :to="a.to" class="group text-center">
-              <span class="card grid h-16 place-items-center text-emerald-700 transition group-hover:border-emerald-600"><Icon :name="a.icon" :size="24" /></span>
-              <span class="mt-1.5 block text-xs font-semibold leading-tight text-slate-700">{{ a.label }}</span>
-            </RouterLink>
-          </div>
-        </section>
 
         <!-- Ventes des 7 derniers jours -->
         <section v-if="more && week.length" class="card p-4 sm:p-5">
@@ -352,13 +429,11 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
       <!-- À faire maintenant : ordinateur, en colonne à droite (tout, même à zéro) -->
       <section v-if="todo.length" class="card hidden self-start p-4 sm:p-5 lg:block">
         <h3 class="text-[17px] font-extrabold">À faire maintenant</h3>
-        <p v-if="!pending.length" class="mt-3 flex items-center gap-2 text-sm text-emerald-800"><Icon name="check" :size="18" />Tout est à jour.</p>
+        <p v-if="!pending.length" class="mt-3 flex items-center gap-2 text-sm text-emerald-800"><ColorIcon name="livre" :size="24" :tile="false" />Tout est à jour.</p>
         <ul class="mt-2 divide-y divide-slate-100">
           <li v-for="t in todo" :key="t.key">
             <RouterLink :to="t.to" class="-mx-2 flex items-center gap-3 rounded-xl px-2 py-3 hover:bg-slate-50">
-              <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl" :class="t.urgent ? 'bg-ocre-50 text-ocre-700' : t.count ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-500'">
-                <Icon :name="t.icon" :size="19" />
-              </span>
+              <ColorIcon :name="todoColor(t)" :size="38" :class="t.count || t.hint ? '' : 'opacity-50'" />
               <span class="min-w-0 flex-1">
                 <span class="block text-sm font-semibold" :class="t.count ? 'text-slate-900' : 'text-slate-500'">{{ t.label }}</span>
                 <span v-if="t.hint" class="block text-xs" :class="t.urgent ? 'text-ocre-700' : 'text-slate-500'">{{ t.hint }}</span>
@@ -372,7 +447,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
     </div>
 
     <section v-if="more && stats?.tips?.length" class="card space-y-2 p-4 sm:p-5">
-      <h3 class="flex items-center gap-2 font-semibold"><Icon name="lightbulb" :size="18" class="text-amber-600" />Conseils du jour</h3>
+      <h3 class="flex items-center gap-2 font-semibold"><ColorIcon name="aide" :size="30" />Conseils du jour</h3>
       <ol class="list-decimal space-y-1 pl-5 text-sm text-slate-700">
         <li v-for="(tip, i) in stats.tips" :key="i">{{ tip }}</li>
       </ol>

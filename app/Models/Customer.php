@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
@@ -28,6 +29,15 @@ class Customer extends Model
             'last_order_at' => 'datetime',
             'total_spent' => 'integer',
         ];
+    }
+
+    /**
+     * Clientes fidèles à relancer : au moins 2 livraisons, plus de commande depuis 30 jours, pas sur liste noire
+     * (accueil et filtre de la liste des clients).
+     */
+    public function scopeToRelaunch(Builder $query): Builder
+    {
+        return $query->where('delivered_count', '>=', 2)->whereNull('blacklisted_at')->where('last_order_at', '<=', now()->subDays(30));
     }
 
     public function addresses(): HasMany

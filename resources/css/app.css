@@ -92,6 +92,19 @@
 }
 
 /* Composants d'interface (mêmes noms que dans Delivery App) */
+/* Style « dégradé doux », le même que l'application Jibiat : ombre légère des cartes, dégradés de la marque et du live */
+@utility shadow-soft {
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -8px rgb(15 23 42 / 0.12);
+}
+@utility bg-brand-grad {
+    background-color: var(--color-emerald-700);
+    background-image: linear-gradient(140deg, #13a058 0%, var(--color-emerald-800) 100%);
+}
+@utility bg-live-grad {
+    background-color: #e54a6e;
+    background-image: linear-gradient(140deg, #f0587a 0%, #8b6cf2 100%);
+}
+
 @utility btn {
     @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
 }
@@ -124,7 +137,8 @@
     @apply mb-1 block text-sm font-semibold text-slate-700;
 }
 @utility card {
-    @apply rounded-2xl border border-slate-200 bg-white;
+    @apply rounded-2xl border border-slate-200/70 bg-white;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -8px rgb(15 23 42 / 0.1);
 }
 
 /* Application livreur, mode nuit : couleurs inversées (lecture le soir), photos et cartes gardées telles quelles */
