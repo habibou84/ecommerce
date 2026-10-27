@@ -17,7 +17,8 @@ use Carbon\CarbonImmutable;
  * Gratuité donnée depuis la console, sans paiement ni fin d'essai :
  *  - pour tous (interrupteur général) : une offre au choix, jusqu'à une date ou sans limite, avec un bandeau facultatif ;
  *  - pour un espace marchand (« gratuit à vie ») : prioritaire, même quand l'interrupteur général est éteint.
- * Les limites de l'offre donnée s'appliquent (dont l'assistant IA). Un abonnement payé plus élevé est gardé.
+ *  - par une clé d'accès (carte à QR code, voir AccessKeys).
+ * Les limites de l'offre donnée s'appliquent. Un abonnement payé plus élevé est gardé.
  * À la fin de la gratuité générale, chaque espace marchand qui ne paie pas reçoit un délai (essai) avant le retour
  * au fonctionnement normal.
  */
@@ -65,36 +66,55 @@ class FreeAccess
     }
 
     /**
-     * Offre gratuite qui s'applique à cet espace marchand : « gratuit à vie » d'abord, sinon la gratuité générale.
+     * Offre gratuite qui s'applique à cet espace marchand : la plus élevée entre « gratuit à vie », sa clé d'accès
+     * active et la gratuité générale.
      */
     public function planFor(Store $store): ?Plan
     {
-        if ($store->free_plan_id !== null) {
-            return $store->freePlan;
-        }
-
-        return $this->globalPlan();
+        return $this->source($store)[0];
     }
 
     /**
-     * Ce que l'espace marchand voit : offre donnée, sans limite ou jusqu'à quand, bandeau.
+     * @return array{0: ?Plan, 1: ?string} offre donnée et sa provenance (forever, key, global)
+     */
+    private function source(Store $store): array
+    {
+        $best = [null, null];
+        $candidates = [
+            'forever' => $store->free_plan_id !== null ? $store->freePlan : null,
+            'key' => app(AccessKeys::class)->planFor($store),
+            'global' => $this->globalPlan(),
+        ];
+        foreach ($candidates as $from => $plan) {
+            if ($plan !== null && ($best[0] === null || $plan->sort > $best[0]->sort)) {
+                $best = [$plan, $from];
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * Ce que l'espace marchand voit : offre donnée, sans limite ou jusqu'à quand, bandeau, clé d'accès.
      *
-     * @return array{plan: string, plan_code: string, forever: bool, until: ?string, banner: ?string}|null
+     * @return array{plan: string, plan_code: string, forever: bool, until: ?string, banner: ?string, from: string}|null
      */
     public function present(Store $store): ?array
     {
-        $plan = $this->planFor($store);
+        [$plan, $from] = $this->source($store);
         if ($plan === null) {
             return null;
         }
-        $forever = $store->free_plan_id !== null;
+        $key = $from === 'key' ? app(AccessKeys::class)->present($store) : null;
+        $forever = $from === 'forever' || ($key['founder'] ?? false);
 
         return [
             'plan' => $plan->name,
             'plan_code' => $plan->code,
             'forever' => $forever,
-            'until' => $forever ? null : $this->settings()['until'],
-            'banner' => $forever ? null : $this->settings()['banner'],
+            'until' => $from === 'global' ? $this->settings()['until'] : ($key['until'] ?? null),
+            'banner' => $from === 'global' ? $this->settings()['banner'] : null,
+            'from' => $from,
         ];
     }
 

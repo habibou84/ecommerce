@@ -21,6 +21,8 @@ class ProductDraftTest extends TestCase
     {
         parent::setUp();
         $this->store = $this->createStore(['name' => 'Awa Mode']);
+        // L'assistant IA n'est compris dans aucune offre : actions rechargées
+        $this->store->forceFill(['ai_credits' => 100])->save();
         $this->actingAs($this->store->owner);
         $this->ai = new FakeAiClient;
         $this->app->instance(AiClient::class, $this->ai);
@@ -59,19 +61,21 @@ class ProductDraftTest extends TestCase
 
         // Action comptée, consommation notée ; rien n'est créé
         $this->assertSame([1, 1200, 300], [AiUsage::forStore($this->store->id)->count(), AiUsage::forStore($this->store->id)->value('input_tokens'), AiUsage::forStore($this->store->id)->value('output_tokens')]);
-        $this->storeApi($this->store, 'GET', 'auth/me')->assertJsonPath('data.ai', ['enabled' => true, 'used' => 1, 'limit' => 300, 'credits' => 0]);
+        $this->storeApi($this->store, 'GET', 'auth/me')->assertJsonPath('data.ai', ['enabled' => true, 'used' => 1, 'limit' => 0, 'credits' => 99]);
         $this->storeApi($this->store, 'GET', 'products')->assertJsonPath('meta.total', 0);
     }
 
     public function test_the_monthly_quota_of_the_plan(): void
     {
+        // Quota mis dans une offre depuis la console (aucune n'en a par défaut)
+        $this->store->forceFill(['ai_credits' => 0])->save();
         $plan = Plan::where('code', 'pro')->first();
         $plan->update(['limits' => ['ai_actions_per_month' => 1] + $plan->limits]);
         $sheet = ['title' => 'Sac', 'description' => '', 'brand' => null, 'options' => [], 'tags' => [], 'collections' => [], 'seo_title' => '', 'seo_description' => '', 'to_check' => null];
         $this->ai->respond($sheet);
 
         $this->draft()->assertOk();
-        $this->draft()->assertStatus(422)->assertJsonPath('message', "Les 1 actions de l'assistant IA de l'offre Pro sont utilisées ce mois-ci. Rechargez 100 actions pour 1 000 F, ou changez d'offre, dans Réglages › Abonnement.");
+        $this->draft()->assertStatus(422)->assertJsonPath('message', "Les 1 actions de l'assistant IA de l'offre Pro sont utilisées ce mois-ci. Rechargez 100 actions pour 1 000 F dans Réglages › Abonnement.");
         $this->assertCount(1, $this->ai->calls);
 
         // Actions achetées : utilisées une à une après le quota de l'offre
@@ -85,9 +89,9 @@ class ProductDraftTest extends TestCase
         $this->assertSame(0, $this->store->fresh()->ai_credits);
         $this->assertCount(3, $this->ai->calls);
 
-        // Offre sans quota d'IA : non comprise
+        // Offre sans quota d'IA (le cas par défaut) : l'assistant marche avec les recharges
         $plan->update(['limits' => array_diff_key($plan->limits, ['ai_actions_per_month' => 0])]);
-        $this->draft()->assertStatus(422)->assertJsonPath('message', "L'assistant IA n'est pas compris dans l'offre Pro. Rechargez 100 actions pour 1 000 F, ou changez d'offre, dans Réglages › Abonnement.");
+        $this->draft()->assertStatus(422)->assertJsonPath('message', "L'assistant IA marche avec des recharges, à part de l'offre. Rechargez 100 actions pour 1 000 F dans Réglages › Abonnement.");
     }
 
     public function test_failures_are_explained_and_not_counted(): void

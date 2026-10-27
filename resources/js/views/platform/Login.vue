@@ -73,7 +73,8 @@ async function submit() {
 
 async function openStore(store) {
   try {
-    const { data } = await http.post(`/account/stores/${store.id}/open`)
+    // Carte à QR code scannée avant de se connecter : la clé attend dans Réglages › Abonnement
+    const { data } = await http.post(`/account/stores/${store.id}/open`, { cle: route.query.cle ?? null })
     if (inApp) rememberStore(store)
     window.location.assign(data.redirect)
   } catch (e) {

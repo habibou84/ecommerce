@@ -64,7 +64,7 @@ async function save(plan) {
       </div>
       <p class="text-slate-600">
         Tous les espaces marchands ont l'offre choisie sans payer : pas de fin d'essai ni de relance. Un abonnement payé plus élevé est gardé.
-        Les limites de l'offre restent appliquées (dont l'assistant IA). À l'arrêt, chaque espace marchand qui ne paie pas garde l'offre pendant le délai, puis choisit la sienne.
+        Les limites de l'offre restent appliquées ; l'assistant IA reste payant (recharges). À l'arrêt, chaque espace marchand qui ne paie pas garde l'offre pendant le délai, puis choisit la sienne.
       </p>
       <Alert v-if="freeError">{{ freeError }}</Alert>
       <div class="grid gap-3 sm:grid-cols-3">

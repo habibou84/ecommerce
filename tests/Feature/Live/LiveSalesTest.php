@@ -59,6 +59,8 @@ class LiveSalesTest extends TestCase
         $this->ai = new FakeAiClient;
         $this->app->instance(AiClient::class, $this->ai);
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
+        // L'assistant IA n'est compris dans aucune offre : actions rechargées
+        $this->store->forceFill(['ai_credits' => 100])->save();
         app(Places::class)->provisionDefaultZone($this->store);
         $this->robe = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Robe wax', 'variants' => [['price' => 15000, 'on_hand' => 10]]]);
         $this->sac = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Sac cabas', 'variants' => [['price' => 8000, 'on_hand' => 10]]]);
