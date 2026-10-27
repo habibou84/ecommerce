@@ -185,6 +185,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('referrals/{partner}/pay', [ConsoleReferralController::class, 'pay'])->where('partner', '[a-z0-9-]{1,80}')->name('referrals.pay');
             Route::get('whatsapp', [ConsoleWhatsAppController::class, 'show'])->name('whatsapp.show');
             Route::post('whatsapp/embedded', [ConsoleWhatsAppController::class, 'connect'])->middleware('throttle:login')->name('whatsapp.connect');
+            Route::post('whatsapp/manual', [ConsoleWhatsAppController::class, 'manual'])->middleware('throttle:login')->name('whatsapp.manual');
             Route::delete('whatsapp', [ConsoleWhatsAppController::class, 'disconnect'])->name('whatsapp.disconnect');
             Route::post('whatsapp/qr', [ConsoleWhatsAppController::class, 'qr'])->middleware('throttle:30,1')->name('whatsapp.qr');
             Route::get('whatsapp/qr', [ConsoleWhatsAppController::class, 'qrStatus'])->middleware('throttle:90,1')->name('whatsapp.qr.status');
