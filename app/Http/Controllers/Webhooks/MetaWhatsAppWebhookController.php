@@ -24,15 +24,18 @@ class MetaWhatsAppWebhookController extends Controller
 {
     public function verify(Request $request): Response
     {
-        $expected = (string) config('services.meta.webhook_verify_token');
-        $ok = $expected !== '' && $request->query('hub_mode') === 'subscribe' && hash_equals($expected, (string) $request->query('hub_verify_token'));
+        // Jeton de l'application de la plateforme, ou celui créé pour le numéro du support configuré à la main
+        $given = (string) $request->query('hub_verify_token');
+        $tokens = array_filter([(string) config('services.meta.webhook_verify_token'), (string) app(PlatformWhatsApp::class)->manualVerifyToken()]);
+        $ok = $request->query('hub_mode') === 'subscribe' && collect($tokens)->contains(fn (string $t) => hash_equals($t, $given));
 
         return response($ok ? (string) $request->query('hub_challenge') : 'Refusé.', $ok ? 200 : 403);
     }
 
     public function handle(Request $request, CustomerMessenger $messenger, TemplateLibrary $templates, Tenancy $tenancy): Response
     {
-        if (! WhatsAppCloud::signatureMatches($request, config('services.meta.app_secret'))) {
+        if (! WhatsAppCloud::signatureMatches($request, config('services.meta.app_secret'))
+            && ! WhatsAppCloud::signatureMatches($request, app(PlatformWhatsApp::class)->manualAppSecret())) {
             return response('Signature invalide.', 401);
         }
         // Même adresse pour les messages Messenger (page) et Instagram : boîte Messages de la boutique

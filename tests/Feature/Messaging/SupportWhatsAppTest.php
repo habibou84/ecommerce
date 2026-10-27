@@ -29,6 +29,8 @@ class SupportWhatsAppTest extends TestCase
             return match (true) {
                 str_ends_with($path, '/oauth/access_token') => Http::response(['access_token' => 'support-token']),
                 str_ends_with($path, '/subscribed_apps') => Http::response(['success' => true]),
+                str_ends_with($path, '/4242/phone_numbers') => Http::response(['data' => [['id' => '9001']]]),
+                str_ends_with($path, '/9001/register') => Http::response(['success' => true]),
                 str_ends_with($path, '/9001') => Http::response(['display_phone_number' => '+225 05 07 01 67 39', 'verified_name' => 'Jibiat Marchand', 'id' => '9001']),
                 str_ends_with($path, '/9001/messages') => Http::response(['messages' => [['id' => 'wamid.reponse']]]),
                 default => Http::response(['error' => ['message' => 'inattendu '.$path]], 404),
@@ -90,5 +92,38 @@ class SupportWhatsAppTest extends TestCase
         $this->console('POST', "whatsapp/conversations/{$id}/reply", ['body' => 'Relance'])->assertStatus(422);
 
         $this->console('DELETE', 'whatsapp')->assertOk()->assertJsonPath('data.connected', false);
+    }
+
+    public function test_support_number_configured_by_hand_with_another_meta_app(): void
+    {
+        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
+        $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+
+        // Numéro qui n'est pas sur ce compte WhatsApp : refusé, rien n'est gardé
+        $this->console('POST', 'whatsapp/manual', ['phone_number_id' => '5555', 'waba_id' => '4242', 'access_token' => str_repeat('t', 30)])->assertStatus(422);
+        $this->console('POST', 'whatsapp/manual', ['phone_number_id' => '9001', 'waba_id' => '4242', 'access_token' => 'court'])->assertStatus(422)->assertJsonValidationErrors('access_token');
+        $this->console('GET', 'whatsapp')->assertJsonPath('data.connected', false);
+
+        $data = $this->console('POST', 'whatsapp/manual', [
+            'phone_number_id' => '9001', 'waba_id' => '4242', 'access_token' => ' EAAG'.str_repeat('x', 40).' ', 'app_secret' => 'autresecret123', 'pin' => '123456',
+        ])->assertOk()->assertJsonPath('data.connected', true)->assertJsonPath('data.mode', 'manual')
+            ->assertJsonPath('data.display_phone', '+225 05 07 01 67 39')->assertJsonPath('data.manual.webhook_url', 'http://api.localhost/webhooks/whatsapp')->json('data');
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/9001/register') && $r['pin'] === '123456' && $r->hasHeader('Authorization', 'Bearer EAAG'.str_repeat('x', 40)));
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/4242/subscribed_apps'));
+        $this->assertStringNotContainsString('autresecret123', json_encode($data));
+
+        // Webhook de l'autre application : vérifié avec son jeton, notifications signées avec son code secret
+        $this->get('http://api.localhost/webhooks/whatsapp?hub_mode=subscribe&hub_verify_token='.$data['manual']['verify_token'].'&hub_challenge=42')->assertOk()->assertSee('42');
+        $this->get('http://api.localhost/webhooks/whatsapp?hub_mode=subscribe&hub_verify_token=faux&hub_challenge=42')->assertForbidden();
+        $body = json_encode(['object' => 'whatsapp_business_account', 'entry' => [['id' => '4242', 'changes' => [['field' => 'messages', 'value' => [
+            'messages' => [['from' => '2250708091011', 'id' => 'wamid.m1', 'timestamp' => (string) now()->timestamp, 'type' => 'text', 'text' => ['body' => 'Bonjour']]],
+        ]]]]]]);
+        $this->call('POST', 'http://api.localhost/webhooks/whatsapp', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_X_HUB_SIGNATURE_256' => 'sha256='.hash_hmac('sha256', $body, 'mauvais')], $body)->assertStatus(401);
+        $this->call('POST', 'http://api.localhost/webhooks/whatsapp', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_X_HUB_SIGNATURE_256' => 'sha256='.hash_hmac('sha256', $body, 'autresecret123')], $body)->assertOk();
+        $this->assertSame('Bonjour', SupportConversation::sole()->messages()->value('body'));
+
+        // Déconnexion : identifiants oubliés, l'autre application n'est plus acceptée
+        $this->console('DELETE', 'whatsapp')->assertOk()->assertJsonPath('data.connected', false)->assertJsonPath('data.manual', null);
+        $this->call('POST', 'http://api.localhost/webhooks/whatsapp', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_X_HUB_SIGNATURE_256' => 'sha256='.hash_hmac('sha256', $body, 'autresecret123')], $body)->assertStatus(401);
     }
 }

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
-import http, { errorMessage } from '../../lib/http'
+import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { boot } from '../../lib/boot'
 import { facebookRelayUrl, takeFacebookResult } from '../../lib/facebook'
 import { formatDateTime } from '../../lib/format'
@@ -25,6 +25,27 @@ const live = ref(null)
 const method = ref('qr') // qr | phone
 const pairPhone = ref('')
 let qrTimer
+// Configuration manuelle : identifiants copiés depuis Meta (WhatsApp Manager, utilisateur système)
+const manualOpen = ref(false)
+const manual = ref({ phone_number_id: '', waba_id: '', access_token: '', app_secret: '', pin: '' })
+const manualErrors = ref({})
+
+async function saveManual() {
+  busy.value = true
+  error.value = ''
+  manualErrors.value = {}
+  try {
+    account.value = (await http.post('/console/whatsapp/manual', manual.value)).data.data
+    manual.value = { phone_number_id: '', waba_id: '', access_token: '', app_secret: '', pin: '' }
+    manualOpen.value = false
+    await loadConversations()
+  } catch (e) {
+    manualErrors.value = fieldErrors(e)
+    if (!Object.keys(manualErrors.value).length) error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
 
 function applyQr(data) {
   account.value = data
@@ -265,15 +286,57 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
         <p class="text-xs text-slate-500">L'application WhatsApp Business doit être à jour sur le téléphone. Si Meta ne propose pas de garder l'application pour ce numéro, décochez la case : le numéro ne fonctionnera alors plus que dans la console.</p>
       </template>
       <Alert v-else tone="warning">La connexion avec Facebook n'est pas encore activée sur le serveur (application Meta de la plateforme).</Alert>
+
+      <!-- Configuration manuelle : identifiants copiés depuis Meta -->
+      <h4 class="font-semibold">Ou configuration manuelle (identifiants Meta)</h4>
+      <button v-if="!manualOpen" type="button" class="text-emerald-700 underline" @click="manualOpen = true">Saisir les identifiants à la main</button>
+      <form v-else class="space-y-3" @submit.prevent="saveManual">
+        <ol class="list-decimal space-y-1 pl-5 text-slate-600">
+          <li>Dans WhatsApp Manager (business.facebook.com) › Paramètres du numéro : copiez l'<strong>identifiant du numéro</strong> et l'<strong>identifiant du compte WhatsApp Business</strong>.</li>
+          <li>Dans Paramètres de l'entreprise › Utilisateurs système : générez un <strong>jeton permanent</strong> avec les droits <code>whatsapp_business_messaging</code> et <code>whatsapp_business_management</code>.</li>
+          <li>Si ce jeton vient d'une autre application Meta que celle de Jibiat Marchand, ajoutez son code secret : la console vous donnera ensuite l'adresse et le jeton à mettre dans le webhook de cette application.</li>
+        </ol>
+        <label class="block">Identifiant du numéro (Phone number ID)
+          <input v-model="manual.phone_number_id" class="input mt-1 font-mono" inputmode="numeric" required />
+          <span v-if="manualErrors.phone_number_id" class="text-red-700">{{ manualErrors.phone_number_id }}</span>
+        </label>
+        <label class="block">Identifiant du compte WhatsApp Business (WABA ID)
+          <input v-model="manual.waba_id" class="input mt-1 font-mono" inputmode="numeric" required />
+          <span v-if="manualErrors.waba_id" class="text-red-700">{{ manualErrors.waba_id }}</span>
+        </label>
+        <label class="block">Jeton d'accès permanent
+          <input v-model="manual.access_token" class="input mt-1 font-mono" type="password" autocomplete="off" required />
+          <span v-if="manualErrors.access_token" class="text-red-700">{{ manualErrors.access_token }}</span>
+        </label>
+        <label class="block">Code secret de l'application Meta <span class="text-slate-500">(seulement si ce n'est pas celle de Jibiat Marchand)</span>
+          <input v-model="manual.app_secret" class="input mt-1 font-mono" type="password" autocomplete="off" />
+          <span v-if="manualErrors.app_secret" class="text-red-700">{{ manualErrors.app_secret }}</span>
+        </label>
+        <label class="block">Code PIN à 6 chiffres <span class="text-slate-500">(seulement si le numéro n'est pas encore enregistré sur l'API)</span>
+          <input v-model="manual.pin" class="input mt-1 w-40 font-mono" inputmode="numeric" maxlength="6" autocomplete="off" />
+          <span v-if="manualErrors.pin" class="text-red-700">{{ manualErrors.pin }}</span>
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <button class="btn-brand" :disabled="busy">{{ busy ? 'Vérification auprès de Meta…' : 'Vérifier et connecter' }}</button>
+          <button type="button" class="btn-ghost" @click="manualOpen = false">Annuler</button>
+        </div>
+        <p class="text-xs text-slate-500">Les identifiants sont vérifiés auprès de Meta avant d'être gardés ; le jeton et le code secret sont chiffrés et ne sont plus jamais affichés.</p>
+      </form>
     </section>
 
     <template v-else-if="account">
       <div class="flex flex-wrap items-center gap-3 text-sm">
         <span class="rounded bg-emerald-100 px-2 py-0.5 text-emerald-800">Connecté · {{ account.display_phone }}<template v-if="account.name"> · {{ account.name }}</template></span>
         <span v-if="account.mode === 'qr'" class="text-slate-500">Par QR code · reçoit les codes de vérification (aucun SMS)</span>
+        <span v-else-if="account.mode === 'manual'" class="text-slate-500">Configuration manuelle (identifiants Meta)</span>
         <span v-else-if="account.coexistence" class="text-slate-500">Aussi sur le téléphone (WhatsApp Business)</span>
         <button class="ml-auto text-slate-500 underline" @click="disconnect">Déconnecter</button>
       </div>
+      <Alert v-if="account.manual" tone="info">
+        Dans votre application Meta › WhatsApp › Configuration › Webhook, mettez l'adresse
+        <code class="select-all">{{ account.manual.webhook_url }}</code> et le jeton de vérification
+        <code class="select-all">{{ account.manual.verify_token }}</code>, puis abonnez le champ « messages ».
+      </Alert>
       <div class="grid gap-4 md:grid-cols-[18rem_1fr]">
         <aside class="card overflow-hidden" :class="current ? 'hidden md:block' : ''">
           <input v-model="search" class="input m-2 w-[calc(100%-1rem)]" placeholder="Nom ou numéro" @input="loadConversations" />
