@@ -88,6 +88,8 @@ class Billing
             // Gratuité donnée depuis la console (pour tous ou « gratuit à vie »)
             'free' => app(FreeAccess::class)->present($store),
             'access_key' => app(AccessKeys::class)->present($store),
+            // Réduction de la carte Membre Premium offerte par une entreprise (appliquée au paiement)
+            'premium_discount' => app(AccessKeys::class)->discountFor($store),
             // Abonnement d'une autre boutique du propriétaire qui couvre celle-ci
             'covered_by' => $covering ? ['id' => $covering->id, 'name' => $covering->name, 'url' => $covering->url('/gestion/abonnement')] : null,
             // Jours payés non utilisés, convertis en jours supplémentaires en cas de changement d'offre
@@ -136,12 +138,19 @@ class Billing
         if (! $amount) {
             throw new BusinessRuleException($cycle === 'weekly' ? 'Cette offre ne se paie pas à la semaine.' : 'Cette offre ne se paie pas en ligne.', 'plan');
         }
+        // Carte Membre Premium offerte par une entreprise : réduction tant que la boutique livre avec elle
+        $discount = app(AccessKeys::class)->discountFor($store);
+        $description = "Abonnement {$plan->name} ({$this->cycleLabel($cycle)}) · {$store->name}";
+        if ($discount !== null) {
+            $amount = (int) round($amount * (1 - $discount['rate']));
+            $description .= ' · Membre Premium −'.round($discount['rate'] * 100).' %';
+        }
 
         return $this->pay($store, $user, $method, [
             'plan_id' => $plan->id,
             'billing_cycle' => $cycle,
             'amount' => $amount,
-        ], "Abonnement {$plan->name} ({$this->cycleLabel($cycle)}) · {$store->name}", $payerPhone);
+        ], $description, $payerPhone);
     }
 
     /**

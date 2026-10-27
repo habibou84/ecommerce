@@ -322,7 +322,7 @@ async function switchTo(store) {
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-medium">{{ auth.user?.name }}</span>
             <span class="block truncate text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
-            <span v-if="auth.store?.access_key?.founder" class="block truncate text-xs font-semibold text-amber-700">🏅 {{ auth.store.access_key.badge }}</span>
+            <span v-if="auth.store?.access_key?.premium" class="block truncate text-xs font-semibold text-amber-700">🏅 {{ auth.store.access_key.badge }}</span>
           </span>
           <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400 transition" :class="{ 'rotate-180': profileMenu }" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 14 5-5 5 5" /></svg>
         </button>

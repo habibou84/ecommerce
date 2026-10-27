@@ -20,7 +20,7 @@ const auth = useAuthStore()
 const keyCode = ref(typeof route.query.cle === 'string' ? route.query.cle : '')
 const keyOpen = ref(!!keyCode.value)
 const keyError = ref('')
-const KEY_STATE = { active: 'Active', paused: 'En pause', ended: 'Terminée' }
+const KEY_STATE = { active: 'Active', paused: 'En pause', ended: 'Terminée', free: 'Mois offerts', discount: 'Réduction en cours', lapsed: 'Réduction arrêtée' }
 
 const FEATURES = { custom_domain: 'Domaine personnalisé', online_payment: 'Paiement en ligne', whatsapp_api: 'WhatsApp automatique', advanced_stats: 'Statistiques avancées', merchant_api: 'API marchand', multi_store: 'Plusieurs boutiques' }
 const LIMITS = { orders_per_month: 'commandes / mois', products: 'produits', members: 'membres', couriers: 'livreurs', carrier_connections: 'entreprises de livraison', payment_accounts: 'comptes de paiement', ai_actions_per_month: 'actions de l\'assistant IA / mois' }
@@ -62,7 +62,12 @@ watch(() => choice.cycle, (cycle) => {
 const CYCLE_PRICE = { weekly: 'weekly_price', monthly: 'monthly_price', yearly: 'yearly_price' }
 const CYCLE_UNIT = { weekly: 'semaine', monthly: 'mois', yearly: 'an' }
 const CYCLE_LABEL = { weekly: 'à la semaine', monthly: 'mensuel', yearly: 'annuel' }
-const priceOf = (p, cycle = choice.cycle) => p?.[CYCLE_PRICE[cycle]] ?? null
+// Carte Membre Premium offerte par une entreprise : prix réduit tant que la boutique livre avec elle
+const discount = computed(() => data.value?.premium_discount ?? null)
+const priceOf = (p, cycle = choice.cycle) => {
+  const raw = p?.[CYCLE_PRICE[cycle]] ?? null
+  return raw && discount.value ? Math.round(raw * (1 - discount.value.rate)) : raw
+}
 const price = computed(() => priceOf(selected.value) ?? 0)
 // Paiement à la semaine proposé seulement si une offre a un prix à la semaine
 const weekly = computed(() => paidPlans.value.some((p) => p.weekly_price))
@@ -152,7 +157,8 @@ async function redeemKey() {
     keyOpen.value = false
     if (route.query.cle) router.replace({ query: { ...route.query, cle: undefined } })
     await Promise.all([load(), auth.fetch()])
-    notice.value = { tone: 'success', text: data.value.access_key?.founder ? `Bienvenue parmi les membres fondateurs ! Votre offre ${data.value.access_key.plan} est active.` : `Clé activée : offre ${data.value.access_key?.plan} jusqu'au ${formatDate(data.value.access_key?.until)}.` }
+    const k = data.value.access_key
+    notice.value = { tone: 'success', text: k?.premium ? `Bienvenue parmi les Membres Premium Jibiat Marchand ! Votre offre ${k.plan} est active${k.founder ? '' : ` jusqu'au ${formatDate(k.until)}`}.` : `Clé activée : offre ${k?.plan} jusqu'au ${formatDate(k?.until)}.` }
   } catch (e) {
     keyError.value = errorMessage(e)
   } finally {
@@ -190,19 +196,26 @@ async function cancel(value) {
       </div>
     </section>
 
-    <section v-if="data.access_key" class="card space-y-1 p-4 text-sm" :class="data.access_key.founder ? 'bg-emerald-900 text-white ring-0' : ''">
-      <p v-if="data.access_key.founder" class="text-base font-semibold text-amber-300">🏅 {{ data.access_key.badge }}</p>
+    <section v-if="data.access_key" class="card space-y-1 p-4 text-sm" :class="data.access_key.premium ? 'bg-slate-950 text-white ring-0' : ''">
+      <p v-if="data.access_key.premium" class="text-base font-semibold text-amber-300">🏅 {{ data.access_key.badge }}</p>
       <p v-else class="font-semibold">Clé d'accès</p>
+      <p v-if="data.access_key.offered_by" class="text-slate-300">Offerte par <strong class="text-white">{{ data.access_key.offered_by }}</strong></p>
       <p>
         Offre {{ data.access_key.plan }} {{ data.access_key.founder ? 'à vie' : `jusqu'au ${formatDate(data.access_key.until)}` }} ·
         <strong>{{ KEY_STATE[data.access_key.state] ?? data.access_key.state }}</strong>
       </p>
-      <p v-if="data.access_key.state === 'paused'" :class="data.access_key.founder ? 'text-emerald-100' : 'text-slate-600'">Sans commande depuis 2 mois, votre carte est en pause : elle se rallume dès votre prochaine commande.</p>
-      <p v-else-if="data.access_key.pause_on" class="text-emerald-100">Elle reste active tant que votre boutique enregistre au moins une commande tous les 2 mois (prochaine échéance : {{ formatDate(data.access_key.pause_on) }}).</p>
+      <p v-if="data.access_key.offered_by" class="text-slate-300">
+        Après les {{ data.access_key.free_months }} mois offerts : −{{ Math.round(data.access_key.discount_rate * 100) }} % sur votre abonnement tant que vous livrez avec {{ data.access_key.offered_by }}.
+        <template v-if="data.access_key.state === 'lapsed'"> Aucune livraison récente avec eux : confiez-leur votre prochaine livraison pour retrouver la réduction.</template>
+      </p>
+      <p v-if="data.access_key.state === 'paused'" :class="data.access_key.premium ? 'text-slate-200' : 'text-slate-600'">Sans commande depuis 2 mois, votre carte est en pause : elle se rallume dès votre prochaine commande.</p>
+      <p v-else-if="data.access_key.pause_on" class="text-slate-200">Elle reste active tant que votre boutique enregistre au moins une commande tous les 2 mois (prochaine échéance : {{ formatDate(data.access_key.pause_on) }}).</p>
       <p v-else-if="data.access_key.state === 'ended'" class="text-slate-600">Votre clé est terminée : choisissez une offre ci-dessous pour garder toutes les fonctions.</p>
     </section>
 
-    <section v-if="!data.access_key?.founder" class="card space-y-3 p-4 text-sm">
+    <Alert v-if="discount" tone="success">Carte Membre Premium : −{{ Math.round(discount.rate * 100) }} % sur votre abonnement tant que vous livrez avec {{ discount.company }}. Les prix ci-dessous sont déjà réduits.</Alert>
+
+    <section v-if="!data.access_key?.premium" class="card space-y-3 p-4 text-sm">
       <button v-if="!keyOpen" type="button" class="font-medium text-emerald-700 underline" @click="keyOpen = true">Vous avez une carte ou une clé d'accès ?</button>
       <form v-else class="space-y-2" @submit.prevent="redeemKey">
         <label for="key-code" class="block font-semibold">Activer une clé d'accès</label>

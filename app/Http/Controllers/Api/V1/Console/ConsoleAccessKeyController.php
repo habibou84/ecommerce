@@ -8,6 +8,7 @@ use App\Models\AccessKeyBatch;
 use App\Models\AdminAction;
 use App\Models\Plan;
 use App\Services\Billing\AccessKeys;
+use App\Services\Billing\PremiumCards;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -16,12 +17,13 @@ use Jibiat\Socle\Rules\PhoneNumber as PhoneRule;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Console › Clés d'accès : lots de cartes à QR code (fondateur à vie ou durée), suivi, cartes à imprimer,
- * annulation d'une clé. Chaque changement est journalisé.
+ * Console › Clés d'accès : lots de cartes à QR code (Membre Premium à vie ou durée), suivi, cartes à imprimer,
+ * annulation d'une clé, formule des cartes Membre Premium offertes par les entreprises de livraison. Chaque
+ * changement est journalisé.
  */
 class ConsoleAccessKeyController extends Controller
 {
-    public function __construct(private readonly AccessKeys $keys) {}
+    public function __construct(private readonly AccessKeys $keys, private readonly PremiumCards $premium) {}
 
     public function index(): JsonResponse
     {
@@ -29,6 +31,8 @@ class ConsoleAccessKeyController extends Controller
             'kinds' => AccessKeyBatch::KINDS,
             'plans' => Plan::where('code', '!=', 'free')->orderBy('sort')->get(['code', 'name']),
             'idle_days' => AccessKeys::IDLE_DAYS,
+            // Formule des cartes offertes par les entreprises de Jibiat
+            'premium' => $this->premium->settings(),
             'batches' => AccessKeyBatch::with('plan')->latest('id')->get()->map(fn (AccessKeyBatch $b) => $this->keys->presentBatch($b))->values(),
         ]]);
     }
@@ -73,6 +77,20 @@ class ConsoleAccessKeyController extends Controller
         }
 
         return $this->show($model->batch_id);
+    }
+
+    public function premium(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'plan' => ['required', Rule::exists('plans', 'code')->whereNot('code', 'free')],
+            'free_months' => ['required', 'integer', 'min:0', 'max:36'],
+            'discount_rate' => ['required', 'numeric', 'min:0', 'max:0.9'],
+            'active_days' => ['required', 'integer', 'min:7', 'max:365'],
+        ], [], ['plan' => 'offre', 'free_months' => 'mois offerts', 'discount_rate' => 'réduction', 'active_days' => 'jours sans livraison']);
+        $this->premium->updateSettings($data);
+        $this->log($request, 'premium_cards_settings', $data);
+
+        return $this->index();
     }
 
     private function log(Request $request, string $action, array $data, ?int $storeId = null): void

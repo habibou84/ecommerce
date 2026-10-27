@@ -112,4 +112,9 @@ return [
         ],
     ],
 
+    // Cartes Membre Premium demandées par les entreprises de Jibiat : secret partagé avec le serveur de Jibiat
+    'jibiat' => [
+        'premium_secret' => env('JIBIAT_PREMIUM_SECRET'),
+    ],
+
 ];
