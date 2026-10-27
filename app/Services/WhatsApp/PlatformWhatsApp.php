@@ -10,6 +10,7 @@ use App\Models\SupportMessage;
 use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Services\Accounts\PhoneVerifier;
+use App\Support\Tenancy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -96,6 +97,9 @@ class PlatformWhatsApp
             'name' => $s['name'] ?? null,
             'coexistence' => ($s['coexistence'] ?? null) === '1',
             'connected_at' => $s['connected_at'] ?? null,
+            // Configuration manuelle avec une autre application Meta : adresse et jeton à recopier dans son webhook
+            'manual' => ($s['mode'] ?? null) === 'manual' && $this->connected() && filled($s['verify_token'] ?? null)
+                ? ['webhook_url' => Tenancy::apiUrl('/webhooks/whatsapp'), 'verify_token' => $s['verify_token']] : null,
             'embedded' => EmbeddedSignup::enabled() ? ['app_id' => config('services.meta.app_id'), 'config_id' => config('services.meta.whatsapp_config_id'), 'graph_version' => WhatsAppCloud::VERSION] : null,
             'bridge' => WhatsAppBridge::configured(),
             // SMS (payants) : codes de vérification partis ce mois et le mois dernier, et secours activé ou non
@@ -128,7 +132,7 @@ class PlatformWhatsApp
     public function startQr(): array
     {
         if ($this->account() !== null) {
-            throw new BusinessRuleException('Le numéro du support est déjà connecté avec Facebook : déconnectez-le d\'abord.');
+            throw new BusinessRuleException('Le numéro du support est déjà connecté (Facebook ou configuration manuelle) : déconnectez-le d\'abord.');
         }
         PlatformSetting::put('whatsapp.mode', 'qr');
         if (! $this->isQr()) {
@@ -152,7 +156,7 @@ class PlatformWhatsApp
     public function pairQr(string $phone): array
     {
         if ($this->account() !== null) {
-            throw new BusinessRuleException('Le numéro du support est déjà connecté avec Facebook : déconnectez-le d\'abord.');
+            throw new BusinessRuleException('Le numéro du support est déjà connecté (Facebook ou configuration manuelle) : déconnectez-le d\'abord.');
         }
         PlatformSetting::put('whatsapp.mode', 'qr');
         if (! $this->isQr()) {
@@ -224,6 +228,67 @@ class PlatformWhatsApp
         ] as $key => $value) {
             PlatformSetting::put("whatsapp.{$key}", $value);
         }
+    }
+
+    /**
+     * Configuration manuelle : identifiants copiés depuis Meta (WhatsApp Manager et utilisateur système), sans la
+     * fenêtre Facebook. Le numéro et le compte WhatsApp sont vérifiés auprès de Meta, puis l'application du jeton est
+     * abonnée aux notifications. Si le jeton vient d'une autre application Meta que celle de la plateforme, son code
+     * secret (signature des notifications) est demandé et un jeton de vérification est créé pour son webhook.
+     */
+    public function connectManual(string $phoneNumberId, string $wabaId, string $token, ?string $appSecret = null, ?string $pin = null): void
+    {
+        if ($this->isQr()) {
+            throw new BusinessRuleException('Le numéro du support est relié par QR code : déconnectez-le d\'abord.');
+        }
+        try {
+            $number = $this->cloud->graph('GET', $phoneNumberId, $token, ['fields' => 'display_phone_number,verified_name']);
+            $numbers = collect($this->cloud->graph('GET', $wabaId.'/phone_numbers', $token)['data'] ?? [])->pluck('id')->map(fn ($id) => (string) $id);
+            if (! $numbers->contains($phoneNumberId)) {
+                throw new RuntimeException('ce numéro n\'appartient pas à ce compte WhatsApp (WABA).');
+            }
+            if (filled($pin)) {
+                $this->cloud->graph('POST', $phoneNumberId.'/register', $token, ['messaging_product' => 'whatsapp', 'pin' => $pin]);
+            }
+            $this->cloud->graph('POST', $wabaId.'/subscribed_apps', $token);
+        } catch (RuntimeException $e) {
+            throw new BusinessRuleException('Configuration refusée. '.$e->getMessage());
+        }
+
+        $settings = [
+            'mode' => 'manual',
+            'qr_status' => null,
+            'error' => null,
+            'waba_id' => $wabaId,
+            'phone_number_id' => $phoneNumberId,
+            'display_phone' => mb_substr((string) ($number['display_phone_number'] ?? ''), 0, 30) ?: null,
+            'name' => mb_substr((string) ($number['verified_name'] ?? ''), 0, 120) ?: null,
+            'access_token' => Crypt::encryptString($token),
+            'app_secret' => filled($appSecret) ? Crypt::encryptString($appSecret) : null,
+            'verify_token' => filled($appSecret) ? (PlatformSetting::group('whatsapp')['verify_token'] ?? Str::random(32)) : null,
+            'coexistence' => '0',
+            'connected_at' => now()->toIso8601String(),
+        ];
+        foreach ($settings as $key => $value) {
+            PlatformSetting::put("whatsapp.{$key}", $value);
+        }
+    }
+
+    /**
+     * Code secret de l'application Meta du numéro configuré à la main, quand ce n'est pas celle de la plateforme.
+     */
+    public function manualAppSecret(): ?string
+    {
+        $s = PlatformSetting::group('whatsapp');
+
+        return ($s['mode'] ?? null) === 'manual' && filled($s['app_secret'] ?? null) ? Crypt::decryptString($s['app_secret']) : null;
+    }
+
+    public function manualVerifyToken(): ?string
+    {
+        $s = PlatformSetting::group('whatsapp');
+
+        return ($s['mode'] ?? null) === 'manual' && filled($s['verify_token'] ?? null) ? $s['verify_token'] : null;
     }
 
     public function disconnect(): void

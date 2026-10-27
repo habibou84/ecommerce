@@ -39,6 +39,22 @@ class ConsoleWhatsAppController extends Controller
         return $this->show();
     }
 
+    /** Configuration manuelle : identifiants copiés depuis Meta (sans la fenêtre Facebook) */
+    public function manual(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'phone_number_id' => ['required', 'string', 'max:40', 'regex:/^\d+$/'],
+            'waba_id' => ['required', 'string', 'max:40', 'regex:/^\d+$/'],
+            'access_token' => ['required', 'string', 'min:20', 'max:1000'],
+            'app_secret' => ['nullable', 'string', 'max:100', 'regex:/^[A-Za-z0-9]+$/'],
+            'pin' => ['nullable', 'string', 'regex:/^\d{6}$/'],
+        ], [], ['phone_number_id' => 'identifiant du numéro', 'waba_id' => 'identifiant du compte WhatsApp', 'access_token' => 'jeton d\'accès', 'app_secret' => 'code secret de l\'application', 'pin' => 'code PIN']);
+        $this->whatsapp->connectManual($data['phone_number_id'], $data['waba_id'], trim($data['access_token']), $data['app_secret'] ?? null, $data['pin'] ?? null);
+        $this->log($request, 'support_whatsapp_connected', ['mode' => 'manual', 'waba_id' => $data['waba_id']]);
+
+        return $this->show();
+    }
+
     /** Connexion par QR code : démarre la session du service et renvoie le QR code (ou l'état si déjà relié) */
     public function qr(Request $request): JsonResponse
     {
