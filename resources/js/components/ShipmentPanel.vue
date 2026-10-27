@@ -207,6 +207,8 @@ async function whatsapp(s) {
       <p v-else-if="s.return_requested && !s.is_final" class="rounded bg-violet-50 p-2 text-violet-900">Retour du colis demandé.</p>
       <p v-if="s.failure_reason" class="rounded bg-amber-50 p-2 text-amber-900">{{ s.failure_reason }}<template v-if="s.attempts_count"> ({{ s.attempts_count }} tentative{{ s.attempts_count > 1 ? 's' : '' }})</template></p>
       <a v-if="s.proof_photo_url" :href="s.proof_photo_url" target="_blank" rel="noopener" class="text-emerald-700 underline">Photo de livraison</a>
+      <!-- Étiquette de l'entreprise de livraison, à coller sur le colis avant le ramassage -->
+      <a v-if="s.label_url && !s.is_final" :href="s.label_url" target="_blank" rel="noopener" class="btn-secondary inline-flex w-fit px-3 py-1.5">🏷️ Imprimer l'étiquette{{ s.carrier?.name ? ` de ${s.carrier.name}` : '' }}</a>
       <!-- Notes du livreur chez l'entreprise de livraison -->
       <div v-if="s.carrier_ratings && (s.can_rate_courier || s.carrier_ratings.merchant || s.carrier_ratings.recipient)" class="rounded bg-slate-50 p-2 space-y-1">
         <p v-if="s.carrier_ratings.merchant">Votre note du livreur : <span class="text-amber-500" aria-hidden="true">{{ stars(s.carrier_ratings.merchant.score) }}</span> <strong>{{ s.carrier_ratings.merchant.score }}/5</strong><template v-if="s.carrier_ratings.merchant.comment"> · « {{ s.carrier_ratings.merchant.comment }} »</template></p>

@@ -405,6 +405,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('shipments/{shipment}/message', [ShipmentController::class, 'message'])->whereNumber('shipment')->name('shipments.message');
                 Route::post('shipments/{shipment}/assign', [ShipmentController::class, 'assign'])->whereNumber('shipment')->name('shipments.assign');
                 Route::get('shipments/{shipment}/proof', [ShipmentController::class, 'proof'])->whereNumber('shipment')->name('shipments.proof');
+                Route::get('shipments/{shipment}/label', [ShipmentController::class, 'label'])->whereNumber('shipment')->name('shipments.label');
                 Route::get('shipping-rules', [ShippingRuleController::class, 'index'])->name('shipping-rules.index');
                 Route::post('shipping-rules', [ShippingRuleController::class, 'store'])->name('shipping-rules.store');
                 Route::put('shipping-rules/{rule}', [ShippingRuleController::class, 'update'])->whereNumber('rule')->name('shipping-rules.update');

@@ -62,6 +62,8 @@ class ShipmentPresenter
             'origin' => $s->origin?->name,
             'tracking_code' => $s->carrier_tracking_code,
             'tracking_url' => $s->carrier_tracking_url,
+            // Étiquette de l'entreprise de livraison : par la boutique, le lien est redemandé quand il expire
+            'label_url' => $s->carrier_label_url ? '/api/v1/shipments/'.$s->id.'/label' : null,
             'carrier_status' => $s->carrier_status,
             'cod_amount' => $s->cod_amount,
             'collected_amount' => $s->collected_amount,
