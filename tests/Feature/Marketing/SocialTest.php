@@ -36,6 +36,8 @@ class SocialTest extends TestCase
             'services.tiktok.client_key' => 'tt-key', 'services.tiktok.client_secret' => 'tt-secret']);
         Storage::fake('public');
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
+        // L'assistant IA n'est compris dans aucune offre : actions rechargées
+        $this->store->forceFill(['ai_credits' => 100])->save();
         $this->store->forceFill(['storefront_enabled' => true])->save();
         $this->robe = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Robe wax', 'variants' => [['price' => 15000, 'on_hand' => 5]]]);
         $this->actingAs($this->store->owner);

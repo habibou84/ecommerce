@@ -13,6 +13,7 @@ use App\Models\Plan;
 use App\Models\Store;
 use App\Models\User;
 use App\Rules\StoreSlug;
+use App\Services\Billing\AccessKeys;
 use App\Services\Places\Places;
 use App\Support\TrialOffer;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,7 @@ class StoreSignup
     ) {}
 
     /**
-     * @param  array{store_name: string, slug: string, name: string, phone: string, password: string, partner?: ?string}  $data
+     * @param  array{store_name: string, slug: string, name: string, phone: string, password: string, partner?: ?string, key?: ?string}  $data
      * @return array{store: ?Store, user: ?User, verification: ?PhoneVerification, token: ?string, demo_code: ?string}
      */
     public function start(array $data, ?string $ip = null): array
@@ -48,6 +49,7 @@ class StoreSignup
             }
 
             $store = $this->createStore($existing, $data['store_name'], $data['slug'], partner: $data['partner'] ?? null);
+            $this->applyKey($store, $data['key'] ?? null);
 
             return ['store' => $store, 'user' => $existing, 'verification' => null, 'token' => null, 'demo_code' => null];
         }
@@ -57,6 +59,7 @@ class StoreSignup
             'slug' => $data['slug'],
             'name' => $data['name'],
             'partner' => $data['partner'] ?? null,
+            'key' => $data['key'] ?? null,
             'password_hash' => Hash::make($data['password']),
         ], ip: $ip);
 
@@ -72,7 +75,7 @@ class StoreSignup
     {
         $payload = $verification->payload;
 
-        return DB::transaction(function () use ($verification, $payload) {
+        $result = DB::transaction(function () use ($verification, $payload) {
             // Compte créé entre-temps avec ce numéro (autre onglet) : on le reprend
             $user = User::where('phone', $verification->phone)->lockForUpdate()->first() ?? new User;
             if (! $user->exists) {
@@ -90,6 +93,24 @@ class StoreSignup
 
             return [$user, $store];
         });
+        $this->applyKey($result[1], $payload['key'] ?? null);
+
+        return $result;
+    }
+
+    /**
+     * Clé d'accès de la carte scannée à l'inscription. Prise entre-temps : la boutique garde l'essai habituel.
+     */
+    private function applyKey(Store $store, ?string $code): void
+    {
+        if (blank($code)) {
+            return;
+        }
+        try {
+            app(AccessKeys::class)->redeem($code, $store);
+        } catch (BusinessRuleException) {
+            // Clé utilisée ou annulée depuis la saisie
+        }
     }
 
     /**

@@ -6,6 +6,7 @@ import Alert from '../../components/Alert.vue'
 import Modal from '../../components/Modal.vue'
 import http, { download, errorMessage } from '../../lib/http'
 import { formatDate, formatDateTime, money } from '../../lib/format'
+import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,6 +15,12 @@ const error = ref('')
 const notice = ref(null)
 const busy = ref(false)
 const choice = reactive({ plan: 'pro', cycle: 'monthly', method: 'wave', payer_phone: '' })
+const auth = useAuthStore()
+// Clé d'accès (carte à QR code) : lien « ?cle= » depuis la page de la carte, ou code saisi
+const keyCode = ref(typeof route.query.cle === 'string' ? route.query.cle : '')
+const keyOpen = ref(!!keyCode.value)
+const keyError = ref('')
+const KEY_STATE = { active: 'Active', paused: 'En pause', ended: 'Terminée' }
 
 const FEATURES = { custom_domain: 'Domaine personnalisé', online_payment: 'Paiement en ligne', whatsapp_api: 'WhatsApp automatique', advanced_stats: 'Statistiques avancées', merchant_api: 'API marchand', multi_store: 'Plusieurs boutiques' }
 const LIMITS = { orders_per_month: 'commandes / mois', products: 'produits', members: 'membres', couriers: 'livreurs', carrier_connections: 'entreprises de livraison', payment_accounts: 'comptes de paiement', ai_actions_per_month: 'actions de l\'assistant IA / mois' }
@@ -63,8 +70,10 @@ const weekly = computed(() => paidPlans.value.some((p) => p.weekly_price))
 const yearlySaving = (p) => (p.yearly_price ? Math.max(0, p.monthly_price * 12 - p.yearly_price) : 0)
 const bestSaving = computed(() => Math.max(0, ...paidPlans.value.map(yearlySaving)))
 const percent = (u) => (u.limit ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0)
-// Utilisation affichée : le nombre de boutiques seulement pour une offre qui en couvre plusieurs
-const usage = computed(() => Object.fromEntries(Object.entries(data.value?.usage ?? {}).filter(([key, u]) => key !== 'stores' || (u.limit !== 1 && !data.value.covered_by))))
+// Utilisation affichée : le nombre de boutiques seulement pour une offre qui en couvre plusieurs ; l'assistant IA
+// seulement si l'offre en comprend (sinon il marche avec les recharges)
+const usage = computed(() => Object.fromEntries(Object.entries(data.value?.usage ?? {}).filter(([key, u]) => (key !== 'stores' || (u.limit !== 1 && !data.value.covered_by)) && (key !== 'ai_actions_per_month' || u.limit !== 0))))
+const aiInPlan = computed(() => data.value?.usage?.ai_actions_per_month?.limit !== 0)
 const changing = computed(() => !!selected.value && (selected.value.code !== data.value?.plan.code))
 // Jours payés non utilisés : convertis en jours de la nouvelle offre
 const creditDays = computed(() => {
@@ -134,6 +143,23 @@ async function buyAiPack() {
   }
 }
 
+async function redeemKey() {
+  busy.value = true
+  keyError.value = ''
+  try {
+    await http.post('/billing/access-key', { code: keyCode.value })
+    keyCode.value = ''
+    keyOpen.value = false
+    if (route.query.cle) router.replace({ query: { ...route.query, cle: undefined } })
+    await Promise.all([load(), auth.fetch()])
+    notice.value = { tone: 'success', text: data.value.access_key?.founder ? `Bienvenue parmi les membres fondateurs ! Votre offre ${data.value.access_key.plan} est active.` : `Clé activée : offre ${data.value.access_key?.plan} jusqu'au ${formatDate(data.value.access_key?.until)}.` }
+  } catch (e) {
+    keyError.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function cancel(value) {
   if (value && !window.confirm('Revenir à l\'offre gratuite à la fin de la période payée ?')) return
   data.value = (await http.post('/billing/cancel', { cancel: value })).data.data
@@ -164,6 +190,31 @@ async function cancel(value) {
       </div>
     </section>
 
+    <section v-if="data.access_key" class="card space-y-1 p-4 text-sm" :class="data.access_key.founder ? 'bg-emerald-900 text-white ring-0' : ''">
+      <p v-if="data.access_key.founder" class="text-base font-semibold text-amber-300">🏅 {{ data.access_key.badge }}</p>
+      <p v-else class="font-semibold">Clé d'accès</p>
+      <p>
+        Offre {{ data.access_key.plan }} {{ data.access_key.founder ? 'à vie' : `jusqu'au ${formatDate(data.access_key.until)}` }} ·
+        <strong>{{ KEY_STATE[data.access_key.state] ?? data.access_key.state }}</strong>
+      </p>
+      <p v-if="data.access_key.state === 'paused'" :class="data.access_key.founder ? 'text-emerald-100' : 'text-slate-600'">Sans commande depuis 2 mois, votre carte est en pause : elle se rallume dès votre prochaine commande.</p>
+      <p v-else-if="data.access_key.pause_on" class="text-emerald-100">Elle reste active tant que votre boutique enregistre au moins une commande tous les 2 mois (prochaine échéance : {{ formatDate(data.access_key.pause_on) }}).</p>
+      <p v-else-if="data.access_key.state === 'ended'" class="text-slate-600">Votre clé est terminée : choisissez une offre ci-dessous pour garder toutes les fonctions.</p>
+    </section>
+
+    <section v-if="!data.access_key?.founder" class="card space-y-3 p-4 text-sm">
+      <button v-if="!keyOpen" type="button" class="font-medium text-emerald-700 underline" @click="keyOpen = true">Vous avez une carte ou une clé d'accès ?</button>
+      <form v-else class="space-y-2" @submit.prevent="redeemKey">
+        <label for="key-code" class="block font-semibold">Activer une clé d'accès</label>
+        <p class="text-slate-600">Saisissez le code écrit sur la carte (ou scannez son QR code avec votre téléphone).</p>
+        <div class="flex flex-wrap gap-2">
+          <input id="key-code" v-model="keyCode" class="input w-48 font-mono uppercase tracking-widest" placeholder="ABCD-EFGH" maxlength="20" autocapitalize="characters" spellcheck="false" required />
+          <button class="btn-brand" :disabled="busy">{{ busy ? 'Un instant…' : 'Activer' }}</button>
+        </div>
+        <p v-if="keyError" class="text-red-700">{{ keyError }}</p>
+      </form>
+    </section>
+
     <Alert v-if="data.covered_by" tone="info">
       Cette boutique est couverte par l'abonnement {{ data.plan.name }} de <strong>{{ data.covered_by.name }}</strong> : rien à payer ici.
       Le renouvellement se fait <a :href="data.covered_by.url" class="underline">depuis cette boutique</a>.
@@ -187,7 +238,7 @@ async function cancel(value) {
           <span v-if="choice.cycle === 'yearly' && yearlySaving(p)" class="text-xs font-medium text-emerald-700">{{ money(yearlySaving(p)) }} d'économie par an</span>
           <ul class="space-y-0.5 text-slate-600">
             <li class="text-emerald-800">✓ Boutique en ligne{{ p.features.includes('custom_domain') ? ' à votre nom de domaine' : '' }}</li>
-            <li v-for="(label, key) in LIMITS" :key="key">{{ limitLine(p, key) }} {{ label }}</li>
+            <template v-for="(label, key) in LIMITS" :key="key"><li v-if="key !== 'ai_actions_per_month' || p.limits[key] !== 0">{{ limitLine(p, key) }} {{ label }}</li></template>
             <li v-if="p.features.includes('multi_store')" class="text-emerald-800">✓ {{ p.limits.stores ? `Jusqu'à ${p.limits.stores} boutiques` : 'Toutes vos boutiques' }} sous un seul abonnement</li>
             <template v-for="f in p.features" :key="f">
               <li v-if="f !== 'multi_store' && f !== 'custom_domain'" :class="data.coming_soon.includes(f) ? 'text-slate-400' : 'text-emerald-800'">✓ {{ FEATURES[f] ?? f }}<template v-if="data.coming_soon.includes(f)"> (bientôt)</template></li>
@@ -210,10 +261,12 @@ async function cancel(value) {
       </div>
     </section>
 
-    <section v-if="data.ai_pack && usage.ai_actions_per_month" class="card space-y-3 p-4 text-sm">
-      <h3 class="font-semibold">Recharger l'assistant</h3>
+    <section v-if="data.ai_pack" class="card space-y-3 p-4 text-sm">
+      <h3 class="font-semibold">{{ aiInPlan ? 'Recharger l\'assistant' : 'Assistant IA' }}</h3>
       <p class="text-slate-600">
-        {{ data.ai_pack.actions }} actions de plus pour {{ money(data.ai_pack.price) }}, utilisées quand celles de votre offre sont épuisées. Elles ne périment pas.
+        <template v-if="aiInPlan">{{ data.ai_pack.actions }} actions de plus pour {{ money(data.ai_pack.price) }}, utilisées quand celles de votre offre sont épuisées.</template>
+        <template v-else>L'assistant IA se paie à part, quelle que soit votre offre : {{ data.ai_pack.actions }} actions pour {{ money(data.ai_pack.price) }}. Une action, c'est une commande remplie, une fiche produit écrite ou une réponse préparée.</template>
+        Elles ne périment pas.
         <template v-if="data.ai_credits"> En réserve : <strong>{{ data.ai_credits }} actions</strong>.</template>
       </p>
       <label v-if="data.manual_payment" class="block max-w-xs text-sm">Numéro Wave qui va payer

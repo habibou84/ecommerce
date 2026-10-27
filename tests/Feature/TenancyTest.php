@@ -46,7 +46,7 @@ class TenancyTest extends TestCase
             ->assertSee("25\u{00A0}000\u{00A0}F d'économie", false)
             ->assertSee('Wave, Orange Money, MTN, Moov')
             ->assertSee('60 commandes par mois')
-            ->assertSee("Rechargez 100 actions pour 1\u{00A0}000\u{00A0}F", false)
+            ->assertSee("L&#039;assistant IA se paie à part : 100 actions pour 1\u{00A0}000\u{00A0}F", false)
             ->assertSee('2 mois de l&#039;offre Pro au lieu de 1 mois', false);
     }
 
@@ -71,7 +71,7 @@ class TenancyTest extends TestCase
             ->assertSee('Une photo devient une fiche produit')
             ->assertSee('Paniers abandonnés relancés')
             ->assertSee('1 mois de l\'offre Pro offert')
-            ->assertSee('300 actions de l\'assistant')
+            ->assertSee('Votre assistant, à la recharge')->assertDontSee('Sans assistant')
             ->assertSee('/videos/marchand-ia-commande-v.mp4', false)
             ->assertSee('Elle vend même quand vous dormez')
             ->assertSee('/videos/marchand-boutique-v.mp4', false)

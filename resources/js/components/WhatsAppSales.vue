@@ -91,6 +91,9 @@ onMounted(load)
       </Alert>
       <Alert v-else-if="data.channel === null" tone="warning">Reliez d'abord votre WhatsApp (plus haut) ou connectez la connexion officielle de Meta.</Alert>
       <Alert v-if="!data.assistant.enabled" tone="warning">L'assistant IA n'est pas encore activé sur la plateforme.</Alert>
+      <p v-else-if="data.assistant.limit === 0" class="text-xs text-slate-500">
+        Assistant IA : {{ data.assistant.credits }} actions en réserve. Rechargez dans Réglages › Abonnement.
+      </p>
       <p v-else-if="data.assistant.limit !== null" class="text-xs text-slate-500">
         Assistant IA ce mois-ci : {{ data.assistant.used }} / {{ data.assistant.limit }} actions<template v-if="data.assistant.credits"> (+ {{ data.assistant.credits }} en réserve)</template>.
       </p>
