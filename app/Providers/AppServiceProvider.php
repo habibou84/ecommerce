@@ -127,7 +127,12 @@ class AppServiceProvider extends ServiceProvider
             Limit::perHour(30)->by('storefront-order-hour:'.$request->ip()),
         ]);
 
-        RateLimiter::for('carrier-webhooks', fn (Request $request) => Limit::perMinute(600)->by('carrier-webhooks:'.$request->route('uuid')));
+        // Par adresse : chaque transporteur, prestataire ou numéro WhatsApp connecté à la main a la sienne
+        RateLimiter::for('carrier-webhooks', fn (Request $request) => Limit::perMinute(600)->by('carrier-webhooks:'.($request->route('uuid') ?? $request->route()?->getName())));
+        // Application Meta de la plateforme : une seule adresse pour WhatsApp, Messenger et Instagram de toutes les
+        // boutiques (messages et accusés « envoyé, reçu, lu »), signée par Meta. Limite large : pendant les lives,
+        // un refus ferait renvoyer les messages en retard, voire couper l'abonnement par Meta.
+        RateLimiter::for('meta-webhooks', fn () => Limit::perMinute(20000)->by('meta-webhooks'));
 
         RateLimiter::for('verification-code', fn (Request $request) => Limit::perMinute(10)->by('verification-code:'.$request->ip()));
     }
