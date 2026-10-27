@@ -239,7 +239,15 @@ whatsapp_bridge_deps() {
         done
         env_set WHATSAPP_BRIDGE_PORT "$port"
     fi
-    [[ -n "$(env_get WHATSAPP_BRIDGE_WEBHOOK)" ]] || env_set WHATSAPP_BRIDGE_WEBHOOK "https://api.$(env_get PLATFORM_DOMAIN)/webhooks/whatsapp-bridge"
+    # Adresse des événements : toujours celle de cette installation. Un .env copié d'une autre (préproduction vers
+    # production) enverrait les messages des numéros reliés à l'autre installation : corrigée et signalée.
+    local webhook current
+    webhook="https://api.$(env_get PLATFORM_DOMAIN)/webhooks/whatsapp-bridge"
+    current="$(env_get WHATSAPP_BRIDGE_WEBHOOK)"
+    if [[ -n "$current" && "$current" != "$webhook" ]]; then
+        warn "WHATSAPP_BRIDGE_WEBHOOK visait $current (une autre installation) : corrigé en $webhook."
+    fi
+    [[ "$current" == "$webhook" ]] || env_set WHATSAPP_BRIDGE_WEBHOOK "$webhook"
     local lock_sum
     lock_sum="$(sha1sum "$APP_DIR/whatsapp-bridge/package-lock.json" | cut -d' ' -f1)"
     if [[ "$(cat "$APP_DIR/whatsapp-bridge/node_modules/.deploy-lock" 2>/dev/null || true)" != "$lock_sum" ]]; then
