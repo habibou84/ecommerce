@@ -7,12 +7,14 @@ use App\Rules\StoreSlug;
 use App\Services\Accounts\LoginHandoff;
 use App\Services\Accounts\PhoneVerifier;
 use App\Services\Accounts\StoreSignup;
+use App\Services\Billing\AccessKeys;
 use App\Services\Shipping\CarrierDirectory;
 use App\Support\Tenancy;
 use App\Support\TrialOffer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Jibiat\Socle\PhoneNumber;
 use Jibiat\Socle\Rules\PhoneNumber as PhoneRule;
 
@@ -52,7 +54,7 @@ class SignupController extends Controller
         ]]);
     }
 
-    public function start(Request $request, StoreSignup $signup, LoginHandoff $handoff, PhoneVerifier $verifier, CarrierDirectory $directory): JsonResponse
+    public function start(Request $request, StoreSignup $signup, LoginHandoff $handoff, PhoneVerifier $verifier, CarrierDirectory $directory, AccessKeys $keys): JsonResponse
     {
         $request->merge(['slug' => strtolower(trim((string) $request->input('slug')))]);
 
@@ -63,6 +65,7 @@ class SignupController extends Controller
             'phone' => ['required', new PhoneRule],
             'password' => ['required', 'string', 'min:8', 'max:100'],
             'partner' => ['nullable', 'string', 'max:80'],
+            'key' => ['nullable', 'string', 'max:20'],
         ], [], [
             'store_name' => 'nom de la boutique',
             'slug' => 'adresse',
@@ -73,6 +76,14 @@ class SignupController extends Controller
         $data['phone'] = PhoneNumber::normalize($data['phone']);
         // Parrainage reconnu seulement pour une entreprise présente dans l'annuaire
         $data['partner'] = filled($data['partner'] ?? null) ? $directory->find($data['partner'])['slug'] ?? null : null;
+        // Clé d'accès de la carte scannée : vérifiée maintenant, activée à la création de la boutique
+        if (filled($data['key'] ?? null)) {
+            $key = $keys->lookup($data['key']);
+            if ($key === null || ! $key['available']) {
+                throw ValidationException::withMessages(['key' => $key === null ? 'Cette clé n\'existe pas ou n\'est plus valable.' : 'Cette clé a déjà été utilisée.']);
+            }
+            $data['key'] = AccessKeys::normalize($data['key']);
+        }
 
         $result = $signup->start($data, $request->ip());
 

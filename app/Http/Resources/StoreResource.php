@@ -3,6 +3,8 @@
 namespace App\Http\Resources;
 
 use App\Models\Store;
+use App\Services\Billing\AccessKeys;
+use App\Services\Billing\FreeAccess;
 use App\Services\Billing\PlanLimits;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -37,6 +39,8 @@ class StoreResource extends JsonResource
             'storefront_enabled' => (bool) $this->storefront_enabled,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
+            'free' => app(FreeAccess::class)->present($this->resource),
+            'access_key' => app(AccessKeys::class)->present($this->resource),
             'subscription' => $subscription ? [
                 'plan' => $subscription->plan->name,
                 'plan_code' => $subscription->plan->code,

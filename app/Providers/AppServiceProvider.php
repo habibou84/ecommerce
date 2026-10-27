@@ -16,6 +16,9 @@ use App\Models\Store;
 use App\Models\StoreTransfer;
 use App\Services\Ai\AiClient;
 use App\Services\Ai\AnthropicAiClient;
+use App\Services\Billing\AccessKeys;
+use App\Services\Billing\FreeAccess;
+use App\Services\Billing\PremiumCards;
 use App\Services\Customers\Loyalty;
 use App\Services\Mail\GoogleMail;
 use App\Services\Places\Places;
@@ -43,6 +46,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(Tenancy::class);
         // Lieux visibles d'une boutique : mis en cache le temps de la requête
         $this->app->scoped(Places::class);
+        // Gratuité donnée depuis la console : réglages lus une fois par requête
+        $this->app->scoped(FreeAccess::class);
+        $this->app->scoped(AccessKeys::class);
+        $this->app->scoped(PremiumCards::class);
         // Assistant IA (Claude) ; remplacé par un faux dans les tests
         $this->app->singleton(AiClient::class, fn () => new AnthropicAiClient(config('services.anthropic.key'), (string) config('services.anthropic.model')));
 
@@ -120,7 +127,12 @@ class AppServiceProvider extends ServiceProvider
             Limit::perHour(30)->by('storefront-order-hour:'.$request->ip()),
         ]);
 
-        RateLimiter::for('carrier-webhooks', fn (Request $request) => Limit::perMinute(600)->by('carrier-webhooks:'.$request->route('uuid')));
+        // Par adresse : chaque transporteur, prestataire ou numéro WhatsApp connecté à la main a la sienne
+        RateLimiter::for('carrier-webhooks', fn (Request $request) => Limit::perMinute(600)->by('carrier-webhooks:'.($request->route('uuid') ?? $request->route()?->getName())));
+        // Application Meta de la plateforme : une seule adresse pour WhatsApp, Messenger et Instagram de toutes les
+        // boutiques (messages et accusés « envoyé, reçu, lu »), signée par Meta. Limite large : pendant les lives,
+        // un refus ferait renvoyer les messages en retard, voire couper l'abonnement par Meta.
+        RateLimiter::for('meta-webhooks', fn () => Limit::perMinute(20000)->by('meta-webhooks'));
 
         RateLimiter::for('verification-code', fn (Request $request) => Limit::perMinute(10)->by('verification-code:'.$request->ip()));
     }

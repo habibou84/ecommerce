@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\Api\Partners\PremiumCardController;
+use App\Http\Controllers\Api\V1\AccessKeyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingController;
 use App\Http\Controllers\Api\V1\Catalog\BundleController;
@@ -9,9 +11,11 @@ use App\Http\Controllers\Api\V1\Catalog\CollectionController;
 use App\Http\Controllers\Api\V1\Catalog\ProductController;
 use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
+use App\Http\Controllers\Api\V1\Console\ConsoleAccessKeyController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
+use App\Http\Controllers\Api\V1\Console\ConsoleMaterielController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
 use App\Http\Controllers\Api\V1\Console\ConsoleTeamController;
@@ -36,6 +40,7 @@ use App\Http\Controllers\Api\V1\Marketing\ReviewController;
 use App\Http\Controllers\Api\V1\Marketing\ShareController;
 use App\Http\Controllers\Api\V1\Marketing\SocialController;
 use App\Http\Controllers\Api\V1\Marketing\TrackingController;
+use App\Http\Controllers\Api\V1\MaterielController;
 use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\Messaging\ConversationController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
@@ -76,7 +81,15 @@ use App\Http\Controllers\Api\V1\Storefront\PageController as StorePageController
 use App\Http\Controllers\Api\V1\StoreGroupController;
 use App\Http\Controllers\Api\V1\SupportSessionController;
 use App\Http\Controllers\Api\V1\VerificationController;
+use App\Http\Middleware\VerifyPartnerSignature;
 use Illuminate\Support\Facades\Route;
+
+// ── api.jibiat-marchand.com : cartes Membre Premium demandées par les entreprises de Jibiat (serveur à serveur) ──
+Route::prefix('partners/v1')->name('partners.')->middleware(['zone:api', 'throttle:120,1', VerifyPartnerSignature::class])->group(function () {
+    Route::post('premium-cards', [PremiumCardController::class, 'store'])->name('premium-cards.store');
+    Route::get('premium-cards', [PremiumCardController::class, 'index'])->name('premium-cards.index');
+    Route::delete('premium-cards/{code}', [PremiumCardController::class, 'destroy'])->where('code', '[A-Za-z0-9-]{1,20}')->name('premium-cards.destroy');
+});
 
 Route::prefix('v1')->name('v1.')->group(function () {
     // ── jibiat-marchand.com : création de boutique, retrouver ses boutiques ──
@@ -84,6 +97,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
         Route::get('signup/slug', [SignupController::class, 'checkSlug'])->middleware('throttle:60,1')->name('signup.slug');
         Route::get('signup/partner', [SignupController::class, 'partner'])->middleware('throttle:60,1')->name('signup.partner');
         Route::post('signup', [SignupController::class, 'start'])->middleware('throttle:verification-start')->name('signup');
+        // Clé d'accès d'une carte à QR code (page jibiat-marchand.com/cle/CODE)
+        Route::get('access-keys/{code}', [AccessKeyController::class, 'show'])->where('code', '[A-Za-z0-9-]{1,20}')->middleware('throttle:20,1')->name('access-keys.show');
 
         Route::post('account/login', [PlatformAccountController::class, 'login'])->middleware('throttle:login')->name('account.login');
         Route::post('account/whatsapp', [PlatformAccountController::class, 'whatsapp'])->middleware('throttle:verification-start')->name('account.whatsapp');
@@ -132,7 +147,25 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('stores/{store}/offer', [ConsoleController::class, 'offer'])->whereNumber('store')->name('stores.offer');
             Route::post('stores/{store}/support', [ConsoleController::class, 'support'])->whereNumber('store')->name('stores.support');
             Route::post('support-sessions/{session}/end', [ConsoleController::class, 'endSupport'])->whereNumber('session')->name('support.end');
+            Route::post('stores/{store}/free', [ConsoleController::class, 'storeFree'])->whereNumber('store')->name('stores.free');
+            Route::get('free', [ConsoleController::class, 'free'])->name('free');
+            Route::put('free', [ConsoleController::class, 'updateFree'])->name('free.update');
             Route::get('plans', [ConsoleController::class, 'plans'])->name('plans');
+            // Clés d'accès (cartes à QR code) : lots, cartes à imprimer, annulation
+            Route::get('access-keys', [ConsoleAccessKeyController::class, 'index'])->name('access-keys');
+            Route::post('access-keys', [ConsoleAccessKeyController::class, 'store'])->name('access-keys.store');
+            Route::get('access-keys/{batch}', [ConsoleAccessKeyController::class, 'show'])->whereNumber('batch')->name('access-keys.show');
+            Route::get('access-keys/{batch}/cards', [ConsoleAccessKeyController::class, 'cards'])->whereNumber('batch')->name('access-keys.cards');
+            Route::post('access-keys/keys/{key}/revoke', [ConsoleAccessKeyController::class, 'revoke'])->whereNumber('key')->name('access-keys.revoke');
+            Route::put('access-keys/premium', [ConsoleAccessKeyController::class, 'premium'])->name('access-keys.premium');
+            // Matériel vendu aux e-commerçants : produits, commandes, réglages
+            Route::get('materiel', [ConsoleMaterielController::class, 'index'])->name('materiel');
+            Route::put('materiel/settings', [ConsoleMaterielController::class, 'settings'])->name('materiel.settings');
+            Route::post('materiel/products', [ConsoleMaterielController::class, 'storeProduct'])->name('materiel.products.store');
+            Route::put('materiel/products/{product}', [ConsoleMaterielController::class, 'updateProduct'])->whereNumber('product')->name('materiel.products.update');
+            Route::post('materiel/products/{product}/image', [ConsoleMaterielController::class, 'image'])->whereNumber('product')->name('materiel.products.image');
+            Route::post('materiel/orders/{order}/status', [ConsoleMaterielController::class, 'advance'])->whereNumber('order')->name('materiel.orders.status');
+            Route::post('materiel/orders/{order}/paid', [ConsoleMaterielController::class, 'paid'])->whereNumber('order')->name('materiel.orders.paid');
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
             Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
@@ -235,10 +268,19 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('/', [BillingController::class, 'show'])->name('show');
                 Route::post('checkout', [BillingController::class, 'checkout'])->middleware('throttle:10,1')->name('checkout');
                 Route::post('ai-pack', [BillingController::class, 'aiPack'])->middleware('throttle:10,1')->name('ai-pack');
+                Route::post('access-key', [AccessKeyController::class, 'redeem'])->middleware('throttle:10,1')->name('access-key');
                 Route::post('invoices/{number}/check', [BillingController::class, 'check'])->where('number', 'JM-\\d{4}-\\d{6}')->name('check');
                 Route::post('invoices/{number}/paid', [BillingController::class, 'claimPaid'])->middleware('throttle:10,1')->where('number', 'JM-\\d{4}-\\d{6}')->name('paid');
                 Route::get('invoices/{invoice}/receipt', [BillingController::class, 'receipt'])->whereNumber('invoice')->name('receipt');
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
+            });
+            // ── Matériel de la plateforme (étiquettes, imprimantes, accessoires de live) ──
+            Route::get('materiel/suggest', [MaterielController::class, 'suggest'])->name('materiel.suggest');
+            Route::middleware('permission:'.Permission::BillingManage->value)->prefix('materiel')->name('materiel.')->group(function () {
+                Route::get('/', [MaterielController::class, 'index'])->name('index');
+                Route::post('orders', [MaterielController::class, 'store'])->middleware('throttle:10,1')->name('orders.store');
+                Route::post('orders/{order}/paid', [MaterielController::class, 'claim'])->whereNumber('order')->middleware('throttle:10,1')->name('orders.paid');
+                Route::post('orders/{order}/cancel', [MaterielController::class, 'cancel'])->whereNumber('order')->name('orders.cancel');
             });
             Route::get('stats', [StatsController::class, 'show'])->middleware('permission:'.Permission::FinanceView->value)->name('stats');
             Route::post('stats/ask', [StatsController::class, 'ask'])->middleware(['permission:'.Permission::FinanceView->value, 'throttle:30,1'])->name('stats.ask');
@@ -373,6 +415,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('shipments/{shipment}/message', [ShipmentController::class, 'message'])->whereNumber('shipment')->name('shipments.message');
                 Route::post('shipments/{shipment}/assign', [ShipmentController::class, 'assign'])->whereNumber('shipment')->name('shipments.assign');
                 Route::get('shipments/{shipment}/proof', [ShipmentController::class, 'proof'])->whereNumber('shipment')->name('shipments.proof');
+                Route::get('shipments/{shipment}/label', [ShipmentController::class, 'label'])->whereNumber('shipment')->name('shipments.label');
                 Route::get('shipping-rules', [ShippingRuleController::class, 'index'])->name('shipping-rules.index');
                 Route::post('shipping-rules', [ShippingRuleController::class, 'store'])->name('shipping-rules.store');
                 Route::put('shipping-rules/{rule}', [ShippingRuleController::class, 'update'])->whereNumber('rule')->name('shipping-rules.update');

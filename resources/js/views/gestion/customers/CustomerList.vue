@@ -1,10 +1,14 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import Pagination from '../../../components/Pagination.vue'
 import http from '../../../lib/http'
 import { formatDate, money } from '../../../lib/format'
 
-const filters = reactive({ search: '', filter: '', sort: 'recent', page: 1 })
+// Filtre ouvert depuis l'accueil (« Clientes fidèles à relancer » → ?filtre=to_relaunch)
+const route = useRoute()
+const FILTERS = ['blacklisted', 'risky', 'loyal', 'to_relaunch']
+const filters = reactive({ search: '', filter: FILTERS.includes(route.query.filtre) ? route.query.filtre : '', sort: 'recent', page: 1 })
 const customers = ref([])
 const meta = ref(null)
 
@@ -31,6 +35,7 @@ watch(() => [filters.filter, filters.sort], () => { filters.page = 1; load() })
       <select v-model="filters.filter" class="input w-auto">
         <option value="">Tous les clients</option>
         <option value="loyal">Fidèles (3 livraisons et plus)</option>
+        <option value="to_relaunch">À relancer (plus de commande depuis 30 jours)</option>
         <option value="risky">Avec refus</option>
         <option value="blacklisted">Liste noire</option>
       </select>

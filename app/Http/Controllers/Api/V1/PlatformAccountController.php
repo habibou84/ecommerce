@@ -8,6 +8,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\LoginHandoff;
 use App\Services\Accounts\PhoneVerifier;
+use App\Services\Billing\AccessKeys;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -82,7 +83,11 @@ class PlatformAccountController extends Controller
 
         abort_unless($target->isOpen() && $user->activeMembershipIn($target) !== null, 403, 'Vous n\'avez pas accès à cet espace marchand.');
 
-        return response()->json(['redirect' => $handoff->url($user, $target)]);
+        // Carte à QR code scannée avant de se connecter : la clé attend dans Réglages › Abonnement
+        $key = AccessKeys::normalize((string) $request->input('cle'));
+        $path = strlen($key) === 8 ? '/gestion/abonnement?cle='.$key : '/gestion';
+
+        return response()->json(['redirect' => $handoff->url($user, $target, $path)]);
     }
 
     public function logout(Request $request): JsonResponse

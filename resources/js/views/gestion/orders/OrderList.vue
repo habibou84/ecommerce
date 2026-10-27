@@ -6,6 +6,7 @@ import DelivererPicker from '../../../components/DelivererPicker.vue'
 import Icon from '../../../components/Icon.vue'
 import Modal from '../../../components/Modal.vue'
 import Pagination from '../../../components/Pagination.vue'
+import MaterielTip from '../../../components/MaterielTip.vue'
 import http, { download, errorMessage } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
 import { CANCEL_REASONS, PAYMENT_TONES, SOURCES, STATUS_ICONS, STATUS_TONES, avatar, riskLabel } from '../../../lib/orders'
@@ -257,9 +258,12 @@ async function applyStatus() {
   await bulk({ action: 'status', status: statusForm.status, reason: statusForm.status === 'cancelled' ? statusForm.reason : null })
 }
 
+// Après une impression d'étiquettes : suggestion d'imprimante d'étiquettes (si le matériel est proposé)
+const labelTip = ref(false)
 async function labels() {
   const ids = [...selected.value].map((id) => `ids[]=${id}`).join('&')
   await download(`/orders/labels?${ids}`, 'etiquettes.pdf')
+  labelTip.value = true
 }
 
 async function exportList() {
@@ -345,6 +349,7 @@ async function exportList() {
 
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
+    <MaterielTip v-if="labelTip" category="impression" text="Imprimez vos étiquettes en 2 secondes :" />
 
     <!-- Plusieurs commandes cochées -->
     <div v-if="selected.size" class="sticky top-[4.5rem] z-20 flex flex-wrap items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm text-white shadow-lg">

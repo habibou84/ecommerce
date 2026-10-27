@@ -8,9 +8,25 @@ import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { boot } from '../../lib/boot'
 import { slugify } from '../../lib/format'
 
-const form = reactive({ store_name: '', slug: '', name: '', phone: '', password: '', partner: null })
+const form = reactive({ store_name: '', slug: '', name: '', phone: '', password: '', partner: null, key: null })
+// Carte à QR code scannée (lien « ?cle= ») : activée à la création de la boutique
+const accessKey = ref(null)
 // Invitation d'une entreprise de livraison de l'annuaire (lien « ?partenaire= ») : un mois d'essai en plus
 const partner = ref(null)
+
+onMounted(async () => {
+  const code = new URLSearchParams(window.location.search).get('cle')
+  if (!code) return
+  try {
+    const { data } = await http.get(`/access-keys/${encodeURIComponent(code)}`)
+    if (data.data.available) {
+      accessKey.value = data.data
+      form.key = data.data.code
+    }
+  } catch {
+    // Clé inconnue : inscription habituelle
+  }
+})
 
 onMounted(async () => {
   const slug = new URLSearchParams(window.location.search).get('partenaire')
@@ -83,13 +99,19 @@ function done(data) {
 <template>
   <AuthShell
     :title="pending ? 'Vérifiez votre numéro' : 'Créez votre espace marchand'"
-    :subtitle="pending ? '' : `${partner?.trial ?? boot.trialOffer} offert, sans carte bancaire ni engagement. Tout se fait depuis votre téléphone.`"
+    :subtitle="pending ? '' : accessKey ? 'Votre clé est activée dès la création de votre espace marchand. Tout se fait depuis votre téléphone.' : `${partner?.trial ?? boot.trialOffer} offert, sans carte bancaire ni engagement. Tout se fait depuis votre téléphone.`"
   >
     <CodeStep v-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Créer mon espace marchand" @done="done" />
 
     <form v-else class="space-y-4" @submit.prevent="submit">
       <Alert v-if="error">{{ error }}</Alert>
-      <div v-if="partner" class="flex items-center gap-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 ring-1 ring-emerald-200">
+      <div v-if="accessKey" class="rounded-xl p-3 text-sm text-white" :class="accessKey.premium ? 'bg-slate-950' : 'bg-emerald-900'">
+        <p v-if="accessKey.premium" class="font-semibold text-amber-300">🏅 {{ accessKey.badge }}</p>
+        <p v-if="accessKey.offered_by">Offerte par <strong>{{ accessKey.offered_by.name }}</strong></p>
+        <p>Offre <strong>{{ accessKey.plan }}</strong> {{ accessKey.founder ? 'à vie' : `pendant ${accessKey.months} mois` }}<template v-if="accessKey.offered_by">, puis −{{ Math.round(accessKey.discount_rate * 100) }} %</template> · clé {{ accessKey.code }}</p>
+      </div>
+      <p v-if="errors.key" class="text-sm text-red-700">{{ errors.key }}</p>
+      <div v-if="partner && !accessKey" class="flex items-center gap-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 ring-1 ring-emerald-200">
         <img v-if="partner.logo_url" :src="partner.logo_url" alt="" class="h-10 w-10 shrink-0 rounded-lg bg-white object-contain" />
         <p>Invité par <strong>{{ partner.name }}</strong> : <strong>{{ partner.trial }}</strong> offerts pour bien démarrer.</p>
       </div>

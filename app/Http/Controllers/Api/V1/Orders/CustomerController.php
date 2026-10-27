@@ -24,7 +24,7 @@ class CustomerController extends Controller
     {
         $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'filter' => ['nullable', 'in:blacklisted,risky,loyal'],
+            'filter' => ['nullable', 'in:blacklisted,risky,loyal,to_relaunch'],
             'tag' => ['nullable', 'string', 'max:40'],
             'sort' => ['nullable', 'in:recent,spent,orders'],
         ]);
@@ -37,6 +37,7 @@ class CustomerController extends Controller
             ->when($request->query('filter') === 'blacklisted', fn ($q) => $q->whereNotNull('blacklisted_at'))
             ->when($request->query('filter') === 'risky', fn ($q) => $q->where('refused_count', '>', 0))
             ->when($request->query('filter') === 'loyal', fn ($q) => $q->where('delivered_count', '>=', 3))
+            ->when($request->query('filter') === 'to_relaunch', fn ($q) => $q->toRelaunch())
             ->when($request->query('tag'), fn ($q, $tag) => $q->whereHas('tags', fn ($t) => $t->where('name', $tag)))
             ->with('tags:id,name')
             ->when($request->query('sort') === 'spent', fn ($q) => $q->orderByDesc('total_spent'))

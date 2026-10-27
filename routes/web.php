@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('zone:platform')->group(function () {
     Route::get('/creer-ma-boutique', [PageController::class, 'spa'])->name('signup');
     Route::get('/connexion', [PageController::class, 'spa'])->name('platform.login');
+    // Carte à QR code « clé d'accès » : jibiat-marchand.com/cle/CODE (ou /cle pour saisir le code)
+    Route::get('/cle/{code?}', [PageController::class, 'spa'])->where('code', '[A-Za-z0-9-]{1,20}')->name('access-key');
     Route::get('/mot-de-passe-oublie', [PageController::class, 'spa']);
     // Fenêtre Facebook de la connexion WhatsApp des boutiques (Meta n'accepte que des domaines déclarés un par un)
     Route::get('/whatsapp/facebook', [PageController::class, 'spa'])->name('whatsapp.facebook');

@@ -30,6 +30,8 @@ final class RemoteShipment
         public readonly ?bool $returnRequested = null,
         /** Notes du livreur (contrat 1.3) : can_rate, merchant, recipient ; null si l'entreprise ne les envoie pas */
         public readonly ?array $ratings = null,
+        /** Étiquette à imprimer (contrat 1.5) : lien signé, valable 7 jours ; null si l'entreprise ne l'envoie pas */
+        public readonly ?string $labelUrl = null,
     ) {}
 
     /**
@@ -64,6 +66,7 @@ final class RemoteShipment
             needsDecision: array_key_exists('needs_decision', $order) ? (bool) $order['needs_decision'] : null,
             returnRequested: array_key_exists('return_requested', $order) ? (bool) $order['return_requested'] : null,
             ratings: is_array($order['ratings'] ?? null) ? $order['ratings'] : null,
+            labelUrl: is_string($order['label_url'] ?? null) ? $order['label_url'] : null,
         );
     }
 }

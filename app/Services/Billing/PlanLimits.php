@@ -55,8 +55,14 @@ class PlanLimits
 
     public function plan(Store $store): ?Plan
     {
-        return $this->coveringStore($store)?->currentSubscription->plan
-            ?? $store->currentSubscription?->plan ?? Plan::where('code', 'free')->first();
+        $paid = $this->coveringStore($store)?->currentSubscription->plan ?? $store->currentSubscription?->plan;
+        // Gratuité donnée depuis la console : l'offre donnée, sauf si l'abonnement en cours est plus élevé
+        $free = app(FreeAccess::class)->planFor($store);
+        if ($free !== null && ($paid === null || $paid->sort < $free->sort)) {
+            return $free;
+        }
+
+        return $paid ?? Plan::where('code', 'free')->first();
     }
 
     /**

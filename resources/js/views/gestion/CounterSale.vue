@@ -3,6 +3,7 @@ import Icon from '../../components/Icon.vue'
 import { computed, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
+import MaterielTip from '../../components/MaterielTip.vue'
 import ProductPicker from '../../components/ProductPicker.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { money } from '../../lib/format'
@@ -92,6 +93,7 @@ function reset() {
 <template>
   <div class="mx-auto max-w-xl space-y-4">
     <RouterLink to="/gestion/caisse" class="text-sm text-slate-600 hover:text-slate-900">← Caisse</RouterLink>
+    <MaterielTip category="caisse" text="Imprimez vos tickets au comptoir :" />
 
     <!-- Vente enregistrée -->
     <section v-if="done" class="card space-y-4 p-6 text-center">

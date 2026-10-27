@@ -7,6 +7,7 @@ import Icon from '../../../components/Icon.vue'
 import LiveLink from '../../../components/LiveLink.vue'
 import LiveTraining from '../../../components/LiveTraining.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
+import MaterielTip from '../../../components/MaterielTip.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 
@@ -83,6 +84,7 @@ async function save() {
 <template>
   <div class="space-y-4">
     <Alert v-if="error">{{ error }}</Alert>
+    <MaterielTip v-if="!editing" category="live" text="Pour des lives nets et bien éclairés :" />
 
     <template v-if="!editing">
       <section class="card p-5">

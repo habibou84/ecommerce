@@ -306,7 +306,8 @@ const showPhone2 = ref(false)
 const showNotes = ref(false)
 const showDiscount = ref(false)
 const showDeposit = ref(false)
-const pasteOpen = ref(false)
+// « Coller WhatsApp » depuis l'accueil (?coller=1) : la zone du message est ouverte d'emblée
+const pasteOpen = ref(route.query.coller === '1')
 
 // Quantité : boutons − et +
 function step(item, delta) {

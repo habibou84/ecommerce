@@ -7,6 +7,7 @@ import { useConsoleStore } from '../stores/console'
 const platformRoutes = [
   { path: '/creer-ma-boutique', component: () => import('../views/platform/Signup.vue') },
   { path: '/connexion', component: () => import('../views/platform/Login.vue') },
+  { path: '/cle/:code?', component: () => import('../views/platform/AccessKey.vue'), props: true },
   // Fenêtre Facebook de la connexion WhatsApp, pour toutes les boutiques
   { path: '/whatsapp/facebook', component: () => import('../views/platform/WhatsAppFacebook.vue') },
   { path: '/mot-de-passe-oublie', component: () => import('../views/auth/ForgotPassword.vue'), props: { loginPath: '/connexion' } },
@@ -106,6 +107,7 @@ const storeRoutes = [
       { path: 'whatsapp', component: () => import('../views/gestion/messaging/WhatsApp.vue'), meta: { title: 'WhatsApp', permission: 'store.manage' } },
       { path: 'textes-messages', component: () => import('../views/gestion/messaging/MessageTexts.vue'), meta: { title: 'Textes des messages', permission: 'store.manage' } },
       { path: 'abonnement', component: () => import('../views/gestion/Billing.vue'), meta: { title: 'Abonnement', permission: 'billing.manage' } },
+      { path: 'materiel', component: () => import('../views/gestion/Materiel.vue'), meta: { title: 'Matériel', permission: 'billing.manage', feature: 'materiel' } },
       { path: 'mes-boutiques', component: () => import('../views/gestion/group/MyStores.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },
       { path: 'mes-boutiques/statistiques', component: () => import('../views/gestion/group/GroupStats.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },
       { path: 'mes-boutiques/caisse', component: () => import('../views/gestion/group/GroupCash.vue'), meta: { title: 'Vue d\'ensemble', owner: true } },
@@ -137,6 +139,8 @@ const consoleRoutes = [
       { path: 'factures', component: () => import('../views/console/Invoices.vue'), meta: { title: 'Factures' } },
       { path: 'parrainage', component: () => import('../views/console/Referrals.vue'), meta: { title: 'Parrainage' } },
       { path: 'offres', component: () => import('../views/console/Plans.vue'), meta: { title: 'Offres' } },
+      { path: 'materiel', component: () => import('../views/console/Materiel.vue'), meta: { title: 'Matériel' } },
+      { path: 'cles', component: () => import('../views/console/AccessKeys.vue'), meta: { title: 'Clés d\'accès' } },
       { path: 'ia', component: () => import('../views/console/AiUsage.vue'), meta: { title: 'Assistant IA' } },
       { path: 'compte', component: () => import('../views/console/Account.vue'), meta: { title: 'Mon compte' } },
       { path: 'journal', component: () => import('../views/console/Journal.vue'), meta: { title: 'Journal' } },
