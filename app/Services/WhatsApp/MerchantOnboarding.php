@@ -270,7 +270,7 @@ class MerchantOnboarding
         return $status === 'sent';
     }
 
-    private function quiet(Store $store): bool
+    public function quiet(Store $store): bool
     {
         $hour = CarbonImmutable::now($store->timezone ?: 'Africa/Abidjan')->hour;
 
@@ -280,7 +280,7 @@ class MerchantOnboarding
     /**
      * Le commerçant a écrit au support il y a moins de 24 h (message de vérification ou autre) : réponse libre permise.
      */
-    private function windowOpen(string $phone): bool
+    public function windowOpen(string $phone): bool
     {
         $since = now()->subHours(23)->subMinutes(45);
 

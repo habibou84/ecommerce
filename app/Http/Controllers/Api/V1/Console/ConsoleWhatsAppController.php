@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAction;
 use App\Models\SupportConversation;
 use App\Models\SupportMessage;
+use App\Services\WhatsApp\MerchantCatchUp;
 use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\PlatformWhatsApp;
 use Illuminate\Http\JsonResponse;
@@ -67,6 +68,24 @@ class ConsoleWhatsAppController extends Controller
         $this->log($request, 'onboarding_template', ['status' => $status]);
 
         return $this->onboarding($onboarding);
+    }
+
+    /** Rattrapage des commerçants déjà inscrits : aperçu par groupe, modèles Meta, avancement */
+    public function catchUp(MerchantCatchUp $catchUp): JsonResponse
+    {
+        return response()->json(['data' => $catchUp->preview()]);
+    }
+
+    public function catchUpAction(Request $request, MerchantCatchUp $catchUp, string $action): JsonResponse
+    {
+        match ($action) {
+            'start' => $catchUp->start(),
+            'pause' => $catchUp->pause(),
+            'templates' => $catchUp->installTemplates(),
+        };
+        $this->log($request, 'catchup_'.$action);
+
+        return $this->catchUp($catchUp);
     }
 
     /** Configuration manuelle : identifiants copiés depuis Meta (sans la fenêtre Facebook) */
