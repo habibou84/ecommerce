@@ -135,7 +135,7 @@ class MerchantCatchUp
             ->whereNotIn('owner_id', $contacted)
             ->whereNotIn('id', OnboardingMessage::where('step', self::STEP)->select('store_id'))
             ->whereHas('owner', fn ($q) => $q->whereNull('platform_messages_stopped_at')->whereNotNull('phone'))
-            ->orderBy('created_at')->get()
+            ->orderBy('created_at')->orderBy('id')->get()
             ->unique('owner_id')->values();
     }
 
