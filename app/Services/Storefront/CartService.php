@@ -7,6 +7,7 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\ProductVariant;
 use App\Models\Store;
+use App\Services\Marketing\CatalogFeed;
 use App\Services\Promotions\Pricing;
 use App\Support\Tenancy;
 use Illuminate\Http\Request;
@@ -132,6 +133,7 @@ class CartService
             $image = $variant->image ?? $variant->product->images->first();
             $lines[] = [
                 'variant_id' => $variant->id,
+                'catalog_id' => CatalogFeed::itemId($variant->sku, $variant->id),
                 'product_id' => $variant->product_id,
                 'product_slug' => $variant->product->slug,
                 'title' => $variant->product->title,

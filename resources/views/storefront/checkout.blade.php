@@ -135,7 +135,7 @@
     </div>
 
     @push('tracking')
-        jmTrack('begin_checkout', {!! json_encode(['value' => $summary['total'], 'currency' => $store->currency, 'items' => collect($summary['lines'])->map(fn ($l) => ['id' => $l['product_id'], 'name' => $l['title'], 'price' => $l['unit_price'], 'quantity' => $l['quantity']])->values()], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) !!});
+        jmTrack('begin_checkout', {!! json_encode(['value' => $summary['total'], 'currency' => $store->currency, 'items' => collect($summary['lines'])->map(fn ($l) => ['id' => $l['catalog_id'], 'name' => $l['title'], 'price' => $l['unit_price'], 'quantity' => $l['quantity']])->values()], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) !!});
     @endpush
 
     <script type="application/json" id="checkout-data">{!! json_encode(['subtotal' => $summary['subtotal'], 'total' => $summary['total']], JSON_HEX_TAG) !!}</script>
