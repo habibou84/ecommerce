@@ -455,6 +455,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
                 Route::post('marketing/catalog-feed/renew', [TrackingController::class, 'renewFeed'])->name('catalog-feed.renew');
+                // Pixel et catalogue Meta branchés en un clic (connexion Facebook)
+                Route::post('marketing/tracking/meta/connect', [TrackingController::class, 'metaConnect'])->name('tracking.meta.connect');
+                Route::get('marketing/tracking/meta/{key}', [TrackingController::class, 'metaPending'])->where('key', '[A-Za-z0-9]{40}')->name('tracking.meta.pending');
+                Route::post('marketing/tracking/meta/{key}', [TrackingController::class, 'metaSetup'])->where('key', '[A-Za-z0-9]{40}')->middleware('throttle:10,1')->name('tracking.meta.setup');
+                Route::delete('marketing/tracking/meta', [TrackingController::class, 'metaDisconnect'])->name('tracking.meta.disconnect');
                 Route::get('message-texts', [MessageTextController::class, 'index'])->name('message-texts.index');
                 Route::put('message-texts', [MessageTextController::class, 'update'])->name('message-texts.update');
                 Route::post('message-texts/preview', [MessageTextController::class, 'preview'])->name('message-texts.preview');

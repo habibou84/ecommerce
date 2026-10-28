@@ -6,6 +6,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\SocialAccount;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Marketing\MetaAds;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
@@ -19,7 +20,7 @@ use RuntimeException;
  */
 class SocialConnections
 {
-    public function __construct(private readonly MetaSocial $meta, private readonly TikTokSocial $tiktok) {}
+    public function __construct(private readonly MetaSocial $meta, private readonly TikTokSocial $tiktok, private readonly MetaAds $ads) {}
 
     public function authorizeUrl(Store $store, User $user, string $provider): string
     {
@@ -33,13 +34,28 @@ class SocialConnections
     }
 
     /**
+     * Connexion Facebook pour la publicité (pixel et catalogue) : même fenêtre et même adresse de retour que la page,
+     * autres autorisations ; le « state » dit à quoi elle sert.
+     */
+    public function adsAuthorizeUrl(Store $store, User $user): string
+    {
+        if (! MetaSocial::enabled()) {
+            throw new BusinessRuleException('La connexion à Facebook n\'est pas encore activée sur la plateforme.');
+        }
+        $state = Crypt::encryptString(json_encode(['store' => $store->id, 'user' => $user->id, 'provider' => 'meta', 'purpose' => 'ads', 'exp' => now()->addMinutes(30)->timestamp]));
+
+        return $this->ads->authorizeUrl($state);
+    }
+
+    /**
      * Retour de la fenêtre de connexion : adresse de la gestion où revenir.
      */
     public function callback(string $provider, string $state, ?string $code, ?string $error): string
     {
         $data = $this->state($state, $provider);
         $store = Store::findOrFail($data['store']);
-        $back = $store->url('/gestion/marketing/reseaux');
+        $ads = ($data['purpose'] ?? null) === 'ads';
+        $back = $store->url($ads ? '/gestion/marketing/suivi' : '/gestion/marketing/reseaux');
         if ($code === null || $code === '') {
             return $back.'?erreur='.rawurlencode($error ?: 'Connexion annulée.');
         }
@@ -47,6 +63,17 @@ class SocialConnections
         try {
             // Le compte n'est enregistré qu'une fois confirmé dans la gestion, par la personne qui a lancé la connexion :
             // un lien de connexion envoyé à quelqu'un d'autre ne relie pas son compte à cette boutique
+            if ($ads) {
+                $access = $this->ads->token($code);
+                $businesses = $this->ads->businesses($access['token']);
+                if ($businesses === []) {
+                    return $back.'?erreur='.rawurlencode('Aucun compte Business trouvé : créez-en un sur business.facebook.com, ou cochez-le dans la fenêtre de Facebook.');
+                }
+                $key = Str::random(40);
+                Cache::put('meta-ads:'.$key, ['store' => $store->id, 'user' => $data['user'], 'access' => $access, 'businesses' => $businesses], now()->addMinutes(30));
+
+                return $back.'?meta='.$key;
+            }
             if ($provider === 'tiktok') {
                 $account = $this->tiktok->connect($code);
                 $key = Str::random(40);

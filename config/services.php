@@ -44,6 +44,9 @@ return [
         // Connexion de la page Facebook et du compte Instagram (Facebook Login for Business › Configurations ;
         // sans configuration, les autorisations sont demandées une à une)
         'social_config_id' => env('META_SOCIAL_CONFIG_ID'),
+        // Pixel et catalogue branchés en un clic (Facebook Login for Business › Configurations, jeton d'utilisateur
+        // système : accès sans expiration ; sans configuration, autorisations demandées une à une, accès de 60 jours)
+        'ads_config_id' => env('META_ADS_CONFIG_ID'),
         // Prix d'un message marketing WhatsApp facturé par Meta au marchand (F CFA, estimation affichée avant une relance)
         'marketing_message_price' => (int) env('WHATSAPP_MARKETING_PRICE', 15),
     ],

@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\Customers\Loyalty;
+use App\Services\Marketing\MetaAds;
 use App\Services\Payments\PaymentDesk;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
@@ -136,7 +137,7 @@ class CheckoutController extends Controller
         $thanks = '/commande/merci/'.$order->tracking_token;
 
         // Achat envoyé à Meta par le serveur (API Conversions), si la boutique l'a configurée
-        if ($store->marketingId('meta_pixel_id') && filled($store->meta_capi_token)) {
+        if ($store->marketingId('meta_pixel_id') && app(MetaAds::class)->conversionsToken($store) !== null) {
             SendPurchaseConversion::dispatch($order->id, [
                 'ip' => $request->ip(),
                 'user_agent' => mb_substr((string) $request->userAgent(), 0, 500),
