@@ -60,6 +60,15 @@ class ConsoleWhatsAppController extends Controller
         return $this->onboarding($onboarding);
     }
 
+    /** Crée (ou recrée) chez Meta le modèle de fin d'essai pour le numéro du support */
+    public function onboardingTemplate(Request $request, MerchantOnboarding $onboarding): JsonResponse
+    {
+        $status = $onboarding->installTemplate();
+        $this->log($request, 'onboarding_template', ['status' => $status]);
+
+        return $this->onboarding($onboarding);
+    }
+
     /** Configuration manuelle : identifiants copiés depuis Meta (sans la fenêtre Facebook) */
     public function manual(Request $request): JsonResponse
     {

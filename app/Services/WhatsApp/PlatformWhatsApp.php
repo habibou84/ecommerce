@@ -228,6 +228,7 @@ class PlatformWhatsApp
         ] as $key => $value) {
             PlatformSetting::put("whatsapp.{$key}", $value);
         }
+        $this->installOnboardingTemplate();
     }
 
     /**
@@ -272,6 +273,16 @@ class PlatformWhatsApp
         foreach ($settings as $key => $value) {
             PlatformSetting::put("whatsapp.{$key}", $value);
         }
+        $this->installOnboardingTemplate();
+    }
+
+    /**
+     * Modèle de fin d'essai des messages d'accueil, créé chez Meta dès la connexion (au mieux : réessayable depuis
+     * la console).
+     */
+    private function installOnboardingTemplate(): void
+    {
+        rescue(fn () => app(MerchantOnboarding::class)->installTemplate(), report: false);
     }
 
     /**
@@ -426,6 +437,11 @@ class PlatformWhatsApp
     {
         foreach ($entry['changes'] ?? [] as $change) {
             $value = $change['value'] ?? [];
+            if (($change['field'] ?? null) === 'message_template_status_update') {
+                app(MerchantOnboarding::class)->updateTemplateStatus((string) ($value['message_template_name'] ?? ''), (string) ($value['event'] ?? ''));
+
+                continue;
+            }
             foreach ($value['messages'] ?? [] as $message) {
                 $this->receive($message, $value['contacts'] ?? []);
             }
