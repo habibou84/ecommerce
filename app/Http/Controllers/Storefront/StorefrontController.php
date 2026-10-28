@@ -8,6 +8,7 @@ use App\Models\Collection;
 use App\Models\Page;
 use App\Models\Plan;
 use App\Services\Catalog\Bundles;
+use App\Services\Marketing\CatalogFeed;
 use App\Services\Marketing\ReviewBook;
 use App\Services\Promotions\Pricing;
 use App\Services\Storefront\CartService;
@@ -110,6 +111,7 @@ class StorefrontController extends Controller
 
             return [
                 'id' => $v->id,
+                'catalog_id' => CatalogFeed::itemId($v->sku, $v->id),
                 'options' => array_values(array_filter([$v->option1?->value, $v->option2?->value, $v->option3?->value], fn ($x) => $x !== null)),
                 'title' => $v->title,
                 'price' => $price['price'],

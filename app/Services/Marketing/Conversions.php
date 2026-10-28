@@ -34,6 +34,9 @@ class Conversions
         }
 
         $order->loadMissing('items');
+        // Mêmes identifiants que le catalogue (lignes libres, sans article, laissées de côté)
+        $items = $order->items->map(fn ($i) => ['id' => CatalogFeed::itemId($i->sku, $i->variant_id), 'quantity' => $i->quantity, 'item_price' => $i->unit_price])
+            ->filter(fn ($i) => $i['id'] !== null)->values();
         $hash = fn (?string $value) => filled($value) ? [hash('sha256', $value)] : null;
         $names = preg_split('/\s+/', Str::lower(trim((string) $order->customer_name))) ?: [];
         $fbclid = $order->utm['fbclid'] ?? null;
@@ -60,8 +63,8 @@ class Conversions
                 'value' => $order->total,
                 'order_id' => $order->reference(),
                 'content_type' => 'product',
-                'content_ids' => $order->items->pluck('product_id')->filter()->map(fn ($id) => (string) $id)->values()->all(),
-                'contents' => $order->items->filter(fn ($i) => $i->product_id)->map(fn ($i) => ['id' => (string) $i->product_id, 'quantity' => $i->quantity, 'item_price' => $i->unit_price])->values()->all(),
+                'content_ids' => $items->pluck('id')->all(),
+                'contents' => $items->all(),
                 'num_items' => (int) $order->items->sum('quantity'),
             ],
         ];

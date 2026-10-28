@@ -7,6 +7,7 @@ use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Marketing\CatalogFeed;
 use App\Services\Places\Places;
 use App\Services\Storefront\CartService;
 use Illuminate\Http\Client\Request as HttpRequest;
@@ -82,8 +83,33 @@ class TrackingTest extends TestCase
         $this->assertSame(['fb.1.1700000000000.42', 'Mozilla/5.0 Test'], [$event['user_data']['fbp'], $event['user_data']['client_user_agent']]);
         $this->assertStringEndsWith('.IwAR123', $event['user_data']['fbc']);
         $this->assertNotNull($order->fresh()->conversion_sent_at);
+        // Article désigné comme dans le catalogue (sans référence : V + numéro de la variante)
+        $item = 'V'.$this->robe->variants[0]->id;
+        $this->assertSame([$item], $event['custom_data']['content_ids']);
+        $this->assertSame([['id' => $item, 'quantity' => 1, 'item_price' => 15000]], $event['custom_data']['contents']);
 
         // Le pixel envoie l'achat avec le même identifiant (dédoublonnage chez Meta)
-        $this->get($this->storeUrl($this->store, $redirect))->assertOk()->assertSee("jmTrack('purchase'", false)->assertSee('"order-'.$order->id.'"', false);
+        $this->get($this->storeUrl($this->store, $redirect))->assertOk()->assertSee("jmTrack('purchase'", false)->assertSee('"order-'.$order->id.'"', false)
+            ->assertSee('"id":"'.$item.'"', false);
+    }
+
+    public function test_the_pixel_names_items_like_the_catalog(): void
+    {
+        $this->store->forceFill(['marketing' => ['meta_pixel_id' => '123456789012345']])->save();
+        $sac = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Sac', 'variants' => [['price' => 8000, 'on_hand' => 3, 'sku' => 'SAC-NOIR']]]);
+        // Même règle que les lignes du catalogue : la référence, sinon V + numéro de la variante
+        $this->assertSame(['SAC-NOIR', 'V12', null], [CatalogFeed::itemId('SAC-NOIR', 3), CatalogFeed::itemId('', 12), CatalogFeed::itemId(null, null)]);
+
+        // Produit vu : l'identifiant de la variante affichée, celui du catalogue
+        $this->get($this->storeUrl($this->store, '/produits/'.$sac->slug))->assertOk()
+            ->assertSee("jmTrack('view_item'", false)->assertSee('"id":"SAC-NOIR"', false)->assertSee('"catalog_id":"SAC-NOIR"', false);
+
+        // Début de commande : idem pour chaque ligne du panier
+        $headers = ['X-Requested-With' => 'XMLHttpRequest', 'Accept' => 'application/json'];
+        $cart = $this->withCredentials()->withHeaders($headers)
+            ->postJson($this->storeUrl($this->store, '/panier/articles'), ['variant_id' => $sac->variants[0]->id, 'quantity' => 2])
+            ->getCookie(CartService::COOKIE)->getValue();
+        $this->withCredentials()->withCookie(CartService::COOKIE, $cart)->get($this->storeUrl($this->store, '/commande'))->assertOk()
+            ->assertSee("jmTrack('begin_checkout'", false)->assertSee('"id":"SAC-NOIR"', false);
     }
 }
