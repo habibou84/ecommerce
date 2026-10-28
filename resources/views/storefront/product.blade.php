@@ -193,7 +193,7 @@
     @endif
 
     @push('tracking')
-        jmTrack('view_item', {!! json_encode(['value' => $selected['price'], 'currency' => $store->currency, 'items' => [['id' => $product->id, 'name' => $product->title, 'price' => $selected['price'], 'quantity' => 1]]], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) !!});
+        jmTrack('view_item', {!! json_encode(['value' => $selected['price'], 'currency' => $store->currency, 'items' => [['id' => $selected['catalog_id'], 'name' => $product->title, 'price' => $selected['price'], 'quantity' => 1]]], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) !!});
     @endpush
 
     <script type="application/json" id="product-data">{!! json_encode([

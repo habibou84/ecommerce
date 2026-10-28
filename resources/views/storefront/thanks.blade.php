@@ -59,6 +59,6 @@
         </div>
     </div>
     @push('tracking')
-        jmTrack('purchase', {!! json_encode(['value' => $order->total, 'currency' => $store->currency, 'items' => $order->items->map(fn ($i) => ['id' => $i->product_id ?? 'libre', 'name' => $i->title, 'price' => $i->unit_price, 'quantity' => $i->quantity])->values()], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) !!}, {!! json_encode(\App\Services\Marketing\Conversions::eventId($order)) !!});
+        jmTrack('purchase', {!! json_encode(['value' => $order->total, 'currency' => $store->currency, 'items' => $order->items->map(fn ($i) => ['id' => \App\Services\Marketing\CatalogFeed::itemId($i->sku, $i->variant_id) ?? 'libre', 'name' => $i->title, 'price' => $i->unit_price, 'quantity' => $i->quantity])->values()], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) !!}, {!! json_encode(\App\Services\Marketing\Conversions::eventId($order)) !!});
     @endpush
 @endsection

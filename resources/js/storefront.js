@@ -145,7 +145,7 @@ function productPage() {
       const quantity = Number(qty.value) || 1
       const { data: summary } = await api('POST', '/panier/articles', { variant_id: variant.id, quantity })
       setCartCount(summary.count)
-      window.jmTrack?.('add_to_cart', { value: variant.price * quantity, currency: data.currency, items: [{ id: data.id, name: data.title, price: variant.price, quantity }] })
+      window.jmTrack?.('add_to_cart', { value: variant.price * quantity, currency: data.currency, items: [{ id: variant.catalog_id, name: data.title, price: variant.price, quantity }] })
       if (thenCheckout) {
         window.location.href = `${BASE}/commande`
         return

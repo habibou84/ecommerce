@@ -21,6 +21,19 @@ class CatalogFeed
     public const COLUMNS = ['id', 'item_group_id', 'title', 'description', 'availability', 'condition', 'price', 'sale_price', 'link', 'image_link',
         'additional_image_link', 'brand', 'quantity_to_sell_on_facebook', 'size', 'color'];
 
+    /**
+     * Identifiant d'un article dans le catalogue, repris tel quel par le pixel et l'API Conversions : c'est ce qui
+     * permet à Meta (et TikTok, Google) de relier une visite ou un achat à l'article du catalogue.
+     */
+    public static function itemId(?string $sku, ?int $variantId): ?string
+    {
+        if ($sku !== null && $sku !== '') {
+            return $sku;
+        }
+
+        return $variantId !== null ? 'V'.$variantId : null;
+    }
+
     public function __construct(
         private readonly StorefrontCatalog $catalog,
         private readonly StorefrontView $view,
@@ -66,7 +79,7 @@ class CatalogFeed
                 $image = $variant->image ? $this->absolute($base, $variant->image->urls()['large']) : $images->first();
 
                 $rows[] = [
-                    'id' => (string) ($variant->sku ?: 'V'.$variant->id),
+                    'id' => self::itemId($variant->sku, $variant->id),
                     'item_group_id' => $product->has_variants ? 'P'.$product->id : '',
                     'title' => Str::limit($variant->fullTitle(), 150, ''),
                     'description' => $description !== '' ? $description : $product->title,
