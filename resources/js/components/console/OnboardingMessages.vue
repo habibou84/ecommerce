@@ -51,6 +51,21 @@ async function save() {
   }
 }
 
+const TEMPLATE_STATUS = { PENDING: 'en cours de vérification par Meta', APPROVED: 'approuvé ✓', REJECTED: 'refusé par Meta', PAUSED: 'mis en pause par Meta', DISABLED: 'désactivé par Meta', ERROR: 'erreur à la création' }
+const TEMPLATE_TONE = { APPROVED: 'text-emerald-700', REJECTED: 'text-red-700', PAUSED: 'text-amber-700', DISABLED: 'text-red-700', ERROR: 'text-red-700', PENDING: 'text-amber-700' }
+
+async function installTemplate() {
+  busy.value = true
+  error.value = ''
+  try {
+    fill((await http.post('/console/whatsapp/onboarding/template')).data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 function reset(key) {
   form.value.texts[key] = data.value.defaults[key]
 }
@@ -72,6 +87,18 @@ function reset(key) {
     <ul class="grid gap-1 text-slate-700 sm:grid-cols-2">
       <li v-for="s in STEPS.filter((s) => !s.stat)" :key="s.key">{{ s.label }} : <strong>{{ data.stats[s.key]?.sent ?? 0 }}</strong> envoyés sur 30 jours<template v-if="data.stats[s.key]?.failed"> · {{ data.stats[s.key].failed }} en échec</template></li>
     </ul>
+    <div class="rounded-lg bg-slate-50 p-3">
+      <p class="font-semibold">Rappel de fin d'essai : modèle Meta</p>
+      <p class="text-slate-600">
+        Ce rappel part plusieurs jours après l'inscription : avec la connexion officielle, WhatsApp exige un modèle approuvé par Meta.
+        L'application le crée elle-même chez Meta dès que le numéro du support est connecté. Par QR code, il n'est pas nécessaire.
+      </p>
+      <p class="mt-1">
+        <template v-if="data.trial_template">Modèle <code>{{ data.trial_template }}</code> : <strong :class="TEMPLATE_TONE[data.trial_template_status] ?? ''">{{ TEMPLATE_STATUS[data.trial_template_status] ?? 'nom saisi à la main' }}</strong></template>
+        <template v-else>Pas encore créé.</template>
+      </p>
+      <button type="button" class="btn-ghost mt-2 px-2" :disabled="busy" @click="installTemplate">{{ busy ? 'Un instant…' : (data.trial_template ? 'Recréer le modèle chez Meta' : 'Créer le modèle chez Meta') }}</button>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
     <button v-if="!open" type="button" class="text-emerald-700 underline" @click="open = true">Voir et modifier les textes</button>
     <form v-else class="space-y-4" @submit.prevent="save">
@@ -84,11 +111,14 @@ function reset(key) {
         </div>
         <textarea :id="`ob-${s.key}`" v-model="form.texts[s.key]" rows="6" class="input font-mono text-xs" maxlength="1000" />
       </div>
-      <label class="block">Modèle Meta pour la fin de l'essai <span class="text-slate-500">(connexion officielle seulement, hors des 24 h)</span>
-        <input v-model="form.trial_template" class="input mt-1 max-w-xs font-mono" placeholder="fin_essai_jibiat" />
-        <span class="block text-xs text-slate-500">Modèle validé par Meta, en français, avec 5 variables dans cet ordre : prénom, boutique, date de fin, prix, lien. Sans modèle, ce rappel ne part que par QR code.</span>
-        <span v-if="errors.trial_template" class="text-red-700">{{ errors.trial_template }}</span>
-      </label>
+      <details class="rounded-lg border border-slate-200 p-3">
+        <summary class="cursor-pointer">Nom d'un autre modèle Meta (facultatif)</summary>
+        <label class="mt-2 block">Nom du modèle
+          <input v-model="form.trial_template" class="input mt-1 max-w-xs font-mono" placeholder="jm_fin_essai" />
+          <span class="block text-xs text-slate-500">Seulement pour utiliser un modèle que vous avez créé vous-même, en français, avec 5 variables dans cet ordre : prénom, boutique, date de fin, prix, lien.</span>
+          <span v-if="errors.trial_template" class="text-red-700">{{ errors.trial_template }}</span>
+        </label>
+      </details>
       <div class="flex items-center gap-3">
         <button class="btn-brand" :disabled="busy">{{ busy ? 'Enregistrement…' : 'Enregistrer' }}</button>
         <span v-if="saved" class="text-emerald-700">Enregistré.</span>

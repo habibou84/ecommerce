@@ -35,6 +35,10 @@ class MerchantOnboardingTest extends TestCase
         config(['services.meta' => ['app_id' => '7777', 'app_secret' => 'platform-secret', 'whatsapp_config_id' => '8888', 'webhook_verify_token' => 'verif-123']]);
         Http::preventStrayRequests();
         Http::fake(['https://graph.facebook.com/*' => function (HttpRequest $r) {
+            // Création d'un modèle : pas un message envoyé
+            if (str_ends_with($r->url(), '/message_templates')) {
+                return Http::response(['id' => 'tpl1', 'status' => 'PENDING']);
+            }
             $this->sent[] = [
                 'to' => (string) $r['to'],
                 'body' => $r['text']['body'] ?? null,
@@ -195,5 +199,34 @@ class MerchantOnboardingTest extends TestCase
         $this->assertStringContainsString('offre *Pro à vie*', $bodies['2250708091011']);
         // Annuaire injoignable : nom générique de l'entreprise
         $this->assertStringStartsWith('Bienvenue, Koffi ! *Votre entreprise de livraison* vous a invité', $bodies['2250102030405']);
+    }
+
+    public function test_the_trial_end_template_is_created_at_meta_and_used_once_approved(): void
+    {
+        $admin = User::factory()->create(['phone' => '+2250701020304']);
+        $admin->forceFill(['is_super_admin' => true])->save();
+        $this->actingAs($admin)->withSession(['console_admin' => $admin->id, 'console_since' => now()->timestamp])
+            ->apiOn(self::CONSOLE, 'POST', 'console/whatsapp/onboarding/template')->assertOk()
+            ->assertJsonPath('data.trial_template', 'jm_fin_essai')->assertJsonPath('data.trial_template_status', 'PENDING');
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/4242/message_templates') && $r['name'] === 'jm_fin_essai'
+            && $r['category'] === 'UTILITY' && count($r['components'][0]['example']['body_text'][0]) === 5);
+
+        // En attente chez Meta : le rappel ne part pas encore (hors des 24 h)
+        $store = $this->merchant();
+        $this->travelTo($store->currentSubscription->trial_ends_at->copy()->subDays(2)->subHours(12)->setTimezone('Africa/Abidjan')->setTime(10, 0));
+        $this->assertSame(0, $this->runOnboarding()['trial_end']);
+        $this->assertSame('Hors des 24 h et modèle Meta pas encore approuvé', OnboardingMessage::where('step', 'trial_end')->value('detail'));
+
+        // Approuvé (notification de Meta sur le numéro du support) : il part pour la boutique suivante
+        $body = json_encode(['object' => 'whatsapp_business_account', 'entry' => [['id' => '4242', 'changes' => [['field' => 'message_template_status_update', 'value' => [
+            'event' => 'APPROVED', 'message_template_name' => 'jm_fin_essai',
+        ]]]]]]);
+        $this->call('POST', 'http://api.localhost/webhooks/whatsapp', [], [], [], [
+            'CONTENT_TYPE' => 'application/json', 'HTTP_X_HUB_SIGNATURE_256' => 'sha256='.hash_hmac('sha256', $body, 'platform-secret'),
+        ], $body)->assertOk();
+        $this->assertSame('APPROVED', app(MerchantOnboarding::class)->settings()['trial_template_status']);
+        OnboardingMessage::where('step', 'trial_end')->delete();
+        $this->assertSame(1, $this->runOnboarding()['trial_end']);
+        $this->assertSame('jm_fin_essai', end($this->sent)['template']);
     }
 }
