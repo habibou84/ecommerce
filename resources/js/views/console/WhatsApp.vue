@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
+import CatchUpCampaign from '../../components/console/CatchUpCampaign.vue'
 import OnboardingMessages from '../../components/console/OnboardingMessages.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { boot } from '../../lib/boot'
@@ -382,5 +383,6 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
     </template>
 
     <OnboardingMessages v-if="account" />
+    <CatchUpCampaign v-if="account" />
   </div>
 </template>

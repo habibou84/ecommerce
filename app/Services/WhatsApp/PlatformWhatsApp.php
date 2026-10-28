@@ -283,6 +283,7 @@ class PlatformWhatsApp
     private function installOnboardingTemplate(): void
     {
         rescue(fn () => app(MerchantOnboarding::class)->installTemplate(), report: false);
+        rescue(fn () => app(MerchantCatchUp::class)->installTemplates(), report: false);
     }
 
     /**
@@ -439,6 +440,7 @@ class PlatformWhatsApp
             $value = $change['value'] ?? [];
             if (($change['field'] ?? null) === 'message_template_status_update') {
                 app(MerchantOnboarding::class)->updateTemplateStatus((string) ($value['message_template_name'] ?? ''), (string) ($value['event'] ?? ''));
+                app(MerchantCatchUp::class)->updateTemplateStatus((string) ($value['message_template_name'] ?? ''), (string) ($value['event'] ?? ''));
 
                 continue;
             }
