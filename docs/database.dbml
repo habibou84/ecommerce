@@ -43,6 +43,7 @@ Table users {
   last_login_at timestamp
   remember_token varchar
   deleted_at timestamp
+  platform_messages_stopped_at timestamp [note: '« STOP » envoyé au WhatsApp du support : plus de messages automatiques']
 }
 
 Table stores {
@@ -2174,4 +2175,19 @@ Table access_keys {
   indexes {
     (batch_id, number) [unique]
   }
+}
+
+Table onboarding_messages {
+  id bigint [pk]
+  store_id bigint [ref: > stores.id]
+  user_id bigint [ref: > users.id]
+  step varchar [note: 'welcome, no_product, first_products, trial_end']
+  status varchar [note: 'sent, skipped, failed']
+  detail varchar [note: 'raison d’un message sauté ou en échec']
+  created_at timestamp
+  updated_at timestamp
+  indexes {
+    (store_id, step) [unique]
+  }
+  Note: 'Messages WhatsApp d’accueil des nouveaux commerçants (numéro du support)'
 }
