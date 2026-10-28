@@ -4,6 +4,7 @@ namespace App\Services\WhatsApp;
 
 use App\Enums\StoreStatus;
 use App\Enums\SubscriptionStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\OnboardingMessage;
 use App\Models\PhoneVerification;
 use App\Models\Plan;
@@ -47,6 +48,17 @@ class MerchantOnboarding
         'trial_end' => "Bonjour {prenom}, votre essai {offre_essai} de *{boutique}* se termine le *{date_fin}*.\n\nPour garder toutes les fonctions, choisissez votre offre, à partir de {prix}, payable par Wave ou Orange Money.\n👉 {lien_abonnement}\n\nSinon, votre boutique passe à l'offre Gratuit, sans rien perdre.",
     ];
 
+    /**
+     * Modèle de fin d'essai créé chez Meta par l'application (numéro du support connecté avec Meta) : variables dans
+     * l'ordre prénom, boutique, date de fin, prix, lien ; Meta refuse une variable en fin de texte.
+     */
+    public const TRIAL_TEMPLATE = [
+        'name' => 'jm_fin_essai',
+        'category' => 'UTILITY',
+        'body' => 'Bonjour {{1}}, votre essai gratuit de {{2}} sur Jibiat Marchand se termine le {{3}}. Pour garder toutes les fonctions, choisissez votre offre à partir de {{4}} ici : {{5}} . Sinon, votre boutique passe à l\'offre Gratuit, sans rien perdre.',
+        'example' => ['Awa', 'Awa Mode', '15 novembre', '1 500 F par semaine', 'https://awa-mode.jibiat-marchand.com/gestion/abonnement'],
+    ];
+
     public const STOP_REPLY = 'C\'est noté : vous ne recevrez plus nos messages automatiques. Écrivez START pour les réactiver. Vous pouvez toujours nous écrire ici.';
 
     public const START_REPLY = 'C\'est noté : les messages automatiques de Jibiat Marchand sont réactivés.';
@@ -56,10 +68,10 @@ class MerchantOnboarding
 
     private const QUIET_UNTIL = 7;
 
-    public function __construct(private readonly PlatformWhatsApp $whatsapp) {}
+    public function __construct(private readonly PlatformWhatsApp $whatsapp, private readonly WhatsAppCloud $cloud) {}
 
     /**
-     * @return array{enabled: bool, texts: array<string, string>, trial_template: ?string}
+     * @return array{enabled: bool, texts: array<string, string>, trial_template: ?string, trial_template_status: ?string}
      */
     public function settings(): array
     {
@@ -73,7 +85,45 @@ class MerchantOnboarding
             'enabled' => ($s['enabled'] ?? '1') === '1',
             'texts' => $texts,
             'trial_template' => filled($s['trial_template'] ?? null) ? $s['trial_template'] : null,
+            // PENDING, APPROVED, REJECTED… (modèle créé par l'application), null pour un nom saisi à la main
+            'trial_template_status' => $s['trial_template_status'] ?? null,
         ];
+    }
+
+    /**
+     * Crée chez Meta le modèle de fin d'essai pour le numéro du support (connexion officielle). Déjà créé : gardé.
+     * Renvoie l'état, ou lève une erreur lisible.
+     */
+    public function installTemplate(): string
+    {
+        $account = $this->whatsapp->account() ?? throw new BusinessRuleException('Le modèle se crée seulement pour un numéro du support connecté avec Meta (Facebook ou configuration manuelle). Par QR code, il n\'est pas nécessaire.');
+        $t = self::TRIAL_TEMPLATE;
+        try {
+            $created = $this->cloud->graph('POST', $account->waba_id.'/message_templates', $account->access_token, [
+                'name' => $t['name'], 'language' => 'fr', 'category' => $t['category'],
+                'components' => [['type' => 'BODY', 'text' => $t['body'], 'example' => ['body_text' => [$t['example']]]]],
+            ]);
+            $status = strtoupper((string) ($created['status'] ?? 'PENDING'));
+        } catch (RuntimeException $e) {
+            if (! str_contains(mb_strtolower($e->getMessage()), 'already exists') && ! str_contains($e->getMessage(), 'existe déjà')) {
+                throw new BusinessRuleException('Meta a refusé la création du modèle. '.$e->getMessage());
+            }
+            $status = $this->settings()['trial_template_status'] ?? 'PENDING';
+        }
+        PlatformSetting::put('onboarding.trial_template', $t['name']);
+        PlatformSetting::put('onboarding.trial_template_status', $status);
+
+        return $status;
+    }
+
+    /**
+     * Notification de Meta sur le numéro du support : modèle approuvé, refusé…
+     */
+    public function updateTemplateStatus(string $name, string $status): void
+    {
+        if ($name !== '' && $name === $this->settings()['trial_template']) {
+            PlatformSetting::put('onboarding.trial_template_status', strtoupper($status));
+        }
     }
 
     /**
@@ -90,7 +140,12 @@ class MerchantOnboarding
             }
         }
         if (array_key_exists('trial_template', $data)) {
-            PlatformSetting::put('onboarding.trial_template', filled($data['trial_template']) ? trim($data['trial_template']) : null);
+            $name = filled($data['trial_template']) ? trim($data['trial_template']) : null;
+            if ($name !== $this->settings()['trial_template']) {
+                // Nom saisi à la main : état inconnu ici
+                PlatformSetting::put('onboarding.trial_template', $name);
+                PlatformSetting::put('onboarding.trial_template_status', null);
+            }
         }
     }
 
@@ -190,11 +245,12 @@ class MerchantOnboarding
         try {
             if ($this->whatsapp->isQr() || $this->windowOpen($phone)) {
                 $this->whatsapp->sendAutomatic($phone, $text);
-            } elseif ($step === 'trial_end' && ($template = $this->settings()['trial_template']) !== null) {
+            } elseif ($step === 'trial_end' && ($template = $this->settings()['trial_template']) !== null
+                && ! in_array($this->settings()['trial_template_status'], ['PENDING', 'REJECTED', 'PAUSED', 'DISABLED'], true)) {
                 $this->whatsapp->sendTemplateTo($phone, $template, [$vars['prenom'], $vars['boutique'], $vars['date_fin'], $vars['prix'], $vars['lien_abonnement']], $text);
             } else {
                 return $this->record($store, $step, 'skipped', $step === 'trial_end'
-                    ? 'Hors des 24 h et aucun modèle Meta réglé'
+                    ? 'Hors des 24 h et modèle Meta pas encore approuvé'
                     : 'Hors des 24 h après la vérification du numéro');
             }
         } catch (RuntimeException $e) {
