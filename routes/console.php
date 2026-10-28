@@ -27,6 +27,7 @@ use App\Services\Shipping\CarrierEvents;
 use App\Services\Shipping\CarrierException;
 use App\Services\Social\SocialPublisher;
 use App\Services\WhatsApp\CustomerMessenger;
+use App\Services\WhatsApp\MerchantOnboarding;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -213,3 +214,17 @@ Artisan::command('platform:admin {phone} {--revoke}', function (string $phone) {
 
 // Battement du planificateur : la console (Santé de la plateforme) voit qu'il tourne bien
 Schedule::call(fn () => Cache::put(ConsoleHealthController::HEARTBEAT, now()->toIso8601String(), now()->addDay()))->everyMinute()->name('scheduler-heartbeat');
+
+/*
+ * Accueil des nouveaux commerçants par le WhatsApp du support : bienvenue, premier produit, vente en live, fin de
+ * l'essai (MerchantOnboarding). Rien entre 21 h et 7 h.
+ */
+Artisan::command('onboarding:run', function (MerchantOnboarding $onboarding) {
+    foreach ($onboarding->run() as $step => $count) {
+        if ($count > 0) {
+            $this->line("{$step} : {$count} message(s)");
+        }
+    }
+})->purpose('Envoie les messages WhatsApp d\'accueil des nouveaux commerçants');
+
+Schedule::command('onboarding:run')->everyFiveMinutes()->withoutOverlapping()->runInBackground();

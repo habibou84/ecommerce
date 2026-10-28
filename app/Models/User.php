@@ -27,6 +27,7 @@ class User extends Authenticatable
     {
         return [
             'phone_verified_at' => 'datetime',
+            'platform_messages_stopped_at' => 'datetime',
             'last_login_at' => 'datetime',
             'is_super_admin' => 'boolean',
             'status' => UserStatus::class,

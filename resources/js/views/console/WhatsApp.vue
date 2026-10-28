@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
+import OnboardingMessages from '../../components/console/OnboardingMessages.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { boot } from '../../lib/boot'
 import { facebookRelayUrl, takeFacebookResult } from '../../lib/facebook'
@@ -379,5 +380,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
         <p v-else class="hidden self-center text-center text-sm text-slate-500 md:block">Choisissez une conversation.</p>
       </div>
     </template>
+
+    <OnboardingMessages v-if="account" />
   </div>
 </template>
