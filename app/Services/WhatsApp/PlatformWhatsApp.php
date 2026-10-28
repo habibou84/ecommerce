@@ -412,6 +412,9 @@ class PlatformWhatsApp
                 'body' => $body, 'provider_message_id' => $id, 'status' => 'received', 'sent_at' => $sentAt,
             ]);
         });
+        if ($text !== null && ($keyword = app(MerchantOnboarding::class)->handleKeyword($from, $text)) !== null) {
+            rescue(fn () => $this->sendAutomatic($from, $keyword), report: false);
+        }
     }
 
     /**
@@ -465,8 +468,9 @@ class PlatformWhatsApp
         }
         $sentAt = $this->time($message);
         $name = collect($contacts)->firstWhere('wa_id', $from)['profile']['name'] ?? null;
+        $keyword = ($message['type'] ?? null) === 'text' ? app(MerchantOnboarding::class)->handleKeyword('+'.ltrim($from, '+'), $body) : null;
 
-        return DB::transaction(function () use ($from, $name, $body, $message, $sentAt) {
+        $saved = DB::transaction(function () use ($from, $name, $body, $message, $sentAt) {
             $conversation = SupportConversation::lockForUpdate()->firstOrNew(['contact' => '+'.ltrim($from, '+')]);
             $conversation->fill([
                 'contact_name' => $name ? Str::limit($name, 117) : $conversation->contact_name,
@@ -481,6 +485,12 @@ class PlatformWhatsApp
                 'provider_message_id' => $message['id'] ?? null, 'status' => 'received', 'sent_at' => $sentAt,
             ]);
         });
+        // « STOP » / « START » : messages automatiques arrêtés ou repris, confirmé dans la conversation
+        if ($keyword !== null) {
+            rescue(fn () => $this->sendAutomatic('+'.ltrim($from, '+'), $keyword), report: false);
+        }
+
+        return $saved;
     }
 
     /**
@@ -516,6 +526,45 @@ class PlatformWhatsApp
         return $conversation->messages()->create([
             'direction' => 'out', 'type' => 'text', 'body' => $text, 'provider_message_id' => $id ?: null,
             'status' => 'sent', 'user_id' => $user->id, 'sent_at' => now(),
+        ]);
+    }
+
+    /**
+     * Message automatique (accueil des commerçants, réponse à « STOP ») : réponse libre, par QR code ou avec Meta dans
+     * les 24 h ; recopié dans le fil de la console.
+     */
+    public function sendAutomatic(string $to, string $text): SupportMessage
+    {
+        if ($this->isQr()) {
+            $id = $this->bridge->sendFrom(WhatsAppBridge::PLATFORM, $to, $text);
+        } else {
+            $account = $this->account() ?? throw new RuntimeException('Le WhatsApp du support n\'est pas connecté.');
+            $id = $this->cloud->sendText($account, $to, $text);
+        }
+
+        return $this->recordAutomatic($to, $text, $id ?: null);
+    }
+
+    /**
+     * Modèle validé par Meta (hors des 24 h) ; le texte rendu est recopié dans le fil de la console.
+     *
+     * @param  list<string>  $params
+     */
+    public function sendTemplateTo(string $to, string $template, array $params, string $preview): SupportMessage
+    {
+        $account = $this->account() ?? throw new RuntimeException('Le WhatsApp du support n\'est pas connecté.');
+        $id = $this->cloud->sendTemplate($account, $to, $template, $params);
+
+        return $this->recordAutomatic($to, $preview, $id ?: null);
+    }
+
+    private function recordAutomatic(string $to, string $text, ?string $id): SupportMessage
+    {
+        $conversation = SupportConversation::firstOrNew(['contact' => $to]);
+        $conversation->fill(['last_preview' => Str::limit($text, 197), 'last_message_at' => now()])->save();
+
+        return $conversation->messages()->create([
+            'direction' => 'out', 'type' => 'automatic', 'body' => $text, 'provider_message_id' => $id, 'status' => 'sent', 'sent_at' => now(),
         ]);
     }
 

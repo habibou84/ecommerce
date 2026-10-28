@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAction;
 use App\Models\SupportConversation;
 use App\Models\SupportMessage;
+use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\PlatformWhatsApp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,6 +38,26 @@ class ConsoleWhatsAppController extends Controller
         $this->log($request, 'support_whatsapp_connected', ['waba_id' => $data['waba_id']]);
 
         return $this->show();
+    }
+
+    /** Messages d'accueil des nouveaux commerçants : réglages, textes, et ce qui est parti sur 30 jours */
+    public function onboarding(MerchantOnboarding $onboarding): JsonResponse
+    {
+        return response()->json(['data' => $onboarding->settings() + ['defaults' => MerchantOnboarding::TEXTS, 'stats' => $onboarding->stats()]]);
+    }
+
+    public function updateOnboarding(Request $request, MerchantOnboarding $onboarding): JsonResponse
+    {
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'texts' => ['sometimes', 'array'],
+            'texts.*' => ['nullable', 'string', 'max:1000'],
+            'trial_template' => ['nullable', 'string', 'max:100', 'regex:/^[a-z0-9_]+$/'],
+        ], [], ['trial_template' => 'nom du modèle Meta']);
+        $onboarding->update($data);
+        $this->log($request, 'onboarding_updated', ['enabled' => $data['enabled']]);
+
+        return $this->onboarding($onboarding);
     }
 
     /** Configuration manuelle : identifiants copiés depuis Meta (sans la fenêtre Facebook) */
@@ -149,7 +170,7 @@ class ConsoleWhatsAppController extends Controller
         return [
             'id' => $m->id, 'direction' => $m->direction, 'type' => $m->type, 'body' => $m->body, 'status' => $m->status, 'error' => $m->error,
             // Message envoyé sans auteur dans la console : depuis l'application du téléphone
-            'author' => $m->direction === 'out' ? ($m->user?->name ?? 'Téléphone') : null,
+            'author' => $m->direction === 'out' ? ($m->user?->name ?? ($m->type === 'automatic' ? 'Message automatique' : 'Téléphone')) : null,
             'sent_at' => $m->sent_at->toIso8601String(),
         ];
     }
