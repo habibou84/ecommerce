@@ -82,7 +82,7 @@ export const BEFORE_LIVE = [
   'Le lien de vos lives est dans votre bio',
   'Le message à épingler est copié',
   'Les codes sont prêts à montrer (cartons ou 2e téléphone)',
-  'Votre WhatsApp est relié (Messages), pour les codes et les captures',
+  'Votre WhatsApp officiel est connecté (Réglages › WhatsApp), pour les codes et les captures',
 ]
 
 // Cases cochées, gardées sur cet appareil (commodité : rien ne se perd si le stockage est indisponible)

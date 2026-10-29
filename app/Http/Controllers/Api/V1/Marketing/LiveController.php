@@ -28,6 +28,7 @@ class LiveController extends Controller
             'data' => $sessions->map(fn (LiveSession $s) => [
                 'id' => $s->id, 'title' => $s->title, 'status' => $s->status, 'items_count' => $s->items_count,
                 'started_at' => $s->started_at?->toIso8601String(), 'ended_at' => $s->ended_at?->toIso8601String(),
+                'minutes' => $s->started_at ? (int) $s->started_at->diffInMinutes($s->ended_at ?? now()) : null,
                 'summary' => $s->status === 'draft' ? null : $this->live->summary($s),
             ])->values(),
             'meta' => ['page_url' => $store->url('/live'), 'whatsapp' => LiveSales::whatsapp($store->id)],
@@ -87,6 +88,24 @@ class LiveController extends Controller
         return response()->json(['data' => $this->live->state($live->fresh()), 'meta' => ['codes' => $added->pluck('code')->unique()->values()]]);
     }
 
+    /**
+     * Article montré en ce moment : mis en avant sur la page du live (item_id null : plus aucun).
+     */
+    public function feature(Request $request, int $session): JsonResponse
+    {
+        $data = $request->validate(['item_id' => ['nullable', 'integer']]);
+
+        return $this->state($this->live->feature($this->session($session), $data['item_id'] ?? null));
+    }
+
+    /**
+     * Refaire ce live : nouveau live en préparation avec les mêmes articles.
+     */
+    public function duplicate(Request $request, int $session): JsonResponse
+    {
+        return $this->state($this->live->duplicate($this->session($session), $request->user()), 201);
+    }
+
     public function start(int $session): JsonResponse
     {
         return $this->state($this->live->start($this->session($session)));
@@ -140,6 +159,7 @@ class LiveController extends Controller
         return $request->validate([
             'title' => ['required', 'string', 'max:120'],
             'hold_minutes' => ['nullable', 'integer', 'between:10,1440'],
+            'stream_url' => ['nullable', 'url:https', 'max:500'],
             'items' => ['required', 'array', 'min:1', 'max:60'],
             'items.*.variant_id' => ['required', 'integer', 'distinct'],
             'items.*.price' => ['nullable', 'integer', 'min:0', 'max:100000000'],
