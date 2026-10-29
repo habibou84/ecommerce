@@ -10,6 +10,7 @@ use App\Services\WhatsApp\Inbox;
 use App\Services\WhatsApp\PlatformWhatsApp;
 use App\Services\WhatsApp\TemplateLibrary;
 use App\Services\WhatsApp\WhatsAppCloud;
+use App\Services\WhatsApp\WhatsAppMetaApp;
 use App\Support\Tenancy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -34,7 +35,9 @@ class MetaWhatsAppWebhookController extends Controller
 
     public function handle(Request $request, CustomerMessenger $messenger, TemplateLibrary $templates, Tenancy $tenancy): Response
     {
+        // Application de la plateforme (réseaux sociaux, WhatsApp), application WhatsApp partagée, ou numéro du support
         if (! WhatsAppCloud::signatureMatches($request, config('services.meta.app_secret'))
+            && ! WhatsAppCloud::signatureMatches($request, WhatsAppMetaApp::secret())
             && ! WhatsAppCloud::signatureMatches($request, app(PlatformWhatsApp::class)->manualAppSecret())) {
             return response('Signature invalide.', 401);
         }

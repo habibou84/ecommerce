@@ -48,6 +48,7 @@ class WhatsAppLinkController extends Controller
     /** Démarre la session et renvoie le QR code (ou l'état s'il est déjà relié) */
     public function start(): JsonResponse
     {
+        $this->ensureEnabled();
         $link = WhatsappLink::firstOrNew(['store_id' => $this->currentStore()->id]);
         if (! $link->isConnected()) {
             $link->forceFill(['status' => 'pending', 'last_error' => null])->save();
@@ -64,6 +65,7 @@ class WhatsAppLinkController extends Controller
     /** Liaison avec le numéro : code à saisir sur le téléphone (« Connecter avec le numéro de téléphone à la place ») */
     public function pair(Request $request): JsonResponse
     {
+        $this->ensureEnabled();
         $data = $request->validate(['phone' => ['required', 'string', 'max:30']], [], ['phone' => 'numéro WhatsApp']);
         $phone = PhoneNumber::normalize($data['phone']);
         if ($phone === null) {
@@ -97,6 +99,14 @@ class WhatsAppLinkController extends Controller
         return response()->json(['data' => $this->describe(null, null)]);
     }
 
+    /** Liaison par QR code non officielle : seulement pour les boutiques autorisées dans la console */
+    private function ensureEnabled(): void
+    {
+        if (! $this->currentStore()->whatsapp_qr_enabled) {
+            throw ValidationException::withMessages(['link' => 'La liaison par QR code n\'est pas activée pour votre boutique : utilisez « Connecter WhatsApp avec Facebook ».']);
+        }
+    }
+
     /**
      * État vu par le service (QR code en cours) ; null s'il est injoignable.
      *
@@ -118,7 +128,9 @@ class WhatsAppLinkController extends Controller
     private function describe(?WhatsappLink $link, ?array $live): array
     {
         return [
-            'available' => WhatsAppBridge::configured(),
+            // Autorisée pour cette boutique (console) ; sinon l'écran ne la propose pas
+            'enabled' => (bool) $this->currentStore()->whatsapp_qr_enabled,
+            'available' => WhatsAppBridge::configured() && $this->currentStore()->whatsapp_qr_enabled,
             // none : pas relié ; pending : QR code à scanner ; connected : relié ; disconnected : à relier de nouveau
             'status' => $link?->status ?? 'none',
             'qr' => $link?->isConnected() ? null : ($live['qr'] ?? null),

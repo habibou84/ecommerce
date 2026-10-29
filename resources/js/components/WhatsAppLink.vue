@@ -96,7 +96,8 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 </script>
 
 <template>
-  <section v-if="link" class="card space-y-3 p-4" :class="compact ? 'border-emerald-200' : 'sm:p-5'">
+  <!-- Liaison par QR code non autorisée pour la boutique (console) : rien n'est proposé -->
+  <section v-if="link && link.enabled" class="card space-y-3 p-4" :class="compact ? 'border-emerald-200' : 'sm:p-5'">
     <div v-if="compact" class="flex flex-wrap items-center justify-between gap-2">
       <h3 class="font-semibold">Recevez vos messages WhatsApp ici</h3>
       <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[link.status][1]">{{ STATUS[link.status][0] }}</span>

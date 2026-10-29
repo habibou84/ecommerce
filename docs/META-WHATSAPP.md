@@ -62,6 +62,34 @@ Le bouton apparaît alors dans Réglages › WhatsApp. **Avant la validation de 
 dans l'application (Rôles de l'application › Testeurs ou Administrateurs) peuvent l'utiliser : essayez avec votre
 propre compte et un numéro de test.
 
+## 3 bis. Variante : passer par l'application Meta de Jibiat (déjà validée)
+
+L'application Meta de Jibiat (livraison, même portefeuille d'entreprise) est déjà validée pour WhatsApp. Jibiat
+Marchand peut s'en servir pour le bouton « Connecter WhatsApp », sans attendre la validation de sa propre application
+(qui reste utilisée pour Facebook, Instagram et la publicité).
+
+1. Dans l'application Meta **de Jibiat** :
+   - Paramètres › Général › **Domaines de l'application** : ajouter `jibiat-marchand.com` ;
+   - Facebook Login for Business › Paramètres : ajouter `https://jibiat-marchand.com` (et `https://www.…`) aux
+     **domaines autorisés du SDK JavaScript** et aux **URI de redirection OAuth valides** ;
+   - Facebook Login for Business › Configurations : garder la configuration WhatsApp de Jibiat, ou en créer une
+     deuxième (« WhatsApp Jibiat Marchand ») et noter son identifiant ;
+   - la politique de confidentialité déclarée doit couvrir aussi Jibiat Marchand (même entreprise).
+2. Dans le `.env` de Jibiat Marchand (les `META_APP_ID` / `META_APP_SECRET` restent ceux de Jibiat Marchand) :
+
+```
+META_WHATSAPP_APP_ID=identifiant de l'application Meta de Jibiat
+META_WHATSAPP_APP_SECRET=clé secrète de l'application Meta de Jibiat
+META_WHATSAPP_CONFIG_ID=identifiant de la configuration WhatsApp choisie ci-dessus
+```
+
+   puis `php artisan optimize`. Le bouton utilise alors l'application de Jibiat.
+3. **Notifications** : l'adresse de notifications de l'application de Jibiat reste celle de Jibiat. À la connexion
+   d'une boutique, Jibiat Marchand demande à Meta d'envoyer les notifications de **ce compte WhatsApp** à
+   `https://api.jibiat-marchand.com/webhooks/whatsapp` (avec `META_WEBHOOK_VERIFY_TOKEN`) : rien à régler chez Meta,
+   rien à changer chez Jibiat. Une boutique connectée avant ce changement doit se reconnecter une fois.
+4. Dans la fenêtre Facebook, les commerçants voient le nom de l'application : « Jibiat ».
+
 ## 4. Fournisseur technique et validation de l'application
 
 1. Dans l'application : **WhatsApp › Démarrage rapide** › « Devenir fournisseur technique » (Tech Provider) et
@@ -90,3 +118,7 @@ propre compte et un numéro de test.
   `jm_lien_paiement`, `jm_panier_en_attente`, `jm_rapport_du_jour`). Leur état (en vérification, approuvé, refusé)
   s'affiche à côté de chaque message automatique.
 - **Code PIN** : l'application choisit le code de vérification en deux étapes du numéro et le garde chiffré.
+- **Liaison par QR code** (service whatsapp-bridge, non officielle) : coupée par défaut pour les nouvelles boutiques.
+  Le super administrateur l'autorise boutique par boutique dans la console (fiche boutique › « WhatsApp par QR
+  code »). Couper déconnecte le téléphone relié. Sans autorisation, la boutique ne voit que « Connecter WhatsApp avec
+  Facebook ». Les boutiques déjà reliées avant ce réglage restent autorisées.

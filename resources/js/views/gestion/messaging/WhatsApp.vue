@@ -40,7 +40,10 @@ onMounted(async () => {
     sales.value = s.data.data
     link.value = l.data.data
     // Sans onglet demandé : le premier sujet à régler
-    if (!TABS.some((t) => t.key === tab.value)) tab.value = summary.value.find((r) => r.todo)?.key ?? 'conversations'
+    if (!TABS.some((t) => t.key === tab.value)) {
+      const first = summary.value.find((r) => r.todo)
+      tab.value = first ? (first.to ?? first.key) : 'conversations'
+    }
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -63,7 +66,9 @@ const summary = computed(() => {
   return [
     {
       key: 'conversations', icon: 'telephone', label: 'Conversations',
-      ...(l.status === 'connected' ? { ok: true, state: `Relié au ${phoneDisplay(l.phone)}` }
+      // Sans liaison par QR code (non autorisée par la console) : les conversations passent par le numéro officiel
+      ...(!l.enabled ? (a ? { ok: true, state: 'Par votre numéro officiel' } : { todo: true, state: 'Connectez votre numéro officiel', to: 'messages' })
+        : l.status === 'connected' ? { ok: true, state: `Relié au ${phoneDisplay(l.phone)}` }
         : l.status === 'pending' ? { todo: true, state: 'En attente du téléphone' } : { todo: true, state: 'Pas encore relié' }),
     },
     {
@@ -106,7 +111,7 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
       </div>
       <ul class="mt-3 grid gap-x-6 sm:grid-cols-2">
         <li v-for="s in summary" :key="s.key" class="border-t border-slate-100">
-          <button type="button" class="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left hover:bg-slate-50" @click="tab = s.key">
+          <button type="button" class="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left hover:bg-slate-50" @click="tab = s.to ?? s.key">
             <ColorIcon :name="s.icon" :size="38" :class="s.ok || s.todo ? '' : 'opacity-60'" />
             <span class="min-w-0 flex-1">
               <span class="block text-sm font-semibold text-slate-900">{{ s.label }}</span>
@@ -124,7 +129,21 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
               :class="tab === t.key ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-600 hover:text-slate-900'" @click="tab = t.key">{{ t.label }}</button>
     </nav>
 
-    <WhatsAppLink v-if="tab === 'conversations'" @change="link = $event" />
+    <WhatsAppLink v-if="tab === 'conversations' && link.enabled" @change="link = $event" />
+    <!-- Liaison par QR code non autorisée : les conversations arrivent par le numéro officiel -->
+    <section v-else-if="tab === 'conversations'" class="card space-y-4 p-4 sm:p-5">
+      <div class="flex items-start gap-3">
+        <ColorIcon name="telephone" :size="44" />
+        <div class="min-w-0 flex-1">
+          <h3 class="text-[17px] font-extrabold">Conversations clients dans Messages</h3>
+          <p class="text-sm text-slate-600">
+            {{ official.account ? 'Les messages de vos clients arrivent par votre numéro officiel dans Messages, et vous y répondez.' : 'Connectez votre numéro WhatsApp officiel : les messages de vos clients arriveront dans Messages et vous y répondrez.' }}
+          </p>
+        </div>
+      </div>
+      <RouterLink v-if="official.account" to="/gestion/messages" class="btn-secondary">Ouvrir Messages</RouterLink>
+      <button v-else type="button" class="btn-brand" @click="tab = 'messages'">Connecter le numéro officiel</button>
+    </section>
     <WhatsAppAutomations v-else-if="tab === 'messages'" :data="official" @update="official = $event" />
     <WhatsAppAssistant v-else-if="tab === 'assistant'" :data="sales" @update="sales = $event" />
     <WhatsAppCatalog v-else-if="tab === 'catalogue'" :data="sales" />

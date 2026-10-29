@@ -45,7 +45,7 @@ async function save() {
 
 // La mise en garde qui compte le plus, une seule
 function warning() {
-  if (props.data.channel === null) return 'Reliez d\'abord votre WhatsApp (onglet Conversations) ou connectez le numéro officiel (onglet Messages automatiques).'
+  if (props.data.channel === null) return 'Connectez d\'abord votre numéro WhatsApp officiel (onglet Messages automatiques).'
   if (!props.data.assistant.enabled) return 'L\'assistant n\'est pas encore activé sur la plateforme.'
   if (props.data.channel === 'linked') return 'Les réponses partiront de votre WhatsApp relié par QR code : gardez un plafond bas.'
   return ''
