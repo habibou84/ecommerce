@@ -13,7 +13,24 @@ const modal = ref(null) // suspend | trial | offer | support
 const form = reactive({ reason: '', days: 14, plan: 'pro', months: 1, minutes: 30 })
 const PLAN_NAMES = { starter: 'Starter', pro: 'Pro', business: 'Business' }
 const busy = ref(false)
-const ACTIONS = { suspend: 'Suspension', reactivate: 'Réactivation', extend_trial: 'Essai prolongé', offer: 'Mois offerts', support_session: 'Session de support', free_forever: 'Gratuit à vie', free_forever_removed: 'Gratuit à vie retiré' }
+const ACTIONS = { suspend: 'Suspension', reactivate: 'Réactivation', extend_trial: 'Essai prolongé', offer: 'Mois offerts', support_session: 'Session de support', free_forever: 'Gratuit à vie', free_forever_removed: 'Gratuit à vie retiré', whatsapp_qr_on: 'WhatsApp par QR code autorisé', whatsapp_qr_off: 'WhatsApp par QR code coupé' }
+const QR_STATUS = { none: 'pas relié', pending: 'en attente du téléphone', connected: 'relié', disconnected: 'déconnecté' }
+
+// Liaison WhatsApp par QR code (non officielle) : autorisée boutique par boutique ; coupée, la liaison en cours est déconnectée
+async function toggleQr() {
+  const enabled = !store.value.whatsapp_qr.enabled
+  if (!enabled && store.value.whatsapp_qr.status !== 'none'
+    && !window.confirm('Couper le WhatsApp par QR code ? Le téléphone relié de cette boutique sera déconnecté.')) return
+  busy.value = true
+  error.value = ''
+  try {
+    store.value = (await http.put(`/console/stores/${props.id}/whatsapp-qr`, { enabled })).data.data
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
 
 async function removeFree() {
   if (window.confirm('Retirer « gratuit à vie » ? L\'espace marchand revient à son abonnement (ou à la gratuité pour tous si elle est en cours).')) await act('free', { plan: null })
@@ -99,6 +116,14 @@ async function endSession(id) {
           <p v-if="store.subscription.cancel_at_period_end" class="text-amber-800">Fin demandée à l'échéance</p>
         </template>
         <p v-else class="text-slate-500">Offre gratuite</p>
+      </section>
+      <section class="card space-y-2 p-4 text-sm">
+        <h3 class="font-semibold">📱 WhatsApp par QR code</h3>
+        <p class="text-slate-600">Liaison non officielle (comme WhatsApp Web) pour la boîte Messages et les lives. Coupée : la boutique ne voit que « Connecter WhatsApp avec Facebook ».</p>
+        <p>{{ store.whatsapp_qr.enabled ? 'Autorisé' : 'Coupé' }} · {{ QR_STATUS[store.whatsapp_qr.status] ?? store.whatsapp_qr.status }}</p>
+        <button type="button" :class="store.whatsapp_qr.enabled ? 'btn-ghost text-red-600' : 'btn-ghost'" :disabled="busy" @click="toggleQr">
+          {{ store.whatsapp_qr.enabled ? 'Couper' : 'Autoriser' }}
+        </button>
       </section>
       <section class="card space-y-1 p-4 text-sm">
         <h3 class="mb-1 font-semibold">Utilisation</h3>

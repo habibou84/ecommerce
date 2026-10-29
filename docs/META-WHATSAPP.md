@@ -118,3 +118,7 @@ META_WHATSAPP_CONFIG_ID=identifiant de la configuration WhatsApp choisie ci-dess
   `jm_lien_paiement`, `jm_panier_en_attente`, `jm_rapport_du_jour`). Leur état (en vérification, approuvé, refusé)
   s'affiche à côté de chaque message automatique.
 - **Code PIN** : l'application choisit le code de vérification en deux étapes du numéro et le garde chiffré.
+- **Liaison par QR code** (service whatsapp-bridge, non officielle) : coupée par défaut pour les nouvelles boutiques.
+  Le super administrateur l'autorise boutique par boutique dans la console (fiche boutique › « WhatsApp par QR
+  code »). Couper déconnecte le téléphone relié. Sans autorisation, la boutique ne voit que « Connecter WhatsApp avec
+  Facebook ». Les boutiques déjà reliées avant ce réglage restent autorisées.

@@ -59,6 +59,8 @@ class LiveSalesTest extends TestCase
         $this->ai = new FakeAiClient;
         $this->app->instance(AiClient::class, $this->ai);
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
+        // WhatsApp par QR code autorisé pour la boutique (console)
+        $this->store->forceFill(['whatsapp_qr_enabled' => true])->save();
         // L'assistant IA n'est compris dans aucune offre : actions rechargées
         $this->store->forceFill(['ai_credits' => 100])->save();
         app(Places::class)->provisionDefaultZone($this->store);

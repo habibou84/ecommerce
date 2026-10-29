@@ -219,6 +219,8 @@ class AuthController extends Controller
             'owns_several' => Store::where('owner_id', $user->id)->count() > 1,
             // Assistant IA : activé sur la plateforme, actions utilisées et quota de l'offre ce mois-ci
             'ai' => app(Assistant::class)->status($store),
+            // Liaison WhatsApp par QR code autorisée pour la boutique (console) : sinon pas de « Relier mon WhatsApp »
+            'whatsapp_qr' => (bool) $store->whatsapp_qr_enabled,
         ];
     }
 }
