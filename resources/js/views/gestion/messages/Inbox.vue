@@ -31,7 +31,7 @@ const newBelow = ref(false) // nouveaux messages arrivés pendant la lecture plu
 const loadingOlder = ref(false)
 
 // Relier WhatsApp depuis la boîte (QR code ou numéro), pour qui gère la boutique
-const canLink = computed(() => auth.can('store.manage'))
+const canLink = computed(() => auth.can('store.manage') && auth.profile?.whatsapp_qr === true)
 const showLink = ref(false)
 // Bandeau « Relier mon WhatsApp » au-dessus de la boîte : la boîte raccourcit d'autant (sur téléphone, caché dans une conversation)
 const banner = computed(() => listLoaded.value && !linked.value && canLink.value && !showLink.value && (!props.id || window.innerWidth >= 1024))

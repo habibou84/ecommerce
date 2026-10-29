@@ -146,6 +146,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('stores/{store}/trial', [ConsoleController::class, 'extendTrial'])->whereNumber('store')->name('stores.trial');
             Route::post('stores/{store}/offer', [ConsoleController::class, 'offer'])->whereNumber('store')->name('stores.offer');
             Route::post('stores/{store}/support', [ConsoleController::class, 'support'])->whereNumber('store')->name('stores.support');
+            Route::put('stores/{store}/whatsapp-qr', [ConsoleController::class, 'whatsappQr'])->whereNumber('store')->name('stores.whatsapp-qr');
             Route::post('support-sessions/{session}/end', [ConsoleController::class, 'endSupport'])->whereNumber('session')->name('support.end');
             Route::post('stores/{store}/free', [ConsoleController::class, 'storeFree'])->whereNumber('store')->name('stores.free');
             Route::get('free', [ConsoleController::class, 'free'])->name('free');

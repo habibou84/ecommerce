@@ -54,6 +54,7 @@ class Store extends Model
             'courier_tracking' => 'boolean',
             'allow_backorder' => 'boolean',
             'storefront_enabled' => 'boolean',
+            'whatsapp_qr_enabled' => 'boolean',
             'closed_at' => 'datetime',
             'free_shipping_above' => 'integer',
             'billing_notices' => 'array',

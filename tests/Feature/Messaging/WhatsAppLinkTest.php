@@ -5,6 +5,7 @@ namespace Tests\Feature\Messaging;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\Store;
+use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Notifications\CustomerMessage;
@@ -43,6 +44,7 @@ class WhatsAppLinkTest extends TestCase
             'http://127.0.0.1:3210/sessions/*' => fn () => Http::response($this->live),
         ]);
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
+        $this->store->forceFill(['whatsapp_qr_enabled' => true])->save();
         $this->actingAs($this->store->owner);
     }
 
@@ -223,5 +225,42 @@ class WhatsAppLinkTest extends TestCase
         $this->live = ['status' => 'logged_out'];
         $this->storeApi($this->store, 'GET', 'whatsapp/link')->assertJsonPath('data.status', 'disconnected')
             ->assertJsonPath('data.last_error', 'La liaison avec WhatsApp a été perdue : reliez de nouveau votre numéro.');
+    }
+
+    public function test_qr_code_link_is_allowed_store_by_store_from_the_console(): void
+    {
+        $this->linked();
+        $this->app['auth']->forgetGuards();
+        User::factory()->create(['phone' => '+2250701020304', 'password' => 'motdepasse'])->forceFill(['is_super_admin' => true])->save();
+        $console = fn (string $method, string $path, array $data = []) => $this->apiOn('http://admin.localhost', $method, 'console/'.$path, $data);
+        $start = $console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
+        $console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+
+        $console('GET', "stores/{$this->store->id}")->assertOk()
+            ->assertJsonPath('data.whatsapp_qr', ['enabled' => true, 'status' => 'connected']);
+
+        // Coupée : le téléphone relié est déconnecté
+        $console('PUT', "stores/{$this->store->id}/whatsapp-qr", ['enabled' => false])->assertOk()
+            ->assertJsonPath('data.whatsapp_qr', ['enabled' => false, 'status' => 'none']);
+        $this->assertFalse($this->store->fresh()->whatsapp_qr_enabled);
+        $this->assertSame(0, WhatsappLink::withoutGlobalScopes()->count());
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/sessions/store-'.$this->store->id.'/logout'));
+
+        // Autorisée de nouveau
+        $console('PUT', "stores/{$this->store->id}/whatsapp-qr", ['enabled' => true])->assertOk()->assertJsonPath('data.whatsapp_qr.enabled', true);
+        $this->assertTrue($this->store->fresh()->whatsapp_qr_enabled);
+    }
+
+    public function test_a_store_without_qr_code_link_does_not_see_it(): void
+    {
+        $this->storeApi($this->store, 'GET', 'auth/me')->assertJsonPath('data.whatsapp_qr', true);
+
+        $this->store->forceFill(['whatsapp_qr_enabled' => false])->save();
+        $this->storeApi($this->store, 'GET', 'auth/me')->assertJsonPath('data.whatsapp_qr', false);
+        $this->storeApi($this->store, 'GET', 'whatsapp/link')->assertOk()
+            ->assertJsonPath('data.enabled', false)->assertJsonPath('data.available', false);
+        $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertStatus(422)->assertJsonValidationErrors('link');
+        $this->storeApi($this->store, 'POST', 'whatsapp/link/pair', ['phone' => '0700000001'])->assertStatus(422)->assertJsonValidationErrors('link');
+        Http::assertNotSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/start') || str_ends_with($r->url(), '/pair'));
     }
 }
