@@ -100,7 +100,7 @@ class PlatformWhatsApp
             // Configuration manuelle avec une autre application Meta : adresse et jeton à recopier dans son webhook
             'manual' => ($s['mode'] ?? null) === 'manual' && $this->connected() && filled($s['verify_token'] ?? null)
                 ? ['webhook_url' => Tenancy::apiUrl('/webhooks/whatsapp'), 'verify_token' => $s['verify_token']] : null,
-            'embedded' => EmbeddedSignup::enabled() ? ['app_id' => config('services.meta.app_id'), 'config_id' => config('services.meta.whatsapp_config_id'), 'graph_version' => WhatsAppCloud::VERSION] : null,
+            'embedded' => EmbeddedSignup::enabled() ? ['app_id' => WhatsAppMetaApp::id(), 'config_id' => WhatsAppMetaApp::configId(), 'graph_version' => WhatsAppCloud::VERSION] : null,
             'bridge' => WhatsAppBridge::configured(),
             // SMS (payants) : codes de vérification partis ce mois et le mois dernier, et secours activé ou non
             'sms' => [
@@ -197,7 +197,7 @@ class PlatformWhatsApp
         }
         try {
             $token = (string) ($this->cloud->graph('GET', 'oauth/access_token', null, [
-                'client_id' => config('services.meta.app_id'), 'client_secret' => config('services.meta.app_secret'), 'code' => $code,
+                'client_id' => WhatsAppMetaApp::id(), 'client_secret' => WhatsAppMetaApp::secret(), 'code' => $code,
             ])['access_token'] ?? '');
             if ($token === '') {
                 throw new RuntimeException('Meta n\'a pas renvoyé de jeton.');
@@ -206,7 +206,7 @@ class PlatformWhatsApp
             if ($phoneNumberId === '') {
                 throw new RuntimeException('Aucun numéro trouvé sur ce compte WhatsApp.');
             }
-            $this->cloud->graph('POST', $wabaId.'/subscribed_apps', $token);
+            WhatsAppMetaApp::subscribe($this->cloud, $wabaId, $token);
             $number = $this->cloud->graph('GET', $phoneNumberId, $token, ['fields' => 'display_phone_number,verified_name']);
             if (! $coexistence) {
                 $this->cloud->graph('POST', $phoneNumberId.'/register', $token, ['messaging_product' => 'whatsapp', 'pin' => (string) random_int(100000, 999999)]);
@@ -251,7 +251,7 @@ class PlatformWhatsApp
             if (filled($pin)) {
                 $this->cloud->graph('POST', $phoneNumberId.'/register', $token, ['messaging_product' => 'whatsapp', 'pin' => $pin]);
             }
-            $this->cloud->graph('POST', $wabaId.'/subscribed_apps', $token);
+            WhatsAppMetaApp::subscribe($this->cloud, $wabaId, $token);
         } catch (RuntimeException $e) {
             throw new BusinessRuleException('Configuration refusée. '.$e->getMessage());
         }

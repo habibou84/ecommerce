@@ -116,6 +116,29 @@ class EmbeddedSignupTest extends TestCase
         $this->storeApi($this->store, 'POST', 'whatsapp/embedded', ['code' => 'c', 'waba_id' => '4444'])->assertStatus(422);
     }
 
+    public function test_whatsapp_through_the_already_approved_app_of_jibiat(): void
+    {
+        // WhatsApp par l'application Meta de Jibiat ; réseaux sociaux toujours sur celle de la plateforme
+        config(['services.meta.whatsapp_app_id' => '1212', 'services.meta.whatsapp_app_secret' => 'jibiat-secret']);
+        $this->storeApi($this->store, 'GET', 'whatsapp')->assertJsonPath('data.embedded.app_id', '1212');
+
+        $this->storeApi($this->store, 'POST', 'whatsapp/embedded', ['code' => 'code-abc', 'waba_id' => '4444', 'phone_number_id' => '5555'])->assertOk();
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), 'oauth/access_token?client_id=1212&client_secret=jibiat-secret&code=code-abc'));
+        // Notifications de ce compte envoyées ici, pas à l'adresse de Jibiat
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/4444/subscribed_apps')
+            && $r['override_callback_uri'] === 'http://api.localhost/webhooks/whatsapp' && $r['verify_token'] === 'verif-123');
+
+        // Notifications signées avec le secret de l'application de Jibiat : acceptées
+        $message = ['id' => '4444', 'changes' => [['field' => 'messages', 'value' => [
+            'contacts' => [['wa_id' => '2250506070809', 'profile' => ['name' => 'Fatou']]],
+            'messages' => [['from' => '2250506070809', 'id' => 'wamid.9', 'type' => 'text', 'text' => ['body' => 'Bonjour']]],
+        ]]]];
+        $this->platformWebhook([$message], 'jibiat-secret')->assertOk();
+        $this->assertTrue(ConversationMessage::query()->where('body', 'Bonjour')->exists());
+        $this->platformWebhook([$message], 'platform-secret')->assertOk();
+        $this->platformWebhook([$message], 'faux')->assertStatus(401);
+    }
+
     public function test_platform_webhook(): void
     {
         $this->get('http://api.localhost/webhooks/whatsapp?hub_mode=subscribe&hub_verify_token=verif-123&hub_challenge=42')->assertOk()->assertSee('42');

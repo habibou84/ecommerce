@@ -144,7 +144,7 @@ class WhatsAppCloud
     public function verifySignature(WhatsappAccount $account, Request $request): bool
     {
         // Numéro connecté en un clic : les notifications viennent de l'application Meta de la plateforme
-        $secret = $account->isEmbedded() ? config('services.meta.app_secret') : $account->app_secret;
+        $secret = $account->isEmbedded() ? WhatsAppMetaApp::secret() : $account->app_secret;
 
         return self::signatureMatches($request, $secret);
     }

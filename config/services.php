@@ -40,6 +40,9 @@ return [
         'app_id' => env('META_APP_ID'),
         'app_secret' => env('META_APP_SECRET'),
         'whatsapp_config_id' => env('META_WHATSAPP_CONFIG_ID'), // Facebook Login for Business › Configurations
+        // WhatsApp par une autre application Meta déjà validée (celle de Jibiat) ; vide : l'application ci-dessus
+        'whatsapp_app_id' => env('META_WHATSAPP_APP_ID'),
+        'whatsapp_app_secret' => env('META_WHATSAPP_APP_SECRET'),
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
         // Connexion de la page Facebook et du compte Instagram (Facebook Login for Business › Configurations ;
         // sans configuration, les autorisations sont demandées une à une)
