@@ -24,6 +24,8 @@
     <h2>3. Destinataires</h2>
     <p>Les données ne sont jamais vendues. Elles sont communiquées seulement à : l'équipe de l'espace marchand concerné ; les entreprises de livraison et prestataires de paiement choisis par le marchand ; nos sous-traitants techniques (hébergement, envoi de SMS, WhatsApp de Meta, supervision des erreurs), tenus à la confidentialité. Certains de ces prestataires peuvent être situés hors de Côte d'Ivoire ; ces transferts sont encadrés conformément à la loi.</p>
 
+    <p><strong>Connexion de WhatsApp en un clic</strong> : le bouton « Connecter WhatsApp avec Facebook » passe par l'application Meta « Jibiat », éditée par la même entreprise que Jibiat Marchand ; c'est pourquoi la fenêtre Facebook affiche ce nom. Seules les autorisations WhatsApp sont demandées (gestion du compte WhatsApp Business et envoi des messages). Le jeton d'accès est gardé chiffré par Jibiat Marchand et les messages de la boutique arrivent directement chez Jibiat Marchand : ils ne sont pas transmis à Jibiat (livraison), sauf ce que la boutique lui confie pour ses livraisons. Le marchand peut retirer cet accès à tout moment dans les paramètres de son entreprise sur Facebook (Intégrations professionnelles) ou en déconnectant WhatsApp dans Réglages.</p>
+
     <h2>4. Durées de conservation</h2>
     <ul>
         <li>Compte et espace marchand : pendant toute la durée d'utilisation, puis 90 jours après la fermeture.</li>
