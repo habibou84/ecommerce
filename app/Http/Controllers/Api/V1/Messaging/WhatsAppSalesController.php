@@ -10,6 +10,7 @@ use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Services\Ai\Assistant;
 use App\Services\Marketing\CatalogFeed;
+use App\Services\Marketing\MetaAds;
 use App\Services\Messaging\AutoReplier;
 use App\Services\WhatsApp\CatalogOrders;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +36,9 @@ class WhatsAppSalesController extends Controller
             'sent_last_7_days' => ConversationMessage::query()->where('type', 'auto')->where('sent_at', '>=', now()->subDays(7))->count(),
             'catalog' => [
                 'feed_url' => $feed->url($store),
+                'items' => count($feed->rows($store)),
+                // Catalogue Meta branché en un clic (Marketing › Suivi), sinon null
+                'meta' => ($account = app(MetaAds::class)->account($store)) ? ['business' => $account->name, 'catalog_id' => $store->marketingId('meta_catalog_id')] : null,
                 'orders_last_30_days' => Order::query()->where('source', OrderSource::Whatsapp->value)
                     ->where('internal_note', CatalogOrders::NOTE)->where('created_at', '>=', now()->subDays(30))->count(),
             ],
