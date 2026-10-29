@@ -169,7 +169,7 @@ async function save() {
         <button v-if="pageUrl" type="button" class="text-sm font-medium text-emerald-700 underline" @click="share = true">Message à épingler</button>
       </div>
 
-      <LiveWhatsApp v-if="lives && whatsapp === null" :status="whatsapp" @linked="load" />
+      <LiveWhatsApp v-if="lives && whatsapp === null" :status="whatsapp" />
 
       <!-- Lives prêts -->
       <template v-if="drafts.length">
