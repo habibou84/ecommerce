@@ -19,12 +19,12 @@ class LiveReservation extends Model
 
     protected $fillable = [
         'store_id', 'live_session_id', 'live_item_id', 'source', 'status', 'customer_name', 'customer_phone',
-        'shipping_place_id', 'shipping_address', 'order_id', 'expires_at',
+        'shipping_place_id', 'shipping_address', 'order_id', 'expires_at', 'reminded_at',
     ];
 
     protected function casts(): array
     {
-        return ['expires_at' => 'datetime'];
+        return ['expires_at' => 'datetime', 'reminded_at' => 'datetime'];
     }
 
     public function item(): BelongsTo

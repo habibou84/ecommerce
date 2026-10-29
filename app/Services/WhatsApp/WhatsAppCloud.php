@@ -62,15 +62,42 @@ class WhatsAppCloud
      *
      * @param  array<string, string>  $buttons  charge utile => libellé (20 caractères au plus)
      */
-    public function sendButtons(WhatsappAccount $account, string $to, string $text, array $buttons): string
+    public function sendButtons(WhatsappAccount $account, string $to, string $text, array $buttons, ?string $imageUrl = null): string
     {
         $replies = [];
         foreach ($buttons as $payload => $title) {
             $replies[] = ['type' => 'reply', 'reply' => ['id' => (string) $payload, 'title' => mb_substr($title, 0, 20)]];
         }
 
-        return $this->send($account, $to, ['type' => 'interactive', 'interactive' => [
+        return $this->send($account, $to, ['type' => 'interactive', 'interactive' => array_filter([
+            // Photo en tête du message (JPEG ou PNG à une adresse publique)
+            'header' => $imageUrl ? ['type' => 'image', 'image' => ['link' => $imageUrl]] : null,
             'type' => 'button', 'body' => ['text' => mb_substr($text, 0, 1024)], 'action' => ['buttons' => $replies],
+        ])]);
+    }
+
+    /**
+     * Photo avec légende (JPEG ou PNG à une adresse publique), permise comme une réponse libre, dans les 24 h.
+     */
+    public function sendImage(WhatsappAccount $account, string $to, string $imageUrl, string $caption): string
+    {
+        return $this->send($account, $to, ['type' => 'image', 'image' => ['link' => $imageUrl, 'caption' => mb_substr($caption, 0, 1024)]]);
+    }
+
+    /**
+     * Liste à toucher (10 lignes au plus), sans modèle : permise comme une réponse libre, dans les 24 h.
+     *
+     * @param  list<array{id: string, title: string, description?: ?string}>  $rows
+     */
+    public function sendList(WhatsappAccount $account, string $to, string $text, string $button, string $section, array $rows): string
+    {
+        $rows = array_map(fn (array $r) => array_filter([
+            'id' => mb_substr($r['id'], 0, 200), 'title' => mb_substr($r['title'], 0, 24), 'description' => isset($r['description']) ? mb_substr((string) $r['description'], 0, 72) : null,
+        ]), array_slice($rows, 0, 10));
+
+        return $this->send($account, $to, ['type' => 'interactive', 'interactive' => [
+            'type' => 'list', 'body' => ['text' => mb_substr($text, 0, 1024)],
+            'action' => ['button' => mb_substr($button, 0, 20), 'sections' => [['title' => mb_substr($section, 0, 24), 'rows' => $rows]]],
         ]]);
     }
 

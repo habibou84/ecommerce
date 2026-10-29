@@ -12,6 +12,7 @@ use App\Models\LiveItem;
 use App\Models\LiveReservation;
 use App\Models\LiveSession;
 use App\Models\Order;
+use App\Models\Place;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
@@ -352,7 +353,18 @@ class LiveSales
         if ($place === null) {
             return null;
         }
-        $pending->each->update(['shipping_place_id' => $place?->id, 'shipping_address' => mb_substr(trim($text), 0, 255), 'expires_at' => null]);
+
+        return $this->deliverTo($pending, $place, mb_substr(trim($text), 0, 255));
+    }
+
+    /**
+     * Lieu de livraison connu (tapé ou choisi dans la liste WhatsApp) : les pièces gardées deviennent une commande.
+     *
+     * @param  Collection<int, LiveReservation>  $pending
+     */
+    public function deliverTo(Collection $pending, Place $place, ?string $address = null): ?Order
+    {
+        $pending->each->update(['shipping_place_id' => $place->id, 'shipping_address' => $address ?? $place->label(), 'expires_at' => null]);
 
         return $this->order($pending);
     }
@@ -362,11 +374,36 @@ class LiveSales
      */
     public function expire(): int
     {
+        $this->remind();
         $due = LiveReservation::withoutGlobalScopes()->with('item.session')->where('status', 'reserved')->whereNull('order_id')
             ->whereNotNull('expires_at')->where('expires_at', '<=', now())->get();
         foreach ($due as $reservation) {
             $reservation->update(['status' => 'expired']);
             $this->promote($reservation->item);
+        }
+
+        return $due->count();
+    }
+
+    /**
+     * Pièce gardée sans quartier : un rappel un quart d'heure avant de la libérer (liste des communes sur le WhatsApp
+     * officiel), une seule fois.
+     */
+    public function remind(): int
+    {
+        $due = LiveReservation::withoutGlobalScopes()->with('item:id,code')->where('status', 'reserved')->whereNull('order_id')->whereNull('reminded_at')
+            ->whereNotNull('expires_at')->whereBetween('expires_at', [now(), now()->addMinutes(15)])->where('created_at', '<=', now()->subMinutes(5))->get();
+        foreach ($due->groupBy(fn (LiveReservation $r) => $r->store_id.'|'.$r->customer_phone) as $group) {
+            $first = $group->first();
+            LiveReservation::withoutGlobalScopes()->whereIn('id', $group->pluck('id'))->update(['reminded_at' => now()]);
+            $conversation = Conversation::forStore($first->store_id)->where('channel', 'whatsapp')->where('contact', $first->customer_phone)->first();
+            if ($conversation === null) {
+                continue;
+            }
+            $codes = $group->pluck('item.code')->filter()->unique()->implode(', ');
+            $minutes = max(1, (int) ceil(now()->diffInMinutes($group->min('expires_at'))));
+            $text = "⏰ Votre {$codes} est gardé encore {$minutes} minute".($minutes > 1 ? 's' : '').'. Dites-nous où vous livrer pour le garder.';
+            app(LiveCheckout::class)->askCommune($conversation, $text) || $this->reply($conversation, $text.' Répondez avec votre quartier (et un repère).');
         }
 
         return $due->count();
@@ -409,10 +446,14 @@ class LiveSales
      * Message WhatsApp reçu : code(s) du live en cours, capture d'écran d'un article (lue à part, ReadLiveCapture),
      * ou quartier attendu. Vrai si le message a été traité.
      */
-    public function fromWhatsApp(Conversation $conversation, ConversationMessage $message): bool
+    public function fromWhatsApp(Conversation $conversation, ConversationMessage $message, ?string $payload = null): bool
     {
         if ($conversation->channel !== 'whatsapp' || blank($message->body)) {
             return false;
+        }
+        // Liste ou bouton touchés pendant la commande du live (WhatsApp officiel)
+        if ($payload !== null && str_starts_with($payload, 'live:')) {
+            return app(LiveCheckout::class)->onReply($conversation, $payload);
         }
         $session = self::current($conversation->store_id);
         if ($message->type === 'image') {
@@ -435,6 +476,11 @@ class LiveSales
         }
 
         $order = $this->complete($conversation->store, PhoneNumber::normalize($conversation->contact), $message->body);
+        if ($order !== null && app(LiveCheckout::class)->official($conversation)) {
+            app(LiveCheckout::class)->recap($conversation, $order);
+
+            return true;
+        }
         if ($order !== null) {
             $this->reply($conversation, "Merci ! Commande {$order->reference()} enregistrée ({$order->items->map(fn ($i) => $i->title)->implode(', ')}), "
                 .'livraison : '.($order->shipping_address ?? 'à préciser').'. Nous vous appelons pour confirmer.');
@@ -488,9 +534,9 @@ class LiveSales
         $open = $this->openOrder($session, $phone);
         $mine = fn (LiveItem $item, array $statuses) => LiveReservation::forStore($session->store_id)->where('live_item_id', $item->id)
             ->where('customer_phone', $phone)->whereIn('status', $statuses);
-        // Pièces déjà demandées et pas encore confirmées (gardées, en attente, ou dans la commande à confirmer)
+        // Pièces déjà demandées (gardées, en attente, ou dans la commande pas encore partie)
         $asked = fn (LiveItem $item) => $mine($item, ['reserved', 'waiting'])->count()
-            + $mine($item, ['ordered'])->whereHas('order', fn ($o) => $o->where('status', OrderStatus::PendingConfirmation->value))->count();
+            + $mine($item, ['ordered'])->whereHas('order', fn ($o) => $o->whereIn('status', [OrderStatus::PendingConfirmation->value, OrderStatus::Confirmed->value]))->count();
         $lines = [];
         foreach ($items as $item) {
             $missing = min(10, $quantities[$item->code] ?? 1) - $asked($item);
@@ -502,20 +548,42 @@ class LiveSales
             + ($open ? ['place_id' => $open->shipping_place_id, 'address' => $open->shipping_address] : []);
         $created = $lines === [] ? collect() : $this->reserveLines($session, $lines, $customer, 'whatsapp');
 
-        $text = $items->map(function (LiveItem $item) use ($mine) {
+        // Ce qu'il faut dire pour chaque article (gardé, ou sur la liste d'attente)
+        $said = $items->mapWithKeys(function (LiveItem $item) use ($mine) {
             $held = $mine($item, LiveReservation::HOLDING)->count();
             $waiting = $mine($item, ['waiting'])->oldest('id')->get();
             $label = "{$item->code} ({$this->label($item)}";
 
-            return collect([
+            $text = collect([
                 $held > 0 ? "✅ {$label}, ".Money::format($item->price).')'.($held > 1 ? " × {$held} : réservées" : ' : réservée').' pour vous.' : null,
                 $waiting->isEmpty() ? null : ($held > 0
                     ? "⏳ {$item->code} : {$waiting->count()} de plus sur la liste d'attente (il n'en restait pas assez)."
                     : "⏳ {$label}) : déjà partie, vous êtes n°{$this->position($waiting->first())} sur la liste d'attente."),
             ])->filter()->implode("\n");
-        })->implode("\n");
+
+            return [$item->code => $text];
+        });
+        $text = $said->filter()->implode("\n");
         $added = $created->firstWhere('status', 'ordered')?->order;
         $held = LiveReservation::forStore($conversation->store_id)->where('customer_phone', $phone)->where('status', 'reserved')->whereNull('order_id')->exists();
+        // WhatsApp officiel : photo de chaque article, puis la liste des communes ou le récapitulatif de la commande
+        $checkout = app(LiveCheckout::class);
+        if ($checkout->official($conversation)) {
+            // Article gardé : sa phrase part en légende de sa photo ; le reste en un texte
+            $rest = $items->map(fn (LiveItem $item) => ($line = $said[$item->code] ?? '') !== '' && $mine($item, LiveReservation::HOLDING)->exists()
+                && $checkout->itemPhoto($conversation, $item, $line) ? null : $line)->filter()->implode("\n");
+            if ($added !== null) {
+                $rest === '' || $this->reply($conversation, $rest);
+                $checkout->recap($conversation, $added);
+            } elseif ($held) {
+                $ask = ($rest !== '' ? $rest."\n" : '').'Où faut-il vous livrer ?';
+                $checkout->askCommune($conversation, $ask) || $this->reply($conversation, $ask.' Répondez avec votre quartier (et un repère).');
+            } elseif ($rest !== '') {
+                $this->reply($conversation, $rest);
+            }
+
+            return;
+        }
         $this->reply($conversation, $text.match (true) {
             $added !== null && $open !== null && $added->id === $open->id => "\nAjouté à votre commande {$added->reference()}, livraison : ".($added->shipping_address ?? 'à préciser').'.',
             $held => "\nPour la livraison, répondez avec votre quartier (et un repère).",
@@ -532,7 +600,7 @@ class LiveSales
             return null;
         }
 
-        return Order::forStore($session->store_id)->where('status', OrderStatus::PendingConfirmation->value)
+        return Order::forStore($session->store_id)->whereIn('status', [OrderStatus::PendingConfirmation->value, OrderStatus::Confirmed->value])
             ->whereIn('id', LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)
                 ->where('customer_phone', $phone)->whereNotNull('order_id')->select('order_id'))
             ->latest('id')->first();
