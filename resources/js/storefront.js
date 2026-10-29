@@ -472,6 +472,9 @@ function livePage() {
 
   // Articles du live (mis à jour toutes les 5 s) et sélection du client : id → pièces
   let items = JSON.parse($('#live-data')?.textContent || '[]')
+  // Article montré en ce moment par la boutique : en premier, en grand
+  const list = $('[data-live-items]', root)
+  let featured = Number(list?.dataset.featured) || null
   const picked = new Map()
   const byId = (id) => items.find((item) => item.id === id)
   // Sélection gardée quand la page se recharge pour montrer un article ajouté pendant le live
@@ -499,8 +502,20 @@ function livePage() {
       if (!row) return
       if (picked.has(item.id)) picked.set(item.id, Math.min(picked.get(item.id), max(item)))
       const qty = picked.get(item.id) || 0
-      $('[data-remaining]', row).textContent = item.remaining > 0 ? `Il en reste ${item.remaining}` : "Épuisé · liste d'attente"
-      $('[data-take]', row).textContent = item.remaining > 0 ? 'Je prends' : "M'inscrire"
+      const remaining = $('[data-remaining]', row)
+      remaining.textContent = item.remaining === 1 ? '🔥 Dernière pièce !' : item.remaining > 0 ? `Il en reste ${item.remaining}` : "Épuisé · liste d'attente"
+      remaining.className = `mt-0.5 text-sm ${item.remaining === 1 ? 'font-bold text-orange-700' : 'text-slate-500'}`
+      $('[data-take]', row).textContent = item.remaining > 0 ? 'Je prends' : "M'inscrire en attente"
+      const isFeatured = item.id === featured
+      row.style.order = isFeatured ? '-1' : ''
+      row.classList.toggle('col-span-2', isFeatured)
+      row.classList.toggle('border-2', isFeatured)
+      row.classList.toggle('border-orange-600', isFeatured)
+      row.classList.toggle('shadow-lg', isFeatured)
+      row.classList.toggle('border-slate-200', !isFeatured)
+      $('[data-featured-label]', row).hidden = !isFeatured
+      const photo = $('[data-live-photo]', row)
+      photo.className = `relative ${isFeatured ? 'mx-3 mt-2 aspect-[4/3] overflow-hidden rounded-xl' : 'aspect-square'} bg-slate-100`
       $('[data-take]', row).hidden = qty > 0
       $('[data-stepper]', row).hidden = qty === 0
       $('[data-qty]', row).textContent = qty
@@ -614,6 +629,7 @@ function livePage() {
         return
       }
       items = data.items
+      featured = data.featured_item_id ?? null
       render()
     } catch {
       // réseau momentané : prochain tour

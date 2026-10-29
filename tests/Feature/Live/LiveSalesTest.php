@@ -113,7 +113,7 @@ class LiveSalesTest extends TestCase
         // Aucun WhatsApp relié : la page « Vendre en live » propose de le relier
         $this->storeApi($this->store, 'GET', 'lives')->assertOk()->assertJsonPath('meta.whatsapp', null);
         $items = $this->page('GET', '/live/etat')->assertOk()->assertJsonPath('data.items.0.remaining', 1)->json('data.items');
-        $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('En direct maintenant')->assertSee('A1');
+        $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('EN DIRECT')->assertSee('A1');
 
         $angre = $this->place('Angré');
         $this->page('GET', '/live/lieux?q=angre')->assertOk()->assertJsonPath('data.0.id', $angre->id);
@@ -140,6 +140,40 @@ class LiveSalesTest extends TestCase
         // Fin du live : la page ne propose plus rien, le bilan reste
         $this->storeApi($this->store, 'POST', "lives/{$id}/end")->assertOk()->assertJsonPath('data.summary.orders', 2);
         $this->page('POST', '/live/reserver', ['item_id' => $items[1]['id'], 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $angre->id])->assertNotFound();
+    }
+
+    public function test_stream_link_featured_item_summary_and_redo(): void
+    {
+        $robe = $this->robe->variants()->value('id');
+        $this->storeApi($this->store, 'POST', 'lives', ['title' => 'Live', 'stream_url' => 'pas un lien', 'items' => [['variant_id' => $robe, 'quantity' => 1]]])
+            ->assertStatus(422)->assertJsonValidationErrors('stream_url');
+        $id = $this->storeApi($this->store, 'POST', 'lives', ['title' => 'Live du soir', 'stream_url' => 'https://www.tiktok.com/@awamode/live', 'items' => [
+            ['variant_id' => $robe, 'price' => 12000, 'quantity' => 1],
+            ['variant_id' => $this->sac->variants()->value('id'), 'quantity' => 5],
+        ]])->assertCreated()->assertJsonPath('data.stream_url', 'https://www.tiktok.com/@awamode/live')->json('data.id');
+        $this->storeApi($this->store, 'POST', "lives/{$id}/start")->assertOk();
+        $items = $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.items');
+
+        // Article montré : mis en avant sur la page du client ; un article d'un autre live est refusé
+        $this->storeApi($this->store, 'POST', "lives/{$id}/feature", ['item_id' => 999999])->assertStatus(422);
+        $this->storeApi($this->store, 'POST', "lives/{$id}/feature", ['item_id' => $items[1]['id']])->assertOk()->assertJsonPath('data.featured_item_id', $items[1]['id']);
+        $this->page('GET', '/live/etat')->assertJsonPath('data.featured_item_id', $items[1]['id'])->assertJsonPath('data.stream_url', 'https://www.tiktok.com/@awamode/live')
+            ->assertJsonPath('data.summary', null);
+        $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('Regarder le live')->assertSee('Présenté en ce moment');
+
+        // Bilan : articles épuisés, comparaison avec le live précédent
+        $this->page('POST', '/live/reserver', ['item_id' => $items[0]['id'], 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $this->place('Angré')->id])->assertOk();
+        $this->storeApi($this->store, 'POST', "lives/{$id}/end")->assertOk()->assertJsonPath('data.summary.sold_out', 1)
+            ->assertJsonPath('data.summary.amount', 12000)->assertJsonPath('data.previous_amount', null);
+        $this->storeApi($this->store, 'POST', "lives/{$id}/feature", ['item_id' => null])->assertStatus(422);
+        $this->storeApi($this->store, 'GET', 'lives')->assertJsonPath('data.0.minutes', 0);
+
+        // Refaire ce live : nouveau live en préparation, mêmes articles et prix, même lien
+        $copy = $this->storeApi($this->store, 'POST', "lives/{$id}/duplicate")->assertCreated()
+            ->assertJsonPath('data.status', 'draft')->assertJsonPath('data.items.0.price', 12000)->assertJsonPath('data.items.1.code', 'A2')
+            ->assertJsonPath('data.stream_url', 'https://www.tiktok.com/@awamode/live')->json('data.id');
+        $this->storeApi($this->store, 'POST', "lives/{$copy}/start")->assertOk();
+        $this->storeApi($this->store, 'POST', "lives/{$copy}/end")->assertOk()->assertJsonPath('data.previous_amount', 12000);
     }
 
     public function test_the_dashboard_puts_the_live_first(): void

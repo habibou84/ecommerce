@@ -60,7 +60,10 @@ class LiveSales
 
         return DB::transaction(function () use ($store, $session, $data, $user, $variants) {
             $session ??= new LiveSession(['store_id' => $store->id, 'status' => 'draft', 'created_by' => $user?->id]);
-            $session->fill(['title' => $data['title'], 'hold_minutes' => $data['hold_minutes'] ?? $session->hold_minutes ?? 120])->save();
+            $session->fill([
+                'title' => $data['title'], 'hold_minutes' => $data['hold_minutes'] ?? $session->hold_minutes ?? 120,
+                'stream_url' => array_key_exists('stream_url', $data) ? ($data['stream_url'] ?: null) : $session->stream_url,
+            ])->save();
 
             // Codes réattribués dans l'ordre de la liste : codes provisoires d'abord, pour ne pas croiser l'index unique
             LiveItem::forStore($store->id)->where('live_session_id', $session->id)->get()
@@ -172,6 +175,45 @@ class LiveSales
         $session->update(['status' => 'ended', 'ended_at' => now()]);
 
         return $session;
+    }
+
+    /**
+     * Article montré en ce moment (mis en avant sur la page du live), ou plus aucun.
+     */
+    public function feature(LiveSession $session, ?int $itemId): LiveSession
+    {
+        if ($session->status === 'ended') {
+            throw new BusinessRuleException('Ce live est terminé.');
+        }
+        if ($itemId !== null && LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->whereKey($itemId)->doesntExist()) {
+            throw new BusinessRuleException('Cet article n\'est pas dans le live.', 'item_id');
+        }
+        $session->update(['featured_item_id' => $itemId]);
+
+        return $session;
+    }
+
+    /**
+     * Refaire un live : nouveau live en préparation avec les mêmes articles, dans le même ordre (prix et pièces
+     * repris ; les pièces sont ramenées au stock disponible, au moins une).
+     */
+    public function duplicate(LiveSession $session, ?User $user): LiveSession
+    {
+        $session->loadMissing('items.variant.levels');
+        $lines = $session->items->filter(fn (LiveItem $i) => $i->variant !== null)->map(fn (LiveItem $i) => [
+            'variant_id' => $i->variant_id,
+            'price' => $i->price,
+            'quantity' => max(1, min($i->quantity, (int) $i->variant->levels->sum(fn ($l) => $l->available()) ?: $i->quantity)),
+        ])->values()->all();
+        if ($lines === []) {
+            throw new BusinessRuleException('Les articles de ce live n\'existent plus dans votre catalogue.');
+        }
+        $store = Store::findOrFail($session->store_id);
+
+        return $this->save($store, null, [
+            'title' => 'Live du '.now()->locale('fr')->isoFormat('dddd D MMM'), 'hold_minutes' => $session->hold_minutes,
+            'stream_url' => $session->stream_url, 'items' => $lines,
+        ], $user);
     }
 
     public static function current(int $storeId): ?LiveSession
@@ -564,6 +606,8 @@ class LiveSales
             'title' => $session->title,
             'status' => $session->status,
             'hold_minutes' => $session->hold_minutes,
+            'stream_url' => $session->stream_url,
+            'featured_item_id' => $session->featured_item_id,
             'started_at' => $session->started_at?->toIso8601String(),
             'ended_at' => $session->ended_at?->toIso8601String(),
             'items' => $session->items->map(fn (LiveItem $item) => [
@@ -590,6 +634,8 @@ class LiveSales
                 'created_at' => $r->created_at->toIso8601String(),
             ])->values()->all(),
             'summary' => $team ? $this->summary($session) : null,
+            // Bilan : montant du live terminé juste avant, pour comparer
+            'previous_amount' => $team && $session->status === 'ended' ? $this->previousAmount($session) : null,
             // WhatsApp qui répond aux clients pendant le live : official (Meta), link (relié par QR code) ou null
             'whatsapp' => $team ? self::whatsapp($session->store_id) : null,
         ];
@@ -621,7 +667,16 @@ class LiveSales
             'pending' => $all->where('status', 'reserved')->count(),
             'waiting' => $all->where('status', 'waiting')->count(),
             'expired' => $all->where('status', 'expired')->count(),
+            // Articles dont toutes les pièces sont parties
+            'sold_out' => $session->items()->get()->filter(fn (LiveItem $item) => $this->remaining($item) === 0)->count(),
         ];
+    }
+
+    private function previousAmount(LiveSession $session): ?int
+    {
+        $previous = LiveSession::forStore($session->store_id)->where('status', 'ended')->where('id', '<', $session->id)->latest('id')->first();
+
+        return $previous ? $this->summary($previous)['amount'] : null;
     }
 
     /**
