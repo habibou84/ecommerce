@@ -29,7 +29,9 @@ class Conversions
     {
         $store = $order->store;
         $pixel = $store->marketingId('meta_pixel_id');
-        if ($pixel === null || blank($store->meta_capi_token) || $order->conversion_sent_at !== null) {
+        // Jeton collé à la main, sinon l'accès donné par la connexion Facebook (pixel et catalogue en un clic)
+        $token = app(MetaAds::class)->conversionsToken($store);
+        if ($pixel === null || $token === null || $order->conversion_sent_at !== null) {
             return false;
         }
 
@@ -71,7 +73,7 @@ class Conversions
 
         try {
             // Jeton dans le corps (jamais dans l'adresse : un message d'erreur réseau la recopie dans les journaux)
-            $response = Http::timeout(10)->asJson()->post(self::GRAPH."/{$pixel}/events", ['data' => [$event], 'access_token' => $store->meta_capi_token]);
+            $response = Http::timeout(10)->asJson()->post(self::GRAPH."/{$pixel}/events", ['data' => [$event], 'access_token' => $token]);
         } catch (Throwable $e) {
             Log::warning('API Conversions injoignable', ['order' => $order->id, 'error' => class_basename($e)]);
 

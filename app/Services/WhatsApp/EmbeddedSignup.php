@@ -18,7 +18,7 @@ class EmbeddedSignup
 
     public static function enabled(): bool
     {
-        return filled(config('services.meta.app_id')) && filled(config('services.meta.app_secret')) && filled(config('services.meta.whatsapp_config_id'));
+        return filled(WhatsAppMetaApp::id()) && filled(WhatsAppMetaApp::secret()) && filled(WhatsAppMetaApp::configId());
     }
 
     /**
@@ -32,7 +32,7 @@ class EmbeddedSignup
 
         try {
             $token = (string) ($this->cloud->graph('GET', 'oauth/access_token', null, [
-                'client_id' => config('services.meta.app_id'), 'client_secret' => config('services.meta.app_secret'), 'code' => $code,
+                'client_id' => WhatsAppMetaApp::id(), 'client_secret' => WhatsAppMetaApp::secret(), 'code' => $code,
             ])['access_token'] ?? '');
             if ($token === '') {
                 throw new RuntimeException('Meta n\'a pas renvoyé de jeton.');
@@ -43,7 +43,7 @@ class EmbeddedSignup
             if ($phoneNumberId === '') {
                 throw new RuntimeException('Aucun numéro trouvé sur ce compte WhatsApp.');
             }
-            $this->cloud->graph('POST', $wabaId.'/subscribed_apps', $token);
+            WhatsAppMetaApp::subscribe($this->cloud, $wabaId, $token);
             $number = $this->cloud->graph('GET', $phoneNumberId, $token, ['fields' => 'display_phone_number,verified_name']);
         } catch (RuntimeException $e) {
             throw new BusinessRuleException('Connexion à WhatsApp impossible. '.$e->getMessage());

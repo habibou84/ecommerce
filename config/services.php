@@ -40,10 +40,16 @@ return [
         'app_id' => env('META_APP_ID'),
         'app_secret' => env('META_APP_SECRET'),
         'whatsapp_config_id' => env('META_WHATSAPP_CONFIG_ID'), // Facebook Login for Business › Configurations
+        // WhatsApp par une autre application Meta déjà validée (celle de Jibiat) ; vide : l'application ci-dessus
+        'whatsapp_app_id' => env('META_WHATSAPP_APP_ID'),
+        'whatsapp_app_secret' => env('META_WHATSAPP_APP_SECRET'),
         'webhook_verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
         // Connexion de la page Facebook et du compte Instagram (Facebook Login for Business › Configurations ;
         // sans configuration, les autorisations sont demandées une à une)
         'social_config_id' => env('META_SOCIAL_CONFIG_ID'),
+        // Pixel et catalogue branchés en un clic (Facebook Login for Business › Configurations, jeton d'utilisateur
+        // système : accès sans expiration ; sans configuration, autorisations demandées une à une, accès de 60 jours)
+        'ads_config_id' => env('META_ADS_CONFIG_ID'),
         // Prix d'un message marketing WhatsApp facturé par Meta au marchand (F CFA, estimation affichée avant une relance)
         'marketing_message_price' => (int) env('WHATSAPP_MARKETING_PRICE', 15),
     ],
