@@ -65,6 +65,7 @@ Table stores {
   timezone varchar [not null, default: 'Africa/Abidjan']
   locale varchar(5) [default: 'fr']
   phone varchar(20)
+  whatsapp_qr_enabled boolean [default: false, note: 'liaison WhatsApp par QR code autorisée par la console']
   whatsapp_phone varchar(20) [note: 'bouton « Commander sur WhatsApp » et support client']
   email varchar
   address text

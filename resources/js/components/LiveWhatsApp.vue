@@ -40,13 +40,14 @@ function onLinked() {
       <li class="flex items-start gap-2"><Icon name="check" :size="17" class="mt-0.5 shrink-0 text-emerald-700" />la commande se crée, sans rien noter.</li>
     </ul>
 
-    <template v-if="auth.can('store.manage')">
+    <template v-if="auth.can('store.manage') && auth.profile?.whatsapp_qr === true">
       <div v-if="linking" class="mt-4"><WhatsAppLink @linked="onLinked" /></div>
       <template v-else>
         <button type="button" class="btn-brand mt-4 w-full sm:w-auto" @click="linking = true"><Icon name="whatsapp" :size="18" />Relier mon WhatsApp</button>
         <p class="mt-2 text-xs text-slate-500">Une minute : on scanne un QR code avec le téléphone de la boutique, comme pour WhatsApp Web, ou on saisit un code reçu par le numéro.</p>
       </template>
     </template>
+    <p v-else-if="auth.profile?.whatsapp_qr !== true" class="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">Connectez le WhatsApp de la boutique dans Réglages › WhatsApp (« Connecter WhatsApp avec Facebook »).</p>
     <p v-else class="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">Demandez au responsable de la boutique de relier le WhatsApp (menu Messages).</p>
   </section>
 </template>

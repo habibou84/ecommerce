@@ -59,6 +59,8 @@ class WhatsAppSalesTest extends TestCase
         $this->app->instance(AiClient::class, $this->ai);
 
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
+        // WhatsApp par QR code autorisé pour la boutique (console)
+        $this->store->forceFill(['whatsapp_qr_enabled' => true])->save();
 
         // L'assistant IA n'est compris dans aucune offre : actions rechargées
 

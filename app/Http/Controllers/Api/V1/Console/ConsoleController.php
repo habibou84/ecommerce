@@ -13,16 +13,19 @@ use App\Models\StoreDomain;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\SupportSession;
+use App\Models\WhatsappLink;
 use App\Services\Ai\AiCosts;
 use App\Services\Billing\Billing;
 use App\Services\Billing\FreeAccess;
 use App\Services\Billing\PlanLimits;
 use App\Services\Console\SupportSessions;
+use App\Services\WhatsApp\WhatsAppBridge;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Jibiat\Socle\PhoneNumber;
+use RuntimeException;
 
 /**
  * Console du super administrateur : chiffres de la plateforme, boutiques, abonnements, sessions de support.
@@ -102,6 +105,9 @@ class ConsoleController extends Controller
             'revenue_30d' => (int) Order::forStore($model->id)->where('created_at', '>=', $since)->where('status', 'completed')->sum('total'),
             'invoices' => SubscriptionInvoice::forStore($model->id)->with('plan')->latest('id')->limit(20)->get()->map(fn ($i) => $this->billing->presentInvoice($i)),
             'domains' => StoreDomain::where('store_id', $model->id)->get(['hostname', 'is_primary', 'verified_at']),
+            // Liaison WhatsApp par QR code (non officielle) : autorisée ou non, et état de la liaison
+            'whatsapp_qr' => ['enabled' => (bool) $model->whatsapp_qr_enabled,
+                'status' => WhatsappLink::withoutGlobalScopes()->where('store_id', $model->id)->value('status') ?? 'none'],
             'support_sessions' => SupportSession::forStore($model->id)->with('admin:id,name')->latest('id')->limit(10)->get()->map(fn (SupportSession $s) => [
                 'id' => $s->id, 'admin' => $s->admin?->name, 'reason' => $s->reason, 'started_at' => $s->started_at->toIso8601String(),
                 'expires_at' => $s->expires_at->toIso8601String(), 'ended_at' => $s->ended_at?->toIso8601String(), 'ongoing' => $s->isOngoing(),
@@ -110,6 +116,27 @@ class ConsoleController extends Controller
                 'action' => $a->action, 'data' => $a->data, 'admin' => $a->admin?->name, 'created_at' => $a->created_at->toIso8601String(),
             ]),
         ]]);
+    }
+
+    /** Autorise ou non la liaison WhatsApp par QR code ; coupée : la liaison en cours est déconnectée */
+    public function whatsappQr(Request $request, int $store, WhatsAppBridge $bridge): JsonResponse
+    {
+        $data = $request->validate(['enabled' => ['required', 'boolean']]);
+        $model = Store::findOrFail($store);
+        $model->forceFill(['whatsapp_qr_enabled' => $data['enabled']])->save();
+
+        $link = WhatsappLink::withoutGlobalScopes()->where('store_id', $model->id)->first();
+        if (! $data['enabled'] && $link !== null) {
+            try {
+                $bridge->logout($link);
+            } catch (RuntimeException) {
+                // Service injoignable : la liaison est tout de même retirée côté boutique
+            }
+            $link->delete();
+        }
+        $this->log($request, $model, $data['enabled'] ? 'whatsapp_qr_on' : 'whatsapp_qr_off');
+
+        return $this->store($model->id);
     }
 
     public function suspend(Request $request, int $store): JsonResponse
