@@ -118,8 +118,11 @@ class Inbox
         $sentAt = isset($message['timestamp']) ? Carbon::createFromTimestamp((int) $message['timestamp']) : now();
         $type = in_array($message['type'] ?? '', ['text', 'image', 'audio', 'video', 'document', 'location', 'sticker', 'button', 'interactive'], true) ? $message['type'] : 'other';
 
+        // Bouton ou ligne de liste touchés : leur identifiant (ex. « live:place:12 ») accompagne le libellé
+        $payload = $message['interactive']['button_reply']['id'] ?? $message['interactive']['list_reply']['id'] ?? $message['button']['payload'] ?? null;
+
         return $this->land($account->store_id, '+'.ltrim($from, '+'), $name, $type, $body, $providerId, $sentAt, false,
-            $type === 'image' ? ($message['image']['id'] ?? null) : null);
+            $type === 'image' ? ($message['image']['id'] ?? null) : null, is_string($payload) ? $payload : null);
     }
 
     /**
@@ -198,7 +201,7 @@ class Inbox
     /**
      * @param  ?string  $mediaId  photo reçue par le WhatsApp officiel (identifiant de média de Meta, lu à la demande)
      */
-    private function land(int $storeId, string $phone, ?string $name, string $type, string $body, ?string $providerId, Carbon $sentAt, bool $viaLink, ?string $mediaId = null): ConversationMessage
+    private function land(int $storeId, string $phone, ?string $name, string $type, string $body, ?string $providerId, Carbon $sentAt, bool $viaLink, ?string $mediaId = null, ?string $payload = null): ConversationMessage
     {
         $received = DB::transaction(function () use ($storeId, $phone, $name, $type, $body, $providerId, $sentAt, $viaLink, $mediaId) {
             $conversation = Conversation::forStore($storeId)->lockForUpdate()->firstOrNew(['channel' => 'whatsapp', 'contact' => $phone]);
@@ -234,7 +237,7 @@ class Inbox
             $this->team->notify($store, Permission::OrdersConfirm->value, new CustomerMessage($conversation, $body));
         }
         // Vente en live : code d'un article (« A3 ») ou quartier attendu ; sinon, réponse automatique habituelle
-        if (! app(LiveSales::class)->fromWhatsApp($conversation, $created)) {
+        if (! app(LiveSales::class)->fromWhatsApp($conversation, $created, $payload)) {
             app(AutoReplier::class)->schedule($created);
         }
 
@@ -302,6 +305,36 @@ class Inbox
         }
 
         return $this->record($conversation, 'auto', $text, 'sent', $this->cloud->sendText($account, $conversation->contact, $text));
+    }
+
+    /**
+     * Réponse automatique riche (photo, liste, boutons) par le WhatsApp officiel, dans les 24 h ; elle apparaît dans
+     * le fil avec un résumé. Null si la conversation ne passe pas par le numéro officiel (l'appelant répond en texte).
+     *
+     * @param  callable(WhatsAppCloud, WhatsappAccount, string): string  $send  envoi, renvoie l'identifiant de Meta
+     */
+    public function replyRich(Conversation $conversation, string $preview, callable $send): ?ConversationMessage
+    {
+        $account = $this->officialFor($conversation);
+        if ($account === null) {
+            return null;
+        }
+
+        return $this->record($conversation, 'auto', $preview, 'sent', $send($this->cloud, $account, $conversation->contact));
+    }
+
+    /**
+     * Numéro officiel par lequel répondre avec des photos, listes et boutons : conversation WhatsApp qui ne passe pas
+     * par le WhatsApp relié, client qui a écrit depuis moins de 24 h, numéro actif.
+     */
+    public function officialFor(Conversation $conversation): ?WhatsappAccount
+    {
+        if ($conversation->channel !== 'whatsapp' || ! $conversation->canReply() || $this->linkFor($conversation) !== null) {
+            return null;
+        }
+        $account = WhatsappAccount::forStore($conversation->store_id)->first();
+
+        return $account !== null && $account->status !== 'disabled' ? $account : null;
     }
 
     /**

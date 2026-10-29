@@ -199,8 +199,9 @@ class OrderDesk
      */
     public function addItems(Order $order, array $lines, string $note, ?User $actor = null, string $actorType = 'customer'): Order
     {
-        if ($order->status !== OrderStatus::PendingConfirmation) {
-            throw new BusinessRuleException('Seule une commande encore à confirmer reçoit des articles en plus.');
+        // Commande à confirmer, ou confirmée mais pas encore partie (une cliente du live qui reprend un article)
+        if (! in_array($order->status, [OrderStatus::PendingConfirmation, OrderStatus::Confirmed], true)) {
+            throw new BusinessRuleException('Seule une commande pas encore partie reçoit des articles en plus.');
         }
         $items = $order->items()->orderBy('id')->get()->map(fn (OrderItem $i) => $i->variant_id
             ? ['variant_id' => $i->variant_id, 'quantity' => $i->quantity, 'unit_price' => $i->unit_price]
