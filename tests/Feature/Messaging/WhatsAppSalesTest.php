@@ -151,7 +151,7 @@ class WhatsAppSalesTest extends TestCase
         $this->assertStringContainsString("Commande {$order->reference()} créée, à confirmer", $message->body);
 
         $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertOk()->assertJsonPath('data.catalog.orders_last_30_days', 1)
-            ->assertJsonPath('data.channel', 'official');
+            ->assertJsonPath('data.channel', 'official')->assertJsonPath('data.catalog.meta', null);
     }
 
     public function test_a_resent_cart_does_not_duplicate_and_a_new_cart_joins_the_pending_order(): void
