@@ -86,6 +86,10 @@ class WhatsAppTest extends TestCase
         $show = $this->storeApi($this->store, 'GET', 'whatsapp')->assertOk()
             ->assertJsonPath('data.account.templates.order_confirmation', 'confirmation_commande')->assertJsonMissingPath('data.account.access_token');
         $this->assertSame('EAAG-token', $account->access_token);
+        // Aperçu de chaque message : le texte du modèle rempli d'un exemple, avec le nom de la boutique
+        $this->assertSame("Bonjour Awa, merci pour votre commande #1001 d'un montant de 15 000 F. Confirmez-vous la commande ? Répondez avec un des boutons ci-dessous.", $show->json('data.previews.order_confirmation'));
+        $this->assertStringContainsString('chez Awa Mode', $show->json('data.previews.review_request'));
+        $this->assertStringNotContainsString('{{', implode(' ', $show->json('data.previews')));
 
         $url = 'http://api.localhost/webhooks/whatsapp/'.$account->webhook_uuid;
         $this->assertSame($url, $show->json('data.account.webhook_url'));

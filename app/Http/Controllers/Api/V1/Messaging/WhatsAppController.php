@@ -10,6 +10,7 @@ use App\Services\Billing\PlanLimits;
 use App\Services\Storefront\CartService;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Services\WhatsApp\EmbeddedSignup;
+use App\Services\WhatsApp\TemplateLibrary;
 use App\Services\WhatsApp\WhatsAppCloud;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
@@ -44,6 +45,7 @@ class WhatsAppController extends Controller
                 'verify_token' => $account->verify_token,
             ] : null,
             'events' => CustomerMessenger::EVENTS,
+            'previews' => $this->previews(),
             // Bouton « Connecter WhatsApp avec Facebook » : application Meta de la plateforme
             'embedded' => EmbeddedSignup::enabled() ? ['app_id' => config('services.meta.app_id'), 'config_id' => config('services.meta.whatsapp_config_id'), 'graph_version' => WhatsAppCloud::VERSION] : null,
             'messages' => OutboundMessage::latest('id')->limit(30)->get()->map(fn (OutboundMessage $m) => [
@@ -51,6 +53,23 @@ class WhatsAppController extends Controller
                 'related_type' => $m->related_type, 'related_id' => $m->related_id, 'created_at' => $m->created_at->toIso8601String(),
             ]),
         ]]);
+    }
+
+    /**
+     * Aperçu de chaque message tel que le client le reçoit : texte du modèle rempli avec un exemple (nom de la
+     * boutique compris), à la place des {{1}}, {{2}}…
+     *
+     * @return array<string, string>
+     */
+    private function previews(): array
+    {
+        $store = $this->currentStore();
+
+        return collect(TemplateLibrary::TEMPLATES)->map(function (array $t) use ($store) {
+            $values = array_map(fn ($v) => str_replace(['Awa Mode', 'https://boutique.jibiat-marchand.com'], [$store->name, rtrim($store->url('/'), '/')], $v), $t['example']);
+
+            return strtr($t['body'], collect($values)->mapWithKeys(fn ($v, $i) => ['{{'.($i + 1).'}}' => $v])->all());
+        })->intersectByKeys(CustomerMessenger::EVENTS)->all();
     }
 
     public function update(Request $request): JsonResponse
