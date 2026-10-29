@@ -303,7 +303,7 @@ async function redo() {
           <span :class="{ 'text-slate-400 line-through': ready.includes(c) }">{{ c }}</span>
         </label>
       </section>
-      <LiveWhatsApp v-if="live.status === 'draft' && live.whatsapp === null" @linked="load" />
+      <LiveWhatsApp v-if="live.status === 'draft' && live.whatsapp === null" />
 
       <!-- ═══ Articles ═══ -->
       <section v-if="live.status !== 'ended'" class="space-y-2">
@@ -420,8 +420,8 @@ async function redo() {
       <div class="space-y-3 text-sm">
         <LiveLink :url="pageUrl" compact />
         <p v-if="live.whatsapp === 'official'" class="rounded-xl bg-emerald-50 p-3 text-emerald-900">✓ WhatsApp officiel connecté : les codes et captures envoyés par vos clients sont lus tout seuls.</p>
-        <p v-else-if="live.whatsapp === 'link'" class="rounded-xl bg-amber-50 p-3 text-amber-900">WhatsApp relié par QR code : pour de gros lives, passez au WhatsApp officiel (Réglages › WhatsApp).</p>
-        <p v-else class="rounded-xl bg-amber-50 p-3 text-amber-900">WhatsApp pas connecté : les clients réservent seulement par le lien. <RouterLink to="/gestion/whatsapp" class="font-medium underline">Connecter WhatsApp</RouterLink></p>
+        <p v-else-if="live.whatsapp === 'link'" class="rounded-xl bg-amber-50 p-3 text-amber-900">Pour des lives sans risque de blocage, passez au WhatsApp officiel. <RouterLink to="/gestion/whatsapp?onglet=messages" class="font-medium underline">Connecter le WhatsApp officiel</RouterLink></p>
+        <p v-else class="rounded-xl bg-amber-50 p-3 text-amber-900">WhatsApp pas connecté : les clients réservent seulement par le lien. <RouterLink to="/gestion/whatsapp?onglet=messages" class="font-medium underline">Connecter le WhatsApp officiel</RouterLink></p>
         <p class="text-slate-600">📷 Montrez le code de l'article à l'écran : quand une cliente envoie sa capture sur WhatsApp, le code est lu et l'article réservé. Pour plusieurs pièces : « A2 x3 ».</p>
       </div>
     </Modal>
