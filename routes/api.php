@@ -523,6 +523,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->name('lives.update');
                 Route::post('lives/{session}/items', [LiveController::class, 'addItems'])->whereNumber('session')->name('lives.items');
                 Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->name('lives.start');
+                Route::post('lives/{session}/feature', [LiveController::class, 'feature'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.feature');
+                Route::post('lives/{session}/duplicate', [LiveController::class, 'duplicate'])->whereNumber('session')->middleware('throttle:20,1')->name('lives.duplicate');
                 Route::post('lives/{session}/end', [LiveController::class, 'end'])->whereNumber('session')->name('lives.end');
                 Route::post('lives/{session}/reservations', [LiveController::class, 'reserve'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.reserve');
                 Route::post('lives/{session}/reservations/{reservation}/cancel', [LiveController::class, 'cancel'])->whereNumber(['session', 'reservation'])->name('lives.cancel');

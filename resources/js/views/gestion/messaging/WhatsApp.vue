@@ -7,9 +7,8 @@ import Icon from '../../../components/Icon.vue'
 import WhatsAppAssistant from '../../../components/WhatsAppAssistant.vue'
 import WhatsAppAutomations from '../../../components/WhatsAppAutomations.vue'
 import WhatsAppCatalog from '../../../components/WhatsAppCatalog.vue'
-import WhatsAppLink from '../../../components/WhatsAppLink.vue'
 import http, { errorMessage } from '../../../lib/http'
-import { formatDateTime, phoneDisplay } from '../../../lib/format'
+import { formatDateTime } from '../../../lib/format'
 
 /**
  * Réglages › WhatsApp : un résumé (ce qui marche, ce qui manque), puis un onglet par sujet — conversations (WhatsApp
@@ -19,7 +18,6 @@ const route = useRoute()
 const router = useRouter()
 const official = ref(null) // GET /whatsapp
 const sales = ref(null) // GET /whatsapp/sales
-const link = ref(null) // GET /whatsapp/link
 const error = ref('')
 
 const TABS = [
@@ -35,10 +33,9 @@ watch(tab, (t) => router.replace({ query: { ...route.query, onglet: t } }))
 
 onMounted(async () => {
   try {
-    const [o, s, l] = await Promise.all([http.get('/whatsapp'), http.get('/whatsapp/sales'), http.get('/whatsapp/link')])
+    const [o, s] = await Promise.all([http.get('/whatsapp'), http.get('/whatsapp/sales')])
     official.value = o.data.data
     sales.value = s.data.data
-    link.value = l.data.data
     // Sans onglet demandé : le premier sujet à régler
     if (!TABS.some((t) => t.key === tab.value)) {
       const first = summary.value.find((r) => r.todo)
@@ -57,19 +54,16 @@ const activeMessages = computed(() => {
 
 // Résumé : une ligne par sujet, au style de « À faire maintenant » de l'accueil
 const summary = computed(() => {
-  if (!official.value || !sales.value || !link.value) return []
+  if (!official.value || !sales.value) return []
   const a = official.value.account
   const pending = a ? Object.values(a.template_status ?? {}).filter((s) => s === 'PENDING').length : 0
-  const l = link.value
   const c = sales.value.catalog
   const auto = sales.value.auto_replies
   return [
     {
       key: 'conversations', icon: 'telephone', label: 'Conversations',
-      // Sans liaison par QR code (non autorisée par la console) : les conversations passent par le numéro officiel
-      ...(!l.enabled ? (a ? { ok: true, state: 'Par votre numéro officiel' } : { todo: true, state: 'Connectez votre numéro officiel', to: 'messages' })
-        : l.status === 'connected' ? { ok: true, state: `Relié au ${phoneDisplay(l.phone)}` }
-        : l.status === 'pending' ? { todo: true, state: 'En attente du téléphone' } : { todo: true, state: 'Pas encore relié' }),
+      // Les conversations passent par le numéro officiel (plus de liaison par QR code sur cette page)
+      ...(a ? { ok: true, state: `Par votre numéro officiel${a.display_phone ? ` ${a.display_phone}` : ''}` } : { todo: true, state: 'Connectez votre numéro officiel', to: 'messages' }),
     },
     {
       key: 'messages', icon: 'cloche', label: 'Messages automatiques',
@@ -99,7 +93,7 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
 </script>
 
 <template>
-  <div v-if="official && sales && link" class="space-y-5 pb-24 sm:pb-0">
+  <div v-if="official && sales" class="space-y-5 pb-24 sm:pb-0">
     <!-- Résumé : ce qui marche, ce qui manque -->
     <section class="card p-4 sm:p-5">
       <div class="flex items-center gap-3">
@@ -129,9 +123,8 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
               :class="tab === t.key ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-600 hover:text-slate-900'" @click="tab = t.key">{{ t.label }}</button>
     </nav>
 
-    <WhatsAppLink v-if="tab === 'conversations' && link.enabled" @change="link = $event" />
-    <!-- Liaison par QR code non autorisée : les conversations arrivent par le numéro officiel -->
-    <section v-else-if="tab === 'conversations'" class="card space-y-4 p-4 sm:p-5">
+    <!-- Conversations : par le numéro officiel -->
+    <section v-if="tab === 'conversations'" class="card space-y-4 p-4 sm:p-5">
       <div class="flex items-start gap-3">
         <ColorIcon name="telephone" :size="44" />
         <div class="min-w-0 flex-1">

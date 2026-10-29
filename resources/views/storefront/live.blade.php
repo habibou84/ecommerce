@@ -12,32 +12,38 @@
                 <a href="/" class="btn-outline mt-6 inline-flex">Voir la boutique</a>
             </div>
         @else
-            <p class="flex items-center gap-2 text-sm font-semibold text-red-600"><span class="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-600"></span>En direct maintenant</p>
-            <h1 class="mt-1 text-2xl font-bold">{{ $live['title'] }}</h1>
-            <p class="mt-1 text-slate-600">Touchez « Je prends » sur chaque article qui vous plaît (choisissez le nombre de pièces), puis « Réserver » : une seule commande pour tout.</p>
+            {{-- En direct : bandeau, lien pour revenir regarder le live --}}
+            <section class="overflow-hidden rounded-3xl bg-gradient-to-br from-orange-800 via-orange-600 to-orange-400 p-5 text-white">
+                <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><span class="h-2 w-2 animate-pulse rounded-full bg-white"></span>EN DIRECT</span>
+                <h1 class="mt-2 text-2xl font-extrabold">{{ $live['title'] }}</h1>
+                <p class="mt-1 text-sm text-white/90">Touchez « Je prends », puis « Réserver » : une seule commande pour tout.</p>
+                @if ($live['stream_url'])
+                    <a href="{{ $live['stream_url'] }}" target="_blank" rel="noopener nofollow" class="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-white py-3 font-extrabold text-orange-700">▶ Regarder le live</a>
+                @endif
+            </section>
 
             <script type="application/json" id="live-data">@json($live['items'], JSON_HEX_TAG)</script>
-            <ul class="mt-5 space-y-3 pb-24" data-live-items>
+            {{-- Grille de deux ; l'article montré en ce moment passe en premier, en grand --}}
+            <ul class="mt-5 grid grid-cols-2 gap-3 pb-28" data-live-items data-featured="{{ $live['featured_item_id'] }}">
                 @foreach ($live['items'] as $item)
-                    <li class="rounded-2xl border border-slate-200 bg-white p-3" data-live-item="{{ $item['id'] }}">
-                        {{-- Nom sur toute la largeur, bouton en dessous : rien ne dépasse, même sur un petit téléphone --}}
-                        <div class="flex gap-3">
+                    @php($featured = $item['id'] === $live['featured_item_id'])
+                    <li class="flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white {{ $featured ? 'col-span-2 border-2 border-orange-600 shadow-lg' : 'border-slate-200' }}" style="{{ $featured ? 'order:-1' : '' }}" data-live-item="{{ $item['id'] }}">
+                        <p class="px-3 pt-3 text-xs font-extrabold tracking-wide text-orange-700 uppercase" data-featured-label @if (! $featured) hidden @endif>● Présenté en ce moment</p>
+                        <div class="relative {{ $featured ? 'mx-3 mt-2 aspect-[4/3] overflow-hidden rounded-xl' : 'aspect-square' }} bg-slate-100" data-live-photo>
                             @if ($item['image'])
-                                <img src="{{ $item['image'] }}" alt="" class="h-16 w-16 shrink-0 rounded-xl object-cover" width="64" height="64" loading="lazy">
+                                <img src="{{ $item['image'] }}" alt="" class="h-full w-full object-cover" loading="lazy">
                             @else
-                                <span class="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-xl font-bold text-slate-500">{{ $item['code'] }}</span>
+                                <span class="grid h-full w-full place-items-center text-4xl font-black text-slate-300">{{ $item['code'] }}</span>
                             @endif
-                            <div class="min-w-0 flex-1">
-                                <p class="text-xs font-bold text-red-600">{{ $item['code'] }}</p>
-                                <p class="font-semibold leading-tight [overflow-wrap:anywhere]">{{ $item['title'] }}</p>
-                                <p class="mt-0.5 font-bold whitespace-nowrap">{{ \Jibiat\Socle\Money::format($item['price']) }}</p>
-                            </div>
+                            <span class="absolute top-2 left-2 rounded-lg bg-red-600 px-2 py-0.5 text-sm font-black text-white">{{ $item['code'] }}</span>
                         </div>
-                        <div class="mt-2 flex items-center justify-between gap-2">
-                            <p class="text-sm text-slate-500" data-remaining>{{ $item['remaining'] > 0 ? 'Il en reste '.$item['remaining'] : 'Épuisé · liste d\'attente' }}</p>
-                            <div class="shrink-0" data-pick="{{ $item['id'] }}">
-                                <button type="button" class="btn-store px-4" data-take>{{ $item['remaining'] > 0 ? 'Je prends' : 'M\'inscrire' }}</button>
-                                <div class="flex items-center gap-1" data-stepper hidden>
+                        <div class="flex flex-1 flex-col p-3">
+                            <p class="font-semibold leading-snug [overflow-wrap:anywhere]">{{ $item['title'] }}</p>
+                            <p class="mt-0.5 text-lg font-extrabold whitespace-nowrap">{{ \Jibiat\Socle\Money::format($item['price']) }}</p>
+                            <p class="mt-0.5 text-sm {{ $item['remaining'] === 1 ? 'font-bold text-orange-700' : 'text-slate-500' }}" data-remaining>{{ $item['remaining'] === 1 ? '🔥 Dernière pièce !' : ($item['remaining'] > 0 ? 'Il en reste '.$item['remaining'] : 'Épuisé · liste d\'attente') }}</p>
+                            <div class="mt-auto pt-3" data-pick="{{ $item['id'] }}">
+                                <button type="button" class="btn-store w-full px-3" data-take>{{ $item['remaining'] > 0 ? 'Je prends' : 'M\'inscrire en attente' }}</button>
+                                <div class="flex items-center justify-center gap-2" data-stepper hidden>
                                     <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-xl font-bold" data-minus aria-label="Une pièce de moins">−</button>
                                     <span class="w-7 text-center text-lg font-bold" data-qty aria-live="polite">1</span>
                                     <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-xl font-bold disabled:opacity-30" data-plus aria-label="Une pièce de plus">+</button>
