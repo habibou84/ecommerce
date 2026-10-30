@@ -5,6 +5,7 @@ import Alert from '../../../components/Alert.vue'
 import ColorIcon from '../../../components/ColorIcon.vue'
 import Icon from '../../../components/Icon.vue'
 import LiveLink from '../../../components/LiveLink.vue'
+import LiveScreensPanel from '../../../components/LiveScreensPanel.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
@@ -304,6 +305,9 @@ async function redo() {
         </label>
       </section>
       <LiveWhatsApp v-if="live.status === 'draft' && live.whatsapp === null" />
+
+      <!-- ═══ Live en images : écrans, mode présentation, cartes ═══ -->
+      <LiveScreensPanel v-if="live.status !== 'ended'" :live="live" @update="live = $event" />
 
       <!-- ═══ Articles ═══ -->
       <section v-if="live.status !== 'ended'" class="space-y-2">
