@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Place extends Model
 {
-    protected $fillable = ['country', 'parent_id', 'type', 'name', 'slug', 'aliases', 'latitude', 'longitude', 'store_id', 'is_active'];
+    protected $fillable = ['country', 'parent_id', 'type', 'name', 'slug', 'code', 'aliases', 'latitude', 'longitude', 'store_id', 'is_active'];
 
     protected function casts(): array
     {
@@ -36,6 +36,21 @@ class Place extends Model
     public function scopeVisibleTo(Builder $query, int $storeId): Builder
     {
         return $query->where('is_active', true)->where(fn ($q) => $q->whereNull('store_id')->orWhere('store_id', $storeId));
+    }
+
+    /**
+     * Code du lieu dans la liste commune (socle), ou à défaut celui du lieu qui le contient : un lieu ajouté par une
+     * boutique sous « Angré » donne le code d'Angré.
+     */
+    public function commonCode(): ?string
+    {
+        for ($place = $this, $depth = 0; $place !== null && $depth < 5; $place = $place->parent, $depth++) {
+            if ($place->code !== null) {
+                return $place->code;
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -21,6 +21,7 @@ use App\Support\Tenancy;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Jibiat\Socle\PhoneNumber;
+use Jibiat\Socle\Places\Places as CommonPlaces;
 
 /**
  * Entreprises de livraison de la boutique : connexion par clé API (Delivery App), zones et correspondance avec
@@ -182,13 +183,14 @@ class CarrierConnections
     }
 
     /**
-     * Lieu → zone de même nom chez le transporteur (« Angré » → « Angré », sinon sa commune « Cocody »).
-     * Les correspondances corrigées à la main sont gardées.
+     * Lieu → zone du transporteur : d'abord par le code du lieu (liste commune, même chez Jibiat), sinon par le nom
+     * (« Angré » → « Angré », sinon sa commune « Cocody »). Les correspondances corrigées à la main sont gardées.
      */
     public function autoMap(CarrierConnection $connection): void
     {
-        $zones = CarrierZone::where('connection_id', $connection->id)->where('is_active', true)->get()
-            ->groupBy(fn (CarrierZone $z) => PlaceMatcher::normalize($z->name));
+        $active = CarrierZone::where('connection_id', $connection->id)->where('is_active', true)->get();
+        $byCode = $active->whereNotNull('place_code')->keyBy('place_code');
+        $zones = $active->groupBy(fn (CarrierZone $z) => PlaceMatcher::normalize($z->name));
         $manual = CarrierZoneMapping::where('connection_id', $connection->id)->where('matched_by', 'manual')->pluck('place_id')->flip();
 
         $places = $this->places->forStore($connection->store);
@@ -196,12 +198,31 @@ class CarrierConnections
             if ($manual->has($place->id)) {
                 continue;
             }
-            $zone = $this->zoneFor($place, $zones);
+            $zone = $this->zoneByCode($place, $byCode) ?? $this->zoneFor($place, $zones);
             CarrierZoneMapping::updateOrCreate(
                 ['connection_id' => $connection->id, 'place_id' => $place->id],
                 ['carrier_zone_id' => $zone?->id, 'matched_by' => 'auto'],
             );
         }
+    }
+
+    /**
+     * Zone du transporteur qui porte le code du lieu, ou de la commune qui le contient.
+     *
+     * @param  Collection<string, CarrierZone>  $byCode
+     */
+    private function zoneByCode(Place $place, $byCode): ?CarrierZone
+    {
+        if ($byCode->isEmpty() || ($code = $place->commonCode()) === null) {
+            return null;
+        }
+        foreach (CommonPlaces::lineage($code) as $candidate) {
+            if ($byCode->has($candidate)) {
+                return $byCode->get($candidate);
+            }
+        }
+
+        return null;
     }
 
     /**
