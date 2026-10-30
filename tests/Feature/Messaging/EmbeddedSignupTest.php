@@ -24,6 +24,9 @@ class EmbeddedSignupTest extends TestCase
     /** @var list<string> */
     private array $failing = [];
 
+    /** @var array<string, string> numéro lu chez Meta */
+    private array $number = ['display_phone_number' => '+225 07 00 00 00 01', 'verified_name' => 'Awa Mode', 'id' => '5555'];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -42,7 +45,7 @@ class EmbeddedSignupTest extends TestCase
                 str_ends_with($path, '/subscribed_apps'), str_ends_with($path, '/register') => Http::response(['success' => true]),
                 str_ends_with($path, '/phone_numbers') => Http::response(['data' => [['id' => '5555']]]),
                 str_ends_with($path, '/message_templates') => Http::response(['id' => 't1', 'status' => 'PENDING', 'category' => 'UTILITY']),
-                str_ends_with($path, '/5555') => Http::response(['display_phone_number' => '+225 07 00 00 00 01', 'verified_name' => 'Awa Mode', 'id' => '5555']),
+                str_ends_with($path, '/5555') => Http::response($this->number),
                 default => Http::response(['error' => ['message' => 'inattendu '.$path]], 404),
             };
         });
@@ -86,6 +89,31 @@ class EmbeddedSignupTest extends TestCase
             $this->assertSame(count(CustomerMessenger::EVENTS[$event]['variables']), preg_match_all('/\{\{\d\}\}/', $t['body']), $event);
             $this->assertCount(preg_match_all('/\{\{\d\}\}/', $t['body']), $t['example'], $event);
         }
+    }
+
+    public function test_number_provided_by_meta_and_display_name_review_are_explained(): void
+    {
+        // Numéro américain choisi dans la fenêtre de Meta : averti dès la connexion
+        $this->number = ['display_phone_number' => '+1 711-565-6408', 'verified_name' => 'Awa Mode', 'name_status' => 'PENDING_REVIEW', 'id' => '5555'];
+        $warnings = $this->storeApi($this->store, 'POST', 'whatsapp/embedded', ['code' => 'c', 'waba_id' => '4444', 'phone_number_id' => '5555'])->assertOk()
+            ->assertJsonPath('data.account.name_status', 'PENDING_REVIEW')->assertJsonPath('data.account.meta_number', true)
+            ->json('data.warnings');
+        $this->assertStringContainsString('numéro américain fourni par Meta (+1 711-565-6408)', $warnings[0]);
+
+        // Erreur de Meta expliquée en français, avec le message d'origine gardé
+        $account = WhatsappAccount::sole();
+        $account->forceFill(['last_error' => 'WhatsApp : (#131037) WhatsApp provided number needs display name approval before message can be sent.'])->save();
+        $this->storeApi($this->store, 'GET', 'whatsapp')->assertJsonPath('data.account.error_help.title', 'Meta vérifie le nom affiché de votre numéro');
+
+        // Nom approuvé par Meta : relu au plus toutes les 10 minutes, l'erreur disparaît
+        $this->number = ['verified_name' => 'Awa Mode', 'name_status' => 'APPROVED', 'id' => '5555'];
+        $this->travel(11)->minutes();
+        $this->storeApi($this->store, 'GET', 'whatsapp')->assertJsonPath('data.account.name_status', 'APPROVED')
+            ->assertJsonPath('data.account.last_error', null)->assertJsonPath('data.account.error_help', null);
+
+        // Erreur inconnue : gardée telle quelle, sans explication ; un numéro ivoirien n'est pas « fourni par Meta »
+        $account->refresh()->forceFill(['last_error' => 'Meta : autre chose', 'display_phone' => '+225 07 00 00 00 01'])->save();
+        $this->storeApi($this->store, 'GET', 'whatsapp')->assertJsonPath('data.account.error_help', null)->assertJsonPath('data.account.meta_number', false);
     }
 
     public function test_coexistence_errors_and_missing_configuration(): void

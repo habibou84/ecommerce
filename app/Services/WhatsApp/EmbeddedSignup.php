@@ -44,7 +44,7 @@ class EmbeddedSignup
                 throw new RuntimeException('Aucun numéro trouvé sur ce compte WhatsApp.');
             }
             WhatsAppMetaApp::subscribe($this->cloud, $wabaId, $token);
-            $number = $this->cloud->graph('GET', $phoneNumberId, $token, ['fields' => 'display_phone_number,verified_name']);
+            $number = $this->cloud->graph('GET', $phoneNumberId, $token, ['fields' => 'display_phone_number,verified_name,name_status']);
         } catch (RuntimeException $e) {
             throw new BusinessRuleException('Connexion à WhatsApp impossible. '.$e->getMessage());
         }
@@ -67,6 +67,8 @@ class EmbeddedSignup
             'phone_number_id' => $phoneNumberId,
             'waba_id' => $wabaId,
             'display_phone' => mb_substr((string) ($number['display_phone_number'] ?? ''), 0, 20) ?: null,
+            'verified_name' => mb_substr((string) ($number['verified_name'] ?? ''), 0, 120) ?: null,
+            'name_status' => mb_substr((string) ($number['name_status'] ?? ''), 0, 30) ?: null,
             'access_token' => $token,
             'app_secret' => null,
             'two_step_pin' => $pin,
@@ -75,7 +77,12 @@ class EmbeddedSignup
             // Tout est automatique par défaut ; le rapport du jour reste au choix de chacun (Statistiques)
             'automations' => ($account->automations ?? []) + array_fill_keys(array_keys(CustomerMessenger::EVENTS), true),
         ])->save();
+        NumberStatus::checked($account);
 
+        // Numéro américain proposé par Meta dans la fenêtre : rien ne part avant l'approbation du nom
+        if (NumberStatus::metaProvided($account->display_phone)) {
+            $warnings[] = 'Vous avez choisi un numéro américain fourni par Meta ('.$account->display_phone.'). Aucun message ne part avant que Meta approuve son nom, et vos clients verront un numéro étranger : reconnectez plutôt votre propre numéro (+225).';
+        }
         $warnings = [...$warnings, ...$this->templates->install($account)];
 
         return ['account' => $account->fresh(), 'warnings' => $warnings];
