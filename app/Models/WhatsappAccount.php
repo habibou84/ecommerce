@@ -32,7 +32,8 @@ class WhatsappAccount extends Model
 
     public function isEmbedded(): bool
     {
-        return $this->connection === 'embedded';
+        // « connection » est aussi le nom de la connexion à la base dans Eloquent : lire la colonne
+        return $this->getAttribute('connection') === 'embedded';
     }
 
     public function automates(string $event): bool

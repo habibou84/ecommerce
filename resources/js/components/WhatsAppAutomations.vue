@@ -41,6 +41,7 @@ const MESSAGES = {
   order_confirmation: ['Demande de confirmation', 'Dès qu\'une commande est à confirmer'],
   courier_on_the_way: ['Livreur en route', 'Quand votre livreur part livrer'],
   order_shipped: ['Commande en route', 'Quand la commande est expédiée'],
+  order_expedited: ['Colis expédié', 'Au dépôt à la gare, pour les autres villes'],
   order_delivered: ['Commande livrée', 'Quand la commande est livrée'],
   review_request: ['Demande d\'avis', '24 h après la livraison'],
   payment_link: ['Lien de paiement', 'Quand vous envoyez un lien de paiement'],

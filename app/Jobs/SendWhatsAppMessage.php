@@ -42,7 +42,7 @@ class SendWhatsAppMessage implements ShouldQueue
 
         try {
             $id = $this->text !== null
-                ? $cloud->sendButtons($account, $message->to_phone, $this->text, $this->buttons)
+                ? ($this->buttons === [] ? $cloud->sendText($account, $message->to_phone, $this->text) : $cloud->sendButtons($account, $message->to_phone, $this->text, $this->buttons))
                 : $cloud->sendTemplate($account, $message->to_phone, (string) ($account->templates[$message->event] ?? ''), $this->params, $this->buttons);
             $message->forceFill(['status' => 'sent', 'provider_message_id' => $id, 'sent_at' => now(), 'error' => null])->save();
             // Un message accepté par Meta : l'erreur précédente est réglée
