@@ -10,6 +10,7 @@ use App\Services\Billing\PlanLimits;
 use App\Services\Storefront\CartService;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Services\WhatsApp\EmbeddedSignup;
+use App\Services\WhatsApp\NumberStatus;
 use App\Services\WhatsApp\TemplateLibrary;
 use App\Services\WhatsApp\WhatsAppCloud;
 use App\Services\WhatsApp\WhatsAppMetaApp;
@@ -30,6 +31,9 @@ class WhatsAppController extends Controller
     public function show(): JsonResponse
     {
         $account = WhatsappAccount::first();
+        if ($account !== null) {
+            app(NumberStatus::class)->refresh($account);
+        }
 
         return response()->json(['data' => [
             'account' => $account ? [
@@ -39,6 +43,10 @@ class WhatsAppController extends Controller
                 'display_phone' => $account->display_phone,
                 'status' => $account->status,
                 'last_error' => $account->last_error,
+                'error_help' => NumberStatus::explain($account->last_error),
+                'verified_name' => $account->verified_name,
+                'name_status' => $account->name_status,
+                'meta_number' => NumberStatus::metaProvided($account->display_phone, $account->last_error),
                 'templates' => (object) ($account->templates ?? []),
                 'template_status' => (object) ($account->template_status ?? []),
                 'automations' => (object) ($account->automations ?? []),
@@ -51,7 +59,7 @@ class WhatsAppController extends Controller
             'embedded' => EmbeddedSignup::enabled() ? ['app_id' => WhatsAppMetaApp::id(), 'config_id' => WhatsAppMetaApp::configId(), 'graph_version' => WhatsAppCloud::VERSION] : null,
             'messages' => OutboundMessage::latest('id')->limit(30)->get()->map(fn (OutboundMessage $m) => [
                 'id' => $m->id, 'event' => $m->event, 'to' => PhoneNumber::display($m->to_phone), 'status' => $m->status, 'error' => $m->error,
-                'related_type' => $m->related_type, 'related_id' => $m->related_id, 'created_at' => $m->created_at->toIso8601String(),
+                'error_help' => NumberStatus::explain($m->error)['title'] ?? null, 'related_type' => $m->related_type, 'related_id' => $m->related_id, 'created_at' => $m->created_at->toIso8601String(),
             ]),
         ]]);
     }

@@ -14,7 +14,7 @@ const errors = ref({})
 const busy = ref(false)
 const queued = ref(false) // dernière étape gardée sur le téléphone, pas encore envoyée
 const panel = ref(null) // 'delivered' | 'failed'
-const form = reactive({ code: '', payment_method: 'cash', collected_amount: 0, reason: '', rescheduled_to: '', photo: null })
+const form = reactive({ code: '', payment_method: 'cash', collected_amount: 0, reason: '', rescheduled_to: '', photo: null, company: '', fee: '', ticket: '', advanced: true })
 
 const REASONS = ['Client injoignable', 'Client absent', 'Adresse introuvable', 'Refus du client', 'Le client reporte']
 const METHODS = [['cash', 'Espèces'], ['wave', 'Wave'], ['orange_money', 'Orange Money'], ['mtn_momo', 'MTN MoMo'], ['moov_money', 'Moov Money']]
@@ -89,6 +89,8 @@ const primary = computed(() => {
   // Nouvelle mission : d'abord accepter ou refuser (le bouton fixe cacherait ce choix)
   if (mission.value.acceptance === 'pending' && mission.value.status === 'awaiting_pickup') return null
   if (can('in_transit')) return { label: '📦 J\'ai récupéré le colis', run: () => step('in_transit') }
+  // Expédition : du colis récupéré au dépôt à la gare, sans « je pars livrer » (le client n'attend pas à sa porte)
+  if (mission.value.expedition && can('delivered')) return { label: '🚉 Déposé à la gare', run: () => (panel.value = 'delivered') }
   if (can('out_for_delivery')) return { label: '🛵 Je pars livrer', run: () => step('out_for_delivery') }
   if (can('delivered')) return { label: '✓ Livré', run: () => (panel.value = 'delivered') }
   return null
@@ -123,7 +125,9 @@ async function step(status) {
   errors.value = {}
   queued.value = false
   const fields = {}
-  if (status === 'delivered') {
+  if (status === 'delivered' && mission.value.expedition) {
+    Object.assign(fields, { expedition_company: form.company, expedition_fee: form.fee === '' ? '' : Number(form.fee), expedition_ticket: form.ticket, expedition_advanced: form.advanced ? 1 : 0 })
+  } else if (status === 'delivered') {
     if (mission.value.requires_code) fields.code = form.code
     fields.payment_method = form.payment_method
     fields.collected_amount = mission.value.amount_due > 0 ? form.collected_amount : 0
@@ -182,6 +186,8 @@ async function step(status) {
     </Alert>
     <Alert v-else-if="mission.customer_response === 'available'" tone="success">Le client vous attend ✓</Alert>
 
+    <Alert v-if="mission.expedition" tone="info">📦 Expédition vers <strong>{{ mission.expedition.city }}</strong> : déposez le colis à la gare, puis notez la compagnie, les frais payés et le ticket.</Alert>
+
     <section class="space-y-2 rounded-xl bg-white p-4 shadow-sm">
       <p class="font-semibold">{{ mission.customer_name || 'Client' }}</p>
       <p class="text-sm">{{ mission.place }}<template v-if="mission.address"> · {{ mission.address }}</template></p>
@@ -237,7 +243,39 @@ async function step(status) {
       <button v-if="can('returning')" class="btn-secondary w-full py-3" :disabled="busy" @click="step('returning')">↩ Je rapporte le colis au marchand</button>
     </div>
 
-    <form v-if="panel === 'delivered'" class="space-y-3 rounded-xl bg-white p-4 shadow-sm" @submit.prevent="step('delivered')">
+    <!-- Expédition : dépôt à la gare -->
+    <form v-if="panel === 'delivered' && mission.expedition" class="space-y-3 rounded-xl bg-white p-4 shadow-sm" @submit.prevent="step('delivered')">
+      <h2 class="font-semibold">Dépôt à la gare · {{ mission.expedition.city }}</h2>
+      <div>
+        <p class="label">Compagnie de transport</p>
+        <div class="flex flex-wrap gap-2">
+          <button v-for="c in mission.expedition.companies" :key="c" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="form.company === c ? 'border-emerald-600 bg-emerald-50 font-medium' : 'border-slate-200'" @click="form.company = c">{{ c }}</button>
+        </div>
+        <input v-model="form.company" class="input mt-2" placeholder="Ou écrivez le nom" maxlength="60" required />
+        <p v-if="errors.expedition_company" class="mt-1 text-sm text-red-600">{{ errors.expedition_company }}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label for="exp-fee" class="label">Frais payés (F)</label>
+          <input id="exp-fee" v-model="form.fee" type="number" min="0" inputmode="numeric" class="input" required />
+        </div>
+        <div>
+          <label for="exp-ticket" class="label">N° du ticket</label>
+          <input id="exp-ticket" v-model="form.ticket" class="input" maxlength="60" />
+        </div>
+      </div>
+      <label class="flex items-start gap-2 text-sm">
+        <input v-model="form.advanced" type="checkbox" class="mt-0.5 h-4 w-4 accent-emerald-700" />
+        <span>J'ai payé les frais de ma poche <span class="block text-xs text-slate-500">Ils vous seront remboursés avec votre paie.</span></span>
+      </label>
+      <div>
+        <label for="exp-photo" class="label">Photo du reçu</label>
+        <input id="exp-photo" type="file" accept="image/*" capture="environment" class="text-sm" @change="form.photo = $event.target.files[0]" />
+      </div>
+      <button class="btn-brand w-full py-3" :disabled="busy">{{ busy ? 'Envoi…' : 'Confirmer le dépôt' }}</button>
+    </form>
+
+    <form v-else-if="panel === 'delivered'" class="space-y-3 rounded-xl bg-white p-4 shadow-sm" @submit.prevent="step('delivered')">
       <h2 class="font-semibold">Livraison</h2>
       <div v-if="mission.requires_code">
         <p class="label">Code donné par le client</p>

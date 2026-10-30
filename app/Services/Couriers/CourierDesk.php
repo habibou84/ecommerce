@@ -8,6 +8,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\Courier;
 use App\Models\CourierAssignment;
 use App\Models\Shipment;
+use App\Services\Orders\Expeditions;
 use App\Services\Shipping\Drivers\RemoteShipment;
 use App\Services\Shipping\ShipmentDesk;
 use App\Services\WhatsApp\CustomerMessenger;
@@ -56,14 +57,26 @@ class CourierDesk
         }
 
         $store = $shipment->store;
+        // Expédition : « livrée » veut dire déposée à la gare, avec la compagnie et ses frais
+        $expedition = $step === 'delivered' && $shipment->order->isExpedition();
+        if ($expedition && (blank($data['expedition_company'] ?? null) || ! isset($data['expedition_fee']))) {
+            throw new BusinessRuleException('Indiquez la compagnie de transport et les frais d\'expédition payés.', 'expedition_company');
+        }
         $photoPath = $photo?->store("proofs/{$store->id}", 'local');
-        $remote = match ($step) {
-            'delivered' => $this->delivered($shipment, $data, $photoPath),
-            'failed' => $this->failed($shipment, $data, $photoPath),
+        $remote = match (true) {
+            $expedition => new RemoteShipment(trackingCode: '', status: ShipmentStatus::Delivered, rawStatus: 'delivered', collected: 0, proofPhotoPath: $photoPath, occurredAt: $data['occurred_at'] ?? null),
+            $step === 'delivered' => $this->delivered($shipment, $data, $photoPath),
+            $step === 'failed' => $this->failed($shipment, $data, $photoPath),
             default => new RemoteShipment(trackingCode: '', status: ShipmentStatus::from($step), rawStatus: $step, occurredAt: $data['occurred_at'] ?? null),
         };
 
         $this->shipments->apply($shipment, $remote, 'courier', $data['note'] ?? ($step === 'failed' ? $data['reason'] : null), $courier->user);
+        if ($expedition) {
+            app(Expeditions::class)->record($shipment->order->fresh(), [
+                'company' => (string) $data['expedition_company'], 'fee' => (int) $data['expedition_fee'],
+                'ticket' => $data['expedition_ticket'] ?? null, 'advanced' => (bool) ($data['expedition_advanced'] ?? false),
+            ], $photoPath, $courier->user, $courier);
+        }
         // Colis récupéré : la mission est acceptée de fait
         if ($step === 'in_transit') {
             CourierAssignment::forStore($shipment->store_id)->where('shipment_id', $shipment->id)->where('courier_id', $courier->id)
@@ -74,7 +87,7 @@ class CourierDesk
         // Le livreur part : le client est prévenu (nom et numéro du livreur), un échec d'envoi ne bloque pas l'étape.
         // Étape faite sans réseau et envoyée bien plus tard : le message arriverait trop tard, il ne part pas.
         $late = isset($data['occurred_at']) && Carbon::parse($data['occurred_at'])->lt(now()->subMinutes(15));
-        if ($step === 'out_for_delivery' && ! $late) {
+        if ($step === 'out_for_delivery' && ! $late && ! $shipment->order->isExpedition()) {
             try {
                 app(CustomerMessenger::class)->courierOnTheWay($shipment);
             } catch (Throwable $e) {

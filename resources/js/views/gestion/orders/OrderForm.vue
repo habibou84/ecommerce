@@ -7,6 +7,7 @@ import Icon from '../../../components/Icon.vue'
 import Modal from '../../../components/Modal.vue'
 import DelivererPicker from '../../../components/DelivererPicker.vue'
 import DeliveryPlacePicker from '../../../components/DeliveryPlacePicker.vue'
+import PlaceTapPicker from '../../../components/PlaceTapPicker.vue'
 import ProductPicker from '../../../components/ProductPicker.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
@@ -33,12 +34,17 @@ const form = reactive({
   customer_note: '',
   internal_note: '',
   confirmed: false,
+  // Expédition vers une autre ville : qui paie la compagnie de transport, paiement avant de partir à la gare
+  expedition_payer: 'arrival',
+  expedition_prepay: null,
 })
 const place = ref(null)
 const items = ref([])
 const manualFee = ref(false)
 const shippingFee = ref('')
 const zones = ref([])
+// Prix de livraison : communes et quartiers à toucher, ville de la boutique, expéditions
+const rates = ref(null)
 
 const paste = ref('')
 const parsing = ref(false)
@@ -56,6 +62,7 @@ const loading = ref(editing.value)
 const conversation = ref(null)
 
 onMounted(async () => {
+  http.get('/delivery-rates').then(({ data }) => (rates.value = data.data)).catch(() => {})
   zones.value = (await http.get('/delivery-zones')).data.data
   if (editing.value) {
     const { data } = await http.get(`/orders/${props.id}`)
@@ -66,6 +73,7 @@ onMounted(async () => {
       shipping_phone2: o.shipping_phone2 ?? '', shipping_address: joinAddress(o.shipping_address, o.shipping_landmark), shipping_landmark: '',
       scheduled_date: o.scheduled_date ?? '', discount_total: o.discount_total, discount_code: o.discount_code ?? '', deposit_required: o.deposit_required ?? '',
       customer_note: o.customer_note ?? '', internal_note: o.internal_note ?? '',
+      expedition_payer: o.expedition?.payer ?? 'arrival', expedition_prepay: o.expedition?.prepay ?? null,
     })
     place.value = o.shipping_place_id ? { id: o.shipping_place_id, label: o.shipping_place_label, ancestor_ids: [] } : null
     // Prix convenus à la commande : gardés tels quels (pas de recalcul par les promotions du moment)
@@ -141,7 +149,8 @@ const zone = computed(() => {
     const found = zones.value.find((z) => z.is_active && z.places.some((p) => p.id === id))
     if (found) return found
   }
-  return null
+  // Lieu sans sa commune connue ici (adresse reprise d'un client) : la zone trouvée par le serveur
+  return options.value?.place?.id === place.value.id ? options.value.zone : null
 })
 // Qui livre : un de mes livreurs ou une entreprise de livraison, choisi dès la saisie. Les zones et tarifs de
 // l'entreprise sont lus pour le quartier : les frais affichés sont ceux qui seront enregistrés.
@@ -176,11 +185,17 @@ watch(chosen, () => {
   if (editing.value && ready.value) manualFee.value = false // nouveau choix : frais recalculés
 })
 const freeShipping = computed(() => !!(promo.value?.free_shipping && !promo.value.error))
+// Autre ville que celle de la boutique : expédition (livraison jusqu'à la gare, puis compagnie de transport)
+const expedition = computed(() => (form.delivery_method === 'delivery' && place.value && options.value?.place?.id === place.value.id ? options.value.expedition : null))
+watch(expedition, (e) => {
+  if (e && form.expedition_prepay === null) form.expedition_prepay = e.prepay
+})
 const fee = computed(() => {
   if (form.delivery_method === 'pickup') return 0
   if (manualFee.value) return Number(shippingFee.value || 0)
   if (freeShipping.value) return 0
   if (carrierFee.value !== null) return carrierFee.value
+  if (expedition.value) return expedition.value.fee ?? 0
   if (!zone.value) return 0
   return zone.value.free_above !== null && subtotal.value >= zone.value.free_above ? 0 : zone.value.fee
 })
@@ -189,6 +204,7 @@ const feeSource = computed(() => {
   if (manualFee.value) return 'saisis à la main'
   if (freeShipping.value) return 'offerts par le code promo'
   if (carrierFee.value !== null) return `tarif ${chosenCarrier.value.name}${chosenCarrier.value.zone ? `, zone ${chosenCarrier.value.zone}` : ''}`
+  if (expedition.value) return expedition.value.fee !== null ? 'livraison jusqu\'à la gare' : 'livraison jusqu\'à la gare : indiquez le prix'
   if (zone.value) return `votre zone ${zone.value.name}${zone.value.eta_label ? ` · ${zone.value.eta_label}` : ''}`
   return place.value ? 'hors de vos zones : indiquez les frais' : ''
 })
@@ -196,6 +212,62 @@ function editFee() {
   shippingFee.value = fee.value
   manualFee.value = true
 }
+
+// Prix tapé à la main : proposé à retenir pour la suite (commune, quartier ou toutes les expéditions)
+const askRemember = ref(false)
+const remembered = ref(null) // { text, undo }
+const autoFee = computed(() => {
+  if (carrierFee.value !== null) return carrierFee.value
+  if (expedition.value) return expedition.value.fee
+  return zone.value?.fee ?? null
+})
+const rememberChoices = computed(() => {
+  const p = options.value?.place
+  if (!askRemember.value || !manualFee.value || !canPrice.value || !p || carrierFee.value !== null || p.id !== place.value?.id) return []
+  if (shippingFee.value === '' || Number(shippingFee.value) === autoFee.value) return []
+  if (expedition.value) return [{ key: 'expedition', label: 'Pour toutes les expéditions', hint: 'Livraison jusqu\'à la gare, quelle que soit la ville' }]
+  if (p.commune) {
+    return [
+      { key: 'commune', id: p.commune.id, name: p.commune.name, label: `Pour tout ${p.commune.name}`, hint: `Toutes les prochaines commandes à ${p.commune.name}` },
+      { key: 'place', id: p.id, name: p.name, label: `Seulement pour ${p.name}`, hint: autoFee.value !== null ? `Le reste de ${p.commune.name} reste à ${money(autoFee.value)}` : '' },
+    ]
+  }
+  return [{ key: 'place', id: p.id, name: p.name, label: `Pour ${p.name}`, hint: `Toutes les prochaines commandes à ${p.name}` }]
+})
+async function refreshRates() {
+  const [r, z] = await Promise.all([http.get('/delivery-rates'), http.get('/delivery-zones')])
+  rates.value = r.data.data
+  zones.value = z.data.data
+  await loadOptions()
+}
+async function remember(choice) {
+  const amount = Number(shippingFee.value || 0)
+  const before = { fee: autoFee.value, learned: !!(zone.value && choice.name && zone.value.name === choice.name), expedition: rates.value?.expedition?.fee ?? null }
+  try {
+    await http.post('/delivery-rates/remember', choice.key === 'expedition' ? { expedition: true, fee: amount } : { place_id: choice.id, fee: amount })
+    await refreshRates()
+    manualFee.value = false
+    askRemember.value = false
+    remembered.value = {
+      text: `✓ ${money(amount)} retenu ${choice.key === 'expedition' ? 'pour les expéditions' : `pour ${choice.name}`}.`,
+      undo: async () => {
+        if (choice.key === 'expedition') await http.put('/delivery-rates', { expedition_fee: before.expedition })
+        else if (before.learned && before.fee !== null) await http.post('/delivery-rates/remember', { place_id: choice.id, fee: before.fee })
+        else await http.delete(`/delivery-rates/places/${choice.id}`)
+        remembered.value = null
+        await refreshRates()
+      },
+    }
+    setTimeout(() => (remembered.value = null), 8000)
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+const PAYERS = [
+  ['arrival', 'Le client, à l\'arrivée', 'Il paie la compagnie en récupérant son colis'],
+  ['before', 'Le client, avant le départ', 'Ajoutés à la commande quand le livreur les connaît'],
+  ['store', 'La boutique (offerts)', 'Comptés comme une dépense'],
+]
 
 // Zones et tarifs d'une entreprise de livraison
 const tariffs = ref(null)
@@ -263,7 +335,8 @@ const placeHint = computed(() => {
     const parts = [c.zone ? `Zone ${c.zone} de ${c.name}` : c.name, c.fee !== null ? money(c.fee) : 'tarif non renseigné', c.day_message].filter(Boolean)
     return { tone: 'text-emerald-800', text: `✓ ${parts.join(' · ')}` }
   }
-  if (zone.value) return { tone: 'text-emerald-800', text: `✓ Votre zone ${zone.value.name} · ${money(zone.value.fee)}${zone.value.eta_label ? ` · ${zone.value.eta_label}` : ''}` }
+  if (expedition.value) return { tone: 'text-sky-800', text: `📦 Expédition vers ${expedition.value.city} : livraison jusqu'à la gare, puis compagnie de transport.` }
+  if (zone.value) return { tone: 'text-emerald-800', text: `✓ ${zone.value.name} · ${money(zone.value.fee)}${zone.value.eta_label ? ` · ${zone.value.eta_label}` : ''}` }
   return { tone: 'text-amber-800', text: 'Hors de vos zones de livraison : indiquez les frais.' }
 })
 // Champ touché : ramené en haut de l'écran, avec son libellé, sous l'en-tête (le clavier du téléphone ne le cache plus
@@ -295,6 +368,10 @@ function bringToTop(event) {
       if (Math.abs(delta) > 8) window.scrollBy({ top: delta })
     }, 900),
   ]
+}
+
+function focusPlaceSearch() {
+  document.getElementById('place')?.focus()
 }
 
 function removePhone2() {
@@ -509,6 +586,10 @@ async function save() {
       items: items.value.map((i) => ({ variant_id: i.variant_id ?? null, title: i.variant_id ? undefined : i.title, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
     }
     if (form.discount_code) delete payload.discount_total
+    if (expedition.value) {
+      payload.expedition_payer = form.expedition_payer
+      payload.expedition_prepay = !!form.expedition_prepay
+    }
     if (manualFee.value && form.delivery_method === 'delivery') payload.shipping_fee = Number(shippingFee.value || 0)
     else if (carrierFee.value !== null && form.delivery_method === 'delivery') payload.shipping_fee = fee.value
     // Choix de qui livre : seulement si la liste a pu être lue (sinon on garde celui déjà enregistré)
@@ -678,6 +759,7 @@ async function save() {
             <Field id="place" label="Quartier / commune" large :error="errors.shipping_place_id">
               <DeliveryPlacePicker id="place" v-model="place" :carrier-id="placeCarrier?.id ?? null" :carrier-name="placeCarrier?.name ?? ''" @change-deliverer="pickerOpen = true" />
               <p v-if="placeHint && !errors.shipping_place_id" class="mt-1.5 text-sm" :class="placeHint.tone">{{ placeHint.text }}</p>
+              <PlaceTapPicker v-if="!place && !placeCarrier && rates?.home" class="mt-3" :rates="rates" :show-fees="canPrice" @pick="place = $event" @search="focusPlaceSearch" />
             </Field>
 
             <Field id="address" label="Adresse précise et point de repère" large>
@@ -713,16 +795,44 @@ async function save() {
               <Icon name="truck" :size="20" class="text-slate-500" />
               <span class="font-semibold">Frais de livraison</span>
               <template v-if="manualFee">
-                <input v-model="shippingFee" class="input w-28 py-1 text-right" type="number" min="0" aria-label="Frais de livraison" />
+                <input v-model="shippingFee" class="input w-28 py-1 text-right" type="number" min="0" aria-label="Frais de livraison" @input="askRemember = true" />
                 <span>F</span>
                 <button type="button" class="font-medium text-emerald-700 hover:underline" @click="manualFee = false">Recalculer</button>
               </template>
               <template v-else>
-                <span class="font-semibold tabular-nums">{{ fee ? money(fee) : 'Offerts' }}</span>
+                <span class="font-semibold tabular-nums">{{ fee ? money(fee) : expedition && expedition.fee === null ? 'À indiquer' : 'Offerts' }}</span>
                 <span v-if="feeSource" class="text-slate-500">· {{ feeSource }}</span>
                 <span v-if="optionsLoading" class="text-slate-400">…</span>
                 <button v-if="canPrice" type="button" class="ml-auto font-medium text-emerald-700 hover:underline" @click="editFee">Modifier</button>
               </template>
+            </div>
+            <!-- Prix tapé : le retenir pour la suite -->
+            <div v-if="rememberChoices.length" class="rounded-xl border border-amber-300 bg-amber-50 p-3">
+              <p class="mb-2 font-bold text-amber-900">Retenir {{ money(Number(shippingFee || 0)) }} pour la suite ?</p>
+              <div class="flex flex-col gap-1.5">
+                <button v-for="(c, i) in rememberChoices" :key="c.key" type="button" class="rounded-lg border px-3 py-2 text-left font-semibold" :class="i === 0 ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-amber-200 bg-white text-slate-700'" @click="remember(c)">
+                  {{ i === 0 ? '✓ ' : '' }}{{ c.label }}<span v-if="c.hint" class="block text-xs font-normal opacity-80">{{ c.hint }}</span>
+                </button>
+                <button type="button" class="rounded-lg border border-amber-200 bg-white px-3 py-2 text-left font-semibold text-slate-700" @click="askRemember = false">Juste cette fois</button>
+              </div>
+            </div>
+            <p v-if="remembered" class="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              {{ remembered.text }}
+              <button type="button" class="font-bold underline" @click="remembered.undo()">Annuler</button>
+            </p>
+
+            <!-- Expédition : qui paie la compagnie, paiement avant de partir à la gare -->
+            <div v-if="expedition" class="space-y-2 rounded-xl border border-sky-200 bg-sky-50/60 p-3">
+              <p class="font-semibold text-sky-900">Frais d'expédition vers {{ expedition.city }} : à préciser au dépôt</p>
+              <p class="text-sm text-slate-600">Qui les paie ?</p>
+              <label v-for="[value, label, hint] in PAYERS" :key="value" class="flex items-start gap-2 rounded-lg bg-white px-3 py-2">
+                <input v-model="form.expedition_payer" type="radio" :value="value" class="mt-1 h-4 w-4 accent-emerald-700" />
+                <span><span class="block font-medium">{{ label }}</span><span class="block text-xs text-slate-500">{{ hint }}</span></span>
+              </label>
+              <label class="flex items-start gap-2 pt-1">
+                <input v-model="form.expedition_prepay" type="checkbox" class="mt-1 h-4 w-4 accent-emerald-700" />
+                <span><span class="block font-medium">Paiement avant expédition</span><span class="block text-xs text-slate-500">Le livreur ne part à la gare qu'une fois les articles et la livraison payés.</span></span>
+              </label>
             </div>
           </template>
           <p v-else class="text-base text-slate-600">Le client vient chercher sa commande : pas de frais de livraison.</p>

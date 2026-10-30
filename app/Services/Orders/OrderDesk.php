@@ -30,6 +30,7 @@ use App\Services\Accounts\TeamNotifier;
 use App\Services\Billing\PlanLimits;
 use App\Services\Customers\CustomerBook;
 use App\Services\Customers\Loyalty;
+use App\Services\Places\DeliveryRates;
 use App\Services\Places\Places;
 use App\Services\Promotions\Pricing;
 use App\Services\Stock\StockKeeper;
@@ -99,6 +100,7 @@ class OrderDesk
                 'created_by' => $actor?->id,
             ]);
             $this->applyPlace($store, $order);
+            $this->applyExpedition($order, $data);
             $this->applyPlannedDelivery($order, $data);
             $this->ensureDeliveryDate($store, $order);
             // Fidélité : points utilisés et réduction de parrainage (avant le calcul du total)
@@ -158,6 +160,8 @@ class OrderDesk
             if ($placeChanged) {
                 $this->applyPlace($order->store, $order);
             }
+            $this->applyExpedition($order, $data);
+            $placeChanged = $placeChanged || $order->isDirty(['expedition_payer']);
             if (array_key_exists('planned_courier_id', $data) || array_key_exists('planned_carrier_connection_id', $data) || $order->delivery_method === 'pickup') {
                 $this->applyPlannedDelivery($order, $data);
             }
@@ -566,6 +570,9 @@ class OrderDesk
 
         if ($shippingFee !== null) {
             $order->shipping_fee = $shippingFee;
+        } elseif ($refreshFee && $order->isExpedition()) {
+            // Expédition : livraison jusqu'à la gare retenue par la boutique (les frais de la compagnie viennent au dépôt)
+            $order->shipping_fee = $freeShipping ? 0 : ($order->store->expedition_fee ?? $order->zone?->fee ?? 0);
         } elseif ($refreshFee) {
             $order->shipping_fee = $order->delivery_method === 'pickup' || $freeShipping ? 0 : ($order->zone?->feeFor($order->subtotal, $order->store->free_shipping_above) ?? 0);
         }
@@ -574,7 +581,8 @@ class OrderDesk
         // Réductions de fidélité, dans la limite de ce qui reste à payer pour les articles
         $order->referral_discount = min((int) $order->referral_discount, $order->subtotal - $order->discount_total);
         $order->points_discount = min((int) $order->points_discount, $order->subtotal - $order->discount_total - $order->referral_discount);
-        $order->total = $order->subtotal - $order->discount_total - $order->referral_discount - $order->points_discount + $order->shipping_fee;
+        $order->total = $order->subtotal - $order->discount_total - $order->referral_discount - $order->points_discount + $order->shipping_fee
+            + ($order->isExpedition() && $order->expedition_payer === 'before' ? (int) $order->expedition_fee : 0);
     }
 
     /**
@@ -612,7 +620,7 @@ class OrderDesk
             throw new BusinessRuleException('Choisissez un de vos points de retrait.', 'pickup_location_id');
         }
         if ($order->delivery_method === 'pickup') {
-            $order->forceFill(['delivery_zone_id' => null]);
+            $order->forceFill(['delivery_zone_id' => null, 'expedition_city_id' => null, 'expedition_payer' => null, 'expedition_prepay' => false]);
 
             return;
         }
@@ -624,6 +632,37 @@ class OrderDesk
             'delivery_zone_id' => $this->places->zoneFor($store, $place)?->id,
         ]);
         $order->unsetRelation('zone');
+
+        // Autre ville que celle de la boutique : expédition (par défaut, transport payé à l'arrivée, paiement avant)
+        $rates = app(DeliveryRates::class);
+        if ($place !== null && $rates->isExpedition($store, $place)) {
+            $city = $rates->cityOf($place)->id;
+            if ($order->expedition_city_id === null) {
+                $order->forceFill(['expedition_payer' => 'arrival', 'expedition_prepay' => (bool) $store->expedition_prepay]);
+            }
+            $order->forceFill(['expedition_city_id' => $city]);
+        } else {
+            $order->forceFill(['expedition_city_id' => null, 'expedition_payer' => null, 'expedition_prepay' => false]);
+        }
+        $order->unsetRelation('expeditionCity');
+    }
+
+    /**
+     * Choix de la saisie pour une expédition : qui paie la compagnie, paiement avant de partir à la gare.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function applyExpedition(Order $order, array $data): void
+    {
+        if (! $order->isExpedition()) {
+            return;
+        }
+        if (! empty($data['expedition_payer'])) {
+            $order->expedition_payer = $data['expedition_payer'];
+        }
+        if (array_key_exists('expedition_prepay', $data)) {
+            $order->expedition_prepay = (bool) $data['expedition_prepay'];
+        }
     }
 
     /**

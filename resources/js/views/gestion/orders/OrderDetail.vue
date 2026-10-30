@@ -4,6 +4,7 @@ import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Icon from '../../../components/Icon.vue'
 import Modal from '../../../components/Modal.vue'
+import ExpeditionPanel from '../../../components/ExpeditionPanel.vue'
 import OrderReturns from '../../../components/OrderReturns.vue'
 import ShipmentPanel from '../../../components/ShipmentPanel.vue'
 import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
@@ -279,6 +280,7 @@ async function addNote() {
         </section>
 
         <ShipmentPanel v-if="auth.can('shipments.manage') && (order.shipments.length || order.delivery_method === 'delivery')" :order="order" @changed="load" />
+        <ExpeditionPanel v-if="order.expedition" :order="order" :can-manage="auth.can('orders.manage')" @changed="load" />
 
         <section class="card space-y-1 p-4 text-sm">
           <h3 class="font-semibold">{{ order.delivery_method === 'pickup' ? 'Retrait en boutique' : 'Livraison' }}</h3>
