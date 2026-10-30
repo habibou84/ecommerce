@@ -62,7 +62,7 @@ class ProductDraftTest extends TestCase
         // Action comptée, consommation notée ; rien n'est créé
         $this->assertSame([1, 1200, 300], [AiUsage::forStore($this->store->id)->count(), AiUsage::forStore($this->store->id)->value('input_tokens'), AiUsage::forStore($this->store->id)->value('output_tokens')]);
         // Photo produit : modèle principal (AI_MODEL), pas Haiku
-        $this->assertNull(end($this->ai->calls)['model']);
+        $this->assertSame('fake-model', end($this->ai->calls)['model']);
         $this->assertSame('fake-model', AiUsage::forStore($this->store->id)->value('model'));
         $this->storeApi($this->store, 'GET', 'auth/me')->assertJsonPath('data.ai', ['enabled' => true, 'used' => 1, 'limit' => 0, 'credits' => 99]);
         $this->storeApi($this->store, 'GET', 'products')->assertJsonPath('meta.total', 0);
