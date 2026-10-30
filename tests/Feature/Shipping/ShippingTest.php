@@ -187,6 +187,26 @@ class ShippingTest extends TestCase
         $this->storeApi($this->store, 'POST', 'carriers/delivery-app', ['address' => 'rapide.jibiat.com', 'api_key' => self::KEY])->assertStatus(422);
     }
 
+    public function test_carrier_zones_are_matched_by_place_code_before_names(): void
+    {
+        $connection = $this->connect();
+        // Zone de Jibiat au nom différent, mais avec le code du lieu de la liste commune
+        $zones = Contract::example('zones');
+        $zones['data'][] = ['id' => 9, 'parent_id' => null, 'name' => 'Plateau centre affaires', 'place' => 'abidjan-plateau', 'is_shipping' => false, 'is_active' => true];
+        $this->stub([self::API.'/zones' => Http::response($zones)]);
+        app(CarrierConnections::class)->syncZones($connection);
+
+        $byPlace = collect($this->storeApi($this->store, 'GET', "carriers/{$connection->id}/zones")->json('data.places'))->keyBy('label');
+        $plateau = CarrierZone::where('connection_id', $connection->id)->where('remote_id', '9')->firstOrFail();
+        $this->assertSame('abidjan-plateau', $plateau->place_code);
+        $this->assertSame($plateau->id, $byPlace['Plateau']['carrier_zone_id']);
+        $this->assertSame($plateau->id, $byPlace['Indénié, Plateau']['carrier_zone_id']);
+
+        // Lieu ajouté par la boutique sous un quartier : le code de ce quartier
+        $own = Place::create(['country' => 'CI', 'parent_id' => $this->place('Angré')->id, 'type' => 'neighborhood', 'name' => 'Angré 8e tranche', 'slug' => 'angre-8e-tranche', 'store_id' => $this->store->id]);
+        $this->assertSame('abidjan-cocody-angre', $own->commonCode());
+    }
+
     public function test_connecting_a_company_from_the_directory_in_one_click(): void
     {
         $this->fakeDeliveryApp();

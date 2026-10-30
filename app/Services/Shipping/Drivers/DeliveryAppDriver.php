@@ -34,6 +34,8 @@ class DeliveryAppDriver implements CarrierDriver
             'remote_id' => (string) $z['id'],
             'name' => (string) $z['name'],
             'parent_name' => $z['parent_id'] ? ($names[$z['parent_id']] ?? null) : null,
+            // Code du lieu de la liste commune (Jibiat 1.7), null pour une zone propre à l'entreprise
+            'place_code' => $z['place'] ?? null,
             'is_shipping' => (bool) ($z['is_shipping'] ?? false),
             'is_active' => (bool) ($z['is_active'] ?? true),
         ], $zones);
