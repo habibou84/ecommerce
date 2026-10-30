@@ -13,7 +13,7 @@ class LiveSession extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'started_at', 'ended_at', 'created_by'];
+    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'display_mode', 'started_at', 'ended_at', 'created_by'];
 
     protected function casts(): array
     {

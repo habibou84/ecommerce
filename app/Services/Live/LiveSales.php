@@ -189,7 +189,8 @@ class LiveSales
         if ($itemId !== null && LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->whereKey($itemId)->doesntExist()) {
             throw new BusinessRuleException('Cet article n\'est pas dans le live.', 'item_id');
         }
-        $session->update(['featured_item_id' => $itemId]);
+        // Article choisi : les écrans du live le montrent (fin du défilement ou de « Comment commander »)
+        $session->update(['featured_item_id' => $itemId] + ($itemId !== null ? ['display_mode' => 'product'] : []));
 
         return $session;
     }
@@ -676,6 +677,7 @@ class LiveSales
             'hold_minutes' => $session->hold_minutes,
             'stream_url' => $session->stream_url,
             'featured_item_id' => $session->featured_item_id,
+            'display_mode' => $session->display_mode ?: 'product',
             'started_at' => $session->started_at?->toIso8601String(),
             'ended_at' => $session->ended_at?->toIso8601String(),
             'items' => $session->items->map(fn (LiveItem $item) => [

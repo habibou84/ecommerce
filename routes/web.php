@@ -20,6 +20,8 @@ Route::middleware('zone:platform')->group(function () {
     Route::get('/mot-de-passe-oublie', [PageController::class, 'spa']);
     // Fenêtre Facebook de la connexion WhatsApp des boutiques (Meta n'accepte que des domaines déclarés un par un)
     Route::get('/whatsapp/facebook', [PageController::class, 'spa'])->name('whatsapp.facebook');
+    // Écran du live (télé, tablette, ordinateur) : code à 4 chiffres, puis affichage du live de la boutique
+    Route::get('/ecran/{token?}', [PageController::class, 'spa'])->where('token', '[A-Za-z0-9]{48}')->name('live-screen');
     // Retour des fenêtres de connexion Facebook / Instagram et TikTok (adresses déclarées chez eux)
     Route::get('/reseaux/{provider}/retour', SocialCallbackController::class)->whereIn('provider', ['meta', 'tiktok'])->name('social.callback');
     // Paiement d'abonnement par lien marchand Wave : lien signé envoyé par SMS au validateur

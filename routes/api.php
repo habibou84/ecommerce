@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\CampaignController;
 use App\Http\Controllers\Api\V1\Marketing\LiveController;
+use App\Http\Controllers\Api\V1\Marketing\LiveScreenController;
 use App\Http\Controllers\Api\V1\Marketing\LoyaltyController;
 use App\Http\Controllers\Api\V1\Marketing\PricingController;
 use App\Http\Controllers\Api\V1\Marketing\PromotionController;
@@ -112,6 +113,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
     });
 
     // ── Vérification d'un numéro (WhatsApp, code SMS en dernier recours) et mot de passe oublié : plateforme, boutiques, console ──
+    // Écran du live (télé, tablette, ordinateur) : sans compte, relié à une boutique par un code à 4 chiffres
+    Route::middleware('zone:platform,store')->group(function () {
+        Route::post('screens', [LiveScreenController::class, 'create'])->middleware('throttle:10,1')->name('screens.create');
+        Route::get('screens/{token}', [LiveScreenController::class, 'show'])->where('token', '[A-Za-z0-9]{48}')->middleware('throttle:120,1')->name('screens.show');
+    });
     Route::middleware('zone:platform,store,console')->group(function () {
         Route::post('password/forgot', [PasswordResetController::class, 'start'])->middleware('throttle:verification-start')->name('password.forgot');
         Route::get('verifications/{token}', [VerificationController::class, 'show'])->middleware('throttle:90,1')->name('verifications.show');
@@ -533,6 +539,16 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->name('lives.update');
                 Route::post('lives/{session}/items', [LiveController::class, 'addItems'])->whereNumber('session')->name('lives.items');
                 Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->name('lives.start');
+                // Live en images : écrans reliés, mode d'affichage, affichage (mode présentation), cartes à enregistrer
+                Route::get('lives/screens', [LiveScreenController::class, 'index'])->name('lives.screens');
+                Route::post('lives/screens/pair', [LiveScreenController::class, 'pair'])->middleware('throttle:20,1')->name('lives.screens.pair');
+                Route::post('lives/screens/link', [LiveScreenController::class, 'link'])->middleware('throttle:20,1')->name('lives.screens.link');
+                Route::delete('lives/screens/{screen}', [LiveScreenController::class, 'destroy'])->whereNumber('screen')->name('lives.screens.destroy');
+                Route::post('lives/{session}/display', [LiveScreenController::class, 'mode'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.display');
+                Route::get('lives/{session}/display', [LiveScreenController::class, 'display'])->whereNumber('session')->name('lives.display.show');
+                Route::get('lives/{session}/cards', [LiveScreenController::class, 'cards'])->whereNumber('session')->middleware('throttle:30,1')->name('lives.cards');
+                Route::get('lives/cards/file', [LiveScreenController::class, 'file'])->middleware('throttle:120,1')->name('lives.cards.file');
+                Route::get('lives/{session}/cards.zip', [LiveScreenController::class, 'zip'])->whereNumber('session')->middleware('throttle:10,1')->name('lives.cards.zip');
                 Route::post('lives/{session}/feature', [LiveController::class, 'feature'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.feature');
                 Route::post('lives/{session}/duplicate', [LiveController::class, 'duplicate'])->whereNumber('session')->middleware('throttle:20,1')->name('lives.duplicate');
                 Route::post('lives/{session}/end', [LiveController::class, 'end'])->whereNumber('session')->name('lives.end');

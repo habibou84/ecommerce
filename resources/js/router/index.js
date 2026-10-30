@@ -10,6 +10,8 @@ const platformRoutes = [
   { path: '/cle/:code?', component: () => import('../views/platform/AccessKey.vue'), props: true },
   // Fenêtre Facebook de la connexion WhatsApp, pour toutes les boutiques
   { path: '/whatsapp/facebook', component: () => import('../views/platform/WhatsAppFacebook.vue') },
+  // Écran du live (télé, tablette, ordinateur) : code à 4 chiffres, puis affichage du live de la boutique
+  { path: '/ecran/:token?', component: () => import('../views/platform/LiveScreen.vue'), props: true },
   { path: '/mot-de-passe-oublie', component: () => import('../views/auth/ForgotPassword.vue'), props: { loginPath: '/connexion' } },
 ]
 
@@ -43,6 +45,8 @@ const storeRoutes = [
     ],
   },
   { path: '/livreur/:any(.*)*', redirect: '/livreur' },
+  // Mode présentation du live : plein écran, sans le menu de la gestion (partagé à l'écran dans TikTok)
+  { path: '/gestion/live/:id(\\d+)/presentation', component: () => import('../views/gestion/marketing/LivePresentation.vue'), props: true, meta: { auth: true, title: 'Mode présentation', permission: 'orders.manage' } },
   {
     path: '/gestion',
     component: () => import('../layouts/GestionLayout.vue'),
@@ -99,6 +103,7 @@ const storeRoutes = [
       { path: 'live', component: () => import('../views/gestion/marketing/Lives.vue'), meta: { title: 'Vendre en live', permission: 'orders.manage' } },
       { path: 'marketing/live/:id?', redirect: (to) => `/gestion/live${to.params.id ? `/${to.params.id}` : ''}` },
       { path: 'live/:id', component: () => import('../views/gestion/marketing/LiveRoom.vue'), props: true, meta: { title: 'Live', permission: 'orders.manage' } },
+      { path: 'live/:id/cartes', component: () => import('../views/gestion/marketing/LiveCards.vue'), props: true, meta: { title: 'Cartes du live', permission: 'orders.manage' } },
       { path: 'caisse', component: () => import('../views/gestion/Cash.vue'), meta: { title: 'Caisse', permissionAny: ['finance.view', 'cash.manage'] } },
       { path: 'caisse/vente', component: () => import('../views/gestion/CounterSale.vue'), meta: { title: 'Vente au comptoir', permission: 'cash.manage' } },
       { path: 'caisse/livreurs', component: () => import('../views/gestion/couriers/CashDesk.vue'), meta: { title: 'Argent des livreurs', permissionAny: ['couriers.manage', 'finance.view'] } },
