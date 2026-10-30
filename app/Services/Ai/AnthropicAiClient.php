@@ -27,13 +27,13 @@ class AnthropicAiClient implements AiClient
         return $this->model;
     }
 
-    public function json(string $system, array $content, array $schema, int $maxTokens = 8000): array
+    public function json(string $system, array $content, array $schema, int $maxTokens = 8000, ?string $model = null): array
     {
         $this->client ??= new Client(apiKey: $this->key);
 
         try {
             $message = $this->client->messages->create(
-                model: $this->model,
+                model: $model ?? $this->model,
                 maxTokens: $maxTokens,
                 system: $system,
                 messages: [['role' => 'user', 'content' => $content]],
@@ -64,7 +64,7 @@ class AnthropicAiClient implements AiClient
         throw new AiUnavailable('L\'assistant a donné une réponse illisible. Réessayez.', $input, $output);
     }
 
-    public function agent(string $system, string $question, array $tools, callable $run, int $maxTurns = 6): array
+    public function agent(string $system, string $question, array $tools, callable $run, int $maxTurns = 6, ?string $model = null): array
     {
         $this->client ??= new Client(apiKey: $this->key);
         $messages = [['role' => 'user', 'content' => $question]];
@@ -73,7 +73,7 @@ class AnthropicAiClient implements AiClient
         for ($turn = 0; $turn < $maxTurns; $turn++) {
             try {
                 $message = $this->client->messages->create(
-                    model: $this->model,
+                    model: $model ?? $this->model,
                     maxTokens: 8000,
                     system: $system,
                     tools: $tools,

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Marketing;
 
 use App\Enums\Role;
+use App\Models\AiUsage;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\Place;
@@ -147,6 +148,19 @@ class SocialTest extends TestCase
             ->assertJsonCount(3, 'data')->assertJsonPath('data.0.hashtags', ['#Abidjan', '#ModeIvoirienne']);
         $this->assertStringContainsString('15 000 F', $ai->lastText());
         $this->assertStringContainsString('Ton demandé : nouchi', $ai->lastText());
+        // Textes courts relus par le marchand : Haiku par défaut, compté sous son nom dans la console
+        $this->assertSame('claude-haiku-5-5', end($ai->calls)['model']);
+        $this->assertSame('claude-haiku-5-5', AiUsage::sole()->model);
+    }
+
+    public function test_the_model_of_a_feature_can_be_changed(): void
+    {
+        config(['services.anthropic.features.social_caption' => null]);
+        $ai = (new FakeAiClient)->respond(['captions' => [['text' => 'Robe wax {lien}', 'hashtags' => []]]]);
+        $this->app->instance(AiClient::class, $ai);
+
+        $this->storeApi($this->store, 'POST', "products/{$this->robe->id}/social/captions")->assertOk();
+        $this->assertSame('fake-model', AiUsage::sole()->model);
     }
 
     public function test_a_product_is_published_on_the_three_networks_with_a_link_per_network(): void

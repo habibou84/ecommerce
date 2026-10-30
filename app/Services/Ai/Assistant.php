@@ -49,7 +49,7 @@ class Assistant
         $this->ensureAvailable($store);
 
         try {
-            $result = $this->client->json($system, $content, $schema, $maxTokens);
+            $result = $this->client->json($system, $content, $schema, $maxTokens, $this->modelFor($feature));
         } catch (AiUnavailable $e) {
             $this->record($store, $user, $feature, $e->inputTokens, $e->outputTokens, false);
 
@@ -71,7 +71,7 @@ class Assistant
         $this->ensureAvailable($store);
 
         try {
-            $result = $this->client->agent($system, $question, $tools, $run);
+            $result = $this->client->agent($system, $question, $tools, $run, model: $this->modelFor($feature));
         } catch (AiUnavailable $e) {
             $this->record($store, $user, $feature, $e->inputTokens, $e->outputTokens, false);
 
@@ -108,6 +108,16 @@ class Assistant
         $image->scaleDown(width: 1200, height: 1200);
 
         return ['type' => 'image', 'source' => ['type' => 'base64', 'mediaType' => 'image/jpeg', 'data' => base64_encode((string) $image->toJpeg(80))]];
+    }
+
+    /**
+     * Modèle d'une fonction (config services.anthropic.features), sinon le modèle par défaut.
+     */
+    public function modelFor(string $feature): string
+    {
+        $model = config('services.anthropic.features.'.$feature);
+
+        return filled($model) ? (string) $model : $this->client->model();
     }
 
     private function ensureAvailable(Store $store): void
@@ -153,7 +163,7 @@ class Assistant
             Store::whereKey($store->id)->where('ai_credits', '>', 0)->decrement('ai_credits');
         }
         AiUsage::create([
-            'store_id' => $store->id, 'user_id' => $user?->id, 'feature' => $feature, 'model' => $this->client->model(),
+            'store_id' => $store->id, 'user_id' => $user?->id, 'feature' => $feature, 'model' => $this->modelFor($feature),
             'input_tokens' => $input, 'output_tokens' => $output, 'succeeded' => $succeeded,
         ]);
     }

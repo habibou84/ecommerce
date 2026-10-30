@@ -10,7 +10,7 @@ use App\Services\Ai\AiUnavailable;
  */
 class FakeAiClient implements AiClient
 {
-    /** @var list<array{system: string, content: array, schema: array}> */
+    /** @var list<array{system: string, content: array, schema: array, model: ?string}> */
     public array $calls = [];
 
     /** @var list<array<string, mixed>|AiUnavailable> */
@@ -35,9 +35,9 @@ class FakeAiClient implements AiClient
         return 'fake-model';
     }
 
-    public function json(string $system, array $content, array $schema, int $maxTokens = 8000): array
+    public function json(string $system, array $content, array $schema, int $maxTokens = 8000, ?string $model = null): array
     {
-        $this->calls[] = compact('system', 'content', 'schema');
+        $this->calls[] = compact('system', 'content', 'schema', 'model');
         $response = array_shift($this->responses) ?? throw new \LogicException('Aucune réponse préparée.');
         if ($response instanceof AiUnavailable) {
             throw $response;
@@ -66,11 +66,11 @@ class FakeAiClient implements AiClient
         return $this;
     }
 
-    public function agent(string $system, string $question, array $tools, callable $run, int $maxTurns = 6): array
+    public function agent(string $system, string $question, array $tools, callable $run, int $maxTurns = 6, ?string $model = null): array
     {
         $this->lastSystem = $system;
         $this->lastQuestion = $question;
-        $this->calls[] = ['system' => $system, 'content' => [['type' => 'text', 'text' => $question]], 'schema' => ['tools' => array_column($tools, 'name')]];
+        $this->calls[] = ['system' => $system, 'content' => [['type' => 'text', 'text' => $question]], 'schema' => ['tools' => array_column($tools, 'name')], 'model' => $model];
         $script = array_shift($this->agentScripts) ?? throw new \LogicException('Aucune réponse préparée.');
         foreach ($script['calls'] as [$name, $input]) {
             $this->toolResults[] = $run($name, $input);

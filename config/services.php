@@ -91,6 +91,17 @@ return [
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
         'model' => env('AI_MODEL', 'claude-opus-5-5'),
+        // Modèle par fonction (vide : AI_MODEL). Haiku pour les textes courts relus par le marchand ; le modèle
+        // principal pour ce qui lit une image, répond seul aux clients ou calcule des chiffres.
+        'features' => [
+            'product_draft' => env('AI_MODEL_PRODUCT_DRAFT'),
+            'order_draft' => env('AI_MODEL_ORDER_DRAFT'),
+            'live_capture' => env('AI_MODEL_LIVE_CAPTURE'),
+            'auto_reply' => env('AI_MODEL_AUTO_REPLY'),
+            'stats_question' => env('AI_MODEL_STATS_QUESTION'),
+            'reply' => env('AI_MODEL_REPLY', 'claude-haiku-5-5'),
+            'social_caption' => env('AI_MODEL_SOCIAL_CAPTION', 'claude-haiku-5-5'),
+        ],
         // Prix publics en dollars par million de jetons (entrée, sortie) pour estimer le coût dans la console
         'prices' => [
             'claude-opus-5-5' => [4.0, 20.0],
