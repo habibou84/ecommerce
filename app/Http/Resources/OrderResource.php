@@ -103,6 +103,8 @@ class OrderResource extends JsonResource
                 'dropped_at' => $this->expedition_dropped_at?->toIso8601String(),
                 'receipt' => $this->expedition_receipt_path !== null,
                 'companies' => app(DeliveryRates::class)->companies(),
+                // Message au client : envoyé tout seul, ou état du modèle chez Meta (bouton manuel en attendant)
+                'message_state' => Expeditions::messageState($this->resource),
                 // Message au client, à envoyer soi-même si WhatsApp n'est pas branché
                 'whatsapp_url' => $this->expedition_dropped_at && filled($this->customer_phone)
                     ? 'https://wa.me/'.ltrim((string) $this->customer_phone, '+').'?text='.rawurlencode(Expeditions::message($this->resource)) : null,

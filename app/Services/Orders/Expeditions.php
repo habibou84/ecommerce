@@ -4,11 +4,14 @@ namespace App\Services\Orders;
 
 use App\Enums\OrderStatus;
 use App\Exceptions\BusinessRuleException;
+use App\Jobs\InstallMissingTemplates;
 use App\Models\CashMovement;
 use App\Models\Courier;
 use App\Models\CourierEarning;
 use App\Models\Order;
+use App\Models\OutboundMessage;
 use App\Models\User;
+use App\Models\WhatsappAccount;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -99,12 +102,45 @@ class Expeditions
         });
 
         try {
-            app(CustomerMessenger::class)->forOrder($order->loadMissing('store', 'expeditionCity'), 'order_expedited');
+            app(CustomerMessenger::class)->expedited($order->loadMissing('store', 'expeditionCity'));
         } catch (Throwable $e) {
             report($e);
         }
 
         return $order->fresh();
+    }
+
+    /**
+     * Commande à expédier enregistrée : le modèle « Colis expédié » est soumis à Meta s'il manque encore à ce numéro
+     * (connecté avant que ce message existe), pour qu'il soit approuvé avant le dépôt à la gare.
+     */
+    public static function prepareMessage(Order $order): void
+    {
+        $account = WhatsappAccount::forStore($order->store_id)->first();
+        if ($account !== null && $account->isEmbedded() && blank($account->templates['order_expedited'] ?? null)) {
+            InstallMissingTemplates::dispatch($account->id)->afterCommit();
+        }
+    }
+
+    /**
+     * Message au client : envoyé automatiquement, ou état du modèle chez Meta (le bouton manuel reste en attendant).
+     */
+    public static function messageState(Order $order): string
+    {
+        if (OutboundMessage::forStore($order->store_id)->where('related_type', 'order')->where('related_id', $order->id)
+            ->where('event', 'order_expedited')->where('status', '!=', 'failed')->exists()) {
+            return 'sent';
+        }
+        $account = WhatsappAccount::forStore($order->store_id)->first();
+        if ($account === null || $account->status !== 'active') {
+            return 'none';
+        }
+
+        return match ($account->template_status['order_expedited'] ?? null) {
+            'APPROVED' => 'approved',
+            'PENDING', null => blank($account->templates['order_expedited'] ?? null) && ! $account->isEmbedded() ? 'manual' : 'pending',
+            default => 'rejected',
+        };
     }
 
     /**

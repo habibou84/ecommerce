@@ -130,6 +130,9 @@ class OrderDesk
         });
 
         DB::afterCommit(fn () => $this->notifier->notify($store, Permission::OrdersView->value, new OrderPlaced($order), $actor));
+        if ($order->isExpedition()) {
+            Expeditions::prepareMessage($order);
+        }
 
         return $order->fresh(['items', 'customer']);
     }
@@ -185,6 +188,9 @@ class OrderDesk
             $after = $order->only(array_keys($before));
             $changes = array_keys(array_diff_assoc(array_map('strval', $after), array_map('strval', $before)));
             $this->log($order, 'edited', ['fields' => $changes, 'items' => $itemsChanged], $actor);
+            if ($placeChanged && $order->isExpedition()) {
+                Expeditions::prepareMessage($order);
+            }
 
             if ($order->customer && $order->wasChanged(['shipping_place_id', 'shipping_address'])) {
                 $this->customers->rememberAddress($order->customer, $order);

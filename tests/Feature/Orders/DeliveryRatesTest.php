@@ -4,6 +4,7 @@ namespace Tests\Feature\Orders;
 
 use App\Enums\OrderStatus;
 use App\Models\CashMovement;
+use App\Models\Conversation;
 use App\Models\Courier;
 use App\Models\CourierEarning;
 use App\Models\DeliveryZone;
@@ -15,10 +16,14 @@ use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Models\WhatsappAccount;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
+use App\Services\WhatsApp\TemplateLibrary;
+use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -169,5 +174,53 @@ class DeliveryRatesTest extends TestCase
 
         // Une commande dans Abidjan n'est pas une expédition
         $this->storeApi($this->store, 'POST', 'orders/'.$this->order('Angré')->id.'/expedition', ['company' => 'UTB', 'fee' => 1000])->assertStatus(422);
+    }
+
+    public function test_the_expedition_message_is_submitted_to_meta_for_numbers_connected_before_it_existed(): void
+    {
+        $sent = [];
+        Http::fake(['graph.facebook.com/*' => function (HttpRequest $r) use (&$sent) {
+            $sent[] = $r->data();
+
+            return str_ends_with(parse_url($r->url(), PHP_URL_PATH), '/message_templates')
+                ? Http::response(['id' => 't9', 'status' => 'PENDING', 'category' => 'UTILITY'])
+                : Http::response(['messaging_product' => 'whatsapp', 'messages' => [['id' => 'wamid.'.count($sent)]]]);
+        }]);
+        // Numéro connecté en un clic avant le message « Colis expédié »
+        $templates = collect(TemplateLibrary::TEMPLATES)->except('order_expedited')->map(fn ($t) => $t['name'])->all();
+        $account = WhatsappAccount::create(['store_id' => $this->store->id, 'connection' => 'embedded', 'phone_number_id' => '5555', 'waba_id' => '4444', 'access_token' => 'tok',
+            'templates' => $templates, 'template_status' => array_map(fn () => 'APPROVED', $templates), 'automations' => array_map(fn () => true, $templates), 'status' => 'active']);
+
+        // Commande vers Bouaké : le modèle manquant part chez Meta, une seule fois
+        $order = $this->order('Bouaké', ['expedition_prepay' => false]);
+        $this->order('Daloa', ['expedition_prepay' => false]);
+        $this->assertSame(['jm_colis_expedie'], array_column(array_filter($sent, fn ($d) => isset($d['category'])), 'name'));
+        $account->refresh();
+        $this->assertSame(['jm_colis_expedie', 'PENDING', true], [$account->templates['order_expedited'], $account->template_status['order_expedited'], $account->automations['order_expedited']]);
+        $this->assertSame(1, (int) collect($account->templates)->filter(fn ($t) => $t === 'jm_colis_expedie')->count());
+
+        // En vérification chez Meta, client sans conversation récente : rien ne part, le bouton reste
+        $this->storeApi($this->store, 'POST', "orders/{$order->id}/status", ['status' => 'confirmed'])->assertOk();
+        $sent = [];
+        $this->storeApi($this->store, 'POST', "orders/{$order->id}/expedition", ['company' => 'UTB', 'fee' => 2000])->assertOk()
+            ->assertJsonPath('data.expedition.message_state', 'pending');
+        $this->assertSame([], $sent);
+
+        // Client qui a écrit depuis moins de 24 h : le message part dans la conversation, gratuitement
+        Conversation::create(['store_id' => $this->store->id, 'channel' => 'whatsapp', 'contact' => '+2250506070809', 'last_message_at' => now(), 'last_inbound_at' => now()]);
+        $second = $this->order('Korhogo', ['expedition_prepay' => false]);
+        $this->storeApi($this->store, 'POST', "orders/{$second->id}/status", ['status' => 'confirmed'])->assertOk();
+        $this->storeApi($this->store, 'POST', "orders/{$second->id}/expedition", ['company' => 'STIF', 'fee' => 1500, 'ticket' => '77'])->assertOk()
+            ->assertJsonPath('data.expedition.message_state', 'sent');
+        $this->assertStringContainsString('est partie pour Korhogo par STIF, ticket n° 77', end($sent)['text']['body']);
+
+        // Modèle approuvé : les clients sans conversation récente sont prévenus par le modèle
+        app(TemplateLibrary::class)->updateStatus($account->fresh(), 'jm_colis_expedie', 'APPROVED');
+        Conversation::query()->update(['last_inbound_at' => now()->subDays(2)]);
+        $third = $this->order('Man', ['expedition_prepay' => false]);
+        $this->storeApi($this->store, 'POST', "orders/{$third->id}/status", ['status' => 'confirmed'])->assertOk();
+        $this->storeApi($this->store, 'POST', "orders/{$third->id}/expedition", ['company' => 'AVS', 'fee' => 2500])->assertOk()
+            ->assertJsonPath('data.expedition.message_state', 'sent');
+        $this->assertSame('jm_colis_expedie', end($sent)['template']['name']);
     }
 }

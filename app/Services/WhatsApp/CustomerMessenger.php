@@ -166,6 +166,33 @@ class CustomerMessenger
         return filled($account->templates['order_confirmation'] ?? null) ? 'template' : null;
     }
 
+    /**
+     * Colis déposé à la gare : dans la conversation (gratuit, sans modèle) si le client a écrit depuis moins de 24 h,
+     * sinon par le modèle une fois approuvé par Meta ; null s'il faut prévenir le client à la main.
+     */
+    public function expedited(Order $order): ?OutboundMessage
+    {
+        $account = WhatsappAccount::forStore($order->store_id)->first();
+        if ($account === null || $account->status !== 'active' || blank($order->customer_phone) || ! ($account->automations['order_expedited'] ?? true)) {
+            return null;
+        }
+
+        $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
+        if ($conversation?->canReply()) {
+            $text = Expeditions::message($order);
+            $message = OutboundMessage::create([
+                'store_id' => $account->store_id, 'channel' => 'whatsapp', 'to_phone' => $order->customer_phone, 'event' => 'order_expedited',
+                'body' => $text, 'related_type' => 'order', 'related_id' => $order->id, 'status' => 'queued',
+            ]);
+            SendWhatsAppMessage::dispatch($message->id, [], [], $text)->afterCommit();
+            $this->inbox->logAutomatic($account->store_id, $order->customer_phone, '🤖 '.$text);
+
+            return $message;
+        }
+
+        return ($account->template_status['order_expedited'] ?? null) === 'APPROVED' ? $this->forOrder($order, 'order_expedited') : null;
+    }
+
     private function confirmationText(Order $order): string
     {
         return app(MessageTexts::class)->render($order, 'whatsapp_confirmation');

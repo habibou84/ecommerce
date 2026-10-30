@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Messaging;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\InstallMissingTemplates;
 use App\Models\Cart;
 use App\Models\OutboundMessage;
 use App\Models\WhatsappAccount;
@@ -33,6 +34,8 @@ class WhatsAppController extends Controller
         $account = WhatsappAccount::first();
         if ($account !== null) {
             app(NumberStatus::class)->refresh($account);
+            // Messages automatiques ajoutés depuis la connexion du numéro : soumis à Meta sans reconnexion
+            InstallMissingTemplates::dispatch($account->id)->afterResponse();
         }
 
         return response()->json(['data' => [
