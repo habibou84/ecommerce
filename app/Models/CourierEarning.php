@@ -16,7 +16,7 @@ class CourierEarning extends Model
     public const UPDATED_AT = null;
 
     public const TYPES = [
-        'delivery' => 'Livraison', 'failed_attempt' => 'Tentative', 'bonus' => 'Prime', 'adjustment' => 'Ajustement', 'advance' => 'Avance',
+        'delivery' => 'Livraison', 'failed_attempt' => 'Tentative', 'bonus' => 'Prime', 'adjustment' => 'Ajustement', 'advance' => 'Avance', 'expedition' => 'Frais d\'expédition avancés',
     ];
 
     protected $fillable = ['store_id', 'courier_id', 'shipment_id', 'type', 'amount', 'payout_id', 'note', 'created_by'];

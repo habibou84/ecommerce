@@ -252,7 +252,7 @@ class OrderListing
      */
     public static function relations(): array
     {
-        return ['store', 'items:id,order_id,title,quantity', 'shipments.courier:id,name', 'shipments.connection:id,name', 'plannedCourier:id,name', 'plannedCarrier:id,name'];
+        return ['store', 'items:id,order_id,title,quantity', 'shipments.courier:id,name', 'shipments.connection:id,name', 'plannedCourier:id,name', 'plannedCarrier:id,name', 'expeditionCity:id,name'];
     }
 
     /**

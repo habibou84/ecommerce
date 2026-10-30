@@ -39,7 +39,7 @@ const groups = [
     { to: '/gestion/livraisons', label: 'En cours', exact: true },
     { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
     { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' },
-    { to: '/gestion/livraisons/zones', label: 'Zones et tarifs' },
+    { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' },
     { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' },
   ] },
   { label: 'Caisse', color: 'caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', items: [

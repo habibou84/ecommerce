@@ -35,6 +35,9 @@ class Order extends Model
             'scheduled_date' => 'date',
             'utm' => 'array',
             'is_preorder' => 'boolean',
+            'expedition_prepay' => 'boolean',
+            'expedition_advanced' => 'boolean',
+            'expedition_dropped_at' => 'datetime',
             'confirmed_at' => 'datetime',
             'callback_at' => 'datetime',
             'shipped_at' => 'datetime',
@@ -77,6 +80,28 @@ class Order extends Model
     public function zone(): BelongsTo
     {
         return $this->belongsTo(DeliveryZone::class, 'delivery_zone_id');
+    }
+
+    /** Ville de destination d'une expédition (colis déposé à la gare) */
+    public function expeditionCity(): BelongsTo
+    {
+        return $this->belongsTo(Place::class, 'expedition_city_id');
+    }
+
+    public function isExpedition(): bool
+    {
+        return $this->expedition_city_id !== null && $this->delivery_method === 'delivery';
+    }
+
+    /**
+     * Montant à payer avant d'expédier : articles et livraison jusqu'à la gare (les frais de la compagnie, connus
+     * au dépôt, sont à part).
+     */
+    public function expeditionPrepayDue(): int
+    {
+        $fee = $this->expedition_payer === 'before' ? (int) $this->expedition_fee : 0;
+
+        return max(0, $this->total - $fee - $this->amount_paid + $this->amount_refunded);
     }
 
     // Qui livre, choisi à la saisie : l'expédition est créée à la confirmation

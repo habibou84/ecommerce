@@ -396,7 +396,7 @@ async function exportList() {
                 </div>
               </td>
               <td class="py-3 pr-3">
-                <p>{{ o.delivery_method === 'pickup' ? 'Retrait au magasin' : o.shipping_place_label || 'Quartier à préciser' }}</p>
+                <p>{{ o.delivery_method === 'pickup' ? 'Retrait au magasin' : o.expedition_city ? `📦 Expédition · ${o.expedition_city}` : o.shipping_place_label || 'Quartier à préciser' }}</p>
                 <span v-if="deliveryBadge(o)" class="mt-0.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="deliveryBadge(o).tone">
                   <Icon :name="deliveryBadge(o).late ? 'alert' : 'truck'" :size="12" />{{ deliveryBadge(o).text }}
                 </span>
@@ -436,7 +436,7 @@ async function exportList() {
                 <span class="shrink-0 text-base font-extrabold">{{ money(o.total) }}</span>
               </span>
               <span class="flex items-baseline justify-between gap-2 text-sm">
-                <span class="truncate text-slate-500">{{ o.reference }} · {{ timeOf(o) }} · {{ o.delivery_method === 'pickup' ? 'Retrait' : o.shipping_place_label || 'Quartier à préciser' }}</span>
+                <span class="truncate text-slate-500">{{ o.reference }} · {{ timeOf(o) }} · {{ o.delivery_method === 'pickup' ? 'Retrait' : o.expedition_city ? `📦 Expédition · ${o.expedition_city}` : o.shipping_place_label || 'Quartier à préciser' }}</span>
                 <span class="shrink-0 font-semibold" :class="PAYMENT_TONES[o.payment_status]">{{ o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status) ? 'À encaisser' : o.payment_status_label }}</span>
               </span>
               <span class="mt-2 block truncate text-sm text-slate-700">{{ o.items_label }}</span>

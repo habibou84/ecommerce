@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Notifications\ShipmentAlert;
 use App\Services\Accounts\TeamNotifier;
 use App\Services\Couriers\CourierMissions;
+use App\Services\Orders\Expeditions;
 use App\Services\Orders\OrderDesk;
 use App\Services\Shipping\Drivers\DeliveryAppDriver;
 use App\Services\Shipping\Drivers\RemoteShipment;
@@ -257,6 +258,10 @@ class ShipmentDesk
         }
         if ($order->shipments->contains(fn (Shipment $s) => ! in_array($s->status, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true))) {
             throw new BusinessRuleException('Cette commande a déjà une livraison en cours.');
+        }
+        // Expédition payée d'avance : le livreur ne part à la gare qu'une fois les articles et la livraison payés
+        if (($due = Expeditions::blockingDue($order)) > 0) {
+            throw new BusinessRuleException('Paiement avant expédition : le client doit encore payer '.Money::format($due).'. Envoyez-lui le lien de paiement.');
         }
     }
 
@@ -578,7 +583,12 @@ class ShipmentDesk
      */
     private function delivered(Shipment $shipment, Order $order, ?User $actor, RemoteShipment $remote): void
     {
-        if ($order->status->canTransitionTo(OrderStatus::Completed)) {
+        // Expédition : déposée à la gare, la commande reste « expédiée » jusqu'à ce que le client récupère le colis
+        if ($order->isExpedition()) {
+            if ($order->status->canTransitionTo(OrderStatus::Shipped)) {
+                $this->orders->transition($order, OrderStatus::Shipped, $actor, ['note' => 'Livraison '.$shipment->reference().' : déposée à la gare']);
+            }
+        } elseif ($order->status->canTransitionTo(OrderStatus::Completed)) {
             $order = $this->orders->transition($order, OrderStatus::Completed, $actor, ['note' => 'Livraison '.$shipment->reference().' terminée']);
         }
 

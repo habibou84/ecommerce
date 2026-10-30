@@ -12,6 +12,7 @@ use App\Models\ProductVariant;
 use App\Models\Shipment;
 use App\Services\Orders\DeliveryCalendar;
 use App\Services\Partners\PartnerReferrals;
+use App\Services\Places\DeliveryRates;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\Shipping\ShipmentDesk;
@@ -76,7 +77,16 @@ class DeliveryOptionsController extends Controller
             ->map(fn (Shipment $s) => $s->courier_id ? "courier:{$s->courier_id}" : "carrier:{$s->carrier_connection_id}")
             ->unique()->take(3)->values();
 
+        // Autre ville que celle de la boutique : expédition (livraison jusqu'à la gare, frais de la compagnie au dépôt)
+        $rates = app(DeliveryRates::class);
+        $expedition = $place !== null && $rates->isExpedition($store, $place)
+            ? ['city' => $rates->cityOf($place)->name, 'fee' => $store->expedition_fee, 'prepay' => $store->expedition_prepay] : null;
+
         return response()->json(['data' => [
+            // Lieu choisi et sa commune : pour proposer de retenir un prix tapé à la main
+            'place' => $place ? ['id' => $place->id, 'name' => $place->name, 'type' => $place->type,
+                'commune' => $place->type === 'neighborhood' && $place->parent ? ['id' => $place->parent->id, 'name' => $place->parent->name] : null] : null,
+            'expedition' => $expedition,
             'zone' => $zone ? ['id' => $zone->id, 'name' => $zone->name, 'fee' => $zone->fee, 'free_above' => $zone->free_above, 'eta_label' => $zone->eta_label] : null,
             'couriers' => $couriers,
             'carriers' => $carriers,
