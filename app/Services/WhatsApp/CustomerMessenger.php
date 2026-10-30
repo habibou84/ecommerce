@@ -18,6 +18,7 @@ use App\Models\WhatsappAccount;
 use App\Notifications\CourierAlert;
 use App\Notifications\ShipmentAlert;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Orders\Expeditions;
 use App\Services\Orders\MessageTexts;
 use App\Services\Orders\OrderDesk;
 use Illuminate\Support\Str;
@@ -38,6 +39,7 @@ class CustomerMessenger
         'order_confirmation' => ['label' => 'Demande de confirmation (boutons Confirmer / Annuler)', 'variables' => ['nom du client', 'n° de commande', 'montant'], 'buttons' => ['Confirmer', 'Annuler']],
         'courier_on_the_way' => ['label' => 'Livreur en route (quand votre livreur part livrer : nom, numéro, montant ; boutons J\'attends / Pas disponible)', 'variables' => ['nom du client', 'n° de commande', 'boutique', 'nom du livreur', 'téléphone du livreur', 'montant à payer'], 'buttons' => ['J\'attends', 'Pas disponible']],
         'order_shipped' => ['label' => 'Commande en route', 'variables' => ['nom du client', 'n° de commande', 'lien de suivi'], 'buttons' => []],
+        'order_expedited' => ['label' => 'Colis expédié vers une autre ville (compagnie, ticket, frais)', 'variables' => ['nom du client', 'n° de commande', 'ville', 'compagnie et ticket', 'frais d\'expédition'], 'buttons' => []],
         'order_delivered' => ['label' => 'Commande livrée (remerciement)', 'variables' => ['nom du client', 'n° de commande'], 'buttons' => []],
         'review_request' => ['label' => 'Demande d\'avis (24 h après la livraison)', 'variables' => ['nom du client', 'boutique', 'lien de l\'avis'], 'buttons' => []],
         'payment_link' => ['label' => 'Lien de paiement', 'variables' => ['nom du client', 'n° de commande', 'montant', 'lien'], 'buttons' => []],
@@ -78,6 +80,10 @@ class CustomerMessenger
             $event->type === 'status_changed' && ($event->data['to'] ?? null) === OrderStatus::Completed->value => 'order_delivered',
             default => null,
         };
+        // Expédition : le client est prévenu au dépôt à la gare (compagnie, ticket, frais), pas quand le livreur part
+        if ($kind === 'order_shipped' && $order->isExpedition()) {
+            $kind = null;
+        }
         if ($kind) {
             $this->forOrder($order, $kind);
         }
@@ -98,6 +104,8 @@ class CustomerMessenger
             'order_confirmation' => [$name, $order->reference(), Money::format($order->total)],
             'order_shipped' => [$name, $order->reference(), $order->trackingUrl()],
             'order_delivered' => [$name, $order->reference()],
+            'order_expedited' => [$name, $order->reference(), $order->expeditionCity?->name ?? 'votre ville',
+                $order->expedition_company.($order->expedition_ticket ? ', ticket n° '.$order->expedition_ticket : ''), Expeditions::feeSentence($order)],
             'review_request' => [$name, $order->store->name, $order->store->url('/avis/'.$order->tracking_token)],
             'payment_link' => [$name, $order->reference(), Money::format($extra['amount']), $extra['url']],
         };

@@ -51,6 +51,8 @@ use App\Http\Controllers\Api\V1\Orders\AlertSettingsController;
 use App\Http\Controllers\Api\V1\Orders\CustomerController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryController;
 use App\Http\Controllers\Api\V1\Orders\DeliveryOptionsController;
+use App\Http\Controllers\Api\V1\Orders\DeliveryRatesController;
+use App\Http\Controllers\Api\V1\Orders\ExpeditionController;
 use App\Http\Controllers\Api\V1\Orders\MessageTextController;
 use App\Http\Controllers\Api\V1\Orders\OrderController;
 use App\Http\Controllers\Api\V1\Orders\ReturnController;
@@ -324,10 +326,13 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('orders/{order}', [OrderController::class, 'show'])->whereNumber('order')->name('orders.show');
                 Route::get('orders/{order}/invoice', [OrderController::class, 'invoice'])->whereNumber('order')->name('orders.invoice');
                 Route::get('orders/{order}/label', [OrderController::class, 'label'])->whereNumber('order')->name('orders.label');
+                Route::get('orders/{order}/expedition/receipt', [ExpeditionController::class, 'receipt'])->whereNumber('order')->name('orders.expedition.receipt');
                 Route::get('orders/labels', [OrderController::class, 'labels'])->name('orders.labels');
                 Route::get('orders/export', [OrderController::class, 'export'])->name('orders.export');
                 Route::post('orders/{order}/notes', [OrderController::class, 'note'])->whereNumber('order')->name('orders.notes');
                 Route::get('delivery-zones', [DeliveryController::class, 'zones'])->name('zones.index');
+                Route::get('delivery-rates', [DeliveryRatesController::class, 'show'])->name('delivery-rates.show');
+                Route::get('delivery-rates/places/{place}', [DeliveryRatesController::class, 'children'])->whereNumber('place')->name('delivery-rates.children');
             });
             Route::middleware($manage)->group(function () {
                 Route::get('returns', [ReturnController::class, 'index'])->name('returns.index');
@@ -346,7 +351,12 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('orders/delivery-options/carriers/{carrier}', [DeliveryOptionsController::class, 'tariffs'])->whereNumber('carrier')->name('orders.delivery-options.tariffs');
                 Route::post('orders/{order}/status', [OrderController::class, 'transition'])->whereNumber('order')->name('orders.status');
                 Route::post('orders/{order}/payments', [OrderController::class, 'payment'])->whereNumber('order')->name('orders.payments');
+                // Expédition vers une autre ville : dépôt à la gare, colis récupéré
+                Route::post('orders/{order}/expedition', [ExpeditionController::class, 'store'])->whereNumber('order')->name('orders.expedition');
+                Route::post('orders/{order}/expedition/collected', [ExpeditionController::class, 'collected'])->whereNumber('order')->name('orders.expedition.collected');
                 Route::post('places', [DeliveryController::class, 'addPlace'])->name('places.store');
+                // Prix tapé dans une commande, retenu pour la suite (commune, quartier, expéditions)
+                Route::post('delivery-rates/remember', [DeliveryRatesController::class, 'remember'])->name('delivery-rates.remember');
                 Route::post('customers', [CustomerController::class, 'store'])->name('customers.store');
                 Route::put('customers/{customer}', [CustomerController::class, 'update'])->whereNumber('customer')->name('customers.update');
                 Route::post('customers/{customer}/loyalty', [LoyaltyController::class, 'adjust'])->whereNumber('customer')->name('customers.loyalty');
@@ -603,6 +613,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('delivery-zones', [DeliveryController::class, 'storeZone'])->name('zones.store');
                 Route::put('delivery-zones/{zone}', [DeliveryController::class, 'updateZone'])->whereNumber('zone')->name('zones.update');
                 Route::delete('delivery-zones/{zone}', [DeliveryController::class, 'destroyZone'])->whereNumber('zone')->name('zones.destroy');
+                Route::put('delivery-rates', [DeliveryRatesController::class, 'update'])->name('delivery-rates.update');
+                Route::delete('delivery-rates/places/{place}', [DeliveryRatesController::class, 'forget'])->whereNumber('place')->name('delivery-rates.forget');
             });
 
             // ── Catalogue ──

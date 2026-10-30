@@ -8,7 +8,7 @@ const tabs = computed(() => [
   ...(auth.can('shipments.manage') ? [{ to: '/gestion/livraisons', label: 'En cours', exact: true }] : []),
   ...(auth.can('couriers.manage') ? [{ to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }] : []),
   ...(auth.can('carriers.manage') ? [{ to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }] : []),
-  ...(auth.can('store.manage') ? [{ to: '/gestion/livraisons/zones', label: 'Zones et tarifs' }] : []),
+  ...(auth.can('store.manage') ? [{ to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }] : []),
   ...(auth.can('shipments.manage') ? [{ to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }] : []),
 ])
 </script>

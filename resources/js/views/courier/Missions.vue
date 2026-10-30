@@ -152,7 +152,7 @@ function saveOrder() {
     <section v-for="m in offers" :key="`offer-${m.id}`" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">🔔 Nouvelle mission</p>
       <RouterLink :to="`/livreur/missions/${m.id}`" class="block">
-        <p class="font-semibold">{{ m.place || 'Quartier ?' }}<template v-if="m.address"> · {{ m.address }}</template></p>
+        <p class="font-semibold">{{ m.expedition_city ? `📦 Gare · vers ${m.expedition_city}` : m.place || 'Quartier ?' }}<template v-if="m.address && !m.expedition_city"> · {{ m.address }}</template></p>
         <p class="text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }} · {{ money(m.cod_amount) }} à encaisser</p>
       </RouterLink>
       <template v-if="declining?.id === m.id">

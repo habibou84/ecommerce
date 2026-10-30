@@ -21,6 +21,7 @@ use App\Services\Couriers\RemittanceDeclarations;
 use App\Services\Couriers\SharedCouriers;
 use App\Services\Orders\MessageTexts;
 use App\Services\Payments\PaymentDesk;
+use App\Services\Places\DeliveryRates;
 use chillerlan\QRCode\QRCode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -167,7 +168,13 @@ class CourierAppController extends Controller
             'note' => $model->note,
             'pickup' => $model->origin ? ['name' => $model->origin->name, 'address' => $model->origin->address] : null,
             'items' => $order->items->map(fn ($i) => ['label' => $i->label(), 'quantity' => $i->quantity]),
-            'requires_code' => $model->delivery_code !== null,
+            'requires_code' => $model->delivery_code !== null && ! $order->isExpedition(),
+            // Expédition : colis à déposer à la gare, compagnies proposées
+            'expedition' => $order->isExpedition() ? [
+                'city' => $order->expeditionCity?->name,
+                'payer' => $order->expedition_payer,
+                'companies' => SharedCouriers::within($order->store, fn () => app(DeliveryRates::class)->companies()),
+            ] : null,
             'failure_reason' => $model->failure_reason,
             'rescheduled_to' => $model->rescheduled_to?->toDateString(),
             'next_steps' => CourierDesk::nextSteps($model),
@@ -253,6 +260,11 @@ class CourierAppController extends Controller
             'rescheduled_to' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:255'],
             'photo' => ['nullable', 'file', 'image', 'max:8192'],
+            // Expédition : dépôt à la gare (compagnie, frais payés, ticket, avancés de sa poche)
+            'expedition_company' => ['nullable', 'string', 'max:60'],
+            'expedition_fee' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'expedition_ticket' => ['nullable', 'string', 'max:60'],
+            'expedition_advanced' => ['nullable', 'boolean'],
             // Étape faite sans réseau : identifiant donné par le téléphone et heure réelle de l'étape
             'offline_id' => ['nullable', 'uuid'],
             'occurred_at' => ['nullable', 'date'],
@@ -410,6 +422,7 @@ class CourierAppController extends Controller
             'status_label' => $s->status->label(),
             'customer_name' => $order->shipping_name ?? $order->customer_name,
             'place' => $order->shipping_place_label,
+            'expedition_city' => $order->isExpedition() ? $order->expeditionCity?->name : null,
             'cod_amount' => $s->cod_amount,
             'customer_response' => $s->customer_response,
             'collected_amount' => $s->collected_amount,

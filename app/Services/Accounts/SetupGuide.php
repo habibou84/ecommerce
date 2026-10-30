@@ -128,10 +128,10 @@ class SetupGuide
             ],
             'delivery_zones' => [
                 'phase' => 'store', 'permission' => Permission::StoreManage,
-                'title' => 'Vos frais de livraison par quartier',
-                'why' => 'Le bon prix de livraison s\'affiche tout seul à chaque commande, selon le quartier du client.',
-                'todo' => ['Une zone « Abidjan » à 1 500 F existe déjà', 'Créez une zone par groupe de quartiers au même prix', 'Indiquez le délai de livraison de chaque zone'],
-                'to' => '/gestion/livraisons/zones', 'action' => 'Régler les zones',
+                'title' => 'Votre prix de livraison',
+                'why' => 'Le bon prix de livraison s\'affiche tout seul à chaque commande, selon la commune ou le quartier du client.',
+                'todo' => ['Indiquez votre prix habituel dans Abidjan (1 500 F proposé)', 'Changez un prix dans une commande : l\'application propose de le retenir pour la commune ou le quartier', 'Autres villes : indiquez la livraison jusqu\'à la gare (expéditions)'],
+                'to' => '/gestion/livraisons/tarifs?depart=1', 'action' => 'Indiquer mon prix',
                 'done' => fn (Store $s) => DeliveryZone::forStore($s->id)->count() > 1
                     || DeliveryZone::forStore($s->id)->whereColumn('updated_at', '>', 'created_at')->exists(),
             ],

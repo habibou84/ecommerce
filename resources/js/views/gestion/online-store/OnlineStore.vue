@@ -37,7 +37,7 @@ const checklist = computed(() => {
   if (!c) return []
   return [
     { done: c.products > 0, text: c.products ? `${c.products} produit(s) en vente en ligne` : 'Aucun produit actif et visible en ligne', to: '/gestion/catalogue' },
-    { done: c.zones > 0, text: c.zones ? 'Zones et frais de livraison définis' : 'Aucune zone de livraison active', to: '/gestion/livraisons/zones' },
+    { done: c.zones > 0, text: c.zones ? 'Zones et frais de livraison définis' : 'Aucune zone de livraison active', to: '/gestion/livraisons/tarifs' },
     { done: c.whatsapp, text: c.whatsapp ? 'Numéro WhatsApp renseigné' : 'Ajoutez votre numéro WhatsApp (bouton « Commander sur WhatsApp »)', to: '/gestion/parametres' },
     { done: c.logo, text: c.logo ? 'Logo ajouté' : 'Ajoutez votre logo (ci-dessous)' },
   ]

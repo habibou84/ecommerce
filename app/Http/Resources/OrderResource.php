@@ -7,6 +7,8 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Shipment;
 use App\Services\Catalog\ImageStore;
+use App\Services\Orders\Expeditions;
+use App\Services\Places\DeliveryRates;
 use App\Services\Shipping\ShipmentPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -45,6 +47,9 @@ class OrderResource extends JsonResource
             'customer_phone_display' => PhoneNumber::display($this->customer_phone),
             'delivery_method' => $this->delivery_method,
             'shipping_place_label' => $this->shipping_place_label,
+            // Expédition vers une autre ville (ville de destination ; déposée à la gare ou non)
+            'expedition_city' => $this->isExpedition() ? $this->expeditionCity?->name : null,
+            'expedition_dropped' => $this->isExpedition() && $this->expedition_dropped_at !== null,
             'total' => $this->total,
             'amount_paid' => $this->amount_paid,
             'amount_refunded' => $this->amount_refunded,
@@ -85,6 +90,23 @@ class OrderResource extends JsonResource
             'shipping_fee' => $this->shipping_fee,
             'cost_total' => $this->cost_total,
             'deposit_required' => $this->deposit_required,
+            'expedition' => $this->isExpedition() ? [
+                'city' => $this->expeditionCity?->name,
+                'payer' => $this->expedition_payer,
+                'payer_label' => Expeditions::PAYERS[$this->expedition_payer] ?? null,
+                'prepay' => $this->expedition_prepay,
+                'prepay_due' => Expeditions::blockingDue($this->resource),
+                'fee' => $this->expedition_fee,
+                'company' => $this->expedition_company,
+                'ticket' => $this->expedition_ticket,
+                'advanced' => $this->expedition_advanced,
+                'dropped_at' => $this->expedition_dropped_at?->toIso8601String(),
+                'receipt' => $this->expedition_receipt_path !== null,
+                'companies' => app(DeliveryRates::class)->companies(),
+                // Message au client, à envoyer soi-même si WhatsApp n'est pas branché
+                'whatsapp_url' => $this->expedition_dropped_at && filled($this->customer_phone)
+                    ? 'https://wa.me/'.ltrim((string) $this->customer_phone, '+').'?text='.rawurlencode(Expeditions::message($this->resource)) : null,
+            ] : null,
             'customer_note' => $this->customer_note,
             'internal_note' => $this->internal_note,
             'cancel_reason' => $this->cancel_reason?->value,
@@ -141,6 +163,6 @@ class OrderResource extends JsonResource
 
     public static function loadDetail(Order $order): Order
     {
-        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store', 'shipments.connection', 'shipments.courier', 'shipments.events', 'shipments.origin', 'plannedCourier', 'plannedCarrier']);
+        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store', 'shipments.connection', 'shipments.courier', 'shipments.events', 'shipments.origin', 'plannedCourier', 'plannedCarrier', 'expeditionCity']);
     }
 }

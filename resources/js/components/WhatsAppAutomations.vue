@@ -26,6 +26,16 @@ const editing = reactive({}) // nom de modèle en cours de modification, par mes
 const account = computed(() => props.data.account)
 const embedded = computed(() => account.value?.connection === 'embedded')
 
+// Nom affiché du numéro, vérifié par Meta
+const NAME = {
+  APPROVED: ['Nom approuvé', 'text-emerald-700'],
+  AVAILABLE_WITHOUT_REVIEW: ['Nom approuvé', 'text-emerald-700'],
+  PENDING_REVIEW: ['Nom en vérification chez Meta', 'text-amber-700'],
+  DECLINED: ['Nom refusé par Meta', 'text-red-700'],
+  EXPIRED: ['Nom expiré', 'text-red-700'],
+}
+const nameState = computed(() => NAME[account.value?.name_status] ?? null)
+
 // Messages par destinataire, avec un nom court et le moment de l'envoi
 const MESSAGES = {
   order_confirmation: ['Demande de confirmation', 'Dès qu\'une commande est à confirmer'],
@@ -277,6 +287,10 @@ const META_STEPS = [
           <span class="block text-xs" :class="account.status === 'disabled' ? 'text-ocre-700' : 'text-slate-500'">
             {{ account.status === 'disabled' ? 'En pause : aucun message ne part' : (embedded ? 'Connecté avec Facebook' : 'Connecté avec vos identifiants Meta') }}
           </span>
+          <span v-if="account.verified_name || nameState" class="block text-xs">
+            <template v-if="account.verified_name">« {{ account.verified_name }} »</template>
+            <span v-if="nameState" :class="nameState[1]"><template v-if="account.verified_name"> · </template>{{ nameState[0] }}</span>
+          </span>
         </span>
         <button type="button" class="btn-ghost px-2" aria-label="Plus d'actions" :aria-expanded="menu" @click="menu = !menu"><Icon name="more" :size="18" /></button>
         <div v-if="menu" class="absolute right-2 top-14 z-10 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg">
@@ -286,7 +300,18 @@ const META_STEPS = [
           <button type="button" class="block w-full px-4 py-2 text-left text-red-600 hover:bg-red-50" @click="disconnect">Déconnecter ce numéro</button>
         </div>
       </div>
-      <Alert v-if="account.last_error" tone="warning">Dernière erreur de Meta : {{ account.last_error }}</Alert>
+      <!-- Numéro américain proposé par Meta à la connexion : à remplacer par le numéro de la boutique -->
+      <section v-if="account.meta_number" class="card space-y-2 border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <h3 class="font-semibold">Ce numéro a été fourni par Meta, ce n'est pas le vôtre</h3>
+        <p>Vos clients verraient un numéro américain, et aucun message ne part tant que Meta n'a pas approuvé son nom. Connectez plutôt votre propre numéro (+225) : il ne doit pas déjà servir dans l'application WhatsApp ordinaire.</p>
+        <button v-if="data.embedded" type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Connecter mon propre numéro' }}</button>
+      </section>
+      <Alert v-if="account.last_error && account.error_help" tone="warning">
+        <strong class="block">{{ account.error_help.title }}</strong>
+        <span class="block">{{ account.error_help.help }}</span>
+        <span class="mt-1 block text-xs opacity-75">Message de Meta : {{ account.last_error }}</span>
+      </Alert>
+      <Alert v-else-if="account.last_error" tone="warning">Dernière erreur de Meta : {{ account.last_error }}</Alert>
 
       <!-- Un interrupteur par message, l'état du modèle et l'aperçu -->
       <section v-for="group in groups" :key="group.title" class="card p-4 sm:p-5">

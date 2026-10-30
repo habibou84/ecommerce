@@ -69,8 +69,9 @@ const summary = computed(() => {
       key: 'messages', icon: 'cloche', label: 'Messages automatiques',
       ...(!a ? { todo: true, state: 'Pas encore connecté' }
         : a.status === 'disabled' ? { todo: true, state: 'En pause' }
-          : a.last_error ? { todo: true, state: 'Erreur de Meta à regarder' }
-            : { ok: activeMessages.value > 0, state: `${activeMessages.value} message(s) actif(s)${pending ? ` · ${pending} en attente chez Meta` : ''}` }),
+          : a.meta_number ? { todo: true, state: 'Numéro fourni par Meta : connectez le vôtre' }
+            : a.last_error ? { todo: true, state: a.error_help?.title ?? 'Erreur de Meta à regarder' }
+              : { ok: activeMessages.value > 0, state: `${activeMessages.value} message(s) actif(s)${pending ? ` · ${pending} en attente chez Meta` : ''}` }),
     },
     {
       key: 'assistant', icon: 'aide', label: 'Assistant (réponses automatiques)',
@@ -150,7 +151,7 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
         <li v-for="m in messages" :key="m.id" class="flex items-center gap-3 py-3 text-sm">
           <span class="min-w-0 flex-1">
             <span class="block font-semibold">{{ SHORT[m.event] ?? official.events[m.event]?.label ?? m.event }}</span>
-            <span class="block text-xs text-slate-500">{{ m.to }} · {{ formatDateTime(m.created_at) }}<template v-if="m.error"> · <span class="text-red-700">{{ m.error }}</span></template></span>
+            <span class="block text-xs text-slate-500">{{ m.to }} · {{ formatDateTime(m.created_at) }}<template v-if="m.error"> · <span class="text-red-700">{{ m.error_help || m.error }}</span></template></span>
           </span>
           <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="(STATUS[m.status] ?? STATUS.sent)[1]">{{ (STATUS[m.status] ?? [m.status])[0] }}</span>
           <RouterLink v-if="m.related_type === 'order'" :to="`/gestion/commandes/${m.related_id}`" class="shrink-0 text-slate-400 hover:text-emerald-700" aria-label="Voir la commande"><Icon name="chevron" :size="16" /></RouterLink>

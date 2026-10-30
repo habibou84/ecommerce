@@ -33,6 +33,11 @@ class TemplateLibrary
             'body' => 'Bonjour {{1}}, votre commande {{2}} est en route ! Suivez-la ici : {{3}} . Merci de rester joignable.',
             'example' => ['Awa', '#1001', 'https://boutique.jibiat-marchand.com/suivi/abc'],
         ],
+        'order_expedited' => [
+            'name' => 'jm_colis_expedie', 'category' => 'UTILITY',
+            'body' => 'Bonjour {{1}}, votre commande {{2}} est partie pour {{3}} par {{4}}. {{5}} Présentez ce numéro à la gare pour récupérer votre colis. Merci !',
+            'example' => ['Awa', '#1001', 'Bouaké', 'UTB, ticket n° 4521', 'Frais d\'expédition : 2 000 F, à payer à l\'arrivée.'],
+        ],
         'order_delivered' => [
             'name' => 'jm_commande_livree', 'category' => 'UTILITY',
             'body' => 'Bonjour {{1}}, votre commande {{2}} a bien été livrée. Merci pour votre confiance et à bientôt !',

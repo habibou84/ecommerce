@@ -13,7 +13,7 @@ class WhatsappAccount extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'connection', 'two_step_pin', 'template_status', 'phone_number_id', 'waba_id', 'display_phone', 'access_token', 'app_secret', 'verify_token', 'webhook_uuid', 'templates', 'automations', 'status', 'last_error'];
+    protected $fillable = ['store_id', 'connection', 'two_step_pin', 'template_status', 'phone_number_id', 'waba_id', 'display_phone', 'verified_name', 'name_status', 'access_token', 'app_secret', 'verify_token', 'webhook_uuid', 'templates', 'automations', 'status', 'last_error'];
 
     protected $hidden = ['access_token', 'app_secret', 'two_step_pin'];
 
