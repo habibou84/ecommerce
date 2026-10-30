@@ -7,6 +7,9 @@ use App\Models\LiveReservation;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\ProductImage;
+use chillerlan\QRCode\Output\QROutputInterface;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 use GdImage;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
@@ -128,6 +131,169 @@ class LiveImages
         $this->save($path, $c);
 
         return $this->disk()->url($path);
+    }
+
+    /**
+     * Carte d'un article pour le live (900 × 1200) : photo, code en très grand, prix (ancien prix barré), nom,
+     * pièces restantes et « Envoyez A1 sur WhatsApp » ; version « VENDU » quand l'article est épuisé.
+     *
+     * Renvoie le chemin du fichier sur le disque du catalogue (adresse publique : url()).
+     *
+     * @param  array{code: string, title: string, variant: ?string, price: int, was: ?int, remaining: ?int, image: ?ProductImage}  $card
+     */
+    public function card(int $storeId, array $card, bool $sold = false): string
+    {
+        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $sold, 3])), 0, 12);
+        $path = "live/{$storeId}/card-{$card['code']}-{$key}.jpg";
+        if ($this->disk()->exists($path)) {
+            return $path;
+        }
+
+        [$w, $h] = [900, 1200];
+        $c = imagecreatetruecolor($w, $h);
+        $white = imagecolorallocate($c, 255, 255, 255);
+        $ink = imagecolorallocate($c, 17, 17, 17);
+        $red = imagecolorallocate($c, 220, 38, 38);
+        $yellow = imagecolorallocate($c, 250, 204, 21);
+        $brown = imagecolorallocate($c, 113, 63, 18);
+        $night = imagecolorallocate($c, 15, 23, 42);
+        $green = imagecolorallocate($c, 37, 211, 102);
+        imagefill($c, 0, 0, $night);
+
+        // Photo (ou fond coloré sans photo)
+        $photoH = 780;
+        $photo = $card['image'] ? $this->load($card['image']) : null;
+        if ($photo !== null) {
+            $this->cover($c, $photo, 0, 0, $w, $photoH);
+        } else {
+            for ($y = 0; $y < $photoH; $y++) {
+                $t = $y / $photoH;
+                imageline($c, 0, $y, $w, $y, imagecolorallocate($c, (int) (249 - 60 * $t), (int) (115 - 70 * $t), (int) (22 + 30 * $t)));
+            }
+        }
+
+        // Code en très grand, cadre blanc
+        $codeW = $this->width($card['code'], 150, 'ExtraBold');
+        imagefilledrectangle($c, 30, 30, 30 + $codeW + 80, 250, $white);
+        imagefilledrectangle($c, 42, 42, 18 + $codeW + 80, 238, $red);
+        imagettftext($c, 150, 0, 70, 215, $white, $this->font('ExtraBold'), $card['code']);
+
+        // Pièces restantes
+        if ($card['remaining'] !== null && ! $sold) {
+            $label = $card['remaining'] === 1 ? 'Dernière pièce' : $card['remaining'].' pièces';
+            $lw = $this->width($label, 36, 'Bold');
+            imagefilledrectangle($c, $w - 60 - $lw, 40, $w - 30, 110, imagecolorallocatealpha($c, 15, 23, 42, 20));
+            imagettftext($c, 36, 0, $w - 45 - $lw, 92, $white, $this->font('Bold'), $label);
+        }
+
+        // Bande jaune : prix, ancien prix barré, nom
+        imagefilledrectangle($c, 0, $photoH, $w, $h - 120, $yellow);
+        $price = Money::format($card['price']);
+        $pw = $this->width($price, 96, 'ExtraBold');
+        imagettftext($c, 96, 0, 40, $photoH + 125, $ink, $this->font('ExtraBold'), $price);
+        if ($card['was']) {
+            $was = Money::format($card['was']);
+            $ww = $this->width($was, 44, 'Bold');
+            imagettftext($c, 44, 0, 70 + $pw, $photoH + 122, $brown, $this->font('Bold'), $was);
+            imagefilledrectangle($c, 68 + $pw, $photoH + 103, 72 + $pw + $ww, $photoH + 108, $brown);
+        }
+        $name = $card['title'].($card['variant'] ? ' · '.$card['variant'] : '');
+        imagettftext($c, 46, 0, 40, $photoH + 210, $ink, $this->font('Bold'), $this->fit($name, 46, 'Bold', $w - 80));
+
+        // Pied : appel à commander
+        imagefilledrectangle($c, 0, $h - 120, $w, $h, $night);
+        imagefilledellipse($c, 75, $h - 60, 64, 64, $green);
+        imagefilledellipse($c, 75, $h - 60, 26, 26, $white);
+        imagettftext($c, 38, 0, 130, $h - 44, $white, $this->font('ExtraBold'), $this->fit("Envoyez {$card['code']} sur WhatsApp", 38, 'ExtraBold', $w - 160));
+
+        if ($sold) {
+            $this->stamp($c, 'VENDU', (int) ($w / 2), (int) ($photoH / 2) + 40, $red);
+        }
+
+        $this->save($path, $c);
+
+        return $path;
+    }
+
+    /**
+     * Carte « Comment commander » : 4 étapes, numéro WhatsApp et QR code qui ouvre la conversation (chemin du
+     * fichier).
+     */
+    public function howCard(int $storeId, string $storeName, ?string $phone, ?string $whatsappUrl): string
+    {
+        $key = substr(md5(json_encode([$storeName, $phone, $whatsappUrl, 3])), 0, 12);
+        $path = "live/{$storeId}/how-{$key}.jpg";
+        if ($this->disk()->exists($path)) {
+            return $path;
+        }
+
+        [$w, $h] = [900, 1200];
+        $c = imagecreatetruecolor($w, $h);
+        for ($y = 0; $y < $h; $y++) {
+            $t = $y / $h;
+            imageline($c, 0, $y, $w, $y, imagecolorallocate($c, (int) (4 - 2 * $t), (int) (120 - 76 * $t), (int) (87 - 53 * $t)));
+        }
+        $white = imagecolorallocate($c, 255, 255, 255);
+        $yellow = imagecolorallocate($c, 250, 204, 21);
+        $ink = imagecolorallocate($c, 17, 17, 17);
+        $deep = imagecolorallocate($c, 6, 78, 59);
+
+        imagettftext($c, 76, 0, 60, 150, $white, $this->font('ExtraBold'), 'Comment');
+        imagettftext($c, 76, 0, 60, 245, $white, $this->font('ExtraBold'), 'commander ?');
+        $steps = ['Notez le code (A1, A2…)', 'Envoyez-le sur WhatsApp', 'Touchez votre commune', 'On vous livre'];
+        foreach ($steps as $i => $step) {
+            $y = 340 + $i * 105;
+            imagefilledellipse($c, 100, $y, 76, 76, $yellow);
+            imagettftext($c, 40, 0, 86, $y + 15, $ink, $this->font('ExtraBold'), (string) ($i + 1));
+            imagettftext($c, 42, 0, 160, $y + 15, $white, $this->font('Bold'), $step);
+        }
+
+        // Encadré blanc : QR code et numéro
+        imagefilledrectangle($c, 50, 790, $w - 50, $h - 60, $white);
+        if ($whatsappUrl) {
+            $png = (new QRCode(new QROptions(['outputType' => QROutputInterface::GDIMAGE_PNG, 'scale' => 10, 'outputBase64' => false, 'imageTransparent' => false])))->render($whatsappUrl);
+            $qr = @imagecreatefromstring($png);
+            if ($qr) {
+                imagecopyresampled($c, $qr, 80, 820, 0, 0, 290, 290, imagesx($qr), imagesy($qr));
+            }
+        }
+        imagettftext($c, 30, 0, 400, 880, $deep, $this->font('Bold'), $this->fit('WhatsApp '.$storeName, 30, 'Bold', $w - 470));
+        imagettftext($c, 42, 0, 400, 955, $deep, $this->font('ExtraBold'), $this->fit($phone ?? '', 42, 'ExtraBold', $w - 460));
+        imagettftext($c, 28, 0, 400, 1030, $deep, $this->font('Medium'), 'Scannez pour écrire');
+        imagettftext($c, 28, 0, 400, 1075, $deep, $this->font('Medium'), 'Paiement à la livraison');
+
+        $this->save($path, $c);
+
+        return $path;
+    }
+
+    public function url(string $path): string
+    {
+        return $this->disk()->url($path);
+    }
+
+    public function contents(string $path): string
+    {
+        return (string) $this->disk()->get($path);
+    }
+
+    /**
+     * Tampon incliné (texte et cadre), centré sur (cx, cy).
+     */
+    private function stamp(GdImage $c, string $text, int $cx, int $cy, int $color): void
+    {
+        $size = 130;
+        $angle = 14;
+        $tw = $this->width($text, $size, 'ExtraBold');
+        $th = 120;
+        $rad = deg2rad($angle);
+        [$cos, $sin] = [cos($rad), sin($rad)];
+        $corner = fn (float $x, float $y) => [(int) round($cx + $x * $cos + $y * $sin), (int) round($cy - $x * $sin + $y * $cos)];
+        $box = fn (float $pad) => array_merge(...array_map(fn ($p) => $corner($p[0], $p[1]), [[-$tw / 2 - $pad, -$th / 2 - $pad], [$tw / 2 + $pad, -$th / 2 - $pad], [$tw / 2 + $pad, $th / 2 + $pad], [-$tw / 2 - $pad, $th / 2 + $pad]]));
+        imagefilledpolygon($c, $box(50), $color);
+        imagefilledpolygon($c, $box(36), imagecolorallocatealpha($c, 255, 255, 255, 10));
+        [$x, $y] = $corner(-$tw / 2, $th / 2 - 8);
+        imagettftext($c, $size, $angle, $x, $y, $color, $this->font('ExtraBold'), $text);
     }
 
     private function load(ProductImage $image): ?GdImage
