@@ -3,6 +3,7 @@
 namespace App\Services\WhatsApp;
 
 use App\Models\WhatsappAccount;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -82,13 +83,18 @@ class TemplateLibrary
      *
      * @return list<string> erreurs, par modèle
      */
-    public function install(WhatsappAccount $account): array
+    public function install(WhatsappAccount $account, ?array $only = null): array
     {
         $templates = $account->templates ?? [];
         $status = $account->template_status ?? [];
         $errors = [];
+        // Pas de nouvel essai automatique avant une heure (voir installMissing)
+        Cache::put(self::key($account), true, now()->addHour());
 
         foreach (self::TEMPLATES as $event => $t) {
+            if ($only !== null && ! in_array($event, $only, true)) {
+                continue;
+            }
             $components = [['type' => 'BODY', 'text' => $t['body'], 'example' => ['body_text' => [$t['example']]]]];
             if (! empty($t['buttons'])) {
                 $components[] = ['type' => 'BUTTONS', 'buttons' => array_map(fn ($b) => ['type' => 'QUICK_REPLY', 'text' => $b], $t['buttons'])];
@@ -114,6 +120,35 @@ class TemplateLibrary
         $account->forceFill(['templates' => $templates, 'template_status' => $status])->save();
 
         return $errors;
+    }
+
+    /**
+     * Numéro déjà connecté en un clic : les modèles ajoutés depuis sa connexion (ex. « Colis expédié ») sont soumis
+     * à Meta sans reconnexion, et leur message automatique est activé. Au plus un essai par heure et par numéro.
+     *
+     * @return list<string> messages d'erreur
+     */
+    public function installMissing(WhatsappAccount $account): array
+    {
+        if (! $account->isEmbedded() || blank($account->waba_id) || blank($account->access_token)) {
+            return [];
+        }
+        $missing = array_values(array_diff(array_keys(self::TEMPLATES), array_keys($account->templates ?? [])));
+        if ($missing === [] || ! Cache::add(self::key($account), true, now()->addHour())) {
+            return [];
+        }
+        $errors = $this->install($account, $missing);
+        $added = array_intersect($missing, array_keys($account->templates ?? []));
+        if ($added !== []) {
+            $account->forceFill(['automations' => ($account->automations ?? []) + array_fill_keys($added, true)])->save();
+        }
+
+        return $errors;
+    }
+
+    private static function key(WhatsappAccount $account): string
+    {
+        return 'whatsapp-templates:'.$account->id;
     }
 
     /**

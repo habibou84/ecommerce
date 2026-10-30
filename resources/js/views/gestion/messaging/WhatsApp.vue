@@ -90,7 +90,7 @@ const STATUS = { queued: ['En file', 'bg-slate-100 text-slate-700'], sent: ['Env
 const FILTERS = [['all', 'Tous'], ['read', 'Lus'], ['failed', 'Échecs']]
 const filter = ref('all')
 const messages = computed(() => (official.value?.messages ?? []).filter((m) => filter.value === 'all' || m.status === filter.value))
-const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_way: 'Livreur en route', order_shipped: 'Commande en route', order_delivered: 'Commande livrée', review_request: 'Demande d\'avis', payment_link: 'Lien de paiement', cart_recovery: 'Panier abandonné', campaign: 'Relance des clients', daily_tips: 'Conseils du soir', daily_report: 'Rapport du jour' }
+const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_way: 'Livreur en route', order_shipped: 'Commande en route', order_expedited: 'Colis expédié', order_delivered: 'Commande livrée', review_request: 'Demande d\'avis', payment_link: 'Lien de paiement', cart_recovery: 'Panier abandonné', campaign: 'Relance des clients', daily_tips: 'Conseils du soir', daily_report: 'Rapport du jour' }
 </script>
 
 <template>

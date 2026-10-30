@@ -18,6 +18,15 @@ const busy = ref(false)
 const error = ref('')
 const errors = ref({})
 const form = reactive({ company: '', other: '', fee: '', ticket: '', receipt: null })
+// Message au client : envoyé tout seul, ou en attente du modèle chez Meta (le bouton manuel reste en attendant)
+const MESSAGE = {
+  sent: ['✓ Client prévenu automatiquement sur WhatsApp.', 'text-emerald-700'],
+  approved: ['Le client sera prévenu automatiquement sur WhatsApp au dépôt.', 'text-emerald-700'],
+  pending: ['Message automatique en vérification chez Meta (en général quelques minutes). En attendant, il part seul si le client vous a écrit depuis moins de 24 h ; sinon, prévenez-le avec le bouton.', 'text-amber-800'],
+  rejected: ['Meta a refusé le message automatique d\'expédition : prévenez le client avec le bouton.', 'text-amber-800'],
+  manual: ['Pour prévenir le client automatiquement, reconnectez votre WhatsApp avec Facebook (page WhatsApp).', 'text-slate-500'],
+}
+const messageInfo = computed(() => MESSAGE[e.value.message_state] ?? null)
 const canDrop = computed(() => props.canManage && !e.value.dropped_at && ['confirmed', 'processing', 'shipped'].includes(props.order.status))
 
 async function save() {
@@ -70,8 +79,9 @@ async function collected() {
       </div>
       <div class="flex flex-wrap gap-2">
         <button v-if="e.receipt" type="button" class="btn-secondary px-3 py-1.5" @click="download(`/orders/${order.id}/expedition/receipt`, 'recu-expedition.jpg')">Voir le reçu</button>
-        <a v-if="e.whatsapp_url" :href="e.whatsapp_url" target="_blank" class="btn-secondary px-3 py-1.5">Prévenir le client sur WhatsApp</a>
+        <a v-if="e.whatsapp_url" :href="e.whatsapp_url" target="_blank" class="btn-secondary px-3 py-1.5">{{ e.message_state === 'sent' ? 'Renvoyer moi-même sur WhatsApp' : 'Prévenir le client sur WhatsApp' }}</a>
       </div>
+      <p v-if="messageInfo" class="text-xs" :class="messageInfo[1]">{{ messageInfo[0] }}</p>
       <button v-if="canManage && order.status === 'shipped'" type="button" class="btn-brand w-full" :disabled="busy" @click="collected">Colis récupéré par le client</button>
     </template>
 
@@ -106,6 +116,7 @@ async function collected() {
       </form>
     </template>
     <p v-else-if="!e.dropped_at" class="text-slate-500">Le livreur notera la compagnie, les frais et le ticket en déposant le colis.</p>
+    <p v-if="!e.dropped_at && messageInfo && e.message_state !== 'sent'" class="text-xs" :class="messageInfo[1]">{{ messageInfo[0] }}</p>
 
     <Alert v-if="error">{{ error }}</Alert>
   </section>
