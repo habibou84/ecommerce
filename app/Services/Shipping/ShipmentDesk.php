@@ -662,6 +662,8 @@ class ShipmentDesk
             'recipient_phone2' => $order->shipping_phone2,
             'delivery_zone_id' => $zone ? (int) $zone->remote_id : null,
             'delivery_zone' => $zone ? null : $order->shipping_place_label,
+            // Code du lieu (liste commune) : Jibiat trouve la zone exacte, même sans correspondance enregistrée ici
+            'delivery_place' => $zone ? null : $order->place?->commonCode(),
             'delivery_address' => $order->shipping_address,
             'delivery_landmark' => $order->shipping_landmark,
             'delivery_scheduled_date' => $order->scheduled_date && $order->scheduled_date->isFuture() ? $order->scheduled_date->toDateString() : null,
