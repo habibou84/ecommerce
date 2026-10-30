@@ -12,7 +12,7 @@ class CarrierZone extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['connection_id', 'remote_id', 'name', 'parent_name', 'fee', 'is_shipping', 'is_active', 'synced_at'];
+    protected $fillable = ['connection_id', 'remote_id', 'name', 'parent_name', 'place_code', 'fee', 'is_shipping', 'is_active', 'synced_at'];
 
     protected function casts(): array
     {
