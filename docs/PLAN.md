@@ -646,3 +646,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Nouvelle commande, client connu : « Reprendre l'adresse » remplit le quartier et l'adresse, les montre en surbrillance et la carte affiche « ✓ Adresse reprise » (le bouton disparaît).
 - Fiche commande : un livreur déjà choisi s'affiche avec « Modifier » à la place de « Faire livrer » ; « Autre livreur » devient « Modifier le livreur ».
 - Live, onglet Produits : « Que voir sur l'écran du live ? » avec « Montrer un seul produit », « Faire défiler tous les produits », « Montrer comment commander » (plus de doigt pointé).
+- Live, « Montrer un seul produit » : bande de miniatures à glisser juste au-dessus de l'aperçu de l'écran ; boutons « Produit précédent » et « Produit suivant ».
