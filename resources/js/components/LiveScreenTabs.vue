@@ -101,6 +101,34 @@ watch(featured, async (id) => {
 // ── Écran ──
 const host = String(boot.platformUrl ?? `https://${boot.domain}`).replace(/^https?:\/\//, '').replace(/\/$/, '')
 const tvs = computed(() => screens.value.filter((s) => !s.is_link))
+// En haut : les écrans allumés, sinon le dernier relié ; les autres sont rangés dans « Anciens écrans »
+const seen = (s) => new Date(s.last_seen_at ?? s.paired_at ?? 0).getTime()
+const mainTvs = computed(() => {
+  const online = tvs.value.filter((s) => s.online)
+  if (online.length) return online
+  const last = [...tvs.value].sort((a, b) => new Date(b.paired_at ?? 0) - new Date(a.paired_at ?? 0))[0]
+  return last ? [last] : []
+})
+const oldTvs = computed(() => tvs.value.filter((s) => !mainTvs.value.includes(s)).sort((a, b) => seen(b) - seen(a)))
+const showOld = ref(false)
+function since(iso) {
+  if (!iso) return 'jamais allumé'
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (min < 2) return 'à l\'instant'
+  if (min < 60) return `il y a ${min} min`
+  if (min < 24 * 60) return `il y a ${Math.round(min / 60)} h`
+  const days = Math.round(min / 1440)
+  return days === 1 ? 'hier' : `il y a ${days} j`
+}
+async function removeOld(screen) {
+  await http.delete(`/lives/screens/${screen.id}`)
+  await loadScreens()
+}
+async function removeAllOld() {
+  if (!window.confirm(`Retirer les ${oldTvs.value.length} anciens écrans ?`)) return
+  for (const s of oldTvs.value) await http.delete(`/lives/screens/${s.id}`)
+  await loadScreens()
+}
 const studio = computed(() => screens.value.find((s) => s.is_link) ?? null)
 const code = ref('')
 const name = ref('')
@@ -140,7 +168,7 @@ async function test(screen) {
   }
 }
 async function remove(screen) {
-  if (!window.confirm(`Déconnecter « ${screen.name} » ? Il n'affichera plus votre live.`)) return
+  if (!window.confirm(screen.online === false ? `Retirer « ${screen.name} » ?` : `Déconnecter « ${screen.name} » ? Il n'affichera plus votre live.`)) return
   await http.delete(`/lives/screens/${screen.id}`)
   if (screen.is_link) link.value = null
   await loadScreens()
@@ -257,15 +285,31 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
         <p class="text-sm text-slate-500">Posée à côté de vous, filmée avec vous</p>
 
         <template v-if="tvs.length && !adding">
-          <div v-for="s in tvs" :key="s.id" class="mt-3 rounded-xl border-2 p-3" :class="s.online ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'">
-            <p class="text-base font-extrabold" :class="s.online ? 'text-emerald-800' : 'text-slate-600'">{{ s.online ? '✅ Écran connecté' : '○ Écran éteint' }} · {{ s.name }}</p>
-            <p v-if="!s.online" class="mt-1 text-sm text-slate-500">Allumez-le et ouvrez <b>{{ host }}/ecran</b> : il se reconnecte tout seul.</p>
+          <div v-for="s in mainTvs" :key="s.id" class="mt-3 rounded-xl border-2 p-3" :class="s.online ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'">
+            <p class="text-base font-extrabold" :class="s.online ? 'text-emerald-800' : 'text-slate-600'">{{ s.online ? '✅ Connecté' : '○ Éteint' }} · {{ s.name }}</p>
+            <p v-if="s.online" class="text-xs text-emerald-700">Relié {{ since(s.paired_at) }}</p>
+            <p v-else class="mt-1 text-sm text-slate-500"><template v-if="s.last_seen_at">Vu pour la dernière fois {{ since(s.last_seen_at) }}. </template>Allumez-le et ouvrez <b>{{ host }}/ecran</b> : il se reconnecte tout seul.</p>
             <div class="mt-2 flex gap-2">
               <button type="button" class="btn-secondary flex-1 py-3 text-base" :disabled="!s.online" @click="test(s)">{{ tested === s.id ? '✓ Regardez la télé' : '🧪 Tester' }}</button>
-              <button type="button" class="btn-ghost text-red-600" @click="remove(s)">Déconnecter</button>
+              <button type="button" class="btn-ghost text-red-600" @click="remove(s)">{{ s.online ? 'Déconnecter' : 'Retirer' }}</button>
             </div>
           </div>
-          <button type="button" class="mt-3 text-sm font-semibold text-emerald-700" @click="addAnother">+ Connecter un autre écran</button>
+          <button type="button" class="mt-3 w-full rounded-xl border-2 border-dashed border-emerald-600 py-3 text-base font-extrabold text-emerald-800" @click="addAnother">+ Relier un autre écran</button>
+
+          <!-- Anciens écrans : repliés -->
+          <div v-if="oldTvs.length" class="mt-3 border-t border-slate-200 pt-2">
+            <button type="button" class="flex w-full items-center justify-between py-1 text-sm font-bold text-slate-600" :aria-expanded="showOld" @click="showOld = !showOld">
+              Anciens écrans ({{ oldTvs.length }})<span aria-hidden="true">{{ showOld ? '▴' : '▾' }}</span>
+            </button>
+            <template v-if="showOld">
+              <div v-for="s in oldTvs" :key="s.id" class="flex items-center justify-between border-b border-slate-100 py-2 text-sm text-slate-500">
+                <span><b class="font-semibold text-slate-700">{{ s.name }}</b> · {{ s.last_seen_at ? `vu ${since(s.last_seen_at)}` : 'jamais allumé' }}</span>
+                <button type="button" class="text-xs font-bold text-red-600" @click="removeOld(s)">Retirer</button>
+              </div>
+              <div class="mt-1 text-right"><button type="button" class="text-xs font-bold text-red-600" @click="removeAllOld">Tout retirer</button></div>
+            </template>
+            <p class="mt-2 rounded-lg bg-slate-50 p-2 text-xs text-slate-500">Un écran relié à nouveau sous le même nom remplace l'ancien ; un écran éteint depuis plus de 7 jours est retiré tout seul.</p>
+          </div>
         </template>
 
         <form v-else class="space-y-4" @submit.prevent="pair">
