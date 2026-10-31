@@ -641,3 +641,5 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Correction : « Faire livrer » dans la liste des commandes confie bien la commande au livreur choisi (le choix était perdu à la fermeture de la fenêtre).
 - Correction : « Le champ expedition prepay doit être vrai ou faux » à la création d'une commande hors expédition (champ vide envoyé par le formulaire).
 - Page du live : onglets « Produits » et « Écran » directement sous la carte du live (plus de page séparée ni d'ancien bandeau).
+- Live : la carte du live en direct montre la dernière commande (mise à jour toute seule) ; « commandes », « à traiter » et « Dernière » mènent à la liste des clientes.
+- Nouvelle commande : après l'enregistrement, un résumé propose « Enregistrer une nouvelle commande », « Dupliquer » (mêmes articles et même livraison, autre client), « Imprimer l'étiquette », « Voir la commande » et « Liste des commandes ».

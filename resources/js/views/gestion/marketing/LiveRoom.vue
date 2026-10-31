@@ -133,6 +133,17 @@ const clients = computed(() => {
   })
 })
 const todoCount = computed(() => clients.value.filter((c) => c.todo).length)
+// Carte du live : la dernière réservation (mise à jour toute seule) et l'accès à la liste des clientes
+const last = computed(() => (live.value?.reservations ?? []).filter((r) => r.status !== 'cancelled')
+  .reduce((a, r) => (!a || r.created_at > a.created_at ? r : a), null))
+function ago(iso) {
+  const min = Math.max(0, Math.round((now.value - new Date(iso).getTime()) / 60000))
+  return min < 1 ? 'à l\'instant' : min < 60 ? `il y a ${min} min` : `il y a ${Math.floor(min / 60)} h`
+}
+function goToClients(which = 'all') {
+  filter.value = which
+  document.getElementById('live-clientes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 const shown = computed(() => clients.value.filter((c) => filter.value === 'all' || c.todo))
 
 // ── Réservation vue dans les commentaires (bouton flottant) ──
@@ -239,9 +250,15 @@ async function redo() {
         </div>
         <div class="mt-3 grid grid-cols-3 gap-2">
           <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg font-extrabold leading-tight sm:text-xl">{{ money(live.summary.amount) }}</b><span class="text-xs">montant</span></span>
-          <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg font-extrabold leading-tight sm:text-xl">{{ live.summary.orders }}</b><span class="text-xs">commande{{ live.summary.orders > 1 ? 's' : '' }}</span></span>
-          <button type="button" class="rounded-xl bg-white/15 p-2 text-left" @click="filter = 'todo'"><b class="block text-lg font-extrabold leading-tight sm:text-xl">{{ todoCount }}</b><span class="text-xs">à traiter</span></button>
+          <button type="button" class="rounded-xl bg-white/15 p-2 text-left" @click="goToClients('all')"><b class="block text-lg font-extrabold leading-tight sm:text-xl">{{ live.summary.orders }}</b><span class="text-xs">commande{{ live.summary.orders > 1 ? 's' : '' }} ›</span></button>
+          <button type="button" class="rounded-xl bg-white/15 p-2 text-left" @click="goToClients('todo')"><b class="block text-lg font-extrabold leading-tight sm:text-xl">{{ todoCount }}</b><span class="text-xs">à traiter ›</span></button>
         </div>
+        <!-- Dernière commande, en direct : la toucher mène à la liste des clientes -->
+        <button v-if="last" type="button" class="mt-2 flex w-full items-center gap-2 rounded-xl bg-white/20 px-3 py-2 text-left text-sm" @click="goToClients('all')">
+          <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-white" />
+          <span class="min-w-0 flex-1 truncate"><b>Dernière :</b> {{ last.customer_name || phoneDisplay(last.customer_phone) || 'Client' }} · <b>{{ last.code }}</b> · {{ ago(last.created_at) }}</span>
+          <span class="shrink-0 font-bold">Voir ›</span>
+        </button>
       </section>
 
       <section v-else-if="live.status === 'draft'" class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
@@ -338,7 +355,7 @@ async function redo() {
 
 
       <!-- ═══ Clientes ═══ -->
-      <section v-if="live.status !== 'ended' || showAll" class="card p-4">
+      <section v-if="live.status !== 'ended' || showAll" id="live-clientes" class="card scroll-mt-48 p-4">
         <div class="flex flex-wrap items-center gap-2">
           <h3 class="flex-1 text-[17px] font-extrabold">Clientes</h3>
           <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs" role="radiogroup" aria-label="Filtrer les clientes">

@@ -11,7 +11,7 @@ import DelivererPicker from '../../../components/DelivererPicker.vue'
 import DeliveryPlacePicker from '../../../components/DeliveryPlacePicker.vue'
 import PlaceTapPicker from '../../../components/PlaceTapPicker.vue'
 import ProductPicker from '../../../components/ProductPicker.vue'
-import http, { errorMessage, fieldErrors } from '../../../lib/http'
+import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
 import { SOURCES, SOURCE_ICONS } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
@@ -40,6 +40,7 @@ const form = reactive({
   expedition_payer: 'arrival',
   expedition_prepay: null,
 })
+const blank = { ...form } // formulaire vide, pour « Nouvelle commande »
 const place = ref(null)
 const items = ref([])
 const manualFee = ref(false)
@@ -572,6 +573,47 @@ async function offerCarrierSync(saved) {
   }
 }
 
+// Après l'enregistrement : petit résumé et la suite
+const done = ref(null)
+const printing = ref(false)
+function clearCustomer() {
+  Object.assign(form, { customer_phone: '', customer_name: '', shipping_phone2: '', shipping_address: '', shipping_landmark: '', customer_note: '' })
+  place.value = null
+  known.value = null
+  elsewhere.value = []
+  rewardPoints.value = 0
+  conversation.value = null
+  showPhone2.value = false
+  manualFee.value = false
+  shippingFee.value = ''
+  errors.value = {}
+  error.value = ''
+}
+function again(copy) {
+  clearCustomer()
+  if (!copy) {
+    Object.assign(form, blank)
+    items.value = []
+    chosen.value = ''
+    promo.value = null
+    paste.value = ''
+    parseInfo.value = ''
+    showNotes.value = false
+  }
+  done.value = null
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+async function printLabel() {
+  printing.value = true
+  try {
+    await download(`/orders/${done.value.id}/label`, 'etiquette.pdf')
+  } catch (e) {
+    window.alert(errorMessage(e))
+  } finally {
+    printing.value = false
+  }
+}
+
 async function save() {
   if (missing.value) {
     showMissing()
@@ -618,7 +660,8 @@ async function save() {
       router.push(`/gestion/commandes/${props.id}`)
     } else {
       const { data } = await http.post('/orders', { ...payload, conversation_id: conversation.value?.id ?? null })
-      router.push(`/gestion/commandes/${data.data.id}`)
+      // Résumé avec la suite : nouvelle commande, dupliquer, étiquette, liste
+      done.value = data.data
     }
   } catch (e) {
     errors.value = fieldErrors(e)
@@ -1003,4 +1046,27 @@ async function save() {
       </template>
     </Modal>
   </form>
+
+  <Modal v-if="done" title="✅ Commande enregistrée" @close="router.push(`/gestion/commandes/${done.id}`)">
+    <div class="space-y-4">
+      <div class="rounded-xl bg-emerald-50 p-4 text-sm">
+        <p class="font-semibold text-slate-900">{{ done.reference }} · {{ done.customer_name || done.customer_phone_display }}</p>
+        <p v-if="done.customer_name" class="text-slate-600">{{ done.customer_phone_display }}</p>
+        <ul class="mt-2 space-y-0.5 text-slate-700">
+          <li v-for="(i, n) in done.items" :key="n">{{ i.quantity }} × {{ i.title }}<span v-if="i.variant_title" class="text-slate-500"> ({{ i.variant_title }})</span></li>
+        </ul>
+        <p class="mt-2 text-slate-600">
+          {{ done.delivery_method === 'pickup' ? 'Retrait en boutique' : done.shipping_place_label || 'Livraison' }}<span v-if="done.planned_courier"> · {{ done.planned_courier.name }}</span><span v-else-if="done.planned_carrier"> · {{ done.planned_carrier.name }}</span>
+        </p>
+        <p class="mt-1 text-base font-bold text-slate-900">À encaisser : {{ money(done.amount_due) }}</p>
+      </div>
+      <button type="button" class="btn-primary w-full" @click="again(false)">+ Enregistrer une nouvelle commande</button>
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" class="btn-secondary" title="Mêmes articles et même livraison, pour une autre cliente" @click="again(true)">⧉ Dupliquer</button>
+        <button type="button" class="btn-secondary" :disabled="printing" @click="printLabel">🖨️ {{ printing ? 'Préparation…' : 'Imprimer l\'étiquette' }}</button>
+        <RouterLink :to="`/gestion/commandes/${done.id}`" class="btn-secondary justify-center text-center">Voir la commande</RouterLink>
+        <RouterLink to="/gestion/commandes" class="btn-secondary justify-center text-center">Liste des commandes</RouterLink>
+      </div>
+    </div>
+  </Modal>
 </template>
