@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BillingValidationController;
 use App\Http\Controllers\Console\GmailCallbackController;
+use App\Http\Controllers\CourierAccessController;
 use App\Http\Controllers\HandoffController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\PageController;
@@ -62,6 +63,8 @@ Route::middleware('zone:store')->group(function () {
     Route::get('/auth/relais', HandoffController::class)->name('handoff');
     Route::get('/invitation/{token}', [PageController::class, 'spa'])->name('invitation');
     Route::get('/gestion/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest).*')->name('gestion');
+    // Lien d'accès du livreur reçu par WhatsApp (un seul usage) : connexion sans mot de passe
+    Route::get('/livreur/acces/{token}', CourierAccessController::class)->middleware('throttle:20,1')->name('courier-access');
     // Application des livreurs de la boutique (installable sur le téléphone)
     Route::get('/livreur/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest).*')->name('courier-app');
 });

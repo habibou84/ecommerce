@@ -43,7 +43,8 @@ class DeliveryOptionsController extends Controller
         $grams = $lines->sum(fn ($i) => (int) $variants->get($i['variant_id'])?->weight_g * (int) ($i['quantity'] ?? 1));
         $fragile = $variants->contains(fn (ProductVariant $v) => $v->product?->is_fragile);
 
-        $couriers = Courier::where('status', 'active')->with('zones:id')
+        // Livreurs actifs, et ceux créés mais pas encore connectés (ils verront la course en ouvrant leur lien)
+        $couriers = Courier::whereIn('status', ['active', 'invited'])->with('zones:id')
             ->withCount(['shipments as active_missions' => fn ($q) => $q->whereIn('status', ['awaiting_pickup', 'in_transit', 'out_for_delivery'])])
             ->orderBy('name')->get()
             ->map(fn (Courier $c) => [
@@ -52,6 +53,7 @@ class DeliveryOptionsController extends Controller
                 'is_available' => $c->is_available,
                 'active_missions' => $c->active_missions,
                 'covers_zone' => $zone !== null && $c->zones->contains('id', $zone->id),
+                'connected' => $c->status === 'active',
             ])
             ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['active_missions']])->values();
 

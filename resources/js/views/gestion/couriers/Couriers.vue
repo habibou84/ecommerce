@@ -2,6 +2,7 @@
 import Icon from '../../../components/Icon.vue'
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
+import CourierWhatsAppButton from '../../../components/CourierWhatsAppButton.vue'
 import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
@@ -20,6 +21,7 @@ const busy = ref(false)
 const modal = ref(null) // 'edit' | 'link' | 'pay' | 'rule'
 const editing = ref(null)
 const link = ref(null)
+const notice = ref('')
 const pay = ref(null) // { courier, earnings, unpaid, payouts }
 const adjust = reactive({ type: 'bonus', amount: '', note: '' })
 const payForm = reactive({ method: 'wave', reference: '' })
@@ -54,7 +56,8 @@ async function save() {
       modal.value = null
     } else {
       const { data: res } = await http.post('/couriers', payload)
-      link.value = res.invitation_url ? { name: res.data.name, phone: res.data.phone, url: res.invitation_url } : null
+      // Nouveau livreur : son accès part sur WhatsApp, sans mot de passe à créer
+      link.value = res.data.status === 'active' ? null : { id: res.data.id, name: res.data.name }
       modal.value = link.value ? 'link' : null
     }
     await load()
@@ -80,10 +83,14 @@ const ago = (at) => {
   return minutes < 1 ? 'à l\'instant' : minutes < 60 ? `il y a ${minutes} min` : `à ${new Date(at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
 }
 
-async function reinvite(courier) {
-  const { data: res } = await http.post(`/couriers/${courier.id}/invitation`)
-  link.value = { name: courier.name, phone: courier.phone, url: res.invitation_url }
-  modal.value = 'link'
+async function cutAccess(courier) {
+  if (!confirm(`Couper l'accès de ${courier.name} ? Son téléphone sera déconnecté ; ses courses restent. Pour revenir, il lui faudra un nouveau lien.`)) return
+  try {
+    const { data: res } = await http.post(`/couriers/${courier.id}/cut-access`)
+    notice.value = res.message
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
 }
 
 async function toggleAvailable(courier) {
@@ -101,7 +108,6 @@ async function deactivate(courier) {
   }
 }
 
-const whatsappLink = (l) => `https://wa.me/${l.phone.replace('+', '')}?text=${encodeURIComponent(`Bonjour ${l.name}, voici votre accès à l'application livreur : ${l.url}`)}`
 
 async function openPay(courier) {
   error.value = ''
@@ -164,9 +170,10 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
       <button class="btn-brand shrink-0" @click="open(null)">+ Livreur</button>
     </div>
     <Alert v-if="error && !modal">{{ error }}</Alert>
+    <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
     <div v-if="data" class="card">
-      <p v-if="!data.data.length" class="p-6 text-sm text-slate-500">Aucun livreur. Ajoutez-en un : il reçoit un lien pour créer son accès.</p>
+      <p v-if="!data.data.length" class="p-6 text-sm text-slate-500">Aucun livreur. Ajoutez-en un : il reçoit ses courses et son accès sur WhatsApp, sans mot de passe.</p>
       <ul class="divide-y divide-slate-100">
         <li v-for="c in data.data" :key="c.id" class="flex flex-wrap items-center gap-3 px-4 py-3 text-sm" :class="{ 'opacity-50': c.status === 'inactive' }">
           <span class="min-w-0 flex-1">
@@ -184,7 +191,8 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
           </button>
           <span class="w-28 text-right" :class="{ 'font-semibold text-amber-800': c.cash_limit && c.cash_held > c.cash_limit }">{{ money(c.cash_held) }} <span class="block text-xs font-normal text-slate-400">espèces</span></span>
           <span class="flex gap-1">
-            <button v-if="c.status === 'invited'" class="btn-secondary px-2 py-1" @click="reinvite(c)">Lien</button>
+            <CourierWhatsAppButton v-if="c.status !== 'inactive'" :courier-id="c.id" :label="c.status === 'invited' ? 'Envoyer son accès' : 'WhatsApp'" small />
+            <button v-if="c.status === 'active'" class="btn-ghost px-2 py-1 text-slate-600" title="Téléphone perdu, livreur parti : déconnecter son téléphone" @click="cutAccess(c)">Couper l'accès</button>
             <button v-if="c.status !== 'invited'" class="btn-secondary px-2 py-1" @click="openPay(c)">Paie · {{ money(c.unpaid) }}</button>
             <button class="btn-ghost px-2 py-1" @click="open(c)">Modifier</button>
             <button v-if="c.status !== 'inactive'" class="btn-ghost px-2 py-1 text-red-600" @click="deactivate(c)">✕</button>
@@ -255,9 +263,8 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
 
     <Modal v-if="modal === 'link'" :title="`Accès de ${link.name}`" @close="modal = null">
       <div class="space-y-3 text-sm">
-        <p>Envoyez ce lien à {{ link.name }} : il crée son mot de passe, confirme son numéro par SMS et arrive dans l'application livreur.</p>
-        <code class="block break-all rounded bg-slate-50 p-2">{{ link.url }}</code>
-        <a :href="whatsappLink(link)" target="_blank" class="btn-brand w-full">Envoyer par WhatsApp</a>
+        <p>Envoyez son accès à {{ link.name }} sur WhatsApp : en touchant le lien, il arrive dans l'application livreur avec ses courses, <strong>sans mot de passe</strong>. Le lien s'ouvre une seule fois, puis il reste connecté sur son téléphone.</p>
+        <CourierWhatsAppButton :courier-id="link.id" label="Envoyer par WhatsApp" />
       </div>
     </Modal>
 

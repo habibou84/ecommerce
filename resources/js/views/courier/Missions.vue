@@ -5,7 +5,7 @@ import http, { errorMessage } from '../../lib/http'
 import { newMissionAlert } from '../../lib/alertSound'
 import { cachedGet, loadMissions, offline, savedRoute, saveRoute, sendStep } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
-import { autoOrder, currentPosition, isLater, itineraryUrl, routeOrder } from '../../lib/route'
+import { autoOrder, currentPosition, dueDay, isLate, isLater, itineraryUrl, routeOrder, shortDay, tomorrow } from '../../lib/route'
 import { SHIPMENT_TONES } from '../../lib/shipping'
 import { useRouter } from 'vue-router'
 
@@ -54,6 +54,13 @@ const stops = computed(() => {
   return [...ordered, ...today.filter((m) => m.status === 'returning')]
 })
 const later = computed(() => active.value.filter(isLater))
+// Onglets par jour de livraison : Aujourd'hui (avec les courses en retard), Demain, Plus tard
+const day = ref('today')
+const tomorrowList = computed(() => later.value.filter((m) => dueDay(m) === tomorrow()))
+const laterList = computed(() => later.value.filter((m) => dueDay(m) > tomorrow()).sort((a, b) => dueDay(a).localeCompare(dueDay(b))))
+const late = computed(() => stops.value.filter(isLate).length)
+const upcoming = computed(() => (day.value === 'tomorrow' ? tomorrowList.value : laterList.value))
+watch(day, () => (editing.value = false))
 const done = computed(() => (missions.value ?? []).filter((m) => FINAL.includes(m.status)))
 const shown = computed(() => (editing.value ? draft.value : stops.value))
 const toPickUp = computed(() => stops.value.filter((m) => m.status === 'awaiting_pickup'))
@@ -149,11 +156,20 @@ function saveOrder() {
       </RouterLink>
     </div>
 
+    <!-- Jour de livraison : la tournée d'aujourd'hui, puis ce qui est prévu demain et plus tard -->
+    <div class="grid grid-cols-3 gap-1 rounded-xl bg-slate-200 p-1 text-sm font-semibold" role="tablist">
+      <button v-for="t in [['today', 'Aujourd\'hui', stops.length], ['tomorrow', 'Demain', tomorrowList.length], ['later', 'Plus tard', laterList.length]]" :key="t[0]"
+              type="button" role="tab" :aria-selected="day === t[0]" class="whitespace-nowrap rounded-lg px-1 py-2" :class="day === t[0] ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'" @click="day = t[0]">
+        {{ t[1] }} <span class="ml-0.5 rounded-full px-1.5 text-xs" :class="day === t[0] ? 'bg-emerald-700 text-white' : 'bg-slate-300 text-slate-700'">{{ t[2] }}</span>
+      </button>
+    </div>
+
     <section v-for="m in offers" :key="`offer-${m.id}`" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">🔔 Nouvelle mission</p>
       <RouterLink :to="`/livreur/missions/${m.id}`" class="block">
         <p class="font-semibold">{{ m.expedition_city ? `📦 Gare · vers ${m.expedition_city}` : m.place || 'Quartier ?' }}<template v-if="m.address && !m.expedition_city"> · {{ m.address }}</template></p>
         <p class="text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }} · {{ money(m.cod_amount) }} à encaisser</p>
+        <p v-if="dueDay(m)" class="text-sm font-semibold" :class="isLate(m) ? 'text-red-700' : 'text-slate-700'">{{ isLate(m) ? 'En retard · prévue ' : 'Prévue ' }}{{ shortDay(dueDay(m)) }}</p>
       </RouterLink>
       <template v-if="declining?.id === m.id">
         <div class="flex flex-wrap gap-2">
@@ -171,8 +187,9 @@ function saveOrder() {
       </div>
     </section>
 
+    <template v-if="day === 'today'">
     <section v-if="stops.length" class="space-y-2 rounded-xl bg-white p-3 shadow-sm">
-      <p class="text-sm text-slate-600">Ma tournée : <strong>{{ stops.length }} arrêt(s)</strong> · {{ money(toCollect) }} à encaisser</p>
+      <p class="text-sm text-slate-600">Ma tournée : <strong>{{ stops.length }} arrêt(s)</strong> · {{ money(toCollect) }} à encaisser<template v-if="late"> · <strong class="text-red-700">{{ late }} en retard</strong></template></p>
       <div v-if="!editing" class="grid grid-cols-2 gap-2">
         <a :href="itinerary" target="_blank" class="btn-brand px-2 text-sm">🗺️ Itinéraire</a>
         <button class="btn-secondary px-2 text-sm" @click="edit">↕ Changer l'ordre</button>
@@ -187,7 +204,7 @@ function saveOrder() {
     </section>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
-    <p v-if="missions && !stops.length && !offers.length" class="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm">Aucune livraison en attente. Les nouvelles missions apparaissent ici.</p>
+    <p v-if="missions && !stops.length && !offers.length" class="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm">Aucune livraison pour aujourd'hui. Les nouvelles missions apparaissent ici.</p>
     <template v-for="(m, i) in shown" :key="m.id">
       <h2 v-if="startsArea(shown, i)" class="pt-1 text-sm font-semibold text-slate-500">{{ m.status === 'returning' ? 'À rapporter' : m.commune || 'Autres quartiers' }}</h2>
       <div class="flex gap-3 rounded-xl bg-white p-4 shadow-sm active:bg-slate-50" :class="{ 'cursor-pointer': !editing }" @click="!editing && router.push(`/livreur/missions/${m.id}`)">
@@ -199,6 +216,7 @@ function saveOrder() {
           </span>
           <span class="mt-1 block text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }}</span>
           <span v-if="m.address" class="block truncate text-sm text-slate-500">{{ m.address }}</span>
+          <span v-if="isLate(m)" class="mt-1 inline-block rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">En retard · prévue {{ shortDay(dueDay(m)) }}</span>
           <span v-if="m.pending_sync" class="mt-1 block text-xs text-amber-800">⏳ Pas encore envoyé</span>
           <span class="mt-1 block text-sm">À encaisser : <strong>{{ money(m.cod_amount) }}</strong><span v-if="m.attempts_count" class="text-amber-700"> · {{ m.attempts_count }} tentative(s)</span></span>
           <span v-if="m.customer_response === 'unavailable'" class="mt-1 block text-sm font-medium text-amber-800">⚠ Client pas disponible : appelez-le</span>
@@ -213,15 +231,24 @@ function saveOrder() {
       </div>
     </template>
 
-    <template v-if="later.length && !editing">
-      <h2 class="pt-2 text-sm font-semibold text-slate-500">Reportées à plus tard</h2>
-      <RouterLink v-for="m in later" :key="m.id" :to="`/livreur/missions/${m.id}`" class="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm shadow-sm">
-        <span class="flex-1">{{ m.place }} · {{ m.customer_name }}</span>
-        <span class="text-xs text-slate-500">{{ new Date(m.rescheduled_to).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) }}</span>
-      </RouterLink>
     </template>
 
-    <template v-if="done.length && !editing">
+    <!-- Demain, plus tard : pour s'organiser ; la course se démarre le jour prévu -->
+    <template v-else>
+      <p v-if="!upcoming.length" class="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm">{{ day === 'tomorrow' ? 'Rien de prévu demain pour l\'instant.' : 'Rien de prévu après demain pour l\'instant.' }}</p>
+      <template v-else>
+        <p class="text-sm text-slate-600"><strong>{{ upcoming.length }} course(s)</strong> · {{ money(upcoming.reduce((sum, m) => sum + m.cod_amount, 0)) }} à encaisser · à faire le jour prévu</p>
+        <RouterLink v-for="m in upcoming" :key="m.id" :to="`/livreur/missions/${m.id}`" class="flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-sm">
+          <span class="min-w-0 flex-1">
+            <span class="block font-semibold">{{ m.place || 'Quartier ?' }}</span>
+            <span class="block text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ money(m.cod_amount) }}</span>
+          </span>
+          <span class="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{{ shortDay(dueDay(m)) }}</span>
+        </RouterLink>
+      </template>
+    </template>
+
+    <template v-if="done.length && !editing && day === 'today'">
       <h2 class="pt-2 text-sm font-semibold text-slate-500">Terminées aujourd'hui</h2>
       <RouterLink v-for="m in done" :key="m.id" :to="`/livreur/missions/${m.id}`" class="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm opacity-70 shadow-sm">
         <span class="flex-1"><template v-if="m.store">{{ m.store }} · </template>{{ m.place }} · {{ m.customer_name }}</span>

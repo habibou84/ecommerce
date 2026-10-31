@@ -10,6 +10,7 @@ use App\Models\CourierPayRule;
 use App\Models\DeliveryZone;
 use App\Models\Store;
 use App\Services\Accounts\StoreRoles;
+use App\Services\Couriers\CourierAccess;
 use App\Services\Couriers\CourierPayroll;
 use App\Services\Couriers\CourierRoster;
 use App\Services\Couriers\SharedCouriers;
@@ -95,6 +96,22 @@ class CourierController extends Controller
     public function reinvite(Request $request, int $courier): JsonResponse
     {
         return response()->json(['invitation_url' => $this->roster->reinvite(Courier::findOrFail($courier), $request->user())]);
+    }
+
+    /**
+     * Message WhatsApp prérempli avec ses courses du jour et un lien d'accès (sans mot de passe, un seul usage).
+     */
+    public function accessLink(Request $request, int $courier, CourierAccess $access): JsonResponse
+    {
+        return response()->json(['data' => $access->message(Courier::findOrFail($courier), $request->user())]);
+    }
+
+    /** Téléphone perdu, livreur parti : liens annulés et téléphones déconnectés */
+    public function cutAccess(int $courier, CourierAccess $access): JsonResponse
+    {
+        $access->cut(Courier::findOrFail($courier));
+
+        return response()->json(['message' => 'Accès coupé : le livreur devra recevoir un nouveau lien pour se reconnecter.']);
     }
 
     public function deactivate(int $courier): JsonResponse
