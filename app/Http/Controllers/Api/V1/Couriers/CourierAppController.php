@@ -60,7 +60,7 @@ class CourierAppController extends Controller
             'name' => $courier->name,
             'is_available' => $courier->is_available,
             'store' => ['name' => $courier->store->name, 'phone' => $courier->store->phone],
-            'stores' => $all->map(fn (Courier $c) => ['name' => $c->store->name, 'phone' => $c->store->phone])->values(),
+            'stores' => $all->map(fn (Courier $c) => ['courier_id' => $c->id, 'name' => $c->store->name, 'phone' => $c->store->phone, 'is_available' => $c->is_available])->values(),
             'cash_held' => (int) $all->sum(fn (Courier $c) => $this->shared->held($c)),
             'cash_limit' => $courier->cash_limit,
             // Dernière réponse de la boutique à un versement déclaré (point sur « Ma caisse » tant qu'il ne l'a pas vue)
@@ -82,8 +82,10 @@ class CourierAppController extends Controller
 
     public function availability(Request $request): JsonResponse
     {
-        $data = $request->validate(['is_available' => ['required', 'boolean']]);
-        Courier::withoutGlobalScope(StoreScope::class)->whereIn('id', $this->couriers($request)->pluck('id'))->update(['is_available' => $data['is_available']]);
+        $ids = $this->couriers($request)->pluck('id');
+        // Pour toutes ses boutiques, ou pour une seule (courier_id)
+        $data = $request->validate(['is_available' => ['required', 'boolean'], 'courier_id' => ['nullable', 'integer', Rule::in($ids->all())]]);
+        Courier::withoutGlobalScope(StoreScope::class)->whereIn('id', isset($data['courier_id']) ? [$data['courier_id']] : $ids)->update(['is_available' => $data['is_available']]);
 
         return response()->json(['data' => ['is_available' => $data['is_available']]]);
     }
@@ -383,14 +385,15 @@ class CourierAppController extends Controller
     }
 
     /**
-     * Ses fiches de livreur : celle de la boutique de l'adresse et, s'il est partagé, celles de ses autres boutiques.
+     * Ses fiches de livreur : celle de la boutique de l'adresse et celles de toutes ses autres boutiques (du même
+     * commerçant ou non) — son espace livreur réunit leurs courses ; l'argent reste séparé par boutique.
      *
      * @return Collection<int, Courier>
      */
     private function couriers(Request $request): Collection
     {
         if (! $request->attributes->has('couriers')) {
-            $request->attributes->set('couriers', $this->shared->linked($this->courier($request)));
+            $request->attributes->set('couriers', $this->shared->ofPerson($this->courier($request)));
         }
 
         return $request->attributes->get('couriers');

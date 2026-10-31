@@ -28,6 +28,20 @@ onMounted(async () => {
 })
 
 // Sortie du compte : toujours confirmée ; les étapes pas encore envoyées seraient perdues
+// Disponibilité pour une seule boutique
+const busyStore = ref(null)
+async function toggleStore(s) {
+  busyStore.value = s.courier_id
+  try {
+    await http.patch('/courier/availability', { is_available: !s.is_available, courier_id: s.courier_id })
+    s.is_available = !s.is_available
+  } catch {
+    // le réseau reviendra ; l'état affiché reste celui du serveur
+  } finally {
+    busyStore.value = null
+  }
+}
+
 async function logout() {
   leaving.value = true
   await unregisterDevice()
@@ -65,11 +79,16 @@ async function removeAccount() {
     <section v-if="me?.stores?.length" class="rounded-xl bg-white p-4 shadow-sm">
       <p class="mb-2 text-sm font-semibold">{{ me.stores.length > 1 ? 'Mes marchands' : 'Mon marchand' }}</p>
       <ul class="divide-y divide-slate-100 text-sm">
-        <li v-for="s in me.stores" :key="s.name" class="flex items-center gap-2 py-2">
+        <li v-for="s in me.stores" :key="s.courier_id ?? s.name" class="flex flex-wrap items-center gap-2 py-2">
           <span class="flex-1">{{ s.name }}</span>
+          <!-- Disponible pour une boutique seulement : les autres ne lui confient plus de course -->
+          <button v-if="me.stores.length > 1 && s.courier_id" type="button" class="rounded-full px-3 py-1 text-xs font-semibold" :class="s.is_available ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'" :disabled="busyStore === s.courier_id" @click="toggleStore(s)">
+            {{ s.is_available ? '● Disponible' : '○ Indisponible' }}
+          </button>
           <a v-if="s.phone" :href="`tel:${s.phone}`" class="btn-secondary px-3 py-1.5 text-sm">📞 Appeler</a>
         </li>
       </ul>
+      <p v-if="me.stores.length > 1" class="mt-2 text-xs text-slate-500">Vos courses de toutes ces boutiques sont réunies ici. Chaque boutique ne voit que ses propres courses, et vous versez à chacune son argent.</p>
     </section>
 
     <section class="space-y-3 rounded-xl bg-white p-4 text-sm shadow-sm">

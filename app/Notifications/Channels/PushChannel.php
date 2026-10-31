@@ -6,6 +6,7 @@ use App\Jobs\SendPushNotification;
 use App\Models\DeviceToken;
 use App\Models\PushSubscription;
 use App\Models\Store;
+use App\Services\Couriers\SharedCouriers;
 use App\Services\Push\FirebaseMessaging;
 use App\Services\Push\WebPush;
 use Illuminate\Notifications\Notification;
@@ -32,8 +33,14 @@ class PushChannel
         // Une personne de plusieurs boutiques sait de laquelle il s'agit
         $title = $store && $notifiable->stores()->count() > 1 ? $store->name.' · '.$content['title'] : $content['title'];
 
+        // Notification du livreur : elle ouvre son espace d'accueil, qui réunit les courses de toutes ses boutiques
+        $target = $store;
+        if ($store && str_starts_with((string) ($content['url'] ?? ''), '/livreur')) {
+            $target = SharedCouriers::homeOf((int) $notifiable->getKey()) ?? $store;
+        }
+
         SendPushNotification::dispatch((int) $notifiable->getKey(), Str::limit($title, 100), Str::limit((string) $content['body'], 240), [
-            'url' => $store ? $store->url($content['url'] ?? '/gestion') : (string) ($content['url'] ?? ''),
+            'url' => $target ? $target->url($content['url'] ?? '/gestion') : (string) ($content['url'] ?? ''),
             'kind' => (string) ($content['kind'] ?? ''),
         ])->afterCommit();
     }

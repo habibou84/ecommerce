@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Notifications\CourierDayPlan;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Couriers\CourierMorning;
+use App\Services\Couriers\SharedCouriers;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
 use Illuminate\Support\Facades\Notification;
@@ -142,6 +143,58 @@ class CourierAccessTest extends TestCase
         Notification::assertSentTo(User::findOrFail($courier->fresh()->user_id), CourierDayPlan::class,
             fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 1 course · Awa Mode"
                 && $n->toArray($notifiable)['body'] === '16 500 F à encaisser · Cocody');
+    }
+
+    public function test_a_courier_of_two_merchants_has_one_space_with_both_courses_and_separate_money(): void
+    {
+        // Moussa livre déjà pour Awa Mode (sa boutique d'accueil)
+        $awa = $this->newCourierWithCourse();
+        $this->logout();
+        $this->get($this->linkForQuietly($awa))->assertRedirect('/livreur');
+
+        // Koffi Shop, d'un autre commerçant, le crée aussi et lui confie une course
+        $koffi = $this->createStore(['slug' => 'koffi', 'name' => 'Koffi Shop']);
+        Subscription::create(['store_id' => $koffi->id, 'plan_id' => Plan::where('code', 'pro')->value('id'), 'status' => 'active', 'billing_cycle' => 'monthly', 'current_period_start' => now(), 'current_period_end' => now()->addMonth()]);
+        app(Places::class)->provisionDefaultZone($koffi);
+        $sac = SharedCouriers::within($koffi, fn () => app(CatalogWriter::class)->save($koffi, null, ['title' => 'Sac', 'variants' => [['price' => 8000, 'on_hand' => 5]]]));
+        $this->logout();
+        $this->actingAs($koffi->owner);
+        $courierId = $this->storeApi($koffi, 'POST', 'couriers', ['name' => 'Moussa Koné', 'phone' => '0102030405'])->assertCreated()->json('data.id');
+        $order = SharedCouriers::within($koffi, fn () => app(OrderDesk::class)->create($koffi, [
+            'source' => 'whatsapp', 'customer_name' => 'Yao', 'customer_phone' => '+2250506070811', 'delivery_method' => 'delivery',
+            'shipping_place_id' => Place::whereNull('store_id')->where('name', 'Angré')->value('id'), 'shipping_address' => 'Cité', 'confirmed' => true,
+            'scheduled_date' => today()->toDateString(), 'items' => [['variant_id' => $sac->variants()->withoutGlobalScopes()->value('id'), 'quantity' => 1]],
+        ], $koffi->owner));
+        $this->storeApi($koffi, 'POST', "orders/{$order->id}/shipments", ['courier_id' => $courierId])->assertCreated();
+
+        // Son lien de Koffi Shop ouvre son espace d'accueil (adresse d'Awa Mode)
+        $link = $this->storeApi($koffi, 'POST', "couriers/{$courierId}/access-link")->assertOk()->json('data.link');
+        $this->assertStringStartsWith($this->storeUrl($this->store, '/livreur/acces/'), $link);
+        $this->logout();
+        $this->get($link)->assertRedirect('/livreur');
+        $this->assertSame('active', Courier::forStore($koffi->id)->findOrFail($courierId)->status);
+
+        // Une seule liste : les courses des deux boutiques, chacune avec son nom ; l'argent séparé par boutique
+        $missions = $this->storeApi($this->store, 'GET', 'courier/missions')->assertOk()->json('data');
+        $this->assertEqualsCanonicalizing(['Awa Mode', 'Koffi Shop'], array_column($missions, 'store'));
+        $this->assertEqualsCanonicalizing(['Awa Mode', 'Koffi Shop'], array_column($this->storeApi($this->store, 'GET', 'courier/cash')->json('data.stores'), 'store'));
+        $this->assertCount(2, $this->storeApi($this->store, 'GET', 'courier/me')->json('data.stores'));
+
+        // Indisponible pour Koffi Shop seulement
+        $this->storeApi($this->store, 'PATCH', 'courier/availability', ['is_available' => false, 'courier_id' => $courierId])->assertOk();
+        $this->assertFalse(Courier::forStore($koffi->id)->findOrFail($courierId)->is_available);
+        $this->assertTrue($awa->fresh()->is_available);
+
+        // Résumé du matin : un seul message pour les deux boutiques
+        Notification::fake();
+        $this->assertSame(1, app(CourierMorning::class)->send());
+        Notification::assertSentTo(User::findOrFail($awa->fresh()->user_id), CourierDayPlan::class,
+            fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 2 courses · 2 boutiques");
+
+        // Côté Koffi Shop : seulement sa course
+        $this->logout();
+        $this->actingAs($koffi->owner);
+        $this->assertCount(1, $this->storeApi($koffi, 'GET', 'shipments')->assertOk()->json('data'));
     }
 
     private function linkForQuietly(Courier $courier): string

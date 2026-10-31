@@ -57,6 +57,11 @@ class LiveScreensTest extends TestCase
             ->assertJsonPath('data.name', 'Télé salon');
         $this->assertSame([$this->store->id, null], [LiveScreen::sole()->store_id, LiveScreen::sole()->code]);
 
+        // « Tester » : l'écran se signale (« Écran connecté ») quelques secondes
+        $this->platformApi('GET', 'screens/'.$created['token'])->assertJsonPath('data.test', false);
+        $this->storeApi($this->store, 'POST', 'lives/screens/'.LiveScreen::sole()->id.'/test')->assertOk();
+        $this->platformApi('GET', 'screens/'.$created['token'])->assertJsonPath('data.test', true);
+
         // Pas encore de live : l'écran attend, avec le WhatsApp de la boutique
         $this->platformApi('GET', 'screens/'.$created['token'])->assertJsonPath('data.paired', true)->assertJsonPath('data.live', null)
             ->assertJsonPath('data.store.whatsapp_url', 'https://wa.me/2250700000001')

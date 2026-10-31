@@ -95,6 +95,12 @@ const digits = computed(() => (code.value || '····').split(''))
 <template>
   <div class="fixed inset-0 bg-slate-950 text-white" @dblclick="fullscreen">
     <LiveDisplay v-if="data" :data="data" />
+    <!-- « Tester » dans l'application : l'écran se signale -->
+    <div v-if="data?.test" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-[3vh] bg-emerald-700 text-center">
+      <span class="text-[22vh] leading-none">✅</span>
+      <p class="text-[9vh] font-black">Écran connecté</p>
+      <p class="text-[4vh] font-bold text-emerald-100">{{ data.store?.name }}</p>
+    </div>
 
     <!-- Pas encore relié : le code à taper dans l'application -->
     <div v-else class="flex h-full flex-col items-center justify-center gap-[3vh] px-6 text-center">
@@ -104,7 +110,7 @@ const digits = computed(() => (code.value || '····').split(''))
         <span v-for="(d, i) in digits" :key="i" class="grid h-[18vh] w-[14vh] place-items-center rounded-[2.4vh] bg-white text-[12vh] font-black text-slate-900">{{ d }}</span>
       </div>
       <p class="max-w-[90vh] text-[2.6vh] leading-snug text-slate-300">
-        Dans l'application Jibiat Marchand, ouvrez votre live › <b class="text-white">« Afficher mes articles dans le live »</b>, touchez <b class="text-white">« Relier un écran »</b>, puis tapez ce code.
+        Dans l'application Jibiat Marchand : votre live › onglet <b class="text-white">« Écran »</b> › tapez ce code.
         La prochaine fois, cet écran se reconnecte tout seul.
       </p>
       <button type="button" class="rounded-full bg-white/10 px-5 py-2 text-[2vh] font-semibold" @click="fullscreen">Plein écran</button>
