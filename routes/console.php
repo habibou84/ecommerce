@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Accounts\StoreDataExport;
 use App\Services\Billing\Billing;
 use App\Services\Console\SupportSessions;
+use App\Services\Couriers\CourierMorning;
 use App\Services\Couriers\MissionResponses;
 use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
@@ -76,6 +77,12 @@ Artisan::command('couriers:remind', function (MissionResponses $responses) {
 })->purpose('Rappel des missions pas encore acceptées par les livreurs');
 
 Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
+
+// Résumé du matin des livreurs : courses du jour et argent à encaisser
+Artisan::command('couriers:morning', function (CourierMorning $morning) {
+    $this->info($morning->send().' livreur(s) prévenu(s).');
+})->purpose('Envoie à chaque livreur le résumé de ses courses du jour');
+Schedule::command('couriers:morning')->dailyAt('07:05')->withoutOverlapping();
 
 /*
  * Commandes qui attendent (sans livreur, pas ramassées, à confirmer, point du matin...) : alertes à l'équipe, une

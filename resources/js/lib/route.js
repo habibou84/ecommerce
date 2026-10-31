@@ -1,9 +1,16 @@
 // Tournée du jour du livreur : ordre logique des arrêts et itinéraire.
 
-const today = () => new Date().toLocaleDateString('sv-SE') // AAAA-MM-JJ, heure du téléphone
+export const today = () => new Date().toLocaleDateString('sv-SE') // AAAA-MM-JJ, heure du téléphone
+export const tomorrow = () => new Date(Date.now() + 86400000).toLocaleDateString('sv-SE')
 
-// Reportée à un autre jour : hors de la tournée d'aujourd'hui
-export const isLater = (m) => m.status === 'rescheduled' && m.rescheduled_to && m.rescheduled_to > today()
+// Jour de la course : la date de report choisie par le livreur, sinon la date de livraison de la commande
+export const dueDay = (m) => (m.status === 'rescheduled' && m.rescheduled_to) || m.scheduled_date || null
+// Prévue un autre jour : hors de la tournée d'aujourd'hui (les colis à rapporter restent du jour)
+export const isLater = (m) => m.status !== 'returning' && !!dueDay(m) && dueDay(m) > today()
+// Date passée et pas encore livrée
+export const isLate = (m) => m.status !== 'returning' && !!dueDay(m) && dueDay(m) < today()
+// « jeu. 2 nov. »
+export const shortDay = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
 
 const hasPoint = (m) => m.latitude != null && m.longitude != null
 

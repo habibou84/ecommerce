@@ -178,6 +178,11 @@ watch(() => [place.value?.id, form.delivery_method, items.value.map((i) => `${i.
   clearTimeout(optionsTimer)
   optionsTimer = setTimeout(loadOptions, 300)
 }, { immediate: true })
+// Livreur créé depuis « Qui livre ? » : ajouté à la liste pour être choisi tout de suite
+function addCourier(c) {
+  if (!options.value) return
+  options.value.couriers = [...(options.value.couriers ?? []), { id: c.id, name: c.name, is_available: true, active_missions: 0, covers_zone: false, connected: false }]
+}
 const chosenCourier = computed(() => (chosen.value.startsWith('courier:') ? options.value?.couriers.find((c) => `courier:${c.id}` === chosen.value) ?? null : null))
 const chosenCarrier = computed(() => (chosen.value.startsWith('carrier:') ? options.value?.carriers.find((c) => `carrier:${c.id}` === chosen.value) ?? null : null))
 // Une entreprise choisie qui a un tarif pour ce quartier : c'est son prix
@@ -974,7 +979,7 @@ async function save() {
       <button class="btn-brand ml-auto min-h-12 flex-1 text-base" :disabled="saving">{{ saving ? 'Enregistrement…' : editing ? 'Enregistrer' : 'Créer la commande' }}</button>
     </div>
 
-    <DelivererPicker v-if="pickerOpen" v-model="chosen" :options="options" :place-label="place?.label ?? ''" @close="pickerOpen = false" />
+    <DelivererPicker v-if="pickerOpen" v-model="chosen" :options="options" :place-label="place?.label ?? ''" @close="pickerOpen = false" @courier-created="addCourier" />
 
     <!-- Zones et tarifs de l'entreprise choisie -->
     <Modal v-if="tariffs" :title="`Zones et tarifs de ${tariffs.name}`" @close="tariffs = null">

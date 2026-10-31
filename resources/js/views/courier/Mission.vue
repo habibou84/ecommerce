@@ -6,6 +6,7 @@ import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { loadMission, offline, sendStep, shrinkPhoto } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
 import { SHIPMENT_TONES } from '../../lib/shipping'
+import { dueDay, isLate, isLater, shortDay } from '../../lib/route'
 
 const props = defineProps({ id: { type: String, required: true } })
 const mission = ref(null)
@@ -84,8 +85,10 @@ async function respond(action) {
 }
 
 // Action principale du moment (bouton fixé en bas)
+// Prévue un autre jour : visible pour s'organiser, mais la course se fait le jour prévu
+const notYet = computed(() => !!mission.value && isLater(mission.value))
 const primary = computed(() => {
-  if (!mission.value || panel.value) return null
+  if (!mission.value || panel.value || notYet.value) return null
   // Nouvelle mission : d'abord accepter ou refuser (le bouton fixe cacherait ce choix)
   if (mission.value.acceptance === 'pending' && mission.value.status === 'awaiting_pickup') return null
   if (can('in_transit')) return { label: '📦 J\'ai récupéré le colis', run: () => step('in_transit') }
@@ -233,6 +236,9 @@ async function step(status) {
     </section>
     <Alert v-if="queued" tone="warning">Étape gardée sur le téléphone : elle sera envoyée au marchand dès que le réseau revient, avec l'heure où vous l'avez faite.</Alert>
     <p v-else-if="mission.pending_sync" class="text-sm text-amber-800">⏳ Des étapes de cette livraison ne sont pas encore envoyées.</p>
+
+    <p v-if="notYet" class="rounded-xl bg-sky-50 p-4 text-sm text-sky-900">📅 Course prévue le <strong>{{ shortDay(dueDay(mission)) }}</strong> : vous la ferez ce jour-là. Elle passera dans « Aujourd'hui » le matin même.</p>
+    <p v-else-if="isLate(mission)" class="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">En retard : prévue le {{ shortDay(dueDay(mission)) }}.</p>
 
     <!-- Action suivante : gros bouton fixé en bas de l'écran, facile à toucher d'une main ou avec des gants -->
     <div v-if="primary" class="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-10 mx-auto max-w-lg bg-gradient-to-t from-slate-50 px-4 pt-3 pb-2">
