@@ -30,6 +30,8 @@ const TABS = [
 // Retour de la fenêtre Facebook (#whatsapp…) : onglet des messages automatiques
 const tab = ref(window.location.hash.startsWith('#whatsapp') ? 'messages' : String(route.query.onglet ?? ''))
 watch(tab, (t) => router.replace({ query: { ...route.query, onglet: t } }))
+// Catalogue WhatsApp : seulement quand la console l'a allumé
+const tabs = computed(() => TABS.filter((t) => t.key !== 'catalogue' || sales.value?.catalog))
 
 onMounted(async () => {
   try {
@@ -37,7 +39,7 @@ onMounted(async () => {
     official.value = o.data.data
     sales.value = s.data.data
     // Sans onglet demandé : le premier sujet à régler
-    if (!TABS.some((t) => t.key === tab.value)) {
+    if (!tabs.value.some((t) => t.key === tab.value)) {
       const first = summary.value.find((r) => r.todo)
       tab.value = first ? (first.to ?? first.key) : 'conversations'
     }
@@ -77,11 +79,11 @@ const summary = computed(() => {
       key: 'assistant', icon: 'aide', label: 'Assistant (réponses automatiques)',
       ...(auto.enabled ? { ok: true, state: `Activé · ${sales.value.sent_last_7_days} réponse(s) en 7 jours` } : { state: 'Désactivé' }),
     },
-    {
+    c && {
       key: 'catalogue', icon: 'produit', label: 'Catalogue WhatsApp',
       ...(c.meta ? { ok: true, state: `Relié à Meta · ${c.items} article(s)` } : { todo: c.items > 0, state: `${c.items} article(s) prêt(s) · à relier à Meta` }),
     },
-  ]
+  ].filter(Boolean)
 })
 const running = computed(() => summary.value.filter((r) => r.ok).length)
 
@@ -101,7 +103,7 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
         <ColorIcon name="whatsapp" :size="44" />
         <div class="min-w-0 flex-1">
           <h2 class="text-[17px] font-extrabold">Votre WhatsApp</h2>
-          <p class="text-sm text-slate-500">{{ running }} sur 4 en marche · touchez une ligne pour la régler</p>
+          <p class="text-sm text-slate-500">{{ running }} sur {{ summary.length }} en marche · touchez une ligne pour la régler</p>
         </div>
       </div>
       <ul class="mt-3 grid gap-x-6 sm:grid-cols-2">
@@ -120,7 +122,7 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
 
     <!-- Onglets, comme Marketing, Livraisons, Stock -->
     <nav v-tab-strip class="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0" role="tablist">
-      <button v-for="t in TABS" :key="t.key" type="button" role="tab" :aria-selected="tab === t.key" class="whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium"
+      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="tab === t.key" class="whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium"
               :class="tab === t.key ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-600 hover:text-slate-900'" @click="tab = t.key">{{ t.label }}</button>
     </nav>
 

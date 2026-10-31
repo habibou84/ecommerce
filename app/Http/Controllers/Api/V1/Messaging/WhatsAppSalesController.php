@@ -12,6 +12,7 @@ use App\Services\Ai\Assistant;
 use App\Services\Marketing\CatalogFeed;
 use App\Services\Marketing\MetaAds;
 use App\Services\Messaging\AutoReplier;
+use App\Services\Platform\Features;
 use App\Services\WhatsApp\CatalogOrders;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,7 +35,8 @@ class WhatsAppSalesController extends Controller
             'channel' => $connected ? 'linked' : (WhatsappAccount::first() ? 'official' : null),
             'assistant' => $assistant->status($store),
             'sent_last_7_days' => ConversationMessage::query()->where('type', 'auto')->where('sent_at', '>=', now()->subDays(7))->count(),
-            'catalog' => [
+            // Catalogue WhatsApp : seulement quand la console l'a allumé (il attend la validation de Meta)
+            'catalog' => ! app(Features::class)->enabled('whatsapp_catalog', $store) ? null : [
                 'feed_url' => $feed->url($store),
                 'items' => count($feed->rows($store)),
                 // Catalogue Meta branché en un clic (Marketing › Suivi), sinon null

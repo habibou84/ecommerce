@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Platform\Features;
 use App\Support\Tenancy;
 use App\Support\TrialOffer;
 use Illuminate\Http\Request;
@@ -27,6 +28,8 @@ class PageController extends Controller
             'trialOffer' => TrialOffer::duration().' de l\'offre '.TrialOffer::planName(),
             'supportWhatsapp' => config('platform.support_whatsapp'),
             'store' => $store ? ['id' => $store->id, 'name' => $store->name, 'slug' => $store->slug] : null,
+            // Inscription de nouvelles boutiques fermée dans la console
+            'signupOpen' => app(Features::class)->enabled('signup'),
         ]]);
     }
 }

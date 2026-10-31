@@ -8,6 +8,7 @@ use App\Models\AiUsage;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Billing\PlanLimits;
+use App\Services\Platform\Features;
 use Illuminate\Http\UploadedFile;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\ImageManager;
@@ -24,9 +25,12 @@ class Assistant
         private readonly PlanLimits $limits,
     ) {}
 
-    public function enabled(): bool
+    /**
+     * Clé de la plateforme réglée et assistant allumé dans la console (pour cette boutique).
+     */
+    public function enabled(?Store $store = null): bool
     {
-        return $this->client->configured();
+        return $this->client->configured() && app(Features::class)->enabled('ai', $store);
     }
 
     /**
@@ -38,7 +42,7 @@ class Assistant
     public function status(Store $store): array
     {
         return [
-            'enabled' => $this->enabled(), 'used' => $this->limits->used($store, 'ai_actions_per_month'), 'limit' => $this->limit($store),
+            'enabled' => $this->enabled($store), 'used' => $this->limits->used($store, 'ai_actions_per_month'), 'limit' => $this->limit($store),
             'credits' => (int) $store->fresh()->ai_credits, 'pack' => config('platform.ai_pack'),
         ];
     }
@@ -116,7 +120,7 @@ class Assistant
 
     private function ensureAvailable(Store $store): void
     {
-        if (! $this->enabled()) {
+        if (! $this->enabled($store)) {
             throw new BusinessRuleException('L\'assistant IA n\'est pas encore activé sur la plateforme.');
         }
         $limit = $this->limit($store);

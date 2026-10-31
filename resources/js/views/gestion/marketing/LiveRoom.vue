@@ -11,6 +11,10 @@ import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money, phoneDisplay } from '../../../lib/format'
+import { platformOn } from '../../../router'
+import { useAuthStore } from '../../../stores/auth'
+
+const auth = useAuthStore()
 
 /**
  * Écran du live, pensé pour le téléphone tenu pendant le direct : en-tête « en direct » fixe (durée, montant,
@@ -307,7 +311,7 @@ async function redo() {
       <LiveWhatsApp v-if="live.status === 'draft' && live.whatsapp === null" />
 
       <!-- ═══ Live en images : écrans, mode présentation, cartes ═══ -->
-      <LiveScreensPanel v-if="live.status !== 'ended'" :live="live" @update="live = $event" />
+      <LiveScreensPanel v-if="live.status !== 'ended' && platformOn(auth, 'live_screens')" :live="live" @update="live = $event" />
 
       <!-- ═══ Articles ═══ -->
       <section v-if="live.status !== 'ended'" class="space-y-2">

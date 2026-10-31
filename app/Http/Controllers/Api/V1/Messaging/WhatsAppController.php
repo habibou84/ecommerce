@@ -8,6 +8,7 @@ use App\Models\Cart;
 use App\Models\OutboundMessage;
 use App\Models\WhatsappAccount;
 use App\Services\Billing\PlanLimits;
+use App\Services\Platform\Features;
 use App\Services\Storefront\CartService;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Services\WhatsApp\EmbeddedSignup;
@@ -59,7 +60,7 @@ class WhatsAppController extends Controller
             'events' => CustomerMessenger::EVENTS,
             'previews' => $this->previews(),
             // Bouton « Connecter WhatsApp avec Facebook » : application Meta de la plateforme
-            'embedded' => EmbeddedSignup::enabled() ? ['app_id' => WhatsAppMetaApp::id(), 'config_id' => WhatsAppMetaApp::configId(), 'graph_version' => WhatsAppCloud::VERSION] : null,
+            'embedded' => EmbeddedSignup::enabled() && app(Features::class)->enabled('whatsapp_embedded', $this->currentStore()) ? ['app_id' => WhatsAppMetaApp::id(), 'config_id' => WhatsAppMetaApp::configId(), 'graph_version' => WhatsAppCloud::VERSION] : null,
             'messages' => OutboundMessage::latest('id')->limit(30)->get()->map(fn (OutboundMessage $m) => [
                 'id' => $m->id, 'event' => $m->event, 'to' => PhoneNumber::display($m->to_phone), 'status' => $m->status, 'error' => $m->error,
                 'error_help' => NumberStatus::explain($m->error)['title'] ?? null, 'related_type' => $m->related_type, 'related_id' => $m->related_id, 'created_at' => $m->created_at->toIso8601String(),

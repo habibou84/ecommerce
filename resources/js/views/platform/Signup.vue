@@ -101,7 +101,8 @@ function done(data) {
     :title="pending ? 'Vérifiez votre numéro' : 'Créez votre espace marchand'"
     :subtitle="pending ? '' : accessKey ? 'Votre clé est activée dès la création de votre espace marchand. Tout se fait depuis votre téléphone.' : `${partner?.trial ?? boot.trialOffer} offert, sans carte bancaire ni engagement. Tout se fait depuis votre téléphone.`"
   >
-    <CodeStep v-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Créer mon espace marchand" @done="done" />
+    <Alert v-if="boot.signupOpen === false" tone="info">Les inscriptions sont fermées pour le moment. Revenez bientôt, ou écrivez-nous sur WhatsApp.</Alert>
+    <CodeStep v-else-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Créer mon espace marchand" @done="done" />
 
     <form v-else class="space-y-4" @submit.prevent="submit">
       <Alert v-if="error">{{ error }}</Alert>
