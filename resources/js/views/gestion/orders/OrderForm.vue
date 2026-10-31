@@ -596,6 +596,10 @@ async function save() {
     if (expedition.value) {
       payload.expedition_payer = form.expedition_payer
       payload.expedition_prepay = !!form.expedition_prepay
+    } else {
+      // Pas d'expédition vers une autre ville : ces réglages ne s'envoient pas
+      delete payload.expedition_payer
+      delete payload.expedition_prepay
     }
     if (manualFee.value && form.delivery_method === 'delivery') payload.shipping_fee = Number(shippingFee.value || 0)
     else if (carrierFee.value !== null && form.delivery_method === 'delivery') payload.shipping_fee = fee.value

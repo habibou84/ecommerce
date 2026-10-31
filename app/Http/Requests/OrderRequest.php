@@ -56,7 +56,7 @@ class OrderRequest extends FormRequest
             'deposit_required' => ['nullable', 'integer', 'min:0', 'max:100000000'],
             // Expédition vers une autre ville : qui paie la compagnie de transport, paiement avant de partir à la gare
             'expedition_payer' => ['sometimes', 'nullable', Rule::in(['arrival', 'before', 'store'])],
-            'expedition_prepay' => ['sometimes', 'boolean'],
+            'expedition_prepay' => ['sometimes', 'nullable', 'boolean'],
             'confirmed' => ['sometimes', 'boolean'],
             // Qui livre (facultatif) : un livreur de la boutique ou une entreprise de livraison, pas les deux
             'planned_courier_id' => ['sometimes', 'nullable', 'integer', 'prohibits:planned_carrier_connection_id'],
