@@ -66,6 +66,14 @@ class LiveScreensTest extends TestCase
         WhatsappLink::create(['store_id' => $this->store->id, 'status' => 'connected', 'phone' => '+123456789012345', 'connected_at' => now()]);
         $this->platformApi('GET', 'screens/'.$created['token'])->assertJsonPath('data.store.whatsapp', '+225 07 00 00 00 01');
 
+        // WhatsApp resté sur l'ancien numéro à 8 chiffres : remis aux 10 chiffres d'aujourd'hui (05 rétabli)
+        WhatsappLink::query()->update(['phone' => '+22595323272']);
+        $this->platformApi('GET', 'screens/'.$created['token'])
+            ->assertJsonPath('data.store.whatsapp', '+225 05 95 32 32 72')
+            ->assertJsonPath('data.store.whatsapp_url', 'https://wa.me/2250595323272')
+            ->assertJsonPath('data.store.link', $this->store->url('/live'));
+        WhatsappLink::query()->delete();
+
         // WhatsApp relié à Meta : c'est son numéro qui s'affiche, pas celui de la fiche boutique
         $this->storeApi($this->store, 'PUT', 'whatsapp', [
             'phone_number_id' => '1098765', 'waba_id' => '2233', 'display_phone' => '+2250102030405', 'access_token' => 'EAAG-token', 'app_secret' => 'app-secret',

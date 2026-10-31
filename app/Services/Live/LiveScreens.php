@@ -161,7 +161,7 @@ class LiveScreens
     /**
      * Nom et WhatsApp de la boutique affichés à l'écran.
      *
-     * @return array{name: string, whatsapp: ?string, whatsapp_url: ?string, qr: ?string}
+     * @return array{name: string, link: string, link_label: string, link_qr: string, whatsapp: ?string, whatsapp_url: ?string, qr: ?string}
      */
     public function storeInfo(Store $store): array
     {
@@ -173,13 +173,22 @@ class LiveScreens
             WhatsappLink::connectedFor($store->id)?->phone,
             $store->whatsapp_phone,
             $store->phone,
-        ])->map(fn ($phone) => $phone ? PhoneNumber::normalize($phone) : null)
+            // Un compte WhatsApp jamais passé aux 10 chiffres donne l'ancien numéro (+225 95 32 32 72 au lieu de
+            // +225 05 95 32 32 72) : il est remis au format d'aujourd'hui
+        ])->map(fn ($phone) => $phone ? PhoneNumber::modernize($phone) : null)
             ->first(fn ($phone) => $phone !== null && strlen($phone) <= 14);
 
         $url = $normalized ? 'https://wa.me/'.ltrim($normalized, '+') : null;
+        // Page du live : pour commander sur le site plutôt que sur WhatsApp
+        $link = $store->url('/live');
 
         return [
             'name' => $store->name,
+            'link' => $link,
+            'link_label' => preg_replace('#^https?://#', '', $link),
+            'link_qr' => Cache::remember('live-qr:'.md5($link), now()->addDay(), fn () => (new QRCode(new QROptions([
+                'outputType' => QROutputInterface::GDIMAGE_PNG, 'scale' => 8, 'imageTransparent' => false,
+            ])))->render($link)),
             'whatsapp' => $normalized ? self::fullNumber($normalized) : null,
             'whatsapp_url' => $url,
             // QR code qui ouvre la conversation WhatsApp (image en ligne, gardée une journée)
