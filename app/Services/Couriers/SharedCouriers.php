@@ -81,6 +81,37 @@ class SharedCouriers
     }
 
     /**
+     * Toutes les fiches actives de la même personne, dans toutes les boutiques où elle livre (même de commerçants
+     * différents) : son espace livreur les réunit. Chaque boutique ne voit toujours que sa fiche, ses courses et
+     * son argent ; seul le livreur voit l'ensemble.
+     *
+     * @return Collection<int, Courier>
+     */
+    public function ofPerson(Courier $courier): Collection
+    {
+        if ($courier->user_id === null) {
+            return collect([$courier->loadMissing('store')]);
+        }
+
+        return Courier::withoutGlobalScope(StoreScope::class)->with('store')->where('user_id', $courier->user_id)->where('status', 'active')
+            ->whereExists(fn ($q) => $q->from('store_users')->whereColumn('store_users.store_id', 'couriers.store_id')
+                ->whereColumn('store_users.user_id', 'couriers.user_id')->where('store_users.status', UserStatus::Active->value))
+            ->orderBy('id')->get();
+    }
+
+    /**
+     * Boutique « d'accueil » du livreur : celle de sa plus ancienne fiche active. Son espace livreur s'ouvre à son
+     * adresse ({boutique}/livreur), quelle que soit la boutique qui lui envoie un lien ou une notification.
+     */
+    public static function homeOf(int $userId): ?Store
+    {
+        return Courier::withoutGlobalScope(StoreScope::class)->with('store')->where('user_id', $userId)->where('status', 'active')
+            ->whereExists(fn ($q) => $q->from('store_users')->whereColumn('store_users.store_id', 'couriers.store_id')
+                ->whereColumn('store_users.user_id', 'couriers.user_id')->where('store_users.status', UserStatus::Active->value))
+            ->orderBy('id')->first()?->store;
+    }
+
+    /**
      * Livreurs des boutiques, regroupés par personne, avec leur situation dans chaque boutique.
      *
      * @param  Collection<int, Store>  $stores
