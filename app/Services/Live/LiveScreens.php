@@ -15,6 +15,7 @@ use App\Support\Tenancy;
 use chillerlan\QRCode\Output\QROutputInterface;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Jibiat\Socle\PhoneNumber;
@@ -56,8 +57,34 @@ class LiveScreens
             throw new BusinessRuleException('Code inconnu ou trop ancien : rouvrez la page de l\'écran pour en avoir un nouveau.', 'code');
         }
         $screen->forceFill(['store_id' => $store->id, 'code' => null, 'paired_at' => now(), 'name' => $this->name($store, $name)])->save();
+        // Même écran relié à nouveau (même nom) : l'ancienne ligne, éteinte, est remplacée
+        $this->offline($store)->where('id', '!=', $screen->id)->where('name', $screen->name)->delete();
 
         return $screen;
+    }
+
+    /** Un écran éteint depuis plus longtemps est retiré tout seul */
+    public const FORGET_DAYS = 7;
+
+    /**
+     * Ménage : écrans éteints depuis plus de 7 jours (ou reliés sans jamais s'allumer). Le lien direct est gardé.
+     */
+    public function forgetStale(Store $store): void
+    {
+        $limit = now()->subDays(self::FORGET_DAYS);
+        $this->offline($store)->where(fn ($q) => $q->where('last_seen_at', '<', $limit)
+            ->orWhere(fn ($q) => $q->whereNull('last_seen_at')->where('paired_at', '<', $limit)))->delete();
+    }
+
+    /**
+     * Écrans (télé, tablette) de la boutique qui ne sont pas allumés en ce moment.
+     *
+     * @return Builder<LiveScreen>
+     */
+    private function offline(Store $store)
+    {
+        return LiveScreen::where('store_id', $store->id)->where('name', '!=', self::LINK_NAME)
+            ->where(fn ($q) => $q->whereNull('last_seen_at')->orWhere('last_seen_at', '<', now()->subSeconds(30)));
     }
 
     /**
@@ -233,6 +260,16 @@ class LiveScreens
     {
         $name = trim((string) $name);
 
-        return $name !== '' ? Str::limit($name, 60, '') : 'Écran '.(LiveScreen::where('store_id', $store->id)->count() + 1);
+        if ($name !== '') {
+            return Str::limit($name, 60, '');
+        }
+        // Sans nom : « Écran », ou « Écran 2 »… seulement si un écran allumé porte déjà ce nom (sinon il le remplace)
+        $taken = LiveScreen::where('store_id', $store->id)->where('last_seen_at', '>=', now()->subSeconds(30))->pluck('name')->all();
+        for ($n = 1; ; $n++) {
+            $candidate = $n === 1 ? 'Écran' : 'Écran '.$n;
+            if (! in_array($candidate, $taken, true)) {
+                return $candidate;
+            }
+        }
     }
 }
