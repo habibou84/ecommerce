@@ -234,26 +234,23 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
           <template v-else-if="live.state === 'ready'">
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
             <h3 class="mt-3 text-xl font-extrabold leading-tight">{{ live.session.title }}</h3>
-            <p class="mt-1 text-sm text-white/90">{{ live.session.items_count }} article{{ live.session.items_count > 1 ? 's' : '' }} prêt{{ live.session.items_count > 1 ? 's' : '' }}. Quand vous passez à l'antenne sur TikTok ou Facebook, touchez « Je suis en live » ici pour recevoir les commandes.</p>
+            <p class="mt-1 text-sm text-white/90">{{ live.session.items_count }} article{{ live.session.items_count > 1 ? 's' : '' }} prêt{{ live.session.items_count > 1 ? 's' : '' }}. <b>Passez à l'antenne sur TikTok ou Facebook, puis touchez « Je suis en live ».</b></p>
             <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-[#c02a4e] active:scale-[.99]">Je suis en live</RouterLink>
             <button type="button" class="relative mt-2 block w-full text-center text-sm text-white/90 underline" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien pour WhatsApp et Facebook' }}</button>
           </template>
           <template v-else>
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />VOTRE LIVE TIKTOK, FACEBOOK…</span>
-            <h3 class="mt-3 text-xl font-extrabold leading-tight sm:text-2xl">Préparez votre live, encaissez les commandes ici.</h3>
-            <p class="mt-1 text-sm text-white/95">
-              Vous faites le live sur TikTok, Facebook ou Instagram, comme d'habitude. Ici, vous préparez vos articles avec un code (A1, A2…) : pendant le live, les clientes envoient le code sur WhatsApp et la commande se crée toute seule.
-            </p>
-            <p v-if="live.last" class="mt-2 text-sm text-white/95">Dernier live : <b>{{ live.last.orders }} commande{{ live.last.orders > 1 ? 's' : '' }} · {{ money(live.last.amount) }}</b></p>
-            <!-- Où se passe quoi : préparer ici, filmer sur les réseaux, encaisser ici -->
-            <ol class="relative mt-3 grid grid-cols-3 gap-1.5 text-center text-[11.5px] font-bold leading-tight">
-              <li class="rounded-xl bg-white/15 px-1.5 py-2"><span class="block text-base">📝</span>1. Préparer ici</li>
-              <li class="rounded-xl bg-white/15 px-1.5 py-2"><span class="block text-base">📱</span>2. Live sur TikTok, Facebook</li>
-              <li class="rounded-xl bg-white/15 px-1.5 py-2"><span class="block text-base">🛒</span>3. Commandes ici</li>
+            <h3 class="mt-2 text-lg font-extrabold leading-tight">Préparez ici, vendez en live sur vos réseaux</h3>
+            <!-- Où se passe quoi, en trois mots : c'est l'explication -->
+            <ol class="relative mt-3 grid grid-cols-3 gap-1.5 text-center text-[13px] font-extrabold leading-tight">
+              <li class="rounded-xl bg-white/25 px-1 py-2"><span class="block text-lg leading-none">📝</span><span class="mt-1 block">Articles prêts ici</span></li>
+              <li class="rounded-xl bg-white/25 px-1 py-2"><span class="block text-lg leading-none">📱</span><span class="mt-1 block">Live sur TikTok, Facebook</span></li>
+              <li class="rounded-xl bg-white/25 px-1 py-2"><span class="block text-lg leading-none">🛒</span><span class="mt-1 block">Commandes ici</span></li>
             </ol>
-            <div class="relative mt-4 flex gap-2">
-              <RouterLink to="/gestion/live" class="flex-1 rounded-2xl bg-white py-3 text-center text-base font-extrabold text-[#c02a4e] active:scale-[.99]">Préparer mon prochain live</RouterLink>
-              <RouterLink v-if="live.last" :to="`/gestion/live/${live.last.id}`" class="rounded-2xl bg-white/20 px-4 py-3 text-sm font-bold">Revoir</RouterLink>
+            <p class="mt-2 text-[13px] font-semibold">Les clientes envoient le code (A1, A2…) sur WhatsApp : la commande se crée toute seule.</p>
+            <div class="relative mt-3 flex items-center gap-2">
+              <RouterLink to="/gestion/live" class="flex-1 rounded-2xl bg-white py-2.5 text-center text-base font-extrabold text-[#c02a4e] active:scale-[.99]">Préparer un live</RouterLink>
+              <RouterLink v-if="live.last" :to="`/gestion/live/${live.last.id}`" class="rounded-2xl bg-white/20 px-3 py-2 text-center text-xs font-bold leading-tight">Dernier live<span class="block text-sm">{{ money(live.last.amount) }}</span></RouterLink>
             </div>
           </template>
         </section>
