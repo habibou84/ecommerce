@@ -648,3 +648,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Live, onglet Produits : « Que voir sur l'écran du live ? » avec « Montrer un seul produit », « Faire défiler tous les produits », « Montrer comment commander » (plus de doigt pointé).
 - Live, « Montrer un seul produit » : bande de miniatures à glisser juste au-dessus de l'aperçu de l'écran ; boutons « Produit précédent » et « Produit suivant ».
 - Live, onglet Écran : l'écran allumé (ou le dernier relié) en haut, « + Relier un autre écran », anciens écrans repliés ; même nom = remplacé, éteint depuis 7 jours = retiré tout seul.
+- Live : toucher la carte « À l'écran maintenant » l'agrandit en plein écran avec les choix d'affichage, les produits à toucher pour changer et Précédent / Suivant.
