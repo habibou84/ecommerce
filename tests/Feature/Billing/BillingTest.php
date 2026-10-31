@@ -81,7 +81,9 @@ class BillingTest extends TestCase
         $second = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'monthly', 'method' => 'wave'])->json('data.number');
         $this->waveStatus = 'succeeded';
         $this->storeApi($this->store, 'POST', "billing/invoices/{$second}/check")->assertJsonPath('data.status', 'paid');
-        $this->assertTrue($sub->fresh()->current_period_end->between(now()->addMonths(2)->subMinute(), now()->addMonths(2)->addMinute()));
+        // La période suivante part de la fin de la précédente (un 31, deux mois d'affilée ne tombent pas sur « +2 mois »)
+        $end = now()->addMonth()->addMonth();
+        $this->assertTrue($sub->fresh()->current_period_end->between($end->copy()->subMinute(), $end->copy()->addMinute()));
 
         $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'free', 'cycle' => 'monthly', 'method' => 'wave'])->assertStatus(422);
     }
