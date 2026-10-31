@@ -67,7 +67,7 @@ const ticker = computed(() => {
   const list = live.value?.ticker ?? []
   if (list.length) return `✓ ${list[tickIndex.value % list.length].text} 🎉`
   if (live.value?.orders) return `✓ ${live.value.orders} commande${live.value.orders > 1 ? 's' : ''} pendant ce live 🎉`
-  return live.value ? 'Envoyez le code de l\'article sur WhatsApp' : 'Le live commence bientôt'
+  return live.value ? 'Envoyez un ou plusieurs codes sur WhatsApp : A1 + A3' : 'Le live commence bientôt'
 })
 watch(() => live.value?.ticker?.[0]?.id, () => (tickIndex.value = 0))
 
@@ -84,8 +84,8 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
           <p class="ld-soon">{{ store?.name }} · {{ live ? 'en direct' : 'le live commence bientôt' }}</p>
           <h2>Comment commander ?</h2>
           <ol>
-            <li><span>1</span>Notez le code (A1, A2…)</li>
-            <li><span>2</span>{{ store?.qr ? 'Scannez ou écrivez-nous' : 'Envoyez-le sur WhatsApp' }}</li>
+            <li><span>1</span>Notez vos codes (A1, A2…)</li>
+            <li><span>2</span>{{ store?.qr ? 'Scannez, envoyez « A1 + A3 »' : 'Envoyez « A1 + A3 » sur WhatsApp' }}</li>
             <li><span>3</span>Touchez votre commune</li>
             <li><span>4</span>On vous livre ✅</li>
           </ol>
@@ -101,7 +101,11 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
       <!-- Article montré : la photo en grand, puis le prix et le bloc WhatsApp (QR code et numéro) -->
       <div v-else class="ld-product">
         <div class="ld-photo">
-          <img v-if="shown.image" :src="shown.image" alt="" />
+          <template v-if="shown.image">
+            <!-- Photo entière (jamais coupée), posée sur la même photo floutée qui remplit le cadre -->
+            <img :src="shown.image" alt="" class="ld-photo-bg" aria-hidden="true" />
+            <img :src="shown.image" alt="" class="ld-photo-img" />
+          </template>
           <span class="ld-code">{{ shown.code }}</span>
           <span class="ld-left" :class="{ 'is-out': shown.remaining === 0 }">{{ left(shown) }}</span>
           <span v-if="shown.remaining === 0" class="ld-stamp">VENDU</span>
@@ -118,7 +122,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
             <div class="ld-wa-text">
               <small class="ld-wa-label">WhatsApp</small>
               <b>{{ store.whatsapp }}</b>
-              <span>Envoyez <u>{{ shown.code }}</u><template v-if="store.qr && layout === 'land'"><br>ou scannez le code</template><template v-else-if="layout === 'port'"> sur WhatsApp</template></span>
+              <span>Envoyez <u>{{ shown.code }}</u><template v-if="layout !== 'square'"> (ou plusieurs : {{ shown.code }} + …)</template><template v-if="store.qr && layout === 'land'"><br>ou scannez le code</template></span>
             </div>
           </div>
         </div>
@@ -139,7 +143,8 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .ld-stage { position: absolute; inset: 0; display: flex; flex-direction: column; }
 .ld-product { flex: 1; display: flex; min-height: 0; }
 .ld-photo { position: relative; overflow: hidden; background: linear-gradient(160deg, #f97316, #be123c); flex-shrink: 0; box-shadow: 0 1em 3em rgba(0, 0, 0, .45); }
-.ld-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ld-photo-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(1.6em) brightness(.75); transform: scale(1.15); }
+.ld-photo-img { position: relative; width: 100%; height: 100%; object-fit: contain; display: block; }
 .ld-code { position: absolute; left: .3em; top: .28em; background: #dc2626; color: #fff; font-weight: 900; line-height: 1; border: .12em solid #fff; border-radius: .22em; padding: .05em .2em .08em; letter-spacing: -.03em; box-shadow: 0 .1em .3em rgba(0, 0, 0, .35); }
 .ld-left { position: absolute; background: #f97316; color: #fff; font-weight: 900; border-radius: 999px; white-space: nowrap; box-shadow: 0 .2em .6em rgba(0, 0, 0, .3); }
 .ld-left.is-out { background: #475569; }

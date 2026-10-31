@@ -631,3 +631,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
    - DNS : enregistrement *wildcard* `*.jibiat-marchand.com` vers le serveur, et accès API au DNS (Cloudflare conseillé) pour le certificat *wildcard* ;
    - réserver aussi `jibiat-marchand.ci` si possible et les comptes réseaux sociaux « Jibiat Marchand » ;
    - les adresses `{boutique}.jibiat-marchand.com` sont longues à partager : les liens courts de la suggestion 3 et les domaines personnalisés compensent. Un domaine court dédié aux liens (ex. `jbt.ci/abc`) peut s'ajouter plus tard.
+- Live : le numéro WhatsApp affiché est celui relié à Meta ; plusieurs codes (« A1 + A2 ») arrivent ensemble avec la question de la commune ; photos entières (sur fond flou) à l'écran et dans les cartes ; explications « un ou plusieurs codes ».
