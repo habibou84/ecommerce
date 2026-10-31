@@ -4,6 +4,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import Modal from '../../components/Modal.vue'
+import WavePay from '../../components/WavePay.vue'
 import http, { download, errorMessage } from '../../lib/http'
 import { formatDate, formatDateTime, money } from '../../lib/format'
 import { useAuthStore } from '../../stores/auth'
@@ -310,32 +311,7 @@ async function cancel(value) {
     </section>
 
     <Modal v-if="wave" title="Payer avec Wave" @close="wave = null">
-      <div class="space-y-5 text-sm">
-        <div class="rounded-xl bg-slate-50 p-4 text-center ring-1 ring-slate-200">
-          <p class="text-2xl font-bold">{{ money(wave.invoice.amount) }} à payer</p>
-          <p v-if="wave.phone" class="mt-1 text-slate-600">Depuis le numéro Wave {{ wave.phone }}</p>
-          <p class="mt-1 text-xs text-slate-500">{{ wave.invoice.plan }}<template v-if="wave.invoice.kind !== 'ai_pack'"> ({{ wave.invoice.cycle_label }})</template> · facture {{ wave.invoice.number }}</p>
-        </div>
-
-        <section class="space-y-3">
-          <h3 class="flex items-center gap-2 font-semibold"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-sky-600 text-xs text-white">1</span>Payez avec Wave</h3>
-          <!-- Téléphone : le bouton d'abord ; ordinateur : le QR code d'abord (on paie avec son téléphone) -->
-          <div class="flex flex-col gap-3">
-            <a v-if="wave.link" :href="wave.link" target="_blank" rel="noopener" class="order-1 flex w-full justify-center rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white hover:bg-sky-700 md:order-2">Cliquez ici pour payer avec Wave</a>
-            <div v-if="data.wave_qr_url" class="order-2 flex flex-col items-center gap-2 md:order-1">
-              <p class="text-slate-600">{{ wave.link ? 'ou scannez ce code QR avec l\'application Wave' : 'Scannez ce code QR avec l\'application Wave' }}</p>
-              <img :src="data.wave_qr_url" alt="Code QR Wave de Jibiat Marchand" class="h-52 w-52 rounded-lg bg-white object-contain ring-1 ring-slate-200" />
-            </div>
-          </div>
-        </section>
-
-        <section class="space-y-2 border-t border-slate-100 pt-4">
-          <h3 class="flex items-center gap-2 font-semibold"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-xs text-white">2</span>Confirmez votre paiement</h3>
-          <p class="text-slate-600">Une fois le paiement fait dans Wave :</p>
-          <button class="w-full rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white hover:bg-emerald-800 disabled:opacity-60" :disabled="claiming" @click="claimPaid">{{ claiming ? 'Envoi…' : 'Cliquez ici pour confirmer votre paiement' }}</button>
-          <p class="text-xs text-slate-500">Nous vérifions la réception, puis votre {{ wave.invoice.kind === 'ai_pack' ? 'recharge est ajoutée' : 'offre est activée' }}.</p>
-        </section>
-      </div>
+      <WavePay :invoice="wave.invoice" :link="wave.link" :phone="wave.phone" :qr-url="data.wave_qr_url" :claiming="claiming" @claim="claimPaid" />
     </Modal>
   </div>
   <p v-else-if="!error" class="text-sm text-slate-500">Chargement…</p>

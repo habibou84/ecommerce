@@ -2,8 +2,8 @@
 
 namespace App\Services\Ai;
 
+use App\Exceptions\AiQuotaExceededException;
 use App\Exceptions\BusinessRuleException;
-use App\Exceptions\QuotaExceededException;
 use App\Models\AiUsage;
 use App\Models\Store;
 use App\Models\User;
@@ -30,13 +30,17 @@ class Assistant
     }
 
     /**
-     * Actions utilisées ce mois-ci, quota de l'offre (null : illimité) et actions achetées en réserve.
+     * Actions utilisées ce mois-ci, quota de l'offre (null : illimité), actions achetées en réserve et recharge
+     * proposée.
      *
-     * @return array{enabled: bool, used: int, limit: ?int, credits: int}
+     * @return array{enabled: bool, used: int, limit: ?int, credits: int, pack: array{actions: int, price: int}}
      */
     public function status(Store $store): array
     {
-        return ['enabled' => $this->enabled(), 'used' => $this->limits->used($store, 'ai_actions_per_month'), 'limit' => $this->limit($store), 'credits' => (int) $store->fresh()->ai_credits];
+        return [
+            'enabled' => $this->enabled(), 'used' => $this->limits->used($store, 'ai_actions_per_month'), 'limit' => $this->limit($store),
+            'credits' => (int) $store->fresh()->ai_credits, 'pack' => config('platform.ai_pack'),
+        ];
     }
 
     /**
@@ -120,11 +124,11 @@ class Assistant
         if ($this->overQuota($store, $limit) && (int) $store->fresh()->ai_credits <= 0) {
             $plan = $this->limits->plan($store)?->name;
             ['actions' => $actions, 'price' => $price] = config('platform.ai_pack');
-            $recharge = "Rechargez {$actions} actions pour ".number_format($price, 0, ',', ' ').' F dans Réglages › Abonnement.';
+            $recharge = "Rechargez {$actions} actions pour ".number_format($price, 0, ',', ' ').' F pour continuer.';
 
-            throw new QuotaExceededException($limit === 0
-                ? "L'assistant IA marche avec des recharges, à part de l'offre. {$recharge}"
-                : "Les {$limit} actions de l'assistant IA de l'offre {$plan} sont utilisées ce mois-ci. {$recharge}");
+            throw new AiQuotaExceededException($limit === 0
+                ? "L'assistant IA de l'offre {$plan} marche avec des recharges. {$recharge}"
+                : "Vos {$limit} actions de l'assistant IA du mois (offre {$plan}) sont utilisées. {$recharge}", $this->status($store));
         }
     }
 

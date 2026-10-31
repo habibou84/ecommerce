@@ -46,7 +46,8 @@ class TenancyTest extends TestCase
             ->assertSee("25\u{00A0}000\u{00A0}F d'économie", false)
             ->assertSee('Wave, Orange Money, MTN, Moov')
             ->assertSee('60 commandes par mois')
-            ->assertSee("L&#039;assistant IA se paie à part : 100 actions pour 1\u{00A0}000\u{00A0}F", false)
+            ->assertSee('Par mois : 10 en Gratuit, 50 en Starter, 300 en Pro et 1 000 en Business.', false)
+            ->assertSee("Besoin de plus d&#039;assistant ? Rechargez 100 actions pour 1\u{00A0}000\u{00A0}F", false)
             ->assertSee('2 mois de l&#039;offre Pro au lieu de 1 mois', false);
     }
 

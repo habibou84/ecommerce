@@ -1,4 +1,6 @@
 <script setup>
+import AiMeter from '../../components/AiMeter.vue'
+import { aiExhausted, countAiAction } from '../../lib/aiQuota'
 import Icon from '../../components/Icon.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
@@ -35,7 +37,7 @@ async function ask(text = null) {
   answer.value = ''
   try {
     answer.value = (await http.post('/stats/ask', { question: question.value })).data.data.answer
-    if (auth.profile?.ai) auth.profile.ai.used++
+    countAiAction(auth.profile?.ai)
   } catch (e) {
     askError.value = errorMessage(e)
   } finally {
@@ -111,7 +113,7 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
       <h2 class="font-semibold"><Icon name="sparkles" :size="18" class="mr-1 inline-block align-[-3px]" />Posez une question sur vos chiffres</h2>
       <form class="flex gap-2" @submit.prevent="ask()">
         <input v-model="question" class="input" maxlength="500" placeholder="Ex. Combien de robes j'ai vendu cette semaine ?" />
-        <button class="btn-brand shrink-0" :disabled="asking || question.trim().length < 3 || (ai.limit !== null && ai.used >= ai.limit)">{{ asking ? '…' : 'Demander' }}</button>
+        <button class="btn-brand shrink-0" :disabled="asking || question.trim().length < 3 || aiExhausted(ai)">{{ asking ? '…' : 'Demander' }}</button>
       </form>
       <div v-if="!answer && !asking" class="flex flex-wrap gap-2">
         <button v-for="ex in EXAMPLES" :key="ex" type="button" class="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs text-emerald-900" @click="ask(ex)">{{ ex }}</button>
@@ -119,7 +121,7 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
       <p v-if="asking" class="text-sm text-slate-500">L'assistant regarde vos chiffres…</p>
       <p v-if="answer" class="whitespace-pre-line rounded-lg bg-white p-3 text-sm">{{ answer }}</p>
       <p v-if="askError" class="text-sm text-red-600">{{ askError }}</p>
-      <p class="text-xs text-slate-500">{{ ai.used }}{{ ai.limit !== null ? ` / ${ai.limit}` : '' }} action(s) de l'assistant ce mois-ci.</p>
+      <AiMeter />
     </section>
 
     <Alert v-if="error" :tone="upgrade ? 'warning' : 'error'">
