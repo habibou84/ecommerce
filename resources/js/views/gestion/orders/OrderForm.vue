@@ -508,12 +508,22 @@ async function refreshPlace() {
 // Adresse habituelle du client connu : quartier et adresse remplis d'un geste
 const lastAddress = ref(null)
 const lastAddressText = computed(() => (lastAddress.value ? [lastAddress.value.place_label, joinAddress(lastAddress.value.address_line, lastAddress.value.landmark)].filter(Boolean).join(' · ') : ''))
-async function useLastAddress() {
+// Adresse déjà reprise : la carte n'affiche plus le bouton mais une confirmation
+const addressTaken = computed(() => !!lastAddress.value && place.value?.id === lastAddress.value.place_id
+  && (!joinAddress(lastAddress.value.address_line, lastAddress.value.landmark) || form.shipping_address === joinAddress(lastAddress.value.address_line, lastAddress.value.landmark)))
+const addressFlash = ref(false)
+async function useLastAddress(show = false) {
   const a = lastAddress.value
   if (!a) return
   place.value = { id: a.place_id, label: a.place_label, ancestor_ids: [] }
   form.shipping_address = joinAddress(a.address_line, a.landmark) || form.shipping_address
   await refreshPlace()
+  if (show) {
+    // Montrer où l'adresse a été remplie
+    addressFlash.value = true
+    setTimeout(() => (addressFlash.value = false), 1800)
+    document.getElementById('place')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
 }
 
 // Téléphone mis en forme pendant la frappe (07 99 00 08 71), numéro incomplet signalé
@@ -761,9 +771,10 @@ async function save() {
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-600 font-bold text-white">{{ (known.name ?? '?').charAt(0).toUpperCase() }}</span>
             <div class="min-w-[12rem] flex-1">
               <p class="font-semibold">Client connu · {{ known.orders_count }} commande(s)<template v-if="known.delivery_rate !== null && known.delivery_rate !== undefined"> · {{ known.delivery_rate }} % livrées</template></p>
-              <p v-if="lastAddressText" class="text-sm text-slate-600">Dernière adresse : {{ lastAddressText }}</p>
+              <p v-if="lastAddressText && addressTaken && form.delivery_method === 'delivery'" class="flex items-start gap-1 text-sm font-semibold text-emerald-800"><Icon name="check" :size="16" class="mt-0.5 shrink-0" /><span>Adresse reprise : {{ lastAddressText }}</span></p>
+              <p v-else-if="lastAddressText" class="text-sm text-slate-600">Dernière adresse : {{ lastAddressText }}</p>
             </div>
-            <button v-if="lastAddress && form.delivery_method === 'delivery'" type="button" class="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-800 shadow-sm max-sm:w-full" @click="useLastAddress">Reprendre l'adresse</button>
+            <button v-if="lastAddress && !addressTaken && form.delivery_method === 'delivery'" type="button" class="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-emerald-800 shadow-sm max-sm:w-full" @click="useLastAddress(true)">Reprendre l'adresse</button>
           </div>
           <template v-for="o in elsewhere" :key="o.store_id">
             <Alert v-if="o.is_blacklisted" tone="error">Sur liste noire dans {{ o.store_name }}{{ o.blacklist_reason ? ` : ${o.blacklist_reason}` : '' }}.</Alert>
@@ -811,13 +822,13 @@ async function save() {
               <button v-if="chosenCarrier" type="button" class="mt-1.5 text-sm font-medium text-emerald-700 hover:underline" @click="openTariffs">Voir toutes ses zones et tarifs</button>
             </div>
 
-            <Field id="place" label="Quartier / commune" large :error="errors.shipping_place_id">
+            <Field id="place" label="Quartier / commune" large :class="addressFlash ? 'rounded-xl ring-4 ring-emerald-300 transition' : 'transition'" :error="errors.shipping_place_id">
               <DeliveryPlacePicker id="place" v-model="place" :carrier-id="placeCarrier?.id ?? null" :carrier-name="placeCarrier?.name ?? ''" @change-deliverer="pickerOpen = true" />
               <p v-if="placeHint && !errors.shipping_place_id" class="mt-1.5 text-sm" :class="placeHint.tone">{{ placeHint.text }}</p>
               <PlaceTapPicker v-if="!place && !placeCarrier && rates?.home" class="mt-3" :rates="rates" :show-fees="canPrice" @pick="place = $event" @search="focusPlaceSearch" />
             </Field>
 
-            <Field id="address" label="Adresse précise et point de repère" large>
+            <Field id="address" label="Adresse précise et point de repère" large :class="addressFlash ? 'rounded-xl ring-4 ring-emerald-300 transition' : 'transition'">
               <textarea id="address" v-model="form.shipping_address" class="input-lg" rows="3" maxlength="255" placeholder="Rue, immeuble, étage… et un repère : face pharmacie, à côté de l'école…" />
             </Field>
 

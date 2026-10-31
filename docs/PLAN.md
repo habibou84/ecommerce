@@ -643,3 +643,5 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Page du live : onglets « Produits » et « Écran » directement sous la carte du live (plus de page séparée ni d'ancien bandeau).
 - Live : la carte du live en direct montre la dernière commande (mise à jour toute seule) ; « commandes », « à traiter » et « Dernière » mènent à la liste des clientes.
 - Nouvelle commande : après l'enregistrement, un résumé propose « Enregistrer une nouvelle commande », « Dupliquer » (mêmes articles et même livraison, autre client), « Imprimer l'étiquette », « Voir la commande » et « Liste des commandes ».
+- Nouvelle commande, client connu : « Reprendre l'adresse » remplit le quartier et l'adresse, les montre en surbrillance et la carte affiche « ✓ Adresse reprise » (le bouton disparaît).
+- Fiche commande : un livreur déjà choisi s'affiche avec « Modifier » à la place de « Faire livrer » ; « Autre livreur » devient « Modifier le livreur ».
