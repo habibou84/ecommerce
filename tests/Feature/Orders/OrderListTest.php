@@ -100,6 +100,13 @@ class OrderListTest extends TestCase
         $this->assertSame([$other->id], collect($this->api('GET', 'orders?deliverer=none')->json('data'))->pluck('id')->all());
         $this->assertSame('Koffi', collect($this->api('GET', 'orders')->json('data'))->firstWhere('id', $pending->id)['deliverer']);
 
+        // Livreur choisi : son nom et « Modifier » dans la liste (choix gardé, ou course de mon livreur pas encore partie)
+        $rows = collect($this->api('GET', 'orders')->json('data'))->keyBy('id');
+        $this->assertSame(['courier:'.$courier->id, true, null], [$rows[$pending->id]['deliverer_key'], $rows[$pending->id]['deliverer_editable'], $rows[$pending->id]['shipment_id']]);
+        $shipment = $confirmed->fresh()->shipments->sole();
+        $this->assertSame(['courier:'.$courier->id, true, $shipment->id], [$rows[$confirmed->id]['deliverer_key'], $rows[$confirmed->id]['deliverer_editable'], $rows[$confirmed->id]['shipment_id']]);
+        $this->assertFalse($rows[$other->id]['deliverer_editable']);
+
         // Changer le statut : chaque commande à part
         $this->api('POST', 'orders/bulk', ['ids' => [$pending->id, $other->id], 'action' => 'status', 'status' => 'processing'])
             ->assertJsonPath('data.done', 1)->assertJsonPath('data.skipped.0.reference', $pending->reference());
