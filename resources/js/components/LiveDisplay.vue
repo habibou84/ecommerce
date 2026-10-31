@@ -94,6 +94,13 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
             <li><span>3</span>Touchez votre commune</li>
             <li><span>4</span>On vous livre ✅</li>
           </ol>
+          <div v-if="store?.link" class="ld-site ld-how-site">
+            <img :src="store.link_qr" alt="QR code du site" />
+            <div class="ld-site-text">
+              <small>Ou commandez sur le site</small>
+              <b>{{ store.link_label }}</b>
+            </div>
+          </div>
         </div>
         <div v-if="store?.whatsapp" class="ld-qr">
           <img v-if="store.qr" :src="store.qr" alt="QR code WhatsApp" />
@@ -111,15 +118,18 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
             <img :src="shown.image" alt="" class="ld-photo-bg" aria-hidden="true" />
             <img :src="shown.image" alt="" class="ld-photo-img" />
           </template>
-          <span class="ld-code">{{ shown.code }}</span>
           <span class="ld-left" :class="{ 'is-out': shown.remaining === 0 }">{{ left(shown) }}</span>
           <span v-if="shown.remaining === 0" class="ld-stamp">VENDU</span>
         </div>
         <div class="ld-info">
           <span class="ld-live"><i />EN DIRECT · {{ store?.name }}</span>
-          <div>
-            <p class="ld-name">{{ shown.title }}</p>
-            <p v-if="shown.variant" class="ld-variant">{{ shown.variant }}</p>
+          <!-- Le code à côté du nom, hors de la photo : rien ne cache l'article -->
+          <div class="ld-head">
+            <span class="ld-code">{{ shown.code }}</span>
+            <div class="ld-titles">
+              <p class="ld-name">{{ shown.title }}</p>
+              <p v-if="shown.variant" class="ld-variant">{{ shown.variant }}</p>
+            </div>
           </div>
           <p class="ld-price"><b>{{ money(shown.price) }}</b><s v-if="shown.was">{{ money(shown.was) }}</s></p>
           <div v-if="store?.whatsapp" class="ld-wa">
@@ -128,6 +138,13 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
               <small class="ld-wa-label">WhatsApp</small>
               <b><small v-if="number.prefix" class="ld-cc">{{ number.prefix }}</small>{{ number.local }}</b>
               <span>Envoyez <u>{{ shown.code }}</u><template v-if="layout !== 'square'"> (ou plusieurs : {{ shown.code }} + …)</template><template v-if="store.qr && layout === 'land'"><br>ou scannez le code</template></span>
+            </div>
+          </div>
+          <div v-if="store?.link" class="ld-site">
+            <img :src="store.link_qr" alt="QR code du site" />
+            <div class="ld-site-text">
+              <small>{{ store?.whatsapp ? 'Ou commandez sur le site' : 'Commandez sur le site' }}</small>
+              <b>{{ store.link_label }}</b>
             </div>
           </div>
         </div>
@@ -154,7 +171,16 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .ld-photo { position: relative; overflow: hidden; background: linear-gradient(160deg, #f97316, #be123c); flex-shrink: 0; box-shadow: 0 1em 3em rgba(0, 0, 0, .45); }
 .ld-photo-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(1.6em) brightness(.75); transform: scale(1.15); }
 .ld-photo-img { position: relative; width: 100%; height: 100%; object-fit: contain; display: block; }
-.ld-code { position: absolute; left: .3em; top: .28em; background: #dc2626; color: #fff; font-weight: 900; line-height: 1; border: .12em solid #fff; border-radius: .22em; padding: .05em .2em .08em; letter-spacing: -.03em; box-shadow: 0 .1em .3em rgba(0, 0, 0, .35); }
+.ld-head { display: flex; align-items: center; gap: .6em; min-width: 0; }
+.ld-titles { min-width: 0; }
+.ld-code { flex-shrink: 0; background: #dc2626; color: #fff; font-weight: 900; line-height: 1; border: .1em solid #fff; border-radius: .22em; padding: .06em .2em .09em; letter-spacing: -.03em; }
+/* Lien du site et son QR code, pour commander sans WhatsApp */
+.ld-site { display: flex; align-items: center; background: #fff; color: #0f172a; flex-shrink: 0; }
+.ld-site img { display: block; flex-shrink: 0; image-rendering: pixelated; }
+.ld-site-text { min-width: 0; }
+.ld-site small { display: block; font-weight: 800; color: #475569; }
+.is-land .ld-price + .ld-site, .is-square .ld-price + .ld-site { margin-top: auto; }
+.ld-site b { display: block; font-weight: 900; overflow-wrap: anywhere; line-height: 1.15; }
 .ld-left { position: absolute; background: #f97316; color: #fff; font-weight: 900; border-radius: 999px; white-space: nowrap; box-shadow: 0 .2em .6em rgba(0, 0, 0, .3); }
 .ld-left.is-out { background: #475569; }
 .ld-stamp { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-14deg); color: #dc2626; font-weight: 900; border: .1em solid #dc2626; border-radius: .2em; background: rgba(255, 255, 255, .88); padding: 0 .3em; white-space: nowrap; }
@@ -191,7 +217,11 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 /* Paysage : télé, ordinateur — la photo sur la moitié gauche, toute la hauteur */
 .is-land .ld-product { gap: 2.3em; padding-right: 1.9em; }
 .is-land .ld-photo { width: 50%; border-radius: 0 1.75em 1.75em 0; }
-.is-land .ld-code { font-size: 5.75em; }
+.is-land .ld-code { font-size: 4em; }
+.is-land .ld-site { gap: 1em; padding: .6em 1em .6em .6em; border-radius: 1em; }
+.is-land .ld-site img { width: 6em; }
+.is-land .ld-site small { font-size: 1.15em; }
+.is-land .ld-site b { font-size: 1.6em; }
 .is-land .ld-left { left: 1.75em; bottom: 1.75em; font-size: 1.9em; padding: .25em .7em; }
 .is-land .ld-stamp { font-size: 5em; }
 .is-land .ld-info { flex: 1; gap: .9em; padding: 2.1em 0 1.75em; }
@@ -210,7 +240,11 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 /* Carré : TikTok LIVE Studio, OBS, PRISM — photo à gauche, prix et WhatsApp à droite */
 .is-square .ld-product { gap: 1.25em; padding-right: 1.25em; }
 .is-square .ld-photo { width: 52%; border-radius: 0 1.5em 1.5em 0; }
-.is-square .ld-code { font-size: 4em; }
+.is-square .ld-code { font-size: 2.8em; }
+.is-square .ld-site { gap: .6em; padding: .45em; border-radius: .8em; }
+.is-square .ld-site img { width: 4.6em; }
+.is-square .ld-site small { font-size: .8em; }
+.is-square .ld-site b { font-size: 1em; }
 .is-square .ld-left { left: 1.1em; bottom: 1.1em; font-size: 1.15em; padding: .3em .8em; }
 .is-square .ld-stamp { font-size: 3.4em; }
 .is-square .ld-info { flex: 1; gap: .5em; padding: 1.4em 0 1.1em; }
@@ -229,7 +263,11 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 /* Portrait : téléphone en partage d'écran, tablette debout — la photo bord à bord */
 .is-port .ld-product { flex-direction: column; }
 .is-port .ld-photo { flex: 1; min-height: 0; border-radius: 0 0 1.6em 1.6em; }
-.is-port .ld-code { font-size: 3.6em; }
+.is-port .ld-code { font-size: 2.6em; }
+.is-port .ld-site { gap: .7em; padding: .45em; margin: .5em -.3em 0; border-radius: .9em; }
+.is-port .ld-site img { width: 4.2em; }
+.is-port .ld-site small { font-size: .85em; }
+.is-port .ld-site b { font-size: 1.1em; }
 .is-port .ld-left { right: 1em; bottom: 1em; font-size: 1.05em; padding: .35em .8em; }
 .is-port .ld-stamp { font-size: 3em; }
 .is-port .ld-info { gap: .25em; padding: .8em 1.1em 0; }
@@ -262,6 +300,10 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .is-land .ld-how ol { gap: 1.25em; }
 .is-land .ld-how li { gap: .8em; font-size: 2.1em; }
 .is-land .ld-how li span { width: 1.6em; height: 1.6em; }
+.is-land .ld-how-site { margin-top: 1.5em; gap: 1em; padding: .6em 1.2em .6em .6em; border-radius: 1em; display: inline-flex; }
+.is-land .ld-how-site img { width: 6em; }
+.is-land .ld-how-site small { font-size: 1.1em; }
+.is-land .ld-how-site b { font-size: 1.6em; }
 .is-land .ld-soon { font-size: 1.4em; margin-bottom: .6em; }
 .is-land .ld-qr { width: 27em; padding: 1.4em; border-radius: 1.6em; }
 .is-land .ld-qr .ld-wa-label { font-size: 1.4em; margin-top: .5em; }
@@ -273,6 +315,10 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .is-square .ld-how ol { gap: .7em; }
 .is-square .ld-how li { gap: .5em; font-size: 1.2em; }
 .is-square .ld-how li span { width: 1.6em; height: 1.6em; }
+.is-square .ld-how-site { margin-top: 1em; gap: .6em; padding: .45em; border-radius: .8em; }
+.is-square .ld-how-site img { width: 4.6em; }
+.is-square .ld-how-site small { font-size: .8em; }
+.is-square .ld-how-site b { font-size: 1em; }
 .is-square .ld-soon { font-size: .95em; margin-bottom: .5em; }
 .is-square .ld-qr { width: 18em; padding: 1em; border-radius: 1.2em; }
 .is-square .ld-qr .ld-wa-label { font-size: 1em; margin-top: .3em; }
@@ -284,6 +330,10 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .is-port .ld-how ol { gap: .55em; }
 .is-port .ld-how li { gap: .5em; font-size: 1.15em; }
 .is-port .ld-how li span { width: 1.7em; height: 1.7em; }
+.is-port .ld-how-site { margin-top: 1em; gap: .6em; padding: .45em; border-radius: .8em; }
+.is-port .ld-how-site img { width: 4.2em; }
+.is-port .ld-how-site small { font-size: .8em; }
+.is-port .ld-how-site b { font-size: 1em; }
 .is-port .ld-soon { font-size: .9em; margin-bottom: .6em; }
 .is-port .ld-qr { width: 15em; padding: 1em; border-radius: 1.2em; }
 .is-port .ld-qr .ld-wa-label { font-size: .95em; margin-top: .3em; }

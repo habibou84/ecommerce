@@ -634,3 +634,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Live : le numéro WhatsApp affiché est celui relié à Meta ; plusieurs codes (« A1 + A2 ») arrivent ensemble avec la question de la commune ; photos entières (sur fond flou) à l'écran et dans les cartes ; explications « un ou plusieurs codes ».
 - Live : numéro WhatsApp complet (+225 …) à l'écran ; l'identifiant masqué (« LID ») d'un WhatsApp relié par QR code n'est plus pris pour un numéro.
 - Mention « Propulsé par Jibiat Marchand · jibiat-marchand.com » : écran du live, cartes images, « Comment commander », pied de la boutique et de la page du live ; numéro complet qui tient sur une ligne.
+- Live : ancien numéro WhatsApp à 8 chiffres remis aux 10 chiffres (05…) ; code de l'article à côté du nom, hors de la photo (écran et cartes) ; lien du live et son QR code pour commander sur le site.
