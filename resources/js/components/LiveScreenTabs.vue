@@ -61,6 +61,20 @@ const MODES = [
   ['scroll', '🔁', 'Faire défiler tous les produits', 'Les produits passent tout seuls à l\'écran, l\'un après l\'autre.'],
   ['how', '🛒', 'Montrer comment commander', 'L\'écran montre le WhatsApp et le lien du site pour commander.'],
 ]
+const SHORT = { product: 'Un produit', scroll: 'Défiler', how: 'Commander' }
+// Carte « À l'écran maintenant » agrandie en plein écran (Échap ferme)
+const expanded = ref(false)
+function onKey(e) {
+  if (e.key === 'Escape') expanded.value = false
+}
+watch(expanded, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+  open ? document.addEventListener('keydown', onKey) : document.removeEventListener('keydown', onKey)
+})
+onUnmounted(() => {
+  document.body.style.overflow = ''
+  document.removeEventListener('keydown', onKey)
+})
 const hint = computed(() => MODES.find((m) => m[0] === mode.value)?.[3] ?? '')
 
 async function run(request) {
@@ -243,12 +257,51 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       </template>
 
       <!-- Aperçu : ce que voient les clientes en ce moment -->
-      <div class="overflow-hidden rounded-2xl bg-slate-900">
+      <div class="relative cursor-zoom-in overflow-hidden rounded-2xl bg-slate-900" role="button" tabindex="0" aria-label="Agrandir l'écran du live" @click="expanded = true" @keydown.enter="expanded = true">
         <p class="px-3 pt-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">À l'écran maintenant</p>
         <div class="mx-auto aspect-video w-full max-w-md p-2">
-          <div class="h-full overflow-hidden rounded-lg"><LiveDisplay v-if="display" :data="display" /></div>
+          <div class="pointer-events-none h-full overflow-hidden rounded-lg"><LiveDisplay v-if="display" :data="display" /></div>
         </div>
+        <span class="absolute bottom-3 right-3 rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-slate-900 shadow">⤢ Agrandir</span>
       </div>
+
+      <!-- Carte agrandie : l'écran en grand, les produits à toucher pour changer, précédent / suivant -->
+      <Teleport to="body">
+        <div v-if="expanded" class="fixed inset-0 z-50 flex flex-col bg-[#0b1120] text-white" role="dialog" aria-modal="true" aria-label="À l'écran maintenant">
+          <div class="flex items-center justify-between px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <b class="text-base">À l'écran maintenant</b>
+            <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg" aria-label="Fermer" @click="expanded = false">✕</button>
+          </div>
+          <div class="mx-auto aspect-video w-full max-w-3xl shrink-0 px-3">
+            <div class="h-full overflow-hidden rounded-xl bg-black"><LiveDisplay v-if="display" :data="display" /></div>
+          </div>
+          <div class="mx-auto mt-3 grid w-full max-w-3xl shrink-0 grid-cols-3 gap-1.5 px-3" role="radiogroup" aria-label="Que voir sur l'écran du live ?">
+            <button v-for="[value, icon, label] in MODES" :key="value" type="button" role="radio" :aria-checked="mode === value" :disabled="busy"
+                    class="rounded-lg px-1 py-2 text-xs font-extrabold" :class="mode === value ? 'bg-emerald-700 text-white' : 'bg-white/10 text-slate-300'" @click="setMode(value)">
+              {{ icon }} {{ SHORT[value] }}
+            </button>
+          </div>
+          <p class="mx-auto mt-3 w-full max-w-3xl px-4 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Touchez un produit pour changer</p>
+          <div class="mx-auto mt-2 grid min-h-0 w-full max-w-3xl flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto px-3 pb-2 sm:grid-cols-4">
+            <button v-for="i in items" :key="i.id" type="button" :disabled="busy"
+                    class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="mode === 'product' && featured === i.id ? 'border-red-600' : 'border-transparent'" @click="showItem(i)">
+              <span class="block h-16 bg-gradient-to-br from-orange-300 to-rose-400">
+                <img v-if="i.image" :src="i.image" alt="" class="h-full w-full bg-slate-100 object-contain" loading="lazy" />
+              </span>
+              <span class="absolute left-1 top-1 rounded-md bg-red-600 px-1.5 text-xs font-black text-white">{{ i.code }}</span>
+              <span v-if="i.remaining === 0" class="absolute inset-x-0 top-0 grid h-16 place-items-center bg-white/60 text-sm font-black text-red-600">VENDU</span>
+              <span class="block px-1.5 pb-1 pt-0.5 text-[11px]">
+                <b class="block truncate">{{ i.title }}</b>
+                <span class="text-slate-500">{{ money(i.price) }}</span>
+              </span>
+            </button>
+          </div>
+          <div class="mx-auto grid w-full max-w-3xl shrink-0 grid-cols-2 gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+            <button type="button" class="rounded-xl border border-white/25 bg-white/10 py-3.5 text-base font-extrabold" :disabled="busy || items.length < 2" @click="previous">◀ Précédent</button>
+            <button type="button" class="rounded-xl bg-emerald-700 py-3.5 text-base font-extrabold" :disabled="busy || items.length < 2" @click="next">Suivant ▶</button>
+          </div>
+        </div>
+      </Teleport>
 
       <div v-if="mode === 'product' && items.length > 1" class="grid grid-cols-2 gap-2">
         <button type="button" class="btn-secondary whitespace-nowrap px-2 py-4 text-[15px]" :disabled="busy" @click="previous">◀ Produit précédent</button>
