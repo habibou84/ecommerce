@@ -142,4 +142,33 @@ class LiveScreensTest extends TestCase
         sort($names);
         $this->assertSame(['00-comment-commander.jpg', '01-A1-vendu.jpg', '01-A1.jpg', '02-A2-vendu.jpg', '02-A2.jpg'], $names);
     }
+
+    public function test_old_screens_are_replaced_or_forgotten_so_the_list_stays_short(): void
+    {
+        $pair = function (?string $name) {
+            $code = $this->platformApi('POST', 'screens')->assertCreated()->json('data.code');
+
+            return $this->storeApi($this->store, 'POST', 'lives/screens/pair', ['code' => $code, 'name' => $name])->assertCreated()->json('data');
+        };
+
+        // La même télé reliée trois fois (éteinte entre deux) : une seule ligne reste
+        $first = $pair('Télé salon');
+        $pair('Télé salon');
+        $last = $pair('Télé salon');
+        $this->assertSame([$last['id']], LiveScreen::where('store_id', $this->store->id)->pluck('id')->all());
+
+        // Sans nom : « Écran » ; un deuxième sans nom alors que le premier est allumé : « Écran 2 »
+        $a = $pair(null);
+        $this->assertSame('Écran', $a['name']);
+        LiveScreen::whereKey($a['id'])->update(['last_seen_at' => now()]);
+        $this->assertSame('Écran 2', $pair(null)['name']);
+
+        // Éteint depuis plus de 7 jours : retiré en ouvrant la liste ; le lien direct et l'écran allumé restent
+        $link = $this->storeApi($this->store, 'POST', 'lives/screens/link')->assertOk();
+        LiveScreen::whereKey($last['id'])->update(['last_seen_at' => now()->subDays(8)]);
+        LiveScreen::where('name', 'Ordinateur ou PRISM (lien)')->update(['last_seen_at' => now()->subDays(30)]);
+        $names = collect($this->storeApi($this->store, 'GET', 'lives/screens')->assertOk()->json('data'))->pluck('name')->sort()->values()->all();
+        $this->assertSame(['Ordinateur ou PRISM (lien)', 'Écran', 'Écran 2'], $names);
+        $this->assertNotSame($first['id'], $last['id']);
+    }
 }
