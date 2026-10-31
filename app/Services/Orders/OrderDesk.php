@@ -684,7 +684,7 @@ class OrderDesk
         if ($order->delivery_method === 'pickup') {
             $courierId = $carrierId = null;
         }
-        if ($courierId !== null && ! Courier::forStore($order->store_id)->where('status', 'active')->whereKey($courierId)->exists()) {
+        if ($courierId !== null && ! Courier::forStore($order->store_id)->whereIn('status', ['active', 'invited'])->whereKey($courierId)->exists()) {
             throw new BusinessRuleException('Ce livreur n\'est pas actif dans votre espace marchand.', 'planned_courier_id');
         }
         if ($carrierId !== null && ! CarrierConnection::forStore($order->store_id)->where('status', 'active')->whereKey($carrierId)->exists()) {

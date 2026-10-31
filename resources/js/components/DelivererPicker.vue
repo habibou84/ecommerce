@@ -2,7 +2,9 @@
 import { computed, ref } from 'vue'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
+import NewCourierForm from './NewCourierForm.vue'
 import { money } from '../lib/format'
+import { useAuthStore } from '../stores/auth'
 
 // « Qui livre ? » : mes livreurs et les entreprises de livraison, avec recherche, les plus récents en tête
 const props = defineProps({
@@ -10,7 +12,14 @@ const props = defineProps({
   modelValue: { type: String, default: '' }, // '' | 'courier:ID' | 'carrier:ID'
   placeLabel: { type: String, default: '' },
 })
-const emit = defineEmits(['update:modelValue', 'close'])
+const emit = defineEmits(['update:modelValue', 'close', 'courier-created'])
+const auth = useAuthStore()
+// Livreur qui n'existe pas encore : créé ici en deux champs, puis choisi
+const adding = ref(false)
+function created(courier) {
+  emit('courier-created', courier)
+  pick(`courier:${courier.id}`)
+}
 
 const search = ref('')
 const filter = ref('all') // all | courier | carrier
@@ -26,7 +35,7 @@ const cheapest = computed(() => {
 const entries = computed(() => [
   ...(props.options?.couriers ?? []).map((c) => ({
     key: `courier:${c.id}`, type: 'courier', name: c.name, price: null, faded: !c.is_available, disabled: false,
-    sub: ['Mon livreur', c.is_available ? 'Disponible' : 'Indisponible', c.covers_zone ? `couvre ${place.value || 'le quartier'}` : '', c.active_missions ? `${c.active_missions} course(s) en cours` : ''].filter(Boolean).join(' · '),
+    sub: ['Mon livreur', c.connected === false ? 'pas encore connecté' : c.is_available ? 'Disponible' : 'Indisponible', c.covers_zone ? `couvre ${place.value || 'le quartier'}` : '', c.active_missions ? `${c.active_missions} course(s) en cours` : ''].filter(Boolean).join(' · '),
   })),
   ...(props.options?.carriers ?? []).map((c) => ({
     key: `carrier:${c.id}`, type: 'carrier', name: c.name, price: c.covered ? c.fee : null, faded: !c.covered, disabled: !c.covered && !!props.placeLabel,
@@ -68,7 +77,7 @@ function pick(key) {
       </div>
 
       <p v-if="!options" class="py-4 text-center text-sm text-slate-500">Chargement…</p>
-      <p v-else-if="!sections.length" class="py-4 text-center text-sm text-slate-500">{{ entries.length ? 'Aucun résultat.' : 'Aucun livreur ni entreprise de livraison : ajoutez-les dans Livraisons.' }}</p>
+      <p v-else-if="!sections.length" class="py-4 text-center text-sm text-slate-500">{{ entries.length ? 'Aucun résultat.' : 'Aucun livreur ni entreprise de livraison pour l\'instant.' }}</p>
       <template v-for="section in sections" :key="section.title">
         <p class="pt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{{ section.title }}</p>
         <button
@@ -86,6 +95,14 @@ function pick(key) {
             <span class="block text-sm text-slate-500">{{ e.sub }}</span>
           </span>
           <span v-if="e.price !== null" class="text-base font-bold tabular-nums">{{ money(e.price) }}</span>
+        </button>
+      </template>
+
+      <template v-if="auth.can('couriers.manage') && filter !== 'carrier'">
+        <NewCourierForm v-if="adding" @created="created" @cancel="adding = false" />
+        <button v-else type="button" class="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-emerald-600 px-3 py-3 text-left text-emerald-800" @click="adding = true">
+          <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-100 text-xl font-bold">+</span>
+          <span><span class="block font-semibold">Nouveau livreur</span><span class="block text-sm text-emerald-700">Nom et numéro : il reçoit ses courses sur WhatsApp</span></span>
         </button>
       </template>
 

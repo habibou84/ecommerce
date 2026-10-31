@@ -568,6 +568,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::patch('couriers/settings', [CourierController::class, 'settings'])->name('couriers.settings');
                 Route::patch('couriers/{courier}', [CourierController::class, 'update'])->whereNumber('courier')->name('couriers.update');
                 Route::post('couriers/{courier}/invitation', [CourierController::class, 'reinvite'])->whereNumber('courier')->name('couriers.reinvite');
+                // Lien d'accès sans mot de passe à envoyer sur WhatsApp, et coupure de l'accès
+                Route::post('couriers/{courier}/access-link', [CourierController::class, 'accessLink'])->whereNumber('courier')->middleware('throttle:30,1')->name('couriers.access-link');
+                Route::post('couriers/{courier}/cut-access', [CourierController::class, 'cutAccess'])->whereNumber('courier')->name('couriers.cut-access');
                 Route::post('couriers/{courier}/deactivate', [CourierController::class, 'deactivate'])->whereNumber('courier')->name('couriers.deactivate');
                 Route::post('courier-pay-rules', [CourierController::class, 'storeRule'])->name('couriers.rules.store');
                 Route::put('courier-pay-rules/{rule}', [CourierController::class, 'updateRule'])->whereNumber('rule')->name('couriers.rules.update');

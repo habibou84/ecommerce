@@ -1,5 +1,8 @@
 <script setup>
 import Icon from './Icon.vue'
+import { useAuthStore } from '../stores/auth'
+import CourierWhatsAppButton from './CourierWhatsAppButton.vue'
+import NewCourierForm from './NewCourierForm.vue'
 import { computed, reactive, ref } from 'vue'
 import Alert from './Alert.vue'
 import Field from './Field.vue'
@@ -32,7 +35,15 @@ const locations = ref([])
 const couriers = ref([])
 const suggestion = ref(null)
 const form = reactive({ target: null, carrier_connection_id: null, courier_id: null, origin_location_id: null, fee_payer: '', note: '', status: 'delivered', collected_amount: '', reason: '', date: '' })
+const auth = useAuthStore()
 const current = ref(null)
+// Livreur créé dans la fenêtre « Faire livrer » : ajouté à la liste et choisi
+const addingCourier = ref(false)
+function courierCreated(c) {
+  couriers.value = [...couriers.value, { id: c.id, name: c.name, is_available: true, active_missions: 0, covers_zone: false, connected: false, stats: null, cost: null }]
+  form.target = `courier:${c.id}`
+  addingCourier.value = false
+}
 const error = ref('')
 const busy = ref(false)
 
@@ -222,6 +233,7 @@ async function whatsapp(s) {
         </li>
       </ol>
       <p v-if="s.courier" class="text-slate-600">Livreur : <strong>{{ s.courier.name }}</strong> · <a :href="`tel:${s.courier.phone}`" class="text-emerald-700 underline">appeler</a></p>
+      <CourierWhatsAppButton v-if="s.courier && !s.is_final && auth.can('couriers.manage')" :courier-id="s.courier.id" small />
       <p v-if="s.courier && !s.is_final" class="text-xs" :class="s.courier.accepted_at ? 'text-emerald-700' : 'text-amber-700'">
         <template v-if="s.courier.accepted_at">✓ Mission acceptée à {{ new Date(s.courier.accepted_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</template>
         <template v-else-if="s.courier.seen_at">Vue à {{ new Date(s.courier.seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}, pas encore acceptée</template>
@@ -252,8 +264,8 @@ async function whatsapp(s) {
         <Alert v-if="error">{{ error }}</Alert>
         <p v-if="!quotes" class="text-sm text-slate-500">Demande des tarifs…</p>
         <template v-else-if="!quotes.length && !couriers.length">
-          <p class="text-sm">Aucun livreur ni entreprise de livraison.</p>
-          <RouterLink to="/gestion/livraisons/livreurs" class="btn-brand">Ajouter un livreur</RouterLink>
+          <p class="text-sm">Aucun livreur ni entreprise de livraison pour l'instant.</p>
+          <NewCourierForm v-if="auth.can('couriers.manage')" @created="courierCreated" @cancel="modal = null" />
           <RouterLink to="/gestion/livraisons/entreprises" class="btn-secondary">Connecter une entreprise de livraison</RouterLink>
         </template>
         <template v-else>
@@ -265,12 +277,16 @@ async function whatsapp(s) {
               <input v-model="form.target" type="radio" :value="`courier:${c.id}`" class="accent-emerald-700" />
               <span class="min-w-0 flex-1">
                 <span class="block font-medium">{{ c.name }}</span>
-                <span class="block text-xs text-slate-500">{{ c.is_available ? 'Disponible' : 'Indisponible' }}{{ c.covers_zone ? ' · couvre ce quartier' : '' }} · {{ c.active_missions }} en cours</span>
+                <span class="block text-xs text-slate-500">{{ c.connected === false ? 'Pas encore connecté' : c.is_available ? 'Disponible' : 'Indisponible' }}{{ c.covers_zone ? ' · couvre ce quartier' : '' }} · {{ c.active_missions }} en cours</span>
                 <span class="block text-xs text-slate-400">{{ history(c.stats) }}</span>
               </span>
               <span v-if="c.cost !== null && c.cost !== undefined" class="text-right"><span class="block font-semibold">{{ money(c.cost) }}</span><span class="block text-xs text-slate-400">sa paie</span></span>
             </label>
           </fieldset>
+          <template v-if="auth.can('couriers.manage')">
+            <NewCourierForm v-if="addingCourier" @created="courierCreated" @cancel="addingCourier = false" />
+            <button v-else type="button" class="btn-ghost w-full border border-dashed border-emerald-600 text-emerald-800" @click="addingCourier = true">+ Nouveau livreur</button>
+          </template>
           <fieldset v-if="quotes.length" class="space-y-2">
             <legend class="label">Entreprises de livraison</legend>
             <label v-for="q in quotes" :key="q.connection_id" class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm"

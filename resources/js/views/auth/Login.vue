@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AuthShell from '../../components/AuthShell.vue'
 import Alert from '../../components/Alert.vue'
@@ -70,10 +70,21 @@ async function submit() {
     busy.value = false
   }
 }
+
+// Lien d'accès du livreur qui n'a pas fonctionné (voir CourierAccess) : on explique pourquoi
+const LINK_PROBLEMS = {
+  invalide: 'Ce lien ne fonctionne plus : demandez-en un nouveau à la boutique.',
+  utilise: 'Ce lien a déjà été ouvert. Sur le téléphone où vous l\'avez ouvert, vous êtes connecté ; sinon, demandez un nouveau lien à la boutique.',
+  expire: 'Ce lien a expiré : demandez-en un nouveau à la boutique.',
+  retire: 'Votre accès livreur a été retiré par la boutique.',
+  compte: 'Ce numéro a déjà un compte Jibiat Marchand : connectez-vous avec votre mot de passe ou par WhatsApp.',
+}
+const linkProblem = computed(() => LINK_PROBLEMS[route.query.lien] ?? '')
 </script>
 
 <template>
   <AuthShell :title="pending ? 'Vérifiez votre numéro' : title" :subtitle="pending ? '' : whatsappMode ? 'Sans mot de passe : un message WhatsApp à envoyer, et vous êtes connecté.' : 'Connectez-vous avec votre numéro de téléphone.'">
+    <Alert v-if="linkProblem && !pending" tone="warning" class="mb-4">{{ linkProblem }}</Alert>
     <CodeStep v-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Me connecter" @done="whatsappDone" />
 
     <!-- Connexion par WhatsApp : seulement le numéro -->

@@ -39,13 +39,15 @@ class DeliveryAdvisor
         $declined = CourierAssignment::forStore($order->store_id)->where('status', 'declined')
             ->whereIn('shipment_id', Shipment::forStore($order->store_id)->where('order_id', $order->id)->select('id'))->pluck('courier_id')->all();
 
-        $couriers = Courier::forStore($order->store_id)->where('status', 'active')->with(['zones:id', 'payRule'])
+        $couriers = Courier::forStore($order->store_id)->whereIn('status', ['active', 'invited'])->with(['zones:id', 'payRule'])
             ->withCount(['shipments as active_missions' => fn ($q) => $q->whereIn('status', ['awaiting_pickup', 'in_transit', 'out_for_delivery'])])
             ->get()
             ->map(fn (Courier $c) => [
                 'id' => $c->id,
                 'name' => $c->name,
                 'is_available' => $c->is_available,
+                // Créé mais pas encore connecté : proposé à la main, jamais choisi par les règles automatiques
+                'connected' => $c->status === 'active',
                 'active_missions' => $c->active_missions,
                 'covers_zone' => $zoneId !== null && $c->zones->contains('id', $zoneId),
                 'declined' => in_array($c->id, $declined, true),
@@ -156,7 +158,7 @@ class DeliveryAdvisor
      */
     private function pick(string $action, array $options, ?int $connectionId = null): ?array
     {
-        $couriers = array_values(array_filter($options['couriers'], fn ($c) => $c['covers_zone'] && $c['is_available'] && ! ($c['declined'] ?? false)));
+        $couriers = array_values(array_filter($options['couriers'], fn ($c) => $c['covers_zone'] && $c['is_available'] && ($c['connected'] ?? true) && ! ($c['declined'] ?? false)));
         // Transporteur utilisable : devis obtenu (ou transporteur sans API, prévenu par WhatsApp)
         $carriers = array_values(array_filter($options['carriers'], fn ($c) => $c['error'] === null && ($c['fee'] !== null || ! $c['is_api'])));
         $courier = fn ($c) => ['type' => 'courier', 'id' => $c['id'], 'name' => $c['name'], 'cost' => $c['cost'], 'hours' => $c['stats']['avg_hours']];

@@ -635,3 +635,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Live : numéro WhatsApp complet (+225 …) à l'écran ; l'identifiant masqué (« LID ») d'un WhatsApp relié par QR code n'est plus pris pour un numéro.
 - Mention « Propulsé par Jibiat Marchand · jibiat-marchand.com » : écran du live, cartes images, « Comment commander », pied de la boutique et de la page du live ; numéro complet qui tient sur une ligne.
 - Live : ancien numéro WhatsApp à 8 chiffres remis aux 10 chiffres (05…) ; code de l'article à côté du nom, hors de la photo (écran et cartes) ; lien du live et son QR code pour commander sur le site.
+- Livreurs : onglets Aujourd'hui (avec les courses en retard) / Demain / Plus tard dans l'application ; course d'un autre jour visible mais à faire le jour prévu ; résumé du matin ; livreur créé pendant l'assignation (« + Nouveau livreur ») ; lien d'accès WhatsApp sans mot de passe (un seul usage, 7 jours) et « Couper l'accès ».

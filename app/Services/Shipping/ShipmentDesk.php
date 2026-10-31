@@ -186,8 +186,9 @@ class ShipmentDesk
     public function assignCourier(Order $order, Courier $courier, array $options, ?User $actor): Shipment
     {
         $this->ensureShippable($order);
-        if (! $courier->isActive() || $courier->store_id !== $order->store_id) {
-            throw new BusinessRuleException('Ce livreur n\'est pas actif (invitation pas encore acceptée ?).', 'courier_id');
+        // Livreur pas encore connecté : la course l'attend, il la voit en ouvrant son lien d'accès
+        if (! in_array($courier->status, ['active', 'invited'], true) || $courier->store_id !== $order->store_id) {
+            throw new BusinessRuleException('Ce livreur est désactivé.', 'courier_id');
         }
 
         $locationId = $options['origin_location_id'] ?? $order->location_id;
@@ -234,8 +235,8 @@ class ShipmentDesk
         if (! $shipment->isOwnCourier() || $shipment->status->isFinal() || in_array($shipment->status, [ShipmentStatus::Returning], true)) {
             throw new BusinessRuleException('Cette livraison ne peut plus changer de livreur.');
         }
-        if (! $courier->isActive() || $courier->store_id !== $shipment->store_id) {
-            throw new BusinessRuleException('Ce livreur n\'est pas actif.', 'courier_id');
+        if (! in_array($courier->status, ['active', 'invited'], true) || $courier->store_id !== $shipment->store_id) {
+            throw new BusinessRuleException('Ce livreur est désactivé.', 'courier_id');
         }
 
         DB::transaction(function () use ($shipment, $courier, $actor) {
