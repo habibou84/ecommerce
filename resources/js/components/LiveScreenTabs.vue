@@ -57,9 +57,9 @@ const mode = computed(() => display.value?.live?.mode ?? 'product')
 const featured = computed(() => display.value?.live?.featured_item_id ?? null)
 const shown = computed(() => items.value.find((i) => i.id === featured.value) ?? null)
 const MODES = [
-  ['product', '👆', 'Un seul produit', 'Touchez un produit : il s\'affiche aussitôt à l\'écran.'],
-  ['scroll', '🔁', 'Faire défiler', 'Les produits passent tout seuls à l\'écran, l\'un après l\'autre.'],
-  ['how', '🛒', 'Comment commander', 'L\'écran explique comment commander, avec le WhatsApp et le lien du site.'],
+  ['product', '🏷️', 'Montrer un seul produit', 'Choisissez le produit dans « Produits du live » plus bas : il s\'affiche aussitôt.'],
+  ['scroll', '🔁', 'Faire défiler tous les produits', 'Les produits passent tout seuls à l\'écran, l\'un après l\'autre.'],
+  ['how', '🛒', 'Montrer comment commander', 'L\'écran montre le WhatsApp et le lien du site pour commander.'],
 ]
 const hint = computed(() => MODES.find((m) => m[0] === mode.value)?.[3] ?? '')
 
@@ -169,11 +169,11 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
 
     <!-- ═══ Mes produits ═══ -->
     <template v-if="tab === 'products'">
-      <p class="text-xs font-extrabold uppercase tracking-wide text-slate-500">Que montrer à l'écran ?</p>
-      <div class="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Que montrer à l'écran ?">
+      <p class="text-[17px] font-extrabold">Que voir sur l'écran du live ?</p>
+      <div class="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Que voir sur l'écran du live ?">
         <button v-for="[value, icon, label] in MODES" :key="value" type="button" role="radio" :aria-checked="mode === value" :disabled="busy"
                 class="rounded-2xl border-2 bg-white px-1 py-3 text-center text-sm font-extrabold leading-tight" :class="mode === value ? 'border-emerald-700 bg-emerald-50 text-emerald-900 ring-4 ring-emerald-100' : 'border-slate-200 text-slate-700'" @click="setMode(value)">
-          <span class="mb-1 block text-2xl" aria-hidden="true">{{ icon }}</span>{{ label }}
+          <span class="mx-auto mb-1.5 grid h-11 w-11 place-items-center rounded-xl text-2xl" :class="mode === value ? 'bg-emerald-700' : 'bg-slate-100'" aria-hidden="true">{{ icon }}</span>{{ label }}
         </button>
       </div>
       <p class="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-900">{{ hint }}</p>
