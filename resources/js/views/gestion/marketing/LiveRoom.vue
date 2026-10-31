@@ -5,7 +5,7 @@ import Alert from '../../../components/Alert.vue'
 import ColorIcon from '../../../components/ColorIcon.vue'
 import Icon from '../../../components/Icon.vue'
 import LiveLink from '../../../components/LiveLink.vue'
-import LiveScreensPanel from '../../../components/LiveScreensPanel.vue'
+import LiveScreenTabs from '../../../components/LiveScreenTabs.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
@@ -300,21 +300,11 @@ async function redo() {
         </section>
       </template>
 
-      <!-- Avant de lancer -->
-      <section v-if="live.status === 'draft'" class="card space-y-2 p-4 text-sm">
-        <p class="font-semibold">Avant de lancer le live <span class="font-normal text-slate-500">· {{ ready.length }} / {{ BEFORE_LIVE.length }}</span></p>
-        <label v-for="c in BEFORE_LIVE" :key="c" class="flex items-start gap-2">
-          <input v-model="ready" type="checkbox" :value="c" class="mt-0.5 h-4 w-4 accent-emerald-700" />
-          <span :class="{ 'text-slate-400 line-through': ready.includes(c) }">{{ c }}</span>
-        </label>
-      </section>
-      <LiveWhatsApp v-if="live.status === 'draft' && live.whatsapp === null" />
-
-      <!-- ═══ Live en images : écrans, mode présentation, cartes ═══ -->
-      <LiveScreensPanel v-if="live.status !== 'ended' && platformOn(auth, 'live_screens')" :live="live" @update="live = $event" />
+      <!-- ═══ Produits et écran, juste sous la carte du live ═══ -->
+      <LiveScreenTabs v-if="live.status !== 'ended' && platformOn(auth, 'live_screens')" :id="live.id" @add="openAdding" />
 
       <!-- ═══ Articles ═══ -->
-      <section v-if="live.status !== 'ended'" class="space-y-2">
+      <section v-else-if="live.status !== 'ended'" class="space-y-2">
         <div class="flex items-center justify-between px-0.5">
           <h3 class="text-[17px] font-extrabold">Articles</h3>
           <button type="button" class="text-sm font-semibold text-emerald-700" @click="openAdding">+ Ajouter</button>
@@ -335,6 +325,17 @@ async function redo() {
         </div>
         <p v-if="live.status === 'live'" class="px-0.5 text-xs text-slate-500">Touchez un code pour l'afficher en grand. « Montrer » met l'article en avant sur la page de vos clients.</p>
       </section>
+
+      <!-- Avant de lancer -->
+      <section v-if="live.status === 'draft'" class="card space-y-2 p-4 text-sm">
+        <p class="font-semibold">Avant de lancer le live <span class="font-normal text-slate-500">· {{ ready.length }} / {{ BEFORE_LIVE.length }}</span></p>
+        <label v-for="c in BEFORE_LIVE" :key="c" class="flex items-start gap-2">
+          <input v-model="ready" type="checkbox" :value="c" class="mt-0.5 h-4 w-4 accent-emerald-700" />
+          <span :class="{ 'text-slate-400 line-through': ready.includes(c) }">{{ c }}</span>
+        </label>
+      </section>
+      <LiveWhatsApp v-if="live.status === 'draft' && live.whatsapp === null" />
+
 
       <!-- ═══ Clientes ═══ -->
       <section v-if="live.status !== 'ended' || showAll" class="card p-4">
