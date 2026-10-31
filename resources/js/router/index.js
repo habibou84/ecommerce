@@ -103,6 +103,7 @@ const storeRoutes = [
       { path: 'live', component: () => import('../views/gestion/marketing/Lives.vue'), meta: { title: 'Vendre en live', permission: 'orders.manage' } },
       { path: 'marketing/live/:id?', redirect: (to) => `/gestion/live${to.params.id ? `/${to.params.id}` : ''}` },
       { path: 'live/:id', component: () => import('../views/gestion/marketing/LiveRoom.vue'), props: true, meta: { title: 'Live', permission: 'orders.manage' } },
+      { path: 'live/:id/afficher', component: () => import('../views/gestion/marketing/LiveShow.vue'), props: true, meta: { title: 'Afficher mes articles', permission: 'orders.manage' } },
       { path: 'live/:id/cartes', component: () => import('../views/gestion/marketing/LiveCards.vue'), props: true, meta: { title: 'Cartes du live', permission: 'orders.manage' } },
       { path: 'caisse', component: () => import('../views/gestion/Cash.vue'), meta: { title: 'Caisse', permissionAny: ['finance.view', 'cash.manage'] } },
       { path: 'caisse/vente', component: () => import('../views/gestion/CounterSale.vue'), meta: { title: 'Vente au comptoir', permission: 'cash.manage' } },

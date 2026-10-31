@@ -180,7 +180,7 @@ class PremiumCardTest extends TestCase
             ->assertJsonPath('data.offered_by', 'Livraison Express CI');
         $this->assertSame('livraison-express-ci', $awa->refresh()->referred_by);
         $until = AccessKey::where('code', $code)->value('expires_at');
-        $this->assertSame(now()->addMonths(6)->toDateString(), $until->toDateString());
+        $this->assertSame(now()->addMonthsNoOverflow(6)->toDateString(), $until->toDateString());
         $this->billing($awa)->assertJsonPath('data.plan.code', 'pro')->assertJsonPath('data.free.forever', false)
             ->assertJsonPath('data.free.until', $until->toDateString())->assertJsonPath('data.premium_discount', null);
         $card = $this->card($code);
