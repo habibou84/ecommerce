@@ -1,4 +1,6 @@
 <script setup>
+import AiMeter from '../../../components/AiMeter.vue'
+import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import Icon from '../../../components/Icon.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -268,7 +270,7 @@ async function draftFromPhotos() {
       options.value = d.options.map((o) => ({ name: o.name, values: [...o.values] }))
     }
     aiNotice.value = `Fiche proposée : relisez-la, puis indiquez le prix${d.options.length ? ' de chaque variante' : ''} et le stock. ${d.to_check ?? ''}`.trim()
-    if (auth.profile?.ai) auth.profile.ai.used++
+    countAiAction(auth.profile?.ai)
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -413,11 +415,11 @@ const margin = computed(() => {
       </div>
       <input v-model="aiNote" class="input" maxlength="1000" placeholder="Précision facultative : matière, tailles disponibles, marque…" />
       <div class="flex flex-wrap items-center gap-3">
-        <button type="button" class="btn-brand" :disabled="drafting || !pendingFiles.length || (ai.limit !== null && ai.used >= ai.limit)" @click="draftFromPhotos">
+        <button type="button" class="btn-brand" :disabled="drafting || !pendingFiles.length || aiExhausted(ai)" @click="draftFromPhotos">
           {{ drafting ? 'L\'assistant regarde la photo…' : 'Proposer la fiche' }}
         </button>
-        <span class="text-xs text-slate-500">{{ ai.used }}{{ ai.limit !== null ? ` / ${ai.limit}` : '' }} action(s) de l'assistant ce mois-ci</span>
       </div>
+      <AiMeter />
       <Alert v-if="aiNotice" tone="success">{{ aiNotice }}</Alert>
     </section>
 

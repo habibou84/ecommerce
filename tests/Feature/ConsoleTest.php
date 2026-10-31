@@ -212,7 +212,7 @@ class ConsoleTest extends TestCase
             ->assertJsonPath('data.total.actions', 3)->assertJsonPath('data.total.failures', 1)
             ->assertJsonPath('data.total.cost', 4680)
             ->assertJsonPath('data.stores.0.store.name', 'Awa Mode')->assertJsonPath('data.stores.0.cost', 3780)
-            ->assertJsonPath('data.stores.0.quota', 0)
+            ->assertJsonPath('data.stores.0.quota', 300)
             ->assertJsonPath('data.stores.1.store.name', 'Kids')->assertJsonPath('data.stores.1.cost', 900);
 
         $this->console('GET', 'ai-usage?month='.$now->copy()->subMonthNoOverflow()->format('Y-m'))->assertJsonPath('data.total.cost', 21600);
