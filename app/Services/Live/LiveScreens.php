@@ -10,6 +10,7 @@ use App\Models\LiveSession;
 use App\Models\Place;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
+use App\Models\WhatsappLink;
 use App\Support\Tenancy;
 use chillerlan\QRCode\Output\QROutputInterface;
 use chillerlan\QRCode\QRCode;
@@ -164,7 +165,11 @@ class LiveScreens
      */
     public function storeInfo(Store $store): array
     {
-        $phone = $store->whatsapp_phone ?: (WhatsappAccount::forStore($store->id)->value('display_phone') ?: $store->phone);
+        // Le numéro qui reçoit vraiment les codes pendant le live : WhatsApp officiel relié à Meta, sinon le WhatsApp
+        // relié par QR code, sinon le numéro des réglages de la boutique
+        $phone = WhatsappAccount::forStore($store->id)->value('display_phone')
+            ?: WhatsappLink::connectedFor($store->id)?->phone
+            ?: $store->whatsapp_phone ?: $store->phone;
         $normalized = $phone ? PhoneNumber::normalize($phone) : null;
 
         $url = $normalized ? 'https://wa.me/'.ltrim($normalized, '+') : null;

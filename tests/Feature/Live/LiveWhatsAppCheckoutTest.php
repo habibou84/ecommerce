@@ -165,6 +165,18 @@ class LiveWhatsAppCheckoutTest extends TestCase
         $this->assertStringContainsString('Envoyez le code de l\'article', $this->sent()[0]['text']['body']);
     }
 
+    public function test_several_codes_come_together_with_the_commune_question(): void
+    {
+        $this->text('A1 + A2');
+        $sent = $this->sent();
+        $this->assertCount(1, $sent);
+        $this->assertSame(['interactive', 'list'], [$sent[0]['type'], $sent[0]['interactive']['type']]);
+        $body = $sent[0]['interactive']['body']['text'];
+        $this->assertStringContainsString('A1 (Robe wax, 12 000 F)', $body);
+        $this->assertStringContainsString('A2 (Sac cabas, 8 000 F)', $body);
+        $this->assertStringContainsString('Où faut-il vous livrer', $body);
+    }
+
     public function test_a_typed_neighbourhood_still_works_and_a_reminder_comes_before_the_piece_is_released(): void
     {
         $this->text('A1');

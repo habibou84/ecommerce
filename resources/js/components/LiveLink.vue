@@ -8,7 +8,7 @@ const props = defineProps({
   compact: { type: Boolean, default: false },
 })
 const copied = ref('')
-const message = computed(() => `🔴 Réservez les articles du live ici 👉 ${props.url} : choisissez l'article par son code (A1, A2…) et touchez « Je prends ». Vous pouvez aussi nous envoyer le code sur WhatsApp.`)
+const message = computed(() => `🔴 Réservez les articles du live ici 👉 ${props.url} : choisissez vos articles par leur code (A1, A2…) et touchez « Je prends ». Vous pouvez aussi nous envoyer les codes sur WhatsApp, plusieurs à la fois : « A1 + A3 ».`)
 
 async function copy(text, what) {
   try {
