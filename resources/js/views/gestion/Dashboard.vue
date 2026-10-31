@@ -126,11 +126,15 @@ function since(at) {
   return days <= 0 ? 'depuis aujourd\'hui' : days === 1 ? 'depuis hier' : `depuis le ${day.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
 }
 const lateTone = (level) => (level > 1 ? 'bg-red-50 text-red-800' : 'bg-ocre-50 text-ocre-800')
-// Dehors en ce moment : livreurs et entreprises réunis (alertes, colis en route, à rapporter)
+// Argent à récupérer : livreurs et entreprises réunis (total, alertes, colis en route, à rapporter), carte repliée
+const outsideOpen = ref(false)
 const outside = computed(() => {
   const c = stats.value?.couriers
   const e = stats.value?.carriers
+  const parts = [c && `${money(c.cash)} chez vos livreurs`, e && `${money(e.amount)} chez les entreprises`].filter(Boolean)
   return {
+    total: (c?.cash ?? 0) + (e?.amount ?? 0),
+    summary: parts.join(' · '),
     onTheWay: (c?.on_the_way ?? 0) + (e?.on_the_way ?? 0),
     toBringBack: (c?.to_bring_back ?? 0) + (e?.to_bring_back ?? 0),
     lateReturns: !!(c?.late_returns || e?.late_returns),
@@ -248,35 +252,46 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
           </template>
         </section>
 
-        <!-- Dehors en ce moment, juste sous le live : argent et colis chez les livreurs et les entreprises, dans une seule carte -->
-        <section v-if="stats?.couriers || stats?.carriers" class="card p-4">
-          <h3 class="mb-3 text-[17px] font-extrabold">Dehors en ce moment</h3>
-          <div class="grid gap-3" :class="stats.couriers && stats.carriers ? 'sm:grid-cols-2 sm:divide-x sm:divide-slate-100' : ''">
-            <RouterLink v-if="stats.couriers" to="/gestion/caisse/livreurs" class="group flex items-center gap-3">
-              <ColorIcon name="moto" :size="42" />
-              <span class="min-w-0 flex-1">
-                <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">Argent chez mes livreurs<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
-                <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.couriers.cash) }}</span>
-                <span class="block text-sm text-slate-500">{{ stats.couriers.holders ? `chez ${stats.couriers.holders} livreur${stats.couriers.holders > 1 ? 's' : ''}, pas encore versé` : 'Tout a été versé.' }}</span>
-              </span>
-            </RouterLink>
-            <RouterLink v-if="stats.carriers" to="/gestion/caisse/a-recevoir" class="group flex items-center gap-3 border-t border-slate-100 pt-3 sm:border-t-0 sm:pl-4 sm:pt-0" :class="stats.couriers ? '' : '!border-t-0 !pt-0 !pl-0'">
-              <ColorIcon name="camion" :size="42" />
-              <span class="min-w-0 flex-1">
-                <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">À recevoir des entreprises<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
-                <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.carriers.amount) }}</span>
-                <span class="block text-sm text-slate-500">{{ stats.carriers.amount ? 'courses livrées, pas encore reversées' : 'Rien en attente.' }}</span>
-              </span>
-            </RouterLink>
-          </div>
-          <ul v-if="outsideAlerts.length" class="mt-3 space-y-1.5">
-            <li v-for="a in outsideAlerts" :key="a.key" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="a.tone">
-              <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ a.text }}</span>
-            </li>
-          </ul>
-          <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
-            <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f1ff] px-3 py-1 text-[#1d5bc7]"><Icon name="truck" :size="15" />{{ outside.onTheWay }} colis en route</RouterLink>
-            <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="outside.lateReturns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ outside.toBringBack }} à rapporter</RouterLink>
+        <!-- Argent à récupérer, juste sous le live : le total chez les livreurs et les entreprises ; on déplie pour le détail -->
+        <section v-if="stats?.couriers || stats?.carriers" class="card overflow-hidden">
+          <button type="button" class="flex w-full items-center gap-3 p-4 text-left" :aria-expanded="outsideOpen" @click="outsideOpen = !outsideOpen">
+            <ColorIcon name="caisse" :size="42" />
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-semibold text-slate-600">Argent à récupérer</span>
+              <span class="block text-2xl font-extrabold">{{ money(outside.total) }}</span>
+              <span class="block text-sm text-slate-500">{{ outside.summary }}</span>
+            </span>
+            <span v-if="outsideAlerts.length" class="shrink-0 rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">{{ outsideAlerts.length }} en retard</span>
+            <Icon name="chevron" :size="18" class="shrink-0 text-slate-400 transition" :class="outsideOpen ? '-rotate-90' : 'rotate-90'" />
+          </button>
+          <div v-if="outsideOpen" class="border-t border-slate-100 px-4 pb-4 pt-3">
+            <div class="grid gap-3" :class="stats.couriers && stats.carriers ? 'sm:grid-cols-2' : ''">
+              <RouterLink v-if="stats.couriers" to="/gestion/caisse/livreurs" class="group flex items-center gap-3 rounded-xl bg-slate-50 p-3">
+                <ColorIcon name="moto" :size="36" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">Chez mes livreurs<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
+                  <span class="block text-xl font-extrabold group-hover:text-emerald-800">{{ money(stats.couriers.cash) }}</span>
+                  <span class="block text-xs text-slate-500">{{ stats.couriers.holders ? `chez ${stats.couriers.holders} livreur${stats.couriers.holders > 1 ? 's' : ''}, pas encore versé` : 'Tout a été versé.' }}</span>
+                </span>
+              </RouterLink>
+              <RouterLink v-if="stats.carriers" to="/gestion/caisse/a-recevoir" class="group flex items-center gap-3 rounded-xl bg-slate-50 p-3">
+                <ColorIcon name="camion" :size="36" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">Chez les entreprises de livraison<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
+                  <span class="block text-xl font-extrabold group-hover:text-emerald-800">{{ money(stats.carriers.amount) }}</span>
+                  <span class="block text-xs text-slate-500">{{ stats.carriers.amount ? 'courses livrées, pas encore reversées' : 'Rien en attente.' }}</span>
+                </span>
+              </RouterLink>
+            </div>
+            <ul v-if="outsideAlerts.length" class="mt-3 space-y-1.5">
+              <li v-for="a in outsideAlerts" :key="a.key" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="a.tone">
+                <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ a.text }}</span>
+              </li>
+            </ul>
+            <div class="mt-3 flex flex-wrap gap-2 text-sm font-semibold">
+              <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f1ff] px-3 py-1 text-[#1d5bc7]"><Icon name="truck" :size="15" />{{ outside.onTheWay }} colis en route</RouterLink>
+              <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="outside.lateReturns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ outside.toBringBack }} à rapporter</RouterLink>
+            </div>
           </div>
         </section>
 
