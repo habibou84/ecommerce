@@ -66,7 +66,7 @@ const gap = (item) => (item.counted === null || item.counted === '' ? null : Num
 </script>
 
 <template>
-  <div v-if="count" class="space-y-4 pb-20">
+  <div v-if="count" class="space-y-4 pb-36 lg:pb-20">
     <RouterLink to="/gestion/stock/inventaires" class="text-sm text-slate-500 hover:text-emerald-700">← Inventaires</RouterLink>
     <div class="flex flex-wrap items-center gap-2">
       <h2 class="text-lg font-semibold">Inventaire · {{ count.location }}</h2>
@@ -90,7 +90,7 @@ const gap = (item) => (item.counted === null || item.counted === '' ? null : Num
       <p v-if="!items.length" class="px-4 py-6 text-center text-sm text-slate-500">Aucun article.</p>
     </div>
 
-    <div v-if="open" class="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:left-64">
+    <div v-if="open" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 lg:bottom-0 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:left-64">
       <div class="mx-auto flex max-w-5xl gap-2">
         <button class="btn-ghost text-red-600" :disabled="saving" @click="finish('cancel')">Annuler</button>
         <button class="btn-brand ml-auto" :disabled="saving || !counted" @click="finish('complete')">Valider l'inventaire</button>
