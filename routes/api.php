@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAccessKeyController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
+use App\Http\Controllers\Api\V1\Console\ConsoleFeaturesController;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleMaterielController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
@@ -99,7 +100,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
     Route::middleware('zone:platform')->group(function () {
         Route::get('signup/slug', [SignupController::class, 'checkSlug'])->middleware('throttle:60,1')->name('signup.slug');
         Route::get('signup/partner', [SignupController::class, 'partner'])->middleware('throttle:60,1')->name('signup.partner');
-        Route::post('signup', [SignupController::class, 'start'])->middleware('throttle:verification-start')->name('signup');
+        Route::post('signup', [SignupController::class, 'start'])->middleware('throttle:verification-start')->middleware('feature:signup')->name('signup');
         // Clé d'accès d'une carte à QR code (page jibiat-marchand.com/cle/CODE)
         Route::get('access-keys/{code}', [AccessKeyController::class, 'show'])->where('code', '[A-Za-z0-9-]{1,20}')->middleware('throttle:20,1')->name('access-keys.show');
 
@@ -138,6 +139,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('account/test-email', [ConsoleAuthController::class, 'testEmail'])->middleware('throttle:verification-start')->name('account.test-email');
             Route::get('stats', [ConsoleController::class, 'stats'])->name('stats');
             Route::get('journal', [ConsoleController::class, 'journal'])->name('journal');
+            // Fonctions de la plateforme : masquées, en test (boutiques choisies) ou actives
+            Route::get('features', [ConsoleFeaturesController::class, 'index'])->name('features');
+            Route::put('features/test-stores', [ConsoleFeaturesController::class, 'testStores'])->name('features.test-stores');
+            Route::put('features/{key}', [ConsoleFeaturesController::class, 'update'])->where('key', '[a-z_]+')->name('features.update');
             // Équipe de la console, mes sessions, recherche d'utilisateurs, santé de la plateforme
             Route::get('team', [ConsoleTeamController::class, 'index'])->name('team');
             Route::post('team', [ConsoleTeamController::class, 'store'])->middleware('throttle:login')->name('team.store');
@@ -234,11 +239,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
 
             Route::get('store', [StoreController::class, 'show'])->name('store.show');
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
-                Route::get('domains', [DomainController::class, 'index'])->name('domains.index');
-                Route::post('domains', [DomainController::class, 'store'])->middleware('throttle:10,1')->name('domains.store');
-                Route::post('domains/{domain}/verify', [DomainController::class, 'verify'])->whereNumber('domain')->middleware('throttle:20,1')->name('domains.verify');
-                Route::post('domains/{domain}/primary', [DomainController::class, 'primary'])->whereNumber('domain')->name('domains.primary');
-                Route::delete('domains/{domain}', [DomainController::class, 'destroy'])->whereNumber('domain')->name('domains.destroy');
+                Route::get('domains', [DomainController::class, 'index'])->middleware('feature:custom_domain')->name('domains.index');
+                Route::post('domains', [DomainController::class, 'store'])->middleware('throttle:10,1')->middleware('feature:custom_domain')->name('domains.store');
+                Route::post('domains/{domain}/verify', [DomainController::class, 'verify'])->whereNumber('domain')->middleware('throttle:20,1')->middleware('feature:custom_domain')->name('domains.verify');
+                Route::post('domains/{domain}/primary', [DomainController::class, 'primary'])->whereNumber('domain')->middleware('feature:custom_domain')->name('domains.primary');
+                Route::delete('domains/{domain}', [DomainController::class, 'destroy'])->whereNumber('domain')->middleware('feature:custom_domain')->name('domains.destroy');
                 Route::patch('store', [StoreController::class, 'update'])->name('store.update');
                 Route::put('store/slug', [StoreController::class, 'changeSlug'])->name('store.slug');
             });
@@ -447,7 +452,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             });
 
             // ── Paiements en ligne ──
-            Route::middleware('permission:'.Permission::PaymentsManage->value)->prefix('payments')->name('payments.')->group(function () {
+            Route::middleware(['permission:'.Permission::PaymentsManage->value, 'feature:online_payment'])->prefix('payments')->name('payments.')->group(function () {
                 Route::get('settings', [PaymentSettingsController::class, 'show'])->name('settings');
                 Route::patch('settings', [PaymentSettingsController::class, 'update'])->name('settings.update');
                 Route::post('accounts', [PaymentSettingsController::class, 'storeAccount'])->name('accounts.store');
@@ -458,7 +463,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('report', [PaymentSettingsController::class, 'report'])->name('report');
             });
             Route::post('orders/{order}/payment-links', [OrderPaymentController::class, 'link'])->whereNumber('order')
-                ->middleware('permission:'.Permission::OrdersManage->value)->name('orders.payment-links');
+                ->middleware(['permission:'.Permission::OrdersManage->value, 'feature:online_payment'])->name('orders.payment-links');
             Route::post('orders/{order}/refunds', [OrderPaymentController::class, 'refund'])->whereNumber('order')
                 ->middleware('permission:'.Permission::PaymentsManage->value)->name('orders.refunds');
 
@@ -471,37 +476,37 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::patch('promotions/settings', [PromotionController::class, 'settings'])->name('promotions.settings');
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
-                Route::post('marketing/catalog-feed/renew', [TrackingController::class, 'renewFeed'])->name('catalog-feed.renew');
+                Route::post('marketing/catalog-feed/renew', [TrackingController::class, 'renewFeed'])->middleware('feature:meta_catalog')->name('catalog-feed.renew');
                 // Pixel et catalogue Meta branchés en un clic (connexion Facebook)
-                Route::post('marketing/tracking/meta/connect', [TrackingController::class, 'metaConnect'])->name('tracking.meta.connect');
-                Route::get('marketing/tracking/meta/{key}', [TrackingController::class, 'metaPending'])->where('key', '[A-Za-z0-9]{40}')->name('tracking.meta.pending');
-                Route::post('marketing/tracking/meta/{key}', [TrackingController::class, 'metaSetup'])->where('key', '[A-Za-z0-9]{40}')->middleware('throttle:10,1')->name('tracking.meta.setup');
-                Route::delete('marketing/tracking/meta', [TrackingController::class, 'metaDisconnect'])->name('tracking.meta.disconnect');
+                Route::post('marketing/tracking/meta/connect', [TrackingController::class, 'metaConnect'])->middleware('feature:meta_connect')->name('tracking.meta.connect');
+                Route::get('marketing/tracking/meta/{key}', [TrackingController::class, 'metaPending'])->where('key', '[A-Za-z0-9]{40}')->middleware('feature:meta_connect')->name('tracking.meta.pending');
+                Route::post('marketing/tracking/meta/{key}', [TrackingController::class, 'metaSetup'])->where('key', '[A-Za-z0-9]{40}')->middleware('throttle:10,1')->middleware('feature:meta_connect')->name('tracking.meta.setup');
+                Route::delete('marketing/tracking/meta', [TrackingController::class, 'metaDisconnect'])->middleware('feature:meta_connect')->name('tracking.meta.disconnect');
                 Route::get('message-texts', [MessageTextController::class, 'index'])->name('message-texts.index');
                 Route::put('message-texts', [MessageTextController::class, 'update'])->name('message-texts.update');
                 Route::post('message-texts/preview', [MessageTextController::class, 'preview'])->name('message-texts.preview');
-                Route::get('loyalty', [LoyaltyController::class, 'show'])->name('loyalty.show');
-                Route::put('loyalty', [LoyaltyController::class, 'update'])->name('loyalty.update');
-                Route::get('campaigns', [CampaignController::class, 'index'])->name('campaigns.index');
-                Route::post('campaigns/preview', [CampaignController::class, 'preview'])->name('campaigns.preview');
-                Route::post('campaigns', [CampaignController::class, 'store'])->name('campaigns.store');
-                Route::put('campaigns/{campaign}', [CampaignController::class, 'update'])->whereNumber('campaign')->name('campaigns.update');
-                Route::post('campaigns/{campaign}/send', [CampaignController::class, 'send'])->whereNumber('campaign')->middleware('throttle:10,1')->name('campaigns.send');
-                Route::delete('campaigns/{campaign}', [CampaignController::class, 'destroy'])->whereNumber('campaign')->name('campaigns.destroy');
-                Route::get('social', [SocialController::class, 'index'])->name('social.index');
-                Route::post('social/connect/{provider}', [SocialController::class, 'connect'])->whereIn('provider', ['meta', 'tiktok'])->name('social.connect');
-                Route::get('social/pages/{key}', [SocialController::class, 'pages'])->name('social.pages');
-                Route::post('social/pages/{key}', [SocialController::class, 'choosePage'])->name('social.pages.choose');
-                Route::post('social/tiktok/{key}', [SocialController::class, 'confirmTikTok'])->name('social.tiktok.confirm');
-                Route::delete('social/accounts/{network}', [SocialController::class, 'disconnect'])->whereIn('network', ['facebook', 'instagram', 'tiktok'])->name('social.disconnect');
-                Route::post('products/{product}/social/captions', [SocialController::class, 'captions'])->whereNumber('product')->middleware('throttle:20,1')->name('social.captions');
-                Route::post('products/{product}/social/posts', [SocialController::class, 'publish'])->whereNumber('product')->middleware('throttle:20,1')->name('social.publish');
-                Route::post('social/posts/{post}/retry', [SocialController::class, 'retry'])->whereNumber('post')->middleware('throttle:10,1')->name('social.retry');
-                Route::delete('social/posts/{post}', [SocialController::class, 'cancel'])->whereNumber('post')->name('social.cancel');
-                Route::get('reviews', [ReviewController::class, 'index'])->name('reviews.index');
-                Route::post('reviews/{review}/publish', [ReviewController::class, 'publish'])->whereNumber('review')->name('reviews.publish');
-                Route::post('reviews/{review}/hide', [ReviewController::class, 'hide'])->whereNumber('review')->name('reviews.hide');
-                Route::delete('reviews/{review}', [ReviewController::class, 'destroy'])->whereNumber('review')->name('reviews.destroy');
+                Route::get('loyalty', [LoyaltyController::class, 'show'])->middleware('feature:loyalty')->name('loyalty.show');
+                Route::put('loyalty', [LoyaltyController::class, 'update'])->middleware('feature:loyalty')->name('loyalty.update');
+                Route::get('campaigns', [CampaignController::class, 'index'])->middleware('feature:whatsapp_campaigns')->name('campaigns.index');
+                Route::post('campaigns/preview', [CampaignController::class, 'preview'])->middleware('feature:whatsapp_campaigns')->name('campaigns.preview');
+                Route::post('campaigns', [CampaignController::class, 'store'])->middleware('feature:whatsapp_campaigns')->name('campaigns.store');
+                Route::put('campaigns/{campaign}', [CampaignController::class, 'update'])->whereNumber('campaign')->middleware('feature:whatsapp_campaigns')->name('campaigns.update');
+                Route::post('campaigns/{campaign}/send', [CampaignController::class, 'send'])->whereNumber('campaign')->middleware('throttle:10,1')->middleware('feature:whatsapp_campaigns')->name('campaigns.send');
+                Route::delete('campaigns/{campaign}', [CampaignController::class, 'destroy'])->whereNumber('campaign')->middleware('feature:whatsapp_campaigns')->name('campaigns.destroy');
+                Route::get('social', [SocialController::class, 'index'])->middleware('feature:any,social_meta,social_tiktok')->name('social.index');
+                Route::post('social/connect/{provider}', [SocialController::class, 'connect'])->whereIn('provider', ['meta', 'tiktok'])->middleware('feature:any,social_meta,social_tiktok')->name('social.connect');
+                Route::get('social/pages/{key}', [SocialController::class, 'pages'])->middleware('feature:any,social_meta,social_tiktok')->name('social.pages');
+                Route::post('social/pages/{key}', [SocialController::class, 'choosePage'])->middleware('feature:any,social_meta,social_tiktok')->name('social.pages.choose');
+                Route::post('social/tiktok/{key}', [SocialController::class, 'confirmTikTok'])->middleware('feature:any,social_meta,social_tiktok')->name('social.tiktok.confirm');
+                Route::delete('social/accounts/{network}', [SocialController::class, 'disconnect'])->whereIn('network', ['facebook', 'instagram', 'tiktok'])->middleware('feature:any,social_meta,social_tiktok')->name('social.disconnect');
+                Route::post('products/{product}/social/captions', [SocialController::class, 'captions'])->whereNumber('product')->middleware('throttle:20,1')->middleware('feature:any,social_meta,social_tiktok')->name('social.captions');
+                Route::post('products/{product}/social/posts', [SocialController::class, 'publish'])->whereNumber('product')->middleware('throttle:20,1')->middleware('feature:any,social_meta,social_tiktok')->name('social.publish');
+                Route::post('social/posts/{post}/retry', [SocialController::class, 'retry'])->whereNumber('post')->middleware('throttle:10,1')->middleware('feature:any,social_meta,social_tiktok')->name('social.retry');
+                Route::delete('social/posts/{post}', [SocialController::class, 'cancel'])->whereNumber('post')->middleware('feature:any,social_meta,social_tiktok')->name('social.cancel');
+                Route::get('reviews', [ReviewController::class, 'index'])->middleware('feature:reviews')->name('reviews.index');
+                Route::post('reviews/{review}/publish', [ReviewController::class, 'publish'])->whereNumber('review')->middleware('feature:reviews')->name('reviews.publish');
+                Route::post('reviews/{review}/hide', [ReviewController::class, 'hide'])->whereNumber('review')->middleware('feature:reviews')->name('reviews.hide');
+                Route::delete('reviews/{review}', [ReviewController::class, 'destroy'])->whereNumber('review')->middleware('feature:reviews')->name('reviews.destroy');
             });
             Route::get('products/{product}/volume-prices', [PricingController::class, 'volumePrices'])->whereNumber('product')
                 ->middleware('permission:'.Permission::ProductsView->value)->name('products.volume-prices');
@@ -516,13 +521,13 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::StoreManage->value)->group(function () {
                 Route::get('whatsapp', [WhatsAppController::class, 'show'])->name('whatsapp.show');
                 Route::put('whatsapp', [WhatsAppController::class, 'update'])->name('whatsapp.update');
-                Route::post('whatsapp/embedded', [WhatsAppController::class, 'connectEmbedded'])->middleware('throttle:login')->name('whatsapp.embedded');
+                Route::post('whatsapp/embedded', [WhatsAppController::class, 'connectEmbedded'])->middleware('throttle:login')->middleware('feature:whatsapp_embedded')->name('whatsapp.embedded');
                 Route::delete('whatsapp', [WhatsAppController::class, 'destroy'])->name('whatsapp.destroy');
                 // WhatsApp relié par QR code (comme WhatsApp Web) pour la boîte Messages
-                Route::get('whatsapp/link', [WhatsAppLinkController::class, 'show'])->name('whatsapp.link.show');
-                Route::post('whatsapp/link', [WhatsAppLinkController::class, 'start'])->middleware('throttle:20,1')->name('whatsapp.link.start');
-                Route::post('whatsapp/link/pair', [WhatsAppLinkController::class, 'pair'])->middleware('throttle:10,1')->name('whatsapp.link.pair');
-                Route::delete('whatsapp/link', [WhatsAppLinkController::class, 'destroy'])->name('whatsapp.link.destroy');
+                Route::get('whatsapp/link', [WhatsAppLinkController::class, 'show'])->middleware('feature:whatsapp_qr')->name('whatsapp.link.show');
+                Route::post('whatsapp/link', [WhatsAppLinkController::class, 'start'])->middleware('throttle:20,1')->middleware('feature:whatsapp_qr')->name('whatsapp.link.start');
+                Route::post('whatsapp/link/pair', [WhatsAppLinkController::class, 'pair'])->middleware('throttle:10,1')->middleware('feature:whatsapp_qr')->name('whatsapp.link.pair');
+                Route::delete('whatsapp/link', [WhatsAppLinkController::class, 'destroy'])->middleware('feature:whatsapp_qr')->name('whatsapp.link.destroy');
                 // Vendre sur WhatsApp : réponses automatiques et catalogue
                 Route::get('whatsapp/sales', [WhatsAppSalesController::class, 'show'])->name('whatsapp.sales.show');
                 Route::put('whatsapp/sales', [WhatsAppSalesController::class, 'update'])->name('whatsapp.sales.update');
@@ -532,28 +537,28 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('carts/{cart}/recovery', [WhatsAppController::class, 'markRecovered'])->whereNumber('cart')->name('carts.recovery');
 
                 // Vente en live : préparation, écran du live, mode assistant, bilan
-                Route::get('lives', [LiveController::class, 'index'])->name('lives.index');
-                Route::post('lives', [LiveController::class, 'store'])->name('lives.store');
-                Route::get('lives/variants', [LiveController::class, 'variants'])->name('lives.variants');
-                Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->name('lives.show');
-                Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->name('lives.update');
-                Route::post('lives/{session}/items', [LiveController::class, 'addItems'])->whereNumber('session')->name('lives.items');
-                Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->name('lives.start');
+                Route::get('lives', [LiveController::class, 'index'])->middleware('feature:live')->name('lives.index');
+                Route::post('lives', [LiveController::class, 'store'])->middleware('feature:live')->name('lives.store');
+                Route::get('lives/variants', [LiveController::class, 'variants'])->middleware('feature:live')->name('lives.variants');
+                Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->middleware('feature:live')->name('lives.show');
+                Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->middleware('feature:live')->name('lives.update');
+                Route::post('lives/{session}/items', [LiveController::class, 'addItems'])->whereNumber('session')->middleware('feature:live')->name('lives.items');
+                Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->middleware('feature:live')->name('lives.start');
                 // Live en images : écrans reliés, mode d'affichage, affichage (mode présentation), cartes à enregistrer
-                Route::get('lives/screens', [LiveScreenController::class, 'index'])->name('lives.screens');
-                Route::post('lives/screens/pair', [LiveScreenController::class, 'pair'])->middleware('throttle:20,1')->name('lives.screens.pair');
-                Route::post('lives/screens/link', [LiveScreenController::class, 'link'])->middleware('throttle:20,1')->name('lives.screens.link');
-                Route::delete('lives/screens/{screen}', [LiveScreenController::class, 'destroy'])->whereNumber('screen')->name('lives.screens.destroy');
-                Route::post('lives/{session}/display', [LiveScreenController::class, 'mode'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.display');
-                Route::get('lives/{session}/display', [LiveScreenController::class, 'display'])->whereNumber('session')->name('lives.display.show');
-                Route::get('lives/{session}/cards', [LiveScreenController::class, 'cards'])->whereNumber('session')->middleware('throttle:30,1')->name('lives.cards');
-                Route::get('lives/cards/file', [LiveScreenController::class, 'file'])->middleware('throttle:120,1')->name('lives.cards.file');
-                Route::get('lives/{session}/cards.zip', [LiveScreenController::class, 'zip'])->whereNumber('session')->middleware('throttle:10,1')->name('lives.cards.zip');
-                Route::post('lives/{session}/feature', [LiveController::class, 'feature'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.feature');
-                Route::post('lives/{session}/duplicate', [LiveController::class, 'duplicate'])->whereNumber('session')->middleware('throttle:20,1')->name('lives.duplicate');
-                Route::post('lives/{session}/end', [LiveController::class, 'end'])->whereNumber('session')->name('lives.end');
-                Route::post('lives/{session}/reservations', [LiveController::class, 'reserve'])->whereNumber('session')->middleware('throttle:120,1')->name('lives.reserve');
-                Route::post('lives/{session}/reservations/{reservation}/cancel', [LiveController::class, 'cancel'])->whereNumber(['session', 'reservation'])->name('lives.cancel');
+                Route::get('lives/screens', [LiveScreenController::class, 'index'])->middleware('feature:live,live_screens')->name('lives.screens');
+                Route::post('lives/screens/pair', [LiveScreenController::class, 'pair'])->middleware('throttle:20,1')->middleware('feature:live,live_screens')->name('lives.screens.pair');
+                Route::post('lives/screens/link', [LiveScreenController::class, 'link'])->middleware('throttle:20,1')->middleware('feature:live,live_screens')->name('lives.screens.link');
+                Route::delete('lives/screens/{screen}', [LiveScreenController::class, 'destroy'])->whereNumber('screen')->middleware('feature:live,live_screens')->name('lives.screens.destroy');
+                Route::post('lives/{session}/display', [LiveScreenController::class, 'mode'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live,live_screens')->name('lives.display');
+                Route::get('lives/{session}/display', [LiveScreenController::class, 'display'])->whereNumber('session')->middleware('feature:live,live_screens')->name('lives.display.show');
+                Route::get('lives/{session}/cards', [LiveScreenController::class, 'cards'])->whereNumber('session')->middleware('throttle:30,1')->middleware('feature:live,live_screens')->name('lives.cards');
+                Route::get('lives/cards/file', [LiveScreenController::class, 'file'])->middleware('throttle:120,1')->middleware('feature:live,live_screens')->name('lives.cards.file');
+                Route::get('lives/{session}/cards.zip', [LiveScreenController::class, 'zip'])->whereNumber('session')->middleware('throttle:10,1')->middleware('feature:live,live_screens')->name('lives.cards.zip');
+                Route::post('lives/{session}/feature', [LiveController::class, 'feature'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live')->name('lives.feature');
+                Route::post('lives/{session}/duplicate', [LiveController::class, 'duplicate'])->whereNumber('session')->middleware('throttle:20,1')->middleware('feature:live')->name('lives.duplicate');
+                Route::post('lives/{session}/end', [LiveController::class, 'end'])->whereNumber('session')->middleware('feature:live')->name('lives.end');
+                Route::post('lives/{session}/reservations', [LiveController::class, 'reserve'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live')->name('lives.reserve');
+                Route::post('lives/{session}/reservations/{reservation}/cancel', [LiveController::class, 'cancel'])->whereNumber(['session', 'reservation'])->middleware('feature:live')->name('lives.cancel');
             });
 
             // ── Livreurs de la boutique ──
@@ -680,18 +685,18 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('receipts', [ReceiptController::class, 'index'])->name('receipts.index');
                 Route::post('receipts', [ReceiptController::class, 'store'])->name('receipts.store');
                 Route::get('receipts/{receipt}', [ReceiptController::class, 'show'])->whereNumber('receipt')->name('receipts.show');
-                Route::get('suppliers', [PurchaseOrderController::class, 'suppliers'])->name('suppliers');
-                Route::post('suppliers', [PurchaseOrderController::class, 'storeSupplier'])->name('suppliers.store');
-                Route::put('suppliers/{supplier}', [PurchaseOrderController::class, 'updateSupplier'])->whereNumber('supplier')->name('suppliers.update');
-                Route::get('purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
-                Route::get('purchase-orders/suggestions', [PurchaseOrderController::class, 'suggestions'])->name('purchase-orders.suggestions');
-                Route::post('purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
-                Route::get('purchase-orders/{order}', [PurchaseOrderController::class, 'show'])->whereNumber('order')->name('purchase-orders.show');
-                Route::put('purchase-orders/{order}', [PurchaseOrderController::class, 'update'])->whereNumber('order')->name('purchase-orders.update');
-                Route::post('purchase-orders/{order}/send', [PurchaseOrderController::class, 'send'])->whereNumber('order')->name('purchase-orders.send');
-                Route::post('purchase-orders/{order}/receive', [PurchaseOrderController::class, 'receive'])->whereNumber('order')->name('purchase-orders.receive');
-                Route::post('purchase-orders/{order}/pay', [PurchaseOrderController::class, 'pay'])->whereNumber('order')->name('purchase-orders.pay');
-                Route::post('purchase-orders/{order}/cancel', [PurchaseOrderController::class, 'cancel'])->whereNumber('order')->name('purchase-orders.cancel');
+                Route::get('suppliers', [PurchaseOrderController::class, 'suppliers'])->middleware('feature:suppliers')->name('suppliers');
+                Route::post('suppliers', [PurchaseOrderController::class, 'storeSupplier'])->middleware('feature:suppliers')->name('suppliers.store');
+                Route::put('suppliers/{supplier}', [PurchaseOrderController::class, 'updateSupplier'])->whereNumber('supplier')->middleware('feature:suppliers')->name('suppliers.update');
+                Route::get('purchase-orders', [PurchaseOrderController::class, 'index'])->middleware('feature:suppliers')->name('purchase-orders.index');
+                Route::get('purchase-orders/suggestions', [PurchaseOrderController::class, 'suggestions'])->middleware('feature:suppliers')->name('purchase-orders.suggestions');
+                Route::post('purchase-orders', [PurchaseOrderController::class, 'store'])->middleware('feature:suppliers')->name('purchase-orders.store');
+                Route::get('purchase-orders/{order}', [PurchaseOrderController::class, 'show'])->whereNumber('order')->middleware('feature:suppliers')->name('purchase-orders.show');
+                Route::put('purchase-orders/{order}', [PurchaseOrderController::class, 'update'])->whereNumber('order')->middleware('feature:suppliers')->name('purchase-orders.update');
+                Route::post('purchase-orders/{order}/send', [PurchaseOrderController::class, 'send'])->whereNumber('order')->middleware('feature:suppliers')->name('purchase-orders.send');
+                Route::post('purchase-orders/{order}/receive', [PurchaseOrderController::class, 'receive'])->whereNumber('order')->middleware('feature:suppliers')->name('purchase-orders.receive');
+                Route::post('purchase-orders/{order}/pay', [PurchaseOrderController::class, 'pay'])->whereNumber('order')->middleware('feature:suppliers')->name('purchase-orders.pay');
+                Route::post('purchase-orders/{order}/cancel', [PurchaseOrderController::class, 'cancel'])->whereNumber('order')->middleware('feature:suppliers')->name('purchase-orders.cancel');
 
                 Route::get('transfers', [TransferController::class, 'index'])->name('transfers.index');
                 Route::post('transfers', [TransferController::class, 'store'])->name('transfers.store');

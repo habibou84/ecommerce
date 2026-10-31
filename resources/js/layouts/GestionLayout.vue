@@ -7,6 +7,7 @@ import Icon from '../components/Icon.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 import { aiRecharge } from '../lib/aiQuota'
 import { inApp } from '../lib/app'
+import { platformOn } from '../router'
 import { registerDevice, unregisterDevice } from '../lib/push'
 import { boot } from '../lib/boot'
 import { guideClear, guideCurrent } from '../lib/guide'
@@ -73,6 +74,8 @@ function canOpen(path) {
   if (meta.owner && !auth.profile?.is_owner) return false
   // Page proposée seulement quand la plateforme l'ouvre (ex. matériel)
   if (meta.feature && !auth.profile?.[meta.feature]) return false
+  // Fonction masquée dans la console
+  if (meta.platform && !platformOn(auth, meta.platform)) return false
   if (meta.permissionAny) return meta.permissionAny.some((p) => auth.can(p))
   return !meta.permission || auth.can(meta.permission)
 }

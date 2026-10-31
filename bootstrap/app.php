@@ -2,6 +2,7 @@
 
 use App\Exceptions\BusinessRuleException;
 use App\Http\Middleware\EnsureCourier;
+use App\Http\Middleware\EnsurePlatformFeature;
 use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Http\Middleware\EnsureStoreMember;
 use App\Http\Middleware\EnsureSuperAdmin;
@@ -59,6 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'ajax' => RequireAjax::class,
             'courier' => EnsureCourier::class,
             'super_admin' => EnsureSuperAdmin::class,
+            'feature' => EnsurePlatformFeature::class,
         ]);
         $middleware->group('storefront', [
             EncryptCookies::class,

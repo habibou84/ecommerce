@@ -10,6 +10,7 @@ import ChipsInput from '../../../components/ChipsInput.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
 import SocialPublish from '../../../components/SocialPublish.vue'
+import { platformOn } from '../../../router'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { combinations, money } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
@@ -391,7 +392,7 @@ const margin = computed(() => {
       <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
       <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare"><Icon name="share" :size="16" class="mr-1 inline-block align-[-3px]" />Partager</button>
-      <button v-if="product && form.status === 'active' && form.is_visible_online && auth.can('store.manage')" type="button" class="btn-secondary px-3 py-1.5" @click="publishing = true"><Icon name="megaphone" :size="16" class="mr-1 inline-block align-[-3px]" />Publier sur les réseaux</button>
+      <button v-if="product && form.status === 'active' && form.is_visible_online && auth.can('store.manage') && platformOn(auth, 'social_meta|social_tiktok')" type="button" class="btn-secondary px-3 py-1.5" @click="publishing = true"><Icon name="megaphone" :size="16" class="mr-1 inline-block align-[-3px]" />Publier sur les réseaux</button>
     </div>
 
     <Alert v-if="error">{{ error }}</Alert>

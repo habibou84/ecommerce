@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\SocialAccount;
 use App\Models\SocialPost;
+use App\Services\Platform\Features;
 use App\Services\Social\CaptionWriter;
 use App\Services\Social\MetaSocial;
 use App\Services\Social\SocialConnections;
@@ -27,16 +28,17 @@ class SocialController extends Controller
     {
         $data = $request->validate(['days' => ['nullable', 'integer', Rule::in([7, 30, 90])]]);
         $accounts = SocialAccount::query()->get()->keyBy('network');
+        $on = $this->networksOn();
 
         return response()->json([
-            'accounts' => collect(SocialAccount::NETWORKS)->map(fn ($label, $network) => [
+            'accounts' => collect(SocialAccount::NETWORKS)->only($on)->map(fn ($label, $network) => [
                 'network' => $network,
                 'label' => $label,
                 'connected' => $accounts->has($network),
                 'name' => $accounts[$network]->name ?? null,
                 'error' => $accounts[$network]->last_error ?? null,
             ])->values(),
-            'available' => ['meta' => MetaSocial::enabled(), 'tiktok' => TikTokSocial::enabled()],
+            'available' => ['meta' => MetaSocial::enabled() && in_array('facebook', $on, true), 'tiktok' => TikTokSocial::enabled() && in_array('tiktok', $on, true)],
             'stats' => $stats->report($this->currentStore(), (int) ($data['days'] ?? 30)),
         ]);
     }
@@ -46,6 +48,8 @@ class SocialController extends Controller
      */
     public function connect(Request $request, string $provider, SocialConnections $connections): JsonResponse
     {
+        app(Features::class)->ensure($provider === 'tiktok' ? 'social_tiktok' : 'social_meta', $this->currentStore());
+
         return response()->json(['url' => $connections->authorizeUrl($this->currentStore(), $request->user(), $provider)]);
     }
 
@@ -91,7 +95,7 @@ class SocialController extends Controller
         $data = $request->validate([
             'caption' => ['required', 'string', 'max:2000'],
             'networks' => ['required', 'array', 'min:1'],
-            'networks.*' => [Rule::in(array_keys(SocialAccount::NETWORKS))],
+            'networks.*' => [Rule::in($this->networksOn())],
             'scheduled_at' => ['nullable', 'date'],
         ], [], ['caption' => 'texte', 'networks' => 'réseaux']);
         $store = $this->currentStore();
@@ -124,5 +128,18 @@ class SocialController extends Controller
             'scheduled_at' => $post->scheduled_at?->toIso8601String(),
             'results' => $post->results ?? [],
         ];
+    }
+
+    /**
+     * Réseaux allumés dans la console pour cette boutique.
+     *
+     * @return list<string>
+     */
+    private function networksOn(): array
+    {
+        $features = app(Features::class);
+        $store = $this->currentStore();
+
+        return array_values(array_filter(array_keys(SocialAccount::NETWORKS), fn ($network) => $features->enabled($network === 'tiktok' ? 'social_tiktok' : 'social_meta', $store)));
     }
 }

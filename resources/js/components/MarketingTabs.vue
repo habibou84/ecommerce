@@ -1,5 +1,12 @@
 <script setup>
-const tabs = [
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { platformOn } from '../router'
+import { useAuthStore } from '../stores/auth'
+
+const router = useRouter()
+const auth = useAuthStore()
+const ALL = [
   { to: '/gestion/marketing', label: 'Promotions', exact: true },
   { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' },
   { to: '/gestion/marketing/relances', label: 'Relances WhatsApp' },
@@ -7,6 +14,11 @@ const tabs = [
   { to: '/gestion/marketing/fidelite', label: 'Fidélité' },
   { to: '/gestion/marketing/suivi', label: 'Suivi publicitaire' },
 ]
+// Onglets des fonctions masquées dans la console : retirés
+const tabs = computed(() => ALL.filter((tab) => {
+  const keys = router.resolve(tab.to).meta.platform
+  return !keys || platformOn(auth, keys)
+}))
 </script>
 
 <template>
