@@ -57,7 +57,7 @@ const mode = computed(() => display.value?.live?.mode ?? 'product')
 const featured = computed(() => display.value?.live?.featured_item_id ?? null)
 const shown = computed(() => items.value.find((i) => i.id === featured.value) ?? null)
 const MODES = [
-  ['product', '🏷️', 'Montrer un seul produit', 'Choisissez le produit dans « Produits du live » plus bas : il s\'affiche aussitôt.'],
+  ['product', '🏷️', 'Montrer un seul produit', 'Touchez un produit ci-dessous : il s\'affiche aussitôt à l\'écran.'],
   ['scroll', '🔁', 'Faire défiler tous les produits', 'Les produits passent tout seuls à l\'écran, l\'un après l\'autre.'],
   ['how', '🛒', 'Montrer comment commander', 'L\'écran montre le WhatsApp et le lien du site pour commander.'],
 ]
@@ -78,12 +78,25 @@ async function run(request) {
 const setMode = (value) => run(() => http.post(`/lives/${props.id}/display`, { mode: value }))
 // Toucher un produit l'affiche (et repasse en « un seul produit »)
 const showItem = (item) => run(() => http.post(`/lives/${props.id}/feature`, { item_id: item.id }))
-function next() {
+// Produit suivant ou précédent (les produits épuisés sont sautés)
+function step(delta) {
   const list = items.value.filter((i) => i.remaining > 0)
   if (!list.length) return
   const at = list.findIndex((i) => i.id === featured.value)
-  showItem(list[(at + 1) % list.length])
+  const to = at < 0 ? (delta > 0 ? 0 : list.length - 1) : (at + delta + list.length) % list.length
+  showItem(list[to])
 }
+const next = () => step(1)
+const previous = () => step(-1)
+// Bande de miniatures : le produit à l'écran reste visible quand il change
+const strip = ref(null)
+watch(featured, async (id) => {
+  await nextTick()
+  const box = strip.value
+  const el = box?.querySelector(`[data-item="${id}"]`)
+  // Défilement de la bande seulement (la page ne bouge pas)
+  if (el) box.scrollTo({ left: el.offsetLeft - (box.clientWidth - el.clientWidth) / 2, behavior: 'smooth' })
+})
 
 // ── Écran ──
 const host = String(boot.platformUrl ?? `https://${boot.domain}`).replace(/^https?:\/\//, '').replace(/\/$/, '')
@@ -178,6 +191,29 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       </div>
       <p class="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-900">{{ hint }}</p>
 
+      <!-- Un seul produit : les produits en miniatures à glisser, juste au-dessus de l'aperçu -->
+      <template v-if="mode === 'product' && items.length">
+        <div class="flex items-center justify-between px-0.5">
+          <p class="text-xs font-extrabold uppercase tracking-wide text-slate-500">Produits du live · {{ items.length }}</p>
+          <p v-if="items.length > 3" class="text-xs font-bold text-emerald-700">Glissez →</p>
+        </div>
+        <div ref="strip" class="-mx-4 flex snap-x gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+          <button v-for="i in items" :key="i.id" type="button" :data-item="i.id" :disabled="busy"
+                  class="relative w-24 shrink-0 snap-start overflow-hidden rounded-2xl border-[3px] bg-white text-left shadow-sm" :class="featured === i.id ? 'border-red-600' : 'border-transparent'" @click="showItem(i)">
+            <span class="block h-[72px] bg-gradient-to-br from-orange-300 to-rose-400">
+              <img v-if="i.image" :src="i.image" alt="" class="h-full w-full bg-slate-100 object-contain" loading="lazy" />
+            </span>
+            <span class="absolute left-1 top-1 rounded-md bg-red-600 px-1.5 text-xs font-black text-white">{{ i.code }}</span>
+            <span v-if="featured === i.id" class="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-black text-white">À L'ÉCRAN</span>
+            <span v-if="i.remaining === 0" class="absolute inset-x-0 top-0 grid h-[72px] place-items-center bg-white/60 text-sm font-black text-red-600">VENDU</span>
+            <span class="block px-1.5 pb-1.5 pt-1 text-xs">
+              <b class="block truncate">{{ i.title }}</b>
+              <span class="text-[11px] text-slate-500">{{ money(i.price) }}</span>
+            </span>
+          </button>
+        </div>
+      </template>
+
       <!-- Aperçu : ce que voient les clientes en ce moment -->
       <div class="overflow-hidden rounded-2xl bg-slate-900">
         <p class="px-3 pt-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">À l'écran maintenant</p>
@@ -186,7 +222,10 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
         </div>
       </div>
 
-      <button v-if="mode === 'product' && items.length > 1" type="button" class="btn-brand w-full py-4 text-base" :disabled="busy" @click="next">Produit suivant ▶</button>
+      <div v-if="mode === 'product' && items.length > 1" class="grid grid-cols-2 gap-2">
+        <button type="button" class="btn-secondary whitespace-nowrap px-2 py-4 text-[15px]" :disabled="busy" @click="previous">◀ Produit précédent</button>
+        <button type="button" class="btn-brand whitespace-nowrap px-2 py-4 text-[15px]" :disabled="busy" @click="next">Produit suivant ▶</button>
+      </div>
 
       <div class="flex items-center justify-between px-0.5">
         <p class="text-xs font-extrabold uppercase tracking-wide text-slate-500">Produits du live<template v-if="items.length"> · {{ items.length }}</template></p>
