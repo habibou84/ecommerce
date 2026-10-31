@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import LiveDisplay from '../../../components/LiveDisplay.vue'
 import Modal from '../../../components/Modal.vue'
@@ -62,6 +62,7 @@ const name = ref('')
 const pairErrors = ref({})
 const paired = ref('')
 const busy = ref(false)
+const pairing = ref(false)
 const term = ref(null)
 let timer
 
@@ -108,6 +109,16 @@ async function copy() {
   }
 }
 
+// « Relier un écran » ouvre la saisie du code affiché sur la télé
+async function startPair() {
+  if (open.value !== 'tv') show('tv')
+  paired.value = ''
+  pairErrors.value = {}
+  pairing.value = true
+  await nextTick()
+  document.getElementById('screen-code')?.focus()
+}
+
 async function pair() {
   busy.value = true
   pairErrors.value = {}
@@ -117,6 +128,7 @@ async function pair() {
     paired.value = `« ${screen.name} » est relié ✓ Il affiche maintenant votre live.`
     code.value = ''
     name.value = ''
+    pairing.value = false
     await load()
   } catch (e) {
     pairErrors.value = fieldErrors(e)
@@ -173,7 +185,7 @@ const METHODS = computed(() => [
     key: 'tv', icon: '📺', title: 'La télé derrière vous', short: 'Avec une télé ou une tablette', scene: 'tv', ease: 3, auto: true,
     explain: 'Vous filmez avec votre téléphone, comme d\'habitude. La télé est derrière vous et montre l\'article, le code et le prix : elle change toute seule quand vous touchez « Montrer ».',
     need: 'Télé connectée ou tablette', format: 'landscape',
-    steps: [`Sur la télé, ouvrez le navigateur et tapez <b>${host}/ecran</b>.`, '4 chiffres s\'affichent sur la télé : tapez-les ci-dessous.', 'Posez l\'écran derrière vous, en léger biais pour éviter les reflets.'],
+    steps: [`Sur la télé, ouvrez le navigateur et tapez <b>${host}/ecran</b>.`, 'Touchez « Relier un écran » ci-dessous, puis tapez les 4 chiffres affichés sur la télé.', 'Posez l\'écran derrière vous, en léger biais pour éviter les reflets.'],
     help: { title: 'Ça ne marche pas ?', text: 'Pas de navigateur sur la télé ? Une tablette ou un vieux téléphone posé sur un support fait pareil. Rien de tout ça ?', go: [['share', 'L\'article en grand sur votre téléphone']] },
   },
   {
@@ -312,15 +324,22 @@ const EASE = { 1: 'plus technique', 2: 'moyen', 3: 'facile' }
         </ol>
         <p v-if="term && TERMS[term]" class="rounded-xl bg-slate-900 p-3 text-sm text-slate-100">{{ TERMS[term] }}</p>
 
-        <!-- Télé : relier par le code -->
-        <form v-if="current.key === 'tv'" class="space-y-2" @submit.prevent="pair">
-          <input v-model="code" class="input text-center text-3xl font-black tracking-[.5em]" inputmode="numeric" maxlength="4" placeholder="····" autocomplete="off" aria-label="Code de l'écran" />
-          <p v-if="pairErrors.code" class="text-sm text-red-600">{{ pairErrors.code }}</p>
-          <input v-model="name" class="input" maxlength="60" placeholder="Nom de l'écran (ex. Télé salon)" />
-          <button class="btn-brand w-full py-3 text-base" :disabled="busy || code.length !== 4">{{ busy ? 'Liaison…' : 'Relier la télé' }}</button>
+        <!-- Télé : « Relier un écran », puis le code affiché sur la télé -->
+        <template v-if="current.key === 'tv'">
+          <button v-if="!pairing" type="button" class="btn-brand w-full py-3 text-base" @click="startPair">📺 Relier un écran</button>
+          <form v-else class="space-y-2 rounded-xl border-2 border-emerald-700 p-3" @submit.prevent="pair">
+            <label for="screen-code" class="block text-sm font-semibold">Tapez les 4 chiffres affichés sur la télé</label>
+            <input id="screen-code" v-model="code" class="input text-center text-3xl font-black tracking-[.5em]" inputmode="numeric" maxlength="4" placeholder="····" autocomplete="off" />
+            <p v-if="pairErrors.code" class="text-sm text-red-600">{{ pairErrors.code }}</p>
+            <input v-model="name" class="input" maxlength="60" placeholder="Nom de l'écran (ex. Télé salon)" aria-label="Nom de l'écran" />
+            <div class="flex gap-2">
+              <button type="button" class="btn-ghost" @click="pairing = false">Annuler</button>
+              <button class="btn-brand flex-1 py-3 text-base" :disabled="busy || code.length !== 4">{{ busy ? 'Liaison…' : 'Valider' }}</button>
+            </div>
+          </form>
           <p v-if="paired" class="rounded-xl bg-emerald-50 p-2.5 text-sm text-emerald-800">{{ paired }}</p>
           <p class="text-center text-xs text-slate-500">💡 Fond sombre et luminosité un peu baissée : la caméra filme mieux.</p>
-        </form>
+        </template>
         <RouterLink v-if="current.key === 'share'" :to="`/gestion/live/${id}/presentation`" class="btn-brand block w-full py-3 text-center text-base">Ouvrir le mode présentation</RouterLink>
         <RouterLink v-if="current.key === 'cards'" :to="`/gestion/live/${id}/cartes`" class="btn-brand block w-full py-3 text-center text-base">Préparer les cartes</RouterLink>
         <button v-if="current.format" type="button" class="block w-full rounded-xl border-2 border-emerald-200 bg-white py-3 text-center text-base font-extrabold text-emerald-700" @click="openPreview(current)">👀 Tester maintenant (avant le live)</button>
@@ -350,7 +369,10 @@ const EASE = { 1: 'plus technique', 2: 'moyen', 3: 'facile' }
 
     <!-- Écrans reliés -->
     <section class="space-y-2">
-      <p class="px-0.5 text-xs font-extrabold uppercase tracking-wide text-slate-500">Mes écrans<template v-if="screens.length"> · {{ online }} allumé{{ online > 1 ? 's' : '' }}</template></p>
+      <div class="flex items-center justify-between gap-2 px-0.5">
+        <p class="text-xs font-extrabold uppercase tracking-wide text-slate-500">Mes écrans<template v-if="screens.length"> · {{ online }} allumé{{ online > 1 ? 's' : '' }}</template></p>
+        <button type="button" class="text-sm font-semibold text-emerald-700" @click="startPair">+ Relier un écran</button>
+      </div>
       <div class="card divide-y divide-slate-100 px-4 py-1 text-sm">
         <p v-if="!screens.length" class="py-3 text-slate-500">Aucun écran pour l'instant : reliez une télé ou une tablette, ou copiez le lien pour l'ordinateur ou PRISM.</p>
         <div v-for="s in screens" :key="s.id" class="flex items-center gap-2 py-2.5">

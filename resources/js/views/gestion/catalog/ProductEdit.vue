@@ -384,7 +384,7 @@ const margin = computed(() => {
 <template>
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
 
-  <form v-else class="space-y-5 pb-24" @submit.prevent="save">
+  <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save">
     <div class="flex flex-wrap items-center gap-2">
       <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
@@ -700,7 +700,7 @@ const margin = computed(() => {
       </ul>
     </section>
 
-    <div v-if="canEdit" class="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:left-64">
+    <div v-if="canEdit" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 lg:bottom-0 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:left-64">
       <div class="mx-auto flex max-w-5xl items-center gap-2">
         <template v-if="props.id">
           <button type="button" class="btn-ghost text-red-600" @click="destroy">Supprimer</button>
