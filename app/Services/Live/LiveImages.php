@@ -143,7 +143,7 @@ class LiveImages
      */
     public function card(int $storeId, array $card, bool $sold = false): string
     {
-        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $sold, 4])), 0, 12);
+        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $sold, 5])), 0, 12);
         $path = "live/{$storeId}/card-{$card['code']}-{$key}.jpg";
         if ($this->disk()->exists($path)) {
             return $path;
@@ -202,9 +202,10 @@ class LiveImages
 
         // Pied : appel à commander
         imagefilledrectangle($c, 0, $h - 120, $w, $h, $night);
-        imagefilledellipse($c, 75, $h - 60, 64, 64, $green);
-        imagefilledellipse($c, 75, $h - 60, 26, 26, $white);
-        imagettftext($c, 38, 0, 130, $h - 44, $white, $this->font('ExtraBold'), $this->fit("Envoyez {$card['code']} sur WhatsApp", 38, 'ExtraBold', $w - 160));
+        imagefilledellipse($c, 75, $h - 72, 56, 56, $green);
+        imagefilledellipse($c, 75, $h - 72, 22, 22, $white);
+        imagettftext($c, 36, 0, 125, $h - 58, $white, $this->font('ExtraBold'), $this->fit("Envoyez {$card['code']} sur WhatsApp", 36, 'ExtraBold', $w - 160));
+        $this->brand($c, $w, $h - 16, imagecolorallocate($c, 148, 163, 184));
 
         if ($sold) {
             $this->stamp($c, 'VENDU', (int) ($w / 2), (int) ($photoH / 2) + 40, $red);
@@ -221,7 +222,7 @@ class LiveImages
      */
     public function howCard(int $storeId, string $storeName, ?string $phone, ?string $whatsappUrl): string
     {
-        $key = substr(md5(json_encode([$storeName, $phone, $whatsappUrl, 4])), 0, 12);
+        $key = substr(md5(json_encode([$storeName, $phone, $whatsappUrl, 5])), 0, 12);
         $path = "live/{$storeId}/how-{$key}.jpg";
         if ($this->disk()->exists($path)) {
             return $path;
@@ -245,7 +246,7 @@ class LiveImages
             $y = 340 + $i * 105;
             imagefilledellipse($c, 100, $y, 76, 76, $yellow);
             imagettftext($c, 40, 0, 86, $y + 15, $ink, $this->font('ExtraBold'), (string) ($i + 1));
-            imagettftext($c, 42, 0, 160, $y + 15, $white, $this->font('Bold'), $step);
+            imagettftext($c, $this->size($step, 42, 'Bold', $w - 200), 0, 160, $y + 15, $white, $this->font('Bold'), $step);
         }
 
         // Encadré blanc : QR code et numéro
@@ -258,9 +259,10 @@ class LiveImages
             }
         }
         imagettftext($c, 30, 0, 400, 880, $deep, $this->font('Bold'), $this->fit('WhatsApp '.$storeName, 30, 'Bold', $w - 470));
-        imagettftext($c, 42, 0, 400, 955, $deep, $this->font('ExtraBold'), $this->fit($phone ?? '', 42, 'ExtraBold', $w - 460));
+        imagettftext($c, $this->size($phone ?? '', 42, 'ExtraBold', $w - 460), 0, 400, 955, $deep, $this->font('ExtraBold'), $phone ?? '');
         imagettftext($c, 28, 0, 400, 1030, $deep, $this->font('Medium'), 'Scannez pour écrire');
         imagettftext($c, 28, 0, 400, 1075, $deep, $this->font('Medium'), 'Paiement à la livraison');
+        $this->brand($c, $w, $h - 18, imagecolorallocate($c, 167, 243, 208));
 
         $this->save($path, $c);
 
@@ -335,6 +337,13 @@ class LiveImages
         imagecopyresampled($canvas, $photo, $x + intdiv($width - $dw, 2), $y + intdiv($height - $dh, 2), 0, 0, $dw, $dh, $sw, $sh);
     }
 
+    /** « Propulsé par Jibiat Marchand · jibiat-marchand.com », centré, en petit au pied de l'image */
+    private function brand(GdImage $c, int $w, int $baseline, int $color): void
+    {
+        $text = 'Propulsé par Jibiat Marchand · jibiat-marchand.com';
+        imagettftext($c, 20, 0, (int) (($w - $this->width($text, 20, 'Medium')) / 2), $baseline, $color, $this->font('Medium'), $text);
+    }
+
     private function cover(GdImage $canvas, GdImage $photo, int $x, int $y, int $width, int $height): void
     {
         $sw = imagesx($photo);
@@ -343,6 +352,17 @@ class LiveImages
         $cw = (int) round($width / $scale);
         $ch = (int) round($height / $scale);
         imagecopyresampled($canvas, $photo, $x, $y, (int) (($sw - $cw) / 2), (int) (($sh - $ch) / 2), $width, $height, $cw, $ch);
+    }
+
+    /** Taille de police la plus grande (jusqu'à $max) pour que le texte tienne entier dans la largeur */
+    private function size(string $text, int $max, string $weight, int $width): int
+    {
+        $size = $max;
+        while ($size > 18 && $this->width($text, $size, $weight) > $width) {
+            $size--;
+        }
+
+        return $size;
     }
 
     private function fit(string $text, int $size, string $weight, int $max): string

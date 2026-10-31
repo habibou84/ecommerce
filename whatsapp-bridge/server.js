@@ -141,7 +141,9 @@ class Session {
       this.pairingCode = null
       this.retries = 0
       const user = this.sock.user || {}
-      this.phone = '+' + String(user.id || '').split(':')[0].split('@')[0]
+      // Le vrai numéro (« …@s.whatsapp.net »), jamais l'identifiant masqué « @lid » que WhatsApp donne à certains comptes
+      const pn = [user.id, user.phoneNumber, user.pn].map(v => String(v || '')).find(v => v.endsWith('@s.whatsapp.net'))
+      this.phone = pn ? '+' + pn.split('@')[0].split(':')[0] : null
       this.name = user.name || user.verifiedName || null
       this.setStatus('connected')
     }

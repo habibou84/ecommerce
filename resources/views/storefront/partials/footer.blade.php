@@ -28,5 +28,6 @@
             <p>Paiement à la livraison</p>
         </div>
     </div>
-    <p class="pb-6 text-center text-xs text-slate-400">© {{ date('Y') }} {{ $store->name }} · Boutique créée avec <a href="{{ \App\Support\Tenancy::platformUrl() }}" class="underline">Jibiat Marchand</a></p>
+    @php($platform = \App\Support\Tenancy::platformUrl())
+    <p class="pb-6 text-center text-xs text-slate-400">© {{ date('Y') }} {{ $store->name }} · Propulsé par <a href="{{ $platform }}" class="font-semibold text-slate-500 underline">Jibiat Marchand</a> · <a href="{{ $platform }}" class="hover:underline">{{ parse_url($platform, PHP_URL_HOST) }}</a></p>
 </footer>
