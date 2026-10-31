@@ -104,7 +104,7 @@ const digits = computed(() => (code.value || '····').split(''))
         <span v-for="(d, i) in digits" :key="i" class="grid h-[18vh] w-[14vh] place-items-center rounded-[2.4vh] bg-white text-[12vh] font-black text-slate-900">{{ d }}</span>
       </div>
       <p class="max-w-[90vh] text-[2.6vh] leading-snug text-slate-300">
-        Dans l'application Jibiat Marchand, page du live, touchez <b class="text-white">« Relier un écran »</b> et tapez ce code.
+        Dans l'application Jibiat Marchand, ouvrez votre live › <b class="text-white">« Afficher mes articles dans le live »</b>, touchez <b class="text-white">« Relier un écran »</b>, puis tapez ce code.
         La prochaine fois, cet écran se reconnecte tout seul.
       </p>
       <button type="button" class="rounded-full bg-white/10 px-5 py-2 text-[2vh] font-semibold" @click="fullscreen">Plein écran</button>
