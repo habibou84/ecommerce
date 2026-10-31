@@ -5,6 +5,7 @@ namespace App\Services\Couriers;
 use App\Models\Courier;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
+use App\Models\User;
 use App\Notifications\CourierDayPlan;
 use Illuminate\Support\Collection;
 use Jibiat\Socle\Money;
@@ -33,32 +34,38 @@ class CourierMorning
         })->values();
     }
 
-    /** @return int nombre de livreurs prévenus */
+    /** @return int nombre de livreurs prévenus (un seul message par personne, toutes ses boutiques réunies) */
     public function send(): int
     {
         $sent = 0;
-        Courier::withoutGlobalScope(StoreScope::class)->where('status', 'active')->whereNotNull('user_id')->with(['user', 'store'])
-            ->chunkById(100, function ($couriers) use (&$sent) {
-                foreach ($couriers as $courier) {
-                    $missions = Shipment::forStore($courier->store_id)->where('courier_id', $courier->id)
-                        ->whereIn('status', SharedCouriers::ACTIVE_MISSIONS)
-                        ->with(['order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'order.place.parent'])->get();
-                    $today = self::dueToday($missions);
-                    if ($today->isEmpty() || $courier->user === null) {
-                        continue;
-                    }
-                    $late = $today->filter(fn (Shipment $s) => ($s->order?->scheduled_date?->lt(today()) ?? false))->count();
-                    $cash = (int) $today->sum('cod_amount');
-                    $communes = $today->map(fn (Shipment $s) => $s->order?->place
-                        ? ($s->order->place->type === 'neighborhood' ? $s->order->place->parent?->name : $s->order->place->name) : null)
-                        ->filter()->unique()->take(4)->implode(', ');
-                    $count = $today->count();
-                    $title = "Aujourd'hui : {$count} course".($count > 1 ? 's' : '').($late ? " dont {$late} en retard" : '').' · '.$courier->store->name;
-                    $body = trim(($cash > 0 ? Money::format($cash).' à encaisser' : '').($communes !== '' ? ' · '.$communes : ''), ' ·');
-                    $courier->user->notify(new CourierDayPlan($courier->store_id, $title, $body));
-                    $sent++;
-                }
-            });
+        $userIds = Courier::withoutGlobalScope(StoreScope::class)->where('status', 'active')->whereNotNull('user_id')->distinct()->pluck('user_id');
+        foreach ($userIds as $userId) {
+            $home = SharedCouriers::homeOf((int) $userId);
+            $user = User::find($userId);
+            if ($home === null || $user === null) {
+                continue;
+            }
+            $fiches = app(SharedCouriers::class)->ofPerson(Courier::withoutGlobalScope(StoreScope::class)->where('user_id', $userId)->where('store_id', $home->id)->firstOrFail());
+            $missions = Shipment::withoutGlobalScope(StoreScope::class)->whereIn('courier_id', $fiches->pluck('id'))
+                ->whereIn('status', SharedCouriers::ACTIVE_MISSIONS)
+                ->with(['order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'order.place.parent'])->get();
+            $today = self::dueToday($missions);
+            if ($today->isEmpty()) {
+                continue;
+            }
+            $late = $today->filter(fn (Shipment $s) => ($s->order?->scheduled_date?->lt(today()) ?? false))->count();
+            $cash = (int) $today->sum('cod_amount');
+            $communes = $today->map(fn (Shipment $s) => $s->order?->place
+                ? ($s->order->place->type === 'neighborhood' ? $s->order->place->parent?->name : $s->order->place->name) : null)
+                ->filter()->unique()->take(4)->implode(', ');
+            $stores = $today->pluck('store_id')->unique()->count();
+            $count = $today->count();
+            $title = "Aujourd'hui : {$count} course".($count > 1 ? 's' : '').($late ? " dont {$late} en retard" : '')
+                .' · '.($stores > 1 ? "{$stores} boutiques" : $fiches->firstWhere('store_id', $today->first()->store_id)?->store->name);
+            $body = trim(($cash > 0 ? Money::format($cash).' à encaisser' : '').($communes !== '' ? ' · '.$communes : ''), ' ·');
+            $user->notify(new CourierDayPlan($home->id, $title, $body));
+            $sent++;
+        }
 
         return $sent;
     }

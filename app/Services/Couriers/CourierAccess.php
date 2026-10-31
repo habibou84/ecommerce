@@ -7,6 +7,7 @@ use App\Enums\UserStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Courier;
 use App\Models\CourierAccessLink;
+use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\StoreInvitation;
@@ -47,7 +48,18 @@ class CourierAccess
             ]);
         });
 
-        return $courier->store->url('/livreur/acces/'.$token);
+        return $this->homeFor($courier)->url('/livreur/acces/'.$token);
+    }
+
+    /**
+     * Adresse de son espace livreur : sa boutique d'accueil s'il livre déjà ailleurs (tout y est réuni), sinon
+     * la boutique qui lui envoie le lien.
+     */
+    public function homeFor(Courier $courier): Store
+    {
+        $userId = $courier->user_id ?? User::where('phone', $courier->phone)->value('id');
+
+        return ($userId ? SharedCouriers::homeOf($userId) : null) ?? $courier->store;
     }
 
     /**
@@ -92,15 +104,20 @@ class CourierAccess
      *
      * @return array{0: ?User, 1: ?string}
      */
-    public function consume(string $token, Store $store): array
+    public function consume(string $token, Store $current): array
     {
         if ($token === '' || strlen($token) > 100) {
             return [null, 'invalide'];
         }
 
-        return DB::transaction(function () use ($token, $store) {
-            $link = CourierAccessLink::forStore($store->id)->where('token_hash', CourierAccessLink::hashToken($token))->lockForUpdate()->first();
+        return DB::transaction(function () use ($token, $current) {
+            // Le lien peut venir d'une autre boutique que celle de l'adresse (son espace d'accueil réunit tout)
+            $link = CourierAccessLink::withoutGlobalScope(StoreScope::class)->where('token_hash', CourierAccessLink::hashToken($token))->lockForUpdate()->first();
             if ($link === null || $link->revoked_at !== null) {
+                return [null, 'invalide'];
+            }
+            $store = Store::find($link->store_id);
+            if ($store === null) {
                 return [null, 'invalide'];
             }
             if ($link->used_at !== null) {
@@ -117,6 +134,10 @@ class CourierAccess
             $user = $courier->user_id ? User::find($courier->user_id) : User::where('phone', $courier->phone)->lockForUpdate()->first();
             if ($user !== null && (! $user->isActive() || ! $this->onlyCourier($user, $store))) {
                 return [null, 'compte'];
+            }
+            // Ouvert à l'adresse d'une autre boutique : seulement son espace d'accueil, où il est déjà livreur
+            if ($current->id !== $store->id && ($user === null || CourierRoster::of($user, $current) === null)) {
+                return [null, 'invalide'];
             }
             if ($user === null) {
                 $user = new User;

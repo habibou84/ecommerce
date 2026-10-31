@@ -242,13 +242,15 @@ function openAssign(ids) {
   assignIds.value = ids
   assignChoice.value = ''
 }
-watch(assignChoice, (key) => {
+// Le choix est traité dès qu'il arrive : la fenêtre se ferme juste après (et efface les commandes à confier)
+function assignTo(key) {
+  assignChoice.value = key
   if (!key || !assignIds.value) return
   const [type, id] = key.split(':')
   const ids = assignIds.value
   assignIds.value = null
   bulk(type === 'courier' ? { action: 'assign', courier_id: Number(id) } : { action: 'assign', carrier_connection_id: Number(id) }, ids)
-})
+}
 
 // Changer le statut
 const statusOpen = ref(false)
@@ -523,7 +525,7 @@ async function exportList() {
       </div>
     </Modal>
 
-    <DelivererPicker v-if="assignIds" v-model="assignChoice" :options="options" @close="assignIds = null" />
+    <DelivererPicker v-if="assignIds" :model-value="assignChoice" :options="options" @update:model-value="assignTo" @close="assignIds = null" />
 
     <Modal v-if="statusOpen" :title="`Changer le statut de ${selected.size} commande(s)`" @close="statusOpen = false">
       <div class="space-y-4">

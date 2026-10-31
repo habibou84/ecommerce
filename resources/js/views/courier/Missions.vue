@@ -46,7 +46,7 @@ watch(() => offline.synced, () => !editing.value && load())
 const FINAL = ['delivered', 'returned', 'cancelled', 'lost']
 // À accepter : nouvelles missions pas encore acceptées (ni colis récupéré)
 const offers = computed(() => (missions.value ?? []).filter((m) => m.acceptance === 'pending' && m.status === 'awaiting_pickup'))
-const active = computed(() => (missions.value ?? []).filter((m) => !FINAL.includes(m.status) && !offers.value.includes(m)))
+const active = computed(() => byStore((missions.value ?? []).filter((m) => !FINAL.includes(m.status) && !offers.value.includes(m))))
 // Tournée d'aujourd'hui (les colis à rapporter à la boutique restent à la fin), puis les missions reportées à plus tard
 const stops = computed(() => {
   const today = active.value.filter((m) => !isLater(m))
@@ -54,6 +54,10 @@ const stops = computed(() => {
   return [...ordered, ...today.filter((m) => m.status === 'returning')]
 })
 const later = computed(() => active.value.filter(isLater))
+// Plusieurs boutiques : filtre par boutique (toutes par défaut)
+const storeFilter = ref('')
+const storeNames = computed(() => [...new Set((missions.value ?? []).map((m) => m.store).filter(Boolean))])
+const byStore = (list) => (storeFilter.value ? list.filter((m) => m.store === storeFilter.value) : list)
 // Onglets par jour de livraison : Aujourd'hui (avec les courses en retard), Demain, Plus tard
 const day = ref('today')
 const tomorrowList = computed(() => later.value.filter((m) => dueDay(m) === tomorrow()))
@@ -162,6 +166,11 @@ function saveOrder() {
               type="button" role="tab" :aria-selected="day === t[0]" class="whitespace-nowrap rounded-lg px-1 py-2" :class="day === t[0] ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'" @click="day = t[0]">
         {{ t[1] }} <span class="ml-0.5 rounded-full px-1.5 text-xs" :class="day === t[0] ? 'bg-emerald-700 text-white' : 'bg-slate-300 text-slate-700'">{{ t[2] }}</span>
       </button>
+    </div>
+
+    <div v-if="storeNames.length > 1" class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-sm font-semibold">
+      <button type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="!storeFilter ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'" @click="storeFilter = ''">Toutes</button>
+      <button v-for="n in storeNames" :key="n" type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="storeFilter === n ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'" @click="storeFilter = n">{{ n }}</button>
     </div>
 
     <section v-for="m in offers" :key="`offer-${m.id}`" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 shadow-sm">

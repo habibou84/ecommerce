@@ -548,6 +548,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('lives/screens', [LiveScreenController::class, 'index'])->middleware('feature:live,live_screens')->name('lives.screens');
                 Route::post('lives/screens/pair', [LiveScreenController::class, 'pair'])->middleware('throttle:20,1')->middleware('feature:live,live_screens')->name('lives.screens.pair');
                 Route::post('lives/screens/link', [LiveScreenController::class, 'link'])->middleware('throttle:20,1')->middleware('feature:live,live_screens')->name('lives.screens.link');
+                Route::post('lives/screens/{screen}/test', [LiveScreenController::class, 'test'])->whereNumber('screen')->middleware('feature:live,live_screens')->name('lives.screens.test');
                 Route::delete('lives/screens/{screen}', [LiveScreenController::class, 'destroy'])->whereNumber('screen')->middleware('feature:live,live_screens')->name('lives.screens.destroy');
                 Route::post('lives/{session}/display', [LiveScreenController::class, 'mode'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live,live_screens')->name('lives.display');
                 Route::get('lives/{session}/display', [LiveScreenController::class, 'display'])->whereNumber('session')->middleware('feature:live,live_screens')->name('lives.display.show');

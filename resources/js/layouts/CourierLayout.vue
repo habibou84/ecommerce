@@ -87,8 +87,9 @@ const badge = (tab) => (tab.to === '/livreur' ? offline.offers : 0)
   <div class="mx-auto flex min-h-screen max-w-lg flex-col bg-slate-50" :class="{ 'courier-night': prefs.night }">
     <header class="sticky top-0 z-20 flex items-center gap-3 bg-emerald-700 px-4 py-3 text-white">
       <div class="min-w-0 flex-1">
-        <p class="truncate font-semibold">{{ auth.store?.name }}</p>
-        <p class="truncate text-xs text-emerald-100">{{ auth.profile?.courier?.name }}</p>
+        <!-- Plusieurs boutiques (même de commerçants différents) : son espace livreur les réunit -->
+        <p class="truncate font-semibold">{{ me?.stores?.length > 1 ? 'Mon espace livreur' : auth.store?.name }}</p>
+        <p class="truncate text-xs text-emerald-100">{{ auth.profile?.courier?.name }}<template v-if="me?.stores?.length > 1"> · {{ me.stores.length }} boutiques</template></p>
       </div>
       <button class="rounded-full px-3 py-1.5 text-sm font-medium" :class="available ? 'bg-white text-emerald-800' : 'bg-emerald-900 text-emerald-100'" @click="toggle">
         {{ available ? '● Disponible' : '○ Indisponible' }}
