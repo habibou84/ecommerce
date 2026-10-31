@@ -87,7 +87,8 @@ class LiveScreensTest extends TestCase
         $this->assertSame('product', $this->storeApi($this->store, 'GET', "lives/{$this->live}/display")->json('data.live.mode'));
 
         // Lien direct pour l'ordinateur (LIVE Studio, PRISM) ; écran retiré : il ne montre plus rien
-        $link = $this->storeApi($this->store, 'POST', 'lives/screens/link')->assertCreated()->json('data');
+        $link = $this->storeApi($this->store, 'POST', 'lives/screens/link')->assertOk()->assertJsonPath('data.is_link', true)->json('data');
+        $this->assertSame($link['url'], $this->storeApi($this->store, 'POST', 'lives/screens/link')->json('data.url'));
         $this->assertMatchesRegularExpression('#/ecran/[A-Za-z0-9]{48}$#', $link['url']);
         $this->storeApi($this->store, 'GET', 'lives/screens')->assertJsonCount(2, 'data');
         $this->storeApi($this->store, 'DELETE', 'lives/screens/'.$link['id'])->assertOk();

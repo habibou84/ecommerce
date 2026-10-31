@@ -62,9 +62,15 @@ class LiveScreens
     /**
      * Lien direct (ordinateur, PRISM, TikTok LIVE Studio) : un écran déjà relié, sans code.
      */
+    public const LINK_NAME = 'Ordinateur ou PRISM (lien)';
+
+    /**
+     * Lien de la boutique, le même à chaque fois (déjà collé dans LIVE Studio ou PRISM, il reste valable).
+     */
     public function link(Store $store): LiveScreen
     {
-        return LiveScreen::create(['store_id' => $store->id, 'token' => Str::random(48), 'paired_at' => now(), 'name' => 'Lien (ordinateur, PRISM)']);
+        return LiveScreen::where('store_id', $store->id)->where('name', self::LINK_NAME)->first()
+            ?? LiveScreen::create(['store_id' => $store->id, 'token' => Str::random(48), 'paired_at' => now(), 'name' => self::LINK_NAME]);
     }
 
     public static function url(LiveScreen $screen): string

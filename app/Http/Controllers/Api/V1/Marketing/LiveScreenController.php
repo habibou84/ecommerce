@@ -64,7 +64,7 @@ class LiveScreenController extends Controller
      */
     public function link(): JsonResponse
     {
-        return response()->json(['data' => $this->present($this->screens->link($this->currentStore()))], 201);
+        return response()->json(['data' => $this->present($this->screens->link($this->currentStore()))]);
     }
 
     public function destroy(int $screen): JsonResponse
@@ -180,7 +180,7 @@ class LiveScreenController extends Controller
     private function present(LiveScreen $screen): array
     {
         return [
-            'id' => $screen->id, 'name' => $screen->name, 'online' => $screen->isOnline(),
+            'id' => $screen->id, 'name' => $screen->name, 'online' => $screen->isOnline(), 'is_link' => $screen->name === LiveScreens::LINK_NAME,
             'last_seen_at' => $screen->last_seen_at?->toIso8601String(),
             // Lien direct (ordinateur, PRISM) : à coller une fois dans le logiciel de live
             'url' => LiveScreens::url($screen),
