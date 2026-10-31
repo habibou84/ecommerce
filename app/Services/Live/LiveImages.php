@@ -143,7 +143,7 @@ class LiveImages
      */
     public function card(int $storeId, array $card, bool $sold = false): string
     {
-        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $sold, 3])), 0, 12);
+        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $sold, 4])), 0, 12);
         $path = "live/{$storeId}/card-{$card['code']}-{$key}.jpg";
         if ($this->disk()->exists($path)) {
             return $path;
@@ -164,7 +164,7 @@ class LiveImages
         $photoH = 780;
         $photo = $card['image'] ? $this->load($card['image']) : null;
         if ($photo !== null) {
-            $this->cover($c, $photo, 0, 0, $w, $photoH);
+            $this->whole($c, $photo, 0, 0, $w, $photoH);
         } else {
             for ($y = 0; $y < $photoH; $y++) {
                 $t = $y / $photoH;
@@ -221,7 +221,7 @@ class LiveImages
      */
     public function howCard(int $storeId, string $storeName, ?string $phone, ?string $whatsappUrl): string
     {
-        $key = substr(md5(json_encode([$storeName, $phone, $whatsappUrl, 3])), 0, 12);
+        $key = substr(md5(json_encode([$storeName, $phone, $whatsappUrl, 4])), 0, 12);
         $path = "live/{$storeId}/how-{$key}.jpg";
         if ($this->disk()->exists($path)) {
             return $path;
@@ -240,7 +240,7 @@ class LiveImages
 
         imagettftext($c, 76, 0, 60, 150, $white, $this->font('ExtraBold'), 'Comment');
         imagettftext($c, 76, 0, 60, 245, $white, $this->font('ExtraBold'), 'commander ?');
-        $steps = ['Notez le code (A1, A2…)', 'Envoyez-le sur WhatsApp', 'Touchez votre commune', 'On vous livre'];
+        $steps = ['Notez vos codes (A1, A2…)', 'Envoyez « A1 + A3 » sur WhatsApp', 'Touchez votre commune', 'On vous livre'];
         foreach ($steps as $i => $step) {
             $y = 340 + $i * 105;
             imagefilledellipse($c, 100, $y, 76, 76, $yellow);
@@ -308,6 +308,31 @@ class LiveImages
         }
 
         return null;
+    }
+
+    // Photo entière (rien n'est coupé) sur un fond flou et assombri de la même photo
+    private function whole(GdImage $canvas, GdImage $photo, int $x, int $y, int $width, int $height): void
+    {
+        // Fond : la photo réduite, floutée puis agrandie par paliers (sans effet de petits carrés)
+        $layer = imagecreatetruecolor(max(1, intdiv($width, 16)), max(1, intdiv($height, 16)));
+        $this->cover($layer, $photo, 0, 0, imagesx($layer), imagesy($layer));
+        foreach ([4, 1] as $step) {
+            for ($i = 0; $i < 3; $i++) {
+                imagefilter($layer, IMG_FILTER_GAUSSIAN_BLUR);
+            }
+            $next = imagecreatetruecolor(max(1, intdiv($width, $step)), max(1, intdiv($height, $step)));
+            imagecopyresampled($next, $layer, 0, 0, 0, 0, imagesx($next), imagesy($next), imagesx($layer), imagesy($layer));
+            $layer = $next;
+        }
+        imagefilter($layer, IMG_FILTER_GAUSSIAN_BLUR);
+        imagecopy($canvas, $layer, $x, $y, 0, 0, $width, $height);
+        imagefilledrectangle($canvas, $x, $y, $x + $width, $y + $height, imagecolorallocatealpha($canvas, 0, 0, 0, 80));
+        $sw = imagesx($photo);
+        $sh = imagesy($photo);
+        $scale = min($width / $sw, $height / $sh);
+        $dw = (int) round($sw * $scale);
+        $dh = (int) round($sh * $scale);
+        imagecopyresampled($canvas, $photo, $x + intdiv($width - $dw, 2), $y + intdiv($height - $dh, 2), 0, 0, $dw, $dh, $sw, $sh);
     }
 
     private function cover(GdImage $canvas, GdImage $photo, int $x, int $y, int $width, int $height): void

@@ -87,7 +87,7 @@ class LiveCheckout
             $action === 'place' && $place !== null => $this->deliverTo($conversation, $place),
             $action === 'confirm' => $this->confirm($conversation, (int) $id),
             $action === 'address' => $this->askCommune($conversation, 'Où faut-il livrer votre commande ?'),
-            $action === 'add' => $this->text($conversation, 'Envoyez le code de l\'article (par exemple A4) : il s\'ajoute à votre commande.'),
+            $action === 'add' => $this->text($conversation, 'Envoyez le code de l\'article (par exemple A4, ou plusieurs : A4 + A5) : il s\'ajoute à votre commande.'),
             default => $this->text($conversation, 'Écrivez votre commune et votre quartier, par exemple « Cocody Angré ».'),
         };
 

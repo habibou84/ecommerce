@@ -60,6 +60,12 @@ class LiveScreensTest extends TestCase
         $this->platformApi('GET', 'screens/'.$created['token'])->assertJsonPath('data.paired', true)->assertJsonPath('data.live', null)
             ->assertJsonPath('data.store.whatsapp_url', 'https://wa.me/2250700000001');
 
+        // WhatsApp relié à Meta : c'est son numéro qui s'affiche, pas celui de la fiche boutique
+        $this->storeApi($this->store, 'PUT', 'whatsapp', [
+            'phone_number_id' => '1098765', 'waba_id' => '2233', 'display_phone' => '+2250102030405', 'access_token' => 'EAAG-token', 'app_secret' => 'app-secret',
+        ])->assertOk();
+        $this->platformApi('GET', 'screens/'.$created['token'])->assertJsonPath('data.store.whatsapp_url', 'https://wa.me/2250102030405');
+
         // Live lancé, robe montrée, réservations : pièces restantes, VENDU, dernières commandes (commune seulement)
         $this->storeApi($this->store, 'POST', "lives/{$this->live}/start")->assertOk();
         $items = $this->storeApi($this->store, 'GET', "lives/{$this->live}")->json('data.items');

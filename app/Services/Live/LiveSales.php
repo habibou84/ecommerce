@@ -570,8 +570,11 @@ class LiveSales
         // WhatsApp officiel : photo de chaque article, puis la liste des communes ou le récapitulatif de la commande
         $checkout = app(LiveCheckout::class);
         if ($checkout->official($conversation)) {
-            // Article gardé : sa phrase part en légende de sa photo ; le reste en un texte
-            $rest = $items->map(fn (LiveItem $item) => ($line = $said[$item->code] ?? '') !== '' && $mine($item, LiveReservation::HOLDING)->exists()
+            // Un seul article gardé : sa phrase part en légende de sa photo, le reste en un texte. Plusieurs articles
+            // (« A1 + A2 ») : tout dans un seul message avec la question de la commune, sans photos, car WhatsApp livre
+            // les photos plus lentement que le texte et la question arriverait au milieu des articles
+            $several = $items->filter(fn (LiveItem $item) => ($said[$item->code] ?? '') !== '')->count() > 1;
+            $rest = $several ? $text : $items->map(fn (LiveItem $item) => ($line = $said[$item->code] ?? '') !== '' && $mine($item, LiveReservation::HOLDING)->exists()
                 && $checkout->itemPhoto($conversation, $item, $line) ? null : $line)->filter()->implode("\n");
             if ($added !== null) {
                 $rest === '' || $this->reply($conversation, $rest);
