@@ -153,13 +153,15 @@ class LiveScreenController extends Controller
         $models = $session->items->keyBy('id');
         $store = $this->currentStore();
 
-        $items = collect($display['items'])->map(function (array $item) use ($images, $models, $store, $was, $stock) {
+        $link = preg_replace('#^https?://#', '', $store->url('/live'));
+        $items = collect($display['items'])->map(function (array $item) use ($images, $models, $store, $was, $stock, $link) {
             /** @var LiveItem $model */
             $model = $models->get($item['id']);
             $card = [
                 'code' => $item['code'], 'title' => $item['title'], 'variant' => $item['variant'], 'price' => $item['price'],
                 'was' => $was ? $item['was'] : null, 'remaining' => $stock ? $item['remaining'] : null,
                 'image' => $model?->variant?->image ?? $model?->variant?->product?->images->first(),
+                'link' => $link,
             ];
             $path = $images->card($store->id, $card);
             $sold = $images->card($store->id, $card, true);
@@ -169,7 +171,7 @@ class LiveScreenController extends Controller
         })->values();
 
         $info = $this->screens->storeInfo($store);
-        $how = $images->howCard($store->id, $store->name, $info['whatsapp'], $info['whatsapp_url']);
+        $how = $images->howCard($store->id, $store->name, $info['whatsapp'], $info['whatsapp_url'], $info['link_label']);
 
         return ['items' => $items->all(), 'how' => ['url' => $images->url($how), 'path' => $how]];
     }

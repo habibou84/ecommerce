@@ -143,7 +143,7 @@ class LiveImages
      */
     public function card(int $storeId, array $card, bool $sold = false): string
     {
-        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $sold, 5])), 0, 12);
+        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $card['link'] ?? null, $sold, 6])), 0, 12);
         $path = "live/{$storeId}/card-{$card['code']}-{$key}.jpg";
         if ($this->disk()->exists($path)) {
             return $path;
@@ -172,12 +172,6 @@ class LiveImages
             }
         }
 
-        // Code en très grand, cadre blanc
-        $codeW = $this->width($card['code'], 150, 'ExtraBold');
-        imagefilledrectangle($c, 30, 30, 30 + $codeW + 80, 250, $white);
-        imagefilledrectangle($c, 42, 42, 18 + $codeW + 80, 238, $red);
-        imagettftext($c, 150, 0, 70, 215, $white, $this->font('ExtraBold'), $card['code']);
-
         // Pièces restantes
         if ($card['remaining'] !== null && ! $sold) {
             $label = $card['remaining'] === 1 ? 'Dernière pièce' : $card['remaining'].' pièces';
@@ -186,19 +180,29 @@ class LiveImages
             imagettftext($c, 36, 0, $w - 45 - $lw, 92, $white, $this->font('Bold'), $label);
         }
 
-        // Bande jaune : prix, ancien prix barré, nom
+        // Bande jaune : le code (hors de la photo, rien ne cache l'article), le prix, l'ancien prix barré, le nom
         imagefilledrectangle($c, 0, $photoH, $w, $h - 120, $yellow);
+        $codeSize = $this->size($card['code'], 92, 'ExtraBold', 240);
+        $codeW = $this->width($card['code'], $codeSize, 'ExtraBold');
+        imagefilledrectangle($c, 40, $photoH + 30, 40 + $codeW + 50, $photoH + 150, $red);
+        imagettftext($c, $codeSize, 0, 65, $photoH + 90 + (int) ($codeSize / 2), $white, $this->font('ExtraBold'), $card['code']);
+        $x = 40 + $codeW + 80;
         $price = Money::format($card['price']);
-        $pw = $this->width($price, 96, 'ExtraBold');
-        imagettftext($c, 96, 0, 40, $photoH + 125, $ink, $this->font('ExtraBold'), $price);
-        if ($card['was']) {
-            $was = Money::format($card['was']);
-            $ww = $this->width($was, 44, 'Bold');
-            imagettftext($c, 44, 0, 70 + $pw, $photoH + 122, $brown, $this->font('Bold'), $was);
-            imagefilledrectangle($c, 68 + $pw, $photoH + 103, 72 + $pw + $ww, $photoH + 108, $brown);
+        $was = $card['was'] ? Money::format($card['was']) : null;
+        $priceSize = $this->size($price, 96, 'ExtraBold', $w - 40 - $x);
+        $priceY = $was ? $photoH + 112 : $photoH + 90 + (int) ($priceSize / 2);
+        imagettftext($c, $priceSize, 0, $x, $priceY, $ink, $this->font('ExtraBold'), $price);
+        if ($was) {
+            // Ancien prix barré, sous le prix
+            $ww = $this->width($was, 34, 'Bold');
+            imagettftext($c, 34, 0, $x + 4, $photoH + 165, $brown, $this->font('Bold'), $was);
+            imagefilledrectangle($c, $x + 2, $photoH + 150, $x + 6 + $ww, $photoH + 154, $brown);
         }
         $name = $card['title'].($card['variant'] ? ' · '.$card['variant'] : '');
-        imagettftext($c, 46, 0, 40, $photoH + 210, $ink, $this->font('Bold'), $this->fit($name, 46, 'Bold', $w - 80));
+        imagettftext($c, 46, 0, 40, $photoH + 232, $ink, $this->font('Bold'), $this->fit($name, 46, 'Bold', $w - 80));
+        if (! empty($card['link'])) {
+            imagettftext($c, 26, 0, 40, $photoH + 283, $brown, $this->font('Bold'), $this->fit('Aussi sur '.$card['link'], 26, 'Bold', $w - 80));
+        }
 
         // Pied : appel à commander
         imagefilledrectangle($c, 0, $h - 120, $w, $h, $night);
@@ -220,9 +224,9 @@ class LiveImages
      * Carte « Comment commander » : 4 étapes, numéro WhatsApp et QR code qui ouvre la conversation (chemin du
      * fichier).
      */
-    public function howCard(int $storeId, string $storeName, ?string $phone, ?string $whatsappUrl): string
+    public function howCard(int $storeId, string $storeName, ?string $phone, ?string $whatsappUrl, ?string $link = null): string
     {
-        $key = substr(md5(json_encode([$storeName, $phone, $whatsappUrl, 5])), 0, 12);
+        $key = substr(md5(json_encode([$storeName, $phone, $whatsappUrl, $link, 6])), 0, 12);
         $path = "live/{$storeId}/how-{$key}.jpg";
         if ($this->disk()->exists($path)) {
             return $path;
@@ -247,6 +251,12 @@ class LiveImages
             imagefilledellipse($c, 100, $y, 76, 76, $yellow);
             imagettftext($c, 40, 0, 86, $y + 15, $ink, $this->font('ExtraBold'), (string) ($i + 1));
             imagettftext($c, $this->size($step, 42, 'Bold', $w - 200), 0, 160, $y + 15, $white, $this->font('Bold'), $step);
+        }
+
+        // Le site, pour commander sans WhatsApp
+        if ($link) {
+            $text = 'Ou sur le site : '.$link;
+            imagettftext($c, $this->size($text, 34, 'Bold', $w - 120), 0, 60, 750, $yellow, $this->font('Bold'), $text);
         }
 
         // Encadré blanc : QR code et numéro
