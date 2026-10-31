@@ -167,22 +167,36 @@ class LiveScreens
     {
         // Le numéro qui reçoit vraiment les codes pendant le live : WhatsApp officiel relié à Meta, sinon le WhatsApp
         // relié par QR code, sinon le numéro des réglages de la boutique
-        $phone = WhatsappAccount::forStore($store->id)->value('display_phone')
-            ?: WhatsappLink::connectedFor($store->id)?->phone
-            ?: $store->whatsapp_phone ?: $store->phone;
-        $normalized = $phone ? PhoneNumber::normalize($phone) : null;
+        // (un identifiant WhatsApp masqué, plus long qu'un numéro, est écarté)
+        $normalized = collect([
+            WhatsappAccount::forStore($store->id)->value('display_phone'),
+            WhatsappLink::connectedFor($store->id)?->phone,
+            $store->whatsapp_phone,
+            $store->phone,
+        ])->map(fn ($phone) => $phone ? PhoneNumber::normalize($phone) : null)
+            ->first(fn ($phone) => $phone !== null && strlen($phone) <= 14);
 
         $url = $normalized ? 'https://wa.me/'.ltrim($normalized, '+') : null;
 
         return [
             'name' => $store->name,
-            'whatsapp' => $normalized ? PhoneNumber::display($normalized) : null,
+            'whatsapp' => $normalized ? self::fullNumber($normalized) : null,
             'whatsapp_url' => $url,
             // QR code qui ouvre la conversation WhatsApp (image en ligne, gardée une journée)
             'qr' => $url ? Cache::remember('live-qr:'.md5($url), now()->addDay(), fn () => (new QRCode(new QROptions([
                 'outputType' => QROutputInterface::GDIMAGE_PNG, 'scale' => 8, 'imageTransparent' => false,
             ])))->render($url)) : null,
         ];
+    }
+
+    /** Numéro complet, indicatif compris : +2250700000001 → « +225 07 00 00 00 01 » */
+    public static function fullNumber(string $normalized): string
+    {
+        if (strlen($normalized) === 14 && str_starts_with($normalized, '+'.PhoneNumber::DEFAULT_COUNTRY_CODE)) {
+            return '+'.PhoneNumber::DEFAULT_COUNTRY_CODE.' '.PhoneNumber::display($normalized);
+        }
+
+        return $normalized;
     }
 
     private function freeCode(): string
