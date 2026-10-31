@@ -156,6 +156,18 @@ class DeliveryRatesTest extends TestCase
         $this->storeApi($this->store, 'POST', "orders/{$order->id}/expedition/collected")->assertOk()->assertJsonPath('data.status', 'completed');
     }
 
+    public function test_an_order_in_town_is_saved_when_the_form_sends_empty_expedition_fields(): void
+    {
+        // Le formulaire envoie tous ses champs, dont ceux de l'expédition laissés vides
+        $this->storeApi($this->store, 'POST', 'orders', [
+            'source' => 'whatsapp', 'customer_name' => 'Fatou Diallo', 'customer_phone' => '0506070809',
+            'delivery_method' => 'delivery', 'shipping_place_id' => $this->place('Angré')->id, 'shipping_address' => 'Près du marché',
+            'scheduled_date' => today()->toDateString(), 'expedition_payer' => null, 'expedition_prepay' => null,
+            'items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 1]],
+        ])->assertCreated();
+        $this->assertFalse(Order::latest('id')->firstOrFail()->expedition_prepay);
+    }
+
     public function test_expedition_fees_paid_before_departure_or_offered_by_the_store(): void
     {
         // Payés par le client avant le départ : ajoutés à la commande au dépôt (noté par le vendeur)

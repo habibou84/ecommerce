@@ -639,3 +639,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Livreurs : « Mon espace livreur » réunit les courses de toutes ses boutiques, même de commerçants différents (filtre par boutique, argent et paie séparés, disponibilité par boutique, lien et notifications vers son espace d'accueil, un seul résumé du matin).
 - Écran du live simplifié : onglets « Mes produits » (un seul produit / défilement / comment commander, aperçu, produits à toucher, Produit suivant) et « Écran » (télé ou tablette : adresse + code, Tester ; TikTok LIVE Studio : lien à copier). Autres façons retirées.
 - Correction : « Faire livrer » dans la liste des commandes confie bien la commande au livreur choisi (le choix était perdu à la fermeture de la fenêtre).
+- Correction : « Le champ expedition prepay doit être vrai ou faux » à la création d'une commande hors expédition (champ vide envoyé par le formulaire).
