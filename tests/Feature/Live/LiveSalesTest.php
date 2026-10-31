@@ -113,7 +113,7 @@ class LiveSalesTest extends TestCase
         // Aucun WhatsApp relié : la page « Vendre en live » propose de le relier
         $this->storeApi($this->store, 'GET', 'lives')->assertOk()->assertJsonPath('meta.whatsapp', null);
         $items = $this->page('GET', '/live/etat')->assertOk()->assertJsonPath('data.items.0.remaining', 1)->json('data.items');
-        $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('EN DIRECT')->assertSee('A1');
+        $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('EN DIRECT')->assertSee('A1')->assertSee('Propulsé par')->assertSee('Jibiat Marchand');
 
         $angre = $this->place('Angré');
         $this->page('GET', '/live/lieux?q=angre')->assertOk()->assertJsonPath('data.0.id', $angre->id);

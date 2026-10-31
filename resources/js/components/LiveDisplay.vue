@@ -72,6 +72,11 @@ const ticker = computed(() => {
 watch(() => live.value?.ticker?.[0]?.id, () => (tickIndex.value = 0))
 
 const money = (v) => `${new Intl.NumberFormat('fr-FR').format(v).replace(/ /g, ' ')} F`
+// Numéro complet : l'indicatif (+225) plus petit, pour que le numéro tienne en entier sur une ligne
+const number = computed(() => {
+  const [first, ...rest] = String(store.value?.whatsapp || '').split(' ')
+  return first.startsWith('+') && rest.length ? { prefix: first, local: rest.join(' ') } : { prefix: '', local: store.value?.whatsapp || '' }
+})
 const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.code}` : 'Épuisé') : i.remaining === 1 ? '🔥 Dernière pièce !' : i.remaining <= 3 ? `🔥 Plus que ${i.remaining} !` : `${i.remaining} pièces`)
 </script>
 
@@ -93,7 +98,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
         <div v-if="store?.whatsapp" class="ld-qr">
           <img v-if="store.qr" :src="store.qr" alt="QR code WhatsApp" />
           <small class="ld-wa-label">WhatsApp</small>
-          <b>{{ store.whatsapp }}</b>
+          <b><small v-if="number.prefix" class="ld-cc">{{ number.prefix }}</small>{{ number.local }}</b>
           <small>Paiement à la livraison</small>
         </div>
       </div>
@@ -121,7 +126,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
             <img v-if="store.qr" :src="store.qr" alt="QR code WhatsApp" />
             <div class="ld-wa-text">
               <small class="ld-wa-label">WhatsApp</small>
-              <b>{{ store.whatsapp }}</b>
+              <b><small v-if="number.prefix" class="ld-cc">{{ number.prefix }}</small>{{ number.local }}</b>
               <span>Envoyez <u>{{ shown.code }}</u><template v-if="layout !== 'square'"> (ou plusieurs : {{ shown.code }} + …)</template><template v-if="store.qr && layout === 'land'"><br>ou scannez le code</template></span>
             </div>
           </div>
@@ -132,8 +137,12 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
       <div v-if="layout !== 'port'" class="ld-ticker">
         <span class="ld-ticker-text">{{ ticker }}</span>
         <span v-if="!showHow" class="ld-ticker-pos">{{ position }} / {{ items.length }}</span>
+        <span class="ld-brand">Propulsé par <b>Jibiat Marchand</b><template v-if="layout === 'land'"> · jibiat-marchand.com</template></span>
       </div>
-      <p v-else-if="!showHow" class="ld-mini-ticker">{{ ticker }}</p>
+      <template v-else>
+        <p v-if="!showHow" class="ld-mini-ticker">{{ ticker }}</p>
+        <p class="ld-brand-line">Propulsé par <b>Jibiat Marchand</b> · jibiat-marchand.com</p>
+      </template>
     </div>
   </div>
 </template>
@@ -161,9 +170,10 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 /* Bloc WhatsApp : QR code (sur fond blanc pour se scanner) et numéro en gros */
 .ld-wa { display: flex; align-items: center; background: #fff; color: #064e3b; flex-shrink: 0; }
 .ld-wa img { display: block; flex-shrink: 0; image-rendering: pixelated; }
-.ld-wa-text { min-width: 0; }
+.ld-wa-text { flex: 1; min-width: 0; container-type: inline-size; }
 .ld-wa-label { display: flex; align-items: center; gap: .35em; font-weight: 800; color: #047857; }
 .ld-wa-label::before { content: ''; width: 1.05em; height: 1.05em; border-radius: 50%; background: #25d366; box-shadow: inset 0 0 0 .22em #25d366, inset 0 0 0 .55em #fff; }
+.ld-cc { font-size: .6em; margin-right: .3em; letter-spacing: 0; }
 .ld-wa b { display: block; font-weight: 900; letter-spacing: -.02em; white-space: nowrap; color: #0f172a; }
 .ld-wa span { display: block; font-weight: 700; color: #475569; }
 .ld-wa u { text-decoration: none; background: #dc2626; color: #fff; border-radius: .2em; padding: 0 .25em; font-weight: 900; }
@@ -171,6 +181,11 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .ld-ticker { display: flex; align-items: center; gap: 1em; background: #047857; font-weight: 800; flex-shrink: 0; }
 .ld-ticker-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ld-ticker-pos { color: #a7f3d0; white-space: nowrap; }
+/* Mention Jibiat Marchand : discrète, jamais au-dessus du prix ni du code */
+.ld-brand { padding-left: 1em; border-left: .08em solid rgba(167, 243, 208, .4); color: #a7f3d0; font-weight: 600; font-size: .62em; white-space: nowrap; }
+.ld-brand b { color: #fff; font-weight: 800; }
+.ld-brand-line { text-align: center; color: rgba(255, 255, 255, .6); font-size: .85em; font-weight: 600; padding: .5em 0 .7em; flex-shrink: 0; }
+.ld-brand-line b { color: #fff; }
 .ld-mini-ticker { text-align: center; color: #a7f3d0; font-weight: 700; padding: .4em 1em .5em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9em; }
 
 /* Paysage : télé, ordinateur — la photo sur la moitié gauche, toute la hauteur */
@@ -188,7 +203,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .is-land .ld-wa { margin-top: auto; gap: 1.1em; padding: 1em; border-radius: 1.1em; }
 .is-land .ld-wa img { width: 12.5em; }
 .is-land .ld-wa-label { font-size: 1.4em; }
-.is-land .ld-wa b { font-size: 2.7em; margin: .15em 0 .25em; }
+.is-land .ld-wa b { font-size: min(2.7em, 9.5cqi); margin: .15em 0 .25em; }
 .is-land .ld-wa span { font-size: 1.4em; }
 .is-land .ld-ticker { height: 2.5em; padding: 0 1.25em; font-size: 1.4em; }
 
@@ -207,7 +222,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .is-square .ld-wa { margin-top: auto; flex-direction: column; gap: .4em; padding: .75em; border-radius: 1em; text-align: center; }
 .is-square .ld-wa img { width: 10.6em; }
 .is-square .ld-wa-label { justify-content: center; font-size: .95em; }
-.is-square .ld-wa b { font-size: 2em; margin: .1em 0; }
+.is-square .ld-wa b { font-size: min(2em, 9.5cqi); margin: .1em 0; }
 .is-square .ld-wa span { font-size: .95em; }
 .is-square .ld-ticker { height: 2.75em; padding: 0 1.1em; font-size: 1em; }
 
@@ -226,7 +241,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .is-port .ld-wa { gap: .8em; padding: .7em; margin: .6em -.3em 0; border-radius: 1.1em; }
 .is-port .ld-wa img { width: 7.4em; }
 .is-port .ld-wa-label { font-size: 1em; }
-.is-port .ld-wa b { font-size: 1.95em; margin: .1em 0 .25em; }
+.is-port .ld-wa b { font-size: min(1.95em, 9.5cqi); margin: .1em 0 .25em; }
 .is-port .ld-wa span { font-size: 1em; }
 
 /* Comment commander */

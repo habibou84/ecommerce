@@ -73,7 +73,8 @@ class WhatsAppLinkController extends Controller
         }
         $link = WhatsappLink::firstOrNew(['store_id' => $this->currentStore()->id]);
         if (! $link->isConnected()) {
-            $link->forceFill(['status' => 'pending', 'last_error' => null])->save();
+            // Le numéro tapé est gardé : WhatsApp ne renvoie parfois qu'un identifiant masqué une fois relié
+            $link->forceFill(['status' => 'pending', 'phone' => $phone, 'last_error' => null])->save();
         }
         try {
             $live = $this->bridge->pair($link, $phone);
