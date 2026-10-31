@@ -1,4 +1,6 @@
 <script setup>
+import AiMeter from '../../../components/AiMeter.vue'
+import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
@@ -447,7 +449,7 @@ async function analyse(withAssistant = false) {
       if (paste.value.trim()) body.append('text', paste.value)
       screenshots.value.forEach((f) => body.append('screenshots[]', f))
       r = (await http.post('/orders/draft', body)).data.data
-      if (auth.profile?.ai) auth.profile.ai.used++
+      countAiAction(auth.profile?.ai)
     } else {
       r = (await http.post('/orders/parse', { text: paste.value })).data.data
     }
@@ -644,12 +646,13 @@ async function save() {
               <Icon name="image" :size="16" />Capture d'écran{{ screenshots.length ? ` (${screenshots.length})` : '' }}
               <input type="file" accept="image/*" multiple class="hidden" @change="onScreenshots" />
             </label>
-            <button type="button" class="btn-brand" :disabled="parsing || (paste.trim().length < 5 && !screenshots.length) || (ai.limit !== null && ai.used >= ai.limit)" @click="analyse(true)">
+            <button type="button" class="btn-brand" :disabled="parsing || (paste.trim().length < 5 && !screenshots.length) || aiExhausted(ai)" @click="analyse(true)">
               <Icon name="sparkles" :size="16" />{{ parsing ? 'L\'assistant lit…' : 'Analyser avec l\'assistant' }}
             </button>
           </template>
         </div>
-        <p v-if="ai.enabled" class="text-xs text-slate-500">L'assistant comprend les messages mal écrits, en plusieurs fois ou en capture d'écran ({{ ai.used }}{{ ai.limit !== null ? ` / ${ai.limit}` : '' }} action(s) ce mois-ci).</p>
+        <p v-if="ai.enabled" class="text-xs text-slate-500">L'assistant comprend les messages mal écrits, en plusieurs fois ou en capture d'écran.</p>
+        <AiMeter />
       </div>
     </section>
     <Alert v-if="parseInfo" tone="info">{{ parseInfo }}</Alert>

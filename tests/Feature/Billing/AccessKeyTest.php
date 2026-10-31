@@ -100,7 +100,7 @@ class AccessKeyTest extends TestCase
         $this->redeem($awa, 'ZZZZ-ZZZZ')->assertStatus(422)->assertJsonValidationErrors('code');
         $this->redeem($awa, strtolower($display))->assertOk()->assertJsonPath('data.badge', 'Membre Premium Jibiat Marchand n° 002')->assertJsonPath('data.state', 'active');
         $this->billing($awa)->assertJsonPath('data.plan.code', 'pro')->assertJsonPath('data.free.forever', true)->assertJsonPath('data.free.from', 'key')
-            ->assertJsonPath('data.access_key.founder', true)->assertJsonPath('data.usage.ai_actions_per_month.limit', 0);
+            ->assertJsonPath('data.access_key.founder', true)->assertJsonPath('data.usage.ai_actions_per_month.limit', 300);
         $this->storeApi($awa, 'GET', 'auth/me')->assertJsonPath('data.store.access_key.badge', 'Membre Premium Jibiat Marchand n° 002');
 
         // Une seule fois, une seule carte fondateur par boutique

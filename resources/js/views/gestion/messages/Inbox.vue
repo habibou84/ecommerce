@@ -1,4 +1,6 @@
 <script setup>
+import AiMeter from '../../../components/AiMeter.vue'
+import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import NetworkMark from '../../../components/NetworkMark.vue'
 import Icon from '../../../components/Icon.vue'
 import WhatsAppLink from '../../../components/WhatsAppLink.vue'
@@ -53,7 +55,7 @@ async function suggest() {
     const { data } = await http.post(`/conversations/${props.id}/suggest`)
     reply.value = data.data.reply
     suggestionCheck.value = data.data.to_check ?? ''
-    if (auth.profile?.ai) auth.profile.ai.used++
+    countAiAction(auth.profile?.ai)
     nextTick(grow)
   } catch (e) {
     replyError.value = errorMessage(e)
@@ -428,11 +430,12 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
         <form v-if="current.can_reply && !selecting" class="space-y-2 border-t border-slate-100 p-3" @submit.prevent="send()">
           <p v-if="replyError" class="text-sm text-red-600" role="alert">{{ replyError }}</p>
           <div v-if="ai.enabled" class="flex flex-wrap items-center gap-2">
-            <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="suggesting || (ai.limit !== null && ai.used >= ai.limit)" @click="suggest">
+            <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="suggesting || aiExhausted(ai)" @click="suggest">
               <Icon name="sparkles" :size="16" class="mr-1 inline-block align-[-3px]" />{{ suggesting ? 'L\'assistant écrit…' : 'Proposer une réponse' }}
             </button>
             <span class="hidden text-xs text-slate-500 sm:inline">Avec vos prix, votre stock et vos frais de livraison. Relisez avant d'envoyer.</span>
           </div>
+          <AiMeter v-if="ai.enabled" />
           <p v-if="suggestionCheck" class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">À vérifier : {{ suggestionCheck }}</p>
           <div class="flex items-end gap-2">
             <textarea

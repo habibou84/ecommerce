@@ -1,9 +1,11 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AiRechargeModal from '../components/AiRechargeModal.vue'
 import ColorIcon from '../components/ColorIcon.vue'
 import Icon from '../components/Icon.vue'
 import NotificationBell from '../components/NotificationBell.vue'
+import { aiRecharge } from '../lib/aiQuota'
 import { inApp } from '../lib/app'
 import { registerDevice, unregisterDevice } from '../lib/push'
 import { boot } from '../lib/boot'
@@ -424,5 +426,7 @@ async function switchTo(store) {
     <div v-if="switchNotice" class="fixed inset-x-4 bottom-20 lg:bottom-4 z-50 mx-auto max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-center text-sm font-medium text-white shadow-lg" role="status">
       {{ switchNotice }}
     </div>
+    <!-- Plus d'actions de l'assistant IA : fenêtre de recharge, de n'importe quel écran -->
+    <AiRechargeModal v-if="aiRecharge.open" />
   </div>
 </template>
