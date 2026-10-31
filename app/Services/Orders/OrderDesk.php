@@ -666,7 +666,8 @@ class OrderDesk
         if (! empty($data['expedition_payer'])) {
             $order->expedition_payer = $data['expedition_payer'];
         }
-        if (array_key_exists('expedition_prepay', $data)) {
+        // Vide (commande sans expédition jusqu'ici) : le réglage de la boutique, choisi plus haut, reste
+        if (isset($data['expedition_prepay'])) {
             $order->expedition_prepay = (bool) $data['expedition_prepay'];
         }
     }
