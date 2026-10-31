@@ -645,3 +645,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Nouvelle commande : après l'enregistrement, un résumé propose « Enregistrer une nouvelle commande », « Dupliquer » (mêmes articles et même livraison, autre client), « Imprimer l'étiquette », « Voir la commande » et « Liste des commandes ».
 - Nouvelle commande, client connu : « Reprendre l'adresse » remplit le quartier et l'adresse, les montre en surbrillance et la carte affiche « ✓ Adresse reprise » (le bouton disparaît).
 - Fiche commande : un livreur déjà choisi s'affiche avec « Modifier » à la place de « Faire livrer » ; « Autre livreur » devient « Modifier le livreur ».
+- Live, onglet Produits : « Que voir sur l'écran du live ? » avec « Montrer un seul produit », « Faire défiler tous les produits », « Montrer comment commander » (plus de doigt pointé).
