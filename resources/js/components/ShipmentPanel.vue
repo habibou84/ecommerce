@@ -3,6 +3,7 @@ import Icon from './Icon.vue'
 import { useAuthStore } from '../stores/auth'
 import CourierWhatsAppButton from './CourierWhatsAppButton.vue'
 import NewCourierForm from './NewCourierForm.vue'
+import DelivererPicker from './DelivererPicker.vue'
 import { computed, reactive, ref } from 'vue'
 import Alert from './Alert.vue'
 import Field from './Field.vue'
@@ -28,6 +29,31 @@ const emit = defineEmits(['changed'])
 const shipments = computed(() => [...(props.order.shipments ?? [])].reverse())
 const active = computed(() => shipments.value.find((s) => !['cancelled', 'rejected'].includes(s.status)))
 const canShip = computed(() => props.order.delivery_method === 'delivery' && ['confirmed', 'processing'].includes(props.order.status) && !active.value)
+
+// Livreur ou entreprise déjà choisi pour la commande (pas encore de course) : affiché à la place de « Faire livrer »
+const planned = computed(() => (!active.value && props.order.delivery_method === 'delivery' ? props.order.planned_courier ?? props.order.planned_carrier ?? null : null))
+const plannedKey = computed(() => (props.order.planned_courier ? `courier:${props.order.planned_courier.id}` : props.order.planned_carrier ? `carrier:${props.order.planned_carrier.id}` : ''))
+const pickerOpen = ref(false)
+const pickerOptions = ref(null)
+async function openPicker() {
+  error.value = ''
+  pickerOpen.value = true
+  pickerOptions.value ??= (await http.post('/orders/delivery-options', {
+    place_id: props.order.shipping_place_id ?? null,
+    items: (props.order.items ?? []).filter((i) => i.variant_id).map((i) => ({ variant_id: i.variant_id, quantity: i.quantity })),
+  }).catch(() => ({ data: { data: null } }))).data.data
+}
+// Commande à confirmer : le choix est gardé ; confirmée : la course part aussitôt chez le livreur choisi
+async function assignTo(key) {
+  pickerOpen.value = false
+  if (!key) return
+  const [type, id] = key.split(':')
+  await run(async () => {
+    const { data } = await http.post('/orders/bulk', { ids: [props.order.id], action: 'assign', [type === 'courier' ? 'courier_id' : 'carrier_connection_id']: Number(id) })
+    const skipped = data.data.skipped?.[0]
+    if (skipped) throw new Error(skipped.reason)
+  }, false)
+}
 
 const modal = ref(null) // 'ship' | 'status' | 'cancel'
 const quotes = ref(null)
@@ -185,9 +211,19 @@ async function whatsapp(s) {
   <section class="card space-y-3 p-4 text-sm">
     <div class="flex items-center gap-2">
       <h3 class="font-semibold">Livraison</h3>
-      <button v-if="canShip" class="btn-brand ml-auto px-3 py-1.5" @click="openShip"><Icon name="truck" :size="16" class="mr-1 inline-block align-[-3px]" />Faire livrer</button>
+      <button v-if="canShip && !planned" class="btn-brand ml-auto px-3 py-1.5" @click="openShip"><Icon name="truck" :size="16" class="mr-1 inline-block align-[-3px]" />Faire livrer</button>
     </div>
-    <p v-if="!shipments.length && !canShip" class="text-slate-500">
+    <!-- Livreur déjà choisi : son nom et « Modifier » au lieu de « Faire livrer » -->
+    <div v-if="planned" class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+      <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><Icon name="truck" :size="18" /></span>
+      <span class="min-w-0 flex-1">
+        <span class="block font-semibold">{{ planned.name }}</span>
+        <span class="block text-xs text-emerald-800">{{ order.status === 'pending_confirmation' ? 'Livreur choisi · la course part dès la confirmation' : canShip ? 'Livreur choisi · course en préparation' : 'Livreur choisi' }}</span>
+      </span>
+      <button type="button" class="btn-secondary shrink-0 px-3 py-1.5" :disabled="busy" @click="openPicker">Modifier</button>
+    </div>
+    <button v-if="planned && canShip" type="button" class="btn-brand w-full py-2" :disabled="busy" @click="assignTo(plannedKey)">Envoyer la course à {{ planned.name }}</button>
+    <p v-if="!shipments.length && !canShip && !planned" class="text-slate-500">
       {{ order.delivery_method === 'pickup' ? 'Retrait en boutique.' : 'Confirmez la commande pour la faire livrer.' }}
     </p>
     <Alert v-if="error && !modal">{{ error }}</Alert>
@@ -242,7 +278,7 @@ async function whatsapp(s) {
       <div v-if="!s.is_final" class="flex flex-wrap gap-2 pt-1">
         <template v-if="s.mode === 'own_courier'">
           <button v-if="s.status === 'returning'" class="btn-brand px-2 py-1" :disabled="busy" @click="received(s)">Colis reçu à la boutique</button>
-          <button v-else-if="!['in_transit', 'out_for_delivery'].includes(s.status)" class="btn-secondary px-2 py-1" @click="openReassign(s)">Autre livreur</button>
+          <button v-else-if="!['in_transit', 'out_for_delivery'].includes(s.status)" class="btn-secondary px-2 py-1" @click="openReassign(s)">Modifier le livreur</button>
         </template>
         <template v-else-if="s.carrier?.driver === 'manual'">
           <button class="btn-secondary px-2 py-1" @click="whatsapp(s)"><Icon name="messages" :size="16" class="mr-1 inline-block align-[-3px]" />Envoyer la course</button>
@@ -428,5 +464,6 @@ async function whatsapp(s) {
         <button class="btn-danger w-full" :disabled="busy">Annuler la course</button>
       </form>
     </Modal>
+    <DelivererPicker v-if="pickerOpen" :model-value="plannedKey" :options="pickerOptions" :place-label="order.shipping_place_label ?? ''" @update:model-value="assignTo" @close="pickerOpen = false" />
   </section>
 </template>
