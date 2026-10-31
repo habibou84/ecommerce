@@ -16,6 +16,7 @@ use App\Services\Ai\Assistant;
 use App\Services\Console\SupportSessions;
 use App\Services\Couriers\CourierRoster;
 use App\Services\Materiel\MaterielShop;
+use App\Services\Platform\Features;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -220,7 +221,9 @@ class AuthController extends Controller
             // Assistant IA : activé sur la plateforme, actions utilisées et quota de l'offre ce mois-ci
             'ai' => app(Assistant::class)->status($store),
             // Liaison WhatsApp par QR code autorisée pour la boutique (console) : sinon pas de « Relier mon WhatsApp »
-            'whatsapp_qr' => (bool) $store->whatsapp_qr_enabled,
+            'whatsapp_qr' => $store->whatsapp_qr_enabled && app(Features::class)->enabled('whatsapp_qr', $store),
+            // Fonctions allumées dans la console pour cette boutique (masquées, en test ou actives)
+            'features' => app(Features::class)->forStore($store),
         ];
     }
 }

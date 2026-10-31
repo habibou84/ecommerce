@@ -244,6 +244,9 @@ const replyUntil = computed(() => (current.value?.reply_until ? formatDateTime(c
 const waLink = computed(() => (current.value?.phone ? `https://wa.me/${current.value.phone.replace(/\D/g, '')}` : ''))
 const CHANNELS = { whatsapp: ['WhatsApp'], messenger: ['Messenger'], instagram: ['Instagram'] }
 const channelLabel = (c) => CHANNELS[c?.channel]?.[0] ?? 'WhatsApp'
+// Messenger et Instagram : seulement quand la console les a allumés
+const metaMessages = computed(() => auth.profile?.features?.meta_messages !== false)
+const sources = computed(() => (metaMessages.value ? 'votre WhatsApp, votre page Facebook ou votre Instagram' : 'votre WhatsApp'))
 const filters = [
   { value: 'all', label: 'Toutes' },
   { value: 'unread', label: 'Non lues' },
@@ -304,7 +307,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
     </template>
     <Alert v-else-if="justLinked" tone="success">WhatsApp relié : les messages de vos clients arrivent maintenant ici, et vous répondez depuis votre numéro à tout moment.</Alert>
     <Alert v-else-if="listLoaded && !connected" tone="warning">
-      Les messages des clients arrivent ici quand votre WhatsApp, votre page Facebook ou votre Instagram sont connectés. Demandez au gérant de la boutique de les relier.
+      Les messages des clients arrivent ici quand {{ sources }} {{ metaMessages ? 'sont connectés' : 'est connecté' }}. Demandez au gérant de la boutique de les relier.
     </Alert>
 
     <div class="card grid grid-cols-1 overflow-hidden lg:grid-cols-[20rem_1fr]" :style="{ height: `calc(100vh - ${banner ? 13.5 : 9}rem)`, minHeight: '28rem' }">
@@ -470,7 +473,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
         <div>
           <Icon name="messages" :size="36" class="mx-auto text-slate-400" />
           <p class="mt-2">Choisissez une conversation.</p>
-          <p class="mt-1">Les messages des clients arrivent ici dès qu'ils écrivent sur votre WhatsApp, votre page Facebook ou votre Instagram.</p>
+          <p class="mt-1">Les messages des clients arrivent ici dès qu'ils écrivent sur {{ sources }}.</p>
         </div>
       </section>
     </div>

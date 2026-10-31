@@ -10,6 +10,7 @@ use App\Models\SocialPost;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Marketing\ShareImages;
+use App\Services\Platform\Features;
 use Illuminate\Support\Carbon;
 use Throwable;
 
@@ -111,7 +112,10 @@ class SocialPublisher
     {
         // Publiées par la file d'attente (appels Facebook/TikTok lents) : chaque publication est d'abord « réservée »
         // pour ne pas partir deux fois si la tâche repasse avant la fin
-        $due = SocialPost::withoutGlobalScopes()->where('status', 'scheduled')->whereNotNull('scheduled_at')->where('scheduled_at', '<=', now())->pluck('id');
+        // Réseaux éteints dans la console : la publication attend (elle part quand ils sont rallumés)
+        $features = app(Features::class);
+        $due = SocialPost::withoutGlobalScopes()->with('store')->where('status', 'scheduled')->whereNotNull('scheduled_at')->where('scheduled_at', '<=', now())->get()
+            ->filter(fn (SocialPost $post) => $features->enabled('social_meta', $post->store) || $features->enabled('social_tiktok', $post->store))->pluck('id');
         $queued = 0;
         foreach ($due as $id) {
             if (SocialPost::withoutGlobalScopes()->whereKey($id)->where('status', 'scheduled')->update(['status' => 'queued']) === 1) {

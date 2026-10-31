@@ -10,7 +10,9 @@ use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Services\Messaging\ReplySuggester;
 use App\Services\Orders\OrderMessageParser;
+use App\Services\Platform\Features;
 use App\Services\WhatsApp\Inbox;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Jibiat\Socle\PhoneNumber;
@@ -30,7 +32,7 @@ class ConversationController extends Controller
     {
         $request->validate(['filter' => ['nullable', 'in:all,unread,without_order'], 'q' => ['nullable', 'string', 'max:60']]);
 
-        $query = Conversation::query()->whereNotNull('last_inbound_at')->with('order.store')
+        $query = $this->visible()->whereNotNull('last_inbound_at')->with('order.store')
             ->when($request->input('filter') === 'unread', fn ($q) => $q->where('unread_count', '>', 0))
             ->when($request->input('filter') === 'without_order', fn ($q) => $q->whereNull('order_id'))
             ->when($request->filled('q'), function ($q) use ($request) {
@@ -47,7 +49,8 @@ class ConversationController extends Controller
             'meta' => ['total' => $page->total(), 'last_page' => $page->lastPage(), 'unread' => $this->unreadCount()],
             // WhatsApp relié (QR code ou numéro) : sinon la boîte propose de le relier
             'linked' => WhatsappLink::query()->where('status', 'connected')->exists(),
-            'connected' => WhatsappAccount::query()->exists() || WhatsappLink::query()->where('status', 'connected')->exists() || SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists(),
+            'connected' => WhatsappAccount::query()->exists() || WhatsappLink::query()->where('status', 'connected')->exists()
+                || (app(Features::class)->enabled('meta_messages', $this->currentStore()) && SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists()),
         ]);
     }
 
@@ -58,7 +61,7 @@ class ConversationController extends Controller
 
     public function show(int $conversation): JsonResponse
     {
-        $model = Conversation::with(['order.store', 'customer'])->findOrFail($conversation);
+        $model = $this->visible()->with(['order.store', 'customer'])->findOrFail($conversation);
         $this->inbox->markRead($model);
 
         return response()->json(['data' => $this->detail($model)]);
@@ -70,7 +73,7 @@ class ConversationController extends Controller
     public function older(Request $request, int $conversation): JsonResponse
     {
         $before = (int) $request->validate(['before' => ['required', 'integer']])['before'];
-        $model = Conversation::findOrFail($conversation);
+        $model = $this->visible()->findOrFail($conversation);
         $page = $model->messages()->with('user:id,name')->where('id', '<', $before)
             ->latest('sent_at')->latest('id')->limit(self::PAGE + 1)->get();
 
@@ -83,7 +86,7 @@ class ConversationController extends Controller
     public function reply(Request $request, int $conversation): JsonResponse
     {
         $data = $request->validate(['body' => ['required', 'string', 'max:4000']], [], ['body' => 'message']);
-        $model = Conversation::findOrFail($conversation);
+        $model = $this->visible()->findOrFail($conversation);
         $this->inbox->reply($model, trim($data['body']), $request->user());
 
         return response()->json(['data' => $this->detail($model->fresh(['order.store', 'customer']))], 201);
@@ -94,7 +97,7 @@ class ConversationController extends Controller
      */
     public function suggest(Request $request, int $conversation, ReplySuggester $suggester): JsonResponse
     {
-        return response()->json(['data' => $suggester->suggest(Conversation::with(['store', 'order'])->findOrFail($conversation), $request->user())]);
+        return response()->json(['data' => $suggester->suggest($this->visible()->with(['store', 'order'])->findOrFail($conversation), $request->user())]);
     }
 
     /**
@@ -120,7 +123,17 @@ class ConversationController extends Controller
 
     private function unreadCount(): int
     {
-        return Conversation::query()->where('unread_count', '>', 0)->count();
+        return $this->visible()->where('unread_count', '>', 0)->count();
+    }
+
+    /**
+     * Conversations affichées : Messenger et Instagram seulement quand la console les a allumés.
+     *
+     * @return Builder<Conversation>
+     */
+    private function visible(): Builder
+    {
+        return Conversation::query()->when(! app(Features::class)->enabled('meta_messages', $this->currentStore()), fn ($q) => $q->where('channel', 'whatsapp'));
     }
 
     /**

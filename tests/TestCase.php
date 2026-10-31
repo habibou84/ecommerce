@@ -6,9 +6,11 @@ use App\Enums\Role;
 use App\Enums\SubscriptionStatus;
 use App\Enums\UserStatus;
 use App\Models\Plan;
+use App\Models\PlatformSetting;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\StoreRoles;
+use App\Services\Platform\Features;
 use App\Support\Tenancy;
 use Database\Seeders\PlacesSeeder;
 use Database\Seeders\PlanSeeder;
@@ -31,6 +33,11 @@ abstract class TestCase extends BaseTestCase
         $this->withoutVite();
 
         $this->seed([RolesAndPermissionsSeeder::class, PlanSeeder::class, PlacesSeeder::class, ThemeSeeder::class]);
+
+        // Toutes les fonctions allumées : chaque test essaie la sienne (l'extinction a ses propres tests)
+        foreach (array_keys(Features::FEATURES) as $key) {
+            PlatformSetting::put("feature.{$key}", 'on');
+        }
     }
 
     /**

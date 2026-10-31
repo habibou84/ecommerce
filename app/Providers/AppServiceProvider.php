@@ -22,6 +22,7 @@ use App\Services\Billing\PremiumCards;
 use App\Services\Customers\Loyalty;
 use App\Services\Mail\GoogleMail;
 use App\Services\Places\Places;
+use App\Services\Platform\Features;
 use App\Services\Sms\OrangeSmsGateway;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
@@ -44,6 +45,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // Une boutique par requête (réinitialisée entre deux requêtes d'un même processus)
         $this->app->scoped(Tenancy::class);
+        $this->app->scoped(Features::class);
         // Lieux visibles d'une boutique : mis en cache le temps de la requête
         $this->app->scoped(Places::class);
         // Gratuité donnée depuis la console : réglages lus une fois par requête

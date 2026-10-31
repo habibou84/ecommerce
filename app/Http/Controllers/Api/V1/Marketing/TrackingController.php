@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Services\Marketing\CatalogFeed;
 use App\Services\Marketing\MetaAds;
+use App\Services\Platform\Features;
 use App\Services\Social\MetaSocial;
 use App\Services\Social\SocialConnections;
 use Illuminate\Http\JsonResponse;
@@ -32,10 +33,11 @@ class TrackingController extends Controller
             // Achats envoyés par le serveur ces 30 derniers jours
             'conversions_sent' => Order::where('conversion_sent_at', '>=', now()->subDays(30))->count(),
             // Flux du catalogue pour Meta (Facebook, Instagram, WhatsApp) et Google Merchant
-            'catalog_feed_url' => app(CatalogFeed::class)->url($store),
+            // Catalogue Meta et branchement en un clic : seulement quand la console les a allumés
+            'catalog_feed_url' => app(Features::class)->enabled('meta_catalog', $store) ? app(CatalogFeed::class)->url($store) : null,
             'catalog_items' => count(app(CatalogFeed::class)->rows($store)),
             // Connexion Facebook pour la publicité : pixel et catalogue branchés par l'application
-            'meta_available' => MetaSocial::enabled(),
+            'meta_available' => MetaSocial::enabled() && app(Features::class)->enabled('meta_connect', $store),
             'meta_connection' => $meta ? [
                 'business' => $meta->name,
                 'catalog_id' => $store->marketingId('meta_catalog_id'),
