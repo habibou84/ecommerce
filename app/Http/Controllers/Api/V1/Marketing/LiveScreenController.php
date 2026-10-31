@@ -12,6 +12,7 @@ use App\Services\Live\LiveScreens;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use ZipArchive;
@@ -65,6 +66,15 @@ class LiveScreenController extends Controller
     public function link(): JsonResponse
     {
         return response()->json(['data' => $this->present($this->screens->link($this->currentStore()))]);
+    }
+
+    /** « Tester » : l'écran affiche « Écran connecté ✓ » pendant quelques secondes */
+    public function test(int $screen): JsonResponse
+    {
+        $model = LiveScreen::where('store_id', $this->currentStore()->id)->findOrFail($screen);
+        Cache::put(LiveScreens::testKey($model->id), true, now()->addSeconds(LiveScreens::TEST_SECONDS));
+
+        return response()->json(['data' => $this->present($model)]);
     }
 
     public function destroy(int $screen): JsonResponse

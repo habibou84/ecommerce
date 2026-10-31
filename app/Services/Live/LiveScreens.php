@@ -92,7 +92,16 @@ class LiveScreens
         $store = $screen->store;
         $session = LiveSales::current($store->id);
 
-        return ['store' => $this->storeInfo($store), 'live' => $session ? $this->live($session) : null];
+        return ['store' => $this->storeInfo($store), 'live' => $session ? $this->live($session) : null,
+            // « Tester » touché dans l'application : l'écran se signale en grand
+            'test' => Cache::has(self::testKey($screen->id))];
+    }
+
+    public const TEST_SECONDS = 10;
+
+    public static function testKey(int $screenId): string
+    {
+        return 'live-screen-test:'.$screenId;
     }
 
     /**

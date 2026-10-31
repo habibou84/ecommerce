@@ -32,7 +32,7 @@ const online = computed(() => screens.value.filter((s) => s.online))
 const state = computed(() => {
   if (online.value.length) return `● ${online.value.length} écran${online.value.length > 1 ? 's' : ''} allumé${online.value.length > 1 ? 's' : ''} · ${online.value.map((s) => s.name).join(', ')}`
   if (screens.value.length) return `${screens.value.length} écran${screens.value.length > 1 ? 's' : ''} relié${screens.value.length > 1 ? 's' : ''}, éteint${screens.value.length > 1 ? 's' : ''} pour l'instant`
-  return 'Télé, ordinateur, partage d\'écran ou cartes : à vous de choisir'
+  return 'Une télé, une tablette ou TikTok LIVE Studio'
 })
 
 // Ce que voient les clientes : vignette, phrase et moment où s'en servir
@@ -58,7 +58,7 @@ async function setMode(mode) {
         <span class="absolute left-0.5 top-0.5 rounded-sm border border-white bg-red-600 px-1 text-[9px] font-black leading-tight">A1</span>
       </span>
       <span class="min-w-0 flex-1">
-        <b class="block text-base leading-tight">Afficher mes articles dans le live</b>
+        <b class="block text-base leading-tight">Écran du live</b>
         <span class="mt-0.5 block text-xs font-semibold" :class="online.length ? 'text-emerald-300' : 'text-slate-300'">{{ state }}</span>
       </span>
     </RouterLink>
@@ -78,7 +78,7 @@ async function setMode(mode) {
       <p v-if="error" class="mt-2 text-sm text-red-600">{{ error }}</p>
     </div>
 
-    <RouterLink :to="`/gestion/live/${live.id}/afficher`" class="block bg-yellow-400 py-3 text-center text-sm font-black text-slate-900">{{ screens.length ? 'Changer de façon d\'afficher ›' : 'Choisir comment afficher ›' }}</RouterLink>
+    <RouterLink :to="`/gestion/live/${live.id}/afficher`" class="block bg-yellow-400 py-3 text-center text-sm font-black text-slate-900">{{ screens.length ? 'Mes produits et mon écran ›' : 'Connecter un écran ›' }}</RouterLink>
   </section>
 </template>
 
