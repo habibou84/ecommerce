@@ -192,7 +192,55 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
 
     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div class="min-w-0 space-y-4">
-        <!-- Vendre en live, en tête : invitation, live prêt à lancer ou live en direct (rose et violet, la couleur du live) -->
+        <!-- Dehors en ce moment : argent et colis chez les livreurs et les entreprises -->
+        <section v-if="stats?.couriers || stats?.carriers">
+          <h3 class="mb-2 text-[17px] font-extrabold">Dehors en ce moment</h3>
+          <div class="grid gap-3" :class="stats.couriers && stats.carriers ? 'sm:grid-cols-2' : ''">
+            <div v-if="stats.couriers" class="card p-4">
+              <RouterLink to="/gestion/caisse/livreurs" class="group flex items-center gap-3">
+                <ColorIcon name="moto" :size="42" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">Argent chez mes livreurs<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
+                  <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.couriers.cash) }}</span>
+                  <span class="block text-sm text-slate-500">{{ stats.couriers.holders ? `chez ${stats.couriers.holders} livreur${stats.couriers.holders > 1 ? 's' : ''}, pas encore versé` : 'Tout a été versé.' }}</span>
+                </span>
+              </RouterLink>
+              <ul v-if="stats.couriers.late.length || stats.couriers.over_limit.length" class="mt-3 space-y-1.5">
+                <li v-for="c in stats.couriers.late" :key="c.courier_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
+                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.name }} vous doit {{ money(c.held) }} {{ since(c.since) }}</span>
+                </li>
+                <li v-for="name in stats.couriers.over_limit.filter((n) => !stats.couriers.late.some((c) => c.name === n))" :key="name" class="flex items-center gap-2 rounded-xl bg-ocre-50 px-3 py-2 text-sm font-semibold text-ocre-800">
+                  <Icon name="alert" :size="16" class="shrink-0" />{{ name }} a dépassé son plafond
+                </li>
+              </ul>
+              <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
+                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f1ff] px-3 py-1 text-[#1d5bc7]"><Icon name="truck" :size="15" />{{ stats.couriers.on_the_way }} colis en route</RouterLink>
+                <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="stats.couriers.late_returns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ stats.couriers.to_bring_back }} à rapporter</RouterLink>
+              </div>
+            </div>
+            <div v-if="stats.carriers" class="card p-4">
+              <RouterLink to="/gestion/caisse/a-recevoir" class="group flex items-center gap-3">
+                <ColorIcon name="camion" :size="42" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">À recevoir des entreprises<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
+                  <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.carriers.amount) }}</span>
+                  <span class="block text-sm text-slate-500">{{ stats.carriers.amount ? 'courses livrées, pas encore reversées' : 'Rien en attente.' }}</span>
+                </span>
+              </RouterLink>
+              <ul v-if="stats.carriers.overdue.length" class="mt-3 space-y-1.5">
+                <li v-for="c in stats.carriers.overdue" :key="c.connection_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
+                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.carrier }} vous doit {{ money(c.amount) }} {{ since(c.since) }}</span>
+                </li>
+              </ul>
+              <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
+                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f1ff] px-3 py-1 text-[#1d5bc7]"><Icon name="truck" :size="15" />{{ stats.carriers.on_the_way }} colis en route</RouterLink>
+                <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="stats.carriers.late_returns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ stats.carriers.to_bring_back }} à rapporter</RouterLink>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Vendre en live, juste après l'argent chez les livreurs : invitation, live prêt à lancer ou live en direct (rose et violet, la couleur du live) -->
         <section v-if="live" class="relative overflow-hidden rounded-[24px] p-5 text-white" :class="live.state === 'live' ? 'bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400' : 'bg-live-grad'">
           <svg class="pointer-events-none absolute -right-8 -top-8 opacity-[.16]" width="180" height="180" viewBox="0 0 48 48" aria-hidden="true"><path d="M15.5 15.5a12 12 0 0 0 0 17M32.5 15.5a12 12 0 0 1 0 17M9.5 9.5a20 20 0 0 0 0 29M38.5 9.5a20 20 0 0 1 0 29" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" /><circle cx="24" cy="24" r="6" fill="#fff" /></svg>
           <template v-if="live.state === 'live'">
@@ -320,54 +368,6 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
           </span>
           <Icon name="chevron" :size="16" class="text-slate-400" />
         </RouterLink>
-
-        <!-- Dehors en ce moment : argent et colis chez les livreurs et les entreprises -->
-        <section v-if="stats?.couriers || stats?.carriers">
-          <h3 class="mb-2 text-[17px] font-extrabold">Dehors en ce moment</h3>
-          <div class="grid gap-3" :class="stats.couriers && stats.carriers ? 'sm:grid-cols-2' : ''">
-            <div v-if="stats.couriers" class="card p-4">
-              <RouterLink to="/gestion/caisse/livreurs" class="group flex items-center gap-3">
-                <ColorIcon name="moto" :size="42" />
-                <span class="min-w-0 flex-1">
-                  <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">Argent chez mes livreurs<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
-                  <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.couriers.cash) }}</span>
-                  <span class="block text-sm text-slate-500">{{ stats.couriers.holders ? `chez ${stats.couriers.holders} livreur${stats.couriers.holders > 1 ? 's' : ''}, pas encore versé` : 'Tout a été versé.' }}</span>
-                </span>
-              </RouterLink>
-              <ul v-if="stats.couriers.late.length || stats.couriers.over_limit.length" class="mt-3 space-y-1.5">
-                <li v-for="c in stats.couriers.late" :key="c.courier_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
-                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.name }} vous doit {{ money(c.held) }} {{ since(c.since) }}</span>
-                </li>
-                <li v-for="name in stats.couriers.over_limit.filter((n) => !stats.couriers.late.some((c) => c.name === n))" :key="name" class="flex items-center gap-2 rounded-xl bg-ocre-50 px-3 py-2 text-sm font-semibold text-ocre-800">
-                  <Icon name="alert" :size="16" class="shrink-0" />{{ name }} a dépassé son plafond
-                </li>
-              </ul>
-              <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
-                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f1ff] px-3 py-1 text-[#1d5bc7]"><Icon name="truck" :size="15" />{{ stats.couriers.on_the_way }} colis en route</RouterLink>
-                <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="stats.couriers.late_returns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ stats.couriers.to_bring_back }} à rapporter</RouterLink>
-              </div>
-            </div>
-            <div v-if="stats.carriers" class="card p-4">
-              <RouterLink to="/gestion/caisse/a-recevoir" class="group flex items-center gap-3">
-                <ColorIcon name="camion" :size="42" />
-                <span class="min-w-0 flex-1">
-                  <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">À recevoir des entreprises<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
-                  <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.carriers.amount) }}</span>
-                  <span class="block text-sm text-slate-500">{{ stats.carriers.amount ? 'courses livrées, pas encore reversées' : 'Rien en attente.' }}</span>
-                </span>
-              </RouterLink>
-              <ul v-if="stats.carriers.overdue.length" class="mt-3 space-y-1.5">
-                <li v-for="c in stats.carriers.overdue" :key="c.connection_id" class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" :class="lateTone(c.level)">
-                  <Icon name="alert" :size="16" class="shrink-0" /><span class="min-w-0 flex-1">{{ c.carrier }} vous doit {{ money(c.amount) }} {{ since(c.since) }}</span>
-                </li>
-              </ul>
-              <div class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
-                <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f1ff] px-3 py-1 text-[#1d5bc7]"><Icon name="truck" :size="15" />{{ stats.carriers.on_the_way }} colis en route</RouterLink>
-                <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="stats.carriers.late_returns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ stats.carriers.to_bring_back }} à rapporter</RouterLink>
-              </div>
-            </div>
-          </div>
-        </section>
 
         <!-- Guide de démarrage : disparaît quand l'essentiel est fait -->
         <section v-if="showGuide" class="card flex flex-wrap items-center gap-4 p-4 sm:p-5">
