@@ -105,14 +105,14 @@ async function saveTemplate(key) {
   if (await put({ templates: { [key]: name || null }, ...(name ? { automations: { [key]: true } } : {}) }, key)) delete editing[key]
 }
 
-// Connexion en un clic : la fenêtre Facebook s'ouvre depuis la plateforme (seul domaine déclaré chez Meta)
-const coexistence = ref(false)
+// Connexion en un clic : la fenêtre Facebook s'ouvre depuis la plateforme (seul domaine déclaré chez Meta).
+// Numéro déjà dans l'application WhatsApp Business : Meta le détecte et propose de l'y garder (coexistence).
 const connecting = ref(false)
 const warnings = ref([])
 function connectFacebook() {
   connecting.value = true
   const { app_id: appId, config_id: configId, graph_version: version } = props.data.embedded
-  window.location.assign(facebookRelayUrl(boot.platformUrl, { appId, configId, version, coexistence: coexistence.value }, window.location.origin + window.location.pathname))
+  window.location.assign(facebookRelayUrl(boot.platformUrl, { appId, configId, version, coexistence: 'auto' }, window.location.origin + window.location.pathname))
 }
 async function finishFacebook(result) {
   connecting.value = true
@@ -260,10 +260,32 @@ const META_STEPS = [
           <li class="rounded-xl bg-slate-50 p-3"><strong class="block">2. Code par SMS</strong><span class="text-slate-600">pour vérifier le numéro</span></li>
           <li class="rounded-xl bg-slate-50 p-3"><strong class="block">3. C'est prêt</strong><span class="text-slate-600">modèles de messages créés pour vous</span></li>
         </ul>
-        <label class="flex items-start gap-2 text-sm">
-          <input v-model="coexistence" type="checkbox" class="mt-0.5 h-4 w-4 accent-emerald-700" />
-          <span>Mon numéro est déjà dans l'application <strong>WhatsApp Business</strong> du téléphone et je veux continuer à l'utiliser.</span>
-        </label>
+        <!-- Bonnes pratiques : quel numéro, quel compte (Meta bloque souvent les comptes neufs ou incohérents) -->
+        <details class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" open>
+          <summary class="cursor-pointer font-bold">Avant de commencer : quel numéro et quel compte ?</summary>
+          <div class="mt-2 space-y-3">
+            <div>
+              <p class="font-semibold">Le numéro</p>
+              <ul class="ml-4 list-disc space-y-1">
+                <li>Un numéro <strong>de la boutique</strong>, ivoirien (+225), que vous garderez longtemps. L'idéal : une puce réservée à la boutique.</li>
+                <li>Il doit pouvoir recevoir un <strong>SMS ou un appel</strong> pour le code de vérification.</li>
+                <li><strong>Déjà dans l'application WhatsApp Business</strong> (mise à jour) : Meta le reconnaît et vous propose de le garder sur le téléphone. Vous répondez alors depuis le téléphone et depuis Jibiat Marchand.</li>
+                <li><strong>Dans WhatsApp « normal »</strong> (pas Business) : Meta le refuse. Passez d'abord ce numéro sur l'application WhatsApp Business (vos discussions sont gardées), utilisez-la quelques jours, puis revenez. Sinon, prenez un numéro sans WhatsApp.</li>
+                <li>Ne choisissez pas le <strong>numéro américain</strong> que Meta propose parfois : vos clients verraient un numéro étranger.</li>
+              </ul>
+            </div>
+            <div>
+              <p class="font-semibold">Le compte</p>
+              <ul class="ml-4 list-disc space-y-1">
+                <li>Le <strong>vrai compte Facebook du gérant</strong>, ancien et à son nom, avec la double authentification. Pas un compte créé pour l'occasion : Meta bloque souvent les comptes neufs.</li>
+                <li>Un compte Business (portefeuille Meta) au <strong>nom de la boutique</strong>, avec un e-mail qui fonctionne. Une page Facebook de la boutique aide beaucoup.</li>
+                <li>Nom affiché : <strong>le nom de la boutique</strong>, écrit comme sur sa page Facebook. Évitez les noms vagues, le mot « WhatsApp » et les majuscules partout.</li>
+                <li>Ajoutez une <strong>carte de paiement</strong> chez Meta : sans elle, les messages automatiques (confirmation, livraison…) ne partent pas.</li>
+                <li>Si Meta demande une vérification, faites-la sans recommencer la connexion plusieurs fois de suite.</li>
+              </ul>
+            </div>
+          </div>
+        </details>
         <div class="flex flex-wrap items-center gap-3">
           <button type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Connecter en un clic avec Facebook' }}</button>
           <span class="text-sm text-slate-500">Environ 5 minutes</span>

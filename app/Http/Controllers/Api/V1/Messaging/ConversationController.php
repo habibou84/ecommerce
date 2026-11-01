@@ -28,6 +28,24 @@ class ConversationController extends Controller
 
     public function __construct(private readonly Inbox $inbox) {}
 
+    /**
+     * Numéro officiel (Meta) et numéro relié par QR code, s'il y en a un.
+     *
+     * @return list<array{kind: string, phone: ?string, name: ?string}>
+     */
+    private function numbers(): array
+    {
+        $out = [];
+        if ($account = WhatsappAccount::query()->first()) {
+            $out[] = ['kind' => 'official', 'phone' => $account->display_phone, 'name' => $account->verified_name];
+        }
+        if ($link = WhatsappLink::query()->where('status', 'connected')->first()) {
+            $out[] = ['kind' => 'linked', 'phone' => $link->phone, 'name' => $link->name];
+        }
+
+        return $out;
+    }
+
     public function index(Request $request): JsonResponse
     {
         $request->validate(['filter' => ['nullable', 'in:all,unread,without_order'], 'q' => ['nullable', 'string', 'max:60']]);
@@ -47,8 +65,10 @@ class ConversationController extends Controller
         return response()->json([
             'data' => collect($page->items())->map(fn (Conversation $c) => $this->summary($c))->values(),
             'meta' => ['total' => $page->total(), 'last_page' => $page->lastPage(), 'unread' => $this->unreadCount()],
-            // WhatsApp relié (QR code ou numéro) : sinon la boîte propose de le relier
+            // WhatsApp relié (QR code ou numéro) : réponse possible à tout moment
             'linked' => WhatsappLink::query()->where('status', 'connected')->exists(),
+            // Numéros connectés, affichés en haut de la boîte (avec « Déconnecter » pour le gérant)
+            'numbers' => $this->numbers(),
             'connected' => WhatsappAccount::query()->exists() || WhatsappLink::query()->where('status', 'connected')->exists()
                 || (app(Features::class)->enabled('meta_messages', $this->currentStore()) && SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists()),
         ]);

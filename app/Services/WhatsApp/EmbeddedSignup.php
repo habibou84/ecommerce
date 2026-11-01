@@ -84,8 +84,10 @@ class EmbeddedSignup
         $warnings = [];
         $pin = $account->two_step_pin ?: (string) random_int(100000, 999999);
 
-        // Numéro gardé dans l'application WhatsApp Business (coexistence) : il est déjà actif chez Meta
-        if (! $coexistence) {
+        // Numéro gardé dans l'application WhatsApp Business (coexistence), ou déjà sur l'API de Meta : il est déjà
+        // actif, on ne l'active pas une seconde fois. Meta passe tout seul en coexistence quand le numéro est déjà
+        // dans l'application WhatsApp Business : le serveur le voit à « platform_type ».
+        if (! $coexistence && ! $this->alreadyOnCloud($phoneNumberId, $token)) {
             try {
                 $this->cloud->graph('POST', $phoneNumberId.'/register', $token, ['messaging_product' => 'whatsapp', 'pin' => $pin]);
             } catch (RuntimeException $e) {
@@ -117,5 +119,15 @@ class EmbeddedSignup
         $warnings = [...$warnings, ...$this->templates->install($account)];
 
         return ['account' => $account->fresh(), 'warnings' => $warnings];
+    }
+
+    /** Numéro déjà actif sur l'API de Meta (coexistence ou autre prestataire) ; en cas de doute, non */
+    private function alreadyOnCloud(string $phoneNumberId, string $token): bool
+    {
+        try {
+            return ($this->cloud->graph('GET', $phoneNumberId, $token, ['fields' => 'platform_type'])['platform_type'] ?? null) === 'CLOUD_API';
+        } catch (RuntimeException) {
+            return false;
+        }
     }
 }
