@@ -41,6 +41,8 @@ async function create() {
 }
 
 async function poll() {
+  // Écran caché ou en veille : on ne demande rien au serveur
+  if (document.hidden && data.value) return
   try {
     if (!token.value) await create()
     const res = (await http.get(`/screens/${token.value}`)).data.data
@@ -103,7 +105,7 @@ const digits = computed(() => (code.value || '····').split(''))
     </div>
 
     <!-- Pas encore relié : le code à taper dans l'application -->
-    <div v-else class="flex h-full flex-col items-center justify-center gap-[3vh] px-6 text-center">
+    <div v-else-if="!data" class="flex h-full flex-col items-center justify-center gap-[3vh] px-6 text-center">
       <p class="text-[3.2vh] font-black text-emerald-400">Jibiat Marchand</p>
       <h1 class="text-[4.6vh] font-extrabold">Écran du live</h1>
       <div class="flex gap-[2vh]">

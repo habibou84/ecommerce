@@ -34,14 +34,19 @@ class LiveScreenController extends Controller
         return response()->json(['data' => ['token' => $screen->token, 'code' => $screen->code]], 201);
     }
 
-    public function show(string $token): JsonResponse
+    public function show(Request $request, string $token): JsonResponse
     {
         $screen = LiveScreen::where('token', $token)->firstOrFail();
         if ($screen->store_id === null) {
             return response()->json(['data' => ['paired' => false, 'code' => $this->screens->pendingCode($screen)]]);
         }
 
-        return response()->json(['data' => ['paired' => true] + $this->screens->display($screen)]);
+        // Rien de neuf depuis la dernière demande : réponse vide (304), sans renvoyer photos ni QR codes
+        $response = response()->json(['data' => ['paired' => true] + $this->screens->display($screen)]);
+        $response->setEtag(md5((string) $response->getContent()))->headers->set('Cache-Control', 'no-cache, private');
+        $response->isNotModified($request);
+
+        return $response;
     }
 
     // ── Boutique ──

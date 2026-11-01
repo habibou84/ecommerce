@@ -120,6 +120,23 @@ class LiveScreensTest extends TestCase
         $this->platformApi('GET', 'screens/'.basename($link['url']))->assertNotFound();
     }
 
+    public function test_screens_share_one_computation_and_get_an_empty_answer_when_nothing_changed(): void
+    {
+        $created = $this->platformApi('POST', 'screens')->assertCreated()->json('data');
+        $this->storeApi($this->store, 'POST', 'lives/screens/pair', ['code' => $created['code']])->assertCreated();
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/start")->assertOk();
+        $first = $this->platformApi('GET', 'screens/'.$created['token'])->assertOk();
+
+        // Rien de neuf : réponse vide (304), sans renvoyer photos ni QR codes
+        $this->withHeaders(['If-None-Match' => $first->headers->get('ETag')]);
+        $this->platformApi('GET', 'screens/'.$created['token'])->assertStatus(304)->assertContent('');
+
+        // Une pièce prise : le calcul partagé est refait tout de suite, l'écran reçoit tout
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/reservations", ['code' => 'A2', 'name' => 'Awa Koné', 'phone' => '0707080910'])->assertOk();
+        $after = $this->platformApi('GET', 'screens/'.$created['token'])->assertOk();
+        $this->assertSame([0, 'Une cliente vient de prendre A2'], [$after->json('data.live.items.1.remaining'), $after->json('data.live.ticker.0.text')]);
+    }
+
     public function test_cards_of_the_live_are_images_ready_for_the_gallery(): void
     {
         $cards = $this->storeApi($this->store, 'GET', "lives/{$this->live}/cards")->assertOk()->json('data');
