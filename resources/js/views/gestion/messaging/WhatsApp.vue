@@ -8,11 +8,13 @@ import WhatsAppAssistant from '../../../components/WhatsAppAssistant.vue'
 import WhatsAppAutomations from '../../../components/WhatsAppAutomations.vue'
 import WhatsAppCatalog from '../../../components/WhatsAppCatalog.vue'
 import http, { errorMessage } from '../../../lib/http'
+import { boot } from '../../../lib/boot'
+import { facebookRelayUrl } from '../../../lib/facebook'
 import { formatDateTime } from '../../../lib/format'
 
 /**
- * Réglages › WhatsApp : un résumé (ce qui marche, ce qui manque), puis un onglet par sujet — conversations (WhatsApp
- * relié par QR code), messages automatiques (numéro officiel), assistant, catalogue, historique des envois.
+ * Réglages › WhatsApp : un résumé (ce qui marche, ce qui manque), puis un onglet par sujet — conversations (numéro
+ * officiel), messages automatiques (numéro officiel), assistant, catalogue, historique des envois.
  */
 const route = useRoute()
 const router = useRouter()
@@ -47,6 +49,29 @@ onMounted(async () => {
     error.value = errorMessage(e)
   }
 })
+
+// Connexion du numéro en haut de la page : « Connecter avec Facebook », ou numéro connecté avec « Déconnecter »
+const connecting = ref(false)
+const disconnecting = ref(false)
+function connect() {
+  const e = official.value?.embedded
+  if (!e) return (tab.value = 'messages') // sans connexion en un clic : connexion avancée dans l'onglet
+  connecting.value = true
+  window.location.assign(facebookRelayUrl(boot.platformUrl, { appId: e.app_id, configId: e.config_id, version: e.graph_version, coexistence: 'auto' }, window.location.origin + window.location.pathname))
+}
+async function disconnect() {
+  const a = official.value?.account
+  if (!window.confirm(`Déconnecter le numéro ${a?.display_phone ?? ''} ? Les messages de vos clients n'arriveront plus dans Messages et les messages automatiques s'arrêtent.`)) return
+  disconnecting.value = true
+  error.value = ''
+  try {
+    official.value = (await http.delete('/whatsapp')).data.data
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    disconnecting.value = false
+  }
+}
 
 const activeMessages = computed(() => {
   const a = official.value?.account
@@ -106,6 +131,25 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
           <p class="text-sm text-slate-500">{{ running }} sur {{ summary.length }} en marche · touchez une ligne pour la régler</p>
         </div>
       </div>
+      <!-- Numéro : connexion ou déconnexion, sans chercher dans les onglets -->
+      <div class="mt-3 flex flex-col gap-3 rounded-xl p-3 sm:flex-row sm:items-center" :class="official.account ? 'bg-emerald-50' : 'bg-amber-50'">
+        <span class="min-w-0 flex-1 text-sm">
+          <template v-if="official.account">
+            <strong class="block">Numéro connecté {{ official.account.display_phone || '' }}</strong>
+            <span class="text-xs text-slate-600">{{ official.account.verified_name ? `« ${official.account.verified_name} » · ` : '' }}{{ official.account.connection === 'embedded' ? 'Connecté avec Facebook' : 'Connecté avec vos identifiants Meta' }}</span>
+          </template>
+          <template v-else>
+            <strong class="block">Aucun numéro WhatsApp connecté</strong>
+            <span class="text-xs text-slate-600">Connectez votre numéro avec Facebook : messages des clients dans Messages et messages automatiques.</span>
+          </template>
+        </span>
+        <button v-if="!official.account" type="button" class="btn-brand w-full sm:w-auto" :disabled="connecting" @click="connect">{{ connecting ? 'Connexion…' : (official.embedded ? 'Connecter avec Facebook' : 'Connecter mon numéro') }}</button>
+        <button v-else type="button" class="btn-ghost self-start text-red-600 sm:self-auto" :disabled="disconnecting" @click="disconnect">{{ disconnecting ? 'Déconnexion…' : 'Déconnecter' }}</button>
+      </div>
+      <p v-if="!official.account && official.embedded" class="mt-2 text-xs text-slate-500">
+        Avant de commencer, lisez « quel numéro et quel compte » dans
+        <button type="button" class="font-medium text-emerald-700 underline" @click="tab = 'messages'">Messages automatiques</button>.
+      </p>
       <ul class="mt-3 grid gap-x-6 sm:grid-cols-2">
         <li v-for="s in summary" :key="s.key" class="border-t border-slate-100">
           <button type="button" class="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left hover:bg-slate-50" @click="tab = s.to ?? s.key">
@@ -138,7 +182,7 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
         </div>
       </div>
       <RouterLink v-if="official.account" to="/gestion/messages" class="btn-secondary">Ouvrir Messages</RouterLink>
-      <button v-else type="button" class="btn-brand" @click="tab = 'messages'">Connecter le numéro officiel</button>
+      <button v-else type="button" class="btn-brand" :disabled="connecting" @click="connect">{{ connecting ? 'Connexion…' : 'Connecter avec Facebook' }}</button>
     </section>
     <WhatsAppAutomations v-else-if="tab === 'messages'" :data="official" @update="official = $event" />
     <WhatsAppAssistant v-else-if="tab === 'assistant'" :data="sales" @update="sales = $event" />
