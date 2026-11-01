@@ -40,7 +40,8 @@ async function load() {
   try {
     live.value = (await http.get(`/lives/${props.id}`)).data.data
   } catch (e) {
-    error.value = errorMessage(e)
+    // Application en arrière-plan : pas de message, la prochaine lecture rattrape
+    if (!document.hidden) error.value = errorMessage(e)
   }
 }
 // Durée du live, mise à jour chaque minute
@@ -48,7 +49,7 @@ const now = ref(Date.now())
 let clock
 onMounted(() => {
   load()
-  timer = setInterval(() => live.value?.status === 'live' && load(), 3000)
+  timer = setInterval(() => !document.hidden && live.value?.status === 'live' && load(), 3000)
   // Chaque seconde pendant une vente flash (chrono), sinon chaque demi-minute
   clock = setInterval(() => (live.value?.items?.some((i) => i.flash) || Date.now() - now.value >= 30000) && (now.value = Date.now()), 1000)
 })
