@@ -166,10 +166,13 @@ function deliveryBadge(o) {
 // Action principale de chaque ligne, selon l'étape
 function mainAction(o) {
   if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-ocre-700 hover:bg-ocre-800', run: () => confirmOrder(o) }
-  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && (!o.deliverer || o.deliverer_planned)) return { label: 'Faire livrer', icon: 'truck', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openAssign([o.id]) }
+  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && !o.deliverer) return { label: 'Faire livrer', icon: 'truck', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openAssign([o.id]) }
   if (o.status === 'shipped' && canManage.value) return { label: 'Livrée', icon: 'check', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openComplete(o) }
   return null
 }
+
+// Livreur déjà choisi : son nom à la place de « Faire livrer », avec « Modifier »
+const showDeliverer = (o) => !mainAction(o) && !!o.deliverer && o.delivery_method === 'delivery' && !['completed', 'cancelled', 'returned'].includes(o.status)
 
 const notice = ref('')
 const busy = ref(false)
@@ -238,9 +241,16 @@ async function bulk(body, ids = [...selected.value]) {
 // Confier à un livreur ou une entreprise (une ou plusieurs commandes)
 const assignIds = ref(null)
 const assignChoice = ref('')
+const editing = ref(null) // commande dont on change le livreur
 function openAssign(ids) {
   assignIds.value = ids
   assignChoice.value = ''
+  editing.value = null
+}
+function editDeliverer(o) {
+  assignIds.value = [o.id]
+  assignChoice.value = o.deliverer_key ?? ''
+  editing.value = o
 }
 // Le choix est traité dès qu'il arrive : la fenêtre se ferme juste après (et efface les commandes à confier)
 function assignTo(key) {
@@ -249,7 +259,32 @@ function assignTo(key) {
   const [type, id] = key.split(':')
   const ids = assignIds.value
   assignIds.value = null
+  const o = editing.value
+  editing.value = null
+  if (o?.shipment_id && key === o.deliverer_key) return
+  // Course déjà chez un de mes livreurs : elle passe à un autre livreur
+  if (o?.shipment_id) {
+    if (type !== 'courier') {
+      error.value = `Pour confier ${o.reference} à une entreprise de livraison, ouvrez la commande et annulez d'abord la course de ${o.deliverer}.`
+      return
+    }
+    return reassign(o, Number(id))
+  }
   bulk(type === 'courier' ? { action: 'assign', courier_id: Number(id) } : { action: 'assign', carrier_connection_id: Number(id) }, ids)
+}
+
+async function reassign(o, courierId) {
+  busy.value = true
+  error.value = ''
+  try {
+    await http.post(`/shipments/${o.shipment_id}/assign`, { courier_id: courierId })
+    notice.value = `${o.reference} : livreur changé (${delivererLabel(`courier:${courierId}`) || 'nouveau livreur'}).`
+    await load()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
 }
 
 // Changer le statut
@@ -402,7 +437,7 @@ async function exportList() {
                 <span v-if="deliveryBadge(o)" class="mt-0.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" :class="deliveryBadge(o).tone">
                   <Icon :name="deliveryBadge(o).late ? 'alert' : 'truck'" :size="12" />{{ deliveryBadge(o).text }}
                 </span>
-                <p v-if="o.deliverer" class="mt-0.5 flex items-center gap-1 whitespace-nowrap text-xs text-slate-500"><Icon name="truck" :size="12" />{{ o.deliverer }}<template v-if="o.deliverer_planned"> (prévu)</template></p>
+                <p v-if="o.deliverer && !showDeliverer(o)" class="mt-0.5 flex items-center gap-1 whitespace-nowrap text-xs text-slate-500"><Icon name="truck" :size="12" />{{ o.deliverer }}<template v-if="o.deliverer_planned"> (prévu)</template></p>
               </td>
               <td class="truncate py-3 pr-3 text-slate-600" :title="o.items_label">{{ o.items_label }}</td>
               <td class="py-3 pr-3 text-right"><p class="font-bold">{{ money(o.total) }}</p><p class="whitespace-nowrap text-xs" :class="PAYMENT_TONES[o.payment_status]">{{ o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status) ? 'À encaisser' : o.payment_status_label }}</p></td>
@@ -415,6 +450,11 @@ async function exportList() {
                   <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50" :title="`Appeler ${o.customer_name ?? ''}`"><Icon name="phone" :size="16" /></a>
                   <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50" title="WhatsApp"><Icon name="whatsapp" :size="16" /></a>
                   <button v-if="mainAction(o)" type="button" class="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 text-sm font-semibold text-white" :class="mainAction(o).tone" :disabled="busy" @click="mainAction(o).run()"><Icon :name="mainAction(o).icon" :size="15" />{{ mainAction(o).label }}</button>
+                  <span v-else-if="showDeliverer(o)" class="inline-flex h-9 max-w-[14rem] items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 pl-2.5 pr-1 text-sm">
+                    <Icon name="truck" :size="15" class="shrink-0 text-emerald-700" />
+                    <span class="min-w-0 truncate font-semibold text-emerald-900">{{ o.deliverer }}<span v-if="o.deliverer_planned" class="font-normal text-emerald-700"> · prévu</span></span>
+                    <button v-if="o.deliverer_editable && canAssign" type="button" class="h-7 shrink-0 rounded-lg bg-white px-2 text-xs font-semibold text-emerald-800 shadow-sm" :disabled="busy" @click="editDeliverer(o)">Modifier</button>
+                  </span>
                 </div>
               </td>
             </tr>
@@ -448,13 +488,17 @@ async function exportList() {
             <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS_TONES[o.status]"><Icon :name="STATUS_ICONS[o.status] ?? 'more'" :size="13" />{{ o.status_label }}</span>
             <span v-if="deliveryBadge(o)" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" :class="deliveryBadge(o).tone"><Icon :name="deliveryBadge(o).late ? 'alert' : 'calendar'" :size="13" />{{ deliveryBadge(o).text }}</span>
             <span v-if="o.possible_duplicate" class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">Doublon ?</span>
-            <span v-if="o.deliverer" class="inline-flex items-center gap-1 text-xs text-slate-500"><Icon name="truck" :size="13" />{{ o.deliverer }}</span>
+            <span v-if="o.deliverer && !showDeliverer(o)" class="inline-flex items-center gap-1 text-xs text-slate-500"><Icon name="truck" :size="13" />{{ o.deliverer }}</span>
           </div>
           <div class="mt-3 flex gap-2">
             <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600" aria-label="Appeler"><Icon name="phone" :size="18" /></a>
             <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600" aria-label="WhatsApp"><Icon name="whatsapp" :size="18" /></a>
             <button v-if="mainAction(o)" type="button" class="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white" :class="mainAction(o).tone" :disabled="busy" @click="mainAction(o).run()"><Icon :name="mainAction(o).icon" :size="17" />{{ mainAction(o).label }}</button>
-            <RouterLink v-else :to="`/gestion/commandes/${o.id}`" class="grid h-11 flex-1 place-items-center rounded-xl border border-slate-200 text-sm font-semibold text-slate-700">Voir la commande</RouterLink>
+            <div v-else-if="showDeliverer(o)" class="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 pl-3 pr-1">
+              <Icon name="truck" :size="17" class="shrink-0 text-emerald-700" />
+              <span class="min-w-0 flex-1 truncate text-[15px] font-semibold text-emerald-900">{{ o.deliverer }}<span v-if="o.deliverer_planned" class="font-normal text-emerald-700"> · prévu</span></span>
+              <button v-if="o.deliverer_editable && canAssign" type="button" class="h-9 shrink-0 rounded-lg bg-white px-3 text-sm font-semibold text-emerald-800 shadow-sm" :disabled="busy" @click="editDeliverer(o)">Modifier</button>
+            </div>
           </div>
         </div>
       </template>

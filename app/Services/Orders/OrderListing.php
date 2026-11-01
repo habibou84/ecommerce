@@ -4,6 +4,7 @@ namespace App\Services\Orders;
 
 use App\Enums\OrderSource;
 use App\Enums\OrderStatus;
+use App\Enums\ShipmentStatus;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\Shipment;
@@ -241,8 +242,24 @@ class OrderListing
             'items_label' => $order->items->sum('quantity').' article'.($order->items->sum('quantity') > 1 ? 's' : '').($titles->isNotEmpty() ? ' · '.$titles->take(2)->implode(', ').($titles->count() > 2 ? '…' : '') : ''),
             'deliverer' => $deliverer,
             'deliverer_planned' => $shipment === null && $deliverer !== null,
+            // « Modifier » le livreur depuis la liste : choix pas encore envoyé, ou course de mon livreur pas encore partie
+            'deliverer_key' => $this->delivererKey($order, $shipment),
+            'shipment_id' => $shipment && ! $shipment->status->isFinal() ? $shipment->id : null,
+            'deliverer_editable' => $deliverer !== null && $order->delivery_method === 'delivery' && (
+                ($shipment === null && in_array($order->status, [OrderStatus::PendingConfirmation, OrderStatus::Confirmed, OrderStatus::Processing], true))
+                || ($shipment !== null && $shipment->isOwnCourier() && ! $shipment->status->isFinal()
+                    && ! in_array($shipment->status, [ShipmentStatus::InTransit, ShipmentStatus::OutForDelivery, ShipmentStatus::Returning], true))),
             'whatsapp_url' => $order->customer_phone ? 'https://wa.me/'.ltrim($order->customer_phone, '+') : null,
         ];
+    }
+
+    private function delivererKey(Order $order, ?Shipment $shipment): ?string
+    {
+        if ($shipment) {
+            return $shipment->courier_id ? 'courier:'.$shipment->courier_id : ($shipment->carrier_connection_id ? 'carrier:'.$shipment->carrier_connection_id : null);
+        }
+
+        return $order->planned_courier_id ? 'courier:'.$order->planned_courier_id : ($order->planned_carrier_connection_id ? 'carrier:'.$order->planned_carrier_connection_id : null);
     }
 
     /**

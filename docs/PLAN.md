@@ -649,3 +649,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Live, « Montrer un seul produit » : bande de miniatures à glisser juste au-dessus de l'aperçu de l'écran ; boutons « Produit précédent » et « Produit suivant ».
 - Live, onglet Écran : l'écran allumé (ou le dernier relié) en haut, « + Relier un autre écran », anciens écrans repliés ; même nom = remplacé, éteint depuis 7 jours = retiré tout seul.
 - Live : toucher la carte « À l'écran maintenant » l'agrandit en plein écran avec les choix d'affichage, les produits à toucher pour changer et Précédent / Suivant.
+- Liste des commandes : livreur déjà choisi affiché à la place de « Faire livrer », avec « Modifier » (choix gardé ou course pas encore partie) ; plus de bouton « Voir la commande ».
