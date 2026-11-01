@@ -119,9 +119,28 @@ class LiveScreens
         $store = $screen->store;
         $session = LiveSales::current($store->id);
 
-        return ['store' => $this->storeInfo($store), 'live' => $session ? $this->live($session) : null,
+        return ['store' => $this->storeInfo($store), 'live' => $session ? $this->sharedLive($session) : null,
             // « Tester » touché dans l'application : l'écran se signale en grand
             'test' => Cache::has(self::testKey($screen->id))];
+    }
+
+    /**
+     * Le même calcul pour tous les écrans d'un live (100 écrans = 1 calcul) : refait dès qu'une pièce est prise,
+     * qu'un article change ou que la vendeuse change ce qui est montré (deux petites requêtes pour le savoir).
+     *
+     * @return array<string, mixed>
+     */
+    private function sharedLive(LiveSession $session): array
+    {
+        $holding = "'".implode("','", LiveReservation::HOLDING)."'";
+        $reservations = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)
+            ->selectRaw("count(*) as n, max(updated_at) as u, sum(case when status in ({$holding}) then 1 else 0 end) as h, sum(case when status = 'ordered' then 1 else 0 end) as o")
+            ->toBase()->first();
+        $items = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->selectRaw('count(*) as n, max(updated_at) as u')->toBase()->first();
+        $version = md5(implode('|', [$session->updated_at?->getTimestamp(), $session->display_mode, $session->featured_item_id,
+            $reservations->n ?? 0, $reservations->u ?? '', $reservations->h ?? 0, $reservations->o ?? 0, $items->n ?? 0, $items->u ?? '']));
+
+        return Cache::remember('live-screen-view:'.$session->id.':'.$version, now()->addSeconds(10), fn () => $this->live($session));
     }
 
     public const TEST_SECONDS = 10;

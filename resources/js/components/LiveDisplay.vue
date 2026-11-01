@@ -6,6 +6,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
  * montré en très grand (photo, code, prix, pièces restantes, « VENDU »), le défilement des articles, ou « Comment
  * commander » avec le QR code WhatsApp ; bandeau des dernières commandes (commune seulement).
  * Tout est dessiné en « em » : la taille suit celle de l'écran, du téléviseur au téléphone.
+ * Effets (calculés par l'écran, rien de plus demandé au serveur) : fond qui bouge, entrée de chaque article, zoom
+ * lent de la photo, barre de stock, bandeau qui défile ; à chaque pièce prise, confettis et « Cocody vient de
+ * prendre A3 ». Seulement transform et opacity : fluide même sur une vieille télé.
  */
 const props = defineProps({
   data: { type: Object, default: null }, // { store, live }
@@ -13,6 +16,8 @@ const props = defineProps({
   freeBottom: { type: Number, default: 0 },
   // Article à montrer tout de suite (mode présentation : sans attendre le serveur)
   itemId: { type: Number, default: null },
+  // Effets animés (coupés pour les petites vignettes de l'application)
+  effects: { type: Boolean, default: true },
 })
 
 const root = ref(null)
@@ -26,6 +31,7 @@ onUnmounted(() => {
   observer?.disconnect()
   clearInterval(rotate)
   clearInterval(tick)
+  clearTimeout(partyTimer)
 })
 
 // Trois mises en page : paysage (télé, ordinateur), carré (TikTok LIVE Studio, OBS, PRISM en 720 × 640) et
@@ -71,6 +77,32 @@ const ticker = computed(() => {
 })
 watch(() => live.value?.ticker?.[0]?.id, () => (tickIndex.value = 0))
 
+// Bandeau qui défile en continu : toutes les dernières pièces prises à la suite
+const tickerLine = computed(() => {
+  const list = live.value?.ticker ?? []
+  if (!props.effects || !list.length) return ticker.value
+  return `${list.map((t) => `✓ ${t.text}`).join('   ·   ')}   🎉   Envoyez votre code sur WhatsApp`
+})
+const tickerSeconds = computed(() => Math.max(12, Math.round(tickerLine.value.length * 0.22)))
+
+// Pièce prise pendant le live : confettis, carte « Cocody vient de prendre A3 », compteur qui grossit
+const party = ref(null)
+let partyTimer
+// (rien au chargement de l'écran : seulement une pièce prise pendant qu'il est allumé)
+watch(() => (live.value ? live.value.ticker?.[0]?.id ?? 0 : undefined), (now, before) => {
+  if (!props.effects || now === undefined || before === undefined || now <= before) return
+  party.value = { key: now, text: live.value.ticker[0].text }
+  clearTimeout(partyTimer)
+  partyTimer = setTimeout(() => (party.value = null), 4500)
+})
+const COLORS = ['#facc15', '#22c55e', '#f43f5e', '#38bdf8', '#ffffff', '#fb923c']
+const confetti = Array.from({ length: 36 }, (_, i) => ({
+  i,
+  style: { left: `${(i * 37) % 100}%`, background: COLORS[i % COLORS.length], animationDelay: `${(i % 9) * 0.09}s`, animationDuration: `${2.6 + (i % 5) * 0.25}s` },
+}))
+const sparks = Array.from({ length: 10 }, (_, i) => ({ i, style: { left: `${(i * 23 + 7) % 100}%`, animationDelay: `${i * 0.7}s` } }))
+const stockWidth = (i) => `${Math.max(6, Math.min(100, Math.round((100 * i.remaining) / Math.max(1, i.quantity))))}%`
+
 const money = (v) => `${new Intl.NumberFormat('fr-FR').format(v).replace(/ /g, ' ')} F`
 // Numéro complet : l'indicatif (+225) plus petit, pour que le numéro tienne en entier sur une ligne
 const number = computed(() => {
@@ -81,7 +113,12 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 </script>
 
 <template>
-  <div ref="root" class="live-display" :class="`is-${layout}`" :style="{ fontSize: `${fontSize}px` }">
+  <div ref="root" class="live-display" :class="[`is-${layout}`, { fx: effects }]" :style="{ fontSize: `${fontSize}px` }">
+    <!-- Fond qui bouge doucement, avec quelques étincelles -->
+    <template v-if="effects">
+      <div class="ld-bg" aria-hidden="true" />
+      <i v-for="sp in sparks" :key="sp.i" class="ld-spark" :style="sp.style" aria-hidden="true" />
+    </template>
     <div class="ld-stage" :style="{ bottom: `${freeBottom * 100}%` }">
       <!-- Comment commander (entre deux articles, ou avant le live) : le QR code en très grand -->
       <div v-if="showHow" class="ld-how">
@@ -111,18 +148,18 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
       </div>
 
       <!-- Article montré : la photo en grand, puis le prix et le bloc WhatsApp (QR code et numéro) -->
-      <div v-else class="ld-product">
+      <div v-else :key="shown.id" class="ld-product">
         <div class="ld-photo">
           <template v-if="shown.image">
             <!-- Photo entière (jamais coupée), posée sur la même photo floutée qui remplit le cadre -->
             <img :src="shown.image" alt="" class="ld-photo-bg" aria-hidden="true" />
             <img :src="shown.image" alt="" class="ld-photo-img" />
           </template>
-          <span class="ld-left" :class="{ 'is-out': shown.remaining === 0 }">{{ left(shown) }}</span>
+          <span class="ld-left" :class="{ 'is-out': shown.remaining === 0, 'is-hot': shown.remaining > 0 && shown.remaining <= 3 }">{{ left(shown) }}</span>
           <span v-if="shown.remaining === 0" class="ld-stamp">VENDU</span>
         </div>
         <div class="ld-info">
-          <span class="ld-live"><i />EN DIRECT · {{ store?.name }}</span>
+          <span class="ld-live"><i />EN DIRECT · {{ store?.name }}<b v-if="effects && live?.orders" :key="live.orders" class="ld-count">🛍️ {{ live.orders }}</b></span>
           <!-- Le code à côté du nom, hors de la photo : rien ne cache l'article -->
           <div class="ld-head">
             <span class="ld-code">{{ shown.code }}</span>
@@ -132,6 +169,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
             </div>
           </div>
           <p class="ld-price"><b>{{ money(shown.price) }}</b><s v-if="shown.was">{{ money(shown.was) }}</s></p>
+          <div v-if="effects && layout !== 'port' && shown.remaining > 0 && shown.quantity > 0" class="ld-stock"><b :style="{ width: stockWidth(shown) }" /></div>
           <div v-if="store?.whatsapp" class="ld-wa">
             <img v-if="store.qr" :src="store.qr" alt="QR code WhatsApp" />
             <div class="ld-wa-text">
@@ -152,7 +190,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 
       <!-- Bandeau : dernières commandes -->
       <div v-if="layout !== 'port'" class="ld-ticker">
-        <span class="ld-ticker-text">{{ ticker }}</span>
+        <span class="ld-ticker-text"><span :key="tickerLine" :class="{ 'ld-marquee': tickerLine !== ticker }" :style="{ animationDuration: `${tickerSeconds}s` }">{{ tickerLine }}</span></span>
         <span v-if="!showHow" class="ld-ticker-pos">{{ position }} / {{ items.length }}</span>
         <span class="ld-brand">Propulsé par <b>Jibiat Marchand</b><template v-if="layout === 'land'"> · jibiat-marchand.com</template></span>
       </div>
@@ -160,11 +198,60 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
         <p v-if="!showHow" class="ld-mini-ticker">{{ ticker }}</p>
         <p class="ld-brand-line">Propulsé par <b>Jibiat Marchand</b> · jibiat-marchand.com</p>
       </template>
+
+      <!-- Pièce prise : confettis et carte qui glisse -->
+      <template v-if="party">
+        <div :key="`c${party.key}`" class="ld-party" aria-hidden="true"><i v-for="c in confetti" :key="c.i" :style="c.style" /></div>
+        <p :key="`t${party.key}`" class="ld-toast">🎉 {{ party.text }}</p>
+      </template>
     </div>
   </div>
 </template>
 
 <style scoped>
+/* ── Effets (classe fx) : transform et opacity seulement ── */
+.ld-bg { position: absolute; inset: -40%; background: linear-gradient(120deg, #020617 20%, #3b0764 42%, #881337 58%, #020617 80%); opacity: .75; animation: ld-drift 22s ease-in-out infinite alternate; }
+@keyframes ld-drift { to { transform: translate(12%, 8%) rotate(10deg); } }
+.ld-spark { position: absolute; bottom: -1em; width: .35em; height: .35em; border-radius: 50%; background: #fde68a; opacity: 0; animation: ld-rise 7s linear infinite; }
+@keyframes ld-rise { 0% { transform: translateY(0) scale(.6); opacity: 0 } 15% { opacity: .45 } 100% { transform: translateY(-60em) scale(1.2); opacity: 0 } }
+.fx .ld-product .ld-photo { animation: ld-slide .8s cubic-bezier(.2, 1.3, .4, 1) both; }
+.fx .ld-product .ld-code { animation: ld-pop .6s .3s cubic-bezier(.2, 1.6, .4, 1) both; }
+.fx .ld-product .ld-titles { animation: ld-up .6s .4s both; }
+.fx .ld-product .ld-price { animation: ld-pop .7s .55s cubic-bezier(.2, 1.6, .4, 1) both; transform-origin: left center; }
+.fx .ld-photo-img { animation: ld-zoom 9s ease-in-out infinite alternate; }
+.fx .ld-live i { animation: ld-beat 1.2s infinite; }
+.fx .ld-left.is-hot { animation: ld-glow 1.2s infinite; }
+.fx .ld-stamp { animation: ld-slam .5s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes ld-slide { from { transform: translateX(-40%) rotate(-4deg); opacity: 0 } }
+@keyframes ld-pop { 0% { transform: scale(.2); opacity: 0 } 70% { transform: scale(1.12) } 100% { transform: scale(1) } }
+@keyframes ld-up { from { transform: translateY(1em); opacity: 0 } }
+@keyframes ld-zoom { to { transform: scale(1.06) } }
+@keyframes ld-beat { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .7) } 70%, 100% { box-shadow: 0 0 0 .6em rgba(239, 68, 68, 0) } }
+@keyframes ld-glow { 50% { transform: scale(1.08) } }
+@keyframes ld-slam { from { transform: translate(-50%, -50%) rotate(-14deg) scale(3); opacity: 0 } }
+.ld-count { display: inline-block; margin-left: .6em; padding: .1em .5em; border-radius: 1em; background: rgba(255, 255, 255, .15); color: #4ade80; font-weight: 900; animation: ld-bump .6s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes ld-bump { 0% { transform: scale(1.8) } 100% { transform: scale(1) } }
+.ld-stock { height: .7em; border-radius: 1em; background: rgba(255, 255, 255, .18); overflow: hidden; flex-shrink: 0; }
+.ld-stock b { position: relative; display: block; height: 100%; border-radius: 1em; background: linear-gradient(90deg, #f97316, #facc15); overflow: hidden; }
+.ld-stock b::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .6), transparent); animation: ld-shine 2s linear infinite; }
+@keyframes ld-shine { from { transform: translateX(-100%) } to { transform: translateX(100%) } }
+.is-land .ld-stock { width: 70%; height: 1em; }
+.is-square .ld-stock { width: 80%; }
+.ld-marquee { display: inline-block; padding-left: 100%; animation: ld-marquee linear infinite; }
+@keyframes ld-marquee { to { transform: translateX(-100%) } }
+.ld-party { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 5; }
+.ld-party i { position: absolute; top: -2em; width: .9em; height: 1.4em; border-radius: .15em; animation: ld-fall 3s linear both; }
+@keyframes ld-fall { 0% { transform: translateY(0) rotate(0); opacity: 1 } 80% { opacity: 1 } 100% { transform: translateY(70em) rotate(720deg); opacity: 0 } }
+.ld-toast { position: absolute; top: 1em; right: 1em; max-width: 70%; z-index: 6; background: #fff; color: #0f172a; font-weight: 800; border-radius: 1em; padding: .6em 1em; box-shadow: 0 .8em 2em rgba(0, 0, 0, .35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: ld-toast 4.5s ease-in-out both; }
+.is-land .ld-toast { font-size: 1.9em; }
+.is-square .ld-toast { font-size: 1.2em; }
+.is-port .ld-toast { font-size: 1.1em; left: 1em; right: 1em; max-width: none; }
+@keyframes ld-toast { 0% { transform: translateY(-150%); opacity: 0 } 10%, 85% { transform: translateY(0); opacity: 1 } 100% { transform: translateY(-150%); opacity: 0 } }
+@media (prefers-reduced-motion: reduce) {
+  .live-display *, .live-display *::after { animation: none !important; }
+  .ld-party, .ld-spark { display: none; }
+}
+
 .live-display { position: relative; width: 100%; height: 100%; overflow: hidden; color: #fff; background: radial-gradient(circle at 20% 0%, #1e293b, #020617 70%); font-family: Inter, system-ui, sans-serif; line-height: 1.1; }
 .ld-stage { position: absolute; inset: 0; display: flex; flex-direction: column; }
 .ld-product { flex: 1; display: flex; min-height: 0; }
@@ -206,6 +293,8 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 
 .ld-ticker { display: flex; align-items: center; gap: 1em; background: #047857; font-weight: 800; flex-shrink: 0; }
 .ld-ticker-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fx .ld-ticker { position: relative; }
+.fx .ld-ticker-text { text-overflow: clip; }
 .ld-ticker-pos { color: #a7f3d0; white-space: nowrap; }
 /* Mention Jibiat Marchand : discrète, jamais au-dessus du prix ni du code */
 .ld-brand { padding-left: 1em; border-left: .08em solid rgba(167, 243, 208, .4); color: #a7f3d0; font-weight: 600; font-size: .62em; white-space: nowrap; }
