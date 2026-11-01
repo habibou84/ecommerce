@@ -73,7 +73,7 @@ class PremiumCards
         if (($existing = $this->find($slug, $reference)) !== null) {
             return [$existing, false];
         }
-        $settings = $this->settings();
+        $settings = $this->formula($data['offer'] ?? null);
         $plan = Plan::where('code', $settings['plan'])->first()
             ?? throw new BusinessRuleException('L\'offre des cartes Membre Premium n\'est pas réglée.', 'plan');
 
@@ -106,6 +106,28 @@ class PremiumCards
         });
 
         return [$key->load('batch.plan', 'store'), $key->wasRecentlyCreated];
+    }
+
+    /**
+     * Formule de la carte : celle choisie par l'entreprise (socle 1.8, champ « offer », dans les limites fixées par
+     * la console Jibiat), sinon celle réglée ici.
+     *
+     * @param  mixed  $offer
+     * @return array{plan: string, free_months: int, discount_rate: float, active_days: int}
+     */
+    public function formula($offer): array
+    {
+        $settings = $this->settings();
+        if (! is_array($offer) || ! in_array($offer['plan'] ?? null, ['starter', 'pro', 'business'], true)) {
+            return $settings;
+        }
+
+        return [
+            ...$settings,
+            'plan' => $offer['plan'],
+            'free_months' => max(0, min(36, (int) ($offer['free_months'] ?? $settings['free_months']))),
+            'discount_rate' => round(max(0, min(0.9, (float) ($offer['discount_rate'] ?? $settings['discount_rate']))), 3),
+        ];
     }
 
     /**

@@ -2,7 +2,7 @@
 import AiMeter from '../../../components/AiMeter.vue'
 import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import Icon from '../../../components/Icon.vue'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import BundleEditor from '../../../components/BundleEditor.vue'
@@ -66,11 +66,12 @@ const collections = ref([])
 const tagSuggestions = ref([])
 const locations = ref([])
 const locationId = ref(null)
-const bulk = reactive({ price: '', on_hand: '' })
+// Prix et stock du produit : chaque variante les prend, sauf si on lui en donne un autre (case vide = même prix)
+const defaults = reactive({ price: '', on_hand: '' })
 const showSeo = ref(false)
 
 function newRow(combo) {
-  return { id: null, options: combo, include: true, price: '', compare_at_price: '', cost_price: '', sku: '', barcode: '', weight_g: '', image_id: null, is_active: true, on_hand: '', original_on_hand: null, levels: [] }
+  return { id: null, options: combo, include: true, price: '', compare_at_price: '', cost_price: '', sku: '', barcode: '', weight_g: '', image_id: null, image_pending: null, picking: false, is_active: true, on_hand: '', original_on_hand: null, levels: [] }
 }
 
 const keyOf = (combo) => combo.map((v) => v.toLowerCase()).join('||')
@@ -123,6 +124,13 @@ function load(data) {
       rows[keyOf(v.options)] = newRow(v.options)
       fillRow(rows[keyOf(v.options)], v)
     }
+    // Prix le plus courant = prix du produit ; les variantes à ce prix affichent « même prix »
+    const counts = {}
+    data.variants.forEach((v) => (counts[v.price] = (counts[v.price] ?? 0) + 1))
+    const common = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0]
+    defaults.price = common ?? ''
+    defaults.on_hand = ''
+    Object.values(rows).forEach((row) => row.id && String(row.price) === String(common) && (row.price = ''))
     // Combinaisons non vendues : décochées
     for (const combo of combinations(options.value.map((o) => o.values))) {
       if (!rows[keyOf(combo)]) rows[keyOf(combo)] = { ...newRow(combo), include: false }
@@ -160,20 +168,50 @@ function addOption() {
   options.value.push({ name: OPTION_SUGGESTIONS.find((s) => !used.includes(s.toLowerCase())) ?? '', values: [] })
 }
 
-function applyBulk() {
-  for (const row of variantRows.value.filter((r) => r.include)) {
-    if (bulk.price !== '') row.price = Number(bulk.price)
-    if (bulk.on_hand !== '' && canStock.value) row.on_hand = Number(bulk.on_hand)
+const num = (v) => (v === '' || v === null || v === undefined ? null : Number(v))
+
+// Variantes rangées par couleur (ou par la première option s'il y en a deux) : un groupe = une photo à choisir
+const groupIndex = computed(() => {
+  if (!hasVariants.value || activeOptions.value.length < 2) return null
+  const color = activeOptions.value.findIndex((o) => /couleur|color|coloris/i.test(o.name))
+  return color >= 0 ? color : 0
+})
+const variantGroups = computed(() => {
+  if (groupIndex.value === null) return [{ name: null, rows: variantRows.value }]
+  const groups = []
+  for (const row of variantRows.value) {
+    const name = row.options[groupIndex.value]
+    let group = groups.find((g) => g.name === name)
+    if (!group) groups.push((group = { name, rows: [] }))
+    group.rows.push(row)
+  }
+  return groups
+})
+const rowLabel = (row) => (groupIndex.value === null ? row.options.join(' / ') : row.options.filter((_, i) => i !== groupIndex.value).join(' / '))
+
+// Photos à choisir pour une variante : celles déjà envoyées et celles choisies avant la création
+const pictures = computed(() => [
+  ...images.value.map((image) => ({ key: `i${image.id}`, url: image.urls.thumb, id: image.id, pending: null })),
+  ...pendingFiles.value.map((p, index) => ({ key: `p${index}`, url: p.url, id: null, pending: index })),
+])
+const pictureOf = (row) => pictures.value.find((p) => (row.image_id !== null ? p.id === row.image_id : row.image_pending !== null && p.pending === row.image_pending)) ?? null
+function setPicture(target, picture) {
+  for (const row of Array.isArray(target) ? target : [target]) {
+    row.image_id = picture?.id ?? null
+    row.image_pending = picture?.pending ?? null
+    row.picking = false
   }
 }
-
-const num = (v) => (v === '' || v === null || v === undefined ? null : Number(v))
+const groupPicture = (group) => {
+  const keys = new Set(group.rows.filter((r) => r.include).map((r) => pictureOf(r)?.key ?? ''))
+  return keys.size === 1 ? [...keys][0] : null
+}
 
 function variantPayload(row) {
   const payload = {
     id: row.id ?? undefined,
     options: row.options,
-    price: num(row.price) ?? 0,
+    price: num(row.price) ?? num(defaults.price) ?? 0,
     compare_at_price: num(row.compare_at_price),
     cost_price: num(row.cost_price),
     sku: row.sku || null,
@@ -183,15 +221,42 @@ function variantPayload(row) {
     is_active: row.is_active,
   }
   // Quantité envoyée seulement si elle a changé (elle remplace le stock de l'emplacement choisi)
-  if (canStock.value && row.on_hand !== '' && Number(row.on_hand) !== row.original_on_hand) payload.on_hand = Number(row.on_hand)
+  const stock = row.on_hand !== '' ? row.on_hand : row.id ? '' : defaults.on_hand
+  if (canStock.value && stock !== '' && Number(stock) !== row.original_on_hand) payload.on_hand = Number(stock)
   return payload
 }
 
+// Message après l'enregistrement (au-dessus du bouton), avec la suite à choisir
+const notice = ref(null)
+let noticeTimer
+function showNotice(value) {
+  notice.value = value
+  clearTimeout(noticeTimer)
+  if (!value.created) noticeTimer = setTimeout(() => (notice.value = null), 5000)
+}
+onUnmounted(() => clearTimeout(noticeTimer))
+
+// Erreur : la page descend jusqu'au champ à corriger (ou au message d'erreur)
+async function showError() {
+  await nextTick()
+  const field = Object.keys(errors.value)[0]
+  const target = (field && document.getElementById(field.split('.')[0])) || document.querySelector('[data-variant-error], [data-form-error]')
+  target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
 async function save() {
-  saving.value = true
   error.value = ''
   errors.value = {}
   saved.value = false
+  notice.value = null
+  const included = hasVariants.value ? variantRows.value.filter((r) => r.include) : [simple]
+  if (included.some((r) => num(r.price) === null) && num(hasVariants.value ? defaults.price : simple.price) === null) {
+    errors.value = { price: 'Indiquez le prix du produit.' }
+    error.value = 'Indiquez le prix du produit.'
+    await showError()
+    return
+  }
+  saving.value = true
   try {
     const payload = {
       ...form,
@@ -205,41 +270,99 @@ async function save() {
     const { data } = props.id ? await http.put(`/products/${props.id}`, payload) : await http.post('/products', payload)
 
     if (!props.id) {
-      await uploadFiles(data.data.id, pendingFiles.value.map((p) => p.file))
+      // Photos choisies avant la création : envoyées, puis rattachées aux variantes qui les ont choisies
+      const chosen = Object.fromEntries(Object.entries(rows).filter(([, r]) => r.image_pending !== null).map(([key, r]) => [key, r.image_pending]))
+      const simplePending = simple.image_pending
+      const ids = await uploadFiles(data.data.id, pendingFiles.value.map((p) => p.file))
       pendingFiles.value = []
-      router.replace(`/gestion/catalogue/${data.data.id}`)
+      let fresh = (await http.get(`/products/${data.data.id}`)).data.data
+      if (Object.keys(chosen).length || simplePending !== null) {
+        load(fresh)
+        Object.entries(chosen).forEach(([key, index]) => rows[key] && ids[index] && (rows[key].image_id = ids[index]))
+        if (simplePending !== null && ids[simplePending]) simple.image_id = ids[simplePending]
+        fresh = (await http.put(`/products/${fresh.id}`, { ...payload, variants: hasVariants.value ? variantRows.value.filter((r) => r.include).map(variantPayload) : [variantPayload(simple)] })).data.data
+      }
+      opening = fresh
+      await router.replace(`/gestion/catalogue/${fresh.id}`)
+      load(fresh)
+      showNotice({ created: true, title: fresh.title, variants: fresh.variants.length, photos: fresh.images.length })
       return
     }
     load(data.data)
     saved.value = true
+    showNotice({ created: false, title: data.data.title, variants: data.data.variants.length, photos: data.data.images.length })
   } catch (e) {
     errors.value = fieldErrors(e)
     error.value = errorMessage(e)
+    await showError()
   } finally {
     saving.value = false
   }
 }
 
+// Fiche ouverte depuis une autre (création terminée, « Ajouter un autre produit ») : rechargée ou vidée
+let opening = null
+watch(() => props.id, async (id) => {
+  if (opening && String(opening.id) === String(id)) {
+    opening = null
+    return
+  }
+  error.value = ''
+  errors.value = {}
+  if (!id) {
+    Object.assign(form, { title: '', description: '', brand: '', status: 'active', collection_ids: [], tags: [], seo_title: '', seo_description: '' })
+    product.value = null
+    images.value = []
+    hasVariants.value = false
+    Object.keys(rows).forEach((k) => delete rows[k])
+    Object.assign(simple, newRow([]))
+    Object.assign(defaults, { price: '', on_hand: '' })
+    options.value = [{ name: 'Taille', values: [] }]
+    window.scrollTo({ top: 0 })
+    return
+  }
+  loading.value = true
+  try {
+    load((await http.get(`/products/${id}`)).data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    loading.value = false
+  }
+})
+function addAnother() {
+  notice.value = null
+  router.push('/gestion/catalogue/nouveau')
+}
+
 async function uploadFiles(productId, files) {
   uploading.value = true
+  const ids = []
   try {
     for (const file of files) {
       const body = new FormData()
       body.append('image', file)
       const { data } = await http.post(`/products/${productId}/images`, body)
       images.value.push(data.data)
+      ids.push(data.data.id)
     }
   } catch (e) {
     error.value = errorMessage(e, 'Une photo n\'a pas pu être envoyée.')
   } finally {
     uploading.value = false
   }
+  return ids
 }
 
 // Photo choisie avant la création du produit : retirée avant l'envoi
 function removePending(index) {
   URL.revokeObjectURL(pendingFiles.value[index].url)
   pendingFiles.value.splice(index, 1)
+  // Variantes qui avaient choisi cette photo (ou une suivante, décalée d'un rang)
+  for (const row of [simple, ...Object.values(rows)]) {
+    if (row.image_pending === index) row.image_pending = null
+    else if (row.image_pending > index) row.image_pending -= 1
+  }
 }
 
 async function onFiles(event) {
@@ -376,6 +499,20 @@ async function copyShare(text) {
   setTimeout(() => (shareCopied.value = false), 2000)
 }
 
+// Menu ⋯ (Dupliquer, Supprimer)
+const menu = ref(false)
+// Clavier ouvert au téléphone : la bande « Enregistrer » se cache pour ne pas couvrir le champ
+const typing = ref(false)
+let blurTimer
+const isTyping = (el) => window.innerWidth < 1024 && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'file', 'button', 'submit'].includes(el.type)))
+function onFocus(event) {
+  clearTimeout(blurTimer)
+  if (isTyping(event.target)) typing.value = true
+}
+function onBlur() {
+  blurTimer = setTimeout(() => (typing.value = false), 150)
+}
+
 const variantError = (index, field) => errors.value[`variants.${index}.${field}`]
 const margin = computed(() => {
   const price = num(simple.price)
@@ -387,16 +524,23 @@ const margin = computed(() => {
 <template>
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
 
-  <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save">
+  <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save" @focusin="onFocus" @focusout="onBlur">
     <div class="flex flex-wrap items-center gap-2">
       <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
       <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare"><Icon name="share" :size="16" class="mr-1 inline-block align-[-3px]" />Partager</button>
       <button v-if="product && form.status === 'active' && form.is_visible_online && auth.can('store.manage') && platformOn(auth, 'social_meta|social_tiktok')" type="button" class="btn-secondary px-3 py-1.5" @click="publishing = true"><Icon name="megaphone" :size="16" class="mr-1 inline-block align-[-3px]" />Publier sur les réseaux</button>
+      <!-- Supprimer, Dupliquer : dans le menu ⋯ (la bande du bas ne garde que « Enregistrer ») -->
+      <div v-if="props.id && canEdit" class="relative" :class="{ 'ml-auto': !(product && form.status === 'active' && form.is_visible_online) }">
+        <button type="button" class="btn-secondary px-3 py-1.5 font-bold" aria-label="Plus d'actions" :aria-expanded="menu" @click="menu = !menu">⋯</button>
+        <div v-if="menu" class="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm shadow-lg">
+          <button type="button" class="block w-full px-4 py-2.5 text-left hover:bg-slate-50" @click="menu = false; duplicate()">Dupliquer</button>
+          <button type="button" class="block w-full px-4 py-2.5 text-left text-red-600 hover:bg-red-50" @click="menu = false; destroy()">Supprimer</button>
+        </div>
+      </div>
     </div>
 
-    <Alert v-if="error">{{ error }}</Alert>
-    <Alert v-if="saved" tone="success">Produit enregistré.</Alert>
+    <div v-if="error" data-form-error><Alert>{{ error }}</Alert></div>
 
     <section v-if="ai.enabled && !props.id && canEdit" class="card space-y-3 border-emerald-200 bg-emerald-50/60 p-4 sm:p-6">
       <div>
@@ -538,45 +682,64 @@ const margin = computed(() => {
           </div>
 
           <div v-if="variantRows.length" class="space-y-3">
-            <div class="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3">
-              <span class="w-full text-sm font-medium text-slate-700 sm:w-auto sm:pb-2">Pour toutes les variantes :</span>
-              <input v-model="bulk.price" class="input w-32" type="number" min="0" placeholder="Prix" />
-              <input v-if="canStock && form.track_inventory" v-model="bulk.on_hand" class="input w-28" type="number" min="0" placeholder="Stock" />
-              <button type="button" class="btn-secondary" @click="applyBulk">Appliquer</button>
+            <!-- Prix et stock du produit : pris par toutes les variantes (case vide = même prix) -->
+            <div class="grid grid-cols-2 gap-3 rounded-lg bg-emerald-50/60 p-3">
+              <Field id="price" label="Prix (pour toutes)" :error="errors.price">
+                <input id="price" v-model="defaults.price" class="input" type="number" min="0" inputmode="numeric" placeholder="15000" />
+              </Field>
+              <Field v-if="canStock && form.track_inventory" id="stock" label="Stock par variante" hint="Pour les nouvelles variantes">
+                <input id="stock" v-model="defaults.on_hand" class="input" type="number" min="0" inputmode="numeric" />
+              </Field>
+              <p class="col-span-2 text-xs text-slate-600">Une variante sans prix prend ce prix. Écrivez un prix seulement pour celle qui coûte autre chose.</p>
             </div>
 
-            <p v-if="errors.variants" class="text-sm text-red-600">{{ errors.variants }}</p>
+            <!-- Photo de chaque couleur : toutes les tailles de la couleur la prennent -->
+            <div v-if="groupIndex !== null && pictures.length" class="space-y-2 rounded-lg border border-slate-200 p-3">
+              <p class="text-sm font-semibold">Photo de chaque {{ activeOptions[groupIndex].name.toLowerCase() }}</p>
+              <div v-for="group in variantGroups" :key="group.name" class="flex items-center gap-2">
+                <span class="w-20 shrink-0 truncate text-sm font-bold">{{ group.name }}</span>
+                <div class="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-1">
+                  <button v-for="pic in pictures" :key="pic.key" type="button" class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border-[3px]" :class="groupPicture(group) === pic.key ? 'border-emerald-600' : 'border-transparent'" :aria-label="`Photo pour ${group.name}`" @click="setPicture(group.rows, pic)">
+                    <img :src="pic.url" alt="" class="h-full w-full object-cover" />
+                  </button>
+                </div>
+              </div>
+            </div>
 
-            <div class="divide-y divide-slate-100 rounded-lg border border-slate-200">
-              <div v-for="(row, index) in variantRows" :key="row.options.join('|')" class="grid grid-cols-2 gap-2 p-3 sm:grid-cols-[minmax(8rem,1.5fr)_repeat(4,minmax(0,1fr))_auto] sm:items-center" :class="{ 'bg-slate-50 opacity-60': !row.include }">
-                <label class="col-span-2 flex items-center gap-2 font-medium sm:col-span-1">
-                  <input v-model="row.include" type="checkbox" class="h-4 w-4 accent-emerald-700" />
-                  {{ row.options.join(' / ') }}
-                </label>
-                <template v-if="row.include">
-                  <label class="text-xs text-slate-500">Prix
-                    <input v-model="row.price" class="input mt-0.5" type="number" min="0" inputmode="numeric" required />
-                    <span v-if="variantError(variantRows.filter((r) => r.include).indexOf(row), 'price')" class="text-red-600">{{ variantError(variantRows.filter((r) => r.include).indexOf(row), 'price') }}</span>
-                  </label>
-                  <label class="text-xs text-slate-500">Prix barré
-                    <input v-model="row.compare_at_price" class="input mt-0.5" type="number" min="0" inputmode="numeric" />
-                  </label>
-                  <label class="text-xs text-slate-500">SKU
-                    <input v-model="row.sku" class="input mt-0.5" maxlength="60" />
-                    <span v-if="variantError(variantRows.filter((r) => r.include).indexOf(row), 'sku')" class="text-red-600">{{ variantError(variantRows.filter((r) => r.include).indexOf(row), 'sku') }}</span>
-                  </label>
-                  <label v-if="canStock && form.track_inventory" class="text-xs text-slate-500">Stock
-                    <input v-model="row.on_hand" class="input mt-0.5" type="number" min="0" inputmode="numeric" />
-                  </label>
-                  <span v-else />
-                  <label class="col-span-2 text-xs text-slate-500 sm:col-span-1">Photo
-                    <select v-model="row.image_id" class="input mt-0.5" :disabled="!images.length">
-                      <option :value="null">—</option>
-                      <option v-for="(image, i) in images" :key="image.id" :value="image.id">Photo {{ i + 1 }}</option>
-                    </select>
-                  </label>
-                </template>
-                <span v-else class="col-span-2 text-sm text-slate-500 sm:col-span-6">Non vendue</span>
+            <p v-if="errors.variants" class="text-sm text-red-600" data-variant-error>{{ errors.variants }}</p>
+
+            <div v-for="group in variantGroups" :key="group.name ?? 'all'" class="overflow-hidden rounded-lg border border-slate-200">
+              <p v-if="group.name" class="bg-slate-50 px-3 py-2 text-sm font-extrabold">{{ group.name }}</p>
+              <div v-for="row in group.rows" :key="row.options.join('|')" class="border-t border-slate-100 p-2.5 first:border-t-0" :class="{ 'bg-slate-50 opacity-60': !row.include }">
+                <div class="flex items-center gap-2">
+                  <input v-model="row.include" type="checkbox" class="h-4 w-4 shrink-0 accent-emerald-700" :aria-label="`Vendre ${row.options.join(' / ')}`" />
+                  <button type="button" class="h-9 w-9 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-xs text-slate-400" :disabled="!row.include || !pictures.length" :aria-label="`Photo de ${row.options.join(' / ')}`" @click="row.picking = !row.picking">
+                    <img v-if="pictureOf(row)" :src="pictureOf(row).url" alt="" class="h-full w-full object-cover" />
+                    <span v-else>📷</span>
+                  </button>
+                  <b class="w-16 shrink-0 truncate text-sm">{{ rowLabel(row) }}</b>
+                  <template v-if="row.include">
+                    <input v-model="row.price" class="input min-w-0 flex-1 px-2 py-1.5 text-sm" type="number" min="0" inputmode="numeric" :placeholder="defaults.price !== '' ? `= ${defaults.price}` : 'Prix'" :aria-label="`Prix ${row.options.join(' / ')}`" />
+                    <input v-if="canStock && form.track_inventory" v-model="row.on_hand" class="input w-16 shrink-0 px-2 py-1.5 text-sm" type="number" min="0" inputmode="numeric" :placeholder="row.id ? '0' : (defaults.on_hand || 'Stock')" :aria-label="`Stock ${row.options.join(' / ')}`" />
+                  </template>
+                  <span v-else class="text-sm text-slate-500">Non vendue</span>
+                </div>
+                <div v-if="row.picking" class="mt-2 flex gap-1.5 overflow-x-auto pl-6">
+                  <button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-lg border-[3px] text-xs text-slate-500" :class="!pictureOf(row) ? 'border-emerald-600' : 'border-slate-200'" @click="setPicture(row, null)">Aucune</button>
+                  <button v-for="pic in pictures" :key="pic.key" type="button" class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border-[3px]" :class="pictureOf(row)?.key === pic.key ? 'border-emerald-600' : 'border-transparent'" @click="setPicture(row, pic)">
+                    <img :src="pic.url" alt="" class="h-full w-full object-cover" />
+                  </button>
+                </div>
+                <details v-if="row.include" class="mt-1 pl-6 text-xs text-slate-500">
+                  <summary class="cursor-pointer">Prix barré, référence</summary>
+                  <div class="mt-1.5 grid grid-cols-2 gap-2">
+                    <label>Prix barré <input v-model="row.compare_at_price" class="input mt-0.5" type="number" min="0" inputmode="numeric" /></label>
+                    <label>SKU <input v-model="row.sku" class="input mt-0.5" maxlength="60" /></label>
+                  </div>
+                </details>
+                <p v-if="variantError(variantRows.filter((r) => r.include).indexOf(row), 'price') || variantError(variantRows.filter((r) => r.include).indexOf(row), 'sku')" class="pl-6 text-xs text-red-600" data-variant-error>
+                  {{ variantError(variantRows.filter((r) => r.include).indexOf(row), 'price') || variantError(variantRows.filter((r) => r.include).indexOf(row), 'sku') }}
+                </p>
               </div>
             </div>
           </div>
@@ -703,16 +866,24 @@ const margin = computed(() => {
       </ul>
     </section>
 
-    <div v-if="canEdit" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 lg:bottom-0 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:left-64">
+    <!-- Après l'enregistrement : message au-dessus du bouton, avec la suite -->
+    <div v-if="notice" class="fixed inset-x-3 bottom-[calc(8.5rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md rounded-2xl bg-emerald-900 p-4 text-white shadow-2xl lg:bottom-20 lg:left-64" role="status">
+      <div class="flex items-start gap-2">
+        <p class="min-w-0 flex-1"><b>✅ Produit enregistré</b><br /><span class="text-sm text-emerald-100">{{ notice.title }} · {{ notice.variants }} variante{{ notice.variants > 1 ? 's' : '' }} · {{ notice.photos }} photo{{ notice.photos > 1 ? 's' : '' }}</span></p>
+        <button type="button" class="text-lg leading-none text-emerald-200" aria-label="Fermer" @click="notice = null">✕</button>
+      </div>
+      <div v-if="notice.created" class="mt-3 grid gap-1.5 text-sm font-bold">
+        <button type="button" class="rounded-xl bg-white py-2.5 text-emerald-900" @click="addAnother">+ Ajouter un autre produit</button>
+        <RouterLink to="/gestion/catalogue" class="rounded-xl bg-white/15 py-2.5 text-center">Voir la liste des produits</RouterLink>
+        <button type="button" class="rounded-xl bg-white/15 py-2.5" @click="notice = null">Rester sur la fiche</button>
+      </div>
+    </div>
+
+    <!-- Bande « Enregistrer » : cachée pendant la saisie au téléphone (clavier ouvert) -->
+    <div v-if="canEdit && !typing" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur lg:bottom-0 lg:left-64">
       <div class="mx-auto flex max-w-5xl items-center gap-2">
-        <template v-if="props.id">
-          <button type="button" class="btn-ghost text-red-600" @click="destroy">Supprimer</button>
-          <button type="button" class="btn-ghost" @click="duplicate">Dupliquer</button>
-        </template>
-        <span v-if="hasVariants" class="hidden text-sm text-slate-500 sm:inline">
-          {{ variantRows.filter((r) => r.include).length }} variante(s)
-        </span>
-        <button class="btn-brand ml-auto" :disabled="saving || uploading">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button>
+        <span v-if="hasVariants" class="text-sm text-slate-500">{{ variantRows.filter((r) => r.include).length }} variante(s)</span>
+        <button class="btn-brand ml-auto" :disabled="saving || uploading">{{ saving ? 'Enregistrement…' : uploading ? 'Envoi des photos…' : 'Enregistrer' }}</button>
       </div>
     </div>
 
