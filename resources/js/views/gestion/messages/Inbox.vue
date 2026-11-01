@@ -98,7 +98,7 @@ async function loadList(more = false) {
     connected.value = last.connected
     linked.value = last.linked
     numbers.value = last.numbers ?? []
-    metaBlock.value = last.meta ?? null
+    metaBlock.value = last.meta_block ?? null
     listLoaded.value = true
   } catch {
     // réseau passager : nouvel essai au prochain tour

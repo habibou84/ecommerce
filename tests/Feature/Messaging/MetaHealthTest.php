@@ -84,7 +84,7 @@ class MetaHealthTest extends TestCase
         // Bandeaux : accueil et Messages
         $this->storeApi($this->store, 'GET', 'dashboard')->assertOk()
             ->assertJsonPath('data.whatsapp_meta.state', 'blocked')->assertJsonPath('data.whatsapp_meta.reason', 'Meta demande de vérifier votre entreprise');
-        $this->storeApi($this->store, 'GET', 'conversations')->assertOk()->assertJsonPath('meta.state', 'blocked');
+        $this->storeApi($this->store, 'GET', 'conversations')->assertOk()->assertJsonPath('meta_block.state', 'blocked');
     }
 
     public function test_console_lists_the_stores_to_help(): void
@@ -113,7 +113,7 @@ class MetaHealthTest extends TestCase
         $this->assertStringContainsString('billing_hub', $response->json('data.account.meta.lines.0.action.url'));
         // En partie bloqué : sur l'accueil, pas de bandeau rouge dans Messages
         $this->storeApi($this->store, 'GET', 'dashboard')->assertJsonPath('data.whatsapp_meta.state', 'partial');
-        $this->storeApi($this->store, 'GET', 'conversations')->assertJsonPath('meta', null);
+        $this->storeApi($this->store, 'GET', 'conversations')->assertJsonPath('meta_block', null);
 
         // Compte refusé par Meta : bloqué, avec « Faire appel »
         $this->review = 'REJECTED';

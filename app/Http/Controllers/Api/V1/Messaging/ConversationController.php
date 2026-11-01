@@ -83,7 +83,7 @@ class ConversationController extends Controller
             // Numéros connectés, affichés en haut de la boîte (avec « Déconnecter » pour le gérant)
             'numbers' => $this->numbers(),
             // Numéro officiel bloqué par Meta : bandeau rouge en haut de la boîte
-            'meta' => $this->metaBlock(),
+            'meta_block' => $this->metaBlock(),
             'connected' => WhatsappAccount::query()->exists() || WhatsappLink::query()->where('status', 'connected')->exists()
                 || (app(Features::class)->enabled('meta_messages', $this->currentStore()) && SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists()),
         ]);
