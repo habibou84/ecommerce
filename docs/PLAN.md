@@ -651,3 +651,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Live : toucher la carte « À l'écran maintenant » l'agrandit en plein écran avec les choix d'affichage, les produits à toucher pour changer et Précédent / Suivant.
 - Liste des commandes : livreur déjà choisi affiché à la place de « Faire livrer », avec « Modifier » (choix gardé ou course pas encore partie) ; plus de bouton « Voir la commande ».
 - Liste des commandes : « Lien de paiement » pour les expéditions à payer d'avance, onglet « Chez le livreur », messages de résultat en phrases simples, actions groupées limitées aux commandes concernées (compteurs), bouton « Choisir » pour sélectionner sur téléphone.
+- Live sur WhatsApp : une seule demande de confirmation (le récapitulatif en image avec « Je confirme / Changer l'adresse / Ajouter un article ») ; plus de second message « Confirmer / Annuler » ; une seule demande automatique par commande.

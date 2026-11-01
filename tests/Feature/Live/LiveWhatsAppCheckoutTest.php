@@ -129,7 +129,9 @@ class LiveWhatsAppCheckoutTest extends TestCase
         $angre = collect($quartiers['interactive']['action']['sections'][0]['rows'])->firstWhere('title', 'Angré');
         $this->assertNotNull($angre);
 
-        // Quartier touché : la commande est créée, récapitulatif en image avec le total et trois boutons
+        // Quartier touché : la commande est créée, récapitulatif en image avec le total et trois boutons. Même avec la
+        // demande de confirmation automatique activée, pas de second message « Confirmer / Annuler » pour cette commande
+        $this->account->forceFill(['automations' => ['order_confirmation' => true]])->save();
         $this->tap($angre['id'], 'Angré');
         $order = Order::sole();
         $this->assertSame([OrderStatus::PendingConfirmation, $this->place('Angré')->id, 1500, 13500], [$order->status, $order->shipping_place_id, (int) $order->shipping_fee, (int) $order->total]);
