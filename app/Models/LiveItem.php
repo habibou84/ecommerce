@@ -27,6 +27,35 @@ class LiveItem extends Model
         return $this->flash_price !== null && $this->flash_ends_at !== null && $this->flash_ends_at->isFuture();
     }
 
+    /**
+     * Valeurs de la variante dans l'ordre des options du produit (« M », « Rouge ») ; vide pour un produit sans variantes.
+     *
+     * @return list<string>
+     */
+    public function optionValues(): array
+    {
+        $variant = $this->variant;
+        if ($variant === null || $variant->is_default || trim((string) $variant->title) === '') {
+            return [];
+        }
+
+        return array_values(array_map('trim', explode(' / ', (string) $variant->title)));
+    }
+
+    /**
+     * Noms des options du produit (« Taille », « Couleur »), dans le même ordre que optionValues().
+     *
+     * @return list<string>
+     */
+    public function optionNames(): array
+    {
+        $variant = $this->variant;
+
+        return collect([$variant?->option1, $variant?->option2, $variant?->option3])
+            ->take(count($this->optionValues()))
+            ->map(fn ($value) => $value?->option?->name ?? 'Choix')->values()->all();
+    }
+
     /** Prix à payer en ce moment (prix flash pendant le chrono, sinon prix du live) */
     public function currentPrice(): int
     {

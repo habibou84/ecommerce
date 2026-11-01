@@ -99,7 +99,22 @@ const chosen = (id) => form.items.some((i) => i.variant_id === id)
 function toggle(v) {
   const index = form.items.findIndex((i) => i.variant_id === v.id)
   if (index >= 0) form.items.splice(index, 1)
-  else form.items.push({ variant_id: v.id, title: v.title, image: v.image, price: v.price, quantity: Math.max(1, Math.min(v.available || 1, 10)), available: v.available })
+  else form.items.push({ variant_id: v.id, product_id: v.product_id, title: v.title, image: v.image, price: v.price, quantity: Math.max(1, Math.min(v.available || 1, 10)), available: v.available })
+}
+// Résultats regroupés par produit : « Tout le produit » coche toutes ses tailles et couleurs en stock
+const productsFound = computed(() => {
+  const groups = []
+  results.value.forEach((v) => {
+    const group = groups.find((g) => g.id === v.product_id)
+    if (group) group.variants.push(v)
+    else groups.push({ id: v.product_id, title: v.product ?? v.title, variants: [v] })
+  })
+  return groups
+})
+function toggleProduct(group) {
+  const all = group.variants.filter((v) => v.available > 0).length ? group.variants.filter((v) => v.available > 0) : group.variants
+  const every = all.every((v) => chosen(v.id))
+  all.forEach((v) => chosen(v.id) === every && toggle(v))
 }
 function move(index, step) {
   const target = index + step
@@ -108,8 +123,13 @@ function move(index, step) {
   form.items.splice(target, 0, item)
 }
 
-// A1…A9, B1… : même règle que le serveur
-const code = (i) => String.fromCharCode(65 + (Math.floor(i / 9) % 26)) + ((i % 9) + 1)
+// A1…A9, B1… : même règle que le serveur ; les variantes d'un même produit partagent le code
+const codeAt = (i) => String.fromCharCode(65 + (Math.floor(i / 9) % 26)) + ((i % 9) + 1)
+const code = (index) => {
+  const products = []
+  form.items.slice(0, index + 1).forEach((i) => products.includes(i.product_id ?? `v${i.variant_id}`) || products.push(i.product_id ?? `v${i.variant_id}`))
+  return codeAt(products.indexOf(form.items[index].product_id ?? `v${form.items[index].variant_id}`))
+}
 const totals = computed(() => ({
   pieces: form.items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0),
   value: form.items.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.price) || 0), 0),
@@ -270,11 +290,19 @@ async function save() {
       <div class="space-y-3 text-sm">
         <input v-model="search" class="input" placeholder="Chercher un article (nom ou référence)" @input="find" />
         <ul class="max-h-[55vh] divide-y divide-slate-100 overflow-auto rounded-xl border border-slate-200">
-          <li v-for="v in results" :key="v.id">
-            <button type="button" class="flex w-full items-center gap-3 p-2 text-left hover:bg-slate-50" :aria-pressed="chosen(v.id)" @click="toggle(v)">
+          <li v-for="g in productsFound" :key="g.id">
+            <!-- Produit avec tailles ou couleurs : tout d'un coup (un seul code), ou variante par variante -->
+            <div v-if="g.variants.length > 1" class="flex items-center gap-3 bg-slate-50 p-2">
+              <img v-if="g.variants[0].image" :src="g.variants[0].image" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
+              <b class="min-w-0 flex-1 truncate">{{ g.title }}</b>
+              <button type="button" class="shrink-0 rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-bold text-white" @click="toggleProduct(g)">
+                {{ g.variants.filter((v) => v.available > 0 || !g.variants.some((x) => x.available > 0)).every((v) => chosen(v.id)) ? 'Tout retirer' : `Tout le produit (${g.variants.length})` }}
+              </button>
+            </div>
+            <button v-for="v in g.variants" :key="v.id" type="button" class="flex w-full items-center gap-3 p-2 text-left hover:bg-slate-50" :class="g.variants.length > 1 ? 'pl-6' : ''" :aria-pressed="chosen(v.id)" @click="toggle(v)">
               <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2" :class="chosen(v.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'"><Icon v-if="chosen(v.id)" name="check" :size="14" /></span>
-              <img v-if="v.image" :src="v.image" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
-              <span class="min-w-0 flex-1"><span class="block truncate font-medium">{{ v.title }}</span><span class="text-xs text-slate-500">{{ money(v.price) }} · {{ v.available }} en stock</span></span>
+              <img v-if="v.image && g.variants.length === 1" :src="v.image" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
+              <span class="min-w-0 flex-1"><span class="block truncate font-medium">{{ g.variants.length > 1 ? v.variant : v.title }}</span><span class="text-xs text-slate-500">{{ money(v.price) }} · {{ v.available }} en stock</span></span>
             </button>
           </li>
           <li v-if="!results.length" class="p-4 text-center text-slate-500">Aucun article trouvé.</li>
