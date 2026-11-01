@@ -527,7 +527,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('whatsapp/link', [WhatsAppLinkController::class, 'show'])->middleware('feature:whatsapp_qr')->name('whatsapp.link.show');
                 Route::post('whatsapp/link', [WhatsAppLinkController::class, 'start'])->middleware('throttle:20,1')->middleware('feature:whatsapp_qr')->name('whatsapp.link.start');
                 Route::post('whatsapp/link/pair', [WhatsAppLinkController::class, 'pair'])->middleware('throttle:10,1')->middleware('feature:whatsapp_qr')->name('whatsapp.link.pair');
-                Route::delete('whatsapp/link', [WhatsAppLinkController::class, 'destroy'])->middleware('feature:whatsapp_qr')->name('whatsapp.link.destroy');
+                Route::delete('whatsapp/link', [WhatsAppLinkController::class, 'destroy'])->name('whatsapp.link.destroy');
                 // Vendre sur WhatsApp : réponses automatiques et catalogue
                 Route::get('whatsapp/sales', [WhatsAppSalesController::class, 'show'])->name('whatsapp.sales.show');
                 Route::put('whatsapp/sales', [WhatsAppSalesController::class, 'update'])->name('whatsapp.sales.update');

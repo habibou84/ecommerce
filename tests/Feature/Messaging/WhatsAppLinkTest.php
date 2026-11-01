@@ -263,4 +263,22 @@ class WhatsAppLinkTest extends TestCase
         $this->storeApi($this->store, 'POST', 'whatsapp/link/pair', ['phone' => '0700000001'])->assertStatus(422)->assertJsonValidationErrors('link');
         Http::assertNotSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/start') || str_ends_with($r->url(), '/pair'));
     }
+
+    public function test_messages_page_lists_connected_numbers_and_disconnects_them(): void
+    {
+        $this->linked();
+        WhatsappAccount::create(['store_id' => $this->store->id, 'phone_number_id' => '1', 'display_phone' => '+225 07 00 00 00 01', 'verified_name' => 'Awa Mode', 'access_token' => 't', 'status' => 'active']);
+
+        $this->storeApi($this->store, 'GET', 'conversations')->assertOk()
+            ->assertJsonPath('numbers.0.kind', 'official')->assertJsonPath('numbers.0.phone', '+225 07 00 00 00 01')
+            ->assertJsonPath('numbers.1.kind', 'linked')->assertJsonPath('numbers.1.phone', '+2250700000001');
+
+        // Liaison par QR code coupée par la console : la déconnexion reste possible
+        $this->store->forceFill(['whatsapp_qr_enabled' => false])->save();
+        $this->storeApi($this->store, 'DELETE', 'whatsapp/link')->assertOk();
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/logout'));
+        $this->storeApi($this->store, 'DELETE', 'whatsapp')->assertOk();
+
+        $this->storeApi($this->store, 'GET', 'conversations')->assertOk()->assertJsonPath('numbers', [])->assertJsonPath('connected', false);
+    }
 }

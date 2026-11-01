@@ -24,7 +24,9 @@ const returned = (() => {
   }
 })()
 const source = returned ?? route.query
-const options = { appId: source.app, configId: source.config, version: source.v || 'v25.0', coexistence: source.coexistence === '1' }
+// coexistence : '1' = numéro gardé dans l'application WhatsApp Business ; 'auto' = Meta le détecte lui-même
+const options = { appId: source.app, configId: source.config, version: source.v || 'v25.0', coexistence: ['1', 'auto'].includes(source.coexistence) }
+const sure = source.coexistence === '1'
 
 // Retour seulement vers une boutique de la plateforme (https://{boutique}.jibiat-marchand.com/…)
 const back = computed(() => {
@@ -44,7 +46,7 @@ onMounted(() => {
   if (returned && back.value) {
     // Facebook a renvoyé le code (ou un refus) : on repart aussitôt vers la boutique
     if (route.query.code) {
-      goBack({ code: String(route.query.code), redirect_uri: redirectUri, coexistence: options.coexistence ? '1' : '0' })
+      goBack({ code: String(route.query.code), redirect_uri: redirectUri, coexistence: sure ? '1' : '0' })
     } else {
       goBack({ erreur: route.query.error_reason === 'user_denied' ? 'Connexion à Facebook annulée.' : 'Facebook n\'a pas terminé la connexion. Recommencez quand vous voulez.' })
     }
@@ -62,14 +64,14 @@ async function start() {
   error.value = ''
   // Téléphone : la page entière (pas de fenêtre qui se perd dans un autre onglet)
   if (prefersRedirect()) {
-    const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: options.coexistence ? '1' : '0', retour: back.value }))
+    const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value }))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
     window.location.assign(facebookDialogUrl(options, redirectUri, state))
     return
   }
   try {
     const result = await connectWhatsApp(options)
-    goBack({ code: result.code, waba_id: result.waba_id, phone_number_id: result.phone_number_id ?? '', coexistence: options.coexistence ? '1' : '0' })
+    goBack({ code: result.code, waba_id: result.waba_id, phone_number_id: result.phone_number_id ?? '', coexistence: sure || result.coexistence ? '1' : '0' })
   } catch (e) {
     error.value = e.message
     busy.value = false
