@@ -85,7 +85,7 @@ class EmbeddedSignupTest extends TestCase
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/5555/register') && $r['pin'] === $account->two_step_pin && $r['messaging_product'] === 'whatsapp');
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/4444/message_templates') && $r['name'] === 'jm_confirmation_commande'
             && $r['language'] === 'fr' && $r['components'][1]['buttons'][0]['text'] === 'Confirmer' && count($r['components'][0]['example']['body_text'][0]) === 3);
-        Http::assertSentCount(4 + count(TemplateLibrary::TEMPLATES));
+        Http::assertSentCount(5 + count(TemplateLibrary::TEMPLATES)); // dont la lecture de platform_type
 
         // Aucune variable en tout début ou toute fin de texte (refusé par Meta), autant d'exemples que de variables
         foreach (TemplateLibrary::TEMPLATES as $event => $t) {
@@ -139,6 +139,13 @@ class EmbeddedSignupTest extends TestCase
         $this->storeApi($this->store, 'POST', 'whatsapp/embedded', ['code' => 'c', 'waba_id' => '4444', 'coexistence' => true])->assertOk()
             ->assertJsonPath('data.account.phone_number_id', '5555');
         Http::assertNotSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/register'));
+
+        // Numéro déjà sur l'API de Meta (Meta est passé tout seul en coexistence) : pas d'activation non plus
+        WhatsappAccount::query()->delete();
+        $this->number['platform_type'] = 'CLOUD_API';
+        $this->storeApi($this->store, 'POST', 'whatsapp/embedded', ['code' => 'c', 'waba_id' => '4444', 'phone_number_id' => '5555'])->assertOk();
+        Http::assertNotSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/register'));
+        unset($this->number['platform_type']);
 
         // Activation refusée ou modèle refusé : connecté quand même, avec les avertissements
         $this->failing = ['/register', '/message_templates'];

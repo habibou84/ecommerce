@@ -85,7 +85,12 @@ export async function connectWhatsApp({ appId, configId, version, coexistence = 
       if (message.event === 'CANCEL') return done(reject, new Error('Connexion interrompue. Vous pouvez recommencer quand vous voulez.'))
       if (message.event === 'ERROR') return done(reject, new Error(message.data?.error_message || 'Meta a signalé une erreur pendant la connexion.'))
       if (String(message.event).startsWith('FINISH') && message.data?.waba_id) {
-        session = { waba_id: String(message.data.waba_id), phone_number_id: message.data.phone_number_id ? String(message.data.phone_number_id) : null }
+        // FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING : numéro gardé dans l'application WhatsApp Business (déjà actif chez Meta)
+        session = {
+          waba_id: String(message.data.waba_id),
+          phone_number_id: message.data.phone_number_id ? String(message.data.phone_number_id) : null,
+          coexistence: message.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING',
+        }
         settle()
       }
     }
@@ -115,10 +120,12 @@ export async function connectWhatsApp({ appId, configId, version, coexistence = 
   })
 }
 
-// Gestion de la boutique → page de la plateforme qui ouvre la fenêtre Facebook, puis revient sur `back`
+// Gestion de la boutique → page de la plateforme qui ouvre la fenêtre Facebook, puis revient sur `back`.
+// coexistence : true = numéro gardé dans l'application WhatsApp Business (console) ; 'auto' = Meta le propose
+// seulement si le numéro y est déjà (boutiques).
 export function facebookRelayUrl(platformUrl, { appId, configId, version, coexistence }, back) {
   const query = new URLSearchParams({ app: appId, config: configId, v: version, retour: back })
-  if (coexistence) query.set('coexistence', '1')
+  if (coexistence) query.set('coexistence', coexistence === 'auto' ? 'auto' : '1')
   return `${platformUrl.replace(/\/$/, '')}/whatsapp/facebook?${query}`
 }
 
