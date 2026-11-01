@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import Alert from './Alert.vue'
 import LiveDisplay from './LiveDisplay.vue'
 import http, { errorMessage, fieldErrors } from '../lib/http'
@@ -31,7 +31,8 @@ async function loadDisplay() {
   try {
     display.value = (await http.get(`/lives/${props.id}/display`)).data.data
   } catch (e) {
-    error.value = errorMessage(e)
+    // Application en arrière-plan : pas de message, la prochaine lecture rattrape
+    if (!document.hidden) error.value = errorMessage(e)
   }
 }
 async function loadScreens() {
@@ -45,11 +46,15 @@ onMounted(() => {
   loadDisplay()
   loadScreens()
   timer = setInterval(() => {
+    if (document.hidden) return
     loadDisplay()
     loadScreens()
   }, 3000)
 })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  clearInterval(timer)
+  clearInterval(clock)
+})
 
 // ── Mes produits ──
 const items = computed(() => display.value?.live?.items ?? [])
@@ -100,6 +105,26 @@ function step(delta) {
   const to = at < 0 ? (delta > 0 ? 0 : list.length - 1) : (at + delta + list.length) % list.length
   showItem(list[to])
 }
+// Vente flash sur le produit à l'écran : prix plus bas quelques minutes, chrono sur l'écran
+const now = ref(Date.now())
+const clock = setInterval(() => items.value.some((i) => i.flash_ends_at) && (now.value = Date.now()), 1000)
+const flashLeft = (i) => (i?.flash_ends_at ? Math.max(0, Math.round((new Date(i.flash_ends_at).getTime() - now.value) / 1000)) : 0)
+const chrono = (i) => `${String(Math.floor(flashLeft(i) / 60)).padStart(2, '0')}:${String(flashLeft(i) % 60).padStart(2, '0')}`
+const flashing = ref(false)
+const flashForm = reactive({ price: null, minutes: 5 })
+function openFlash() {
+  // Proposition : environ 10 % de moins, arrondi à 500 F
+  flashForm.price = Math.max(0, Math.floor((shown.value.price * 0.9) / 500) * 500)
+  flashForm.minutes = 5
+  flashing.value = true
+  expanded.value = false
+}
+async function startFlash() {
+  await run(() => http.post(`/lives/${props.id}/items/${shown.value.id}/flash`, { price: flashForm.price, minutes: flashForm.minutes }))
+  if (!error.value) flashing.value = false
+}
+const stopFlash = () => run(() => http.post(`/lives/${props.id}/items/${shown.value.id}/flash`, { price: null }))
+watch(featured, () => (flashing.value = false))
 const next = () => step(1)
 const previous = () => step(-1)
 // Bande de miniatures : le produit à l'écran reste visible quand il change
@@ -250,7 +275,37 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
             <span v-if="i.remaining === 0" class="absolute inset-x-0 top-0 grid h-[72px] place-items-center bg-white/60 text-sm font-black text-red-600">VENDU</span>
             <span class="block px-1.5 pb-1.5 pt-1 text-xs">
               <b class="block truncate">{{ i.title }}</b>
-              <span class="text-[11px] text-slate-500">{{ money(i.price) }}</span>
+              <span v-if="flashLeft(i) > 0" class="text-[11px] font-black text-red-600">⚡ {{ money(i.price) }}</span>
+              <span v-else class="text-[11px] text-slate-500">{{ money(i.price) }}</span>
+            </span>
+          </button>
+        </div>
+
+        <!-- Vente flash sur le produit à l'écran -->
+        <div v-if="shown && shown.remaining > 0" class="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+          <div v-if="flashLeft(shown) > 0" class="flex items-center gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-black text-red-700">⚡ Prix live {{ shown.code }} : {{ money(shown.price) }} <s v-if="shown.was" class="font-semibold text-slate-400">{{ money(shown.was) }}</s></p>
+              <p class="text-xs font-bold text-slate-600">⏱ {{ chrono(shown) }} restantes · chrono affiché à l'écran</p>
+            </div>
+            <button type="button" class="shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-bold text-red-700 shadow-sm" :disabled="busy" @click="stopFlash">Arrêter</button>
+          </div>
+          <form v-else-if="flashing" class="space-y-3" @submit.prevent="startFlash">
+            <p class="text-sm font-black">⚡ Prix live sur {{ shown.code }} <span class="font-semibold text-slate-500">(prix du live {{ money(shown.price) }})</span></p>
+            <div class="flex items-center gap-2">
+              <input v-model.number="flashForm.price" type="number" min="0" :max="shown.price - 1" step="100" class="input w-32" aria-label="Prix live" required />
+              <button v-for="m in [2, 5, 10]" :key="m" type="button" class="flex-1 rounded-xl border px-2 py-2 text-xs font-bold" :class="flashForm.minutes === m ? 'border-amber-500 bg-white text-amber-800' : 'border-amber-200'" @click="flashForm.minutes = m">{{ m }} min</button>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" class="btn-ghost flex-1" @click="flashing = false">Annuler</button>
+              <button class="btn-brand flex-1" :disabled="busy">⚡ Lancer</button>
+            </div>
+          </form>
+          <button v-else type="button" class="flex w-full items-center gap-3 text-left" @click="openFlash">
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400 text-lg">⚡</span>
+            <span class="min-w-0 flex-1">
+              <b class="block text-sm">Prix live sur {{ shown.code }}</b>
+              <span class="block text-xs text-slate-600">Baisser le prix 2, 5 ou 10 minutes, avec un chrono à l'écran</span>
             </span>
           </button>
         </div>
@@ -292,9 +347,14 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
               <span v-if="i.remaining === 0" class="absolute inset-x-0 top-0 grid h-16 place-items-center bg-white/60 text-sm font-black text-red-600">VENDU</span>
               <span class="block px-1.5 pb-1 pt-0.5 text-[11px]">
                 <b class="block truncate">{{ i.title }}</b>
-                <span class="text-slate-500">{{ money(i.price) }}</span>
+                <span v-if="flashLeft(i) > 0" class="font-black text-red-600">⚡ {{ money(i.price) }} · {{ chrono(i) }}</span>
+                <span v-else class="text-slate-500">{{ money(i.price) }}</span>
               </span>
             </button>
+          </div>
+          <div v-if="mode === 'product' && shown && shown.remaining > 0" class="mx-auto w-full max-w-3xl shrink-0 px-3 pt-2">
+            <button v-if="flashLeft(shown) > 0" type="button" class="w-full rounded-xl bg-red-600 py-2.5 text-sm font-extrabold" :disabled="busy" @click="stopFlash">⚡ {{ money(shown.price) }} · ⏱ {{ chrono(shown) }} · Arrêter</button>
+            <button v-else type="button" class="w-full rounded-xl bg-amber-400 py-2.5 text-sm font-extrabold text-slate-900" @click="openFlash">⚡ Prix live sur {{ shown.code }}</button>
           </div>
           <div class="mx-auto grid w-full max-w-3xl shrink-0 grid-cols-2 gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
             <button type="button" class="rounded-xl border border-white/25 bg-white/10 py-3.5 text-base font-extrabold" :disabled="busy || items.length < 2" @click="previous">◀ Précédent</button>

@@ -269,6 +269,12 @@ export function startOfflineSync() {
     flush()
   })
   window.addEventListener('offline', () => (offline.online = false))
+  // Retour dans l'application : l'état du réseau est relu (il peut être resté sur « hors ligne » pendant la veille)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return
+    offline.online = navigator.onLine !== false
+    if (offline.online) flush()
+  })
   setInterval(() => offline.pending && flush(), 30000)
   refreshCounts().then(() => offline.pending && flush())
 }
