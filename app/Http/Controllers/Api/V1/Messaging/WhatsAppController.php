@@ -128,15 +128,17 @@ class WhatsAppController extends Controller
     {
         $data = $request->validate([
             'code' => ['required', 'string', 'max:1000'],
-            'waba_id' => ['required', 'string', 'max:40', 'regex:/^\d+$/'],
+            // Connexion par la page entière (téléphone) : compte retrouvé par le serveur, adresse de retour redonnée à Meta
+            'waba_id' => ['nullable', 'string', 'max:40', 'regex:/^\d+$/'],
             'phone_number_id' => ['nullable', 'string', 'max:40', 'regex:/^\d+$/'],
             'coexistence' => ['sometimes', 'boolean'],
+            'redirect_uri' => ['nullable', 'string', 'max:300', 'starts_with:'.Tenancy::platformUrl('/whatsapp/facebook')],
         ]);
         if (WhatsappAccount::first() === null) {
             app(PlanLimits::class)->ensureFeature($this->currentStore(), 'whatsapp_api');
         }
 
-        $result = $signup->connect($this->currentStore(), $data['code'], $data['waba_id'], $data['phone_number_id'] ?? null, (bool) ($data['coexistence'] ?? false));
+        $result = $signup->connect($this->currentStore(), $data['code'], $data['waba_id'] ?? null, $data['phone_number_id'] ?? null, (bool) ($data['coexistence'] ?? false), $data['redirect_uri'] ?? null);
 
         $payload = $this->show()->getData(true);
         $payload['data']['warnings'] = $result['warnings'];

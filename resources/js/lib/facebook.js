@@ -22,6 +22,35 @@ function loadSdk(appId, version) {
   return sdk
 }
 
+// Téléphone : la fenêtre Facebook s'ouvre dans un autre onglet et son résultat se perd souvent ; on passe par la
+// page entière (aller chez Facebook, puis retour sur la plateforme avec le code)
+export function prefersRedirect() {
+  return window.matchMedia?.('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+}
+
+// Navigateur intégré de WhatsApp, Facebook, Instagram, TikTok… : les fenêtres et les retours y marchent mal
+export function inAppBrowser() {
+  return /FBAN|FBAV|FB_IAB|Instagram|WhatsApp|musical_ly|TikTok|Line\/|; wv\)/i.test(navigator.userAgent)
+}
+
+// Adresse de retour déclarée chez Meta (Paramètres de Facebook Login › URI de redirection OAuth valides)
+export function facebookReturnUrl(platformUrl) {
+  return `${platformUrl.replace(/\/$/, '')}/whatsapp/facebook`
+}
+
+/**
+ * Connexion par la page entière : adresse de la fenêtre Facebook, l'état (boutique de retour, options) revient
+ * avec le code.
+ */
+export function facebookDialogUrl({ appId, configId, version, coexistence = false }, redirectUri, state) {
+  const extras = { setup: {}, sessionInfoVersion: '3', ...(coexistence ? { featureType: 'whatsapp_business_app_onboarding' } : {}) }
+  const query = new URLSearchParams({
+    client_id: appId, config_id: configId, response_type: 'code', override_default_response_type: 'true',
+    redirect_uri: redirectUri, state, extras: JSON.stringify(extras),
+  })
+  return `https://www.facebook.com/${version || 'v25.0'}/dialog/oauth?${query}`
+}
+
 // Chargement à l'avance : la fenêtre s'ouvre alors aussitôt le clic (pas bloquée par le navigateur)
 export function prepareFacebook({ appId, version }) {
   return loadSdk(appId, version).catch(() => {})
@@ -64,7 +93,13 @@ export async function connectWhatsApp({ appId, configId, version, coexistence = 
 
     FB.login(
       (response) => {
-        if (!response.authResponse?.code) return done(reject, new Error('Connexion à Facebook annulée.'))
+        // Sans code : la fenêtre a été fermée (ou n'a pas pu s'ouvrir). Un compte déjà choisi dans la fenêtre attend
+        // encore un peu son code au lieu d'afficher tout de suite une erreur.
+        if (!response.authResponse?.code) {
+          return setTimeout(() => !code && done(reject, new Error(session
+            ? 'Facebook n\'a pas renvoyé l\'autorisation. Recommencez : la connexion reprend où elle s\'est arrêtée.'
+            : 'La fenêtre Facebook a été fermée avant la fin. Recommencez quand vous voulez.')), session ? 8000 : 1500)
+        }
         code = response.authResponse.code
         settle()
         // Code reçu sans compte choisi : la fenêtre a été fermée trop tôt
@@ -93,11 +128,13 @@ export function takeFacebookResult() {
   const params = new URLSearchParams(window.location.hash.slice(1))
   window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
   if (params.get('erreur')) return { error: params.get('erreur') }
-  if (!params.get('code') || !params.get('waba_id')) return null
+  if (!params.get('code')) return null
   return {
     code: params.get('code'),
-    waba_id: params.get('waba_id'),
+    // Connexion par la page entière : compte retrouvé par le serveur, adresse de retour redonnée à Meta
+    waba_id: params.get('waba_id') || null,
     phone_number_id: params.get('phone_number_id') || null,
     coexistence: params.get('coexistence') === '1',
+    redirect_uri: params.get('redirect_uri') || null,
   }
 }

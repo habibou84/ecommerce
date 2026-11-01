@@ -44,6 +44,10 @@ class EmbeddedSignupTest extends TestCase
                 str_ends_with($path, '/oauth/access_token') => Http::response(['access_token' => 'biz-token', 'token_type' => 'bearer']),
                 str_ends_with($path, '/subscribed_apps'), str_ends_with($path, '/register') => Http::response(['success' => true]),
                 str_ends_with($path, '/phone_numbers') => Http::response(['data' => [['id' => '5555']]]),
+                // Jeton vérifié par la plateforme : comptes WhatsApp choisis dans Facebook
+                str_ends_with($path, '/debug_token') => Http::response(['data' => ['granular_scopes' => [
+                    ['scope' => 'business_management'], ['scope' => 'whatsapp_business_management', 'target_ids' => ['4444']],
+                ]]]),
                 str_ends_with($path, '/message_templates') => Http::response(['id' => 't1', 'status' => 'PENDING', 'category' => 'UTILITY']),
                 str_ends_with($path, '/5555') => Http::response($this->number),
                 default => Http::response(['error' => ['message' => 'inattendu '.$path]], 404),
@@ -89,6 +93,19 @@ class EmbeddedSignupTest extends TestCase
             $this->assertSame(count(CustomerMessenger::EVENTS[$event]['variables']), preg_match_all('/\{\{\d\}\}/', $t['body']), $event);
             $this->assertCount(preg_match_all('/\{\{\d\}\}/', $t['body']), $t['example'], $event);
         }
+    }
+
+    public function test_phone_connection_through_the_whole_page_finds_the_account_from_the_token(): void
+    {
+        // Téléphone : retour de Facebook par la page entière, sans compte ni numéro transmis par la fenêtre
+        $redirect = 'http://localhost/whatsapp/facebook';
+        $this->storeApi($this->store, 'POST', 'whatsapp/embedded', ['code' => 'code-tel', 'redirect_uri' => 'https://ailleurs.example/x'])->assertStatus(422);
+        $this->storeApi($this->store, 'POST', 'whatsapp/embedded', ['code' => 'code-tel', 'redirect_uri' => $redirect])->assertOk()
+            ->assertJsonPath('data.account.connection', 'embedded')->assertJsonPath('data.account.display_phone', '+225 07 00 00 00 01');
+
+        $this->assertSame(['4444', '5555'], [WhatsappAccount::sole()->waba_id, WhatsappAccount::sole()->phone_number_id]);
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'oauth/access_token?') && str_contains($r->url(), 'redirect_uri='.urlencode($redirect)));
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/debug_token?input_token=biz-token') && str_contains($r->url(), 'access_token='.urlencode('7777|platform-secret')));
     }
 
     public function test_number_provided_by_meta_and_display_name_review_are_explained(): void
