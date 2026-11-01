@@ -522,12 +522,16 @@ async function refreshPlace() {
 const lastAddress = ref(null)
 const lastAddressText = computed(() => (lastAddress.value ? [lastAddress.value.place_label, joinAddress(lastAddress.value.address_line, lastAddress.value.landmark)].filter(Boolean).join(' · ') : ''))
 // Adresse déjà reprise : la carte n'affiche plus le bouton mais une confirmation
-const addressTaken = computed(() => !!lastAddress.value && place.value?.id === lastAddress.value.place_id
-  && (!joinAddress(lastAddress.value.address_line, lastAddress.value.landmark) || form.shipping_address === joinAddress(lastAddress.value.address_line, lastAddress.value.landmark)))
+// Adresse reprise : une fois « Reprendre l'adresse » touché (ou l'adresse reprise toute seule), la carte le confirme et
+// le bouton disparaît, même si le quartier est ensuite ajusté (entreprise de livraison choisie, adresse retouchée…)
+const addressKey = (a) => (a ? `${a.place_id}|${a.address_line ?? ''}|${a.landmark ?? ''}` : '')
+const takenFor = ref('') // adresse du client déjà reprise (le client peut être relu entre-temps)
+const addressTaken = computed(() => !!lastAddress.value && takenFor.value === addressKey(lastAddress.value))
 const addressFlash = ref(false)
 async function useLastAddress(show = false) {
   const a = lastAddress.value
   if (!a) return
+  takenFor.value = addressKey(a)
   place.value = { id: a.place_id, label: a.place_label, ancestor_ids: [] }
   form.shipping_address = joinAddress(a.address_line, a.landmark) || form.shipping_address
   await refreshPlace()
@@ -602,6 +606,7 @@ const printing = ref(false)
 function clearCustomer() {
   Object.assign(form, { customer_phone: '', customer_name: '', shipping_phone2: '', shipping_address: '', shipping_landmark: '', customer_note: '' })
   place.value = null
+  takenFor.value = ''
   known.value = null
   elsewhere.value = []
   rewardPoints.value = 0
