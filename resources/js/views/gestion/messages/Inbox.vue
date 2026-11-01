@@ -3,7 +3,6 @@ import AiMeter from '../../../components/AiMeter.vue'
 import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import NetworkMark from '../../../components/NetworkMark.vue'
 import Icon from '../../../components/Icon.vue'
-import WhatsAppLink from '../../../components/WhatsAppLink.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
@@ -32,15 +31,35 @@ const input = ref(null)
 const newBelow = ref(false) // nouveaux messages arrivés pendant la lecture plus haut
 const loadingOlder = ref(false)
 
-// Relier WhatsApp depuis la boîte (QR code ou numéro), pour qui gère la boutique
-const canLink = computed(() => auth.can('store.manage') && auth.profile?.whatsapp_qr === true)
-const showLink = ref(false)
-// Bandeau « Relier mon WhatsApp » au-dessus de la boîte : la boîte raccourcit d'autant (sur téléphone, caché dans une conversation)
-const banner = computed(() => listLoaded.value && !linked.value && canLink.value && !showLink.value && (!props.id || window.innerWidth >= 1024))
-const justLinked = ref(false)
-function openLink() {
-  showLink.value = true
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+// Numéros connectés (officiel de Meta, ou relié par QR code pour les anciennes boutiques), en haut de la boîte.
+// Le gérant peut s'en déconnecter ; la connexion se fait dans Réglages › WhatsApp (avec Facebook).
+const canManage = computed(() => auth.can('store.manage'))
+const numbers = ref([])
+const disconnecting = ref('')
+const disconnectError = ref('')
+const NUMBER_KIND = { official: 'Numéro officiel (Meta)', linked: 'WhatsApp relié par QR code' }
+// Bandeau au-dessus de la boîte : la boîte raccourcit d'autant (sur téléphone, caché dans une conversation)
+const banner = computed(() => {
+  if (!listLoaded.value || (props.id && window.innerWidth < 1024)) return 0
+  if (numbers.value.length) return 1.5 + 2.5 * numbers.value.length
+  return !connected.value && canManage.value ? 4.5 : 0
+})
+async function disconnectNumber(n) {
+  const label = n.phone ? `le numéro ${n.phone}` : 'ce numéro'
+  const effect = n.kind === 'official'
+    ? 'Les messages de vos clients n\'arriveront plus ici et les messages automatiques s\'arrêtent.'
+    : 'Les messages de ce WhatsApp n\'arriveront plus ici.'
+  if (!window.confirm(`Déconnecter ${label} ? ${effect}`)) return
+  disconnecting.value = n.kind
+  disconnectError.value = ''
+  try {
+    await http.delete(n.kind === 'official' ? '/whatsapp' : '/whatsapp/link')
+    await loadList()
+  } catch (e) {
+    disconnectError.value = errorMessage(e)
+  } finally {
+    disconnecting.value = ''
+  }
 }
 
 // Assistant IA : réponse proposée avec les vrais prix, stock et frais de livraison ; le marchand relit et envoie
@@ -76,6 +95,7 @@ async function loadList(more = false) {
     if (more) listPage.value++
     connected.value = last.connected
     linked.value = last.linked
+    numbers.value = last.numbers ?? []
     listLoaded.value = true
   } catch {
     // réseau passager : nouvel essai au prochain tour
@@ -233,13 +253,6 @@ watch([filter, search], () => {
   searchTimer = setTimeout(() => loadList(), 300)
 })
 
-function onLinked() {
-  showLink.value = false
-  justLinked.value = true
-  loadList()
-  loadCurrent()
-}
-
 const replyUntil = computed(() => (current.value?.reply_until ? formatDateTime(current.value.reply_until) : ''))
 const waLink = computed(() => (current.value?.phone ? `https://wa.me/${current.value.phone.replace(/\D/g, '')}` : ''))
 const CHANNELS = { whatsapp: ['WhatsApp'], messenger: ['Messenger'], instagram: ['Instagram'] }
@@ -297,20 +310,29 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
 
 <template>
   <div class="space-y-4">
-    <!-- WhatsApp pas encore relié : proposé ici, en un geste (QR code ou numéro) -->
-    <template v-if="listLoaded && !linked && canLink">
-      <WhatsAppLink v-if="showLink" compact @linked="onLinked" />
-      <div v-else class="flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:flex-row sm:items-center" :class="id ? 'hidden lg:flex' : 'flex'">
-        <span class="flex min-w-0 flex-1 items-start gap-2"><Icon name="messages" :size="20" class="mt-0.5 shrink-0" />Recevez les messages WhatsApp de vos clients ici et répondez à tout moment, depuis votre numéro.</span>
-        <button type="button" class="btn-brand px-3 py-1.5 text-sm" @click="showLink = true">Relier mon WhatsApp</button>
+    <!-- Numéros connectés, avec « Déconnecter » pour le gérant -->
+    <div v-if="listLoaded && numbers.length" class="flex-col gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900" :class="id ? 'hidden lg:flex' : 'flex'">
+      <div v-for="n in numbers" :key="n.kind" class="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span class="flex min-w-0 flex-1 items-center gap-2">
+          <Icon name="messages" :size="18" class="shrink-0" />
+          <span class="min-w-0 truncate"><b>{{ n.phone || 'Numéro en cours d\'activation' }}</b><template v-if="n.name"> · {{ n.name }}</template> <span class="text-emerald-700">· {{ NUMBER_KIND[n.kind] }}</span></span>
+        </span>
+        <button v-if="canManage" type="button" class="btn-ghost px-2 py-1 text-sm text-red-600" :disabled="disconnecting === n.kind" @click="disconnectNumber(n)">
+          {{ disconnecting === n.kind ? 'Déconnexion…' : 'Déconnecter' }}
+        </button>
       </div>
-    </template>
-    <Alert v-else-if="justLinked" tone="success">WhatsApp relié : les messages de vos clients arrivent maintenant ici, et vous répondez depuis votre numéro à tout moment.</Alert>
+      <p v-if="disconnectError" class="text-red-700">{{ disconnectError }}</p>
+    </div>
+    <!-- Aucun WhatsApp : la connexion se fait avec Facebook dans Réglages › WhatsApp -->
+    <div v-else-if="listLoaded && !connected && canManage" class="flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:flex-row sm:items-center" :class="id ? 'hidden lg:flex' : 'flex'">
+      <span class="flex min-w-0 flex-1 items-start gap-2"><Icon name="messages" :size="20" class="mt-0.5 shrink-0" />Recevez ici les messages WhatsApp de vos clients : connectez votre numéro avec Facebook.</span>
+      <RouterLink to="/gestion/whatsapp" class="btn-brand px-3 py-1.5 text-sm">Connecter mon WhatsApp</RouterLink>
+    </div>
     <Alert v-else-if="listLoaded && !connected" tone="warning">
       Les messages des clients arrivent ici quand {{ sources }} {{ metaMessages ? 'sont connectés' : 'est connecté' }}. Demandez au gérant de la boutique de les relier.
     </Alert>
 
-    <div class="card grid grid-cols-1 overflow-hidden lg:grid-cols-[20rem_1fr]" :style="{ height: `calc(100vh - ${banner ? 13.5 : 9}rem)`, minHeight: '28rem' }">
+    <div class="card grid grid-cols-1 overflow-hidden lg:grid-cols-[20rem_1fr]" :style="{ height: `calc(100vh - ${9 + banner}rem)`, minHeight: '28rem' }">
       <!-- Conversations -->
       <aside class="flex min-h-0 min-w-0 flex-col border-slate-200 lg:border-r" :class="{ 'hidden lg:flex': id }">
         <div class="space-y-2 border-b border-slate-100 p-3">
@@ -457,7 +479,6 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
           <!-- Règle des 24 h : seulement pour la connexion officielle de Meta, Messenger et Instagram -->
           <p v-if="!current.linked && replyUntil" class="text-xs text-slate-500">
             {{ current.channel === 'whatsapp' ? 'Connexion officielle de Meta' : channelLabel(current) }} : réponse possible jusqu'au {{ replyUntil }}.
-            <template v-if="current.channel === 'whatsapp' && canLink && !linked"><button type="button" class="font-medium text-emerald-700 underline" @click="openLink">Relier mon WhatsApp</button> pour répondre à tout moment.</template>
           </p>
           <p v-else-if="enterSends" class="text-xs text-slate-400">Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
         </form>
@@ -466,7 +487,6 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
             {{ current.channel === 'whatsapp' ? 'Connexion officielle de Meta' : channelLabel(current) }} : le dernier message du client date de plus de 24 h, la réponse n'est plus possible d'ici.
             <a v-if="waLink" :href="waLink" target="_blank" rel="noopener" class="font-medium text-emerald-700 underline">Écrire depuis WhatsApp</a>
           </p>
-          <button v-if="current.channel === 'whatsapp' && canLink && !linked" type="button" class="btn-brand px-3 py-1.5 text-sm" @click="openLink">Relier mon WhatsApp pour répondre à tout moment</button>
         </div>
       </section>
       <section v-else class="hidden place-items-center p-6 text-center text-sm text-slate-500 lg:grid">
