@@ -190,18 +190,15 @@ class PlatformWhatsApp
     /**
      * Résultat de la fenêtre Facebook : jeton, abonnement aux notifications, numéro (activé sauf s'il reste sur le téléphone).
      */
-    public function connect(string $code, string $wabaId, ?string $phoneNumberId, bool $coexistence): void
+    public function connect(string $code, ?string $wabaId, ?string $phoneNumberId, bool $coexistence, ?string $redirectUri = null): void
     {
         if (! EmbeddedSignup::enabled()) {
             throw new BusinessRuleException('La connexion en un clic n\'est pas encore activée sur la plateforme (application Meta).');
         }
         try {
-            $token = (string) ($this->cloud->graph('GET', 'oauth/access_token', null, [
-                'client_id' => WhatsAppMetaApp::id(), 'client_secret' => WhatsAppMetaApp::secret(), 'code' => $code,
-            ])['access_token'] ?? '');
-            if ($token === '') {
-                throw new RuntimeException('Meta n\'a pas renvoyé de jeton.');
-            }
+            $signup = app(EmbeddedSignup::class);
+            $token = $signup->exchange($this->cloud, $code, $redirectUri);
+            $wabaId = $wabaId ?: $signup->findWaba($this->cloud, $token);
             $phoneNumberId = $phoneNumberId ?: (string) ($this->cloud->graph('GET', $wabaId.'/phone_numbers', $token)['data'][0]['id'] ?? '');
             if ($phoneNumberId === '') {
                 throw new RuntimeException('Aucun numéro trouvé sur ce compte WhatsApp.');

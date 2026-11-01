@@ -9,6 +9,7 @@ use App\Models\SupportMessage;
 use App\Services\WhatsApp\MerchantCatchUp;
 use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\PlatformWhatsApp;
+use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -31,12 +32,14 @@ class ConsoleWhatsAppController extends Controller
     {
         $data = $request->validate([
             'code' => ['required', 'string', 'max:1000'],
-            'waba_id' => ['required', 'string', 'max:40', 'regex:/^\d+$/'],
+            // Connexion par la page entière (téléphone) : compte retrouvé par le serveur, adresse de retour redonnée à Meta
+            'waba_id' => ['nullable', 'string', 'max:40', 'regex:/^\d+$/'],
             'phone_number_id' => ['nullable', 'string', 'max:40', 'regex:/^\d+$/'],
             'coexistence' => ['sometimes', 'boolean'],
+            'redirect_uri' => ['nullable', 'string', 'max:300', 'starts_with:'.Tenancy::platformUrl('/whatsapp/facebook')],
         ]);
-        $this->whatsapp->connect($data['code'], $data['waba_id'], $data['phone_number_id'] ?? null, (bool) ($data['coexistence'] ?? false));
-        $this->log($request, 'support_whatsapp_connected', ['waba_id' => $data['waba_id']]);
+        $this->whatsapp->connect($data['code'], $data['waba_id'] ?? null, $data['phone_number_id'] ?? null, (bool) ($data['coexistence'] ?? false), $data['redirect_uri'] ?? null);
+        $this->log($request, 'support_whatsapp_connected', ['waba_id' => $data['waba_id'] ?? 'retrouvé par le serveur']);
 
         return $this->show();
     }
