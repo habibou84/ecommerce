@@ -54,7 +54,7 @@ function back() {
         <button type="button" class="ml-auto font-medium text-emerald-700 underline" @click="back">Retour</button>
       </div>
       <p class="text-sm text-slate-600">
-        Livraison jusqu'à la gare{{ rates.expedition.fee !== null && showFees ? ` : ${money(rates.expedition.fee)}` : '' }} ; les frais de la compagnie de transport sont connus au dépôt.
+        Expédition : prix convenu avec le client (livraison + expédition){{ rates.expedition.fee !== null && showFees ? `, à partir de ${money(rates.expedition.fee)}` : '' }}.
       </p>
       <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
         <button v-for="c in rates.cities" :key="c.id" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-[15px] font-semibold hover:border-sky-400" @click="pick({ ...c, label: c.name }, [])">

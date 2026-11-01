@@ -26,7 +26,13 @@ use Throwable;
  */
 class Expeditions
 {
-    public const PAYERS = ['arrival' => 'Le client, à l\'arrivée', 'before' => 'Le client, avant le départ', 'store' => 'La boutique (offerts)'];
+    /** Qui paie les frais d'expédition (la compagnie de transport) */
+    public const PAYERS = [
+        'included' => 'Compris dans le prix convenu',
+        'before' => 'Le client les rembourse après l\'envoi',
+        'arrival' => 'Le client les paie à la compagnie en récupérant son colis',
+        'store' => 'La boutique les offre',
+    ];
 
     public function __construct(private readonly OrderDesk $orders) {}
 
@@ -85,8 +91,9 @@ class Expeditions
                     'type' => 'expedition', 'amount' => $fee, 'note' => 'Frais d\'expédition avancés · '.$order->expedition_company,
                 ]);
             }
-            // Offerts par la boutique : une dépense de transport (pas avancée par le livreur, déjà comptée dans sa paie)
-            if ($order->expedition_payer === 'store' && $fee > 0 && ! $advanced) {
+            // Compris dans le prix convenu, ou offerts : une dépense de transport de la boutique (pas avancée par le
+            // livreur, déjà comptée dans sa paie)
+            if (in_array($order->expedition_payer, ['included', 'store'], true) && $fee > 0 && ! $advanced) {
                 CashMovement::create([
                     'store_id' => $order->store_id, 'type' => 'expense', 'category' => 'transport', 'amount' => $fee, 'method' => 'other',
                     'note' => 'Expédition '.$order->reference().' · '.$order->expedition_company, 'occurred_at' => now(), 'created_by' => $actor?->id,
@@ -159,6 +166,28 @@ class Expeditions
     }
 
     /**
+     * Bilan de l'expédition au prix convenu : ce que le client a payé (livraison + expédition), moins la paie du livreur
+     * ou le tarif de l'entreprise de livraison, moins les frais payés à la compagnie. Null tant que le colis n'est pas
+     * déposé, ou si les frais ne sont pas compris dans le prix convenu.
+     *
+     * @return array{agreed: int, delivery_cost: int, company_fee: int, margin: int}|null
+     */
+    public static function balance(Order $order): ?array
+    {
+        if (! $order->isExpedition() || $order->expedition_payer !== 'included' || $order->expedition_dropped_at === null) {
+            return null;
+        }
+        $order->loadMissing('shipments');
+        $shipmentIds = $order->shipments->pluck('id');
+        $courier = (int) CourierEarning::whereIn('shipment_id', $shipmentIds)->where('type', '!=', 'expedition')->sum('amount');
+        $carrier = (int) $order->shipments->whereNotNull('carrier_connection_id')->whereNotIn('status', ['cancelled', 'rejected'])->sum('carrier_fee');
+        $agreed = (int) $order->shipping_fee;
+        $company = (int) $order->expedition_fee;
+
+        return ['agreed' => $agreed, 'delivery_cost' => $courier + $carrier, 'company_fee' => $company, 'margin' => $agreed - $courier - $carrier - $company];
+    }
+
+    /**
      * Phrase sur les frais d'expédition, pour le client.
      */
     public static function feeSentence(Order $order): string
@@ -166,6 +195,7 @@ class Expeditions
         $fee = Money::format((int) $order->expedition_fee);
 
         return match ($order->expedition_payer) {
+            'included' => 'Les frais sont déjà réglés.',
             'before' => "Frais d'expédition : {$fee}, ajoutés à votre commande (reste à payer : ".Money::format($order->amountDue()).').',
             'store' => 'Les frais d\'expédition sont offerts.',
             default => "Frais d'expédition : {$fee}, à payer à l'arrivée.",
