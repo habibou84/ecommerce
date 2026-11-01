@@ -194,6 +194,20 @@ function pick(v) {
   if (extra.value.some((i) => i.variant_id === v.id)) return
   extra.value.push({ variant_id: v.id, title: v.title, price: inLive(v.id)?.price ?? v.price, quantity: Math.max(1, Math.min(v.available || 1, 10)), available: v.available })
 }
+// Résultats regroupés par produit : « Tout le produit » ajoute toutes ses tailles et couleurs en stock
+const productsFound = computed(() => {
+  const groups = []
+  results.value.forEach((v) => {
+    const group = groups.find((g) => g.id === v.product_id)
+    if (group) group.variants.push(v)
+    else groups.push({ id: v.product_id, title: v.product ?? v.title, variants: [v] })
+  })
+  return groups
+})
+function pickProduct(group) {
+  const left = group.variants.filter((v) => v.available > 0)
+  ;(left.length ? left : group.variants).forEach(pick)
+}
 function openAdding() {
   adding.value = true
   notice.value = ''
@@ -453,11 +467,18 @@ async function redo() {
         </div>
         <input v-model="search" class="input" placeholder="Chercher un article (nom ou référence)" @input="find" />
         <div v-if="results.length" class="max-h-72 divide-y divide-slate-100 overflow-auto rounded-xl border border-slate-200">
-          <button v-for="v in results" :key="v.id" type="button" class="flex w-full items-center gap-3 p-2 text-left hover:bg-slate-50" @click="pick(v)">
-            <img v-if="v.image" :src="v.image" alt="" class="h-9 w-9 rounded object-cover" />
-            <span class="min-w-0 flex-1">{{ v.title }}<span v-if="inLive(v.id)" class="ml-1 text-xs text-red-600">{{ inLive(v.id).code }}</span></span>
-            <span class="text-slate-500">{{ money(v.price) }} · {{ v.available }} en stock</span>
-          </button>
+          <template v-for="g in productsFound" :key="g.id">
+            <div v-if="g.variants.length > 1" class="flex items-center gap-3 bg-slate-50 p-2">
+              <img v-if="g.variants[0].image" :src="g.variants[0].image" alt="" class="h-9 w-9 rounded object-cover" />
+              <b class="min-w-0 flex-1 truncate">{{ g.title }}</b>
+              <button type="button" class="shrink-0 rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-bold text-white" @click="pickProduct(g)">Tout le produit ({{ g.variants.length }})</button>
+            </div>
+            <button v-for="v in g.variants" :key="v.id" type="button" class="flex w-full items-center gap-3 p-2 text-left hover:bg-slate-50" :class="g.variants.length > 1 ? 'pl-6' : ''" @click="pick(v)">
+              <img v-if="v.image && g.variants.length === 1" :src="v.image" alt="" class="h-9 w-9 rounded object-cover" />
+              <span class="min-w-0 flex-1">{{ g.variants.length > 1 ? v.variant : v.title }}<span v-if="inLive(v.id)" class="ml-1 text-xs text-red-600">{{ inLive(v.id).code }}</span></span>
+              <span class="text-slate-500">{{ money(v.price) }} · {{ v.available }} en stock</span>
+            </button>
+          </template>
         </div>
         <div class="flex gap-2">
           <button type="button" class="btn-ghost" @click="closeAdding">Annuler</button>

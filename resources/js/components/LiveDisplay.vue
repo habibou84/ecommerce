@@ -107,6 +107,15 @@ const nowMs = ref(Date.now())
 const second = setInterval(() => shown.value?.flash_ends_at && (nowMs.value = Date.now()), 1000)
 const flashLeft = computed(() => (shown.value?.flash_ends_at ? Math.max(0, Math.round((new Date(shown.value.flash_ends_at).getTime() - nowMs.value) / 1000)) : 0))
 const chrono = computed(() => `${String(Math.floor(flashLeft.value / 60)).padStart(2, '0')}:${String(flashLeft.value % 60).padStart(2, '0')}`)
+// Produit avec tailles ou couleurs : la première option en pastilles (pièces restantes), les autres en texte
+const sizes = computed(() => shown.value?.options?.[0] ?? null)
+const others = computed(() => (shown.value?.options ?? []).slice(1))
+const sizeNote = (v) => (v.remaining === 0 ? 'épuisé' : v.remaining === 1 ? 'dernière' : `${v.remaining} pièces`)
+// Exemple de message avec la taille : « A1 L »
+const example = computed(() => {
+  const free = sizes.value?.values.find((v) => v.remaining > 0)
+  return free ? `${shown.value.code} ${free.value}` : shown.value?.code
+})
 const stockWidth = (i) => `${Math.max(6, Math.min(100, Math.round((100 * i.remaining) / Math.max(1, i.quantity))))}%`
 
 const money = (v) => `${new Intl.NumberFormat('fr-FR').format(v).replace(/ /g, ' ')} F`
@@ -154,7 +163,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
       </div>
 
       <!-- Article montré : la photo en grand, puis le prix et le bloc WhatsApp (QR code et numéro) -->
-      <div v-else :key="shown.id" class="ld-product">
+      <div v-else :key="shown.id" class="ld-product" :class="{ 'has-sizes': sizes }">
         <div class="ld-photo">
           <template v-if="shown.image">
             <!-- Photo entière (jamais coupée), posée sur la même photo floutée qui remplit le cadre -->
@@ -181,13 +190,18 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
               <p v-if="shown.variant" class="ld-variant">{{ shown.variant }}</p>
             </div>
           </div>
-          <p class="ld-price" :class="{ 'is-flash': flashLeft > 0 }"><b>{{ money(shown.price) }}</b><s v-if="shown.was">{{ money(shown.was) }}</s></p>
+          <p class="ld-price" :class="{ 'is-flash': flashLeft > 0 }"><small v-if="shown.from" class="ld-from">dès</small><b>{{ money(shown.price) }}</b><s v-if="shown.was">{{ money(shown.was) }}</s></p>
+          <!-- Tailles (ou couleurs) qui restent : une taille épuisée est barrée, VENDU seulement quand tout est parti -->
+          <div v-if="sizes" class="ld-sizes">
+            <span v-for="v in sizes.values" :key="v.value" class="ld-size" :class="{ 'is-out': v.remaining === 0, 'is-low': v.remaining === 1 }">{{ v.value }}<small>{{ sizeNote(v) }}</small></span>
+          </div>
+          <p v-for="o in others" :key="o.name" class="ld-others">{{ o.name }} : {{ o.values.filter((v) => v.remaining > 0).map((v) => v.value).join(', ') || 'épuisé' }}</p>
           <div v-if="store?.whatsapp" class="ld-wa">
             <img v-if="store.qr" :src="store.qr" alt="QR code WhatsApp" />
             <div class="ld-wa-text">
               <small class="ld-wa-label">WhatsApp</small>
               <b><small v-if="number.prefix" class="ld-cc">{{ number.prefix }}</small>{{ number.local }}</b>
-              <span>Envoyez <u>{{ shown.code }}</u><template v-if="layout !== 'square'"> (ou plusieurs : {{ shown.code }} + …)</template><template v-if="store.qr && layout === 'land'"><br>ou scannez le code</template></span>
+              <span>Envoyez <u>{{ example }}</u><template v-if="layout !== 'square' && !sizes"> (ou plusieurs : {{ shown.code }} + …)</template><template v-else-if="layout !== 'square'"> (le code et la taille)</template><template v-if="store.qr && layout === 'land' && !sizes"><br>ou scannez le code</template></span>
             </div>
           </div>
           <div v-if="store?.link" class="ld-site">
@@ -302,6 +316,29 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .ld-name { font-weight: 900; line-height: 1.05; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ld-variant { color: #cbd5e1; font-weight: 600; margin-top: .2em; }
 .ld-price { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .4em; white-space: nowrap; }
+.ld-from { align-self: center; color: #fde68a; font-weight: 800; font-size: 1.6em; }
+.ld-sizes { display: flex; flex-wrap: wrap; gap: .4em; flex-shrink: 0; }
+.ld-size { min-width: 2.6em; text-align: center; border-radius: .5em; padding: .25em .5em; background: #fff; color: #0f172a; font-weight: 900; line-height: 1.05; }
+.ld-size small { display: block; font-size: .42em; font-weight: 800; color: #16a34a; }
+.ld-size.is-low small { color: #ea580c; }
+.ld-size.is-out { background: rgba(255, 255, 255, .18); color: rgba(255, 255, 255, .55); text-decoration: line-through; }
+.ld-size.is-out small { color: rgba(255, 255, 255, .55); }
+.ld-others { color: #e2e8f0; font-weight: 700; }
+.is-land .ld-size { font-size: 1.9em; }
+.is-land .ld-others { font-size: 1.35em; }
+.is-square .ld-size { font-size: 1.2em; }
+.is-square .ld-others { font-size: .9em; }
+.is-port .ld-size { font-size: 1.1em; }
+.is-port .ld-others { font-size: .85em; }
+/* Produit avec tailles : prix et QR code un peu plus petits pour que tout tienne au-dessus du bandeau */
+.is-land .has-sizes .ld-info { gap: .7em; padding-top: 1.6em; }
+.is-land .has-sizes .ld-price b { font-size: 5.2em; }
+.is-land .has-sizes .ld-wa { padding: .7em; }
+.is-land .has-sizes .ld-wa img { width: 8.5em; }
+.is-land .has-sizes .ld-site img { width: 4.5em; }
+.is-land .has-sizes .ld-site { padding-top: .4em; padding-bottom: .4em; }
+.is-square .has-sizes .ld-price b { font-size: 3.2em; }
+.is-square .has-sizes .ld-wa img { width: 7.5em; }
 .ld-price b { color: #facc15; font-weight: 900; letter-spacing: -.03em; line-height: 1; }
 .ld-price s { color: #94a3b8; font-weight: 700; }
 

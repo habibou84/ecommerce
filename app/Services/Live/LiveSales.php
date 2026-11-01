@@ -26,8 +26,10 @@ use App\Services\WhatsApp\Inbox;
 use App\Services\WhatsApp\WhatsAppBridge;
 use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
 use Jibiat\Socle\PhoneNumber;
 use Throwable;
@@ -70,15 +72,18 @@ class LiveSales
             LiveItem::forStore($store->id)->where('live_session_id', $session->id)->get()
                 ->each(fn (LiveItem $item) => $item->forceFill(['code' => '#'.$item->id])->saveQuietly());
             $kept = [];
+            // Un code par produit, dans l'ordre de la liste : ses variantes (tailles, couleurs) partagent le code
+            $codes = [];
             foreach (array_values($data['items']) as $i => $line) {
                 $variant = $variants->get($line['variant_id']);
                 if ($variant === null || $variant->product === null) {
                     throw new BusinessRuleException('Un article du live n\'existe plus dans votre catalogue.', "items.{$i}.variant_id");
                 }
+                $codes[$variant->product_id] ??= self::code(count($codes));
                 $item = LiveItem::forStore($store->id)->where('live_session_id', $session->id)->where('variant_id', $variant->id)->first()
                     ?? new LiveItem(['store_id' => $store->id, 'live_session_id' => $session->id, 'variant_id' => $variant->id]);
                 $item->fill([
-                    'code' => self::code($i),
+                    'code' => $codes[$variant->product_id],
                     'price' => $line['price'] ?? $variant->price,
                     'quantity' => max($line['quantity'], $item->exists ? $this->holding($item) : 0),
                     'position' => $i,
@@ -118,6 +123,7 @@ class LiveSales
             if ($existing->count() + count($lines) > 60) {
                 throw new BusinessRuleException('60 articles au plus dans un live.');
             }
+            $existing->loadMissing('variant');
             $used = $existing->pluck('code')->all();
             $position = (int) $existing->max('position');
             $index = 0;
@@ -131,14 +137,18 @@ class LiveSales
                 if ($item !== null) {
                     $item->update(['quantity' => $item->quantity + $line['quantity']]);
                 } else {
-                    while (in_array($code = self::code($index), $used, true)) {
+                    // Autre variante d'un produit déjà dans le live : même code ; sinon le code libre suivant
+                    $code = $existing->first(fn (LiveItem $other) => $other->variant?->product_id === $variant->product_id)?->code;
+                    while ($code === null && in_array($candidate = self::code($index), $used, true)) {
                         $index++;
                     }
+                    $code ??= $candidate;
                     $used[] = $code;
                     $item = LiveItem::create([
                         'store_id' => $session->store_id, 'live_session_id' => $session->id, 'variant_id' => $variant->id,
                         'code' => $code, 'price' => $line['price'] ?? $variant->price, 'quantity' => $line['quantity'], 'position' => ++$position,
                     ]);
+                    $item->setRelation('variant', $variant);
                     $existing->push($item);
                 }
                 $touched->push($item);
@@ -227,15 +237,18 @@ class LiveSales
         if ($session->status !== 'live') {
             throw new BusinessRuleException('La vente flash se lance pendant le live.');
         }
+        // Toutes les variantes du produit (même code) : tailles et couleurs au même prix live
+        $group = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->where('code', $item->code);
         if ($price === null) {
-            $item->update(['flash_price' => null, 'flash_ends_at' => null]);
+            $group->update(['flash_price' => null, 'flash_ends_at' => null]);
 
             return $item;
         }
-        if ($price >= $item->price) {
-            throw new BusinessRuleException('Le prix live doit être plus bas que '.Money::format($item->price).'.', 'price');
+        $lowest = (int) (clone $group)->min('price');
+        if ($price >= $lowest) {
+            throw new BusinessRuleException('Le prix live doit être plus bas que '.Money::format($lowest).'.', 'price');
         }
-        $item->update(['flash_price' => $price, 'flash_ends_at' => now()->addMinutes(max(1, min(60, $minutes)))]);
+        $group->update(['flash_price' => $price, 'flash_ends_at' => now()->addMinutes(max(1, min(60, $minutes))), 'updated_at' => now()]);
         $this->feature($session, $item->id);
 
         return $item;
@@ -495,10 +508,8 @@ class LiveSales
         if ($message->type !== 'text') {
             return false;
         }
-        $items = $session ? $this->codesIn($session, $message->body) : collect();
-        if ($items->isNotEmpty()) {
-            $this->reserveFor($conversation, $items, self::quantities($message->body));
-
+        // Codes du live (« A1 L rouge ») ; sinon réponse à la question « Quelle taille ? »
+        if ($session !== null && ($this->takeCodes($conversation, $session, (string) $message->body) || $this->chooseOption($conversation, (string) $message->body))) {
             return true;
         }
 
@@ -529,18 +540,216 @@ class LiveSales
         if ($conversation === null || $session === null) {
             return;
         }
-        $items = $this->codesIn($session, preg_replace('/^📷 Photo( : )?/u', '', (string) $message->body));
-        if ($items->isEmpty()) {
-            $code = $this->codeOnPhoto($conversation, $message, $session);
-            $items = $code !== null ? $session->items()->with('session', 'variant.product')->where('code', $code)->get() : collect();
-        }
-        if ($items->isEmpty()) {
-            $codes = $session->items->pluck('code')->take(3)->implode(', ');
-            $this->reply($conversation, "Nous n'avons pas trouvé le code de l'article sur votre capture. Écrivez-nous le code affiché pendant le live (par exemple {$codes}).");
-
+        $caption = preg_replace('/^📷 Photo( : )?/u', '', (string) $message->body);
+        if ($this->takeCodes($conversation, $session, $caption, true)) {
             return;
         }
-        $this->reserveFor($conversation, $items->take(1));
+        $code = $this->codeOnPhoto($conversation, $message, $session);
+        if ($code !== null && $this->takeCodes($conversation, $session, $code.' '.$caption, true)) {
+            return;
+        }
+        $codes = $session->items->pluck('code')->unique()->take(3)->implode(', ');
+        $this->reply($conversation, "Nous n'avons pas trouvé le code de l'article sur votre capture. Écrivez-nous le code affiché pendant le live (par exemple {$codes}).");
+    }
+
+    /**
+     * Codes du live dans un message. Un produit avec des tailles ou des couleurs a un seul code : la variante est lue
+     * dans les mots qui suivent le code (« A1 L rouge ») ; s'il en manque, la cliente reçoit la question
+     * (« Quelle taille ? » avec les tailles qui restent). Vrai si le message contenait un code du live.
+     */
+    private function takeCodes(Conversation $conversation, LiveSession $session, string $text, bool $first = false): bool
+    {
+        $quantities = self::quantities($text);
+        if ($quantities === []) {
+            return false;
+        }
+        $groups = $session->items()->with(self::VARIANT_RELATIONS)->whereIn('code', array_keys($quantities))->orderBy('position')->get()->groupBy('code');
+        if ($groups->isEmpty()) {
+            return false;
+        }
+        $segments = self::segments($text);
+        $items = collect();
+        $wanted = [];
+        $ask = null;
+        foreach (array_keys($quantities) as $code) {
+            $group = $groups->get($code);
+            if ($group === null) {
+                continue;
+            }
+            [$item, $chosen] = $this->pickVariant($group, $this->chosenIn($group, $segments[$code] ?? ''));
+            if ($item !== null) {
+                $items->push($item);
+                $wanted[$item->id] = $quantities[$code];
+            } elseif ($ask === null) {
+                $ask = ['code' => $code, 'quantity' => $quantities[$code], 'chosen' => $chosen];
+            }
+            if ($first) {
+                break;
+            }
+        }
+        if ($items->isNotEmpty()) {
+            $this->reserveFor($conversation, $items, $wanted);
+        }
+        if ($ask !== null) {
+            $this->askOption($conversation, $session, $ask);
+        }
+
+        return true;
+    }
+
+    private const VARIANT_RELATIONS = ['session', 'variant.product', 'variant.option1.option', 'variant.option2.option', 'variant.option3.option'];
+
+    /** Temps laissé pour répondre à « Quelle taille ? » */
+    private const ASK_MINUTES = 30;
+
+    private static function askKey(int $conversationId): string
+    {
+        return 'live-ask:'.$conversationId;
+    }
+
+    /**
+     * Variante voulue d'après les valeurs choisies (position de l'option => valeur) : l'article si une seule convient
+     * (en priorité parmi celles qui restent), sinon null et les choix gardés.
+     *
+     * @param  Collection<int, LiveItem>  $group
+     * @param  array<int, string>  $chosen
+     * @return array{0: ?LiveItem, 1: array<int, string>}
+     */
+    private function pickVariant(Collection $group, array $chosen): array
+    {
+        if ($group->count() === 1) {
+            return [$group->first(), $chosen];
+        }
+        $fits = fn (LiveItem $item) => collect($chosen)->every(fn ($value, $position) => ($item->optionValues()[$position] ?? null) === $value);
+        $candidates = $group->filter($fits)->values();
+        if ($candidates->isEmpty()) {
+            $chosen = [];
+            $candidates = $group->values();
+        }
+        $left = $candidates->filter(fn (LiveItem $item) => $this->remaining($item) > 0)->values();
+        $pool = $left->isNotEmpty() ? $left : $candidates;
+
+        return [$pool->count() === 1 ? $pool->first() : null, $chosen];
+    }
+
+    /**
+     * Valeurs nommées dans le texte qui suit le code (« L », « rouge ») : une seule par option, sinon on demandera.
+     *
+     * @param  Collection<int, LiveItem>  $group
+     * @return array<int, string>
+     */
+    private function chosenIn(Collection $group, string $segment): array
+    {
+        $chosen = [];
+        $positions = $group->map(fn (LiveItem $item) => count($item->optionValues()))->max();
+        for ($position = 0; $position < $positions; $position++) {
+            $values = $group->map(fn (LiveItem $item) => $item->optionValues()[$position] ?? null)->filter()->unique()->values();
+            $named = $values->filter(fn (string $value) => self::mentions($segment, $value))->values();
+            if ($named->count() === 1) {
+                $chosen[$position] = $named->first();
+            }
+        }
+
+        return $chosen;
+    }
+
+    private static function normalize(string $text): string
+    {
+        return Str::lower(Str::ascii($text));
+    }
+
+    private static function mentions(string $text, string $value): bool
+    {
+        $value = trim(self::normalize($value));
+
+        return $value !== '' && preg_match('/(?<![a-z0-9])'.preg_quote($value, '/').'(?![a-z0-9])/u', self::normalize($text)) === 1;
+    }
+
+    /**
+     * Question sur l'option qui manque (« Quelle taille ? ») avec seulement ce qui reste : boutons ou liste sur le
+     * WhatsApp officiel, texte sinon. La réponse est attendue 30 minutes.
+     *
+     * @param  array{code: string, quantity: int, chosen: array<int, string>}  $ask
+     */
+    private function askOption(Conversation $conversation, LiveSession $session, array $ask): void
+    {
+        $group = $session->items()->with(self::VARIANT_RELATIONS)->where('code', $ask['code'])->orderBy('position')->get();
+        $fits = fn (LiveItem $item) => collect($ask['chosen'])->every(fn ($value, $position) => ($item->optionValues()[$position] ?? null) === $value);
+        $candidates = $group->filter($fits)->values();
+        $left = $candidates->filter(fn (LiveItem $item) => $this->remaining($item) > 0)->values();
+        $pool = $left->isNotEmpty() ? $left : $candidates;
+        $positions = (int) $pool->map(fn (LiveItem $item) => count($item->optionValues()))->max();
+        $position = collect(range(0, max(0, $positions - 1)))
+            ->first(fn (int $p) => $pool->map(fn (LiveItem $item) => $item->optionValues()[$p] ?? null)->unique()->count() > 1) ?? 0;
+        $values = $pool->map(fn (LiveItem $item) => $item->optionValues()[$position] ?? null)->filter()->unique()->values();
+        $gone = $candidates->map(fn (LiveItem $item) => $item->optionValues()[$position] ?? null)->filter()->unique()->diff($values)->values();
+        $first = $group->first();
+        $name = Str::lower($first->optionNames()[$position] ?? 'choix');
+
+        Cache::put(self::askKey($conversation->id), ['session' => $session->id] + $ask + ['position' => $position, 'values' => $values->all()], now()->addMinutes(self::ASK_MINUTES));
+
+        $text = "{$ask['code']} ".($first->variant?->product?->title ?? 'Article').', '.Money::format($first->currentPrice()).".\n*Quelle {$name} ?*"
+            .($gone->isNotEmpty() ? ' ('.($gone->count() > 1 ? 'déjà parties : ' : 'déjà partie : ').$gone->implode(', ').')' : '')
+            .($left->isEmpty() ? "\nTout est parti : vous serez sur la liste d'attente." : '');
+        if (! app(LiveCheckout::class)->askOption($conversation, $text, $values->all())) {
+            $this->reply($conversation, $text."\nRépondez : ".$values->join(', ', ' ou ').'.');
+        }
+    }
+
+    /**
+     * Réponse à « Quelle taille ? » (bouton touché ou mot écrit) : la question suivante, ou la pièce gardée.
+     * Faux si aucune question n'attend de réponse, ou si le message n'y répond pas (il suit alors son cours).
+     */
+    public function chooseOption(Conversation $conversation, string $answer): bool
+    {
+        $ask = Cache::get(self::askKey($conversation->id));
+        $session = $ask ? LiveSession::forStore($conversation->store_id)->where('status', 'live')->find($ask['session']) : null;
+        if ($session === null) {
+            return false;
+        }
+        $value = collect($ask['values'])->first(fn (string $v) => self::normalize(trim($answer)) === self::normalize($v))
+            ?? collect($ask['values'])->first(fn (string $v) => self::mentions($answer, $v));
+        if ($value === null) {
+            // Réponse courte qui ne correspond à rien : on rappelle les choix ; un message plus long suit son cours
+            if (mb_strlen(trim($answer)) > 15) {
+                return false;
+            }
+            $this->reply($conversation, 'Répondez avec un de ces choix : '.collect($ask['values'])->join(', ', ' ou ').'.');
+
+            return true;
+        }
+        $chosen = $ask['chosen'];
+        $chosen[$ask['position']] = $value;
+        $group = $session->items()->with(self::VARIANT_RELATIONS)->where('code', $ask['code'])->orderBy('position')->get();
+        [$item, $chosen] = $this->pickVariant($group, $chosen);
+        if ($item === null) {
+            $this->askOption($conversation, $session, ['code' => $ask['code'], 'quantity' => $ask['quantity'], 'chosen' => $chosen]);
+
+            return true;
+        }
+        Cache::forget(self::askKey($conversation->id));
+        $this->reserveFor($conversation, collect([$item]), [$item->id => $ask['quantity']]);
+
+        return true;
+    }
+
+    /**
+     * Texte qui suit chaque code jusqu'au code suivant (« A1 L rouge + A2 » : A1 => « L rouge + », A2 => « »).
+     *
+     * @return array<string, string>
+     */
+    private static function segments(string $text): array
+    {
+        preg_match_all(self::CODE_PATTERN, $text, $m, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        $out = [];
+        foreach ($m as $i => $x) {
+            $code = strtoupper($x[2][0]).(int) $x[3][0];
+            $start = $x[0][1] + strlen($x[0][0]);
+            $end = isset($m[$i + 1]) ? $m[$i + 1][0][1] : strlen($text);
+            $out[$code] = ($out[$code] ?? '').' '.substr($text, $start, $end - $start);
+        }
+
+        return $out;
     }
 
     /**
@@ -552,7 +761,7 @@ class LiveSales
      * redemander le quartier.
      *
      * @param  Collection<int, LiveItem>  $items
-     * @param  array<string, int>  $quantities  code => pièces voulues (1 par défaut)
+     * @param  array<int, int>  $quantities  article => pièces voulues (1 par défaut)
      */
     private function reserveFor(Conversation $conversation, Collection $items, array $quantities = []): void
     {
@@ -566,7 +775,7 @@ class LiveSales
             + $mine($item, ['ordered'])->whereHas('order', fn ($o) => $o->whereIn('status', [OrderStatus::PendingConfirmation->value, OrderStatus::Confirmed->value]))->count();
         $lines = [];
         foreach ($items as $item) {
-            $missing = min(10, $quantities[$item->code] ?? 1) - $asked($item);
+            $missing = min(10, $quantities[$item->id] ?? 1) - $asked($item);
             if ($missing > 0) {
                 $lines[$item->id] = $missing;
             }
@@ -588,7 +797,7 @@ class LiveSales
                     : "⏳ {$label}) : déjà partie, vous êtes n°{$this->position($waiting->first())} sur la liste d'attente."),
             ])->filter()->implode("\n");
 
-            return [$item->code => $text];
+            return [$item->id => $text];
         });
         $text = $said->filter()->implode("\n");
         $added = $created->firstWhere('status', 'ordered')?->order;
@@ -599,8 +808,8 @@ class LiveSales
             // Un seul article gardé : sa phrase part en légende de sa photo, le reste en un texte. Plusieurs articles
             // (« A1 + A2 ») : tout dans un seul message avec la question de la commune, sans photos, car WhatsApp livre
             // les photos plus lentement que le texte et la question arriverait au milieu des articles
-            $several = $items->filter(fn (LiveItem $item) => ($said[$item->code] ?? '') !== '')->count() > 1;
-            $rest = $several ? $text : $items->map(fn (LiveItem $item) => ($line = $said[$item->code] ?? '') !== '' && $mine($item, LiveReservation::HOLDING)->exists()
+            $several = $items->filter(fn (LiveItem $item) => ($said[$item->id] ?? '') !== '')->count() > 1;
+            $rest = $several ? $text : $items->map(fn (LiveItem $item) => ($line = $said[$item->id] ?? '') !== '' && $mine($item, LiveReservation::HOLDING)->exists()
                 && $checkout->itemPhoto($conversation, $item, $line) ? null : $line)->filter()->implode("\n");
             if ($added !== null) {
                 $rest === '' || $this->reply($conversation, $rest);
@@ -636,6 +845,8 @@ class LiveSales
             ->latest('id')->first();
     }
 
+    private const CODE_PATTERN = '/(?<![A-Za-z0-9])(?:(\d{1,2})\s*[x×*]?\s*)?([A-Za-z])\s?(\d{1,2})(?![0-9])(?:\s*[x×*]\s*(\d{1,2})(?![0-9])|\s+(\d{1,2})\s*(?:pi[eè]ces?|pcs?|fois|exemplaires?)(?![A-Za-z]))?/iu';
+
     /**
      * Pièces voulues par code dans un message : « A2 x3 », « A2×3 », « 3 A2 », « 3xA2 », « A2 3 pièces » (10 au plus).
      *
@@ -643,8 +854,7 @@ class LiveSales
      */
     public static function quantities(string $text): array
     {
-        preg_match_all('/(?<![A-Za-z0-9])(?:(\d{1,2})\s*[x×*]?\s*)?([A-Za-z])\s?(\d{1,2})(?![0-9])(?:\s*[x×*]\s*(\d{1,2})(?![0-9])|\s+(\d{1,2})\s*(?:pi[eè]ces?|pcs?|fois|exemplaires?)(?![A-Za-z]))?/iu',
-            $text, $m, PREG_SET_ORDER);
+        preg_match_all(self::CODE_PATTERN, $text, $m, PREG_SET_ORDER);
         $out = [];
         foreach ($m as $x) {
             $code = strtoupper($x[2]).(int) $x[3];
@@ -693,7 +903,7 @@ class LiveSales
      */
     public function state(LiveSession $session, bool $team = true): array
     {
-        $session->loadMissing('items.variant.product.images');
+        $session->loadMissing('items.variant.product.images', 'items.variant.option1.option', 'items.variant.option2.option', 'items.variant.option3.option');
         $reservations = $team ? LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->with('item:id,code', 'order:id,number,store_id')
             ->latest('id')->limit(200)->get() : collect();
         $counts = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)
@@ -714,6 +924,11 @@ class LiveSales
                 'code' => $item->code,
                 'variant_id' => $item->variant_id,
                 'title' => $this->label($item),
+                // Produit et variante séparés : une carte par produit (même code), les tailles et couleurs à choisir
+                'product' => $item->variant?->product?->title ?? 'Article',
+                'variant' => $item->optionValues() !== [] ? $item->variant->title : null,
+                'options' => $item->optionValues(),
+                'option_names' => $item->optionNames(),
                 'image' => $item->variant?->product?->images->first()?->urls()['thumb'] ?? null,
                 'price' => $item->currentPrice(),
                 // Vente flash en cours : prix habituel du live et fin du chrono
@@ -821,16 +1036,6 @@ class LiveSales
         LiveReservation::whereIn('id', $reservations->pluck('id'))->update(['status' => 'ordered', 'order_id' => $order->id, 'expires_at' => null]);
 
         return $order->load('items');
-    }
-
-    /**
-     * @return Collection<int, LiveItem>
-     */
-    private function codesIn(LiveSession $session, string $text): Collection
-    {
-        $codes = collect(array_keys(self::quantities($text)));
-
-        return $codes->isEmpty() ? collect() : $session->items()->with('session', 'variant.product')->whereIn('code', $codes)->get();
     }
 
     private function position(LiveReservation $reservation): int

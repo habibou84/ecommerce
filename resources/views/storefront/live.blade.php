@@ -23,26 +23,42 @@
             </section>
 
             <script type="application/json" id="live-data">@json($live['items'], JSON_HEX_TAG)</script>
-            {{-- Grille de deux ; l'article montré en ce moment passe en premier, en grand --}}
+            {{-- Grille de deux ; l'article montré en ce moment passe en premier, en grand. Un produit = une carte (même
+                 code) : ses tailles et couleurs se choisissent sur la carte --}}
             <ul class="mt-5 grid grid-cols-2 gap-3 pb-28" data-live-items data-featured="{{ $live['featured_item_id'] }}">
-                @foreach ($live['items'] as $item)
-                    @php($featured = $item['id'] === $live['featured_item_id'])
-                    <li class="flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white {{ $featured ? 'col-span-2 border-2 border-orange-600 shadow-lg' : 'border-slate-200' }}" style="{{ $featured ? 'order:-1' : '' }}" data-live-item="{{ $item['id'] }}">
+                @foreach (collect($live['items'])->groupBy('code') as $code => $group)
+                    @php($item = $group->first())
+                    @php($featured = $group->contains('id', $live['featured_item_id']))
+                    @php($names = $item['option_names'] ?? [])
+                    <li class="flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white {{ $featured ? 'col-span-2 border-2 border-orange-600 shadow-lg' : 'border-slate-200' }}" style="{{ $featured ? 'order:-1' : '' }}"
+                        data-live-group="{{ $code }}" data-live-ids=" {{ $group->pluck('id')->implode(' ') }} ">
                         <p class="px-3 pt-3 text-xs font-extrabold tracking-wide text-orange-700 uppercase" data-featured-label @if (! $featured) hidden @endif>● Présenté en ce moment</p>
                         <div class="relative {{ $featured ? 'mx-3 mt-2 aspect-[4/3] overflow-hidden rounded-xl' : 'aspect-square' }} bg-slate-100" data-live-photo>
                             @if ($item['image'])
                                 <img src="{{ $item['image'] }}" alt="" class="h-full w-full object-cover" loading="lazy">
                             @else
-                                <span class="grid h-full w-full place-items-center text-4xl font-black text-slate-300">{{ $item['code'] }}</span>
+                                <span class="grid h-full w-full place-items-center text-4xl font-black text-slate-300">{{ $code }}</span>
                             @endif
-                            <span class="absolute top-2 left-2 rounded-lg bg-red-600 px-2 py-0.5 text-sm font-black text-white">{{ $item['code'] }}</span>
+                            <span class="absolute top-2 left-2 rounded-lg bg-red-600 px-2 py-0.5 text-sm font-black text-white">{{ $code }}</span>
                         </div>
                         <div class="flex flex-1 flex-col p-3">
-                            <p class="font-semibold leading-snug [overflow-wrap:anywhere]">{{ $item['title'] }}</p>
-                            <p class="mt-0.5 text-lg font-extrabold whitespace-nowrap">{{ \Jibiat\Socle\Money::format($item['price']) }}</p>
-                            <p class="mt-0.5 text-sm {{ $item['remaining'] === 1 ? 'font-bold text-orange-700' : 'text-slate-500' }}" data-remaining>{{ $item['remaining'] === 1 ? '🔥 Dernière pièce !' : ($item['remaining'] > 0 ? 'Il en reste '.$item['remaining'] : 'Épuisé · liste d\'attente') }}</p>
-                            <div class="mt-auto pt-3" data-pick="{{ $item['id'] }}">
-                                <button type="button" class="btn-store w-full px-3" data-take>{{ $item['remaining'] > 0 ? 'Je prends' : 'M\'inscrire en attente' }}</button>
+                            <p class="font-semibold leading-snug [overflow-wrap:anywhere]">{{ $group->count() > 1 ? ($item['product'] ?? $item['title']) : $item['title'] }}</p>
+                            <p class="mt-0.5 text-lg font-extrabold whitespace-nowrap" data-price>{{ \Jibiat\Socle\Money::format($item['price']) }}</p>
+                            @if ($group->count() > 1)
+                                @foreach ($names as $position => $name)
+                                    @php($values = $group->map(fn ($i) => $i['options'][$position] ?? null)->filter()->unique()->values())
+                                    @if ($values->count() > 1)
+                                        <div class="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="{{ $name }}">
+                                            @foreach ($values as $value)
+                                                <button type="button" class="rounded-lg border-2 border-slate-200 px-2.5 py-1 text-sm font-bold" data-opt="{{ $position }}" data-value="{{ $value }}">{{ $value }}</button>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                @endforeach
+                            @endif
+                            <p class="mt-1 text-sm text-slate-500" data-remaining></p>
+                            <div class="mt-auto pt-3" data-pick>
+                                <button type="button" class="btn-store w-full px-3" data-take>Je prends</button>
                                 <div class="flex items-center justify-center gap-2" data-stepper hidden>
                                     <button type="button" class="grid h-10 w-10 place-items-center rounded-full border border-slate-300 text-xl font-bold" data-minus aria-label="Une pièce de moins">−</button>
                                     <span class="w-7 text-center text-lg font-bold" data-qty aria-live="polite">1</span>
