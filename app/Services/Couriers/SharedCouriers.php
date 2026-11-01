@@ -260,6 +260,6 @@ class SharedCouriers
 
         return (CourierPayRule::forStore($target->id)->where('name', $rule->name)->first()
             ?? CourierPayRule::create(['store_id' => $target->id, 'name' => $rule->name, 'type' => $rule->type, 'amount' => $rule->amount,
-                'failed_attempt_amount' => $rule->failed_attempt_amount]))->id;
+                'expedition_amount' => $rule->expedition_amount, 'failed_attempt_amount' => $rule->failed_attempt_amount]))->id;
     }
 }

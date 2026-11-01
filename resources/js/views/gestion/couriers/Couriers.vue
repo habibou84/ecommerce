@@ -139,7 +139,7 @@ async function markPaid(payout) {
 }
 
 function openRule(r) {
-  rule.value = r ? { ...r, zone_amounts: { ...(r.zone_amounts ?? {}) } } : { name: '', type: 'per_delivery', amount: 1000, failed_attempt_amount: 0, zone_amounts: {} }
+  rule.value = r ? { ...r, zone_amounts: { ...(r.zone_amounts ?? {}) } } : { name: '', type: 'per_delivery', amount: 1000, expedition_amount: null, failed_attempt_amount: 0, zone_amounts: {} }
   errors.value = {}
   modal.value = 'rule'
 }
@@ -159,7 +159,7 @@ async function deleteRule() {
   modal.value = null
   await load()
 }
-const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la zone)` : `${money(r.amount)} par livraison`) + (r.failed_attempt_amount ? `, ${money(r.failed_attempt_amount)} par tentative` : '')
+const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la zone)` : `${money(r.amount)} par livraison`) + (r.expedition_amount != null ? `, ${money(r.expedition_amount)} par expédition` : '') + (r.failed_attempt_amount ? `, ${money(r.failed_attempt_amount)} par tentative` : '')
 </script>
 
 <template>
@@ -320,6 +320,9 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
             <input v-model.number="rule.zone_amounts[z.id]" type="number" min="0" class="input w-32" :placeholder="String(rule.amount)" />
           </div>
         </div>
+        <Field id="ru-expedition" label="Par expédition (colis déposé à la gare)" hint="Vide : le montant par défaut. Le prix convenu avec le client ne change pas cette paie.">
+          <input id="ru-expedition" v-model.number="rule.expedition_amount" type="number" min="0" class="input" :placeholder="String(rule.amount)" />
+        </Field>
         <Field id="ru-failed" label="Par tentative échouée"><input id="ru-failed" v-model.number="rule.failed_attempt_amount" type="number" min="0" class="input" /></Field>
         <div class="flex gap-2">
           <button v-if="rule.id" type="button" class="btn-ghost text-red-600" @click="deleteRule">Supprimer</button>
