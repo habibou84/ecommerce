@@ -33,7 +33,7 @@ onMounted(load)
             <td class="px-4 py-2 font-mono text-xs">{{ i.number }}</td>
             <td><RouterLink :to="`/console/boutiques/${i.store.id}`" class="text-emerald-800 hover:underline">{{ i.store.name }}</RouterLink></td>
             <td>{{ i.plan }} ({{ i.cycle_label }})</td>
-            <td>{{ i.status_label }}</td>
+            <td>{{ i.status_label }}<span v-if="i.error" class="block max-w-xs text-xs text-red-700">{{ i.error }}</span></td>
             <td>{{ i.method ?? '—' }}</td>
             <td class="text-right font-medium">{{ money(i.amount) }}</td>
             <td class="px-4 text-right text-slate-500">{{ formatDateTime(i.paid_at ?? i.created_at) }}</td>

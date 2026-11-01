@@ -182,6 +182,12 @@ async function removeQr() {
 
     <section v-if="settings" class="card space-y-4 p-4 text-sm">
       <h3 class="text-base font-semibold">Paiement des abonnements</h3>
+      <!-- Dernier paiement d'abonnement refusé : la raison du prestataire (clés, mode, compte non activé) -->
+      <div v-if="settings.last_failure" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <p class="font-semibold">Dernier paiement d'abonnement refusé · {{ formatDateTime(settings.last_failure.at) }}<template v-if="settings.last_failure.store"> · {{ settings.last_failure.store }}</template></p>
+        <p class="mt-1 break-words">{{ settings.last_failure.error || 'Raison non donnée par le prestataire.' }}</p>
+        <p class="mt-1 text-xs text-red-700">Mode du serveur : <b>{{ settings.mode === 'test' ? 'test' : 'réel' }}</b> (BILLING_MODE). Les clés du prestataire doivent être du même mode.</p>
+      </div>
       <fieldset class="space-y-2">
         <legend class="mb-1 font-medium">Moyen de paiement actif</legend>
         <label v-for="p in settings.providers" :key="p.code" class="flex items-center gap-2" :class="p.available ? '' : 'text-slate-400'">
