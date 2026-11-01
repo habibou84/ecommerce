@@ -107,6 +107,12 @@ class OrderListTest extends TestCase
         $this->assertSame(['courier:'.$courier->id, true, $shipment->id], [$rows[$confirmed->id]['deliverer_key'], $rows[$confirmed->id]['deliverer_editable'], $rows[$confirmed->id]['shipment_id']]);
         $this->assertFalse($rows[$other->id]['deliverer_editable']);
 
+        // « À faire livrer » : sans course ; « Chez le livreur » : course demandée, pas encore partie
+        $this->assertSame([$other->id], collect($this->api('GET', 'orders?status=to_ship')->json('data'))->pluck('id')->all());
+        $this->assertSame([$confirmed->id], collect($this->api('GET', 'orders?status=at_courier')->json('data'))->pluck('id')->all());
+        $this->api('GET', 'orders')->assertJsonPath('counts.to_ship', 1)->assertJsonPath('counts.at_courier', 1);
+        $this->assertSame(0, $rows[$other->id]['prepay_due']);
+
         // Changer le statut : chaque commande à part
         $this->api('POST', 'orders/bulk', ['ids' => [$pending->id, $other->id], 'action' => 'status', 'status' => 'processing'])
             ->assertJsonPath('data.done', 1)->assertJsonPath('data.skipped.0.reference', $pending->reference());
