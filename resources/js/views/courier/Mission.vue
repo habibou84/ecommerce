@@ -189,7 +189,7 @@ async function step(status) {
     </Alert>
     <Alert v-else-if="mission.customer_response === 'available'" tone="success">Le client vous attend ✓</Alert>
 
-    <Alert v-if="mission.expedition" tone="info">📦 Expédition vers <strong>{{ mission.expedition.city }}</strong> : déposez le colis à la gare, puis notez la compagnie, les frais payés et le ticket.</Alert>
+    <Alert v-if="mission.expedition" tone="info">📦 Expédition vers <strong>{{ mission.expedition.city }}</strong> : déposez le colis à la gare, puis notez la compagnie, les frais payés et le ticket.<template v-if="mission.expedition.pay"><br />Votre paie pour ce dépôt : <strong>{{ money(mission.expedition.pay) }}</strong></template></Alert>
 
     <section class="space-y-2 rounded-xl bg-white p-4 shadow-sm">
       <p class="font-semibold">{{ mission.customer_name || 'Client' }}</p>

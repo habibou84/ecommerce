@@ -126,6 +126,9 @@ class DeliveryRatesTest extends TestCase
 
         // Le livreur ne part pas avant le paiement
         [$courier, $user] = $this->courier();
+        // Paie fixe pour une expédition, comme pour une zone de livraison
+        $rule = $this->storeApi($this->store, 'POST', 'courier-pay-rules', ['name' => 'Standard', 'type' => 'per_delivery', 'amount' => 1000, 'expedition_amount' => 1200])->assertCreated()->json('data.id');
+        $this->storeApi($this->store, 'PATCH', "couriers/{$courier->id}", ['pay_rule_id' => $rule])->assertOk();
         $this->storeApi($this->store, 'POST', "orders/{$order->id}/shipments", ['courier_id' => $courier->id])->assertStatus(422)
             ->assertJsonPath('message', 'Paiement avant expédition : le client doit encore payer 16 500 F. Envoyez-lui le lien de paiement.');
         $this->storeApi($this->store, 'POST', "orders/{$order->id}/payments", ['amount' => 16500, 'method' => 'wave'])->assertOk();
@@ -134,7 +137,7 @@ class DeliveryRatesTest extends TestCase
         // À la gare : compagnie et frais obligatoires, reçu en photo, frais avancés par le livreur
         $this->logout();
         $this->actingAs($user);
-        $this->storeApi($this->store, 'GET', "courier/missions/{$shipment->id}")->assertJsonPath('data.expedition.city', 'Bouaké')->assertJsonPath('data.requires_code', false);
+        $this->storeApi($this->store, 'GET', "courier/missions/{$shipment->id}")->assertJsonPath('data.expedition.city', 'Bouaké')->assertJsonPath('data.expedition.pay', 1200)->assertJsonPath('data.requires_code', false);
         $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/steps", ['status' => 'in_transit'])->assertOk();
         $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/steps", ['status' => 'delivered'])->assertStatus(422);
         $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/steps", [
@@ -145,13 +148,14 @@ class DeliveryRatesTest extends TestCase
         $order->refresh();
         $this->assertSame([OrderStatus::Shipped, 'UTB', 2000, '4521', 16500], [$order->status, $order->expedition_company, (int) $order->expedition_fee, $order->expedition_ticket, (int) $order->total]);
         $this->assertSame(2000, (int) CourierEarning::where('type', 'expedition')->sum('amount'));
+        $this->assertSame(1200, (int) CourierEarning::where('type', 'delivery')->sum('amount'));
         $this->logout();
         $this->actingAs($this->store->owner);
         $detail = $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.expedition.receipt', true)->json('data.expedition');
         // Prix convenu : le client ne paie rien de plus ; bilan de l'expédition pour la boutique
         $this->assertStringContainsString(rawurlencode('par UTB, ticket n° 4521. Les frais sont déjà réglés.'), $detail['whatsapp_url']);
         $this->assertSame([1500, 2000], [$detail['balance']['agreed'], $detail['balance']['company_fee']]);
-        $this->assertSame(1500 - $detail['balance']['delivery_cost'] - 2000, $detail['balance']['margin']);
+        $this->assertSame([1200, 1500 - 1200 - 2000], [$detail['balance']['delivery_cost'], $detail['balance']['margin']]);
         $this->assertContains('UTB', $detail['companies']);
         $this->storeApi($this->store, 'GET', "orders/{$order->id}/expedition/receipt")->assertOk();
 

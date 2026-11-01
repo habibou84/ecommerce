@@ -175,6 +175,8 @@ class CourierAppController extends Controller
             'expedition' => $order->isExpedition() ? [
                 'city' => $order->expeditionCity?->name,
                 'payer' => $order->expedition_payer,
+                // Ce que le livreur gagne pour ce dépôt (sa règle de paie) ; le prix convenu avec le client reste au marchand
+                'pay' => SharedCouriers::within($order->store, fn () => $model->courier?->payRule?->amountFor(null, true)),
                 'companies' => SharedCouriers::within($order->store, fn () => app(DeliveryRates::class)->companies()),
             ] : null,
             'failure_reason' => $model->failure_reason,

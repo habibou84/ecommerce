@@ -174,8 +174,9 @@ class CourierController extends Controller
             'amount' => ['required', 'integer', 'min:0', 'max:10000000'],
             'zone_amounts' => ['nullable', 'array'],
             'zone_amounts.*' => ['integer', 'min:0', 'max:10000000'],
+            'expedition_amount' => ['nullable', 'integer', 'min:0', 'max:10000000'],
             'failed_attempt_amount' => ['nullable', 'integer', 'min:0', 'max:10000000'],
-        ], [], ['name' => 'nom', 'amount' => 'montant']) + ['failed_attempt_amount' => 0];
+        ], [], ['name' => 'nom', 'amount' => 'montant']) + ['expedition_amount' => null, 'failed_attempt_amount' => 0];
     }
 
     private function present(Courier $c): array
