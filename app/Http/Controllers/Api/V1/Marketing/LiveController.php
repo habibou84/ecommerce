@@ -99,6 +99,22 @@ class LiveController extends Controller
     }
 
     /**
+     * Vente flash : prix live sur un article pendant quelques minutes (sans prix : arrêter).
+     */
+    public function flash(Request $request, int $session, int $item): JsonResponse
+    {
+        $data = $request->validate([
+            'price' => ['nullable', 'integer', 'min:0', 'max:100000000'],
+            'minutes' => ['nullable', 'integer', 'min:1', 'max:60'],
+        ], [], ['price' => 'prix live', 'minutes' => 'durée']);
+        $model = $this->session($session);
+        $line = LiveItem::forStore($model->store_id)->where('live_session_id', $model->id)->findOrFail($item);
+        $this->live->flash($model, $line, $data['price'] ?? null, $data['minutes'] ?? 5);
+
+        return $this->state($model->fresh());
+    }
+
+    /**
      * Refaire ce live : nouveau live en préparation avec les mêmes articles.
      */
     public function duplicate(Request $request, int $session): JsonResponse

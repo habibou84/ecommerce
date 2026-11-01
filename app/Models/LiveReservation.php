@@ -18,7 +18,7 @@ class LiveReservation extends Model
     public const HOLDING = ['reserved', 'ordered'];
 
     protected $fillable = [
-        'store_id', 'live_session_id', 'live_item_id', 'source', 'status', 'customer_name', 'customer_phone',
+        'store_id', 'live_session_id', 'live_item_id', 'unit_price', 'source', 'status', 'customer_name', 'customer_phone',
         'shipping_place_id', 'shipping_address', 'order_id', 'expires_at', 'reminded_at',
     ];
 

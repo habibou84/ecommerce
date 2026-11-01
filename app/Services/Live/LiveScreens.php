@@ -136,9 +136,12 @@ class LiveScreens
         $reservations = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)
             ->selectRaw("count(*) as n, max(updated_at) as u, sum(case when status in ({$holding}) then 1 else 0 end) as h, sum(case when status = 'ordered' then 1 else 0 end) as o")
             ->toBase()->first();
-        $items = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->selectRaw('count(*) as n, max(updated_at) as u')->toBase()->first();
+        $items = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)
+            ->selectRaw('count(*) as n, max(updated_at) as u, count(flash_price) as f')->where(fn ($q) => $q->whereNull('flash_ends_at')->orWhere('flash_ends_at', '>', now()))
+            ->toBase()->first();
+        $all = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->count();
         $version = md5(implode('|', [$session->updated_at?->getTimestamp(), $session->display_mode, $session->featured_item_id,
-            $reservations->n ?? 0, $reservations->u ?? '', $reservations->h ?? 0, $reservations->o ?? 0, $items->n ?? 0, $items->u ?? '']));
+            $reservations->n ?? 0, $reservations->u ?? '', $reservations->h ?? 0, $reservations->o ?? 0, $all, $items->n ?? 0, $items->u ?? '', $items->f ?? 0]));
 
         return Cache::remember('live-screen-view:'.$session->id.':'.$version, now()->addSeconds(10), fn () => $this->live($session));
     }
@@ -179,9 +182,12 @@ class LiveScreens
                     'code' => $item->code,
                     'title' => $variant?->product?->title ?? 'Article',
                     'variant' => $variant && ! $variant->is_default ? $variant->title : null,
-                    'price' => (int) $item->price,
-                    // Ancien prix barré : prix habituel (ou prix barré du catalogue) plus élevé que le prix du live
-                    'was' => max($compare, $regular) > $item->price ? max($compare, $regular) : null,
+                    'price' => $item->currentPrice(),
+                    // Ancien prix barré : prix habituel (ou prix barré du catalogue, ou prix du live pendant la vente
+                    // flash) plus élevé que le prix à payer
+                    'was' => ($was = max($compare, $regular, $item->flashActive() ? $item->price : 0)) > $item->currentPrice() ? $was : null,
+                    // Vente flash : fin du chrono
+                    'flash_ends_at' => $item->flashActive() ? $item->flash_ends_at->toIso8601String() : null,
                     'quantity' => (int) $item->quantity,
                     'remaining' => $sales->remaining($item),
                     'waiting' => (int) ($waiting[$item->id] ?? 0),
