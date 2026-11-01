@@ -22,6 +22,7 @@ const TABS = [
   { value: '', label: 'Toutes' },
   { value: 'pending_confirmation', label: 'À confirmer' },
   { value: 'to_ship', label: 'À faire livrer' },
+  { value: 'at_courier', label: 'Chez le livreur' },
   { value: 'shipped', label: 'En route' },
   { value: 'late', label: 'En retard', alert: true },
   { value: 'completed', label: 'Livrées' },
@@ -106,7 +107,7 @@ function setPeriod(value) {
   filters.period = value
   if (value !== 'custom') Object.assign(filters, { from: '', to: '' })
 }
-const total = (c) => Object.entries(c).filter(([k]) => !['to_ship', 'late'].includes(k)).reduce((s, [, n]) => s + n, 0)
+const total = (c) => Object.entries(c).filter(([k]) => !['to_ship', 'at_courier', 'late'].includes(k)).reduce((s, [, n]) => s + n, 0)
 
 // Filtres actifs (pastilles retirables)
 const delivererLabel = (key) => {
@@ -166,6 +167,7 @@ function deliveryBadge(o) {
 // Action principale de chaque ligne, selon l'étape
 function mainAction(o) {
   if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-ocre-700 hover:bg-ocre-800', run: () => confirmOrder(o) }
+  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && o.prepay_due > 0 && !o.shipment_id && canManage.value) return { label: 'Lien de paiement', icon: 'cash', tone: 'bg-ocre-700 hover:bg-ocre-800', run: () => sendPayLink(o) }
   if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && !o.deliverer) return { label: 'Faire livrer', icon: 'truck', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openAssign([o.id]) }
   if (o.status === 'shipped' && canManage.value) return { label: 'Livrée', icon: 'check', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openComplete(o) }
   return null
@@ -175,12 +177,29 @@ function mainAction(o) {
 const showDeliverer = (o) => !mainAction(o) && !!o.deliverer && o.delivery_method === 'delivery' && !['completed', 'cancelled', 'returned'].includes(o.status)
 
 const notice = ref('')
+// Expédition à payer avant le départ : lien de paiement envoyé au client (WhatsApp de la boutique, sinon WhatsApp du téléphone)
+async function sendPayLink(o) {
+  busy.value = true
+  error.value = ''
+  try {
+    const { data } = await http.post(`/orders/${o.id}/payment-links`, { amount: o.prepay_due })
+    if (data.data.sent_by_whatsapp) notice.value = `Lien de paiement de ${money(data.data.amount)} envoyé à ${o.customer_name || 'la cliente'} par WhatsApp (${o.reference}). La course sera possible une fois payé.`
+    else {
+      window.open(data.data.whatsapp_url, '_blank')
+      notice.value = `Lien de paiement de ${money(data.data.amount)} prêt pour ${o.reference} : envoyez le message WhatsApp qui vient de s'ouvrir.`
+    }
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
 const busy = ref(false)
 async function confirmOrder(o) {
   busy.value = true
   try {
     await http.post(`/orders/${o.id}/confirmations`, { outcome: 'confirmed', channel: 'call' })
-    notice.value = `${o.reference} confirmée.`
+    notice.value = `${o.reference} confirmée${o.customer_name ? ` (${o.customer_name})` : ''}.`
     await load()
   } catch (e) {
     error.value = errorMessage(e)
@@ -212,6 +231,8 @@ async function complete() {
 
 // Sélection de plusieurs commandes
 const selected = ref(new Set())
+// Téléphone : « Sélectionner » fait apparaître les cases ; toucher une carte la coche
+const selecting = ref(false)
 const allSelected = computed(() => orders.value.length > 0 && orders.value.every((o) => selected.value.has(o.id)))
 function toggle(id) {
   const next = new Set(selected.value)
@@ -222,14 +243,46 @@ function toggleAll() {
   selected.value = allSelected.value ? new Set() : new Set(orders.value.map((o) => o.id))
 }
 
+// Ce que chaque action groupée peut faire, commande par commande (le serveur vérifie aussi)
+const OPEN_FOR_ASSIGN = ['pending_confirmation', 'confirmed', 'processing']
+const STATUS_FROM = { confirmed: ['pending_confirmation', 'processing'], processing: ['confirmed'], cancelled: ['pending_confirmation', 'confirmed', 'processing'] }
+const can = {
+  assign: (o) => o.delivery_method === 'delivery' && OPEN_FOR_ASSIGN.includes(o.status) && !o.shipment_id && !(o.prepay_due > 0 && o.status !== 'pending_confirmation'),
+  status: (o, to) => (STATUS_FROM[to] ?? []).includes(o.status),
+  whatsapp: (o) => !!o.customer_phone && ['pending_confirmation', 'shipped'].includes(o.status),
+}
+const selectedOrders = computed(() => orders.value.filter((o) => selected.value.has(o.id)))
+const eligible = (test, ...args) => selectedOrders.value.filter((o) => test(o, ...args))
+const of = (n) => `${n}/${selected.value.size}`
+const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`
+const STATUS_WORDS = { confirmed: 'confirmée', processing: 'en préparation', cancelled: 'annulée' }
+
+// Résultat en phrases simples : ce qui est fait, et pourquoi le reste ne l'est pas
+function result(r, body, ids) {
+  const one = ids.length === 1 ? orders.value.find((o) => o.id === ids[0]) : null
+  const who = body.courier_id ? delivererLabel(`courier:${body.courier_id}`) : body.carrier_connection_id ? delivererLabel(`carrier:${body.carrier_connection_id}`) : ''
+  const done = {
+    assign: one ? `${one.reference} confiée à ${who}.` : `${plural(r.done, 'commande')} confiée${r.done > 1 ? 's' : ''} à ${who}.`,
+    status: one ? `${one.reference} ${STATUS_WORDS[body.status]}.` : `${plural(r.done, 'commande')} ${STATUS_WORDS[body.status]}${r.done > 1 ? 's' : ''}.`,
+    whatsapp: `${plural(r.done, 'message WhatsApp')} envoyé${r.done > 1 ? 's' : ''}.`,
+  }[body.action]
+  const why = r.skipped.map((s) => `${s.reference} : ${s.reason.charAt(0).toLowerCase()}${s.reason.slice(1)}`).join(' · ')
+  if (r.done === 0) {
+    error.value = `Rien n'a été fait. ${why}`
+    return
+  }
+  notice.value = r.skipped.length ? `${done} Pas pour ${why}` : done
+}
+
 async function bulk(body, ids = [...selected.value]) {
   busy.value = true
   error.value = ''
+  notice.value = ''
   try {
     const { data } = await http.post('/orders/bulk', { ids, ...body })
-    const r = data.data
-    notice.value = `${r.done} commande(s) traitée(s)${r.skipped.length ? `. Non traitées : ${r.skipped.map((s) => `${s.reference} (${s.reason})`).join(', ')}` : '.'}`
+    result(data.data, body, ids)
     selected.value = new Set()
+    selecting.value = false
     await load()
   } catch (e) {
     error.value = errorMessage(e)
@@ -278,7 +331,7 @@ async function reassign(o, courierId) {
   error.value = ''
   try {
     await http.post(`/shipments/${o.shipment_id}/assign`, { courier_id: courierId })
-    notice.value = `${o.reference} : livreur changé (${delivererLabel(`courier:${courierId}`) || 'nouveau livreur'}).`
+    notice.value = `${o.reference} confiée à ${delivererLabel(`courier:${courierId}`)} à la place de ${o.deliverer}.`
     await load()
   } catch (e) {
     error.value = errorMessage(e)
@@ -287,12 +340,23 @@ async function reassign(o, courierId) {
   }
 }
 
-// Changer le statut
+// Changer le statut : seulement les commandes qui peuvent passer à ce statut
 const statusOpen = ref(false)
 const statusForm = reactive({ status: 'processing', reason: 'customer_request' })
 async function applyStatus() {
   statusOpen.value = false
-  await bulk({ action: 'status', status: statusForm.status, reason: statusForm.status === 'cancelled' ? statusForm.reason : null })
+  const ids = eligible(can.status, statusForm.status).map((o) => o.id)
+  await bulk({ action: 'status', status: statusForm.status, reason: statusForm.status === 'cancelled' ? statusForm.reason : null }, ids)
+}
+
+// WhatsApp de l'étape : demande de confirmation ou « votre commande est en route »
+async function sendWhatsapp() {
+  const list = eligible(can.whatsapp)
+  const ask = list.filter((o) => o.status === 'pending_confirmation').length
+  const road = list.length - ask
+  const parts = [ask && `${ask} demande${ask > 1 ? 's' : ''} de confirmation`, road && `${road} message${road > 1 ? 's' : ''} « votre commande est en route »`].filter(Boolean).join(' et ')
+  if (!window.confirm(`Envoyer par WhatsApp : ${parts} ?`)) return
+  await bulk({ action: 'whatsapp' }, list.map((o) => o.id))
 }
 
 // Après une impression d'étiquettes : suggestion d'imprimante d'étiquettes (si le matériel est proposé)
@@ -320,6 +384,7 @@ async function exportList() {
         <Icon name="filter" :size="18" />Filtres
         <span v-if="activeFilters.length" class="rounded-full bg-emerald-600 px-1.5 text-xs text-white">{{ activeFilters.length }}</span>
       </button>
+      <button type="button" class="shrink-0 rounded-xl border px-3 py-2.5 text-sm font-semibold lg:hidden" :class="selecting ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="selecting = !selecting; if (!selecting) selected = new Set()">{{ selecting ? 'Terminer' : 'Choisir' }}</button>
       <select v-model="filters.sort" class="input hidden w-auto sm:block" aria-label="Trier">
         <option v-for="s in SORTS" :key="s.value" :value="s.value">Trier : {{ s.label.toLowerCase() }}</option>
       </select>
@@ -388,14 +453,16 @@ async function exportList() {
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
     <MaterielTip v-if="labelTip" category="impression" text="Imprimez vos étiquettes en 2 secondes :" />
 
+    <p v-if="selecting && !selected.size" class="rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-900 lg:hidden">Touchez les commandes à choisir : les actions apparaissent en haut.</p>
+
     <!-- Plusieurs commandes cochées -->
     <div v-if="selected.size" class="sticky top-[4.5rem] z-20 flex flex-wrap items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm text-white shadow-lg">
       <span class="font-semibold">{{ selected.size }} sélectionnée(s)</span>
-      <button v-if="canAssign" type="button" class="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20" :disabled="busy" @click="openAssign([...selected])">Confier à un livreur</button>
+      <button v-if="canAssign" type="button" class="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20 disabled:opacity-40" :disabled="busy || !eligible(can.assign).length" :title="eligible(can.assign).length ? '' : 'Aucune des commandes choisies ne peut être confiée (déjà confiée, livrée, retrait ou paiement attendu)'" @click="openAssign(eligible(can.assign).map((o) => o.id))">Confier à un livreur · {{ of(eligible(can.assign).length) }}</button>
       <button type="button" class="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20" :disabled="busy" @click="labels">Imprimer les étiquettes</button>
       <button v-if="canManage" type="button" class="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20" :disabled="busy" @click="statusOpen = true">Changer le statut</button>
-      <button v-if="canManage" type="button" class="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20" :disabled="busy" @click="bulk({ action: 'whatsapp' })">Envoyer un WhatsApp</button>
-      <button type="button" class="ml-auto text-white/70 hover:text-white" @click="selected = new Set()">Tout désélectionner</button>
+      <button v-if="canManage" type="button" class="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20 disabled:opacity-40" :disabled="busy || !eligible(can.whatsapp).length" :title="eligible(can.whatsapp).length ? '' : 'Message prévu seulement pour les commandes à confirmer ou en route'" @click="sendWhatsapp">Envoyer un WhatsApp · {{ of(eligible(can.whatsapp).length) }}</button>
+      <button type="button" class="ml-auto text-white/70 hover:text-white" @click="selected = new Set(); selecting = false">Tout désélectionner</button>
     </div>
 
     <p v-if="loading && !orders.length" class="text-sm text-slate-500">Chargement…</p>
@@ -467,9 +534,11 @@ async function exportList() {
     <div class="space-y-3 lg:hidden">
       <template v-for="g in groups" :key="g.key ?? 'sans-date'">
         <p class="flex items-baseline justify-between gap-2 px-0.5 pt-2 text-sm"><span class="truncate font-display text-[15px] font-extrabold text-slate-800">{{ g.key ? dayLabel(g.key).split(',')[0] : 'Date à fixer' }} · {{ g.count }}</span><span class="shrink-0 font-semibold text-slate-600">{{ money(g.amount) }}</span></p>
-        <div v-for="o in g.orders" :key="o.id" class="card p-3.5" :class="{ 'ring-2 ring-emerald-600': selected.has(o.id) }">
+        <div v-for="o in g.orders" :key="o.id" class="card relative p-3.5" :class="{ 'ring-2 ring-emerald-600': selected.has(o.id) }">
+          <!-- Mode sélection : toute la carte coche ou décoche -->
+          <button v-if="selecting" type="button" class="absolute inset-0 z-10 rounded-[inherit]" :aria-label="`${selected.has(o.id) ? 'Décocher' : 'Cocher'} ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)" />
           <div class="flex items-start gap-3">
-            <button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold" :class="selected.has(o.id) ? 'bg-emerald-700 text-white' : avatar(o.customer_name || phone(o)).tone" :aria-label="`Sélectionner ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)">
+            <button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold" :class="selected.has(o.id) ? 'bg-emerald-700 text-white' : selecting ? 'border-2 border-slate-300 bg-white text-transparent' : avatar(o.customer_name || phone(o)).tone" :aria-label="`Sélectionner ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)">
               <Icon v-if="selected.has(o.id)" name="check" :size="20" /><template v-else>{{ avatar(o.customer_name || phone(o)).initials }}</template>
             </button>
             <RouterLink :to="`/gestion/commandes/${o.id}`" class="min-w-0 flex-1">
@@ -574,15 +643,17 @@ async function exportList() {
     <Modal v-if="statusOpen" :title="`Changer le statut de ${selected.size} commande(s)`" @close="statusOpen = false">
       <div class="space-y-4">
         <div class="grid gap-2">
-          <label v-for="s in [['confirmed', 'Confirmée'], ['processing', 'En préparation'], ['cancelled', 'Annulée']]" :key="s[0]" class="flex items-center gap-3 rounded-xl border p-3" :class="statusForm.status === s[0] ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
-            <input v-model="statusForm.status" type="radio" :value="s[0]" class="h-4 w-4 accent-emerald-700" />{{ s[1] }}
+          <label v-for="s in [['confirmed', 'Confirmée'], ['processing', 'En préparation'], ['cancelled', 'Annulée']]" :key="s[0]" class="flex items-center gap-3 rounded-xl border p-3" :class="[statusForm.status === s[0] ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200', eligible(can.status, s[0]).length ? '' : 'opacity-50']">
+            <input v-model="statusForm.status" type="radio" :value="s[0]" :disabled="!eligible(can.status, s[0]).length" class="h-4 w-4 accent-emerald-700" />
+            <span class="flex-1">{{ s[1] }}</span>
+            <span class="text-sm text-slate-500">{{ eligible(can.status, s[0]).length ? `${eligible(can.status, s[0]).length} commande${eligible(can.status, s[0]).length > 1 ? 's' : ''} sur ${selected.size}` : 'aucune ne peut' }}</span>
           </label>
         </div>
         <select v-if="statusForm.status === 'cancelled'" v-model="statusForm.reason" class="input" aria-label="Motif d'annulation">
           <option v-for="r in CANCEL_REASONS" :key="r.value" :value="r.value">{{ r.label }}</option>
         </select>
-        <p class="text-sm text-slate-500">Les commandes qui ne peuvent pas passer à ce statut sont laissées telles quelles et listées après.</p>
-        <button type="button" class="btn-brand w-full" :class="{ 'btn-danger': statusForm.status === 'cancelled' }" @click="applyStatus">Appliquer</button>
+        <p class="text-sm text-slate-500">Les autres commandes choisies restent telles quelles.</p>
+        <button type="button" class="btn-brand w-full" :class="{ 'btn-danger': statusForm.status === 'cancelled' }" :disabled="!eligible(can.status, statusForm.status).length" @click="applyStatus">Appliquer à {{ plural(eligible(can.status, statusForm.status).length, 'commande') }}</button>
       </div>
     </Modal>
 

@@ -34,7 +34,7 @@ class OrderListing
     public static function rules(): array
     {
         return [
-            'status' => ['nullable', Rule::in([...OrderStatus::values(), 'to_ship', 'late'])],
+            'status' => ['nullable', Rule::in([...OrderStatus::values(), 'to_ship', 'at_courier', 'late'])],
             'search' => ['nullable', 'string', 'max:100'],
             'source' => ['nullable', Rule::enum(OrderSource::class)],
             'customer_id' => ['nullable', 'integer'],
@@ -179,10 +179,17 @@ class OrderListing
     {
         return match ($status) {
             null, '' => $query,
-            'to_ship' => $query->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value]),
+            // À faire livrer : confirmées sans course en cours ; Chez le livreur : course demandée, pas encore partie
+            'to_ship' => $query->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->whereDoesntHave('shipments', $this->activeShipment(...)),
+            'at_courier' => $query->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->whereHas('shipments', $this->activeShipment(...)),
             'late' => $this->late($query),
             default => $query->where('status', $status),
         };
+    }
+
+    private function activeShipment(Builder $q): void
+    {
+        $q->whereNotIn('status', array_map(fn (ShipmentStatus $s) => $s->value, array_filter(ShipmentStatus::cases(), fn (ShipmentStatus $s) => $s->isFinal())));
     }
 
     public function late(Builder $query): Builder
@@ -200,7 +207,8 @@ class OrderListing
         $byStatus = $this->filtered($request)->toBase()->groupBy('status')->selectRaw('status, COUNT(*) AS n')->pluck('n', 'status');
 
         return collect(OrderStatus::cases())->mapWithKeys(fn ($s) => [$s->value => (int) ($byStatus[$s->value] ?? 0)])
-            ->put('to_ship', (int) ($byStatus[OrderStatus::Confirmed->value] ?? 0) + (int) ($byStatus[OrderStatus::Processing->value] ?? 0))
+            ->put('to_ship', $this->withStatus($this->filtered($request), 'to_ship')->count())
+            ->put('at_courier', $this->withStatus($this->filtered($request), 'at_courier')->count())
             ->put('late', $this->late($this->filtered($request))->count())
             ->all();
     }
@@ -249,6 +257,8 @@ class OrderListing
                 ($shipment === null && in_array($order->status, [OrderStatus::PendingConfirmation, OrderStatus::Confirmed, OrderStatus::Processing], true))
                 || ($shipment !== null && $shipment->isOwnCourier() && ! $shipment->status->isFinal()
                     && ! in_array($shipment->status, [ShipmentStatus::InTransit, ShipmentStatus::OutForDelivery, ShipmentStatus::Returning], true))),
+            // Expédition payée d'avance pas encore réglée : le lien de paiement d'abord, pas de course possible
+            'prepay_due' => Expeditions::blockingDue($order),
             'whatsapp_url' => $order->customer_phone ? 'https://wa.me/'.ltrim($order->customer_phone, '+') : null,
         ];
     }
