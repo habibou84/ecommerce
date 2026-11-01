@@ -3,6 +3,7 @@
 namespace App\Services\WhatsApp;
 
 use App\Enums\ConfirmationOutcome;
+use App\Enums\OrderSource;
 use App\Enums\OrderStatus;
 use App\Enums\Permission;
 use App\Jobs\SendWhatsAppMessage;
@@ -70,7 +71,11 @@ class CustomerMessenger
         }
 
         if ($event->type === 'created' && $order->status === OrderStatus::PendingConfirmation) {
-            $this->requestConfirmation($order, automatic: true);
+            // Commande du live passée sur WhatsApp (numéro officiel) : le récapitulatif en image, avec « Je confirme »,
+            // « Changer l'adresse » et « Ajouter un article », sert de demande de confirmation. Pas de second message.
+            if (! $this->liveRecapAsks($order)) {
+                $this->requestConfirmation($order, automatic: true);
+            }
 
             return;
         }
@@ -146,6 +151,19 @@ class CustomerMessenger
     }
 
     /**
+     * Commande du live dont la cliente écrit au numéro officiel : le live lui envoie son propre récapitulatif à confirmer.
+     */
+    private function liveRecapAsks(Order $order): bool
+    {
+        if ($order->source !== OrderSource::Live || blank($order->customer_phone)) {
+            return false;
+        }
+        $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
+
+        return $conversation !== null && $conversation->canReply() && $this->inbox->officialFor($conversation) !== null;
+    }
+
+    /**
      * Comment demander la confirmation de cette commande : « conversation » (gratuit), « template », ou null (impossible).
      */
     public function confirmationChannel(Order $order, bool $automatic = false): ?string
@@ -155,6 +173,10 @@ class CustomerMessenger
             return null;
         }
         if ($automatic && ! $account->automates('order_confirmation')) {
+            return null;
+        }
+        // Une seule demande automatique par commande
+        if ($automatic && OutboundMessage::where('related_type', 'order')->where('related_id', $order->id)->where('event', 'order_confirmation')->exists()) {
             return null;
         }
 
