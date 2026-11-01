@@ -166,16 +166,15 @@ class PremiumCardTest extends TestCase
         $this->offer($this->request())->assertCreated()->assertJsonPath('data.number', 3);
     }
 
-    /** Socle 1.8 : la formule choisie par l'entreprise (niveau Premium) est appliquée à la carte, dans des bornes sûres */
+    /** Socle 1.8 : la formule choisie par l'entreprise (niveau Premium) est appliquée à la carte ; hors contrat, refusée */
     public function test_the_formula_chosen_by_the_company_is_applied(): void
     {
         $body = [...$this->request('300'), 'offer' => ['plan' => 'starter', 'free_months' => 3, 'discount_rate' => 0.2]];
         $this->offer($body)->assertCreated()->assertJsonPath('data.plan', 'Starter')
             ->assertJsonPath('data.free_months', 3)->assertJsonPath('data.discount_rate', 0.2);
 
-        // Formule inconnue ou valeurs hors bornes : formule par défaut, ou bornée
-        $this->offer([...$this->request('301'), 'offer' => ['plan' => 'free', 'free_months' => 3, 'discount_rate' => 0.2]])
-            ->assertCreated()->assertJsonPath('data.plan', 'Pro');
+        // Formule inconnue : refusée par le contrat (socle 1.8) ; valeurs hors bornes : ramenées dans les bornes
+        $this->offer([...$this->request('301'), 'offer' => ['plan' => 'free', 'free_months' => 3, 'discount_rate' => 0.2]])->assertStatus(422);
         $this->offer([...$this->request('302'), 'offer' => ['plan' => 'pro', 'free_months' => 99, 'discount_rate' => 2]])
             ->assertCreated()->assertJsonPath('data.free_months', 36)->assertJsonPath('data.discount_rate', 0.9);
     }
