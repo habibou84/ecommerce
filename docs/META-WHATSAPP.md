@@ -33,8 +33,10 @@ de l'application). En attendant, le bouton fonctionne déjà pour les comptes aj
    - icône (1024 × 1024) et catégorie « Entreprise ».
    Notez l'**identifiant de l'application** et la **clé secrète** (« Afficher »).
 4. Ajoutez le produit **Facebook Login for Business** :
-   - Paramètres › URI de redirection OAuth valides : `https://jibiat-marchand.com/` et
-     `https://preprod.jibiat-marchand.com/` ;
+   - Paramètres › URI de redirection OAuth valides : `https://jibiat-marchand.com/`,
+     `https://preprod.jibiat-marchand.com/`, **et** `https://jibiat-marchand.com/whatsapp/facebook`,
+     `https://preprod.jibiat-marchand.com/whatsapp/facebook` (connexion sur téléphone : la page entière part chez
+     Facebook et revient sur cette adresse) ;
    - domaines autorisés pour le SDK JavaScript : `jibiat-marchand.com` et `preprod.jibiat-marchand.com` seulement
      (Meta refuse les jokers `*.` : la fenêtre Facebook de toutes les boutiques s'ouvre depuis la plateforme, page
      `/whatsapp/facebook`, puis revient sur la gestion de la boutique) ;

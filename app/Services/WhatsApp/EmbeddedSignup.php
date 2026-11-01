@@ -22,21 +22,52 @@ class EmbeddedSignup
     }
 
     /**
+     * Jeton du compte à partir du code de Facebook. Connexion par la page entière (téléphone) : l'adresse de retour
+     * utilisée doit être redonnée à Meta.
+     */
+    public function exchange(WhatsAppCloud $cloud, string $code, ?string $redirectUri = null): string
+    {
+        $token = (string) ($cloud->graph('GET', 'oauth/access_token', null, array_filter([
+            'client_id' => WhatsAppMetaApp::id(), 'client_secret' => WhatsAppMetaApp::secret(), 'code' => $code, 'redirect_uri' => $redirectUri,
+        ]))['access_token'] ?? '');
+        if ($token === '') {
+            throw new RuntimeException('Meta n\'a pas renvoyé de jeton.');
+        }
+
+        return $token;
+    }
+
+    /**
+     * Compte WhatsApp choisi dans Facebook, retrouvé avec le jeton (connexion par la page entière : la fenêtre ne
+     * l'a pas transmis).
+     */
+    public function findWaba(WhatsAppCloud $cloud, string $token): string
+    {
+        $scopes = $cloud->graph('GET', 'debug_token', null, [
+            'input_token' => $token, 'access_token' => WhatsAppMetaApp::id().'|'.WhatsAppMetaApp::secret(),
+        ])['data']['granular_scopes'] ?? [];
+        foreach (['whatsapp_business_management', 'whatsapp_business_messaging'] as $scope) {
+            $ids = collect($scopes)->firstWhere('scope', $scope)['target_ids'] ?? [];
+            if ($ids !== []) {
+                return (string) end($ids);
+            }
+        }
+
+        throw new RuntimeException('Aucun compte WhatsApp n\'a été choisi dans Facebook.');
+    }
+
+    /**
      * @return array{account: WhatsappAccount, warnings: list<string>}
      */
-    public function connect(Store $store, string $code, string $wabaId, ?string $phoneNumberId, bool $coexistence): array
+    public function connect(Store $store, string $code, ?string $wabaId, ?string $phoneNumberId, bool $coexistence, ?string $redirectUri = null): array
     {
         if (! self::enabled()) {
             throw new BusinessRuleException('La connexion en un clic n\'est pas encore activée sur la plateforme.');
         }
 
         try {
-            $token = (string) ($this->cloud->graph('GET', 'oauth/access_token', null, [
-                'client_id' => WhatsAppMetaApp::id(), 'client_secret' => WhatsAppMetaApp::secret(), 'code' => $code,
-            ])['access_token'] ?? '');
-            if ($token === '') {
-                throw new RuntimeException('Meta n\'a pas renvoyé de jeton.');
-            }
+            $token = $this->exchange($this->cloud, $code, $redirectUri);
+            $wabaId = $wabaId ?: $this->findWaba($this->cloud, $token);
 
             // Numéro choisi dans la fenêtre ; à défaut, le premier numéro du compte
             $phoneNumberId = $phoneNumberId ?: (string) ($this->cloud->graph('GET', $wabaId.'/phone_numbers', $token)['data'][0]['id'] ?? '');
