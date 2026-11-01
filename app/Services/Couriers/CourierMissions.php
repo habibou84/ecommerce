@@ -45,11 +45,10 @@ class CourierMissions
             return;
         }
         $rule = $courier->payRule;
-        $zoneId = $shipment->order->delivery_zone_id;
+        $pay = $rule?->amountFor($shipment->order->delivery_zone_id, $shipment->order->isExpedition()) ?? 0;
 
         match ($to) {
-            ShipmentStatus::Delivered => $rule && $rule->amountFor($zoneId) > 0
-                ? $this->earn($shipment, $courier, 'delivery', $rule->amountFor($zoneId)) : null,
+            ShipmentStatus::Delivered => $pay > 0 ? $this->earn($shipment, $courier, 'delivery', $pay) : null,
             ShipmentStatus::Failed, ShipmentStatus::Rescheduled => $rule && $rule->failed_attempt_amount > 0
                 ? $this->earn($shipment, $courier, 'failed_attempt', $rule->failed_attempt_amount) : null,
             default => null,
