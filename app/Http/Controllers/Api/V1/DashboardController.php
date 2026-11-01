@@ -12,12 +12,14 @@ use App\Models\Customer;
 use App\Models\Discount;
 use App\Models\LiveSession;
 use App\Models\Order;
+use App\Models\WhatsappAccount;
 use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Reports\DailyAdvice;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\OutsideStock;
 use App\Services\Stock\StockLevels;
+use App\Services\WhatsApp\MetaHealth;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -66,6 +68,15 @@ class DashboardController extends Controller
             $data['to_relaunch'] = Customer::toRelaunch()->count();
         }
         $data['promotions'] = $this->promotions();
+
+        // WhatsApp bloqué (ou en partie) par Meta : à régler dans Réglages › WhatsApp
+        if ($user->can(Permission::StoreManage->value)) {
+            $account = WhatsappAccount::query()->whereIn('meta_state', ['blocked', 'partial'])->first();
+            if ($account !== null) {
+                $meta = MetaHealth::present($account);
+                $data['whatsapp_meta'] = ['state' => $meta['state'], 'reason' => $meta['reason']];
+            }
+        }
 
         // Boîte Messages : conversations pas encore lues
         if ($user->can(Permission::OrdersManage->value) || $user->can(Permission::OrdersConfirm->value)) {

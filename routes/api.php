@@ -153,6 +153,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('health', [ConsoleHealthController::class, 'show'])->name('health');
             Route::post('health/failed-jobs/{uuid}', [ConsoleHealthController::class, 'failedJob'])->whereUuid('uuid')->name('health.failed-job');
             Route::get('stores', [ConsoleController::class, 'stores'])->name('stores');
+            Route::get('whatsapp-health', [ConsoleController::class, 'whatsappHealth'])->name('whatsapp-health');
             Route::get('stores/{store}', [ConsoleController::class, 'store'])->whereNumber('store')->name('stores.show');
             Route::post('stores/{store}/suspend', [ConsoleController::class, 'suspend'])->whereNumber('store')->name('stores.suspend');
             Route::post('stores/{store}/reactivate', [ConsoleController::class, 'reactivate'])->whereNumber('store')->name('stores.reactivate');
@@ -523,6 +524,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('whatsapp', [WhatsAppController::class, 'update'])->name('whatsapp.update');
                 Route::post('whatsapp/embedded', [WhatsAppController::class, 'connectEmbedded'])->middleware('throttle:login')->middleware('feature:whatsapp_embedded')->name('whatsapp.embedded');
                 Route::delete('whatsapp', [WhatsAppController::class, 'destroy'])->name('whatsapp.destroy');
+                Route::post('whatsapp/health', [WhatsAppController::class, 'health'])->middleware('throttle:6,1')->name('whatsapp.health');
                 // WhatsApp relié par QR code (comme WhatsApp Web) pour la boîte Messages
                 Route::get('whatsapp/link', [WhatsAppLinkController::class, 'show'])->middleware('feature:whatsapp_qr')->name('whatsapp.link.show');
                 Route::post('whatsapp/link', [WhatsAppLinkController::class, 'start'])->middleware('throttle:20,1')->middleware('feature:whatsapp_qr')->name('whatsapp.link.start');

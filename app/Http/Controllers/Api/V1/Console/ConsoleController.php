@@ -13,12 +13,14 @@ use App\Models\StoreDomain;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\SupportSession;
+use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Services\Ai\AiCosts;
 use App\Services\Billing\Billing;
 use App\Services\Billing\FreeAccess;
 use App\Services\Billing\PlanLimits;
 use App\Services\Console\SupportSessions;
+use App\Services\WhatsApp\MetaHealth;
 use App\Services\WhatsApp\WhatsAppBridge;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -83,6 +85,40 @@ class ConsoleController extends Controller
         return response()->json([
             'data' => collect($page->items())->map(fn (Store $s) => $this->summary($s)),
             'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()],
+        ]);
+    }
+
+    /**
+     * WhatsApp des boutiques : état de chaque numéro officiel chez Meta, ce qui bloque d'abord.
+     */
+    public function whatsappHealth(Request $request): JsonResponse
+    {
+        $request->validate(['filter' => ['nullable', 'in:all,help']]);
+        $order = "CASE meta_state WHEN 'blocked' THEN 0 WHEN 'partial' THEN 1 WHEN 'ok' THEN 3 ELSE 2 END";
+        $accounts = WhatsappAccount::withoutGlobalScopes()->with('store:id,name,slug')
+            ->when($request->query('filter') === 'help', fn ($q) => $q->whereIn('meta_state', ['blocked', 'partial']))
+            ->orderByRaw($order)->orderBy('meta_state_since')->limit(300)->get();
+
+        return response()->json([
+            'data' => $accounts->map(function (WhatsappAccount $a) {
+                $meta = MetaHealth::present($a);
+
+                return [
+                    'store' => $a->store ? ['id' => $a->store->id, 'name' => $a->store->name] : null,
+                    'phone' => $a->display_phone,
+                    'state' => $meta['state'],
+                    'title' => $meta['title'],
+                    'reason' => $meta['reason'],
+                    'since' => $meta['since'],
+                    'checked_at' => $meta['checked_at'],
+                ];
+            })->values(),
+            'counts' => [
+                'all' => WhatsappAccount::withoutGlobalScopes()->count(),
+                'blocked' => WhatsappAccount::withoutGlobalScopes()->where('meta_state', 'blocked')->count(),
+                'partial' => WhatsappAccount::withoutGlobalScopes()->where('meta_state', 'partial')->count(),
+                'without' => Store::query()->whereNotIn('id', WhatsappAccount::withoutGlobalScopes()->select('store_id'))->count(),
+            ],
         ]);
     }
 

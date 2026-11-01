@@ -143,6 +143,7 @@ const consoleRoutes = [
       { path: 'boutiques/:id(\\d+)', component: () => import('../views/console/StoreDetail.vue'), props: true, meta: { title: 'Espace marchand' } },
       { path: 'paiements', component: () => import('../views/console/Payments.vue'), meta: { title: 'Paiements' } },
       { path: 'whatsapp', component: () => import('../views/console/WhatsApp.vue'), meta: { title: 'WhatsApp' } },
+      { path: 'whatsapp-boutiques', component: () => import('../views/console/WhatsAppStores.vue'), meta: { title: 'WhatsApp des boutiques' } },
       { path: 'factures', component: () => import('../views/console/Invoices.vue'), meta: { title: 'Factures' } },
       { path: 'parrainage', component: () => import('../views/console/Referrals.vue'), meta: { title: 'Parrainage' } },
       { path: 'offres', component: () => import('../views/console/Plans.vue'), meta: { title: 'Offres' } },
