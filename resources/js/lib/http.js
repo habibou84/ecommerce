@@ -29,10 +29,35 @@ http.interceptors.request.use(async (config) => {
   return config
 })
 
+// Retour dans l'application (téléphone en veille, autre application) : le système coupe les requêtes en cours et
+// le réseau met un instant à revenir. Une lecture sans réponse est refaite quand l'application est à l'écran et
+// en ligne (jusqu'à 3 fois), au lieu d'afficher « Pas de connexion » alors que le wifi est là.
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+function backOnScreen() {
+  const ready = () => !document.hidden && navigator.onLine !== false
+  if (ready()) return Promise.resolve()
+  return new Promise((resolve) => {
+    const done = () => {
+      if (!ready()) return
+      document.removeEventListener('visibilitychange', done)
+      window.removeEventListener('online', done)
+      resolve()
+    }
+    document.addEventListener('visibilitychange', done)
+    window.addEventListener('online', done)
+  })
+}
+
 http.interceptors.response.use(
   (response) => response,
   async (error) => {
     const { config, response } = error
+    const tries = config?._netTries ?? 0
+    if (!response && config && error.code !== 'ERR_CANCELED' && (config.method ?? 'get') === 'get' && tries < 3) {
+      await backOnScreen()
+      await wait(700 * (tries + 1))
+      return http({ ...config, _netTries: tries + 1 })
+    }
     if (response?.status === 419 && config && !config._retried) {
       csrfReady = null
       await ensureCsrf()
