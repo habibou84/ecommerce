@@ -12,6 +12,7 @@ use App\Services\Messaging\ReplySuggester;
 use App\Services\Orders\OrderMessageParser;
 use App\Services\Platform\Features;
 use App\Services\WhatsApp\Inbox;
+use App\Services\WhatsApp\MetaHealth;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,6 +47,18 @@ class ConversationController extends Controller
         return $out;
     }
 
+    /** @return array{state: string, reason: ?string}|null */
+    private function metaBlock(): ?array
+    {
+        $account = WhatsappAccount::query()->where('meta_state', 'blocked')->first();
+        if ($account === null) {
+            return null;
+        }
+        $meta = MetaHealth::present($account);
+
+        return ['state' => $meta['state'], 'reason' => $meta['reason']];
+    }
+
     public function index(Request $request): JsonResponse
     {
         $request->validate(['filter' => ['nullable', 'in:all,unread,without_order'], 'q' => ['nullable', 'string', 'max:60']]);
@@ -69,6 +82,8 @@ class ConversationController extends Controller
             'linked' => WhatsappLink::query()->where('status', 'connected')->exists(),
             // Numéros connectés, affichés en haut de la boîte (avec « Déconnecter » pour le gérant)
             'numbers' => $this->numbers(),
+            // Numéro officiel bloqué par Meta : bandeau rouge en haut de la boîte
+            'meta_block' => $this->metaBlock(),
             'connected' => WhatsappAccount::query()->exists() || WhatsappLink::query()->where('status', 'connected')->exists()
                 || (app(Features::class)->enabled('meta_messages', $this->currentStore()) && SocialAccount::query()->whereIn('network', ['facebook', 'instagram'])->exists()),
         ]);

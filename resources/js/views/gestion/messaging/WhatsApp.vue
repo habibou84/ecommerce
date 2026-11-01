@@ -7,6 +7,7 @@ import Icon from '../../../components/Icon.vue'
 import WhatsAppAssistant from '../../../components/WhatsAppAssistant.vue'
 import WhatsAppAutomations from '../../../components/WhatsAppAutomations.vue'
 import WhatsAppCatalog from '../../../components/WhatsAppCatalog.vue'
+import WhatsAppMetaHealth from '../../../components/WhatsAppMetaHealth.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { boot } from '../../../lib/boot'
 import { facebookRelayUrl } from '../../../lib/facebook'
@@ -163,6 +164,9 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
         </li>
       </ul>
     </section>
+
+    <!-- État chez Meta : compte, nom, paiement, qualité ; ce qui bloque et où agir -->
+    <WhatsAppMetaHealth v-if="official.account?.meta" :meta="official.account.meta" @update="official = $event" />
 
     <!-- Onglets, comme Marketing, Livraisons, Stock -->
     <nav v-tab-strip class="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0" role="tablist">

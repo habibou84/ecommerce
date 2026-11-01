@@ -114,6 +114,13 @@ const todo = computed(() => {
     items.push({ key: 'returns', icon: 'box', label: 'Colis à rapporter', count: (s.couriers?.to_bring_back ?? 0) + (s.carriers?.to_bring_back ?? 0), to: '/gestion/commandes?alert=to_bring_back',
       hint: late ? `dont ${late} pas rapporté(s) depuis trop longtemps` : '', urgent: late > 0 })
   }
+  // WhatsApp bloqué (ou en partie) par Meta
+  // (bloqué : en tête de liste, tous les messages aux clients sont arrêtés)
+  if (s.whatsapp_meta) {
+    const blocked = s.whatsapp_meta.state === 'blocked'
+    items[blocked ? 'unshift' : 'push']({ key: 'whatsapp_meta', icon: 'messages', label: blocked ? 'Meta bloque vos messages WhatsApp' : 'WhatsApp en partie bloqué par Meta',
+      count: 1, to: '/gestion/whatsapp', hint: s.whatsapp_meta.reason ?? '', urgent: true })
+  }
   if (s.unread_messages !== undefined) items.push({ key: 'messages', icon: 'messages', label: 'Messages non lus', count: s.unread_messages, to: '/gestion/messages' })
   if (s.stock) items.push({ key: 'stock', icon: 'box', label: 'Articles épuisés', count: s.stock.out, to: '/gestion/stock', hint: s.stock.low ? `et ${s.stock.low} en stock bas` : '', urgent: s.stock.out > 0 })
   return items

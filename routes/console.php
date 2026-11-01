@@ -11,6 +11,7 @@ use App\Models\PaymentWebhookReceipt;
 use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\User;
+use App\Models\WhatsappAccount;
 use App\Services\Accounts\StoreDataExport;
 use App\Services\Billing\Billing;
 use App\Services\Console\SupportSessions;
@@ -30,6 +31,7 @@ use App\Services\Social\SocialPublisher;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Services\WhatsApp\MerchantCatchUp;
 use App\Services\WhatsApp\MerchantOnboarding;
+use App\Services\WhatsApp\MetaHealth;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -107,6 +109,16 @@ Schedule::command('social:publish')->everyMinute()->withoutOverlapping()->runInB
  * Paniers abandonnés : un client a laissé son numéro et des articles sans commander depuis plus d'une heure (et moins
  * de deux jours) ; une relance WhatsApp part si la boutique l'a activée. Un seul message par panier.
  */
+// État des numéros WhatsApp officiels chez Meta (compte, nom, qualité, blocages) : chaque numéro relu au plus toutes
+// les heures, les nouveaux dans les 10 minutes
+Artisan::command('whatsapp:health', function (MetaHealth $health) {
+    WhatsappAccount::withoutGlobalScopes()->whereNotNull('phone_number_id')
+        ->where(fn ($q) => $q->whereNull('meta_health_at')->orWhere('meta_health_at', '<', now()->subMinutes(MetaHealth::MAX_AGE_MINUTES)))
+        ->orderByRaw('meta_health_at IS NOT NULL')->orderBy('meta_health_at')->limit(200)->get()
+        ->each(fn (WhatsappAccount $account) => $health->refresh($account));
+})->purpose('Relit l\'état des numéros WhatsApp chez Meta');
+Schedule::command('whatsapp:health')->everyTenMinutes()->withoutOverlapping()->runInBackground();
+
 Artisan::command('carts:recover', function (CustomerMessenger $messenger) {
     $carts = Cart::withoutGlobalScopes()->where('status', 'active')->whereNotNull('phone')->whereNull('recovery_sent_at')
         ->whereBetween('last_activity_at', [now()->subDays(2), now()->subHour()])->whereHas('items')->get();

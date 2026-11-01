@@ -12,6 +12,7 @@ use App\Services\Platform\Features;
 use App\Services\Storefront\CartService;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Services\WhatsApp\EmbeddedSignup;
+use App\Services\WhatsApp\MetaHealth;
 use App\Services\WhatsApp\NumberStatus;
 use App\Services\WhatsApp\TemplateLibrary;
 use App\Services\WhatsApp\WhatsAppCloud;
@@ -56,6 +57,7 @@ class WhatsAppController extends Controller
                 'automations' => (object) ($account->automations ?? []),
                 'webhook_url' => Tenancy::apiUrl('/webhooks/whatsapp/'.$account->webhook_uuid),
                 'verify_token' => $account->verify_token,
+                'meta' => MetaHealth::present($account),
             ] : null,
             'events' => CustomerMessenger::EVENTS,
             'previews' => $this->previews(),
@@ -144,6 +146,17 @@ class WhatsAppController extends Controller
         $payload['data']['warnings'] = $result['warnings'];
 
         return response()->json($payload);
+    }
+
+    /**
+     * « Actualiser » : relit tout de suite l'état du numéro chez Meta.
+     */
+    public function health(MetaHealth $health): JsonResponse
+    {
+        $account = WhatsappAccount::firstOrFail();
+        $health->refresh($account);
+
+        return $this->show();
     }
 
     public function destroy(): JsonResponse
