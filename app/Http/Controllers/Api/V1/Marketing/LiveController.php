@@ -45,11 +45,15 @@ class LiveController extends Controller
         $variants = ProductVariant::query()->whereHas('product')
             ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q->whereHas('product', fn ($p) => $p->where('title', 'ilike', "%{$search}%"))
                 ->orWhere('sku', 'ilike', "%{$search}%")))
-            ->with(['product:id,title', 'product.images', 'levels'])->orderBy('product_id')->orderBy('position')->limit(30)->get();
+            ->with(['product:id,title', 'product.images', 'levels'])->orderBy('product_id')->orderBy('position')->limit(60)->get();
 
         return response()->json(['data' => $variants->map(fn (ProductVariant $v) => [
             'id' => $v->id,
             'title' => $v->fullTitle(),
+            // Produit et variante : « Tout le produit » ajoute toutes ses tailles et couleurs (un seul code)
+            'product_id' => $v->product_id,
+            'product' => $v->product?->title,
+            'variant' => $v->is_default ? null : $v->title,
             'price' => $v->price,
             'available' => (int) $v->levels->sum(fn ($l) => $l->available()),
             'image' => $v->product?->images->first()?->urls()['thumb'] ?? null,

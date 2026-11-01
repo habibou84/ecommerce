@@ -16,6 +16,7 @@ use chillerlan\QRCode\Output\QROutputInterface;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Jibiat\Socle\PhoneNumber;
@@ -161,42 +162,77 @@ class LiveScreens
      */
     public function live(LiveSession $session): array
     {
-        $session->loadMissing('items.variant.product.images', 'items.variant.image');
+        $session->loadMissing('items.variant.product.images', 'items.variant.image', 'items.variant.option1.option', 'items.variant.option2.option', 'items.variant.option3.option');
         $sales = app(LiveSales::class);
         $waiting = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('status', 'waiting')
             ->selectRaw('live_item_id, count(*) as n')->groupBy('live_item_id')->pluck('n', 'live_item_id');
+
+        // Un produit = un code : ses variantes (tailles, couleurs) sont regroupées sur une seule carte
+        $groups = $session->items->sortBy('position')->groupBy('code');
+        $featured = $session->featured_item_id !== null ? $session->items->firstWhere('id', $session->featured_item_id)?->code : null;
 
         return [
             'id' => $session->id,
             'title' => $session->title,
             'mode' => $session->display_mode ?: 'product',
-            'featured_item_id' => $session->featured_item_id,
-            'items' => $session->items->map(function (LiveItem $item) use ($sales, $waiting) {
+            // Article montré : la carte de son produit (premier article du code)
+            'featured_item_id' => $featured !== null ? $groups->get($featured)?->first()?->id : null,
+            'items' => $groups->map(function ($group) use ($sales, $waiting) {
+                /** @var LiveItem $item */
+                $item = $group->first();
                 $variant = $item->variant;
-                $image = $variant?->image ?? $variant?->product?->images->first();
-                $compare = (int) ($variant?->compare_at_price ?? 0);
-                $regular = (int) ($variant?->price ?? 0);
+                $image = ($group->count() === 1 ? $variant?->image : null) ?? $variant?->product?->images->first() ?? $variant?->image;
+                $remaining = $group->mapWithKeys(fn (LiveItem $i) => [$i->id => $sales->remaining($i)]);
+                $price = (int) $group->min(fn (LiveItem $i) => $i->currentPrice());
+                $compare = (int) $group->max(fn (LiveItem $i) => max((int) ($i->variant?->compare_at_price ?? 0), (int) ($i->variant?->price ?? 0), $i->flashActive() ? $i->price : 0));
+                $flash = $group->first(fn (LiveItem $i) => $i->flashActive());
 
                 return [
                     'id' => $item->id,
                     'code' => $item->code,
                     'title' => $variant?->product?->title ?? 'Article',
-                    'variant' => $variant && ! $variant->is_default ? $variant->title : null,
-                    'price' => $item->currentPrice(),
+                    // Produit sans tailles ni couleurs choisies à part : la variante sous le nom
+                    'variant' => $group->count() === 1 && $variant && ! $variant->is_default ? $variant->title : null,
+                    'price' => $price,
+                    'from' => $group->map(fn (LiveItem $i) => $i->currentPrice())->unique()->count() > 1,
                     // Ancien prix barré : prix habituel (ou prix barré du catalogue, ou prix du live pendant la vente
                     // flash) plus élevé que le prix à payer
-                    'was' => ($was = max($compare, $regular, $item->flashActive() ? $item->price : 0)) > $item->currentPrice() ? $was : null,
+                    'was' => $compare > $price ? $compare : null,
                     // Vente flash : fin du chrono
-                    'flash_ends_at' => $item->flashActive() ? $item->flash_ends_at->toIso8601String() : null,
-                    'quantity' => (int) $item->quantity,
-                    'remaining' => $sales->remaining($item),
-                    'waiting' => (int) ($waiting[$item->id] ?? 0),
+                    'flash_ends_at' => $flash?->flash_ends_at->toIso8601String(),
+                    'quantity' => (int) $group->sum('quantity'),
+                    'remaining' => (int) $remaining->sum(),
+                    'waiting' => (int) $group->sum(fn (LiveItem $i) => $waiting[$i->id] ?? 0),
                     'image' => $image ? ($image->urls()['large'] ?? $image->urls()['medium'] ?? null) : null,
+                    // Tailles, couleurs… et ce qui reste de chacune (écran : pastilles)
+                    'options' => $group->count() > 1 ? $this->options($group, $remaining->all()) : [],
                 ];
             })->values()->all(),
             'orders' => LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('status', 'ordered')->distinct()->count('order_id'),
             'ticker' => $this->ticker($session),
         ];
+    }
+
+    /**
+     * Options d'un produit du live : [{ name: « Taille », values: [{ value: « M », remaining: 2 }…] }…].
+     *
+     * @param  Collection<int, LiveItem>  $group
+     * @param  array<int, int>  $remaining  article => pièces restantes
+     * @return list<array{name: string, values: list<array{value: string, remaining: int}>}>
+     */
+    private function options($group, array $remaining): array
+    {
+        $first = $group->first();
+        $names = $first->optionNames();
+
+        return collect($names)->map(fn (string $name, int $position) => [
+            'name' => $name,
+            // Dans l'ordre du catalogue (S, M, L), pas dans l'ordre d'ajout au live
+            'values' => $group->groupBy(fn (LiveItem $i) => $i->optionValues()[$position] ?? '')->filter(fn ($items, $value) => $value !== '')
+                ->sortBy(fn ($items) => $items->first()->variant?->{'option'.($position + 1)}?->position ?? 0)
+                ->map(fn ($items, $value) => ['value' => (string) $value, 'remaining' => (int) $items->sum(fn (LiveItem $i) => $remaining[$i->id] ?? 0)])
+                ->values()->all(),
+        ])->filter(fn (array $option) => count($option['values']) > 1)->values()->all();
     }
 
     /**
@@ -207,7 +243,7 @@ class LiveScreens
     private function ticker(LiveSession $session): array
     {
         $recent = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->whereIn('status', LiveReservation::HOLDING)
-            ->with('item:id,code', 'order:id,shipping_place_id')->latest('id')->limit(5)->get();
+            ->with('item:id,code,variant_id', 'item.variant:id,title,is_default', 'order:id,shipping_place_id')->latest('id')->limit(5)->get();
         $placeIds = $recent->map(fn (LiveReservation $r) => $r->order?->shipping_place_id ?? $r->shipping_place_id)->filter()->unique();
         $places = Place::with('parent')->whereIn('id', $placeIds)->get()->keyBy('id');
 
@@ -215,7 +251,10 @@ class LiveScreens
             $place = $places->get($r->order?->shipping_place_id ?? $r->shipping_place_id);
             $commune = $place ? ($place->type === 'neighborhood' && $place->parent ? $place->parent->name : $place->name) : null;
 
-            return ['id' => $r->id, 'text' => ($commune ?? 'Une cliente').' vient de prendre '.$r->item?->code];
+            $variant = $r->item?->variant;
+            $detail = $variant && ! $variant->is_default ? ' ('.str_replace(' / ', ', ', (string) $variant->title).')' : '';
+
+            return ['id' => $r->id, 'text' => ($commune ?? 'Une cliente').' vient de prendre '.$r->item?->code.$detail];
         })->values()->all();
     }
 

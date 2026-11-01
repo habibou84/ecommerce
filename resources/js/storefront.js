@@ -496,27 +496,66 @@ function livePage() {
     el.hidden = !message
   }
 
+  // Un produit = une carte (même code) ; taille et couleur choisies sur la carte : code → valeurs choisies
+  const chosen = new Map()
+  const groupItems = (code) => items.filter((item) => item.code === code)
+  const sameOptions = (item, values) => values.every((value, position) => value === undefined || (item.options || [])[position] === value)
+  function current(code) {
+    const group = groupItems(code)
+    if (group.length <= 1) return group[0]
+    if (!chosen.has(code)) {
+      // Au départ : la première variante qui reste (une pièce prise garde son choix)
+      const start = group.find((item) => picked.has(item.id)) || group.find((item) => item.remaining > 0) || group[0]
+      chosen.set(code, [...(start.options || [])])
+    }
+    const values = chosen.get(code)
+    return group.find((item) => sameOptions(item, values)) || null
+  }
+
   function render() {
-    items.forEach((item) => {
-      const row = $(`[data-live-item="${item.id}"]`, root)
-      if (!row) return
+    $$('[data-live-group]', root).forEach((row) => {
+      const code = row.dataset.liveGroup
+      const group = groupItems(code)
+      const item = current(code)
+      const values = chosen.get(code) || []
+      // Pastilles : la valeur choisie en vert, une valeur épuisée (pour les autres choix faits) barrée
+      $$('[data-opt]', row).forEach((chip) => {
+        const position = Number(chip.dataset.opt)
+        const on = values[position] === chip.dataset.value
+        const others = values.map((v, p) => (p === position ? chip.dataset.value : v))
+        const left = group.filter((i) => sameOptions(i, others)).some((i) => i.remaining > 0)
+        chip.className = `rounded-lg border-2 px-2.5 py-1 text-sm font-bold ${on ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'} ${left ? '' : 'text-slate-300 line-through'}`
+        chip.setAttribute('aria-pressed', on ? 'true' : 'false')
+      })
+      const remaining = $('[data-remaining]', row)
+      const take = $('[data-take]', row)
+      const featuredHere = group.some((i) => i.id === featured)
+      row.style.order = featuredHere ? '-1' : ''
+      row.classList.toggle('col-span-2', featuredHere)
+      row.classList.toggle('border-2', featuredHere)
+      row.classList.toggle('border-orange-600', featuredHere)
+      row.classList.toggle('shadow-lg', featuredHere)
+      row.classList.toggle('border-slate-200', !featuredHere)
+      $('[data-featured-label]', row).hidden = !featuredHere
+      $('[data-live-photo]', row).className = `relative ${featuredHere ? 'mx-3 mt-2 aspect-[4/3] overflow-hidden rounded-xl' : 'aspect-square'} bg-slate-100`
+      if (!item) {
+        remaining.textContent = 'Ce choix n\'existe pas : choisissez une autre taille ou couleur.'
+        remaining.className = 'mt-1 text-sm text-slate-500'
+        take.hidden = false
+        take.disabled = true
+        take.textContent = 'Je prends'
+        $('[data-stepper]', row).hidden = true
+        return
+      }
       if (picked.has(item.id)) picked.set(item.id, Math.min(picked.get(item.id), max(item)))
       const qty = picked.get(item.id) || 0
-      const remaining = $('[data-remaining]', row)
+      $('[data-price]', row).textContent = money(item.price)
       remaining.textContent = item.remaining === 1 ? '🔥 Dernière pièce !' : item.remaining > 0 ? `Il en reste ${item.remaining}` : "Épuisé · liste d'attente"
-      remaining.className = `mt-0.5 text-sm ${item.remaining === 1 ? 'font-bold text-orange-700' : 'text-slate-500'}`
-      $('[data-take]', row).textContent = item.remaining > 0 ? 'Je prends' : "M'inscrire en attente"
-      const isFeatured = item.id === featured
-      row.style.order = isFeatured ? '-1' : ''
-      row.classList.toggle('col-span-2', isFeatured)
-      row.classList.toggle('border-2', isFeatured)
-      row.classList.toggle('border-orange-600', isFeatured)
-      row.classList.toggle('shadow-lg', isFeatured)
-      row.classList.toggle('border-slate-200', !isFeatured)
-      $('[data-featured-label]', row).hidden = !isFeatured
-      const photo = $('[data-live-photo]', row)
-      photo.className = `relative ${isFeatured ? 'mx-3 mt-2 aspect-[4/3] overflow-hidden rounded-xl' : 'aspect-square'} bg-slate-100`
-      $('[data-take]', row).hidden = qty > 0
+      remaining.className = `mt-1 text-sm ${item.remaining === 1 ? 'font-bold text-orange-700' : 'text-slate-500'}`
+      const label = group.length > 1 && item.variant ? ` · ${item.variant.replaceAll(' / ', ', ')}` : ''
+      take.disabled = false
+      take.textContent = (item.remaining > 0 ? 'Je prends' : "M'inscrire en attente") + label
+      take.hidden = qty > 0
       $('[data-stepper]', row).hidden = qty === 0
       $('[data-qty]', row).textContent = qty
       $('[data-plus]', row).disabled = qty >= max(item)
@@ -529,14 +568,22 @@ function livePage() {
     return lines
   }
 
-  $$('[data-pick]', root).forEach((pick) => {
-    const id = Number(pick.dataset.pick)
-    $('[data-take]', pick).addEventListener('click', () => { picked.set(id, 1); render() })
-    $('[data-plus]', pick).addEventListener('click', () => { picked.set(id, Math.min((picked.get(id) || 0) + 1, max(byId(id)))); render() })
-    $('[data-minus]', pick).addEventListener('click', () => {
-      const qty = (picked.get(id) || 0) - 1
-      if (qty > 0) picked.set(id, qty)
-      else picked.delete(id)
+  $$('[data-live-group]', root).forEach((row) => {
+    const code = row.dataset.liveGroup
+    const id = () => current(code)?.id
+    $$('[data-opt]', row).forEach((chip) => chip.addEventListener('click', () => {
+      current(code)
+      const values = chosen.get(code) || []
+      values[Number(chip.dataset.opt)] = chip.dataset.value
+      chosen.set(code, values)
+      render()
+    }))
+    $('[data-take]', row).addEventListener('click', () => { if (id()) { picked.set(id(), 1); render() } })
+    $('[data-plus]', row).addEventListener('click', () => { picked.set(id(), Math.min((picked.get(id()) || 0) + 1, max(byId(id())))); render() })
+    $('[data-minus]', row).addEventListener('click', () => {
+      const qty = (picked.get(id()) || 0) - 1
+      if (qty > 0) picked.set(id(), qty)
+      else picked.delete(id())
       render()
     })
   })
@@ -622,7 +669,7 @@ function livePage() {
       const { data } = await api('GET', '/live/etat')
       if (!data) { location.reload(); return }
       // Article ajouté pendant le live : page rechargée (sauf formulaire ouvert), sélection gardée
-      if (data.items.some((item) => !$(`[data-live-item="${item.id}"]`, root))) {
+      if (data.items.some((item) => !$(`[data-live-ids~="${item.id}"]`, root))) {
         if (dialog.open) return
         try { sessionStorage.setItem('jm_live_picked', JSON.stringify([...picked])) } catch { /* sélection perdue */ }
         location.reload()

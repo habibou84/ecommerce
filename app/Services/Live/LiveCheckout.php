@@ -68,6 +68,24 @@ class LiveCheckout
     }
 
     /**
+     * « Quelle taille ? » : boutons (3 choix au plus) ou liste (10 au plus) ; faux sans numéro officiel.
+     *
+     * @param  list<string>  $values
+     */
+    public function askOption(Conversation $conversation, string $text, array $values): bool
+    {
+        if ($values === [] || count($values) > 10 || ! $this->official($conversation)) {
+            return false;
+        }
+        $ids = collect($values)->mapWithKeys(fn (string $value) => ['live:opt:'.mb_substr($value, 0, 180) => mb_substr($value, 0, 20)])->all();
+
+        return count($values) <= 3
+            ? $this->rich($conversation, $text, fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendButtons($account, $to, $text, $ids))
+            : $this->rich($conversation, $text, fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendList($account, $to, $text, 'Choisir', 'Choix', collect($ids)
+                ->map(fn (string $title, string $id) => ['id' => $id, 'title' => mb_substr($title, 0, 24)])->values()->all()));
+    }
+
+    /**
      * Touche de la cliente (liste ou bouton) : vrai si elle concerne le live.
      */
     public function onReply(Conversation $conversation, string $payload): bool
@@ -77,6 +95,12 @@ class LiveCheckout
         }
         $store = Store::findOrFail($conversation->store_id);
         [, $action, $id] = array_pad(explode(':', $payload, 3), 3, null);
+        // Taille, couleur… touchée en réponse à « Quelle taille ? »
+        if ($action === 'opt') {
+            app(LiveSales::class)->chooseOption($conversation, (string) $id);
+
+            return true;
+        }
         $place = in_array($action, ['commune', 'place'], true) && ctype_digit((string) $id)
             ? Place::visibleTo($store->id)->with('parent.parent')->find((int) $id) : null;
 

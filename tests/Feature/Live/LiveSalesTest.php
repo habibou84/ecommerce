@@ -336,6 +336,69 @@ class LiveSalesTest extends TestCase
         $this->assertSame($before + 1, LiveReservation::where('customer_phone', '+2250506070809')->count());
     }
 
+    public function test_one_code_per_product_with_sizes_and_colours_read_or_asked_on_whatsapp(): void
+    {
+        $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
+        $this->bridge(['type' => 'status', 'status' => 'connected', 'phone' => '+2250700000001'])->assertOk();
+        $ensemble = app(CatalogWriter::class)->save($this->store, null, [
+            'title' => 'Ensemble pagne',
+            'options' => [['name' => 'Taille', 'values' => ['S', 'M', 'L']], ['name' => 'Couleur', 'values' => ['Rouge', 'Bleu']]],
+            'variants' => [
+                ['options' => ['S', 'Rouge'], 'price' => 20000, 'on_hand' => 5],
+                ['options' => ['M', 'Rouge'], 'price' => 20000, 'on_hand' => 5],
+                ['options' => ['L', 'Rouge'], 'price' => 20000, 'on_hand' => 5],
+                ['options' => ['L', 'Bleu'], 'price' => 20000, 'on_hand' => 5],
+            ],
+        ]);
+        $variant = fn (string $title) => $ensemble->variants()->where('title', $title)->value('id');
+
+        // Préparation : la robe puis toutes les variantes de l'ensemble → un seul code pour l'ensemble (A2)
+        $id = $this->storeApi($this->store, 'POST', 'lives', ['title' => 'Live tailles', 'items' => [
+            ['variant_id' => $this->robe->variants()->value('id'), 'quantity' => 2],
+            ['variant_id' => $variant('S / Rouge'), 'quantity' => 2],
+            ['variant_id' => $variant('M / Rouge'), 'quantity' => 1],
+            ['variant_id' => $variant('L / Rouge'), 'quantity' => 1],
+            ['variant_id' => $variant('L / Bleu'), 'quantity' => 1],
+        ]])->assertCreated()->json('data.id');
+        $this->assertSame(['A1', 'A2', 'A2', 'A2', 'A2'], array_column($this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.items'), 'code'));
+        $this->storeApi($this->store, 'POST', "lives/{$id}/start")->assertOk();
+
+        // Tout dit dans le message : « A2 rouge L » garde la bonne variante
+        $this->message('V1', 'A2 rouge L svp');
+        $this->assertStringContainsString('L / Rouge', end($this->whatsapp));
+        $this->assertSame('L / Rouge', LiveReservation::with('item.variant')->sole()->item->variant->title);
+
+        // Seulement le code : « Quelle taille ? » avec ce qui reste (la L rouge est partie : L reste en bleu)
+        $this->message('V2', 'A2', '2250701020304');
+        $this->assertStringContainsString('Quelle taille ?', end($this->whatsapp));
+        $this->assertStringContainsString('S, M ou L', end($this->whatsapp));
+        $this->message('V3', 'L', '2250701020304');
+        // Une seule variante L reste (bleue) : gardée sans demander la couleur
+        $this->assertSame('L / Bleu', LiveReservation::with('item.variant')->where('customer_phone', '+2250701020304')->sole()->item->variant->title);
+
+        // Taille puis couleur demandées l'une après l'autre ; une réponse hors des choix est rappelée
+        $this->message('V4', 'A2', '2250702030405');
+        $this->message('V5', 'XXL', '2250702030405');
+        $this->assertStringContainsString('Répondez avec un de ces choix', end($this->whatsapp));
+        $this->message('V6', 's', '2250702030405');
+        $this->assertSame('S / Rouge', LiveReservation::with('item.variant')->where('customer_phone', '+2250702030405')->sole()->item->variant->title);
+
+        // Écran : une carte pour l'ensemble, tailles avec les pièces qui restent ; dernière pièce prise : affichée
+        $live = app(LiveScreens::class)->live(LiveSession::findOrFail($id));
+        $this->assertSame(['A1', 'A2'], array_column($live['items'], 'code'));
+        $sizes = $live['items'][1]['options'][0];
+        $this->assertSame(['Taille', ['S' => 1, 'M' => 1, 'L' => 0]], [$sizes['name'], array_column($sizes['values'], 'remaining', 'value')]);
+        $this->assertSame(2, $live['items'][1]['remaining']);
+        $this->assertStringContainsString('vient de prendre A2 (S, Rouge)', $live['ticker'][0]['text']);
+
+        // Page du live : une carte par produit avec les tailles à toucher
+        $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('data-live-group="A2"', false)->assertSee('data-value="M"', false);
+
+        // Prix flash sur la carte : toutes les variantes du produit
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items/{$live['items'][1]['id']}/flash", ['price' => 15000, 'minutes' => 5])->assertOk();
+        $this->assertSame([15000], array_values(array_unique(array_column(array_filter($this->page('GET', '/live/etat')->json('data.items'), fn ($i) => $i['code'] === 'A2'), 'price'))));
+    }
+
     public function test_whatsapp_codes_reserve_then_the_neighbourhood_creates_the_order(): void
     {
         $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
