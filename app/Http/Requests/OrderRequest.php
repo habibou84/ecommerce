@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\OrderSource;
+use App\Enums\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Jibiat\Socle\PhoneNumber;
@@ -55,7 +56,13 @@ class OrderRequest extends FormRequest
             'shipping_fee' => ['nullable', 'integer', 'min:0', 'max:10000000'],
             'deposit_required' => ['nullable', 'integer', 'min:0', 'max:100000000'],
             // Expédition vers une autre ville : qui paie la compagnie de transport, paiement avant de partir à la gare
-            'expedition_payer' => ['sometimes', 'nullable', Rule::in(['arrival', 'before', 'store'])],
+            'expedition_payer' => ['sometimes', 'nullable', Rule::in(['included', 'arrival', 'before', 'store'])],
+            // Déjà payé à la saisie : tout (le reste à payer) ou une partie
+            'paid' => ['sometimes', 'nullable', 'array'],
+            'paid.all' => ['sometimes', 'boolean'],
+            'paid.amount' => ['exclude_without:paid', 'required_unless:paid.all,true', 'nullable', 'integer', 'min:1'],
+            'paid.method' => ['exclude_without:paid', 'required_with:paid', Rule::enum(PaymentMethod::class)],
+            'paid.reference' => ['nullable', 'string', 'max:100'],
             'expedition_prepay' => ['sometimes', 'nullable', 'boolean'],
             'confirmed' => ['sometimes', 'boolean'],
             // Qui livre (facultatif) : un livreur de la boutique ou une entreprise de livraison, pas les deux

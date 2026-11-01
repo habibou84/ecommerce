@@ -118,9 +118,9 @@ class DeliveryRatesTest extends TestCase
         $this->storeApi($this->store, 'POST', 'delivery-rates/remember', ['expedition' => true, 'fee' => 1500])->assertOk()
             ->assertJsonPath('data.expedition', ['fee' => 1500, 'prepay' => true]);
 
-        // Bouaké : expédition, livraison jusqu'à la gare, transport payé à l'arrivée, paiement avant par défaut
+        // Bouaké : expédition, prix convenu (livraison + expédition) compris dans le total, paiement avant par défaut
         $order = $this->order('Bouaké');
-        $this->assertSame([$this->place('Bouaké')->id, 'arrival', true, 1500, 16500], [$order->expedition_city_id, $order->expedition_payer, $order->expedition_prepay, (int) $order->shipping_fee, (int) $order->total]);
+        $this->assertSame([$this->place('Bouaké')->id, 'included', true, 1500, 16500], [$order->expedition_city_id, $order->expedition_payer, $order->expedition_prepay, (int) $order->shipping_fee, (int) $order->total]);
         $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.expedition.city', 'Bouaké')->assertJsonPath('data.expedition.prepay_due', 16500);
         $this->storeApi($this->store, 'POST', "orders/{$order->id}/status", ['status' => 'confirmed'])->assertOk();
 
@@ -148,12 +148,47 @@ class DeliveryRatesTest extends TestCase
         $this->logout();
         $this->actingAs($this->store->owner);
         $detail = $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.expedition.receipt', true)->json('data.expedition');
-        $this->assertStringContainsString(rawurlencode('par UTB, ticket n° 4521. Frais d\'expédition : 2 000 F, à payer à l\'arrivée.'), $detail['whatsapp_url']);
+        // Prix convenu : le client ne paie rien de plus ; bilan de l'expédition pour la boutique
+        $this->assertStringContainsString(rawurlencode('par UTB, ticket n° 4521. Les frais sont déjà réglés.'), $detail['whatsapp_url']);
+        $this->assertSame([1500, 2000], [$detail['balance']['agreed'], $detail['balance']['company_fee']]);
+        $this->assertSame(1500 - $detail['balance']['delivery_cost'] - 2000, $detail['balance']['margin']);
         $this->assertContains('UTB', $detail['companies']);
         $this->storeApi($this->store, 'GET', "orders/{$order->id}/expedition/receipt")->assertOk();
 
         // Colis récupéré : commande terminée
         $this->storeApi($this->store, 'POST', "orders/{$order->id}/expedition/collected")->assertOk()->assertJsonPath('data.status', 'completed');
+    }
+
+    public function test_an_expedition_already_paid_when_saved_leaves_at_once_and_the_usual_price_comes_back(): void
+    {
+        // Payée avant l'enregistrement (Wave) : rien à encaisser, la course peut partir tout de suite
+        $id = $this->storeApi($this->store, 'POST', 'orders', [
+            'source' => 'whatsapp', 'customer_name' => 'Awa', 'customer_phone' => '0506070809', 'confirmed' => true,
+            'delivery_method' => 'delivery', 'shipping_place_id' => $this->place('Bouaké')->id, 'shipping_address' => 'Gare UTB',
+            'scheduled_date' => today()->toDateString(), 'shipping_fee' => 3500,
+            'items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 1]],
+            'paid' => ['all' => true, 'method' => 'wave', 'reference' => 'T2511'],
+        ])->assertCreated()->json('data.id');
+        $order = Order::findOrFail($id);
+        $this->assertSame([18500, 18500, 0, 'included'], [(int) $order->total, (int) $order->amount_paid, $order->amountDue(), $order->expedition_payer]);
+        $this->assertSame(['wave', 'T2511'], [$order->payments()->sole()->method->value, $order->payments()->sole()->provider_reference]);
+        [$courier] = $this->courier();
+        $this->storeApi($this->store, 'POST', "orders/{$id}/shipments", ['courier_id' => $courier->id])->assertCreated();
+
+        // Prochaine commande pour Bouaké : le prix convenu revient tout seul
+        $this->storeApi($this->store, 'POST', 'orders/delivery-options', ['place_id' => $this->place('Bouaké')->id])->assertOk()
+            ->assertJsonPath('data.expedition.fee', 3500)->assertJsonPath('data.expedition.usual', true);
+
+        // Une partie seulement : le reste à payer bloque encore le départ
+        $part = $this->storeApi($this->store, 'POST', 'orders', [
+            'source' => 'whatsapp', 'customer_name' => 'Awa', 'customer_phone' => '0506070808', 'confirmed' => true,
+            'delivery_method' => 'delivery', 'shipping_place_id' => $this->place('Bouaké')->id, 'shipping_address' => 'Gare UTB',
+            'scheduled_date' => today()->toDateString(), 'shipping_fee' => 3500,
+            'items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 1]],
+            'paid' => ['amount' => 5000, 'method' => 'orange_money'],
+        ])->assertCreated()->json('data');
+        $this->assertSame(13500, Order::findOrFail($part['id'])->amountDue());
+        $this->storeApi($this->store, 'POST', "orders/{$part['id']}/shipments", ['courier_id' => $courier->id])->assertStatus(422);
     }
 
     public function test_an_order_in_town_is_saved_when_the_form_sends_empty_expedition_fields(): void

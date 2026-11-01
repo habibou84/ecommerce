@@ -114,6 +114,13 @@ class OrderDesk
             $this->pricing->recordUsages($order);
             $this->loyalty->commit($order, $actor);
 
+            // Déjà payé à la saisie (souvent pour une expédition) : tout le reste à payer, ou la partie reçue
+            if (! empty($data['paid']) && $order->amountDue() > 0) {
+                $amount = ($data['paid']['all'] ?? false) ? $order->amountDue() : min((int) $data['paid']['amount'], $order->amountDue());
+                $this->recordPayment($order, ['amount' => $amount, 'method' => $data['paid']['method'], 'reference' => $data['paid']['reference'] ?? null, 'note' => 'Payé avant l\'enregistrement'], $actor);
+                $order->refresh();
+            }
+
             $this->log($order, 'created', ['source' => $order->source->value, 'total' => $order->total], $actor, $actorType);
 
             if (($data['confirmed'] ?? false) || ! $store->require_order_confirmation) {
@@ -644,7 +651,8 @@ class OrderDesk
         if ($place !== null && $rates->isExpedition($store, $place)) {
             $city = $rates->cityOf($place)->id;
             if ($order->expedition_city_id === null) {
-                $order->forceFill(['expedition_payer' => 'arrival', 'expedition_prepay' => (bool) $store->expedition_prepay]);
+                // Habituel : un prix convenu avec le client (livraison + expédition), payé avant le départ
+                $order->forceFill(['expedition_payer' => 'included', 'expedition_prepay' => true]);
             }
             $order->forceFill(['expedition_city_id' => $city]);
         } else {

@@ -96,6 +96,7 @@ class OrderResource extends JsonResource
                 'payer_label' => Expeditions::PAYERS[$this->expedition_payer] ?? null,
                 'prepay' => $this->expedition_prepay,
                 'prepay_due' => Expeditions::blockingDue($this->resource),
+                'balance' => Expeditions::balance($this->resource),
                 'fee' => $this->expedition_fee,
                 'company' => $this->expedition_company,
                 'ticket' => $this->expedition_ticket,
