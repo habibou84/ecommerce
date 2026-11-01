@@ -310,7 +310,12 @@ class ConsoleController extends Controller
             ->latest('id')->paginate(30);
 
         return response()->json([
-            'data' => collect($page->items())->map(fn (SubscriptionInvoice $i) => $this->billing->presentInvoice($i) + ['store' => ['id' => $i->store?->id, 'name' => $i->store?->name]]),
+            'data' => collect($page->items())->map(fn (SubscriptionInvoice $i) => $this->billing->presentInvoice($i) + [
+                'store' => ['id' => $i->store?->id, 'name' => $i->store?->name],
+                // Facture échouée : la raison donnée par le prestataire (console seulement)
+                'error' => $i->status === 'failed' ? ($i->raw['error'] ?? null) : null,
+                'provider' => $i->provider,
+            ]),
             'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()],
         ]);
     }

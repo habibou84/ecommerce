@@ -28,15 +28,19 @@ class PayDunyaGateway implements PaymentGateway
 
     public function createCheckout(PaymentAccount $account, Payment $payment, array $context): Checkout
     {
-        $data = $this->send($account, fn (PendingRequest $http) => $http->post('checkout-invoice/create', [
+        $response = $this->send($account, fn (PendingRequest $http) => $http->post('checkout-invoice/create', [
             'invoice' => ['total_amount' => $payment->amount, 'description' => $context['description']],
             'store' => ['name' => $context['store_name']],
             'actions' => ['callback_url' => $context['notify_url'], 'return_url' => $context['return_url'], 'cancel_url' => $context['cancel_url']],
             'custom_data' => ['payment_key' => $payment->idempotency_key],
-        ]))->json();
+        ]));
+        $data = $response->json() ?? [];
 
         if (($data['response_code'] ?? null) !== '00') {
-            throw new GatewayException('PayDunya : '.($data['response_text'] ?? 'paiement refusé'));
+            // Raison donnée par PayDunya (clé refusée, compte non activé…), sinon le code de la réponse
+            $reason = $data['response_text'] ?? $data['description'] ?? $data['message'] ?? 'paiement refusé (réponse HTTP '.$response->status().')';
+            throw new GatewayException('PayDunya ('.($account->mode === 'test' ? 'mode test' : 'mode réel').') : '.$reason
+                .(isset($data['response_code']) ? ' [code '.$data['response_code'].']' : ''));
         }
 
         return new Checkout((string) $data['response_text'], (string) $data['token'], $data);

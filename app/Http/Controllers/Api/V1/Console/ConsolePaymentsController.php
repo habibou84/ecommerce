@@ -27,7 +27,19 @@ class ConsolePaymentsController extends Controller
 
     public function settings(): JsonResponse
     {
-        return response()->json(['data' => $this->settings->present()]);
+        // Dernier paiement d'abonnement refusé par le prestataire : la raison, pour régler les clés ou le mode
+        $failed = SubscriptionInvoice::withoutGlobalScopes()->with('store:id,name')->where('status', 'failed')->latest('id')->first();
+
+        return response()->json(['data' => $this->settings->present() + [
+            'mode' => config('platform.billing.mode'),
+            'last_failure' => $failed ? [
+                'number' => $failed->number,
+                'at' => $failed->updated_at?->toIso8601String(),
+                'provider' => $failed->provider,
+                'store' => $failed->store?->name,
+                'error' => $failed->raw['error'] ?? null,
+            ] : null,
+        ]]);
     }
 
     public function update(Request $request): JsonResponse

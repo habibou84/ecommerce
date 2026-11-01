@@ -54,6 +54,25 @@ class WavePaymentConsoleTest extends TestCase
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
     }
 
+    public function test_a_subscription_payment_refused_by_paydunya_shows_its_reason_in_the_console(): void
+    {
+        config(['platform.billing' => ['provider' => 'paydunya', 'mode' => 'live', 'grace_days' => 7, 'reminder_days' => 3,
+            'credentials' => ['master_key' => 'mk', 'private_key' => 'pk', 'token' => 'tk']]]);
+        Http::fake(['app.paydunya.com/*' => Http::response(['response_code' => '1001', 'response_text' => 'Votre compte n\'est pas encore activé'], 200)]);
+
+        // La boutique voit le message simple ; la raison n'est pas montrée au marchand
+        $this->asMerchant();
+        $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'pro', 'cycle' => 'monthly', 'method' => 'orange_money'])
+            ->assertStatus(422)->assertJsonPath('message', 'Le paiement en ligne est indisponible pour le moment. Réessayez dans quelques minutes.');
+
+        // La console donne la raison de PayDunya et le mode du serveur
+        $this->signIn();
+        $settings = $this->console('GET', 'payments/settings')->assertOk()->json('data');
+        $this->assertSame(['live', 'Awa Mode'], [$settings['mode'], $settings['last_failure']['store']]);
+        $this->assertSame("PayDunya (mode réel) : Votre compte n'est pas encore activé [code 1001]", $settings['last_failure']['error']);
+        $this->console('GET', 'invoices?status=failed')->assertOk()->assertJsonPath('data.0.error', "PayDunya (mode réel) : Votre compte n'est pas encore activé [code 1001]");
+    }
+
     public function test_billing_is_configured_from_the_console_with_mail_alerts_and_validation(): void
     {
         Notification::fake();
