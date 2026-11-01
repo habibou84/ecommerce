@@ -35,13 +35,15 @@ const loadingOlder = ref(false)
 // Le gérant peut s'en déconnecter ; la connexion se fait dans Réglages › WhatsApp (avec Facebook).
 const canManage = computed(() => auth.can('store.manage'))
 const numbers = ref([])
+const metaBlock = ref(null) // numéro officiel bloqué par Meta
 const disconnecting = ref('')
 const disconnectError = ref('')
 const NUMBER_KIND = { official: 'Numéro officiel (Meta)', linked: 'WhatsApp relié par QR code' }
 // Bandeau au-dessus de la boîte : la boîte raccourcit d'autant (sur téléphone, caché dans une conversation)
 const banner = computed(() => {
   if (!listLoaded.value || (props.id && window.innerWidth < 1024)) return 0
-  if (numbers.value.length) return 1.5 + 2.5 * numbers.value.length
+  const blocked = metaBlock.value ? 3.5 : 0
+  if (numbers.value.length) return blocked + 1.5 + 2.5 * numbers.value.length
   return !connected.value && canManage.value ? 4.5 : 0
 })
 async function disconnectNumber(n) {
@@ -96,6 +98,7 @@ async function loadList(more = false) {
     connected.value = last.connected
     linked.value = last.linked
     numbers.value = last.numbers ?? []
+    metaBlock.value = last.meta ?? null
     listLoaded.value = true
   } catch {
     // réseau passager : nouvel essai au prochain tour
@@ -310,6 +313,11 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
 
 <template>
   <div class="space-y-4">
+    <!-- Numéro officiel bloqué par Meta -->
+    <div v-if="metaBlock" class="flex-col gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-900 sm:flex-row sm:items-center" :class="id ? 'hidden lg:flex' : 'flex'">
+      <span class="min-w-0 flex-1"><b>Meta bloque vos messages WhatsApp</b><template v-if="metaBlock.reason"> : {{ metaBlock.reason }}</template>.</span>
+      <RouterLink v-if="canManage" to="/gestion/whatsapp" class="font-semibold text-red-800 underline">Voir quoi faire</RouterLink>
+    </div>
     <!-- Numéros connectés, avec « Déconnecter » pour le gérant -->
     <div v-if="listLoaded && numbers.length" class="flex-col gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900" :class="id ? 'hidden lg:flex' : 'flex'">
       <div v-for="n in numbers" :key="n.kind" class="flex flex-wrap items-center gap-x-3 gap-y-1">
