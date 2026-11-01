@@ -32,6 +32,7 @@ onUnmounted(() => {
   clearInterval(rotate)
   clearInterval(tick)
   clearTimeout(partyTimer)
+  clearInterval(second)
 })
 
 // Trois mises en page : paysage (télé, ordinateur), carré (TikTok LIVE Studio, OBS, PRISM en 720 × 640) et
@@ -101,6 +102,11 @@ const confetti = Array.from({ length: 36 }, (_, i) => ({
   style: { left: `${(i * 37) % 100}%`, background: COLORS[i % COLORS.length], animationDelay: `${(i % 9) * 0.09}s`, animationDuration: `${2.6 + (i % 5) * 0.25}s` },
 }))
 const sparks = Array.from({ length: 10 }, (_, i) => ({ i, style: { left: `${(i * 23 + 7) % 100}%`, animationDelay: `${i * 0.7}s` } }))
+// Vente flash : chrono sur l'article montré (l'heure de fin vient du serveur, le décompte est fait ici)
+const nowMs = ref(Date.now())
+const second = setInterval(() => shown.value?.flash_ends_at && (nowMs.value = Date.now()), 1000)
+const flashLeft = computed(() => (shown.value?.flash_ends_at ? Math.max(0, Math.round((new Date(shown.value.flash_ends_at).getTime() - nowMs.value) / 1000)) : 0))
+const chrono = computed(() => `${String(Math.floor(flashLeft.value / 60)).padStart(2, '0')}:${String(flashLeft.value % 60).padStart(2, '0')}`)
 const stockWidth = (i) => `${Math.max(6, Math.min(100, Math.round((100 * i.remaining) / Math.max(1, i.quantity))))}%`
 
 const money = (v) => `${new Intl.NumberFormat('fr-FR').format(v).replace(/ /g, ' ')} F`
@@ -157,6 +163,13 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
           </template>
           <span class="ld-left" :class="{ 'is-out': shown.remaining === 0, 'is-hot': shown.remaining > 0 && shown.remaining <= 3 }">{{ left(shown) }}</span>
           <span v-if="shown.remaining === 0" class="ld-stamp">VENDU</span>
+          <!-- Stock qui baisse, le long du bas de la photo (ne prend pas de place au texte) -->
+          <div v-if="effects && shown.remaining > 0 && shown.quantity > 0" class="ld-stock"><b :style="{ width: stockWidth(shown) }" /></div>
+          <!-- Vente flash : ruban et chrono -->
+          <template v-if="flashLeft > 0 && shown.remaining > 0">
+            <span class="ld-ribbon">PRIX LIVE</span>
+            <span class="ld-chrono">⏱ {{ chrono }}</span>
+          </template>
         </div>
         <div class="ld-info">
           <span class="ld-live"><i />EN DIRECT · {{ store?.name }}<b v-if="effects && live?.orders" :key="live.orders" class="ld-count">🛍️ {{ live.orders }}</b></span>
@@ -168,8 +181,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
               <p v-if="shown.variant" class="ld-variant">{{ shown.variant }}</p>
             </div>
           </div>
-          <p class="ld-price"><b>{{ money(shown.price) }}</b><s v-if="shown.was">{{ money(shown.was) }}</s></p>
-          <div v-if="effects && layout !== 'port' && shown.remaining > 0 && shown.quantity > 0" class="ld-stock"><b :style="{ width: stockWidth(shown) }" /></div>
+          <p class="ld-price" :class="{ 'is-flash': flashLeft > 0 }"><b>{{ money(shown.price) }}</b><s v-if="shown.was">{{ money(shown.was) }}</s></p>
           <div v-if="store?.whatsapp" class="ld-wa">
             <img v-if="store.qr" :src="store.qr" alt="QR code WhatsApp" />
             <div class="ld-wa-text">
@@ -231,12 +243,25 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 @keyframes ld-slam { from { transform: translate(-50%, -50%) rotate(-14deg) scale(3); opacity: 0 } }
 .ld-count { display: inline-block; margin-left: .6em; padding: .1em .5em; border-radius: 1em; background: rgba(255, 255, 255, .15); color: #4ade80; font-weight: 900; animation: ld-bump .6s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes ld-bump { 0% { transform: scale(1.8) } 100% { transform: scale(1) } }
-.ld-stock { height: .7em; border-radius: 1em; background: rgba(255, 255, 255, .18); overflow: hidden; flex-shrink: 0; }
-.ld-stock b { position: relative; display: block; height: 100%; border-radius: 1em; background: linear-gradient(90deg, #f97316, #facc15); overflow: hidden; }
+.ld-stock { position: absolute; left: 0; right: 0; bottom: 0; height: .55em; background: rgba(0, 0, 0, .35); overflow: hidden; }
+.ld-stock b { position: relative; display: block; height: 100%; background: linear-gradient(90deg, #f97316, #facc15); overflow: hidden; }
 .ld-stock b::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .6), transparent); animation: ld-shine 2s linear infinite; }
 @keyframes ld-shine { from { transform: translateX(-100%) } to { transform: translateX(100%) } }
-.is-land .ld-stock { width: 70%; height: 1em; }
-.is-square .ld-stock { width: 80%; }
+.is-land .ld-stock { height: .8em; }
+/* Vente flash : ruban brillant, chrono, ancien prix barré en direct */
+.ld-ribbon { position: absolute; top: 1.6em; left: -3.2em; transform: rotate(-35deg); background: linear-gradient(90deg, #facc15, #fff7ae, #facc15); color: #7c2d12; font-weight: 900; padding: .3em 3.6em; box-shadow: 0 .3em .8em rgba(0, 0, 0, .3); z-index: 2; }
+.ld-chrono { position: absolute; top: .8em; right: .8em; background: #fff; color: #be123c; font-weight: 900; border-radius: .4em; padding: .15em .5em; font-variant-numeric: tabular-nums; box-shadow: 0 .3em .8em rgba(0, 0, 0, .3); z-index: 2; }
+.fx .ld-chrono { animation: ld-glow 1s infinite; }
+.is-land .ld-ribbon { font-size: 1.6em; }
+.is-land .ld-chrono { font-size: 2.6em; }
+.is-square .ld-ribbon { font-size: 1.1em; }
+.is-square .ld-chrono { font-size: 1.7em; }
+.is-port .ld-ribbon { font-size: 1em; }
+.is-port .ld-chrono { font-size: 1.6em; top: auto; right: auto; bottom: 1em; left: 1em; }
+.ld-price.is-flash s { position: relative; text-decoration: none; }
+.ld-price.is-flash s::after { content: ''; position: absolute; left: 0; top: 50%; height: .12em; width: 100%; background: #ef4444; }
+.fx .ld-price.is-flash s::after { animation: ld-cross 1.2s .6s both; }
+@keyframes ld-cross { from { width: 0 } }
 .ld-marquee { display: inline-block; padding-left: 100%; animation: ld-marquee linear infinite; }
 @keyframes ld-marquee { to { transform: translateX(-100%) } }
 .ld-party { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 5; }

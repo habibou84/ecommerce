@@ -556,6 +556,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('lives/cards/file', [LiveScreenController::class, 'file'])->middleware('throttle:120,1')->middleware('feature:live,live_screens')->name('lives.cards.file');
                 Route::get('lives/{session}/cards.zip', [LiveScreenController::class, 'zip'])->whereNumber('session')->middleware('throttle:10,1')->middleware('feature:live,live_screens')->name('lives.cards.zip');
                 Route::post('lives/{session}/feature', [LiveController::class, 'feature'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live')->name('lives.feature');
+                Route::post('lives/{session}/items/{item}/flash', [LiveController::class, 'flash'])->whereNumber(['session', 'item'])->middleware('throttle:60,1')->middleware('feature:live')->name('lives.flash');
                 Route::post('lives/{session}/duplicate', [LiveController::class, 'duplicate'])->whereNumber('session')->middleware('throttle:20,1')->middleware('feature:live')->name('lives.duplicate');
                 Route::post('lives/{session}/end', [LiveController::class, 'end'])->whereNumber('session')->middleware('feature:live')->name('lives.end');
                 Route::post('lives/{session}/reservations', [LiveController::class, 'reserve'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live')->name('lives.reserve');
