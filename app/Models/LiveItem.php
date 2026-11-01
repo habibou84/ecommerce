@@ -14,11 +14,23 @@ class LiveItem extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'live_session_id', 'variant_id', 'code', 'price', 'quantity', 'position'];
+    protected $fillable = ['store_id', 'live_session_id', 'variant_id', 'code', 'price', 'flash_price', 'flash_ends_at', 'quantity', 'position'];
 
     protected function casts(): array
     {
-        return ['price' => 'integer', 'quantity' => 'integer', 'position' => 'integer'];
+        return ['price' => 'integer', 'flash_price' => 'integer', 'flash_ends_at' => 'datetime', 'quantity' => 'integer', 'position' => 'integer'];
+    }
+
+    /** Vente flash en cours : prix live jusqu'à la fin du chrono */
+    public function flashActive(): bool
+    {
+        return $this->flash_price !== null && $this->flash_ends_at !== null && $this->flash_ends_at->isFuture();
+    }
+
+    /** Prix à payer en ce moment (prix flash pendant le chrono, sinon prix du live) */
+    public function currentPrice(): int
+    {
+        return $this->flashActive() ? (int) $this->flash_price : (int) $this->price;
     }
 
     public function session(): BelongsTo

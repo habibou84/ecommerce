@@ -4,6 +4,7 @@ namespace Tests\Feature\Live;
 
 use App\Models\ConversationMessage;
 use App\Models\LiveReservation;
+use App\Models\LiveSession;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\Product;
@@ -11,6 +12,7 @@ use App\Models\Store;
 use App\Services\Ai\AiClient;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Live\LiveSales;
+use App\Services\Live\LiveScreens;
 use App\Services\Places\Places;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
@@ -140,6 +142,36 @@ class LiveSalesTest extends TestCase
         // Fin du live : la page ne propose plus rien, le bilan reste
         $this->storeApi($this->store, 'POST', "lives/{$id}/end")->assertOk()->assertJsonPath('data.summary.orders', 2);
         $this->page('POST', '/live/reserver', ['item_id' => $items[1]['id'], 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $angre->id])->assertNotFound();
+    }
+
+    public function test_flash_price_for_a_few_minutes_is_kept_by_the_reservation(): void
+    {
+        $id = $this->prepare(robes: 3);
+        $items = $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.items');
+        $angre = $this->place('Angré');
+
+        // Prix live plus bas que le prix du live, pour 5 minutes : l'article est montré, le chrono part
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items/{$items[0]['id']}/flash", ['price' => 12000, 'minutes' => 5])->assertStatus(422);
+        $state = $this->storeApi($this->store, 'POST', "lives/{$id}/items/{$items[0]['id']}/flash", ['price' => 9900, 'minutes' => 5])->assertOk()
+            ->assertJsonPath('data.items.0.price', 9900)->assertJsonPath('data.items.0.flash.was', 12000)->assertJsonPath('data.featured_item_id', $items[0]['id']);
+        $this->assertNotNull($state->json('data.items.0.flash.ends_at'));
+        $this->page('GET', '/live/etat')->assertJsonPath('data.items.0.price', 9900);
+        $live = app(LiveScreens::class)->live(LiveSession::findOrFail($id));
+        $this->assertSame([9900, 15000], [$live['items'][0]['price'], $live['items'][0]['was']]); // prix catalogue barré
+        $this->assertNotNull($live['items'][0]['flash_ends_at']);
+
+        // Prise pendant le chrono : commande au prix flash ; après le chrono, retour au prix du live
+        $this->page('POST', '/live/reserver', ['item_id' => $items[0]['id'], 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $angre->id])->assertOk();
+        $this->assertSame(9900, (int) Order::forStore($this->store->id)->with('items')->sole()->items->sum('total'));
+        $this->travel(6)->minutes();
+        $this->page('GET', '/live/etat')->assertJsonPath('data.items.0.price', 12000);
+        $this->page('POST', '/live/reserver', ['item_id' => $items[0]['id'], 'name' => 'Awa', 'phone' => '0701020304', 'place_id' => $angre->id])->assertOk();
+        $this->assertSame([9900, 12000], LiveReservation::orderBy('id')->pluck('unit_price')->map(fn ($p) => (int) $p)->all());
+        $this->assertSame(21900, $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.summary.amount'));
+
+        // Arrêter une vente flash en cours
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items/{$items[1]['id']}/flash", ['price' => 7000, 'minutes' => 2])->assertOk()->assertJsonPath('data.items.1.price', 7000);
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items/{$items[1]['id']}/flash", ['price' => null])->assertOk()->assertJsonPath('data.items.1.price', 8000);
     }
 
     public function test_stream_link_featured_item_summary_and_redo(): void

@@ -218,6 +218,29 @@ class LiveSales
         ], $user);
     }
 
+    /**
+     * Vente flash : prix live sur un article pendant quelques minutes ; l'article est montré sur les écrans.
+     * Sans prix : la vente flash s'arrête.
+     */
+    public function flash(LiveSession $session, LiveItem $item, ?int $price, int $minutes = 5): LiveItem
+    {
+        if ($session->status !== 'live') {
+            throw new BusinessRuleException('La vente flash se lance pendant le live.');
+        }
+        if ($price === null) {
+            $item->update(['flash_price' => null, 'flash_ends_at' => null]);
+
+            return $item;
+        }
+        if ($price >= $item->price) {
+            throw new BusinessRuleException('Le prix live doit être plus bas que '.Money::format($item->price).'.', 'price');
+        }
+        $item->update(['flash_price' => $price, 'flash_ends_at' => now()->addMinutes(max(1, min(60, $minutes)))]);
+        $this->feature($session, $item->id);
+
+        return $item;
+    }
+
     public static function current(int $storeId): ?LiveSession
     {
         return LiveSession::forStore($storeId)->where('status', 'live')->latest('started_at')->first();
@@ -267,6 +290,8 @@ class LiveSales
                 'store_id' => $item->store_id,
                 'live_session_id' => $session->id,
                 'live_item_id' => $item->id,
+                // Prix du moment (prix flash pendant le chrono) : gardé même si le chrono finit avant la commande
+                'unit_price' => $item->currentPrice(),
                 'source' => $source,
                 'status' => $this->remaining($item) > 0 ? 'reserved' : 'waiting',
                 'customer_name' => filled($customer['name'] ?? null) ? mb_substr(trim($customer['name']), 0, 120) : null,
@@ -316,6 +341,7 @@ class LiveSales
                         'store_id' => $session->store_id,
                         'live_session_id' => $session->id,
                         'live_item_id' => $item->id,
+                        'unit_price' => $item->currentPrice(),
                         'source' => $source,
                         'status' => $this->remaining($item) > 0 ? 'reserved' : 'waiting',
                         'customer_name' => filled($customer['name'] ?? null) ? mb_substr(trim($customer['name']), 0, 120) : null,
@@ -556,7 +582,7 @@ class LiveSales
             $label = "{$item->code} ({$this->label($item)}";
 
             $text = collect([
-                $held > 0 ? "✅ {$label}, ".Money::format($item->price).')'.($held > 1 ? " × {$held} : réservées" : ' : réservée').' pour vous.' : null,
+                $held > 0 ? "✅ {$label}, ".Money::format($item->currentPrice()).')'.($held > 1 ? " × {$held} : réservées" : ' : réservée').' pour vous.' : null,
                 $waiting->isEmpty() ? null : ($held > 0
                     ? "⏳ {$item->code} : {$waiting->count()} de plus sur la liste d'attente (il n'en restait pas assez)."
                     : "⏳ {$label}) : déjà partie, vous êtes n°{$this->position($waiting->first())} sur la liste d'attente."),
@@ -689,7 +715,9 @@ class LiveSales
                 'variant_id' => $item->variant_id,
                 'title' => $this->label($item),
                 'image' => $item->variant?->product?->images->first()?->urls()['thumb'] ?? null,
-                'price' => $item->price,
+                'price' => $item->currentPrice(),
+                // Vente flash en cours : prix habituel du live et fin du chrono
+                'flash' => $item->flashActive() ? ['was' => $item->price, 'ends_at' => $item->flash_ends_at->toIso8601String()] : null,
                 'quantity' => $item->quantity,
                 'remaining' => $this->remaining($item),
                 'waiting' => (int) $counts->where('live_item_id', $item->id)->where('status', 'waiting')->sum('n'),
@@ -736,7 +764,7 @@ class LiveSales
             'reservations' => $all->whereNotIn('status', ['cancelled'])->count(),
             'ordered' => $ordered->count(),
             'orders' => $ordered->pluck('order_id')->unique()->count(),
-            'amount' => (int) $ordered->sum(fn (LiveReservation $r) => $r->item?->price ?? 0),
+            'amount' => (int) $ordered->sum(fn (LiveReservation $r) => $r->unit_price ?? $r->item?->price ?? 0),
             'pending' => $all->where('status', 'reserved')->count(),
             'waiting' => $all->where('status', 'waiting')->count(),
             'expired' => $all->where('status', 'expired')->count(),
@@ -762,9 +790,12 @@ class LiveSales
         $store = Store::find($first->store_id);
         $items = LiveItem::forStore($store->id)->whereIn('id', $reservations->pluck('live_item_id'))->get()->keyBy('id');
         $byItem = $reservations->groupBy('live_item_id');
-        $lines = $byItem->map(fn ($rs, $id) => [
-            'variant_id' => $items->get($id)->variant_id, 'quantity' => $rs->count(), 'unit_price' => $items->get($id)->price,
-        ])->values()->all();
+        // Une ligne par article et par prix (une pièce prise pendant la vente flash garde son prix flash)
+        $lines = $reservations->groupBy(fn (LiveReservation $r) => $r->live_item_id.':'.($r->unit_price ?? $items->get($r->live_item_id)->price))
+            ->map(fn ($rs) => [
+                'variant_id' => $items->get($rs->first()->live_item_id)->variant_id, 'quantity' => $rs->count(),
+                'unit_price' => $rs->first()->unit_price ?? $items->get($rs->first()->live_item_id)->price,
+            ])->values()->all();
         $codes = $byItem->map(fn ($rs, $id) => $items->get($id)?->code.($rs->count() > 1 ? ' ×'.$rs->count() : ''))->implode(', ');
         $open = $this->openOrder($session, $first->customer_phone);
         try {

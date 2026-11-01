@@ -49,7 +49,8 @@ let clock
 onMounted(() => {
   load()
   timer = setInterval(() => live.value?.status === 'live' && load(), 3000)
-  clock = setInterval(() => (now.value = Date.now()), 30000)
+  // Chaque seconde pendant une vente flash (chrono), sinon chaque demi-minute
+  clock = setInterval(() => (live.value?.items?.some((i) => i.flash) || Date.now() - now.value >= 30000) && (now.value = Date.now()), 1000)
 })
 onUnmounted(() => {
   clearInterval(timer)
@@ -90,6 +91,24 @@ async function end() {
 
 // Article montré aux clients (mis en avant sur la page du live) ; toucher à nouveau l'enlève
 const feature = (item) => act('feature', { item_id: live.value.featured_item_id === item.id ? null : item.id })
+
+// Vente flash : prix live pendant quelques minutes, chrono sur les écrans
+const flashing = ref(null)
+const flashForm = reactive({ price: null, minutes: 5 })
+function openFlash(item) {
+  flashing.value = item
+  // Proposition : environ 10 % de moins, arrondi à 500 F
+  flashForm.price = Math.max(0, Math.floor((item.price * 0.9) / 500) * 500)
+  flashForm.minutes = 5
+}
+async function startFlash() {
+  if (await act(`items/${flashing.value.id}/flash`, { price: flashForm.price, minutes: flashForm.minutes })) flashing.value = null
+}
+const stopFlash = (item) => act(`items/${item.id}/flash`, { price: null })
+function chrono(item) {
+  const s = Math.max(0, Math.round((new Date(item.flash.ends_at).getTime() - now.value) / 1000))
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
 
 function stock(item) {
   if (item.remaining === 0) return [`Épuisé${item.waiting ? ` · ${item.waiting} en attente` : ''}`, 'text-red-600']
@@ -331,16 +350,21 @@ async function redo() {
             <button type="button" class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-xl font-black text-white" :class="i.remaining ? 'bg-red-600' : 'bg-slate-300'" :aria-label="`Afficher ${i.code} en grand`" @click="big = i">{{ i.code }}</button>
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-semibold" :title="i.title">{{ i.title }}</p>
-              <p class="text-xs text-slate-500">{{ money(i.price) }}</p>
+              <p v-if="i.flash" class="text-xs font-bold text-red-600">⚡ {{ money(i.price) }} <s class="font-normal text-slate-400">{{ money(i.flash.was) }}</s> · {{ chrono(i) }}</p>
+              <p v-else class="text-xs text-slate-500">{{ money(i.price) }}</p>
               <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full" :class="i.remaining ? 'bg-emerald-500' : 'bg-red-400'" :style="{ width: `${(sold(i) / i.quantity) * 100}%` }" /></div>
               <p class="mt-1 text-xs font-semibold" :class="stock(i)[1]">{{ stock(i)[0] }}</p>
             </div>
-            <button v-if="live.status === 'live'" type="button" class="shrink-0 rounded-xl px-2 py-2 text-xs font-bold" :class="live.featured_item_id === i.id ? 'bg-ocre-600 text-white' : 'bg-slate-100 text-slate-700'" :disabled="busy" @click="feature(i)">
-              {{ live.featured_item_id === i.id ? 'Montré ✓' : 'Montrer' }}
-            </button>
+            <div v-if="live.status === 'live'" class="flex shrink-0 flex-col gap-1">
+              <button type="button" class="rounded-xl px-2 py-2 text-xs font-bold" :class="live.featured_item_id === i.id ? 'bg-ocre-600 text-white' : 'bg-slate-100 text-slate-700'" :disabled="busy" @click="feature(i)">
+                {{ live.featured_item_id === i.id ? 'Montré ✓' : 'Montrer' }}
+              </button>
+              <button v-if="i.flash" type="button" class="rounded-xl bg-red-50 px-2 py-1.5 text-xs font-bold text-red-700" :disabled="busy" @click="stopFlash(i)">Arrêter ⚡</button>
+              <button v-else-if="i.remaining > 0" type="button" class="rounded-xl bg-amber-100 px-2 py-1.5 text-xs font-bold text-amber-800" :disabled="busy" @click="openFlash(i)">⚡ Prix live</button>
+            </div>
           </div>
         </div>
-        <p v-if="live.status === 'live'" class="px-0.5 text-xs text-slate-500">Touchez un code pour l'afficher en grand. « Montrer » met l'article en avant sur la page de vos clients.</p>
+        <p v-if="live.status === 'live'" class="px-0.5 text-xs text-slate-500">Touchez un code pour l'afficher en grand. « Montrer » met l'article en avant sur la page de vos clients. « Prix live » baisse le prix quelques minutes, avec un chrono sur l'écran.</p>
       </section>
 
       <!-- Avant de lancer -->
@@ -442,6 +466,24 @@ async function redo() {
     </Modal>
 
     <!-- Partager : lien, message à épingler, WhatsApp -->
+    <Modal v-if="flashing" :title="`⚡ Prix live · ${flashing.code}`" @close="flashing = null">
+      <form class="space-y-4" @submit.prevent="startFlash">
+        <p class="text-sm text-slate-600">{{ flashing.title }} · prix du live <strong>{{ money(flashing.price) }}</strong>. Pendant le chrono, les clients qui envoient {{ flashing.code }} ont le prix live ; l'article est montré sur l'écran avec le chrono.</p>
+        <label class="block">
+          <span class="text-sm font-semibold">Prix live</span>
+          <input v-model.number="flashForm.price" type="number" min="0" :max="flashing.price - 1" step="100" class="input mt-1" required />
+        </label>
+        <div>
+          <span class="text-sm font-semibold">Pendant</span>
+          <div class="mt-1 flex gap-2">
+            <button v-for="m in [2, 5, 10]" :key="m" type="button" class="flex-1 rounded-xl border px-3 py-2 text-sm font-semibold" :class="flashForm.minutes === m ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-slate-200'" @click="flashForm.minutes = m">{{ m }} min</button>
+          </div>
+        </div>
+        <Alert v-if="error">{{ error }}</Alert>
+        <button class="btn-brand w-full" :disabled="busy">⚡ Lancer la vente flash</button>
+      </form>
+    </Modal>
+
     <Modal v-if="share && live" title="Partager le live" @close="share = false">
       <div class="space-y-3 text-sm">
         <LiveLink :url="pageUrl" compact />
