@@ -7,6 +7,7 @@ use App\Models\CarrierConnection;
 use App\Models\CarrierZone;
 use App\Models\CarrierZoneMapping;
 use App\Models\Courier;
+use App\Models\Order;
 use App\Models\Place;
 use App\Models\ProductVariant;
 use App\Models\Shipment;
@@ -81,8 +82,14 @@ class DeliveryOptionsController extends Controller
 
         // Autre ville que celle de la boutique : expédition (livraison jusqu'à la gare, frais de la compagnie au dépôt)
         $rates = app(DeliveryRates::class);
-        $expedition = $place !== null && $rates->isExpedition($store, $place)
-            ? ['city' => $rates->cityOf($place)->name, 'fee' => $store->expedition_fee, 'prepay' => $store->expedition_prepay] : null;
+        $expedition = null;
+        if ($place !== null && $rates->isExpedition($store, $place)) {
+            $city = $rates->cityOf($place);
+            // Prix habituel pour cette ville : celui convenu (livraison + expédition) à la dernière expédition
+            $usual = Order::where('expedition_city_id', $city->id)->where('expedition_payer', 'included')->whereNotIn('status', ['cancelled'])
+                ->latest('id')->value('shipping_fee');
+            $expedition = ['city' => $city->name, 'fee' => $usual !== null ? (int) $usual : $store->expedition_fee, 'usual' => $usual !== null, 'prepay' => true];
+        }
 
         return response()->json(['data' => [
             // Lieu choisi et sa commune : pour proposer de retenir un prix tapé à la main

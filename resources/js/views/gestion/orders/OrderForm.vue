@@ -37,7 +37,7 @@ const form = reactive({
   internal_note: '',
   confirmed: false,
   // Expédition vers une autre ville : qui paie la compagnie de transport, paiement avant de partir à la gare
-  expedition_payer: 'arrival',
+  expedition_payer: 'included',
   expedition_prepay: null,
 })
 const blank = { ...form } // formulaire vide, pour « Nouvelle commande »
@@ -197,7 +197,14 @@ const freeShipping = computed(() => !!(promo.value?.free_shipping && !promo.valu
 const expedition = computed(() => (form.delivery_method === 'delivery' && place.value && options.value?.place?.id === place.value.id ? options.value.expedition : null))
 watch(expedition, (e) => {
   if (e && form.expedition_prepay === null) form.expedition_prepay = e.prepay
+  // Pas encore de prix pour les expéditions : la case du prix convenu s'ouvre tout de suite
+  if (e && e.fee === null && !manualFee.value && canPrice.value) {
+    shippingFee.value = ''
+    manualFee.value = true
+  }
 })
+// Qui paie les frais d'expédition : « compris dans le prix convenu » visible, les autres cas repliés
+const otherPayer = ref(false)
 const fee = computed(() => {
   if (form.delivery_method === 'pickup') return 0
   if (manualFee.value) return Number(shippingFee.value || 0)
@@ -212,7 +219,7 @@ const feeSource = computed(() => {
   if (manualFee.value) return 'saisis à la main'
   if (freeShipping.value) return 'offerts par le code promo'
   if (carrierFee.value !== null) return `tarif ${chosenCarrier.value.name}${chosenCarrier.value.zone ? `, zone ${chosenCarrier.value.zone}` : ''}`
-  if (expedition.value) return expedition.value.fee !== null ? 'livraison jusqu\'à la gare' : 'livraison jusqu\'à la gare : indiquez le prix'
+  if (expedition.value) return expedition.value.usual ? `prix habituel pour ${expedition.value.city}` : expedition.value.fee !== null ? 'prix convenu avec le client' : 'indiquez le prix convenu avec le client'
   if (zone.value) return `votre zone ${zone.value.name}${zone.value.eta_label ? ` · ${zone.value.eta_label}` : ''}`
   return place.value ? 'hors de vos zones : indiquez les frais' : ''
 })
@@ -233,7 +240,8 @@ const rememberChoices = computed(() => {
   const p = options.value?.place
   if (!askRemember.value || !manualFee.value || !canPrice.value || !p || carrierFee.value !== null || p.id !== place.value?.id) return []
   if (shippingFee.value === '' || Number(shippingFee.value) === autoFee.value) return []
-  if (expedition.value) return [{ key: 'expedition', label: 'Pour toutes les expéditions', hint: 'Livraison jusqu\'à la gare, quelle que soit la ville' }]
+  // Expédition : le prix convenu pour chaque ville est retenu tout seul (dernière commande vers cette ville)
+  if (expedition.value) return []
   if (p.commune) {
     return [
       { key: 'commune', id: p.commune.id, name: p.commune.name, label: `Pour tout ${p.commune.name}`, hint: `Toutes les prochaines commandes à ${p.commune.name}` },
@@ -272,9 +280,10 @@ async function remember(choice) {
   }
 }
 const PAYERS = [
-  ['arrival', 'Le client, à l\'arrivée', 'Il paie la compagnie en récupérant son colis'],
-  ['before', 'Le client, avant le départ', 'Ajoutés à la commande quand le livreur les connaît'],
-  ['store', 'La boutique (offerts)', 'Comptés comme une dépense'],
+  ['included', 'Compris dans le prix convenu', 'Le client a tout payé ; le prix réel de la compagnie est pour la boutique (gain ou perte vu au dépôt).'],
+  ['before', 'Le client me les rembourse après l\'envoi', 'Le livreur note le prix au dépôt ; le client paie cette somme en plus.'],
+  ['arrival', 'Le client les paie à la compagnie en récupérant son colis', 'Cas rare : rien à encaisser pour la compagnie.'],
+  ['store', 'La boutique les offre', 'Cadeau au client : les frais d\'expédition sont une dépense de la boutique (mettez le prix ci-dessus à 0 si la livraison est offerte aussi).'],
 ]
 
 // Zones et tarifs d'une entreprise de livraison
@@ -343,7 +352,7 @@ const placeHint = computed(() => {
     const parts = [c.zone ? `Zone ${c.zone} de ${c.name}` : c.name, c.fee !== null ? money(c.fee) : 'tarif non renseigné', c.day_message].filter(Boolean)
     return { tone: 'text-emerald-800', text: `✓ ${parts.join(' · ')}` }
   }
-  if (expedition.value) return { tone: 'text-sky-800', text: `📦 Expédition vers ${expedition.value.city} : livraison jusqu'à la gare, puis compagnie de transport.` }
+  if (expedition.value) return { tone: 'text-sky-800', text: `📦 Expédition vers ${expedition.value.city} : un prix convenu avec le client couvre la livraison jusqu'à la gare et les frais d'expédition.` }
   if (zone.value) return { tone: 'text-emerald-800', text: `✓ ${zone.value.name} · ${money(zone.value.fee)}${zone.value.eta_label ? ` · ${zone.value.eta_label}` : ''}` }
   return { tone: 'text-amber-800', text: 'Hors de vos zones de livraison : indiquez les frais.' }
 })
@@ -405,6 +414,10 @@ const rewardPoints = ref(0)
 const loyalty = computed(() => (!editing.value && known.value?.loyalty?.usable ? known.value.loyalty : null))
 const pointsDiscount = computed(() => (loyalty.value && rewardPoints.value > 0 ? Math.round(rewardPoints.value * loyalty.value.value / Math.max(1, loyalty.value.points)) : 0))
 const total = computed(() => Math.max(0, subtotal.value - discount.value - pointsDiscount.value) + fee.value)
+// Déjà payé à la saisie : rien, une partie ou tout
+const PAY_METHODS = [['wave', 'Wave'], ['orange_money', 'Orange Money'], ['mtn_momo', 'MTN'], ['moov_money', 'Moov'], ['cash', 'Espèces'], ['bank', 'Virement']]
+const paid = reactive({ mode: 'none', amount: '', method: 'wave', reference: '' })
+const due = computed(() => (paid.mode === 'all' ? 0 : paid.mode === 'part' ? Math.max(0, total.value - Number(paid.amount || 0)) : total.value))
 
 // Ce qui manque encore : le bouton le dit au lieu d'être grisé sans explication
 const missing = computed(() => {
@@ -601,6 +614,7 @@ function clearCustomer() {
 }
 function again(copy) {
   clearCustomer()
+  Object.assign(paid, { mode: 'none', amount: '', reference: '' })
   if (!copy) {
     Object.assign(form, blank)
     items.value = []
@@ -669,9 +683,10 @@ async function save() {
       await offerCarrierSync(data.data)
       router.push(`/gestion/commandes/${props.id}`)
     } else {
+      if (paid.mode !== 'none') payload.paid = { all: paid.mode === 'all', amount: paid.mode === 'part' ? Number(paid.amount) || null : null, method: paid.method, reference: paid.reference || null }
       const { data } = await http.post('/orders', { ...payload, conversation_id: conversation.value?.id ?? null })
-      // Résumé avec la suite : nouvelle commande, dupliquer, étiquette, liste
-      done.value = data.data
+      // Résumé avec la suite : nouvelle commande, dupliquer, étiquette, liste (la commande complète, relue)
+      done.value = (await http.get(`/orders/${data.data.id}`).catch(() => ({ data: { data: data.data } }))).data.data
     }
   } catch (e) {
     errors.value = fieldErrors(e)
@@ -859,9 +874,9 @@ async function save() {
             <!-- Frais : calculés, modifiables d'un geste -->
             <div class="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-base">
               <Icon name="truck" :size="20" class="text-slate-500" />
-              <span class="font-semibold">Frais de livraison</span>
+              <span class="font-semibold">{{ expedition ? 'Livraison + expédition' : 'Frais de livraison' }}</span>
               <template v-if="manualFee">
-                <input v-model="shippingFee" class="input w-28 py-1 text-right" type="number" min="0" aria-label="Frais de livraison" @input="askRemember = true" />
+                <input v-model="shippingFee" class="input w-28 py-1 text-right" type="number" min="0" :aria-label="expedition ? 'Livraison + expédition' : 'Frais de livraison'" @input="askRemember = true" />
                 <span>F</span>
                 <button type="button" class="font-medium text-emerald-700 hover:underline" @click="manualFee = false">Recalculer</button>
               </template>
@@ -887,17 +902,21 @@ async function save() {
               <button type="button" class="font-bold underline" @click="remembered.undo()">Annuler</button>
             </p>
 
-            <!-- Expédition : qui paie la compagnie, paiement avant de partir à la gare -->
+            <!-- Expédition : prix convenu (livraison + expédition), qui paie les frais d'expédition, paiement avant le départ -->
             <div v-if="expedition" class="space-y-2 rounded-xl border border-sky-200 bg-sky-50/60 p-3">
-              <p class="font-semibold text-sky-900">Frais d'expédition vers {{ expedition.city }} : à préciser au dépôt</p>
-              <p class="text-sm text-slate-600">Qui les paie ?</p>
-              <label v-for="[value, label, hint] in PAYERS" :key="value" class="flex items-start gap-2 rounded-lg bg-white px-3 py-2">
-                <input v-model="form.expedition_payer" type="radio" :value="value" class="mt-1 h-4 w-4 accent-emerald-700" />
-                <span><span class="block font-medium">{{ label }}</span><span class="block text-xs text-slate-500">{{ hint }}</span></span>
-              </label>
+              <p class="font-semibold text-sky-900">📦 Expédition vers {{ expedition.city }}</p>
+              <p class="text-sm text-slate-600">Prix convenu avec le client pour la livraison et l'expédition : ci-dessus (« Modifier » pour le changer).</p>
+              <p class="pt-1 text-sm font-semibold text-slate-700">Qui paie les frais d'expédition (la compagnie de transport) ?</p>
+              <template v-for="[value, label, hint] in PAYERS" :key="value">
+                <label v-if="value === 'included' || otherPayer || form.expedition_payer === value" class="flex items-start gap-2 rounded-lg bg-white px-3 py-2">
+                  <input v-model="form.expedition_payer" type="radio" :value="value" class="mt-1 h-4 w-4 accent-emerald-700" />
+                  <span><span class="block font-medium">{{ label }}<span v-if="value === 'included'" class="font-normal text-slate-500"> (habituel)</span></span><span class="block text-xs text-slate-500">{{ hint }}</span></span>
+                </label>
+              </template>
+              <button v-if="!otherPayer" type="button" class="text-sm font-semibold text-emerald-700 hover:underline" @click="otherPayer = true">Autre cas ▾</button>
               <label class="flex items-start gap-2 pt-1">
                 <input v-model="form.expedition_prepay" type="checkbox" class="mt-1 h-4 w-4 accent-emerald-700" />
-                <span><span class="block font-medium">Paiement avant expédition</span><span class="block text-xs text-slate-500">Le livreur ne part à la gare qu'une fois les articles et la livraison payés.</span></span>
+                <span><span class="block font-medium">Payé avant le départ</span><span class="block text-xs text-slate-500">Le livreur ne part à la gare qu'une fois la commande payée.</span></span>
               </label>
             </div>
           </template>
@@ -979,7 +998,7 @@ async function save() {
             <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">4</span>Paiement
           </h2>
           <div class="flex justify-between"><span class="text-slate-600">Articles</span><span class="tabular-nums">{{ money(subtotal) }}</span></div>
-          <div class="flex justify-between gap-2"><span class="text-slate-600">Livraison<template v-if="delivererName && form.delivery_method === 'delivery'"> · {{ delivererName }}</template></span><span class="tabular-nums">{{ form.delivery_method === 'pickup' ? '—' : fee ? money(fee) : 'Offerte' }}</span></div>
+          <div class="flex justify-between gap-2"><span class="text-slate-600">{{ expedition ? 'Livraison + expédition' : 'Livraison' }}<template v-if="delivererName && form.delivery_method === 'delivery'"> · {{ delivererName }}</template></span><span class="tabular-nums">{{ form.delivery_method === 'pickup' ? '—' : fee ? money(fee) : expedition && form.expedition_payer !== 'store' ? 'À indiquer' : 'Offerte' }}</span></div>
           <div v-if="discount || pointsDiscount" class="flex justify-between text-emerald-700"><span>Remise</span><span class="tabular-nums">− {{ money(discount + pointsDiscount) }}</span></div>
 
           <!-- Une seule entrée pour toutes les remises -->
@@ -1006,6 +1025,34 @@ async function save() {
           <div class="flex items-baseline justify-between border-t border-slate-200 pt-3">
             <span class="text-base font-semibold">Total</span>
             <span class="text-2xl font-bold tabular-nums">{{ money(total) }}</span>
+          </div>
+
+          <!-- Déjà payé (Wave, Orange Money…) avant l'enregistrement : noté avec la commande -->
+          <div v-if="!editing && canPrice" class="space-y-2">
+            <p class="font-semibold">Le client a-t-il déjà payé ?</p>
+            <div class="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Le client a-t-il déjà payé ?">
+              <button v-for="[value, label] in [['none', 'Pas encore'], ['part', 'Une partie'], ['all', 'Tout payé']]" :key="value" type="button" role="radio" :aria-checked="paid.mode === value"
+                      class="rounded-xl border-2 px-1 py-2 text-sm font-bold" :class="paid.mode === value ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-slate-200 text-slate-700'" @click="paid.mode = value">{{ value === 'all' && paid.mode === 'all' ? '✅ ' : '' }}{{ label }}</button>
+            </div>
+            <template v-if="paid.mode !== 'none'">
+              <div v-if="paid.mode === 'part'" class="flex items-center justify-between gap-2">
+                <label for="paid-amount" class="text-slate-600">Montant reçu (F)</label>
+                <input id="paid-amount" v-model.number="paid.amount" type="number" min="1" :max="total" class="input w-32 py-1 text-right" />
+              </div>
+              <p class="text-sm text-slate-600">Payé par</p>
+              <div class="flex flex-wrap gap-1.5">
+                <button v-for="[value, label] in PAY_METHODS" :key="value" type="button" class="rounded-full border px-3 py-1 text-sm" :class="paid.method === value ? 'border-2 border-emerald-700 bg-emerald-50 font-bold text-emerald-900' : 'border-slate-300'" @click="paid.method = value">{{ label }}</button>
+              </div>
+              <input v-model.trim="paid.reference" class="input py-1.5 text-sm" maxlength="100" placeholder="N° de transaction (facultatif)" aria-label="N° de transaction" />
+              <p v-if="errors['paid.amount'] || errors['paid.method']" class="text-xs text-red-600">{{ errors['paid.amount'] || errors['paid.method'] }}</p>
+            </template>
+            <div class="flex items-baseline justify-between">
+              <span class="text-slate-600">Reste à encaisser</span>
+              <span class="font-bold tabular-nums">{{ money(due) }}<span v-if="due === 0 && paid.mode !== 'none'" class="ml-1.5 rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-extrabold text-white">PAYÉ</span></span>
+            </div>
+            <p v-if="expedition && form.expedition_prepay && paid.mode !== 'none'" class="rounded-lg px-3 py-2 text-sm font-semibold" :class="due === 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'">
+              {{ due === 0 ? 'Expédition déjà payée : le livreur peut partir à la gare sans attendre.' : `Expédition à payer d'avance : il manque ${money(due)} avant le départ.` }}
+            </p>
           </div>
 
           <button v-if="!showDeposit && !form.deposit_required" type="button" class="text-emerald-700 hover:underline" @click="showDeposit = true">+ Demander un acompte</button>
@@ -1069,7 +1116,7 @@ async function save() {
         <p class="mt-2 text-slate-600">
           {{ done.delivery_method === 'pickup' ? 'Retrait en boutique' : done.shipping_place_label || 'Livraison' }}<span v-if="done.planned_courier"> · {{ done.planned_courier.name }}</span><span v-else-if="done.planned_carrier"> · {{ done.planned_carrier.name }}</span>
         </p>
-        <p class="mt-1 text-base font-bold text-slate-900">À encaisser : {{ money(done.amount_due) }}</p>
+        <p class="mt-1 text-base font-bold text-slate-900">{{ done.amount_due > 0 ? `À encaisser : ${money(done.amount_due)}` : `Total ${money(done.total)} · déjà payé ✅` }}</p>
       </div>
       <button type="button" class="btn-primary w-full" @click="again(false)">+ Enregistrer une nouvelle commande</button>
       <div class="grid grid-cols-2 gap-2">

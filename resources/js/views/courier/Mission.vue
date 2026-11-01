@@ -262,7 +262,7 @@ async function step(status) {
       </div>
       <div class="grid grid-cols-2 gap-2">
         <div>
-          <label for="exp-fee" class="label">Frais payés (F)</label>
+          <label for="exp-fee" class="label">Frais d'expédition payés (F)</label>
           <input id="exp-fee" v-model="form.fee" type="number" min="0" inputmode="numeric" class="input" required />
         </div>
         <div>

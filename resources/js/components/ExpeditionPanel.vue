@@ -66,7 +66,7 @@ async function collected() {
 <template>
   <section class="card space-y-2 border-sky-200 p-4 text-sm">
     <h3 class="font-semibold">📦 Expédition vers {{ e.city }}</h3>
-    <p class="text-slate-600">Frais de la compagnie : {{ e.payer_label?.toLowerCase() }}</p>
+    <p class="text-slate-600">Frais d'expédition : {{ e.payer_label?.toLowerCase() }}</p>
 
     <Alert v-if="e.prepay_due > 0" tone="warning">Paiement avant expédition : le client doit encore payer {{ money(e.prepay_due) }} avant que le colis parte à la gare.</Alert>
 
@@ -74,8 +74,15 @@ async function collected() {
       <div class="rounded-lg bg-sky-50 p-3">
         <p class="font-semibold text-sky-900">Déposée à la gare · {{ e.company }}</p>
         <p v-if="e.ticket">Ticket n° {{ e.ticket }}</p>
-        <p>Frais d'expédition : {{ money(e.fee) }}<template v-if="e.advanced"> · avancés par le livreur (ajoutés à sa paie)</template></p>
+        <p>Frais d'expédition payés à la compagnie : {{ money(e.fee) }}<template v-if="e.advanced"> · avancés par le livreur (ajoutés à sa paie)</template></p>
         <p class="text-xs text-slate-500">{{ formatDateTime(e.dropped_at) }}</p>
+      </div>
+      <!-- Prix convenu avec le client : gain ou perte sur l'expédition -->
+      <div v-if="e.balance" class="space-y-1 rounded-lg p-3" :class="e.balance.margin >= 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-red-50 text-red-900'">
+        <p class="flex justify-between"><span>Prix convenu payé par le client</span><b class="tabular-nums">{{ money(e.balance.agreed) }}</b></p>
+        <p v-if="e.balance.delivery_cost" class="flex justify-between"><span>Livraison jusqu'à la gare</span><span class="tabular-nums">− {{ money(e.balance.delivery_cost) }}</span></p>
+        <p class="flex justify-between"><span>Frais d'expédition</span><span class="tabular-nums">− {{ money(e.balance.company_fee) }}</span></p>
+        <p class="flex justify-between border-t border-current/20 pt-1 font-bold"><span>{{ e.balance.margin >= 0 ? 'Gain sur l\'expédition' : 'Perte sur l\'expédition' }}</span><span class="tabular-nums">{{ e.balance.margin >= 0 ? '+' : '−' }} {{ money(Math.abs(e.balance.margin)) }}</span></p>
       </div>
       <div class="flex flex-wrap gap-2">
         <button v-if="e.receipt" type="button" class="btn-secondary px-3 py-1.5" @click="download(`/orders/${order.id}/expedition/receipt`, 'recu-expedition.jpg')">Voir le reçu</button>
@@ -99,7 +106,7 @@ async function collected() {
         <input v-if="form.company === 'other'" v-model="form.other" class="input" placeholder="Nom de la compagnie" maxlength="60" required />
         <p v-if="errors.company" class="text-red-600">{{ errors.company }}</p>
         <div class="grid grid-cols-2 gap-2">
-          <label class="block font-medium">Frais payés (F)
+          <label class="block font-medium">Frais d'expédition payés (F)
             <input v-model="form.fee" class="input mt-1" type="number" min="0" inputmode="numeric" required />
           </label>
           <label class="block font-medium">N° de ticket

@@ -179,10 +179,10 @@ async function toggle(c, reload = false) {
       <!-- Expéditions vers les autres villes -->
       <section class="card space-y-3 p-4">
         <h2 class="font-semibold">📦 Expéditions vers les autres villes</h2>
-        <p class="text-sm text-slate-600">Le livreur dépose le colis à la gare. Les frais de la compagnie de transport (UTB, STIF, AVS…) sont notés au dépôt.</p>
+        <p class="text-sm text-slate-600">Un prix convenu avec le client couvre la livraison jusqu'à la gare et les frais d'expédition (UTB, STIF, AVS…). Pour chaque ville, le dernier prix convenu est repris tout seul.</p>
         <div class="flex items-center gap-3">
-          <span class="min-w-0 flex-1 text-sm font-medium">Livraison jusqu'à la gare</span>
-          <input v-model="expedition.fee" class="input w-28 text-right font-bold" type="number" min="0" inputmode="numeric" placeholder="à indiquer" aria-label="Livraison jusqu'à la gare" />
+          <span class="min-w-0 flex-1 text-sm font-medium">Prix de départ (livraison + expédition)</span>
+          <input v-model="expedition.fee" class="input w-28 text-right font-bold" type="number" min="0" inputmode="numeric" placeholder="à indiquer" aria-label="Prix de départ des expéditions" />
           <span class="text-sm">F</span>
         </div>
         <div class="flex items-center gap-3">
