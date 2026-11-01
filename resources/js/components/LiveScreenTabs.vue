@@ -260,7 +260,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       <div class="relative cursor-zoom-in overflow-hidden rounded-2xl bg-slate-900" role="button" tabindex="0" aria-label="Agrandir l'écran du live" @click="expanded = true" @keydown.enter="expanded = true">
         <p class="px-3 pt-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">À l'écran maintenant</p>
         <div class="mx-auto aspect-video w-full max-w-md p-2">
-          <div class="pointer-events-none h-full overflow-hidden rounded-lg"><LiveDisplay v-if="display" :data="display" /></div>
+          <div class="pointer-events-none h-full overflow-hidden rounded-lg"><LiveDisplay v-if="display" :data="display" :effects="false" /></div>
         </div>
         <span class="absolute bottom-3 right-3 rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-slate-900 shadow">⤢ Agrandir</span>
       </div>
