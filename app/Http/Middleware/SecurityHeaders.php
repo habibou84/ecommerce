@@ -12,6 +12,8 @@ use Symfony\Component\HttpFoundation\Response;
  *  - type des fichiers respecté (pas de « devinette » du navigateur) ;
  *  - adresse précédente réduite au domaine vers les autres sites (les jetons de commande ne fuient pas) ;
  *  - HTTPS imposé au navigateur une fois venu en HTTPS.
+ * Seule exception au cadre : l'écran du live (/ecran), montré en aperçu dans la gestion des boutiques de la plateforme
+ * (sous-domaines), qui ne contient rien à cliquer de sensible.
  */
 class SecurityHeaders
 {
@@ -20,8 +22,14 @@ class SecurityHeaders
         $response = $next($request);
         $headers = $response->headers;
 
-        $headers->set('X-Frame-Options', 'SAMEORIGIN', false);
-        $headers->set('Content-Security-Policy', "frame-ancestors 'self'; object-src 'none'; base-uri 'self'", false);
+        $ancestors = "'self'";
+        if ($request->routeIs('live-screen')) {
+            $domain = (string) config('platform.domain');
+            $ancestors .= " https://*.{$domain}".(app()->isProduction() ? '' : " http://*.{$domain}:*");
+        } else {
+            $headers->set('X-Frame-Options', 'SAMEORIGIN', false);
+        }
+        $headers->set('Content-Security-Policy', "frame-ancestors {$ancestors}; object-src 'none'; base-uri 'self'", false);
         $headers->set('X-Content-Type-Options', 'nosniff', false);
         $headers->set('Referrer-Policy', 'strict-origin-when-cross-origin', false);
         if ($request->isSecure()) {

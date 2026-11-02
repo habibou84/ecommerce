@@ -21,6 +21,13 @@ class SecurityHardeningTest extends TestCase
         }
     }
 
+    public function test_live_screen_can_be_previewed_from_store_subdomains_only(): void
+    {
+        // Écran du live (TikTok LIVE Studio) : aperçu dans la gestion d'une boutique (sous-domaine) ; aucune autre page
+        $this->get('http://localhost/ecran')->assertOk()->assertHeaderMissing('X-Frame-Options')
+            ->assertHeader('Content-Security-Policy', "frame-ancestors 'self' https://*.localhost http://*.localhost:*; object-src 'none'; base-uri 'self'");
+    }
+
     public function test_spreadsheet_cells_never_run_as_formulas(): void
     {
         $this->assertSame(["'=HYPERLINK(\"https://evil\")", "'@SUM(A1)", "'-2+3", 'Fatou', '+225 07 00 00 00 01', -1500, 12], SpreadsheetCell::row(['=HYPERLINK("https://evil")', '@SUM(A1)', '-2+3', 'Fatou', '+225 07 00 00 00 01', -1500, 12]));
