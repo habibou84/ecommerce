@@ -219,19 +219,34 @@ const copied = ref(false)
 async function loadLink() {
   if (!link.value) link.value = (await http.post('/lives/screens/link')).data.data.url
 }
+// Habillage pour l'écran vertical de TikTok, et la taille exacte de la source (nette, sans étirement)
+const STUDIO_FORMATS = [
+  { key: 'haut', label: 'Bandeau en haut', hint: 'Conseillé · la caméra en dessous', w: 1080, h: 560, place: 'Collez-le tout en haut, bord à bord.' },
+  { key: 'bas', label: 'Bandeau en bas', hint: 'Sur la vidéo, fond transparent', w: 1080, h: 320, place: 'Collez-le tout en bas, au-dessus des commentaires.' },
+  { key: 'carte', label: 'Petite carte', hint: 'Dans un coin, fond transparent', w: 480, h: 480, place: 'Placez-la en haut à droite.' },
+  { key: 'tele', label: 'Écran complet', hint: 'Comme sur la télé (ordinateur, PRISM)', w: 1280, h: 720, place: 'Placez-le en haut, la caméra en bas.' },
+]
+const studioFormat = ref((() => { try { return localStorage.getItem('jibiat-studio-format') || 'haut' } catch { return 'haut' } })())
+watch(studioFormat, (f) => { try { localStorage.setItem('jibiat-studio-format', f) } catch { /* sans stockage */ } })
+const studioChoice = computed(() => STUDIO_FORMATS.find((f) => f.key === studioFormat.value) ?? STUDIO_FORMATS[0])
+const studioLink = computed(() => (link.value && studioFormat.value !== 'tele' ? `${link.value}?habillage=${studioFormat.value}` : link.value))
+// Aperçu « comme sur un téléphone » : la source à sa vraie taille, réduite dans un écran 9:16
+const preview = ref(false)
+const PHONE_W = 270
+const previewScale = computed(() => PHONE_W / 1080)
 async function copy() {
   try {
     await loadLink()
-    await navigator.clipboard.writeText(link.value)
+    await navigator.clipboard.writeText(studioLink.value)
     copied.value = true
     setTimeout(() => (copied.value = false), 3000)
   } catch {
-    if (link.value) window.prompt('Copiez ce lien :', link.value)
+    if (link.value) window.prompt('Copiez ce lien :', studioLink.value)
   }
 }
 async function openLink() {
   await loadLink()
-  window.open(link.value, '_blank')
+  window.open(studioLink.value, '_blank')
 }
 watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: true })
 </script>
@@ -446,31 +461,70 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
         </form>
       </section>
 
-      <!-- TikTok LIVE Studio -->
+      <!-- TikTok LIVE Studio : habillage pour l'écran vertical, taille exacte, aperçu -->
       <section class="rounded-2xl border-2 border-slate-200 bg-white p-4">
         <h2 class="text-lg font-extrabold">🖥️ TikTok LIVE Studio</h2>
-        <p class="text-sm text-slate-500">Sur l'ordinateur</p>
+        <p class="text-sm text-slate-500">Sur l'ordinateur · lisible sur le téléphone des clientes</p>
         <p v-if="studio?.online" class="mt-3 rounded-xl bg-emerald-50 p-2.5 text-base font-extrabold text-emerald-800">✅ Connecté à LIVE Studio</p>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Habillage">
+          <button v-for="f in STUDIO_FORMATS" :key="f.key" type="button" role="radio" :aria-checked="studioFormat === f.key"
+                  class="flex items-center gap-3 rounded-xl border-2 p-2.5 text-left" :class="studioFormat === f.key ? 'border-emerald-700 bg-emerald-50' : 'border-slate-200 bg-white'"
+                  @click="studioFormat = f.key">
+            <span class="relative h-14 w-8 shrink-0 overflow-hidden rounded-md bg-amber-900" aria-hidden="true">
+              <i v-if="f.key === 'haut'" class="absolute inset-x-0 top-1 h-4 bg-rose-600" />
+              <i v-else-if="f.key === 'bas'" class="absolute inset-x-0 bottom-1 h-3 bg-black/80" />
+              <i v-else-if="f.key === 'carte'" class="absolute right-0.5 top-1 h-3 w-3 rounded-sm bg-white" />
+              <i v-else class="absolute inset-x-0 top-1 h-4 bg-violet-700" />
+            </span>
+            <span class="min-w-0"><b class="block text-sm">{{ f.label }}</b><span class="text-xs text-slate-500">{{ f.hint }}</span></span>
+          </button>
+        </div>
+        <div class="mt-3 rounded-xl bg-slate-900 p-3 text-white">
+          <p class="text-sm">Taille de la source dans LIVE Studio (largeur × hauteur) :</p>
+          <p class="text-2xl font-black tracking-wide text-yellow-300">{{ studioChoice.w }} × {{ studioChoice.h }}</p>
+          <p class="text-xs text-slate-300">À taper telle quelle : ne l'agrandissez pas ensuite à la souris, l'image deviendrait floue.</p>
+        </div>
         <div class="mt-3 flex gap-3">
           <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">1</span>
           <div class="min-w-0 flex-1">
             <p class="text-base font-bold">Copiez ce lien :</p>
             <div class="mt-1 flex gap-2">
-              <span class="min-w-0 flex-1 truncate rounded-xl border-2 border-dashed border-slate-400 bg-slate-50 px-3 py-2.5 font-mono text-xs">{{ link ?? 'Préparation du lien…' }}</span>
+              <span class="min-w-0 flex-1 truncate rounded-xl border-2 border-dashed border-slate-400 bg-slate-50 px-3 py-2.5 font-mono text-xs">{{ studioLink ?? 'Préparation du lien…' }}</span>
               <button type="button" class="btn-brand shrink-0 px-4" @click="copy">{{ copied ? '✓ Copié' : 'Copier' }}</button>
             </div>
           </div>
         </div>
         <div class="mt-3 flex gap-3">
           <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">2</span>
-          <p class="text-base font-bold">Dans LIVE Studio : <span class="text-emerald-800">Ajouter une source › Lien</span>, collez-le.</p>
+          <p class="text-base font-bold">Dans LIVE Studio : <span class="text-emerald-800">Ajouter une source › Lien</span>, collez-le, puis tapez la taille {{ studioChoice.w }} × {{ studioChoice.h }}.</p>
         </div>
         <div class="mt-3 flex gap-3">
           <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">3</span>
-          <p class="text-base font-bold">Placez-le en haut, la caméra en bas.</p>
+          <p class="text-base font-bold">{{ studioChoice.place }}</p>
         </div>
-        <button type="button" class="btn-secondary mt-4 w-full py-3 text-base" @click="openLink">🧪 Tester : ouvrir le lien</button>
+        <div class="mt-4 grid gap-2 sm:grid-cols-2">
+          <button type="button" class="btn-secondary w-full py-3 text-base" :disabled="!link" @click="preview = true">👁 Voir comme sur un téléphone</button>
+          <button type="button" class="btn-ghost w-full py-3 text-base" @click="openLink">🧪 Ouvrir le lien</button>
+        </div>
       </section>
+
+      <!-- Aperçu : l'écran TikTok vertical d'une cliente, avec la source à sa vraie taille -->
+      <div v-if="preview" class="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" @click.self="preview = false">
+        <div class="text-center">
+          <div class="relative mx-auto overflow-hidden rounded-[22px] bg-gradient-to-b from-amber-800 to-stone-900 shadow-2xl" :style="{ width: `${PHONE_W}px`, height: `${PHONE_W * 16 / 9}px` }">
+            <span class="absolute bottom-10 left-1/2 -translate-x-1/2 text-[90px] leading-none" aria-hidden="true">🧕🏾</span>
+            <span class="absolute left-2 top-2 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-bold text-white">{{ studioFormat === 'carte' ? 'Votre live' : '' }}</span>
+            <iframe :src="studioLink" title="Aperçu" class="absolute border-0" scrolling="no"
+                    :style="{ width: `${studioChoice.w}px`, height: `${studioChoice.h}px`, transform: `scale(${previewScale})`, transformOrigin: '0 0',
+                              left: studioFormat === 'carte' ? `${PHONE_W - studioChoice.w * previewScale - 8}px` : '0px',
+                              top: studioFormat === 'bas' ? `${PHONE_W * 16 / 9 - studioChoice.h * previewScale - 34}px` : studioFormat === 'carte' ? '30px' : '0px',
+                              background: 'transparent' }" />
+            <span class="absolute inset-x-2 bottom-2 h-6 rounded-full bg-white/20 px-3 py-1 text-left text-[10px] text-white">Ajouter un commentaire…</span>
+          </div>
+          <p class="mt-3 text-sm text-white">Taille réelle d'un téléphone : si c'est lisible ici, ce l'est pour vos clientes.</p>
+          <button type="button" class="btn-secondary mt-3" @click="preview = false">Fermer</button>
+        </div>
+      </div>
     </template>
   </section>
 </template>

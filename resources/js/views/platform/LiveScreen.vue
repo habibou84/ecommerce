@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import LiveDisplay from '../../components/LiveDisplay.vue'
+import LiveOverlay from '../../components/LiveOverlay.vue'
 import http from '../../lib/http'
 
 /**
@@ -9,6 +11,10 @@ import http from '../../lib/http'
  * Le lien direct (/ecran/{jeton}) sert à TikTok LIVE Studio, OBS ou PRISM. L'écran est retenu sur cet appareil.
  */
 const props = defineProps({ token: { type: String, default: null } })
+// TikTok LIVE Studio : habillage pour l'écran vertical (?habillage=haut|bas|carte) ; bas et carte sur fond transparent
+const route = useRoute()
+const format = ['haut', 'bas', 'carte'].includes(route.query.habillage) ? route.query.habillage : null
+const transparent = format === 'bas' || format === 'carte'
 const KEY = 'jibiat-live-screen'
 
 const token = ref(props.token ?? read())
@@ -80,6 +86,7 @@ function fullscreen() {
 }
 
 onMounted(() => {
+  if (transparent) document.documentElement.style.background = document.body.style.background = 'transparent'
   poll()
   timer = setInterval(poll, 2000)
   keepAwake()
@@ -95,8 +102,9 @@ const digits = computed(() => (code.value || '····').split(''))
 </script>
 
 <template>
-  <div class="fixed inset-0 bg-slate-950 text-white" @dblclick="fullscreen">
-    <LiveDisplay v-if="data" :data="data" />
+  <div class="fixed inset-0 text-white" :class="transparent ? 'bg-transparent' : 'bg-slate-950'" @dblclick="fullscreen">
+    <LiveOverlay v-if="data && format" :data="data" :format="format" />
+    <LiveDisplay v-else-if="data" :data="data" />
     <!-- « Tester » dans l'application : l'écran se signale -->
     <div v-if="data?.test" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-[3vh] bg-emerald-700 text-center">
       <span class="text-[22vh] leading-none">✅</span>
