@@ -230,8 +230,8 @@ const studioFormat = ref((() => { try { return localStorage.getItem('jibiat-stud
 watch(studioFormat, (f) => { try { localStorage.setItem('jibiat-studio-format', f) } catch { /* sans stockage */ } })
 const studioChoice = computed(() => STUDIO_FORMATS.find((f) => f.key === studioFormat.value) ?? STUDIO_FORMATS[0])
 const studioLink = computed(() => (link.value && studioFormat.value !== 'tele' ? `${link.value}?habillage=${studioFormat.value}` : link.value))
-// Deuxième lien : le numéro WhatsApp et son QR code, pour commander (600 × 600, fond transparent)
-const ORDER = { w: 600, h: 600 }
+// Deuxième lien : bandeau vert avec le QR code WhatsApp et le numéro, au-dessus des commentaires (1080 × 200)
+const ORDER = { w: 1080, h: 200 }
 const orderLink = computed(() => (link.value ? `${link.value}?habillage=commander` : null))
 const copiedOrder = ref(false)
 async function copyOrder() {
@@ -519,7 +519,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
         <!-- Deuxième lien : pour commander (numéro et QR code) -->
         <div class="mt-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3">
           <p class="text-base font-extrabold">Lien 2 · Pour commander</p>
-          <p class="text-sm text-slate-600">Le numéro WhatsApp et son QR code, dans une deuxième source « Lien ». Taille : <b class="text-slate-900">{{ ORDER.w }} × {{ ORDER.h }}</b>, à placer dans un coin.</p>
+          <p class="text-sm text-slate-600">Bandeau vert : le QR code WhatsApp et le numéro en très gros, dans une deuxième source « Lien ». Taille : <b class="text-slate-900">{{ ORDER.w }} × {{ ORDER.h }}</b>, tout en bas, juste au-dessus des commentaires.</p>
           <div class="mt-2 flex gap-2">
             <span class="min-w-0 flex-1 truncate rounded-xl border-2 border-dashed border-slate-400 bg-white px-3 py-2.5 font-mono text-xs">{{ orderLink ?? 'Préparation du lien…' }}</span>
             <button type="button" class="btn-brand shrink-0 px-4" @click="copyOrder">{{ copiedOrder ? '✓ Copié' : 'Copier' }}</button>
@@ -542,11 +542,10 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
                               left: studioFormat === 'carte' ? `${PHONE_W - studioChoice.w * previewScale - 8}px` : '0px',
                               top: studioFormat === 'bas' ? `${PHONE_W * 16 / 9 - studioChoice.h * previewScale - 34}px` : studioFormat === 'carte' ? '30px' : '0px',
                               background: 'transparent' }" />
-            <!-- Lien 2 (pour commander), dans le coin opposé à la carte -->
+            <!-- Lien 2 (pour commander) : bandeau vert au-dessus des commentaires -->
             <iframe :src="orderLink" title="Aperçu : pour commander" class="absolute border-0" scrolling="no"
-                    :style="{ width: `${ORDER.w}px`, height: `${ORDER.h}px`, transform: `scale(${previewScale * 0.75})`, transformOrigin: '0 0', background: 'transparent',
-                              left: studioFormat === 'carte' ? '8px' : `${PHONE_W - ORDER.w * previewScale * 0.75 - 8}px`,
-                              top: studioFormat === 'bas' ? '40px' : `${PHONE_W * 16 / 9 - ORDER.h * previewScale * 0.75 - 40}px` }" />
+                    :style="{ width: `${ORDER.w}px`, height: `${ORDER.h}px`, transform: `scale(${previewScale})`, transformOrigin: '0 0', left: '0px',
+                              top: studioFormat === 'bas' ? `${PHONE_W * 16 / 9 - studioChoice.h * previewScale - 34 - ORDER.h * previewScale}px` : `${PHONE_W * 16 / 9 - ORDER.h * previewScale - 34}px` }" />
             <span class="absolute inset-x-2 bottom-2 h-6 rounded-full bg-white/20 px-3 py-1 text-left text-[10px] text-white">Ajouter un commentaire…</span>
           </div>
           <p class="mt-3 text-sm text-white">Taille réelle d'un téléphone : si c'est lisible ici, ce l'est pour vos clientes.</p>

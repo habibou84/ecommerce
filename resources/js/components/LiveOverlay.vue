@@ -7,7 +7,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
  * - « haut » (1080 × 560) : bandeau en haut, la caméra en dessous ;
  * - « bas » (1080 × 320) : bandeau en bas, fond transparent sur la vidéo ;
  * - « carte » (480 × 600) : petite carte dans un coin (photo, code, prix), fond transparent ;
- * - « commander » (600 × 600) : deuxième lien, le numéro WhatsApp et son QR code, fond transparent.
+ * - « commander » (1080 × 200) : deuxième lien, bandeau vert avec le QR code WhatsApp et le numéro en très gros.
  * Pas de QR code ni d'adresse de site (on ne scanne pas l'écran qu'on regarde) : « Écris A3 au 07… ».
  * Tout est en « em » calculé sur la taille de la source : nette si la source a la taille indiquée.
  */
@@ -32,7 +32,7 @@ onUnmounted(() => {
 // 1 em selon l'habillage (limité par la hauteur si la source est plus basse que prévu)
 const fontSize = computed(() => {
   const { w, h } = size.value
-  return { haut: Math.min(w / 30, h / 15.5), bas: Math.min(w / 30, h / 8.8), carte: Math.min(w / 12, h / 15), commander: Math.min(w / 15, h / 15) }[props.format] ?? Math.min(w / 30, h / 15.5)
+  return { haut: Math.min(w / 30, h / 15.5), bas: Math.min(w / 30, h / 8.8), carte: Math.min(w / 12, h / 15), commander: Math.min(w / 30, h / 5.6) }[props.format] ?? Math.min(w / 30, h / 15.5)
 })
 
 const live = computed(() => props.data?.live ?? null)
@@ -76,11 +76,11 @@ const lastSale = computed(() => live.value?.ticker?.[0]?.text ?? null)
   <div ref="root" class="lo" :class="`lo-${format}`" :style="{ fontSize: `${fontSize}px` }">
     <!-- Deuxième lien : comment commander (numéro WhatsApp et QR code), même sans article montré -->
     <div v-if="format === 'commander'" class="lo-order">
-      <p class="lo-order-title">Pour commander</p>
       <img v-if="store?.qr" :src="store.qr" alt="QR code WhatsApp" class="lo-qr" />
-      <p class="lo-order-wa">💬 WhatsApp</p>
-      <p class="lo-order-num">{{ phone || store?.whatsapp }}</p>
-      <p class="lo-order-hint">Envoie le code<template v-if="shown"> (ex. <b>{{ shown.code }}</b>)</template></p>
+      <div class="lo-order-text">
+        <p class="lo-order-num">{{ phone || store?.whatsapp }}</p>
+        <p class="lo-order-hint">💬 WhatsApp · envoie le code<template v-if="shown"> (ex. <b>{{ shown.code }}</b>)</template></p>
+      </div>
     </div>
 
     <!-- Avant le live ou entre deux articles -->
@@ -182,14 +182,13 @@ const lastSale = computed(() => live.value?.ticker?.[0]?.text ?? null)
 .lo-card .lo-code { position: absolute; left: .25em; top: .25em; font-size: 2.5em; box-shadow: 0 .05em .2em rgba(0, 0, 0, .35); }
 .lo-card .lo-price { color: #be123c; font-size: 2.3em; padding: .12em 0 .18em; }
 
-/* Deuxième lien : pour commander (600 × 600 : 15 em × 15 em) */
-.lo-order { position: absolute; inset: .3em; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2em; background: #fff; color: #0f172a; border-radius: .9em; box-shadow: 0 .2em .6em rgba(0, 0, 0, .35); text-align: center; padding: .5em; }
-.lo-order-title { font-size: 1.5em; font-weight: 900; }
-.lo-qr { width: 7.2em; height: 7.2em; image-rendering: pixelated; }
-.lo-order-wa { font-size: 1em; font-weight: 800; color: #15803d; }
-.lo-order-num { font-size: 1.9em; font-weight: 900; white-space: nowrap; letter-spacing: -.02em; }
-.lo-order-hint { font-size: 1em; font-weight: 700; color: #475569; }
-.lo-order-hint b { color: #dc2626; }
+/* Deuxième lien : pour commander, bandeau vert (1080 × 200 : 30 em × 5,6 em) */
+.lo-order { position: absolute; inset: 0; display: flex; align-items: center; gap: .6em; padding: .4em .7em; background: #15803d; color: #fff; }
+.lo-qr { height: 4.6em; width: 4.6em; flex-shrink: 0; background: #fff; padding: .2em; border-radius: .3em; image-rendering: pixelated; }
+.lo-order-text { min-width: 0; }
+.lo-order-num { font-size: 2.7em; font-weight: 900; line-height: 1; white-space: nowrap; letter-spacing: -.02em; }
+.lo-order-hint { margin-top: .3em; font-size: 1.2em; font-weight: 700; color: #bbf7d0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lo-order-hint b { color: #fde047; }
 
 @keyframes lo-in { from { opacity: 0; transform: translateY(.4em); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .lo-bottom, .lo-card, .lo-sale { animation: none; } }
