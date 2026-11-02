@@ -6,13 +6,14 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
  * être lisibles par les clientes qui regardent le live sur leur téléphone.
  * - « haut » (1080 × 560) : bandeau en haut, la caméra en dessous ;
  * - « bas » (1080 × 320) : bandeau en bas, fond transparent sur la vidéo ;
- * - « carte » (480 × 480) : petite carte dans un coin, fond transparent.
+ * - « carte » (480 × 600) : petite carte dans un coin (photo, code, prix), fond transparent ;
+ * - « commander » (600 × 600) : deuxième lien, le numéro WhatsApp et son QR code, fond transparent.
  * Pas de QR code ni d'adresse de site (on ne scanne pas l'écran qu'on regarde) : « Écris A3 au 07… ».
  * Tout est en « em » calculé sur la taille de la source : nette si la source a la taille indiquée.
  */
 const props = defineProps({
   data: { type: Object, default: null }, // { store, live }
-  format: { type: String, default: 'haut' }, // haut | bas | carte
+  format: { type: String, default: 'haut' }, // haut | bas | carte | commander
 })
 
 const root = ref(null)
@@ -31,7 +32,7 @@ onUnmounted(() => {
 // 1 em selon l'habillage (limité par la hauteur si la source est plus basse que prévu)
 const fontSize = computed(() => {
   const { w, h } = size.value
-  return { haut: Math.min(w / 30, h / 15.5), bas: Math.min(w / 30, h / 8.8), carte: Math.min(w / 12, h / 12) }[props.format] ?? Math.min(w / 30, h / 15.5)
+  return { haut: Math.min(w / 30, h / 15.5), bas: Math.min(w / 30, h / 8.8), carte: Math.min(w / 12, h / 15), commander: Math.min(w / 15, h / 15) }[props.format] ?? Math.min(w / 30, h / 15.5)
 })
 
 const live = computed(() => props.data?.live ?? null)
@@ -73,8 +74,17 @@ const lastSale = computed(() => live.value?.ticker?.[0]?.text ?? null)
 
 <template>
   <div ref="root" class="lo" :class="`lo-${format}`" :style="{ fontSize: `${fontSize}px` }">
+    <!-- Deuxième lien : comment commander (numéro WhatsApp et QR code), même sans article montré -->
+    <div v-if="format === 'commander'" class="lo-order">
+      <p class="lo-order-title">Pour commander</p>
+      <img v-if="store?.qr" :src="store.qr" alt="QR code WhatsApp" class="lo-qr" />
+      <p class="lo-order-wa">💬 WhatsApp</p>
+      <p class="lo-order-num">{{ phone || store?.whatsapp }}</p>
+      <p class="lo-order-hint">Envoie le code<template v-if="shown"> (ex. <b>{{ shown.code }}</b>)</template></p>
+    </div>
+
     <!-- Avant le live ou entre deux articles -->
-    <div v-if="!shown" class="lo-wait">
+    <div v-else-if="!shown" class="lo-wait">
       <b>{{ store?.name }}</b>
       <span>{{ live ? 'Écris le code de l\'article sur WhatsApp' : 'Le live commence bientôt' }}</span>
     </div>
@@ -110,13 +120,13 @@ const lastSale = computed(() => live.value?.ticker?.[0]?.text ?? null)
       </div>
     </div>
 
-    <!-- Petite carte dans un coin -->
+    <!-- Petite carte dans un coin : la photo, le code et le prix, bien visibles -->
     <div v-else :key="shown.id" class="lo-card">
-      <span class="lo-code">{{ shown.code }}</span>
+      <div class="lo-card-photo">
+        <img v-if="shown.image" :src="shown.image" alt="" />
+        <span class="lo-code">{{ shown.code }}</span>
+      </div>
       <p class="lo-price">{{ money(shown.price) }}</p>
-      <p v-if="flashLeft > 0 && shown.remaining > 0" class="lo-chrono">⏱ {{ chrono }}</p>
-      <p v-else-if="left" class="lo-left" :class="{ 'is-out': shown.remaining === 0 }">{{ left }}</p>
-      <p class="lo-line">Écris <b>{{ shown.code }}</b> sur WhatsApp</p>
     </div>
 
     <!-- Dernière pièce prise (bandeau du haut seulement : la place y est) -->
@@ -165,14 +175,21 @@ const lastSale = computed(() => live.value?.ticker?.[0]?.text ?? null)
 .lo-line b { color: #fde047; font-weight: 900; }
 .lo-side { display: flex; flex-direction: column; align-items: flex-end; gap: .25em; font-size: 1.15em; }
 
-/* Petite carte (480 × 480 : 12 em × 12 em), transparente autour */
-.lo-card { position: absolute; inset: .3em; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25em; background: #fff; color: #0f172a; border-radius: .9em; box-shadow: 0 .2em .6em rgba(0, 0, 0, .35); text-align: center; animation: lo-in .5s ease-out; }
-.lo-card .lo-code { font-size: 3.6em; }
-.lo-card .lo-price { color: #be123c; font-size: 2.1em; }
-.lo-card .lo-chrono, .lo-card .lo-left { font-size: 1em; }
-.lo-card .lo-chrono { background: #be123c; color: #fff; }
-.lo-card .lo-line { font-size: .85em; color: #334155; }
-.lo-card .lo-line b { color: #dc2626; }
+/* Petite carte (480 × 600 : 12 em × 15 em), transparente autour */
+.lo-card { position: absolute; inset: .3em; display: flex; flex-direction: column; background: #fff; color: #0f172a; border-radius: .9em; overflow: hidden; box-shadow: 0 .2em .6em rgba(0, 0, 0, .35); text-align: center; animation: lo-in .5s ease-out; }
+.lo-card-photo { position: relative; flex: 1; min-height: 0; background: #fde7c7; }
+.lo-card-photo img { width: 100%; height: 100%; object-fit: cover; }
+.lo-card .lo-code { position: absolute; left: .25em; top: .25em; font-size: 2.5em; box-shadow: 0 .05em .2em rgba(0, 0, 0, .35); }
+.lo-card .lo-price { color: #be123c; font-size: 2.3em; padding: .12em 0 .18em; }
+
+/* Deuxième lien : pour commander (600 × 600 : 15 em × 15 em) */
+.lo-order { position: absolute; inset: .3em; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2em; background: #fff; color: #0f172a; border-radius: .9em; box-shadow: 0 .2em .6em rgba(0, 0, 0, .35); text-align: center; padding: .5em; }
+.lo-order-title { font-size: 1.5em; font-weight: 900; }
+.lo-qr { width: 7.2em; height: 7.2em; image-rendering: pixelated; }
+.lo-order-wa { font-size: 1em; font-weight: 800; color: #15803d; }
+.lo-order-num { font-size: 1.9em; font-weight: 900; white-space: nowrap; letter-spacing: -.02em; }
+.lo-order-hint { font-size: 1em; font-weight: 700; color: #475569; }
+.lo-order-hint b { color: #dc2626; }
 
 @keyframes lo-in { from { opacity: 0; transform: translateY(.4em); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .lo-bottom, .lo-card, .lo-sale { animation: none; } }

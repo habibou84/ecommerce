@@ -223,13 +223,27 @@ async function loadLink() {
 const STUDIO_FORMATS = [
   { key: 'haut', label: 'Bandeau en haut', hint: 'Conseillé · la caméra en dessous', w: 1080, h: 560, place: 'Collez-le tout en haut, bord à bord.' },
   { key: 'bas', label: 'Bandeau en bas', hint: 'Sur la vidéo, fond transparent', w: 1080, h: 320, place: 'Collez-le tout en bas, au-dessus des commentaires.' },
-  { key: 'carte', label: 'Petite carte', hint: 'Dans un coin, fond transparent', w: 480, h: 480, place: 'Placez-la en haut à droite.' },
+  { key: 'carte', label: 'Petite carte', hint: 'Photo, code et prix, dans un coin', w: 480, h: 600, place: 'Placez-la en haut à droite.' },
   { key: 'tele', label: 'Écran complet', hint: 'Comme sur la télé (ordinateur, PRISM)', w: 1280, h: 720, place: 'Placez-le en haut, la caméra en bas.' },
 ]
 const studioFormat = ref((() => { try { return localStorage.getItem('jibiat-studio-format') || 'haut' } catch { return 'haut' } })())
 watch(studioFormat, (f) => { try { localStorage.setItem('jibiat-studio-format', f) } catch { /* sans stockage */ } })
 const studioChoice = computed(() => STUDIO_FORMATS.find((f) => f.key === studioFormat.value) ?? STUDIO_FORMATS[0])
 const studioLink = computed(() => (link.value && studioFormat.value !== 'tele' ? `${link.value}?habillage=${studioFormat.value}` : link.value))
+// Deuxième lien : le numéro WhatsApp et son QR code, pour commander (600 × 600, fond transparent)
+const ORDER = { w: 600, h: 600 }
+const orderLink = computed(() => (link.value ? `${link.value}?habillage=commander` : null))
+const copiedOrder = ref(false)
+async function copyOrder() {
+  try {
+    await loadLink()
+    await navigator.clipboard.writeText(orderLink.value)
+    copiedOrder.value = true
+    setTimeout(() => (copiedOrder.value = false), 3000)
+  } catch {
+    if (orderLink.value) window.prompt('Copiez ce lien :', orderLink.value)
+  }
+}
 // Aperçu « comme sur un téléphone » : la source à sa vraie taille, réduite dans un écran 9:16
 const preview = ref(false)
 const PHONE_W = 270
@@ -502,6 +516,15 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
           <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">3</span>
           <p class="text-base font-bold">{{ studioChoice.place }}</p>
         </div>
+        <!-- Deuxième lien : pour commander (numéro et QR code) -->
+        <div class="mt-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3">
+          <p class="text-base font-extrabold">Lien 2 · Pour commander</p>
+          <p class="text-sm text-slate-600">Le numéro WhatsApp et son QR code, dans une deuxième source « Lien ». Taille : <b class="text-slate-900">{{ ORDER.w }} × {{ ORDER.h }}</b>, à placer dans un coin.</p>
+          <div class="mt-2 flex gap-2">
+            <span class="min-w-0 flex-1 truncate rounded-xl border-2 border-dashed border-slate-400 bg-white px-3 py-2.5 font-mono text-xs">{{ orderLink ?? 'Préparation du lien…' }}</span>
+            <button type="button" class="btn-brand shrink-0 px-4" @click="copyOrder">{{ copiedOrder ? '✓ Copié' : 'Copier' }}</button>
+          </div>
+        </div>
         <div class="mt-4 grid gap-2 sm:grid-cols-2">
           <button type="button" class="btn-secondary w-full py-3 text-base" :disabled="!link" @click="preview = true">👁 Voir comme sur un téléphone</button>
           <button type="button" class="btn-ghost w-full py-3 text-base" @click="openLink">🧪 Ouvrir le lien</button>
@@ -519,6 +542,11 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
                               left: studioFormat === 'carte' ? `${PHONE_W - studioChoice.w * previewScale - 8}px` : '0px',
                               top: studioFormat === 'bas' ? `${PHONE_W * 16 / 9 - studioChoice.h * previewScale - 34}px` : studioFormat === 'carte' ? '30px' : '0px',
                               background: 'transparent' }" />
+            <!-- Lien 2 (pour commander), dans le coin opposé à la carte -->
+            <iframe :src="orderLink" title="Aperçu : pour commander" class="absolute border-0" scrolling="no"
+                    :style="{ width: `${ORDER.w}px`, height: `${ORDER.h}px`, transform: `scale(${previewScale * 0.75})`, transformOrigin: '0 0', background: 'transparent',
+                              left: studioFormat === 'carte' ? '8px' : `${PHONE_W - ORDER.w * previewScale * 0.75 - 8}px`,
+                              top: studioFormat === 'bas' ? '40px' : `${PHONE_W * 16 / 9 - ORDER.h * previewScale * 0.75 - 40}px` }" />
             <span class="absolute inset-x-2 bottom-2 h-6 rounded-full bg-white/20 px-3 py-1 text-left text-[10px] text-white">Ajouter un commentaire…</span>
           </div>
           <p class="mt-3 text-sm text-white">Taille réelle d'un téléphone : si c'est lisible ici, ce l'est pour vos clientes.</p>
