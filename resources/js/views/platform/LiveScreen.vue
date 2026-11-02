@@ -11,10 +11,10 @@ import http from '../../lib/http'
  * Le lien direct (/ecran/{jeton}) sert à TikTok LIVE Studio, OBS ou PRISM. L'écran est retenu sur cet appareil.
  */
 const props = defineProps({ token: { type: String, default: null } })
-// TikTok LIVE Studio : habillage pour l'écran vertical (?habillage=haut|bas|carte), et le lien « pour commander » (commander) ; bas et carte sur fond transparent
+// TikTok LIVE Studio : les deux cartes en hauteur (?habillage=carte|commander), sur fond transparent
 const route = useRoute()
-const format = ['haut', 'bas', 'carte', 'commander'].includes(route.query.habillage) ? route.query.habillage : null
-const transparent = ['bas', 'carte'].includes(format)
+const format = ['carte', 'commander'].includes(route.query.habillage) ? route.query.habillage : null
+const transparent = format !== null
 const KEY = 'jibiat-live-screen'
 
 const token = ref(props.token ?? read())
