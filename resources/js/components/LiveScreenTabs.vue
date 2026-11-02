@@ -230,8 +230,8 @@ const studioFormat = ref((() => { try { return localStorage.getItem('jibiat-stud
 watch(studioFormat, (f) => { try { localStorage.setItem('jibiat-studio-format', f) } catch { /* sans stockage */ } })
 const studioChoice = computed(() => STUDIO_FORMATS.find((f) => f.key === studioFormat.value) ?? STUDIO_FORMATS[0])
 const studioLink = computed(() => (link.value && studioFormat.value !== 'tele' ? `${link.value}?habillage=${studioFormat.value}` : link.value))
-// Deuxième lien : bandeau vert avec le QR code WhatsApp et le numéro, au-dessus des commentaires (1080 × 200)
-const ORDER = { w: 1080, h: 200 }
+// Deuxième lien : bandeau vert (QR code WhatsApp, numéro, adresse de la page du live), au-dessus des commentaires (1080 × 260)
+const ORDER = { w: 1080, h: 260 }
 const orderLink = computed(() => (link.value ? `${link.value}?habillage=commander` : null))
 const copiedOrder = ref(false)
 async function copyOrder() {
@@ -519,7 +519,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
         <!-- Deuxième lien : pour commander (numéro et QR code) -->
         <div class="mt-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3">
           <p class="text-base font-extrabold">Lien 2 · Pour commander</p>
-          <p class="text-sm text-slate-600">Bandeau vert : le QR code WhatsApp et le numéro en très gros, dans une deuxième source « Lien ». Taille : <b class="text-slate-900">{{ ORDER.w }} × {{ ORDER.h }}</b>, tout en bas, juste au-dessus des commentaires.</p>
+          <p class="text-sm text-slate-600">Bandeau vert : le QR code WhatsApp, le numéro en très gros et l'adresse de votre page du live, dans une deuxième source « Lien ». Taille : <b class="text-slate-900">{{ ORDER.w }} × {{ ORDER.h }}</b>, tout en bas, juste au-dessus des commentaires.</p>
           <div class="mt-2 flex gap-2">
             <span class="min-w-0 flex-1 truncate rounded-xl border-2 border-dashed border-slate-400 bg-white px-3 py-2.5 font-mono text-xs">{{ orderLink ?? 'Préparation du lien…' }}</span>
             <button type="button" class="btn-brand shrink-0 px-4" @click="copyOrder">{{ copiedOrder ? '✓ Copié' : 'Copier' }}</button>
