@@ -76,8 +76,8 @@ bash /var/www/jibiat-marchand/deploy/install-apache.sh
   **Add deploy key** : titre « Production LWS », sans « Allow write access ». Puis relancer la même commande.
 - À la fin, le script interroge `https://jibiat-marchand.com/up` et `https://admin.jibiat-marchand.com/up`
   (attendu : `200`), puis la préproduction (toujours `200`).
-- Une **sauvegarde de la base** est programmée chaque nuit (2 h 30) dans `/var/backups/jibiat-production`
-  (7 copies, une par jour de la semaine).
+- Les **sauvegardes** sont programmées (base et fichiers chaque nuit dans `/var/backups/jibiat-production`, test
+  de restauration le dimanche) : voir docs/SAUVEGARDES.md, qui explique aussi la copie hors du serveur.
 
 ## 4. Réglages de la production
 
@@ -123,7 +123,6 @@ Ne jamais mettre `PREPROD_ACCESS_CODE` en production (il y est de toute façon i
   c'est ce qui envoie `*.preprod.jibiat-marchand.com` à la préproduction. Ne pas renommer ces fichiers.
 - **Ressources** : trois applications partagent le VPS. Surveiller la mémoire (`free -h`) et la charge (`uptime`)
   pendant le pilote ; passer à un serveur dédié (`docs/LANCEMENT.md`) quand le trafic augmente.
-- **Sauvegardes hors du serveur** : copier régulièrement `/var/backups/jibiat-production` ailleurs (stockage
-  objet, autre machine) ; tester une restauration (`pg_restore -d base_de_test base-1.dump`).
+- **Sauvegardes hors du serveur** : régler la copie chiffrée vers Cloudflare R2 (docs/SAUVEGARDES.md).
 - **En cas de problème** : journaux dans `/var/www/jibiat-production/storage/logs`,
   `/var/log/apache2/jibiat-production-error.log`, `supervisorctl status jibiat-production-queue`.
