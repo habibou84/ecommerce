@@ -11,7 +11,7 @@ console (champs masqués) ou directement sur le serveur.
 
 | Quoi | Qui | Comment |
 |---|---|---|
-| Sauvegarde de la base | Serveur | Chaque nuit à 2 h 30 (`/var/backups/jibiat-production`, 7 copies tournantes) |
+| Sauvegarde de la base et des fichiers | Serveur | Chaque nuit à 1 h 45, copie chiffrée hors du serveur, test de restauration le dimanche (docs/SAUVEGARDES.md) ; état dans Console › Santé |
 | Copie de la base avant chaque mise à jour | Serveur | `deploy/update.sh` ; retour automatique à la version précédente si la mise à jour échoue |
 | Paiements Wave à valider | Moi | Alerte par e-mail (Gmail) ; Console › Paiements |
 | Erreurs du jour | Moi | E-mails de Sentry (si `SENTRY_LARAVEL_DSN` est réglé) |
@@ -31,8 +31,7 @@ console (champs masqués) ou directement sur le serveur.
 
 | Quoi | Qui | Comment |
 |---|---|---|
-| **Test de restauration** d'une sauvegarde | Moi + Claude | Restaurer la dernière copie sur la préproduction et ouvrir un espace marchand |
-| Copie des sauvegardes **hors du serveur** | Moi | Télécharger une copie (stockage externe chiffré) : un serveur perdu ne doit pas emporter les données |
+| **Sauvegardes** | Moi | Console › Santé au vert (nuit, copie hors du serveur, test de restauration du dimanche) ; une fois par trimestre, récupérer et déchiffrer une copie distante à la main (docs/SAUVEGARDES.md) |
 | Espace disque, mémoire, durée des pages | Moi | Tableau de bord de l'hébergeur ; disque < 70 %, pages < 1 s |
 | Mises à jour du système du serveur | Moi | `apt update && apt upgrade` (paquets de sécurité), redémarrage si demandé |
 | Revue des membres d'équipe et des accès | Moi | Supprimer les comptes qui ne servent plus (console et boutiques de démonstration) |

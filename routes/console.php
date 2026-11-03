@@ -23,6 +23,7 @@ use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Orders\OrderDesk;
 use App\Services\Partners\PartnerReferrals;
+use App\Services\Platform\BackupStatus;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierConnections;
 use App\Services\Shipping\CarrierEvents;
@@ -32,6 +33,7 @@ use App\Services\WhatsApp\CustomerMessenger;
 use App\Services\WhatsApp\MerchantCatchUp;
 use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\MetaHealth;
+use App\Services\WhatsApp\PlatformWhatsApp;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -231,6 +233,46 @@ Artisan::command('platform:admin {phone} {--revoke}', function (string $phone) {
     $user->forceFill(['is_super_admin' => ! $this->option('revoke')])->save();
     $this->info($user->name.($this->option('revoke') ? ' n\'a plus accès' : ' a accès').' à la console.');
 })->purpose('Donne (ou retire) l\'accès à la console du super administrateur');
+
+// Sauvegardes et disque : les super administrateurs sont prévenus par le WhatsApp du support (une panne au plus une
+// fois toutes les 6 heures, un point à surveiller une fois par jour). Tout se voit aussi dans la console › Santé.
+Artisan::command('platform:alerts', function (BackupStatus $backups, PlatformWhatsApp $whatsapp) {
+    $total = @disk_total_space(base_path()) ?: 0;
+    $used = $total ? (int) round(100 - (@disk_free_space(base_path()) ?: 0) / $total * 100) : 0;
+    $checks = [
+        'nightly' => ['Sauvegarde de la nuit', ...$backups->nightly()],
+        'offsite' => ['Copie hors du serveur', ...$backups->offsite()],
+        'restore' => ['Test de restauration', ...$backups->restore()],
+        'disk' => ['Espace disque', $used >= 90 ? 'error' : ($used >= 80 ? 'warning' : 'ok'), $used.' % utilisé : libérez de la place (anciennes sauvegardes, journaux).'],
+    ];
+    $new = collect($checks)->filter(fn (array $c, string $key) => match (true) {
+        $c[1] === 'error' => Cache::add('platform-alert:'.$key, true, now()->addHours(6)),
+        $c[1] === 'warning' && in_array($key, ['restore', 'disk'], true) => Cache::add('platform-warning:'.$key, true, now()->addDay()),
+        default => false,
+    });
+    if ($new->isEmpty()) {
+        return;
+    }
+    $text = "Jibiat Marchand · ⚠️ À vérifier sur la plateforme :\n".$new->map(fn (array $c) => '• '.$c[0].' : '.$c[2])->implode("\n");
+    $phones = User::where('is_super_admin', true)->whereNotNull('phone')->pluck('phone')->unique();
+    if (! $whatsapp->connected()) {
+        $this->warn('WhatsApp du support non relié : alerte non envoyée.');
+
+        return;
+    }
+    foreach ($phones as $phone) {
+        try {
+            $whatsapp->sendAutomatic($phone, $text);
+        } catch (Throwable $e) {
+            report($e);
+        }
+    }
+    $this->info($new->count().' alerte(s) envoyée(s).');
+})->purpose('Prévient les super administrateurs d\'une sauvegarde en panne ou d\'un disque presque plein');
+
+Schedule::command('platform:alerts')->everyFifteenMinutes()->withoutOverlapping();
+// Tâches en échec gardées 30 jours
+Schedule::command('queue:prune-failed --hours=720')->dailyAt('04:40');
 
 // Battement du planificateur : la console (Santé de la plateforme) voit qu'il tourne bien
 Schedule::call(fn () => Cache::put(ConsoleHealthController::HEARTBEAT, now()->toIso8601String(), now()->addDay()))->everyMinute()->name('scheduler-heartbeat');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAction;
 use App\Services\Billing\BillingSettings;
 use App\Services\Mail\GoogleMail;
+use App\Services\Platform\BackupStatus;
 use App\Services\WhatsApp\PlatformWhatsApp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ use Illuminate\Support\Str;
 
 /**
  * Santé de la plateforme, en lecture : tâches planifiées, file d'attente et tâches en échec, espace disque, envoi des
- * e-mails et des SMS, WhatsApp du support, versions. Seule action : relancer ou effacer une tâche en échec (journalisé).
+ * e-mails et des SMS, WhatsApp du support, sauvegardes (nuit, copie hors du serveur, test de restauration), versions. Seule action : relancer ou effacer une tâche en échec (journalisé).
  * Aucun secret n'est affiché.
  */
 class ConsoleHealthController extends Controller
@@ -56,6 +57,12 @@ class ConsoleHealthController extends Controller
             'mail' => ['ready' => $billing->mailReady(), 'gmail' => $gmail->connected() ? $gmail->email() : null],
             'sms' => ['ready' => $billing->smsReady()],
             'whatsapp' => ['connected' => $whatsapp->connected()],
+            'backups' => collect(['nightly' => 'Sauvegarde de la nuit', 'offsite' => 'Copie hors du serveur', 'restore' => 'Test de restauration'])
+                ->map(function (string $label, string $key) {
+                    [$status, $detail] = app(BackupStatus::class)->{$key}();
+
+                    return ['key' => $key, 'label' => $label, 'status' => $status, 'detail' => $detail];
+                })->values(),
             'versions' => ['php' => PHP_VERSION, 'laravel' => app()->version(), 'environment' => app()->environment()],
         ]]);
     }
