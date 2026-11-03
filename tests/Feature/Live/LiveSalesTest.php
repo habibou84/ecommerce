@@ -463,6 +463,16 @@ class LiveSalesTest extends TestCase
         $this->message('M3a', 'C\'est combien la livraison ?');
         $this->assertSame(0, Order::count());
 
+        // Écran de la vendeuse : messages du live, codes lus, question sans réponse à traiter
+        $feed = $this->storeApi($this->store, 'GET', "lives/{$id}")->assertOk()->json('data.messages');
+        $this->assertSame(['C\'est combien la livraison ?', 'A1', 'Je prends a1 et A2 svp'], array_column($feed, 'body'));
+        $this->assertSame([[], ['A1'], ['A1', 'A2']], array_column($feed, 'codes'));
+        $this->assertFalse($feed[0]['answered']);
+        $this->assertTrue($feed[2]['answered']);
+        $this->assertSame('Fatou', $feed[0]['name']);
+        $reservation = $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.reservations.0');
+        $this->assertSame([12000], [$reservation['unit_price'] ?? null]);
+
         // Le quartier arrive : une seule commande pour les deux articles
         $this->message('M3', 'Yopougon, carrefour Siporex');
         $order = Order::forStore($this->store->id)->with('items')->sole();

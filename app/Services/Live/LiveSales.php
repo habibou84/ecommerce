@@ -944,7 +944,9 @@ class LiveSales
             ])->values()->all(),
             'reservations' => $reservations->map(fn (LiveReservation $r) => [
                 'id' => $r->id,
+                'item_id' => $r->live_item_id,
                 'code' => $r->item?->code,
+                'unit_price' => $r->unit_price,
                 'source' => $r->source,
                 'status' => $r->status,
                 'customer_name' => $r->customer_name,
@@ -954,12 +956,61 @@ class LiveSales
                 'expires_at' => $r->expires_at?->toIso8601String(),
                 'created_at' => $r->created_at->toIso8601String(),
             ])->values()->all(),
+            // Messages WhatsApp reçus pendant le live (écran de la vendeuse) : code lu, capture, question à répondre
+            'messages' => $team && $session->started_at !== null ? $this->messages($session, $reservations) : [],
             'summary' => $team ? $this->summary($session) : null,
             // Bilan : montant du live terminé juste avant, pour comparer
             'previous_amount' => $team && $session->status === 'ended' ? $this->previousAmount($session) : null,
             // WhatsApp qui répond aux clients pendant le live : official (Meta), link (relié par QR code) ou null
             'whatsapp' => $team ? self::whatsapp($session->store_id) : null,
         ];
+    }
+
+    /**
+     * Messages reçus sur WhatsApp depuis le début du live, du plus récent au plus ancien (40 au plus), pour l'écran de
+     * la vendeuse : le code du live lu dans le message (ou sur la capture, d'après la réservation qui l'a suivie), et
+     * « à répondre » quand c'est un texte sans code resté sans réponse (question de la cliente).
+     *
+     * @param  Collection<int, LiveReservation>  $reservations
+     * @return list<array<string, mixed>>
+     */
+    private function messages(LiveSession $session, Collection $reservations): array
+    {
+        $until = $session->ended_at ?? now();
+        $inbound = ConversationMessage::forStore($session->store_id)->where('direction', 'in')
+            ->whereBetween('created_at', [$session->started_at, $until])
+            ->whereHas('conversation', fn ($q) => $q->where('channel', 'whatsapp'))
+            ->with('conversation:id,contact,contact_name')->latest('id')->limit(40)->get();
+        if ($inbound->isEmpty()) {
+            return [];
+        }
+        // Dernière réponse envoyée dans chaque conversation : un message reçu avant elle a eu sa réponse
+        $answered = ConversationMessage::forStore($session->store_id)->where('direction', 'out')
+            ->whereIn('conversation_id', $inbound->pluck('conversation_id')->unique())
+            ->selectRaw('conversation_id, max(id) as last_id')->groupBy('conversation_id')->pluck('last_id', 'conversation_id');
+        $codes = $session->items->pluck('code')->unique()->all();
+
+        return $inbound->map(function (ConversationMessage $m) use ($answered, $codes, $reservations) {
+            $read = array_values(array_intersect(array_keys(self::quantities((string) $m->body)), $codes));
+            if ($read === [] && $m->type === 'image') {
+                // Capture lue : la réservation créée juste après, pour cette cliente
+                $code = $reservations->filter(fn (LiveReservation $r) => $r->customer_phone === $m->conversation?->contact && $r->created_at->gte($m->created_at))
+                    ->sortBy('id')->first()?->item?->code;
+                $read = $code ? [$code] : [];
+            }
+
+            return [
+                'id' => $m->id,
+                'conversation_id' => $m->conversation_id,
+                'name' => $m->conversation?->contact_name ?: PhoneNumber::display((string) $m->conversation?->contact),
+                'phone' => $m->conversation?->contact,
+                'type' => $m->type,
+                'body' => Str::limit((string) $m->body, 160),
+                'codes' => $read,
+                'answered' => ($answered[$m->conversation_id] ?? 0) > $m->id,
+                'created_at' => $m->created_at->toIso8601String(),
+            ];
+        })->values()->all();
     }
 
     /**

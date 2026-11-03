@@ -5,17 +5,14 @@ import Alert from '../../../components/Alert.vue'
 import ColorIcon from '../../../components/ColorIcon.vue'
 import Icon from '../../../components/Icon.vue'
 import LiveLink from '../../../components/LiveLink.vue'
-import LiveScreenTabs from '../../../components/LiveScreenTabs.vue'
+import LiveCockpit from '../../../components/LiveCockpit.vue'
 import LiveSigns from '../../../components/LiveSigns.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money, phoneDisplay } from '../../../lib/format'
-import { platformOn } from '../../../router'
-import { useAuthStore } from '../../../stores/auth'
 
-const auth = useAuthStore()
 
 /**
  * Écran du live, pensé pour le téléphone tenu pendant le direct : en-tête « en direct » fixe (durée, montant,
@@ -276,25 +273,10 @@ async function redo() {
 
     <template v-else>
       <!-- ═══ En-tête selon l'état ═══ -->
-      <section v-if="live.status === 'live'" class="sticky top-2 z-20 overflow-hidden rounded-[22px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 px-3 py-3 text-white shadow-lg sm:rounded-[24px] sm:p-5">
-        <div class="flex items-center gap-2">
-          <span class="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><span class="h-2 w-2 animate-pulse rounded-full bg-white" />EN DIRECT · {{ duration }}</span>
-          <span class="hidden min-w-0 flex-1 truncate text-sm font-semibold sm:block">{{ live.title }}</span>
-          <span class="flex-1 sm:hidden" />
-          <button type="button" class="shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-bold" @click="share = true">Partager</button>
-        </div>
-        <div class="mt-3 grid grid-cols-3 gap-2">
-          <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg font-extrabold leading-tight sm:text-xl">{{ money(live.summary.amount) }}</b><span class="text-xs">montant</span></span>
-          <button type="button" class="rounded-xl bg-white/15 p-2 text-left" @click="goToClients('all')"><b class="block text-lg font-extrabold leading-tight sm:text-xl">{{ live.summary.orders }}</b><span class="text-xs">commande{{ live.summary.orders > 1 ? 's' : '' }} ›</span></button>
-          <button type="button" class="rounded-xl bg-white/15 p-2 text-left" @click="goToClients('todo')"><b class="block text-lg font-extrabold leading-tight sm:text-xl">{{ todoCount }}</b><span class="text-xs">à traiter ›</span></button>
-        </div>
-        <!-- Dernière commande, en direct : la toucher mène à la liste des clientes -->
-        <button v-if="last" type="button" class="mt-2 flex w-full items-center gap-2 rounded-xl bg-white/20 px-3 py-2 text-left text-sm" @click="goToClients('all')">
-          <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-white" />
-          <span class="min-w-0 flex-1 truncate"><b>Dernière :</b> {{ last.customer_name || phoneDisplay(last.customer_phone) || 'Client' }} · <b>{{ last.code }}</b> · {{ ago(last.created_at) }}</span>
-          <span class="shrink-0 font-bold">Voir ›</span>
-        </button>
-      </section>
+      <!-- Pendant le live : la pancarte montrée et les onglets Articles, Messages, Commandes -->
+      <LiveCockpit v-if="live.status === 'live'" :live="live" :now="now" :busy="busy"
+                   @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
+                   @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" />
 
       <section v-else-if="live.status === 'draft'" class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
         <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
@@ -352,11 +334,8 @@ async function redo() {
         </section>
       </template>
 
-      <!-- ═══ Produits et écran, juste sous la carte du live ═══ -->
-      <LiveScreenTabs v-if="live.status !== 'ended' && platformOn(auth, 'live_screens')" :id="live.id" @add="openAdding" />
-
-      <!-- ═══ Articles ═══ -->
-      <section v-else-if="live.status !== 'ended'" class="space-y-2">
+      <!-- ═══ Articles (avant le live) ═══ -->
+      <section v-if="live.status === 'draft'" class="space-y-2">
         <div class="flex items-center justify-between px-0.5">
           <h3 class="text-[17px] font-extrabold">Articles</h3>
           <button type="button" class="text-sm font-semibold text-emerald-700" @click="openAdding">+ Ajouter</button>
@@ -384,7 +363,7 @@ async function redo() {
       </section>
 
       <!-- Pancartes montrées à la caméra -->
-      <LiveSigns v-if="live.status !== 'ended'" :live="live" @updated="live = $event" />
+      <LiveSigns v-if="live.status === 'draft'" :live="live" @updated="live = $event" />
 
       <!-- Avant de lancer -->
       <section v-if="live.status === 'draft'" class="card space-y-2 p-4 text-sm">
@@ -398,7 +377,7 @@ async function redo() {
 
 
       <!-- ═══ Clientes ═══ -->
-      <section v-if="live.status !== 'ended' || showAll" id="live-clientes" class="card scroll-mt-48 p-4">
+      <section v-if="live.status === 'ended' ? showAll : live.status === 'draft' && clients.length" id="live-clientes" class="card scroll-mt-48 p-4">
         <div class="flex flex-wrap items-center gap-2">
           <h3 class="flex-1 text-[17px] font-extrabold">Clientes</h3>
           <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs" role="radiogroup" aria-label="Filtrer les clientes">
@@ -435,18 +414,13 @@ async function redo() {
         </ul>
       </section>
 
-      <button v-if="live.status === 'live'" type="button" class="btn-ghost w-full text-sm text-slate-500" :disabled="busy" @click="end">Terminer le live</button>
-
-      <!-- Bouton flottant : réservation vue dans les commentaires -->
+      <!-- Réservation vue dans les commentaires (onglet Commandes) -->
       <template v-if="live.status === 'live'">
-        <button type="button" class="fixed right-4 bottom-[92px] z-30 inline-flex items-center gap-2 rounded-full bg-emerald-700 px-5 py-3.5 text-sm font-extrabold text-white shadow-xl lg:bottom-8" :aria-expanded="quickOpen" @click="quickOpen = !quickOpen">
-          <Icon :name="quickOpen ? 'close' : 'plus'" :size="18" />Réservation
-        </button>
         <form v-if="quickOpen" class="fixed inset-x-0 bottom-[76px] z-30 rounded-t-3xl border-t border-slate-200 bg-white p-4 shadow-2xl lg:right-6 lg:bottom-24 lg:left-auto lg:w-96 lg:rounded-3xl lg:border" @submit.prevent="addQuick">
-          <p class="font-extrabold">Réservation vue dans les commentaires</p>
+          <div class="flex items-center gap-2"><p class="flex-1 font-extrabold">Réservation vue dans les commentaires</p><button type="button" class="btn-ghost px-2 py-1" aria-label="Fermer" @click="quickOpen = false"><Icon name="close" :size="18" /></button></div>
           <div class="mt-3 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Code de l'article">
             <button v-for="i in live.items" :key="i.id" type="button" role="radio" :aria-checked="quick.code === i.code" class="rounded-xl border-2 px-3 py-2 text-sm font-black"
-                    :class="quick.code === i.code ? 'border-red-600 bg-red-600 text-white' : i.remaining ? 'border-slate-200' : 'border-slate-200 text-slate-400'" @click="quick.code = i.code">{{ i.code }}</button>
+                    :class="quick.code === i.code ? 'border-slate-900 bg-slate-900 text-white' : i.remaining ? 'border-slate-200' : 'border-slate-200 text-slate-400'" @click="quick.code = i.code">{{ i.code }}</button>
           </div>
           <input v-model="quick.name" class="input mt-3" placeholder="Pseudo ou nom" maxlength="120" />
           <input v-model="quick.phone" class="input mt-2" type="tel" placeholder="Numéro WhatsApp (facultatif)" />
