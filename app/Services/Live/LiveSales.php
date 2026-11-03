@@ -72,14 +72,9 @@ class LiveSales
             LiveItem::forStore($store->id)->where('live_session_id', $session->id)->get()
                 ->each(fn (LiveItem $item) => $item->forceFill(['code' => '#'.$item->id])->saveQuietly());
             $kept = [];
-            // Un code par produit, dans l'ordre de la liste : ses variantes (tailles, couleurs) partagent le code
-            $codes = [];
+            $codes = self::codes(array_values($data['items']), $variants);
             foreach (array_values($data['items']) as $i => $line) {
                 $variant = $variants->get($line['variant_id']);
-                if ($variant === null || $variant->product === null) {
-                    throw new BusinessRuleException('Un article du live n\'existe plus dans votre catalogue.', "items.{$i}.variant_id");
-                }
-                $codes[$variant->product_id] ??= self::code(count($codes));
                 $item = LiveItem::forStore($store->id)->where('live_session_id', $session->id)->where('variant_id', $variant->id)->first()
                     ?? new LiveItem(['store_id' => $store->id, 'live_session_id' => $session->id, 'variant_id' => $variant->id]);
                 $item->fill([
@@ -137,8 +132,14 @@ class LiveSales
                 if ($item !== null) {
                     $item->update(['quantity' => $item->quantity + $line['quantity']]);
                 } else {
-                    // Autre variante d'un produit déjà dans le live : même code ; sinon le code libre suivant
+                    // Autre variante d'un produit déjà dans le live : même code ; sinon la pancarte choisie, ou le code libre suivant
                     $code = $existing->first(fn (LiveItem $other) => $other->variant?->product_id === $variant->product_id)?->code;
+                    if ($code === null && ($sign = self::sign($line['code'] ?? null)) !== null) {
+                        if (in_array($sign, $used, true)) {
+                            throw new BusinessRuleException("La pancarte {$sign} est déjà utilisée dans ce live. Choisissez une autre pancarte.", "items.{$i}.code");
+                        }
+                        $code = $sign;
+                    }
                     while ($code === null && in_array($candidate = self::code($index), $used, true)) {
                         $index++;
                     }
@@ -214,6 +215,7 @@ class LiveSales
         $session->loadMissing('items.variant.levels');
         $lines = $session->items->filter(fn (LiveItem $i) => $i->variant !== null)->map(fn (LiveItem $i) => [
             'variant_id' => $i->variant_id,
+            'code' => $i->code, // mêmes pancartes que le live d'origine
             'price' => $i->price,
             'quantity' => max(1, min($i->quantity, (int) $i->variant->levels->sum(fn ($l) => $l->available()) ?: $i->quantity)),
         ])->values()->all();
@@ -845,6 +847,9 @@ class LiveSales
             ->latest('id')->first();
     }
 
+    /** Pancarte : une lettre puis un nombre de 1 à 99 (A1, B12), reconnue par CODE_PATTERN dans les messages */
+    private const SIGN_PATTERN = '/^[A-Z][1-9][0-9]?$/';
+
     private const CODE_PATTERN = '/(?<![A-Za-z0-9])(?:(\d{1,2})\s*[x×*]?\s*)?([A-Za-z])\s?(\d{1,2})(?![0-9])(?:\s*[x×*]\s*(\d{1,2})(?![0-9])|\s+(\d{1,2})\s*(?:pi[eè]ces?|pcs?|fois|exemplaires?)(?![A-Za-z]))?/iu';
 
     /**
@@ -1069,6 +1074,96 @@ class LiveSales
     /**
      * A1…A9, B1…B9, …
      */
+    /**
+     * Pancartes du live : un code par produit (ses variantes le partagent). Le code choisi par le marchand (la pancarte
+     * qu'il montrera à la caméra) est gardé ; les autres produits prennent, dans l'ordre de la liste, le premier code
+     * libre (A1…A9, B1…). Deux produits ne peuvent pas avoir la même pancarte.
+     *
+     * @param  list<array{variant_id: int, code?: ?string}>  $lines
+     * @param  Collection<int, ProductVariant>  $variants  par identifiant
+     * @return array<int, string> code par produit
+     */
+    private static function codes(array $lines, Collection $variants): array
+    {
+        $codes = [];
+        $owners = [];
+        foreach ($lines as $i => $line) {
+            $variant = $variants->get($line['variant_id']);
+            if ($variant === null || $variant->product === null) {
+                throw new BusinessRuleException('Un article du live n\'existe plus dans votre catalogue.', "items.{$i}.variant_id");
+            }
+            $code = self::sign($line['code'] ?? null);
+            if ($code === null || isset($codes[$variant->product_id])) {
+                continue;
+            }
+            if (isset($owners[$code])) {
+                throw new BusinessRuleException("La pancarte {$code} est déjà sur « {$owners[$code]} ». Choisissez une autre pancarte.", "items.{$i}.code");
+            }
+            $codes[$variant->product_id] = $code;
+            $owners[$code] = $variant->product->title;
+        }
+        $index = 0;
+        foreach ($lines as $line) {
+            $productId = $variants->get($line['variant_id'])->product_id;
+            if (isset($codes[$productId])) {
+                continue;
+            }
+            while (isset($owners[$candidate = self::code($index)])) {
+                $index++;
+            }
+            $codes[$productId] = $candidate;
+            $owners[$candidate] = true;
+        }
+
+        return $codes;
+    }
+
+    /**
+     * Pancarte écrite par le marchand (« a12 ») mise en forme (A12) ; null si vide.
+     */
+    public static function sign(?string $code): ?string
+    {
+        $code = strtoupper(trim((string) $code));
+        if ($code === '') {
+            return null;
+        }
+        if (preg_match(self::SIGN_PATTERN, $code) !== 1) {
+            throw new BusinessRuleException('Une pancarte, c\'est une lettre puis un nombre de 1 à 99 (A1, B12…).');
+        }
+
+        return $code;
+    }
+
+    /**
+     * Changer la pancarte d'un produit (toutes ses variantes) : avant le live, ou pendant tant que personne ne l'a
+     * réservé (le code annoncé ne doit pas changer sous les yeux des clientes).
+     */
+    public function changeCode(LiveSession $session, LiveItem $item, string $code): LiveSession
+    {
+        if ($session->status === 'ended') {
+            throw new BusinessRuleException('Ce live est terminé.');
+        }
+        $code = self::sign($code) ?? throw new BusinessRuleException('Choisissez une pancarte.');
+
+        DB::transaction(function () use ($session, $item, $code) {
+            LiveSession::forStore($session->store_id)->lockForUpdate()->find($session->id);
+            $group = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->where('code', $item->code)->get();
+            if ($code === $item->code) {
+                return;
+            }
+            $taken = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->where('code', $code)->with('variant.product')->first();
+            if ($taken !== null) {
+                throw new BusinessRuleException("La pancarte {$code} est déjà sur « {$this->label($taken)} ». Choisissez une autre pancarte.", 'code');
+            }
+            if (LiveReservation::forStore($session->store_id)->whereIn('live_item_id', $group->pluck('id'))->exists()) {
+                throw new BusinessRuleException("La {$item->code} est déjà réservée : sa pancarte ne peut plus changer pendant ce live.", 'code');
+            }
+            LiveItem::forStore($session->store_id)->whereIn('id', $group->pluck('id'))->update(['code' => $code]);
+        });
+
+        return $session->fresh();
+    }
+
     public static function code(int $index): string
     {
         return chr(65 + intdiv($index, 9) % 26).($index % 9 + 1);

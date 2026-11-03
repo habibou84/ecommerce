@@ -296,6 +296,48 @@ class LiveSalesTest extends TestCase
         $this->storeApi($this->store, 'POST', "lives/{$id}/items", ['items' => [['variant_id' => $foulard->variants()->value('id'), 'quantity' => 1]]])->assertStatus(422);
     }
 
+    public function test_signs_chosen_by_the_merchant_become_the_codes_without_duplicates(): void
+    {
+        $robe = $this->robe->variants()->value('id');
+        $sac = $this->sac->variants()->value('id');
+
+        // Pancarte choisie pour la robe (écrite en minuscules) ; le sac prend le premier code libre
+        $id = $this->storeApi($this->store, 'POST', 'lives', ['title' => 'Live', 'items' => [
+            ['variant_id' => $robe, 'quantity' => 2, 'code' => 'b3'],
+            ['variant_id' => $sac, 'quantity' => 2],
+        ]])->assertCreated()->assertJsonPath('data.items.0.code', 'B3')->assertJsonPath('data.items.1.code', 'A1')->json('data.id');
+        [$robeItem, $sacItem] = $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.items');
+
+        // Deux produits sur la même pancarte, ou une pancarte mal écrite : refusé
+        $this->storeApi($this->store, 'POST', 'lives', ['title' => 'Live', 'items' => [
+            ['variant_id' => $robe, 'quantity' => 1, 'code' => 'C1'], ['variant_id' => $sac, 'quantity' => 1, 'code' => 'c1'],
+        ]])->assertStatus(422)->assertJsonValidationErrors('items.1.code');
+        $this->storeApi($this->store, 'POST', 'lives', ['title' => 'Live', 'items' => [['variant_id' => $robe, 'quantity' => 1, 'code' => 'A0']]])
+            ->assertStatus(422)->assertJsonValidationErrors('items.0.code');
+
+        // Changer de pancarte avant le live ; pas sur une pancarte déjà prise
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items/{$sacItem['id']}/code", ['code' => 'C12'])->assertOk()->assertJsonPath('data.items.1.code', 'C12');
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items/{$sacItem['id']}/code", ['code' => 'B3'])->assertStatus(422)->assertJsonValidationErrors('code');
+
+        // Pendant le live : la pancarte d'un article déjà réservé ne change plus
+        $this->storeApi($this->store, 'POST', "lives/{$id}/start")->assertOk();
+        $this->page('POST', '/live/reserver', ['item_id' => $robeItem['id'], 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $this->place('Angré')->id])->assertOk();
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items/{$robeItem['id']}/code", ['code' => 'D1'])->assertStatus(422);
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items/{$sacItem['id']}/code", ['code' => 'D1'])->assertOk()->assertJsonPath('data.items.1.code', 'D1');
+
+        // Article ajouté pendant le live avec sa pancarte (pas une pancarte déjà utilisée)
+        $foulard = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Foulard', 'variants' => [['price' => 4500, 'on_hand' => 10]]])->variants()->value('id');
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items", ['items' => [['variant_id' => $foulard, 'quantity' => 1, 'code' => 'B3']]])
+            ->assertStatus(422)->assertJsonValidationErrors('items.0.code');
+        $this->storeApi($this->store, 'POST', "lives/{$id}/items", ['items' => [['variant_id' => $foulard, 'quantity' => 1, 'code' => 'e7']]])
+            ->assertOk()->assertJsonPath('meta.codes', ['E7']);
+
+        // Refaire le live : mêmes pancartes
+        $this->storeApi($this->store, 'POST', "lives/{$id}/end")->assertOk();
+        $copy = $this->storeApi($this->store, 'POST', "lives/{$id}/duplicate")->assertCreated()->json('data.items');
+        $this->assertSame(['B3', 'D1', 'E7'], array_column($copy, 'code'));
+    }
+
     public function test_whatsapp_codes_with_quantities_and_new_codes_join_the_pending_order(): void
     {
         $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();

@@ -9,6 +9,7 @@ import LiveLink from '../../../components/LiveLink.vue'
 import LiveTraining from '../../../components/LiveTraining.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import MaterielTip from '../../../components/MaterielTip.vue'
+import LiveSignPicker from '../../../components/LiveSignPicker.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money } from '../../../lib/format'
@@ -23,6 +24,8 @@ const pageUrl = ref('')
 const whatsapp = ref(null)
 const error = ref('')
 const errors = ref({})
+// Erreurs des pancartes (items.3.code) : affichées sous la liste
+const signErrors = computed(() => Object.fromEntries(Object.entries(errors.value).filter(([field]) => field.endsWith('.code'))))
 const busy = ref(false)
 const editing = ref(false)
 const share = ref(false)
@@ -123,12 +126,41 @@ function move(index, step) {
   form.items.splice(target, 0, item)
 }
 
-// A1…A9, B1… : même règle que le serveur ; les variantes d'un même produit partagent le code
+// Pancartes : celle choisie par le marchand, sinon A1…A9, B1… dans l'ordre (même règle que le serveur) ;
+// les variantes d'un même produit partagent la pancarte
 const codeAt = (i) => String.fromCharCode(65 + (Math.floor(i / 9) % 26)) + ((i % 9) + 1)
-const code = (index) => {
-  const products = []
-  form.items.slice(0, index + 1).forEach((i) => products.includes(i.product_id ?? `v${i.variant_id}`) || products.push(i.product_id ?? `v${i.variant_id}`))
-  return codeAt(products.indexOf(form.items[index].product_id ?? `v${form.items[index].variant_id}`))
+const productKey = (i) => i.product_id ?? `v${i.variant_id}`
+const signs = reactive({}) // pancarte choisie, par produit
+const codes = computed(() => {
+  const result = {}
+  const used = new Set()
+  form.items.forEach((i) => {
+    const key = productKey(i)
+    if (signs[key] && !(key in result) && !used.has(signs[key])) {
+      result[key] = signs[key]
+      used.add(signs[key])
+    }
+  })
+  let index = 0
+  form.items.forEach((i) => {
+    const key = productKey(i)
+    if (key in result) return
+    while (used.has(codeAt(index))) index++
+    result[key] = codeAt(index)
+    used.add(result[key])
+  })
+  return result
+})
+const code = (index) => codes.value[productKey(form.items[index])]
+const signing = ref(null) // article dont on choisit la pancarte
+const usedByOthers = computed(() => {
+  if (!signing.value) return {}
+  const key = productKey(signing.value)
+  return Object.fromEntries(form.items.filter((i) => productKey(i) !== key).map((i) => [codes.value[productKey(i)], i.title.split(' — ')[0]]))
+})
+function chooseSign(sign) {
+  signs[productKey(signing.value)] = sign
+  signing.value = null
 }
 const totals = computed(() => ({
   pieces: form.items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0),
@@ -142,7 +174,7 @@ async function save() {
   try {
     const { data } = await http.post('/lives', {
       title: form.title, stream_url: form.stream_url.trim() || null, hold_minutes: Number(form.hold_minutes),
-      items: form.items.map((i) => ({ variant_id: i.variant_id, price: Number(i.price), quantity: Number(i.quantity) })),
+      items: form.items.map((i) => ({ variant_id: i.variant_id, price: Number(i.price), quantity: Number(i.quantity), code: signs[productKey(i)] ? codes.value[productKey(i)] : null })),
     })
     router.push(`/gestion/live/${data.data.id}`)
   } catch (e) {
@@ -252,12 +284,14 @@ async function save() {
           <h3 class="font-extrabold">Articles du live</h3>
           <button type="button" class="btn-secondary px-3 py-1.5 text-sm" @click="openPicker">+ Choisir des articles</button>
         </div>
-        <p class="mt-1 text-xs text-slate-500">Dans l'ordre où vous les présenterez : les flèches changent l'ordre et les codes.</p>
+        <p class="mt-1 text-xs text-slate-500">Dans l'ordre où vous les présenterez : les flèches changent l'ordre et les codes. Vous montrez des pancartes à la caméra ? Touchez le code pour choisir la pancarte de l'article.</p>
         <p v-if="!form.items.length" class="mt-4 rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">Aucun article pour l'instant. Touchez « Choisir des articles ».</p>
         <ul class="mt-3 space-y-2">
           <li v-for="(i, index) in form.items" :key="i.variant_id" class="rounded-2xl border border-slate-200 p-2">
             <div class="flex items-center gap-3">
-              <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-600 font-black text-white">{{ code(index) }}</span>
+              <button type="button" class="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-600 font-black text-white" :aria-label="`Pancarte ${code(index)} : changer`" @click="signing = i">
+                {{ code(index) }}<span class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-[9px] text-red-600 shadow">✎</span>
+              </button>
               <img v-if="i.image" :src="i.image" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover" />
               <span class="min-w-0 flex-1"><b class="block truncate text-sm" :title="i.title">{{ i.title }}</b><span class="text-xs text-slate-500">{{ i.available }} en stock</span></span>
               <span class="flex shrink-0 flex-col">
@@ -273,6 +307,8 @@ async function save() {
           </li>
         </ul>
         <p v-if="errors.items" class="mt-2 text-sm text-red-600">{{ errors.items }}</p>
+        <p v-for="(message, field) in signErrors" :key="field" class="mt-2 text-sm text-red-600">{{ message }}</p>
+        <RouterLink to="/gestion/live/pancartes" class="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-emerald-700">🖨 Imprimer des pancartes (A1, A2…)</RouterLink>
       </section>
 
       <!-- Barre fixe : totaux et enregistrement -->
@@ -314,5 +350,7 @@ async function save() {
     <Modal v-if="share" title="Le lien de vos lives" @close="share = false">
       <LiveLink :url="pageUrl" />
     </Modal>
+
+    <LiveSignPicker v-if="signing" :title="signing.title.split(' — ')[0]" :current="codes[productKey(signing)]" :used="usedByOthers" @pick="chooseSign" @close="signing = null" />
   </div>
 </template>
