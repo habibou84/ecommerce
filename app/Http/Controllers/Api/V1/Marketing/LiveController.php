@@ -17,6 +17,14 @@ use Illuminate\Http\Request;
  */
 class LiveController extends Controller
 {
+    /** Pancarte : une lettre puis un nombre de 1 à 99 (a12 accepté, mis en majuscule par LiveSales::sign) */
+    private const SIGN = '/^[A-Za-z][1-9][0-9]?$/';
+
+    private const SIGN_MESSAGES = [
+        'items.*.code.regex' => 'Une pancarte, c\'est une lettre puis un nombre de 1 à 99 (A1, B12…).',
+        'code.regex' => 'Une pancarte, c\'est une lettre puis un nombre de 1 à 99 (A1, B12…).',
+    ];
+
     public function __construct(private readonly LiveSales $live) {}
 
     public function index(): JsonResponse
@@ -85,11 +93,24 @@ class LiveController extends Controller
             'items.*.variant_id' => ['required', 'integer', 'distinct'],
             'items.*.price' => ['nullable', 'integer', 'min:0', 'max:100000000'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:9999'],
-        ]);
+            'items.*.code' => ['nullable', 'string', 'regex:'.self::SIGN],
+        ], self::SIGN_MESSAGES);
         $live = $this->session($session);
         $added = $this->live->addItems($live, $data['items']);
 
         return response()->json(['data' => $this->live->state($live->fresh()), 'meta' => ['codes' => $added->pluck('code')->unique()->values()]]);
+    }
+
+    /**
+     * Pancarte d'un produit du live (toutes ses variantes) : celle que le marchand montre à la caméra.
+     */
+    public function code(Request $request, int $session, int $item): JsonResponse
+    {
+        $data = $request->validate(['code' => ['required', 'string', 'regex:'.self::SIGN]], self::SIGN_MESSAGES);
+        $live = $this->session($session);
+        $liveItem = LiveItem::forStore($live->store_id)->where('live_session_id', $live->id)->findOrFail($item);
+
+        return $this->state($this->live->changeCode($live, $liveItem, $data['code']));
     }
 
     /**
@@ -184,7 +205,8 @@ class LiveController extends Controller
             'items.*.variant_id' => ['required', 'integer', 'distinct'],
             'items.*.price' => ['nullable', 'integer', 'min:0', 'max:100000000'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:9999'],
-        ]);
+            'items.*.code' => ['nullable', 'string', 'regex:'.self::SIGN],
+        ], self::SIGN_MESSAGES);
     }
 
     private function state(LiveSession $session, int $status = 200): JsonResponse

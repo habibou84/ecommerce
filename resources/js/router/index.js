@@ -46,6 +46,9 @@ const storeRoutes = [
   },
   { path: '/livreur/:any(.*)*', redirect: '/livreur' },
   // Mode présentation du live : plein écran, sans le menu de la gestion (partagé à l'écran dans TikTok)
+  // Pancartes du live et liste d'aide à imprimer : sans le menu, seules les feuilles partent à l'impression
+  { path: '/gestion/live/pancartes', component: () => import('../views/gestion/marketing/LiveSignsPrint.vue'), meta: { platform: 'live', auth: true, title: 'Pancartes du live', permission: 'orders.manage' } },
+  { path: '/gestion/live/:id(\\d+)/pancartes', component: () => import('../views/gestion/marketing/LiveSignsPrint.vue'), props: true, meta: { platform: 'live', auth: true, title: 'Pancartes du live', permission: 'orders.manage' } },
   { path: '/gestion/live/:id(\\d+)/presentation', component: () => import('../views/gestion/marketing/LivePresentation.vue'), props: true, meta: { platform: 'live_screens', auth: true, title: 'Mode présentation', permission: 'orders.manage' } },
   {
     path: '/gestion',
