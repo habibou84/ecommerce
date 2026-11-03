@@ -65,11 +65,14 @@ class LiveScreensTest extends TestCase
         // Pas encore de live : l'écran attend, avec le WhatsApp de la boutique
         $this->platformApi('GET', 'screens/'.$created['token'])->assertJsonPath('data.paired', true)->assertJsonPath('data.live', null)
             ->assertJsonPath('data.store.whatsapp_url', 'https://wa.me/2250700000001')
-            ->assertJsonPath('data.store.whatsapp', '+225 07 00 00 00 01');
+            ->assertJsonPath('data.store.whatsapp', '+225 07 00 00 00 01')
+            // Aucun WhatsApp branché sur Jibiat Marchand : les cartes de LIVE Studio n'affichent ni numéro ni QR code
+            ->assertJsonPath('data.store.whatsapp_connected', false);
 
         // WhatsApp relié par QR code qui n'a donné que son identifiant masqué : écarté, le numéro de la boutique reste
         WhatsappLink::create(['store_id' => $this->store->id, 'status' => 'connected', 'phone' => '+123456789012345', 'connected_at' => now()]);
-        $this->platformApi('GET', 'screens/'.$created['token'])->assertJsonPath('data.store.whatsapp', '+225 07 00 00 00 01');
+        $this->platformApi('GET', 'screens/'.$created['token'])->assertJsonPath('data.store.whatsapp', '+225 07 00 00 00 01')
+            ->assertJsonPath('data.store.whatsapp_connected', true);
 
         // WhatsApp resté sur l'ancien numéro à 8 chiffres : remis aux 10 chiffres d'aujourd'hui (05 rétabli)
         WhatsappLink::query()->update(['phone' => '+22595323272']);

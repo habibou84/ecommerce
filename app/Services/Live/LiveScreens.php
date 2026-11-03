@@ -261,7 +261,7 @@ class LiveScreens
     /**
      * Nom et WhatsApp de la boutique affichés à l'écran.
      *
-     * @return array{name: string, link: string, link_label: string, link_qr: string, whatsapp: ?string, whatsapp_url: ?string, qr: ?string}
+     * @return array{name: string, link: string, link_label: string, link_qr: string, whatsapp: ?string, whatsapp_connected: bool, whatsapp_url: ?string, qr: ?string}
      */
     public function storeInfo(Store $store): array
     {
@@ -290,6 +290,10 @@ class LiveScreens
                 'outputType' => QROutputInterface::GDIMAGE_PNG, 'scale' => 8, 'imageTransparent' => false,
             ])))->render($link)),
             'whatsapp' => $normalized ? self::fullNumber($normalized) : null,
+            // WhatsApp branché sur Jibiat Marchand (numéro officiel actif, ou relié par QR code) : les codes envoyés
+            // créent la commande ; sinon les cartes de TikTok LIVE Studio n'affichent ni le numéro ni son QR code
+            'whatsapp_connected' => WhatsappAccount::forStore($store->id)->where('status', 'active')->exists()
+                || WhatsappLink::connectedFor($store->id) !== null,
             'whatsapp_url' => $url,
             // QR code qui ouvre la conversation WhatsApp (image en ligne, gardée une journée)
             'qr' => $url ? Cache::remember('live-qr:'.md5($url), now()->addDay(), fn () => (new QRCode(new QROptions([

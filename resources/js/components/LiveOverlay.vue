@@ -5,9 +5,10 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
  * Cartes du live pour TikTok LIVE Studio (écran vertical d'un téléphone) : deux cartes en hauteur, posées côte à côte
  * en haut de l'image, la vendeuse en dessous. Écrites très gros pour être lisibles sur le téléphone des clientes.
  * - « carte » (480 × 780) : l'article montré, la photo en haut (rien dessus), le code et le prix en bas ;
- * - « commander » (480 × 780) : le numéro WhatsApp, « envoie le code » et l'adresse de la page du live.
- * Pas de QR code (on ne scanne pas l'écran qu'on regarde). Tout est en « em » calculé sur la taille de la source :
- * nette si la source a la taille indiquée.
+ * - « commander » (480 × 780) : le numéro WhatsApp sur une ligne, l'adresse de la page du live sur une autre, puis le QR
+ *   code du numéro dans la place qui reste. Numéro et QR code seulement quand le WhatsApp est connecté à Jibiat
+ *   Marchand (sinon les codes envoyés ne créeraient pas la commande) : l'adresse du site seule sinon.
+ * Tout est en « em » calculé sur la taille de la source : nette si la source a la taille indiquée.
  */
 const props = defineProps({
   data: { type: Object, default: null }, // { store, live }
@@ -52,7 +53,7 @@ const flashLeft = computed(() => (shown.value?.flash_ends_at ? Math.max(0, Math.
 const chrono = computed(() => `${String(Math.floor(flashLeft.value / 60)).padStart(2, '0')}:${String(flashLeft.value % 60).padStart(2, '0')}`)
 const money = (v) => `${new Intl.NumberFormat('fr-FR').format(v).replace(/[  ]/g, ' ')} F`
 // Numéro sans l'indicatif, plus court à lire
-const phone = computed(() => String(store.value?.whatsapp || '').replace(/^\+\d{3}\s*/, ''))
+const phone = computed(() => (store.value?.whatsapp_connected ? String(store.value?.whatsapp || '').replace(/^\+\d{3}\s*/, '') : ''))
 // Adresse du site coupée seulement après un point ou une barre oblique (jamais au milieu d'un mot)
 const site = computed(() => String(store.value?.link_label || '').replace(/([./])/g, '$1\u200b'))
 </script>
@@ -62,12 +63,11 @@ const site = computed(() => String(store.value?.link_label || '').replace(/([./]
     <!-- Lien 2 : pour commander (même sans article montré) -->
     <div v-if="format === 'commander'" class="lo-order">
       <p class="lo-order-title">Pour commander</p>
-      <template v-if="phone">
-        <p class="lo-order-wa">💬 WhatsApp</p>
-        <p class="lo-order-num">{{ phone }}</p>
-      </template>
-      <p class="lo-order-hint">Envoie le code<template v-if="shown"><br>(ex. <b>{{ shown.code }}</b>)</template></p>
-      <p v-if="site" class="lo-order-site"><small>ou sur</small>{{ site }}</p>
+      <p v-if="phone" class="lo-order-num">{{ phone }}</p>
+      <p v-if="site" class="lo-order-site" :class="{ 'is-alone': !phone }">{{ site }}</p>
+      <!-- Le reste de la carte : le QR code qui ouvre la conversation WhatsApp -->
+      <div v-if="phone && store?.qr" class="lo-qr-box"><img :src="store.qr" alt="QR code WhatsApp" class="lo-qr" /></div>
+      <p v-else-if="!phone" class="lo-order-hint">Choisis tes articles<br>et commande sur le site</p>
     </div>
 
     <!-- Avant le live ou entre deux articles -->
@@ -108,14 +108,14 @@ const site = computed(() => String(store.value?.link_label || '').replace(/([./]
 .lo-sold { background: #111827; color: #fff; }
 
 /* Lien 2 : pour commander (480 × 780 : 12 em × 19,5 em) */
-.lo-order { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .55em; padding: .7em .5em; background: #15803d; text-align: center; }
+.lo-order { display: flex; flex-direction: column; align-items: center; gap: .45em; padding: .7em .5em .6em; background: #15803d; text-align: center; }
 .lo-order-title { font-size: 1.15em; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; color: #bbf7d0; }
-.lo-order-wa { font-size: 1.2em; font-weight: 800; }
-.lo-order-num { font-size: 1.55em; font-weight: 900; white-space: nowrap; letter-spacing: -.03em; }
-.lo-order-hint { font-size: 1.2em; font-weight: 800; color: #dcfce7; }
-.lo-order-hint b { color: #fde047; }
-.lo-order-site { width: 100%; background: #fff; color: #15803d; border-radius: .4em; padding: .35em .3em; font-size: .9em; font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
-.lo-order-site small { display: block; font-size: .8em; color: #475569; font-weight: 700; }
+.lo-order-num { font-size: 1.3em; font-weight: 900; white-space: nowrap; letter-spacing: -.03em; }
+.lo-order-site { width: 100%; background: #fff; color: #15803d; border-radius: .4em; padding: .3em .3em; font-size: .85em; font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+.lo-order-site.is-alone { font-size: 1.15em; padding: .5em .3em; }
+.lo-qr-box { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
+.lo-qr { height: 100%; max-width: 100%; aspect-ratio: 1; object-fit: contain; background: #fff; padding: .3em; border-radius: .4em; image-rendering: pixelated; }
+.lo-order-hint { margin-top: auto; margin-bottom: auto; font-size: 1.15em; font-weight: 800; color: #dcfce7; }
 
 @keyframes lo-in { from { opacity: 0; transform: translateY(.4em); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .lo-wait, .lo-card, .lo-order { animation: none; } }
