@@ -6,6 +6,7 @@ import ColorIcon from '../../../components/ColorIcon.vue'
 import Icon from '../../../components/Icon.vue'
 import LiveLink from '../../../components/LiveLink.vue'
 import LiveScreenTabs from '../../../components/LiveScreenTabs.vue'
+import LiveSigns from '../../../components/LiveSigns.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
@@ -381,6 +382,9 @@ async function redo() {
         </div>
         <p v-if="live.status === 'live'" class="px-0.5 text-xs text-slate-500">Touchez un code pour l'afficher en grand. « Montrer » met l'article en avant sur la page de vos clients. « Prix live » baisse le prix quelques minutes, avec un chrono sur l'écran.</p>
       </section>
+
+      <!-- Pancartes montrées à la caméra -->
+      <LiveSigns v-if="live.status !== 'ended'" :live="live" @updated="live = $event" />
 
       <!-- Avant de lancer -->
       <section v-if="live.status === 'draft'" class="card space-y-2 p-4 text-sm">
