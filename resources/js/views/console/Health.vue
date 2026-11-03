@@ -24,6 +24,11 @@ async function act(uuid, action) {
   }
 }
 const gb = (bytes) => `${(bytes / 1024 ** 3).toFixed(1)} Go`
+const BACKUP = {
+  ok: { icon: '✓', cls: 'text-emerald-700' },
+  warning: { icon: '!', cls: 'text-amber-800' },
+  error: { icon: '✗', cls: 'text-red-700' },
+}
 </script>
 
 <template>
@@ -57,6 +62,11 @@ const gb = (bytes) => `${(bytes / 1024 ** 3).toFixed(1)} Go`
       <div class="card p-4 text-sm">
         <p class="font-semibold">{{ health.sms.ready ? '✓' : '–' }} SMS · {{ health.whatsapp.connected ? '✓' : '–' }} WhatsApp du support</p>
         <p class="text-slate-600">{{ health.sms.ready ? 'SMS actifs' : 'Pas de fournisseur de SMS' }} · {{ health.whatsapp.connected ? 'WhatsApp relié' : 'WhatsApp non relié' }}</p>
+      </div>
+      <!-- Sauvegardes (deploy/backup.sh, docs/SAUVEGARDES.md) -->
+      <div v-for="b in health.backups" :key="b.key" class="card p-4 text-sm">
+        <p class="font-semibold" :class="BACKUP[b.status].cls">{{ BACKUP[b.status].icon }} {{ b.label }}</p>
+        <p class="text-slate-600">{{ b.detail }}</p>
       </div>
       <div class="card p-4 text-sm">
         <p class="font-semibold">Versions</p>

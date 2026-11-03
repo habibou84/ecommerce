@@ -129,7 +129,7 @@ systemctl reload apache2
 
 install_supervisor
 install_cron
-[[ "$APP_ENV" != "production" ]] || install_backup
+install_backup
 save_deploy_conf
 
 # ─────────────────────────── Vérification ───────────────────────────

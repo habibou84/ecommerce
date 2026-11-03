@@ -35,7 +35,7 @@ main() {
     PREVIOUS="$(as_app "git rev-parse HEAD")"
     DB_NAME="$(env_get DB_DATABASE)"
     DB_USER="$(env_get DB_USERNAME)"
-    SNAPSHOT="/var/backups/$INSTANCE/avant-mise-a-jour.dump"
+    SNAPSHOT="$(backup_dir)/avant-mise-a-jour.dump"
     # Accès au site pendant une maintenance, pour la vérification avant ouverture
     SECRET="$(random 16)"
     WORK="$APP_DIR/storage/app/deploy-build"
@@ -83,14 +83,19 @@ main() {
         maintenance=1
     fi
 
+    # Sauvegardes de la nuit, entretien et journaux : installés ou mis à jour à chaque fois (docs/SAUVEGARDES.md)
+    install_backup
+
     trap finish EXIT
     if [[ "$maintenance" == "1" ]]; then
         step "Bascule vers la nouvelle version (maintenance le temps des migrations)"
         as_app "php artisan down --retry=15 --secret='$SECRET' || true"
         MAINTENANCE_ON=1
         info "Copie de la base avant les migrations"
-        install -d -m 700 -o postgres -g postgres "$(dirname "$SNAPSHOT")"
-        sudo -u postgres pg_dump -Fc -f "$SNAPSHOT.tmp" "$DB_NAME"
+        # Écrite par root dans le dossier des sauvegardes (lisible par root seulement)
+        prepare_backup_dir
+        sudo -u postgres pg_dump -Fc "$DB_NAME" > "$SNAPSHOT.tmp"
+        pg_restore --list "$SNAPSHOT.tmp" > /dev/null
         mv "$SNAPSHOT.tmp" "$SNAPSHOT"
         SNAPSHOT_TAKEN=1
         info "$SNAPSHOT"
@@ -174,7 +179,7 @@ check_site() {
 restore_database() {
     { echo 'DROP SCHEMA public CASCADE;'
       echo "CREATE SCHEMA public AUTHORIZATION \"$DB_USER\";"
-      sudo -u postgres pg_restore -f - "$SNAPSHOT"
+      sudo -u postgres pg_restore -f - < "$SNAPSHOT"
     } | sudo -u postgres psql -q -1 -v ON_ERROR_STOP=1 -d "$DB_NAME" >/dev/null
 }
 
