@@ -4,7 +4,7 @@ import Alert from '../../../components/Alert.vue'
 import http, { download, errorMessage } from '../../../lib/http'
 
 /**
- * Cartes du live : une image par article (photo, code en très grand, prix, « Envoyez A1 sur WhatsApp »), sa
+ * Cartes du live : une image par article (photo, code en très grand, prix, « Envoie A1 + ta taille »), sa
  * version « VENDU » et « Comment commander », à enregistrer dans la galerie du téléphone puis à poser dans un coin
  * du live TikTok (effet image), ou à partager sur WhatsApp avant le live.
  */
