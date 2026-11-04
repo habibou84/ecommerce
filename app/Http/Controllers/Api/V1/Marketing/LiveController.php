@@ -7,8 +7,10 @@ use App\Models\LiveItem;
 use App\Models\LiveReservation;
 use App\Models\LiveSession;
 use App\Models\ProductVariant;
+use App\Services\Catalog\ImageStore;
 use App\Services\Live\LiveSales;
 use App\Services\Places\Places;
+use App\Services\Storefront\ThemeSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -42,6 +44,21 @@ class LiveController extends Controller
             ])->values(),
             'meta' => ['page_url' => $store->url('/live'), 'whatsapp' => LiveSales::whatsapp($store->id)],
         ]);
+    }
+
+    /**
+     * Marque de la boutique pour les pancartes : nom, logo et couleur principale de la boutique en ligne.
+     */
+    public function brand(ThemeSettings $themes, ImageStore $images): JsonResponse
+    {
+        $store = $this->currentStore();
+        $color = rescue(fn () => $themes->resolve($store)['settings']['primary_color'] ?? null, null, false);
+
+        return response()->json(['data' => [
+            'name' => $store->name,
+            'logo' => $store->logo_path ? $images->urls($store->logo_path)['medium'] : null,
+            'color' => is_string($color) && preg_match('/^#[0-9a-f]{6}$/i', $color) ? strtolower($color) : '#b91c1c',
+        ]]);
     }
 
     /**

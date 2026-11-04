@@ -7,8 +7,9 @@ import { money } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
 
 /**
- * Pancartes du live à imprimer (le code en très grand, « Écris A1 + ta taille », le nom de la boutique au choix) et
- * liste d'aide (code, article, tailles, prix, case à cocher). Sans numéro ni QR code : rien qui envoie hors de TikTok.
+ * Pancartes du live à imprimer (le code en très grand, « Envoie A1 + ta taille », le nom de la boutique au choix) et
+ * liste d'aide (code, article, tailles, prix, case à cocher). Sans numéro, QR code ni mot « WhatsApp » : rien qui
+ * envoie hors de TikTok (modération). Modèle « Signature » : logo et couleur principale de la boutique.
  * Sans live : une série de pancartes à imprimer une fois (A1 à A9…) ; avec un live : ses pancartes et sa liste d'aide.
  * Page hors du menu de la gestion, pour que seules les feuilles partent à l'impression.
  */
@@ -20,14 +21,25 @@ const view = ref(route.query.vue === 'liste' && props.id ? 'liste' : 'pancartes'
 const live = ref(null)
 const error = ref('')
 
-const options = reactive({ format: 'grand', style: 'blanc', shop: true, hint: true, live: true, letters: ['A'], upTo: 9 })
+const options = reactive({ format: 'grand', style: 'marque', shop: true, hint: true, live: true, letters: ['A'], upTo: 9 })
 const FORMATS = {
   grand: { label: 'Grandes · 2 par feuille', detail: 'demi-feuille A4, code de 7 cm', per: 2, landscape: true },
   moyen: { label: 'Moyennes · 4 par feuille', detail: 'quart de feuille, code de 4,5 cm', per: 4, landscape: false },
   etiquette: { label: 'Étiquettes · 12 par feuille', detail: 'à accrocher au cintre ou au sac', per: 12, landscape: false },
 }
-const STYLES = { blanc: 'Blanc', rouge: 'Rouge', jaune: 'Jaune' }
+const STYLES = { marque: 'Signature', blanc: 'Blanc', rouge: 'Rouge', jaune: 'Jaune' }
 const LETTERS = 'ABCDEFGH'.split('')
+
+// Logo, nom et couleur de la boutique (modèle « Signature »)
+const brand = ref(null)
+const color = computed(() => brand.value?.color ?? '#b91c1c')
+// Couleur trop claire : code et bandeau en noir pour rester lisibles à la caméra
+const light = computed(() => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(color.value.slice(i, i + 2), 16))
+  return 0.299 * r + 0.587 * g + 0.114 * b > 170
+})
+const initials = computed(() => (brand.value?.name ?? auth.store?.name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase())
+http.get('/lives/brand').then(({ data }) => { brand.value = data.data }).catch(() => {})
 
 onMounted(async () => {
   if (!props.id) return
@@ -124,9 +136,10 @@ const print = () => window.print()
             <div class="flex items-center gap-1.5">
               <span class="mr-1 font-semibold">Couleur</span>
               <button v-for="(label, key) in STYLES" :key="key" type="button" :aria-pressed="options.style === key" class="rounded-lg border-2 px-3 py-1.5 font-bold"
-                      :class="[options.style === key ? 'border-slate-900' : 'border-slate-200', { blanc: 'bg-white', rouge: 'bg-red-700 text-white', jaune: 'bg-yellow-300' }[key]]" @click="options.style = key">{{ label }}</button>
+                      :class="[options.style === key ? 'border-slate-900' : 'border-slate-200', { blanc: 'bg-white', rouge: 'bg-red-700 text-white', jaune: 'bg-yellow-300' }[key]]"
+                      :style="key === 'marque' ? { background: color, color: light ? '#111' : '#fff' } : null" @click="options.style = key">{{ label }}</button>
             </div>
-            <label class="flex items-center gap-2"><input v-model="options.hint" type="checkbox" class="h-4 w-4 accent-emerald-700" />« Écris A1 + ta taille »</label>
+            <label class="flex items-center gap-2"><input v-model="options.hint" type="checkbox" class="h-4 w-4 accent-emerald-700" />« Envoie A1 + ta taille »</label>
             <label class="flex items-center gap-2"><input v-model="options.live" type="checkbox" class="h-4 w-4 accent-emerald-700" />Pancarte « LIVE » (tous les articles)</label>
             <label v-if="options.format !== 'etiquette'" class="flex items-center gap-2"><input v-model="options.shop" type="checkbox" class="h-4 w-4 accent-emerald-700" />Nom de la boutique</label>
           </div>
@@ -145,11 +158,28 @@ const print = () => window.print()
         <!-- Feuilles A4 (aperçu réduit à l'écran, taille réelle à l'impression) -->
         <div class="sheets">
           <div v-for="(sheet, s) in sheets" :key="s" class="sheet" :class="[`f-${options.format}`, FORMATS[options.format].landscape ? 'landscape' : 'portrait']">
+            <!-- Signature : bandeau logo + nom en haut, code à la couleur de la boutique, consigne dans un bandeau en bas -->
+            <template v-if="options.style === 'marque'">
+            <div v-for="code in sheet" :key="`m-${code}`" class="sign s-marque" :style="{ '--c': color, '--on': light ? '#111' : '#fff', '--code': light ? '#111' : color }">
+              <div v-if="options.shop || options.format === 'etiquette'" class="m-top">
+                <img v-if="brand?.logo" :src="brand.logo" alt="" class="m-logo" />
+                <span v-else class="m-logo m-initials">{{ initials }}</span>
+                <b v-if="options.format !== 'etiquette' && shopName">{{ shopName }}</b>
+              </div>
+              <span class="m-code" :style="{ fontSize: `${codeSize(code)}mm` }">{{ code }}</span>
+              <div v-if="options.hint" class="m-bot">
+                <b>{{ code === 'LIVE' ? 'Envoie LIVE' : `Envoie ${code}` }}</b>
+                <span v-if="options.format !== 'etiquette'">{{ code === 'LIVE' ? 'pour voir tous les articles' : `+ ta taille · ex. ${code} M` }}</span>
+              </div>
+            </div>
+            </template>
+            <template v-else>
             <div v-for="code in sheet" :key="code" class="sign" :class="`s-${options.style}`">
               <span v-if="options.shop && options.format !== 'etiquette' && shopName" class="shop">{{ shopName }}</span>
               <span class="code" :style="{ fontSize: `${codeSize(code)}mm` }">{{ code }}</span>
-              <span v-if="options.hint" class="hint">{{ code === 'LIVE' ? 'Écris LIVE pour tout voir' : `Écris ${code} + ta taille` }}</span>
+              <span v-if="options.hint" class="hint">{{ code === 'LIVE' ? 'Envoie LIVE pour tout voir' : `Envoie ${code} + ta taille` }}</span>
             </div>
+            </template>
           </div>
         </div>
       </template>
@@ -191,6 +221,20 @@ const print = () => window.print()
 .f-etiquette .hint { font-size: 3.4mm; bottom: 7%; }
 .f-etiquette .sign::before { content: ''; position: absolute; top: 6mm; left: 50%; width: 5mm; height: 5mm; margin-left: -2.5mm; border-radius: 50%; border: .4mm solid #94a3b8; background: #fff; }
 .s-blanc { background: #fff; color: #111; }
+/* Signature : couleurs de la boutique */
+.s-marque { justify-content: space-between; background: #fff; color: #111; }
+.m-top { width: 100%; display: flex; align-items: center; gap: 4mm; padding: 7mm 9mm 5mm; border-bottom: 1.6mm solid var(--c); }
+.m-logo { width: 15mm; height: 15mm; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.m-initials { display: grid; place-items: center; background: var(--c); color: var(--on); font: 900 6mm Georgia, serif; }
+.m-top b { font-size: 6.5mm; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-code { flex: 1; display: grid; place-items: center; color: var(--code); font-weight: 900; line-height: .9; letter-spacing: -.04em; }
+.m-bot { width: 100%; background: var(--c); color: var(--on); text-align: center; padding: 6mm 4mm 7mm; }
+.m-bot b { display: block; font-size: 10mm; font-weight: 900; line-height: 1.1; }
+.m-bot span { display: block; font-size: 5mm; font-weight: 600; opacity: .9; margin-top: 1mm; }
+.f-moyen .m-top { padding: 4mm 6mm 3mm; gap: 3mm; } .f-moyen .m-logo { width: 10mm; height: 10mm; } .f-moyen .m-initials { font-size: 4mm; }
+.f-moyen .m-top b { font-size: 4.5mm; } .f-moyen .m-bot { padding: 3.5mm 3mm 4mm; } .f-moyen .m-bot b { font-size: 7mm; } .f-moyen .m-bot span { font-size: 3.5mm; }
+.f-etiquette .m-top { justify-content: center; padding: 12.5mm 3mm 1.5mm; border-bottom-width: .8mm; } .f-etiquette .m-logo { width: 7mm; height: 7mm; } .f-etiquette .m-initials { font-size: 3mm; }
+.f-etiquette .m-bot { padding: 2mm; } .f-etiquette .m-bot b { font-size: 4.5mm; }
 .s-rouge { background: #b91c1c; color: #fff; } .s-rouge .hint { color: #fde047; }
 .s-jaune { background: #fde047; color: #111; }
 .f-grand .s-jaune, .f-moyen .s-jaune { box-shadow: inset 0 0 0 6mm #fde047, inset 0 0 0 8mm #111; }
