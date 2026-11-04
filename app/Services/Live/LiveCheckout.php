@@ -104,9 +104,9 @@ class LiveCheckout
                 : $this->deliverTo($conversation, $place),
             $action === 'place' && $place !== null => $this->deliverTo($conversation, $place),
             $action === 'confirm' => $this->confirm($conversation, (int) $id),
-            $action === 'address' => $this->askCommune($conversation, 'Où faut-il livrer votre commande ?'),
-            $action === 'add' => $this->text($conversation, 'Envoyez le code de l\'article (par exemple A4, ou plusieurs : A4 + A5) : il s\'ajoute à votre commande.'),
-            default => $this->text($conversation, 'Écrivez votre commune et votre quartier, par exemple « Cocody Angré ».'),
+            $action === 'address' => $this->askCommune($conversation, "📍 *NOUVELLE ADRESSE*\n\n👇 Touchez *« Choisir ma commune »* ci-dessous"),
+            $action === 'add' => $this->text($conversation, "➕ *AJOUTER UN ARTICLE*\n\n✍️ Envoyez *le code de l'article*\n_Exemple : A4, ou plusieurs : A4 + A5_"),
+            default => $this->text($conversation, "📍 *VOTRE ADRESSE*\n\n✍️ Écrivez *votre commune + votre quartier*\n_Exemple : Cocody Angré 8e tranche_"),
         };
 
         return true;
@@ -123,30 +123,32 @@ class LiveCheckout
         $image = $this->tryImage(fn () => $this->images->recap($order, $store->name));
         $lines = $order->items->map(fn ($i) => '• '.$i->title.($i->quantity > 1 ? " × {$i->quantity}" : '').' : '.Money::format((int) $i->total))->implode("\n");
         $place = $order->shipping_place_id ? Place::with('parent')->find($order->shipping_place_id)?->label() : null;
-        $details = ($image ? '' : $lines."\n").'Livraison'.($place ? " ({$place})" : '').' : '.($order->shipping_fee > 0 ? Money::format((int) $order->shipping_fee) : 'offerte')
-            ."\n*Total à payer : ".Money::format((int) $order->total).'*';
+        $delivery = '🛵 Livraison'.($place ? " ({$place})" : '').' : '.($order->shipping_fee > 0 ? Money::format((int) $order->shipping_fee) : 'offerte');
+        $total = '💰 *Total à payer : '.Money::format((int) $order->total).'*';
+        $title = "🧾 *COMMANDE N° {$order->reference()}*";
 
         // WhatsApp relié par QR code : pas de boutons, le récapitulatif en texte et des réponses à taper
         if (! $this->official($conversation)) {
             // L'image du récapitulatif (miniatures, prix, livraison, total) avec le numéro en légende ; sinon tout en texte
             $pictured = $this->picture($conversation, $image, "🧾 Commande n° {$order->reference()}");
-            $details = "🧾 *Votre commande n° {$order->reference()}*\n".($pictured ? '*Total à payer : '.Money::format((int) $order->total).'*' : $lines."\n".$details);
+            $details = $title."\n".($pictured ? '' : $lines."\n".$delivery."\n").$total;
             if ($order->status !== OrderStatus::PendingConfirmation) {
-                return $this->text($conversation, "✅ Commande mise à jour.\n".$details);
+                return $this->text($conversation, "✅ *COMMANDE MISE À JOUR*\n".$details);
             }
             Cache::put(self::menuKey($conversation), $order->id, now()->addDay());
 
-            return $this->text($conversation, $details."\nPaiement à la livraison.\n\nRépondez :\n*1* ou *OUI* : je confirme\n*2* ou *AJOUTER* : ajouter un article"
-                ."\n*3* ou *ADRESSE* : changer l'adresse\n*4* ou *ANNULER* : annuler la commande");
+            return $this->text($conversation, $details."\n_Paiement à la livraison_\n━━━━━━━━━━━━\n👉 *RÉPONDEZ AVEC UN CHIFFRE :*\n\n"
+                ."*1* ✅ Je confirme\n*2* ➕ Ajouter un article\n*3* 📍 Changer l'adresse\n*4* ❌ Annuler");
         }
+        $details = $title."\n".($image ? '' : $lines."\n").$delivery."\n".$total;
         if ($order->status !== OrderStatus::PendingConfirmation) {
-            $text = "✅ Commande n° {$order->reference()} mise à jour.\n".$details;
+            $text = "✅ *COMMANDE MISE À JOUR*\n".$details;
 
             return $image
                 ? $this->rich($conversation, $text, fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendImage($account, $to, $image, $text))
                 : $this->text($conversation, $text);
         }
-        $text = $details."\nPaiement à la livraison. On confirme ?";
+        $text = $details."\n_Paiement à la livraison_\n\n👇 *Touchez « Je confirme » pour valider*";
 
         return $this->rich($conversation, "Commande n° {$order->reference()} : ".Money::format((int) $order->total).' (à confirmer)', fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendButtons($account, $to, $text, [
             "live:confirm:{$order->id}" => '✅ Je confirme',
@@ -210,7 +212,7 @@ class LiveCheckout
             'id' => 'live:place:'.$q['place']->id, 'title' => $q['place']->name,
             'description' => $fees->count() > 1 ? $this->feeLabel($q['fee'], false, null) : null,
         ]))->push(['id' => 'live:other', 'title' => 'Autre quartier…', 'description' => 'Écrivez-le simplement'])->values()->all();
-        $text = $commune->name.($fees->count() === 1 ? ', livraison '.Money::format((int) $fees->first()) : '').'. Dans quel quartier ?';
+        $text = "📍 *{$commune->name}*".($fees->count() === 1 ? ' · livraison '.Money::format((int) $fees->first()) : '')."\n\n👇 Touchez *« Choisir mon quartier »*";
 
         return $this->rich($conversation, $text, fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendList($account, $to, $text, 'Choisir mon quartier', $commune->name, $rows));
     }
@@ -291,13 +293,13 @@ class LiveCheckout
 
         return match ($action) {
             'confirm' => $this->confirm($conversation, $order->id),
-            'add' => $this->text($conversation, 'Envoyez le code de l\'article (ex. A4 M) : il s\'ajoute à votre commande.'),
+            'add' => $this->text($conversation, "➕ *AJOUTER UN ARTICLE*\n\n✍️ Envoyez *le code de l'article + votre taille*\n_Exemple : A4 M_"),
             'address' => Cache::put($addressKey, $order->id, now()->addHour())
-                && $this->text($conversation, 'Écrivez votre commune et votre quartier (ex. Yopougon Siporex).'),
+                && $this->text($conversation, "📍 *NOUVELLE ADRESSE*\n\n✍️ Écrivez *votre commune + votre quartier*\n_Exemple : Yopougon Siporex_"),
             'cancel' => Cache::pull($cancelKey) === $order->id
                 ? $this->cancel($conversation, $order)
                 : Cache::put($cancelKey, $order->id, now()->addMinutes(10))
-                    && $this->text($conversation, "Pour annuler la commande n° {$order->reference()}, répondez *ANNULER* encore une fois."),
+                    && $this->text($conversation, "⚠️ *VOUS VOULEZ ANNULER ?*\n\nPour annuler la commande n° {$order->reference()}, répondez *4* ou *ANNULER* encore une fois."),
         };
     }
 
@@ -319,7 +321,7 @@ class LiveCheckout
         $reservations->each->update(['status' => 'cancelled']);
         $reservations->pluck('item')->filter()->unique('id')->each(fn (LiveItem $item) => app(LiveSales::class)->promote($item));
 
-        return $this->text($conversation, "Commande n° {$order->reference()} annulée. Merci et à bientôt sur nos lives !");
+        return $this->text($conversation, "❌ *COMMANDE ANNULÉE*\n\nLa commande n° {$order->reference()} est annulée. Merci et à bientôt sur nos lives !");
     }
 
     private function confirm(Conversation $conversation, int $orderId): bool
@@ -339,9 +341,9 @@ class LiveCheckout
         $place = $order->shipping_place_id ? Place::with('parent')->find($order->shipping_place_id)?->label() : null;
         $first = trim(strtok((string) $order->customer_name, ' ') ?: '');
 
-        return $this->text($conversation, '🎉 Merci'.($first !== '' ? " {$first}" : '')." ! Commande n° {$order->reference()} confirmée.\n"
-            .'📦 Total : '.Money::format((int) $order->total)."\n"
-            .'🛵 Livraison'.($place ? " à {$place}" : '').' : le livreur vous appelle avant de passer.');
+        return $this->text($conversation, "🎉 *COMMANDE CONFIRMÉE !*\n\nMerci".($first !== '' ? " {$first}" : '')." 🙏\n🧾 N° {$order->reference()}\n"
+            .'💰 *'.Money::format((int) $order->total)."* à payer à la livraison\n"
+            .'🛵 '.($place ? "{$place} : l" : 'L').'e livreur vous appelle avant de passer.');
     }
 
     /**

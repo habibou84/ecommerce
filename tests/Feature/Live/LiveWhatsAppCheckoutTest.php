@@ -113,7 +113,8 @@ class LiveWhatsAppCheckoutTest extends TestCase
         [$photo, $list] = $this->sent();
         $this->assertSame('image', $photo['type']);
         $this->assertStringEndsWith('.jpg', $photo['image']['link']);
-        $this->assertStringContainsString('✅ A1 (Robe wax, 12 000 F) : réservée pour vous.', $photo['image']['caption']);
+        $this->assertStringContainsString("✅ *C'est réservé pour vous !*\nA1 Robe wax", $photo['image']['caption']);
+        $this->assertStringStartsWith("📍 *DERNIÈRE ÉTAPE : L'ADRESSE*", $list['interactive']['body']['text']);
         $this->assertSame(['interactive', 'list'], [$list['type'], $list['interactive']['type']]);
         $rows = $list['interactive']['action']['sections'][0]['rows'];
         $this->assertLessThanOrEqual(10, count($rows));
@@ -125,7 +126,7 @@ class LiveWhatsAppCheckoutTest extends TestCase
         // Commune touchée : la liste de ses quartiers
         $this->tap($cocody['id'], 'Cocody');
         [$quartiers] = $this->sent();
-        $this->assertSame('Cocody, livraison 1 500 F. Dans quel quartier ?', $quartiers['interactive']['body']['text']);
+        $this->assertSame("📍 *Cocody* · livraison 1 500 F\n\n👇 Touchez *« Choisir mon quartier »*", $quartiers['interactive']['body']['text']);
         $angre = collect($quartiers['interactive']['action']['sections'][0]['rows'])->firstWhere('title', 'Angré');
         $this->assertNotNull($angre);
 
@@ -151,7 +152,8 @@ class LiveWhatsAppCheckoutTest extends TestCase
         // Je confirme : la commande passe confirmée, sans appel
         $this->tap("live:confirm:{$order->id}", '✅ Je confirme', 'button_reply');
         $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
-        $this->assertStringContainsString("Commande n° {$order->reference()} confirmée", $this->sent()[0]['text']['body']);
+        $this->assertStringStartsWith('🎉 *COMMANDE CONFIRMÉE !*', $body = $this->sent()[0]['text']['body']);
+        $this->assertStringContainsString("N° {$order->reference()}", $body);
 
         // Un autre code pendant le live : ajouté à la même commande, nouveau total
         $this->text('A2');
@@ -160,12 +162,12 @@ class LiveWhatsAppCheckoutTest extends TestCase
         // Un seul message : le récapitulatif mis à jour (l'image montre tous les articles)
         $messages = $this->sent();
         $this->assertCount(1, $messages);
-        $this->assertStringContainsString('mise à jour', $messages[0]['image']['caption']);
+        $this->assertStringContainsString('COMMANDE MISE À JOUR', $messages[0]['image']['caption']);
         $this->assertStringContainsString('21 500 F', $messages[0]['image']['caption']);
 
         // Ajouter un article : la consigne en texte ; un bouton d'une autre cliente ne touche pas la commande
         $this->tap('live:add', 'Ajouter un article', 'button_reply');
-        $this->assertStringContainsString('Envoyez le code de l\'article', $this->sent()[0]['text']['body']);
+        $this->assertStringContainsString('AJOUTER UN ARTICLE', $this->sent()[0]['text']['body']);
     }
 
     public function test_several_codes_come_together_with_the_commune_question(): void
@@ -176,10 +178,9 @@ class LiveWhatsAppCheckoutTest extends TestCase
         $this->assertCount(2, $sent);
         $this->assertSame('image', $sent[0]['type']);
         $this->assertStringEndsWith('.jpg', $sent[0]['image']['link']);
-        $this->assertStringContainsString('A1 (Robe wax, 12 000 F)', $sent[0]['image']['caption']);
-        $this->assertStringContainsString('A2 (Sac cabas, 8 000 F)', $sent[0]['image']['caption']);
+        $this->assertStringContainsString("A1 Robe wax\nA2 Sac cabas", $sent[0]['image']['caption']);
         $this->assertSame(['interactive', 'list'], [$sent[1]['type'], $sent[1]['interactive']['type']]);
-        $this->assertStringContainsString('Où faut-il vous livrer', $sent[1]['interactive']['body']['text']);
+        $this->assertStringContainsString("DERNIÈRE ÉTAPE : L'ADRESSE", $sent[1]['interactive']['body']['text']);
     }
 
     public function test_a_typed_neighbourhood_still_works_and_a_reminder_comes_before_the_piece_is_released(): void
@@ -192,7 +193,7 @@ class LiveWhatsAppCheckoutTest extends TestCase
         $this->artisan('live:expire')->assertOk();
         [$reminder] = $this->sent();
         $this->assertSame('list', $reminder['interactive']['type']);
-        $this->assertStringStartsWith('⏰ Votre A1 est gardé encore 10 minutes', $reminder['interactive']['body']['text']);
+        $this->assertStringStartsWith('⏰ *Votre A1 est gardé encore 10 minutes*', $reminder['interactive']['body']['text']);
         $this->artisan('live:expire')->assertOk();
         $this->assertSame([], $this->sent());
 
