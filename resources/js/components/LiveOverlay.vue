@@ -7,6 +7,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
  * - « carte » (480 × 780) : l'article montré, la photo en haut (rien dessus), le code et le prix en bas ;
  * - « commander » (480 × 780) : « Envoie le code » avec un exemple, et « Numéro dans la bio ». Ni numéro, ni QR code,
  *   ni adresse de site : TikTok coupe ou freine les lives qui envoient les clientes hors de l'application.
+ * Mode « comment commander » choisi par la vendeuse : le lien 1 montre aussi la carte « Pour commander ».
  * Tout est en « em » calculé sur la taille de la source : nette si la source a la taille indiquée.
  */
 const props = defineProps({
@@ -58,7 +59,7 @@ const example = computed(() => shown.value?.code ?? 'A1')
 <template>
   <div ref="root" class="lo" :style="{ fontSize: `${fontSize}px` }">
     <!-- Lien 2 : pour commander (même sans article montré) -->
-    <div v-if="format === 'commander'" class="lo-order">
+    <div v-if="format === 'commander' || live?.mode === 'how'" class="lo-order">
       <p class="lo-order-title">Pour commander</p>
       <p class="lo-order-send">Envoie<br>le code</p>
       <p class="lo-order-example">ex. <b>{{ example }} M</b></p>
