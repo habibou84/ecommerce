@@ -542,6 +542,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('lives', [LiveController::class, 'index'])->middleware('feature:live')->name('lives.index');
                 Route::post('lives', [LiveController::class, 'store'])->middleware('feature:live')->name('lives.store');
                 Route::get('lives/variants', [LiveController::class, 'variants'])->middleware('feature:live')->name('lives.variants');
+                Route::get('lives/brand', [LiveController::class, 'brand'])->middleware('feature:live')->name('lives.brand');
                 Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->middleware('feature:live')->name('lives.show');
                 Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->middleware('feature:live')->name('lives.update');
                 Route::post('lives/{session}/items', [LiveController::class, 'addItems'])->whereNumber('session')->middleware('feature:live')->name('lives.items');
