@@ -20,7 +20,7 @@ const view = ref(route.query.vue === 'liste' && props.id ? 'liste' : 'pancartes'
 const live = ref(null)
 const error = ref('')
 
-const options = reactive({ format: 'grand', style: 'blanc', shop: true, hint: true, letters: ['A'], upTo: 9 })
+const options = reactive({ format: 'grand', style: 'blanc', shop: true, hint: true, live: true, letters: ['A'], upTo: 9 })
 const FORMATS = {
   grand: { label: 'Grandes · 2 par feuille', detail: 'demi-feuille A4, code de 7 cm', per: 2, landscape: true },
   moyen: { label: 'Moyennes · 4 par feuille', detail: 'quart de feuille, code de 4,5 cm', per: 4, landscape: false },
@@ -56,10 +56,12 @@ function toggleLetter(l) {
   if (index >= 0 && options.letters.length > 1) options.letters.splice(index, 1)
   else if (index < 0) options.letters.push(l)
 }
+// Pancarte « LIVE » en premier : la cliente écrit LIVE et reçoit tous les articles encore disponibles
 const codes = computed(() => {
-  if (props.id) return products.value.map((p) => p.code)
+  const live = options.live ? ['LIVE'] : []
+  if (props.id) return [...live, ...products.value.map((p) => p.code)]
   const upTo = Math.max(1, Math.min(Number(options.upTo) || 1, 30))
-  return [...options.letters].sort().flatMap((l) => Array.from({ length: upTo }, (_, i) => `${l}${i + 1}`))
+  return [...live, ...[...options.letters].sort().flatMap((l) => Array.from({ length: upTo }, (_, i) => `${l}${i + 1}`))]
 })
 const sheets = computed(() => {
   const per = FORMATS[options.format].per
@@ -70,7 +72,7 @@ const sheets = computed(() => {
 const shopName = computed(() => auth.store?.name ?? '')
 
 // Taille du code selon la place et sa longueur (A1 ou B12)
-const codeSize = (code) => ({ grand: [92, 64], moyen: [62, 44], etiquette: [38, 27] })[options.format][code.length > 2 ? 1 : 0]
+const codeSize = (code) => ({ grand: [92, 64, 50], moyen: [62, 44, 34], etiquette: [38, 27, 20] })[options.format][Math.min(code.length, 4) - 2]
 
 // Orientation de la feuille à l'impression : paysage pour les grandes pancartes (deux demi-feuilles côte à côte)
 let pageStyle
@@ -125,6 +127,7 @@ const print = () => window.print()
                       :class="[options.style === key ? 'border-slate-900' : 'border-slate-200', { blanc: 'bg-white', rouge: 'bg-red-700 text-white', jaune: 'bg-yellow-300' }[key]]" @click="options.style = key">{{ label }}</button>
             </div>
             <label class="flex items-center gap-2"><input v-model="options.hint" type="checkbox" class="h-4 w-4 accent-emerald-700" />« Écris A1 + ta taille »</label>
+            <label class="flex items-center gap-2"><input v-model="options.live" type="checkbox" class="h-4 w-4 accent-emerald-700" />Pancarte « LIVE » (tous les articles)</label>
             <label v-if="options.format !== 'etiquette'" class="flex items-center gap-2"><input v-model="options.shop" type="checkbox" class="h-4 w-4 accent-emerald-700" />Nom de la boutique</label>
           </div>
           <div v-if="!id" class="flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -145,7 +148,7 @@ const print = () => window.print()
             <div v-for="code in sheet" :key="code" class="sign" :class="`s-${options.style}`">
               <span v-if="options.shop && options.format !== 'etiquette' && shopName" class="shop">{{ shopName }}</span>
               <span class="code" :style="{ fontSize: `${codeSize(code)}mm` }">{{ code }}</span>
-              <span v-if="options.hint" class="hint">Écris {{ code }} + ta taille</span>
+              <span v-if="options.hint" class="hint">{{ code === 'LIVE' ? 'Écris LIVE pour tout voir' : `Écris ${code} + ta taille` }}</span>
             </div>
           </div>
         </div>
