@@ -2,13 +2,18 @@
 import { computed, ref } from 'vue'
 import LiveSignPicker from './LiveSignPicker.vue'
 import http, { errorMessage } from '../lib/http'
+import { useAuthStore } from '../stores/auth'
 
 /**
  * Pancartes du live (écran du live, avant et pendant) : la pancarte de chaque produit, à changer d'un geste (avant le
- * live, ou pendant tant que personne ne l'a réservé), l'impression des pancartes et la liste d'aide.
+ * live, ou pendant tant que personne ne l'a réservé), l'impression des pancartes, la liste d'aide et les cartes à
+ * afficher à l'écran (photo + code de chaque article, à télécharger).
  */
 const props = defineProps({ live: { type: Object, required: true } })
 const emit = defineEmits(['updated'])
+const auth = useAuthStore()
+// Cartes à l'écran : masquables dans la console (« Affichage des articles dans le live »)
+const cardsOn = computed(() => auth.profile?.features?.live_screens !== false)
 
 // Un produit = une pancarte (ses tailles et couleurs la partagent)
 const products = computed(() => {
@@ -41,7 +46,7 @@ async function choose(code) {
   <details class="card p-4">
     <summary class="flex cursor-pointer items-center gap-3">
       <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border-2 border-slate-900 bg-white text-sm font-black">A1</span>
-      <span class="min-w-0 flex-1"><b class="block">Pancartes à montrer à la caméra</b><span class="text-sm text-slate-500">Le code de chaque article, à imprimer et à tenir près de l'article</span></span>
+      <span class="min-w-0 flex-1"><b class="block">Pancartes à montrer à la caméra</b><span class="text-sm text-slate-500">Le code de chaque article, à imprimer, ou en cartes avec la photo à afficher à l'écran</span></span>
     </summary>
     <p v-if="error" class="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
     <ul class="mt-3 grid gap-2 sm:grid-cols-2">
@@ -54,10 +59,12 @@ async function choose(code) {
       </li>
     </ul>
     <p class="mt-2 text-xs text-slate-500">{{ live.status === 'live' ? 'Pendant le live, la pancarte d\'un article déjà réservé ne change plus.' : 'Changez la pancarte si vous en avez déjà une autre sous la main.' }}</p>
-    <div class="mt-3 grid gap-2 sm:grid-cols-2">
+    <div class="mt-3 grid gap-2" :class="cardsOn ? 'sm:grid-cols-3' : 'sm:grid-cols-2'">
       <RouterLink :to="`/gestion/live/${live.id}/pancartes`" class="btn-secondary justify-center">🖨 Imprimer les pancartes</RouterLink>
       <RouterLink :to="`/gestion/live/${live.id}/pancartes?vue=liste`" class="btn-secondary justify-center">📋 Liste d'aide</RouterLink>
+      <RouterLink v-if="cardsOn" :to="`/gestion/live/${live.id}/cartes`" class="btn-secondary justify-center">🖼 Cartes à l'écran</RouterLink>
     </div>
+    <p v-if="cardsOn" class="mt-2 text-xs text-slate-500">Cartes à l'écran : une image par article (photo, code en grand, prix), à télécharger puis à afficher dans le live (TikTok, LIVE Studio, télé).</p>
     <LiveSignPicker v-if="signing" :title="signing.title" :current="signing.code" :used="used" @pick="choose" @close="signing = null" />
   </details>
 </template>
