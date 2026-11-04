@@ -18,6 +18,8 @@ const props = defineProps({
   initial: { type: String, default: 'products' },
   // Onglet « Support » de la page du live : seulement la partie écran (télé, OBS / LIVE Studio), sans les onglets
   screenOnly: { type: Boolean, default: false },
+  // Partie de l'écran montrée seule : 'tv' (télé ou tablette) ou 'studio' (OBS · TikTok LIVE Studio) ; vide = les deux
+  part: { type: String, default: '' },
 })
 // « + Ajouter » : la page du live ouvre sa fenêtre d'ajout de produits
 const emit = defineEmits(['add'])
@@ -405,7 +407,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
     <!-- ═══ Écran ═══ -->
     <template v-else>
       <!-- Télé ou tablette -->
-      <section class="rounded-2xl border-2 border-emerald-700 bg-white p-4">
+      <section v-if="part !== 'studio'" class="rounded-2xl border-2 border-emerald-700 bg-white p-4">
         <h2 class="text-lg font-extrabold">📺 Télé ou tablette</h2>
         <p class="text-sm text-slate-500">Posée à côté de vous, filmée avec vous</p>
 
@@ -459,7 +461,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       </section>
 
       <!-- TikTok LIVE Studio : deux cartes en hauteur, côte à côte en haut de l'écran -->
-      <section class="rounded-2xl border-2 border-slate-200 bg-white p-4">
+      <section v-if="part !== 'tv'" class="rounded-2xl border-2 border-slate-200 bg-white p-4">
         <h2 class="text-lg font-extrabold">🖥️ OBS · TikTok LIVE Studio</h2>
         <p class="text-sm text-slate-500">Sur l'ordinateur · deux cartes en haut de l'écran, vous en dessous</p>
         <p v-if="studio?.online" class="mt-3 rounded-xl bg-emerald-50 p-2.5 text-base font-extrabold text-emerald-800">✅ Connecté à LIVE Studio</p>
