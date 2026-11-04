@@ -85,7 +85,9 @@ function messageState(m) {
 }
 
 // Commandes : réservations vivantes, les plus récentes d'abord
-const orders = computed(() => props.live.reservations.filter((r) => !['cancelled', 'expired'].includes(r.status)))
+// Commandes : réservations vivantes, et les commandes annulées par la cliente (effacées)
+const orders = computed(() => props.live.reservations.filter((r) => !['cancelled', 'expired'].includes(r.status) || r.order?.status === 'cancelled'))
+const ORDER_STATE = { pending_confirmation: 'à confirmer', confirmed: 'confirmée ✓', cancelled: 'annulée par la cliente' }
 const keptCount = computed(() => orders.value.filter((r) => r.status === 'reserved').length)
 const itemOf = (r) => props.live.items.find((i) => i.id === r.item_id)
 function minutesLeft(r) {
@@ -96,9 +98,53 @@ const newOrders = computed(() => orders.value.filter((r) => r.id > seenOrder.val
 watch(tab, (t) => t === 'commandes' && (seenOrder.value = Math.max(0, ...orders.value.map((r) => r.id))))
 
 // Une vibration à chaque nouvelle réservation (pas au premier chargement)
+// ── Nouvelle commande : bannière en grand, petit son et vibration ──
+const toasts = ref([])
+let toastTimer
+function firstName(r) {
+  const name = String(r.customer_name || '').replace('@', '').trim()
+  return name ? name.split(/\s+/)[0] : ''
+}
+function chime() {
+  try {
+    const audio = new (window.AudioContext || window.webkitAudioContext)()
+    ;[880, 1320].forEach((freq, i) => {
+      const osc = audio.createOscillator()
+      const gain = audio.createGain()
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0.15, audio.currentTime + i * 0.15)
+      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + i * 0.15 + 0.3)
+      osc.connect(gain).connect(audio.destination)
+      osc.start(audio.currentTime + i * 0.15)
+      osc.stop(audio.currentTime + i * 0.15 + 0.3)
+    })
+  } catch {
+    // pas de son possible : la vibration et la bannière suffisent
+  }
+}
+function announce(r) {
+  const item = props.live.items.find((i) => i.id === r.item_id)
+  toasts.value.push({ id: r.id, name: r.customer_name || phoneDisplay(r.customer_phone) || 'Une cliente', first: firstName(r), code: r.code, variant: item?.variant, image: byCode.value[r.code]?.image })
+  chime()
+  showNext()
+}
+function showNext() {
+  clearTimeout(toastTimer)
+  if (toasts.value.length) toastTimer = setTimeout(() => { toasts.value.shift(); showNext() }, 7000)
+}
+function dismiss() {
+  toasts.value.shift()
+  showNext()
+}
+onUnmounted(() => clearTimeout(toastTimer))
+
 let lastId = null
 watch(() => Math.max(0, ...props.live.reservations.map((r) => r.id)), (id) => {
-  if (lastId !== null && id > lastId) navigator.vibrate?.([120, 60, 120])
+  if (lastId !== null && id > lastId) {
+    navigator.vibrate?.([120, 60, 120])
+    // Une bannière par nouvelle commande : la vendeuse la félicite à voix haute, par son prénom
+    props.live.reservations.filter((r) => r.id > lastId && ['reserved', 'ordered'].includes(r.status)).sort((a, b) => a.id - b.id).forEach(announce)
+  }
   // Au premier chargement, rien n'est « nouveau » : seules les réservations arrivées ensuite comptent
   if (lastId === null || tab.value === 'commandes') seenOrder.value = id
   lastId = id
@@ -175,6 +221,21 @@ const ago = (iso) => {
 
 <template>
   <div class="space-y-2">
+    <!-- Nouvelle commande : à annoncer en direct, avec le prénom -->
+    <Teleport to="body">
+      <button v-if="toasts.length" type="button" class="fixed inset-x-3 top-3 z-[60] mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-slate-900 p-3 text-left text-white shadow-2xl" aria-live="polite" @click="dismiss">
+        <span class="relative h-14 w-14 shrink-0">
+          <img v-if="toasts[0].image" :src="toasts[0].image" alt="" class="h-14 w-14 rounded-xl object-cover" />
+          <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-1 text-xs font-black text-slate-900">{{ toasts[0].code }}</span>
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-[11px] font-extrabold tracking-wider text-red-400">🎉 NOUVELLE COMMANDE<template v-if="toasts.length > 1"> · +{{ toasts.length - 1 }}</template></span>
+          <span class="block truncate text-lg font-black leading-tight">{{ toasts[0].name }}</span>
+          <span class="block truncate text-xs text-white/80">{{ toasts[0].code }}<template v-if="toasts[0].variant"> · {{ toasts[0].variant }}</template></span>
+          <span class="mt-1 block text-[13px] font-bold">🗣 « Merci {{ toasts[0].first || 'à toi' }} ! Bien reçu pour {{ toasts[0].code }} ! »</span>
+        </span>
+      </button>
+    </Teleport>
     <!-- Pancarte montrée et onglets : toujours visibles -->
     <div class="sticky top-2 z-20 space-y-2">
       <section class="rounded-2xl border-2 border-slate-900 bg-white p-2.5 shadow-sm">
@@ -309,7 +370,7 @@ const ago = (iso) => {
       </div>
       <button type="button" class="w-full rounded-xl border-[1.5px] border-slate-900 bg-white py-2 text-sm font-extrabold" @click="emit('quick')">+ Réservation vue dans les commentaires</button>
       <p v-if="!orders.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">Les commandes s'afficheront ici dès les premières.</p>
-      <article v-for="r in orders" :key="r.id" class="flex items-center gap-2.5 rounded-xl bg-white p-2" :class="{ 'opacity-55': r.status === 'waiting' }">
+      <article v-for="r in orders" :key="r.id" class="flex items-center gap-2.5 rounded-xl bg-white p-2" :class="{ 'opacity-55': r.status === 'waiting' || r.order?.status === 'cancelled' }">
         <span class="relative h-10 w-10 shrink-0">
           <img v-if="byCode[r.code]?.image" :src="byCode[r.code].image" alt="" class="h-10 w-10 rounded-lg object-cover" :class="{ grayscale: r.status === 'waiting' }" />
           <span v-else class="block h-10 w-10 rounded-lg bg-slate-100" />
@@ -318,13 +379,13 @@ const ago = (iso) => {
         <div class="min-w-0 flex-1">
           <p class="truncate text-[13px] font-extrabold">
             {{ r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente' }}
-            <template v-if="r.status === 'ordered'"> · {{ money(r.unit_price) }} ✓</template>
+            <template v-if="r.order"> · {{ money(r.unit_price) }} · {{ ORDER_STATE[r.order.status] ?? 'commande créée' }}</template>
             <template v-else-if="r.status === 'reserved'"> · gardée{{ minutesLeft(r) ? ` ${minutesLeft(r)} min` : '' }} ⏳</template>
             <template v-else> · liste d'attente</template>
           </p>
           <p class="truncate text-xs text-slate-600">
             <template v-if="itemOf(r)?.variant">Taille {{ itemOf(r).variant }} · </template>
-            <template v-if="r.status === 'ordered'">{{ r.shipping_address || 'commande créée' }}</template>
+            <template v-if="r.order">{{ r.shipping_address || 'commande créée' }}</template>
             <template v-else-if="r.status === 'reserved'">quartier attendu</template>
             <template v-else>{{ r.code }} épuisé · servie si une pièce se libère</template>
           </p>

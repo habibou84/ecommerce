@@ -2,6 +2,7 @@
 
 namespace App\Services\Live;
 
+use App\Enums\CancelReason;
 use App\Enums\ConfirmationOutcome;
 use App\Enums\OrderStatus;
 use App\Models\Conversation;
@@ -12,11 +13,14 @@ use App\Models\Order;
 use App\Models\Place;
 use App\Models\Store;
 use App\Services\Orders\OrderDesk;
+use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\Inbox;
 use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
 use Jibiat\Socle\PhoneNumber;
 use Throwable;
@@ -132,6 +136,17 @@ class LiveCheckout
         $details = ($image ? '' : $lines."\n").'Livraison'.($place ? " ({$place})" : '').' : '.($order->shipping_fee > 0 ? Money::format((int) $order->shipping_fee) : 'offerte')
             ."\n*Total à payer : ".Money::format((int) $order->total).'*';
 
+        // WhatsApp relié par QR code : pas de boutons, le récapitulatif en texte et des réponses à taper
+        if (! $this->official($conversation)) {
+            $details = "🧾 *Votre commande n° {$order->reference()}*\n".$lines."\n".$details;
+            if ($order->status !== OrderStatus::PendingConfirmation) {
+                return $this->text($conversation, "✅ Commande mise à jour.\n".$details);
+            }
+            Cache::put(self::menuKey($conversation), $order->id, now()->addDay());
+
+            return $this->text($conversation, $details."\nPaiement à la livraison.\n\nRépondez :\n*1* ou *OUI* : je confirme\n*2* ou *AJOUTER* : ajouter un article"
+                ."\n*3* ou *ADRESSE* : changer l'adresse\n*4* ou *ANNULER* : annuler la commande");
+        }
         if ($order->status !== OrderStatus::PendingConfirmation) {
             $text = "✅ Commande n° {$order->reference()} mise à jour.\n".$details;
 
@@ -233,6 +248,88 @@ class LiveCheckout
             : $this->text($conversation, $pending->isEmpty() ? 'Rien à livrer pour l\'instant : envoyez le code d\'un article du live (par exemple A3).' : 'Merci ! La boutique vous appelle pour confirmer la livraison.');
     }
 
+    private static function menuKey(Conversation $conversation): string
+    {
+        return 'live-menu:'.$conversation->id;
+    }
+
+    /** Réponses comprises après le récapitulatif en texte (WhatsApp relié par QR code) */
+    private const ANSWERS = [
+        'confirm' => ['1', 'oui', 'ok', 'okay', 'd accord', 'daccord', 'je confirme', 'confirme', 'confirmer', 'c est bon', 'cest bon', 'oui je confirme'],
+        'add' => ['2', 'ajouter', 'ajout', 'ajouter un article'],
+        'address' => ['3', 'adresse', 'changer l adresse', 'changer adresse', 'changer mon adresse'],
+        'cancel' => ['4', 'annuler', 'annule', 'annulation', 'annuler la commande'],
+    ];
+
+    /**
+     * Réponse à taper au récapitulatif (WhatsApp relié par QR code) : 1 ou OUI confirme, 2 ou AJOUTER, 3 ou ADRESSE,
+     * 4 ou ANNULER (à redire une fois pour annuler). Après ADRESSE, le lieu écrit change l'adresse et les frais. Vrai si
+     * le message a été compris comme une de ces réponses.
+     */
+    public function answer(Conversation $conversation, string $text): bool
+    {
+        if ($this->official($conversation)) {
+            return false;
+        }
+        $phone = PhoneNumber::normalize($conversation->contact);
+        $addressKey = 'live-address:'.$conversation->id;
+        if (Cache::has($addressKey)) {
+            $place = app(PlaceMatcher::class)->search($text, $this->places->forStore(Store::findOrFail($conversation->store_id)), 1)->first();
+            if ($place !== null) {
+                Cache::forget($addressKey);
+
+                return $this->deliverTo($conversation, $place);
+            }
+        }
+        if (! Cache::has(self::menuKey($conversation))) {
+            return false;
+        }
+        $words = Str::of(Str::ascii(mb_strtolower($text)))->replaceMatches('/[^a-z0-9 ]+/', ' ')->squish()->value();
+        $action = collect(self::ANSWERS)->search(fn (array $answers) => in_array($words, $answers, true));
+        if ($action === false) {
+            return false;
+        }
+        $order = $this->liveOrder($conversation->store_id, $phone);
+        if ($order === null) {
+            Cache::forget(self::menuKey($conversation));
+
+            return $this->text($conversation, 'Cette commande est déjà en route ou terminée : appelez la boutique pour toute question.');
+        }
+        $cancelKey = 'live-cancel:'.$conversation->id;
+
+        return match ($action) {
+            'confirm' => $this->confirm($conversation, $order->id),
+            'add' => $this->text($conversation, 'Envoyez le code de l\'article (ex. A4 M) : il s\'ajoute à votre commande.'),
+            'address' => Cache::put($addressKey, $order->id, now()->addHour())
+                && $this->text($conversation, 'Écrivez votre commune et votre quartier (ex. Yopougon Siporex).'),
+            'cancel' => Cache::pull($cancelKey) === $order->id
+                ? $this->cancel($conversation, $order)
+                : Cache::put($cancelKey, $order->id, now()->addMinutes(10))
+                    && $this->text($conversation, "Pour annuler la commande n° {$order->reference()}, répondez *ANNULER* encore une fois."),
+        };
+    }
+
+    /**
+     * Annulation demandée par la cliente : la commande est annulée, les pièces reviennent au live et la liste d'attente
+     * est servie.
+     */
+    private function cancel(Conversation $conversation, Order $order): bool
+    {
+        try {
+            $this->desk->cancel($order, CancelReason::CustomerRequest, 'Annulée par la cliente sur WhatsApp (live)', null);
+        } catch (Throwable $e) {
+            Log::info('Live : commande non annulée', ['order' => $order->id, 'error' => $e->getMessage()]);
+
+            return $this->text($conversation, 'La commande n\'a pas pu être annulée : la boutique va vous contacter.');
+        }
+        Cache::forget(self::menuKey($conversation));
+        $reservations = LiveReservation::forStore($order->store_id)->with('item')->where('order_id', $order->id)->get();
+        $reservations->each->update(['status' => 'cancelled']);
+        $reservations->pluck('item')->filter()->unique('id')->each(fn (LiveItem $item) => app(LiveSales::class)->promote($item));
+
+        return $this->text($conversation, "Commande n° {$order->reference()} annulée. Merci et à bientôt sur nos lives !");
+    }
+
     private function confirm(Conversation $conversation, int $orderId): bool
     {
         $phone = PhoneNumber::normalize($conversation->contact);
@@ -246,6 +343,7 @@ class LiveCheckout
         if ($order->status === OrderStatus::Cancelled) {
             return $this->text($conversation, "La commande n° {$order->reference()} a été annulée : écrivez-nous si c'est une erreur.");
         }
+        Cache::forget(self::menuKey($conversation));
         $place = $order->shipping_place_id ? Place::with('parent')->find($order->shipping_place_id)?->label() : null;
         $first = trim(strtok((string) $order->customer_name, ' ') ?: '');
 
