@@ -94,10 +94,11 @@ class DeliveryAppDriver implements CarrierDriver
         return RemoteShipment::fromDeliveryApp($response->json('data'));
     }
 
-    public function cancel(CarrierConnection $connection, Shipment $shipment, ?string $reason): RemoteShipment
+    public function cancel(CarrierConnection $connection, Shipment $shipment, ?string $reason, ?string $reasonCode = null): RemoteShipment
     {
+        // Contrat 1.9 : motif de la liste (reason_code) et précision ; un texte seul vaut « Autre » chez l'entreprise
         $response = $this->send($connection, fn (PendingRequest $http) => $http
-            ->post('orders/'.rawurlencode($shipment->carrier_tracking_code).'/cancel', ['reason' => $reason]));
+            ->post('orders/'.rawurlencode($shipment->carrier_tracking_code).'/cancel', array_filter(['reason_code' => $reasonCode, 'reason' => $reason], fn ($v) => $v !== null)));
 
         return RemoteShipment::fromDeliveryApp($response->json('data'));
     }

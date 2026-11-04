@@ -42,7 +42,7 @@ class ManualDriver implements CarrierDriver
         return new RemoteShipment(trackingCode: '', status: ShipmentStatus::Requested, rawStatus: 'requested');
     }
 
-    public function cancel(CarrierConnection $connection, Shipment $shipment, ?string $reason): RemoteShipment
+    public function cancel(CarrierConnection $connection, Shipment $shipment, ?string $reason, ?string $reasonCode = null): RemoteShipment
     {
         return new RemoteShipment(trackingCode: (string) $shipment->carrier_tracking_code, status: ShipmentStatus::Cancelled, rawStatus: 'cancelled');
     }

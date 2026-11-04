@@ -357,6 +357,36 @@ class ShippingTest extends TestCase
         $this->assertSame([5, 0], $this->stock());
     }
 
+    public function test_cancellations_say_who_and_why(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, $connection);
+
+        // Annulée par l'entreprise (contrat 1.9) : qui et pourquoi, alerte de la boutique
+        $cancelled = Contract::example('order-cancelled')['data'];
+        $this->webhook($connection, 'order.status_changed', ['order' => $cancelled], 'evt-c')->assertOk();
+        $shipment->refresh();
+        $this->assertSame('cancelled', $shipment->status->value);
+        $this->assertSame('recipient_unreachable', $shipment->carrier_cancellation['reason']);
+        $text = 'Annulée par Koné (Dispatch) : Client injoignable avant le ramassage · Client appelé 3 fois à 9 h, 10 h et 11 h, sans réponse.';
+        $this->assertSame($text, $shipment->events()->reorder()->latest('id')->first()->note);
+        $this->assertContains('shipment_cancelled', DatabaseNotification::all()->pluck('data.kind'));
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertOk()->assertJsonPath('data.shipments.0.cancellation_text', $text);
+
+        // Annulée par la boutique : motif de la liste envoyé à l'entreprise, obligatoire
+        $this->stub([self::API.'/orders' => Http::response(['data' => $this->remoteOrder('pending', ['tracking_code' => 'LV-2'])], 201)]);
+        $second = $this->ship($order->fresh(), $connection);
+        $this->storeApi($this->store, 'POST', "shipments/{$second->id}/cancel")->assertStatus(422);
+        $this->storeApi($this->store, 'POST', "shipments/{$second->id}/cancel", ['reason_code' => 'duplicate'])->assertStatus(422);
+        $this->stub([self::API.'/orders/LV-2/cancel' => Http::response(['data' => $this->remoteOrder('cancelled', ['tracking_code' => 'LV-2'])])]);
+        $this->storeApi($this->store, 'POST', "shipments/{$second->id}/cancel", ['reason_code' => 'out_of_stock', 'reason' => 'Dernière pièce vendue'])
+            ->assertOk()->assertJsonPath('data.status', 'cancelled');
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/orders/LV-2/cancel')
+            && $request['reason_code'] === 'out_of_stock' && $request['reason'] === 'Dernière pièce vendue');
+        $this->assertSame('Produit en rupture · Dernière pièce vendue', $second->events()->reorder()->latest('id')->first()->note);
+    }
+
     public function test_a_late_webhook_does_not_move_the_status_backwards(): void
     {
         $connection = $this->connect();

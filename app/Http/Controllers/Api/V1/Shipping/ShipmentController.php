@@ -213,8 +213,11 @@ class ShipmentController extends Controller
 
     public function cancel(Request $request, int $shipment): JsonResponse
     {
-        $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
-        $model = $this->desk->cancel(Shipment::findOrFail($shipment), $data['reason'] ?? null, $request->user());
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:255'],
+            'reason_code' => ['nullable', Rule::in(array_keys(Contract::CANCEL_REASONS_MERCHANT))],
+        ], [], ['reason_code' => 'motif']);
+        $model = $this->desk->cancel(Shipment::findOrFail($shipment), $data['reason'] ?? null, $request->user(), $data['reason_code'] ?? null);
 
         return response()->json(['data' => $this->present($model)]);
     }
