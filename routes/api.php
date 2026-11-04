@@ -563,6 +563,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('lives/{session}/duplicate', [LiveController::class, 'duplicate'])->whereNumber('session')->middleware('throttle:20,1')->middleware('feature:live')->name('lives.duplicate');
                 Route::post('lives/{session}/end', [LiveController::class, 'end'])->whereNumber('session')->middleware('feature:live')->name('lives.end');
                 Route::post('lives/{session}/reservations', [LiveController::class, 'reserve'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live')->name('lives.reserve');
+                Route::post('lives/{session}/reservations/{reservation}/place', [LiveController::class, 'place'])->whereNumber(['session', 'reservation'])->middleware('throttle:60,1')->middleware('feature:live')->name('lives.place');
                 Route::post('lives/{session}/reservations/{reservation}/cancel', [LiveController::class, 'cancel'])->whereNumber(['session', 'reservation'])->middleware('feature:live')->name('lives.cancel');
             });
 

@@ -60,7 +60,57 @@ class PlaceMatcher
             $found = $found->concat($partial)->unique('id');
         }
 
+        // Rien trouvé : une petite faute de frappe dans une réponse courte (« Yopugon », « Koumasi »)
+        if ($found->isEmpty()) {
+            $found = $this->nearest($text, $places);
+        }
+
         return $found->take($limit)->values();
+    }
+
+    /**
+     * Lieux dont le nom diffère d'une ou deux lettres d'un mot (ou de deux mots qui se suivent) d'une réponse courte :
+     * 1 lettre pour un nom de 5 à 7 lettres, 2 à partir de 8 ; même première lettre ; jamais dans une question ou un
+     * long message (on ne devine pas un lieu au milieu d'une phrase).
+     *
+     * @param  Collection<int, Place>  $places
+     * @return Collection<int, Place>
+     */
+    public function nearest(string $text, Collection $places): Collection
+    {
+        $words = array_values(array_filter(explode(' ', self::normalize($text))));
+        if ($words === [] || count($words) > 4 || str_contains($text, '?')) {
+            return collect();
+        }
+        $candidates = $words;
+        for ($i = 0; $i < count($words) - 1; $i++) {
+            $candidates[] = $words[$i].' '.$words[$i + 1];
+        }
+        $scored = $places->map(function (Place $place) use ($candidates) {
+            $best = null;
+            foreach ($this->names($place) as $name) {
+                $length = mb_strlen($name);
+                if ($length < 5) {
+                    continue;
+                }
+                $allowed = $length >= 8 ? 2 : 1;
+                foreach ($candidates as $word) {
+                    if ($word[0] !== $name[0] || abs(mb_strlen($word) - $length) > $allowed) {
+                        continue;
+                    }
+                    $distance = levenshtein($word, $name);
+                    if ($distance <= $allowed && ($best === null || $distance < $best)) {
+                        $best = $distance;
+                    }
+                }
+            }
+
+            return $best === null ? null : ['place' => $place, 'distance' => $best];
+        })->filter();
+
+        // Le plus proche, et à égalité le quartier avant la commune
+        return $scored->sortBy(fn (array $s) => [$s['distance'], $s['place']->type === 'neighborhood' ? 0 : 1, mb_strlen($s['place']->name)])
+            ->pluck('place')->values();
     }
 
     /**
