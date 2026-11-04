@@ -3,6 +3,7 @@ import AiMeter from '../../../components/AiMeter.vue'
 import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import NetworkMark from '../../../components/NetworkMark.vue'
 import Icon from '../../../components/Icon.vue'
+import WhatsAppLink from '../../../components/WhatsAppLink.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
@@ -38,12 +39,22 @@ const numbers = ref([])
 const metaBlock = ref(null) // numéro officiel bloqué par Meta
 const disconnecting = ref('')
 const disconnectError = ref('')
+// WhatsApp relié par QR code : proposé seulement si la console l'a autorisé pour la boutique
+const canLink = computed(() => canManage.value && auth.profile?.whatsapp_qr === true)
+const offerLink = computed(() => listLoaded.value && canLink.value && !linked.value)
+const showLink = ref(false)
+const justLinked = ref(false)
+function onLinked() {
+  showLink.value = false
+  justLinked.value = true
+  loadList()
+}
 const NUMBER_KIND = { official: 'Numéro officiel (Meta)', linked: 'WhatsApp relié par QR code' }
 // Bandeau au-dessus de la boîte : la boîte raccourcit d'autant (sur téléphone, caché dans une conversation)
 const banner = computed(() => {
   if (!listLoaded.value || (props.id && window.innerWidth < 1024)) return 0
   const blocked = metaBlock.value ? 3.5 : 0
-  if (numbers.value.length) return blocked + 1.5 + 2.5 * numbers.value.length
+  if (numbers.value.length) return blocked + 1.5 + 2.5 * numbers.value.length + (offerLink.value && !showLink.value ? 2.5 : 0)
   return !connected.value && canManage.value ? 4.5 : 0
 })
 async function disconnectNumber(n) {
@@ -318,6 +329,9 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
       <span class="min-w-0 flex-1"><b>Meta bloque vos messages WhatsApp</b><template v-if="metaBlock.reason"> : {{ metaBlock.reason }}</template>.</span>
       <RouterLink v-if="canManage" to="/gestion/whatsapp" class="font-semibold text-red-800 underline">Voir quoi faire</RouterLink>
     </div>
+    <!-- WhatsApp relié par QR code (autorisé par la console pour cette boutique) -->
+    <WhatsAppLink v-if="showLink && offerLink" compact @linked="onLinked" />
+    <Alert v-if="justLinked" tone="success">WhatsApp relié : les messages de vos clients arrivent maintenant ici.</Alert>
     <!-- Numéros connectés, avec « Déconnecter » pour le gérant -->
     <div v-if="listLoaded && numbers.length" class="flex-col gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900" :class="id ? 'hidden lg:flex' : 'flex'">
       <div v-for="n in numbers" :key="n.kind" class="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -330,11 +344,16 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
         </button>
       </div>
       <p v-if="disconnectError" class="text-red-700">{{ disconnectError }}</p>
+      <div v-if="offerLink && !showLink" class="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-emerald-200 pt-2">
+        <span class="min-w-0 flex-1 text-emerald-800">Vous pouvez aussi relier un WhatsApp par QR code.</span>
+        <button type="button" class="btn-ghost px-2 py-1 text-sm text-emerald-800" @click="showLink = true">Relier par QR code</button>
+      </div>
     </div>
     <!-- Aucun WhatsApp : la connexion se fait avec Facebook dans Réglages › WhatsApp -->
     <div v-else-if="listLoaded && !connected && canManage" class="flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:flex-row sm:items-center" :class="id ? 'hidden lg:flex' : 'flex'">
       <span class="flex min-w-0 flex-1 items-start gap-2"><Icon name="messages" :size="20" class="mt-0.5 shrink-0" />Recevez ici les messages WhatsApp de vos clients : connectez votre numéro avec Facebook.</span>
       <RouterLink to="/gestion/whatsapp" class="btn-brand px-3 py-1.5 text-sm">Connecter mon WhatsApp</RouterLink>
+      <button v-if="offerLink && !showLink" type="button" class="btn-secondary px-3 py-1.5 text-sm" @click="showLink = true">Relier par QR code</button>
     </div>
     <Alert v-else-if="listLoaded && !connected" tone="warning">
       Les messages des clients arrivent ici quand {{ sources }} {{ metaMessages ? 'sont connectés' : 'est connecté' }}. Demandez au gérant de la boutique de les relier.
