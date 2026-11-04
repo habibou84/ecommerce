@@ -6,6 +6,7 @@ use App\Enums\ShipmentStatus;
 use App\Models\CourierAssignment;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
+use App\Services\Shipping\Drivers\RemoteShipment;
 
 /**
  * Expédition telle que l'affichent la gestion (fiche commande, liste des expéditions).
@@ -80,6 +81,10 @@ class ShipmentPresenter
             'carrier_actions' => self::carrierActions($s),
             // Notes du livreur chez l'entreprise de livraison : peut-on le noter, note de la boutique, note du client
             'carrier_ratings' => $s->carrier_ratings,
+            'carrier_cancellation' => $s->carrier_cancellation,
+            // Course chez une entreprise par API : annuler demande un motif de la liste
+            'connection_is_api' => (bool) ($s->connection?->isApi() && $s->carrier_tracking_code),
+            'cancellation_text' => RemoteShipment::cancellationText($s->carrier_cancellation, $s->connection?->name ?? 'l\'entreprise'),
             'can_rate_courier' => $s->connection?->isApi() && $s->carrier_tracking_code && ($s->carrier_ratings['can_rate'] ?? false),
             'attempts_count' => $s->attempts_count,
             'failure_reason' => $s->failure_reason,

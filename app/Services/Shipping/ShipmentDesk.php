@@ -29,6 +29,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Jibiat\Socle\Contract\Contract;
 use Jibiat\Socle\Money;
 use Jibiat\Socle\PhoneNumber;
 use Throwable;
@@ -286,17 +287,24 @@ class ShipmentDesk
         return implode("\n", $lines);
     }
 
-    public function cancel(Shipment $shipment, ?string $reason, ?User $actor): Shipment
+    public function cancel(Shipment $shipment, ?string $reason, ?User $actor, ?string $reasonCode = null): Shipment
     {
         if (! $shipment->status->isCancellable()) {
             throw new BusinessRuleException('Le colis est déjà parti : la livraison ne peut plus être annulée.');
         }
 
         $connection = $shipment->connection;
+        // Entreprise de livraison (contrat 1.9) : un motif est obligatoire
+        if ($connection?->isApi() && $shipment->carrier_tracking_code && $reasonCode === null && blank($reason)) {
+            throw new BusinessRuleException('Indiquez pourquoi vous annulez la livraison.', 'reason_code');
+        }
+        // Envoyé : le code du motif et la précision ; noté ici : « Motif · précision »
         $remote = $connection
-            ? $this->connections->driver($connection)->cancel($connection, $shipment, $reason)
+            ? $this->connections->driver($connection)->cancel($connection, $shipment, filled($reason) ? $reason : null, $reasonCode)
             : new RemoteShipment(trackingCode: '', status: ShipmentStatus::Cancelled, rawStatus: 'cancelled');
-        $this->apply($shipment, $remote, 'user', $reason, $actor);
+        $label = $reasonCode !== null ? (Contract::CANCEL_REASONS_MERCHANT[$reasonCode] ?? null) : null;
+        $note = collect([$reasonCode === 'other' ? null : $label, filled($reason) ? $reason : null])->filter()->implode(' · ');
+        $this->apply($shipment, $remote, 'user', $note !== '' ? $note : null, $actor);
 
         return $shipment->fresh();
     }
@@ -506,6 +514,7 @@ class ShipmentDesk
                 'needs_decision' => $stale ? null : $remote->needsDecision,
                 'return_requested' => $stale ? null : $remote->returnRequested,
                 'carrier_ratings' => $remote->ratings,
+                'carrier_cancellation' => $remote->cancellation,
             ], fn ($v) => $v !== null))->forceFill(['last_synced_at' => $source === 'user' ? $shipment->last_synced_at : now()]);
             $newDate = $shipment->scheduled_date?->toDateString();
 
@@ -532,7 +541,10 @@ class ShipmentDesk
             $shipment->picked_up_at ??= $to->hasLeft() ? $occurredAt : null;
             $shipment->save();
 
-            $this->event($shipment, $to, $remote->rawStatus, $source, $note ?? $remote->incident, $actor, $occurredAt);
+            // Annulée ou refusée chez l'entreprise : qui et pourquoi dans l'historique
+            $why = in_array($to, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true)
+                ? RemoteShipment::cancellationText($remote->cancellation, $shipment->connection?->name ?? 'l\'entreprise') : null;
+            $this->event($shipment, $to, $remote->rawStatus, $source, $note ?? $why ?? $remote->incident, $actor, $occurredAt);
             $this->updateOrder($shipment, $to, $actor, $source, $remote);
         });
     }
@@ -559,6 +571,8 @@ class ShipmentDesk
 
         $alert = match ($to) {
             ShipmentStatus::Rejected => 'Course refusée',
+            // Annulée par l'entreprise de livraison (pas par la boutique elle-même)
+            ShipmentStatus::Cancelled => ($remote->cancellation['by'] ?? null) === 'company' ? 'Livraison annulée' : null,
             ShipmentStatus::Failed => 'Échec de livraison',
             ShipmentStatus::Rescheduled => 'Livraison reportée',
             ShipmentStatus::Lost => 'Colis perdu',
@@ -567,9 +581,11 @@ class ShipmentDesk
         };
         // Alerte quand l'information vient du terrain (transporteur ou livreur), pas d'une saisie dans la gestion
         if ($alert && ($actor === null || $source === 'courier')) {
-            $detail = $to === ShipmentStatus::Rescheduled && $shipment->rescheduled_to
-                ? trim(($shipment->failure_reason ? $shipment->failure_reason.', ' : '').'nouvelle date le '.$shipment->rescheduled_to->format('d/m/Y'))
-                : $shipment->failure_reason;
+            $detail = match (true) {
+                $to === ShipmentStatus::Rescheduled && $shipment->rescheduled_to !== null => trim(($shipment->failure_reason ? $shipment->failure_reason.', ' : '').'nouvelle date le '.$shipment->rescheduled_to->format('d/m/Y')),
+                in_array($to, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true) && $remote->cancellation !== null => RemoteShipment::cancellationText($remote->cancellation, $shipment->connection?->name ?? 'l\'entreprise'),
+                default => $shipment->failure_reason,
+            };
             $this->notifier->notify($shipment->store, Permission::OrdersView->value, new ShipmentAlert($shipment, $alert, $detail));
         }
 
