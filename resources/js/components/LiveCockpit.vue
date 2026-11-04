@@ -69,10 +69,12 @@ const allPieces = computed(() => products.value.reduce((sum, p) => sum + p.quant
 
 // Messages : code lu (ou capture lue), question sans réponse
 const messageFilter = ref('all')
-const isQuestion = (m) => m.type === 'text' && !m.codes.length && !m.answered
+// « LIVE » : la liste des articles est partie toute seule, ce n'est pas une question
+const isQuestion = (m) => m.type === 'text' && !m.list && !m.codes.length && !m.answered
 const questions = computed(() => (props.live.messages ?? []).filter(isQuestion))
 const messages = computed(() => (messageFilter.value === 'todo' ? questions.value : props.live.messages ?? []))
 function messageState(m) {
+  if (m.list) return 'LISTE ENVOYÉE'
   if (!m.codes.length) return m.type === 'image' ? 'CAPTURE' : null
   const r = props.live.reservations.find((x) => x.customer_phone === m.phone && m.codes.includes(x.code) && x.status !== 'cancelled')
   return { ordered: 'COMMANDÉ', reserved: 'QUARTIER ?', waiting: 'EN ATTENTE', expired: 'LIBÉRÉ' }[r?.status] ?? 'LU'

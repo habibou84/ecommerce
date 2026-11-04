@@ -486,6 +486,48 @@ class LiveSalesTest extends TestCase
             ->assertJsonPath('data.summary.orders', 1)->assertJsonPath('data.summary.amount', 20000)->assertJsonPath('data.summary.waiting', 1);
     }
 
+    public function test_live_sends_every_article_still_available_with_the_page_link(): void
+    {
+        $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
+        $this->bridge(['type' => 'status', 'status' => 'connected', 'phone' => '+2250700000001'])->assertOk();
+        $id = $this->prepare(robes: 1);
+        $this->assertTrue(LiveSales::asksForList('Live ?'));
+        $this->assertTrue(LiveSales::asksForList('catalogue stp'));
+        $this->assertFalse(LiveSales::asksForList('je veux voir le live demain'));
+        $this->assertFalse(LiveSales::asksForList('A1'));
+
+        // « LIVE » : les deux articles, le prix, comment répondre et la page du live
+        $this->message('L1', 'LIVE');
+        $list = end($this->whatsapp);
+        $this->assertStringContainsString('*A1* · Robe wax · 12', $list);
+        $this->assertStringContainsString('*A2* · Sac cabas · 8', $list);
+        $this->assertStringContainsString('le code + votre taille', $list);
+        $this->assertStringContainsString('/live', $list);
+        $this->assertSame(0, LiveReservation::count());
+
+        // Redemandée tout de suite : pas de rafale ; plus tard, la robe partie n'apparaît plus
+        $this->message('L2', 'live');
+        $this->assertCount(1, $this->whatsapp);
+        $this->message('M1', 'A1', '2250701020304');
+        $this->travel(3)->minutes();
+        $count = count($this->whatsapp);
+        $this->message('L3', 'Liste');
+        $this->assertCount($count + 1, $this->whatsapp);
+        $this->assertStringNotContainsString('*A1*', end($this->whatsapp));
+        $this->assertStringContainsString('*A2*', end($this->whatsapp));
+
+        // Écran de la vendeuse : « LIVE » n'est pas une question à répondre
+        $feed = $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.messages');
+        $this->assertTrue(collect($feed)->firstWhere('body', 'Liste')['list']);
+        $this->assertFalse(collect($feed)->firstWhere('body', 'A1')['list']);
+
+        // Sans live : le lien de la boutique
+        $this->storeApi($this->store, 'POST', "lives/{$id}/end")->assertOk();
+        $this->travel(3)->minutes();
+        $this->message('L4', 'catalogue');
+        $this->assertStringContainsString('pas de live en ce moment', end($this->whatsapp));
+    }
+
     public function test_a_kept_piece_without_neighbourhood_goes_to_the_waiting_list(): void
     {
         $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
