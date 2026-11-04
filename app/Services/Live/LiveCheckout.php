@@ -49,16 +49,6 @@ class LiveCheckout
     }
 
     /**
-     * Photo de l'article avec la légende ; faux si pas de photo ou pas de numéro officiel (l'appelant écrit le texte).
-     */
-    public function itemPhoto(Conversation $conversation, LiveItem $item, string $caption): bool
-    {
-        $url = $this->images->item($item);
-
-        return $url !== null && $this->rich($conversation, $caption, fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendImage($account, $to, $url, $caption));
-    }
-
-    /**
      * Liste des communes livrées, avec le prix de la livraison sous chacune.
      */
     public function askCommune(Conversation $conversation, string $text): bool
@@ -138,7 +128,9 @@ class LiveCheckout
 
         // WhatsApp relié par QR code : pas de boutons, le récapitulatif en texte et des réponses à taper
         if (! $this->official($conversation)) {
-            $details = "🧾 *Votre commande n° {$order->reference()}*\n".$lines."\n".$details;
+            // L'image du récapitulatif (miniatures, prix, livraison, total) avec le numéro en légende ; sinon tout en texte
+            $pictured = $this->picture($conversation, $image, "🧾 Commande n° {$order->reference()}");
+            $details = "🧾 *Votre commande n° {$order->reference()}*\n".($pictured ? '*Total à payer : '.Money::format((int) $order->total).'*' : $lines."\n".$details);
             if ($order->status !== OrderStatus::PendingConfirmation) {
                 return $this->text($conversation, "✅ Commande mise à jour.\n".$details);
             }
@@ -405,6 +397,26 @@ class LiveCheckout
             return $this->inbox->replyRich($conversation, $preview, $send) !== null;
         } catch (Throwable $e) {
             Log::info('Live : message WhatsApp non envoyé', ['conversation' => $conversation->id, 'error' => $e->getMessage()]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Une image avec sa légende (WhatsApp officiel ou relié par QR code) ; faux sans image ou si l'envoi échoue
+     * (l'appelant écrit alors le texte seul).
+     */
+    public function picture(Conversation $conversation, ?string $image, string $caption): bool
+    {
+        if ($image === null) {
+            return false;
+        }
+        try {
+            $this->inbox->replyImageAutomatically($conversation, $image, $caption);
+
+            return true;
+        } catch (Throwable $e) {
+            Log::info('Live : image WhatsApp non envoyée', ['conversation' => $conversation->id, 'error' => $e->getMessage()]);
 
             return false;
         }

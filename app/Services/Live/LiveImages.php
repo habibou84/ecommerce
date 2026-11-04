@@ -279,6 +279,79 @@ class LiveImages
         return $path;
     }
 
+    /**
+     * Une seule image pour plusieurs articles (800 px de large) : bandeau orange avec le titre, puis une ligne par
+     * article (miniature avec le code en rouge, nom, détail, prix), et une phrase en bas. Sert à la liste « LIVE » et aux
+     * articles réservés après un code : un message au lieu d'une photo par article. Adresse publique de l'image.
+     *
+     * @param  list<array{code: ?string, title: string, detail: ?string, price: ?int, image: ?ProductImage}>  $lines
+     */
+    public function board(int $storeId, string $title, array $lines, ?string $footer = null, ?string $subtitle = null): string
+    {
+        $key = md5(json_encode([$title, $subtitle, $footer, array_map(fn ($l) => [$l['code'], $l['title'], $l['detail'], $l['price'], $l['image']?->id], $lines)]));
+        $path = "live/{$storeId}/board-".substr($key, 0, 16).'.jpg';
+        if ($this->disk()->exists($path)) {
+            return $this->disk()->url($path);
+        }
+
+        $row = 124;
+        $top = 96 + ($subtitle ? 48 : 0);
+        $height = $top + count($lines) * $row + ($footer ? 96 : 16);
+        $c = imagecreatetruecolor(self::WIDTH, $height);
+        $white = imagecolorallocate($c, 255, 255, 255);
+        $ink = imagecolorallocate($c, 17, 24, 39);
+        $muted = imagecolorallocate($c, 100, 116, 139);
+        $line = imagecolorallocate($c, 226, 232, 240);
+        $soft = imagecolorallocate($c, 248, 250, 252);
+        $red = imagecolorallocate($c, 220, 38, 38);
+        imagefill($c, 0, 0, $white);
+
+        // En-tête orange (couleur du live)
+        for ($x = 0; $x < self::WIDTH; $x++) {
+            $t = $x / self::WIDTH;
+            imageline($c, $x, 0, $x, 96, imagecolorallocate($c, (int) (154 + 97 * $t), (int) (52 + 94 * $t), (int) (18 + 42 * $t)));
+        }
+        imagettftext($c, 28, 0, 32, 60, $white, $this->font('ExtraBold'), $this->fit($title, 28, 'ExtraBold', self::WIDTH - 200));
+        imagettftext($c, 24, 0, self::WIDTH - 130, 58, $white, $this->font('ExtraBold'), '● LIVE');
+        if ($subtitle) {
+            imagettftext($c, 20, 0, 32, 132, $muted, $this->font('Medium'), $this->fit($subtitle, 20, 'Medium', self::WIDTH - 64));
+        }
+
+        $y = $top;
+        foreach ($lines as $l) {
+            $photo = $l['image'] ? $this->load($l['image']) : null;
+            if ($photo !== null) {
+                $this->cover($c, $photo, 28, $y + 14, 96, 96);
+            } else {
+                imagefilledrectangle($c, 28, $y + 14, 124, $y + 110, $line);
+            }
+            if ($l['code']) {
+                imagefilledrectangle($c, 28, $y + 14, 28 + 18 + 17 * strlen($l['code']), $y + 48, $red);
+                imagettftext($c, 21, 0, 36, $y + 41, $white, $this->font('ExtraBold'), $l['code']);
+            }
+            $price = $l['price'] !== null ? Money::format($l['price']) : '';
+            $priceWidth = $price !== '' ? $this->width($price, 26, 'Bold') : 0;
+            if ($price !== '') {
+                imagettftext($c, 26, 0, self::WIDTH - 32 - $priceWidth, $y + 72, $ink, $this->font('Bold'), $price);
+            }
+            $room = self::WIDTH - 148 - 48 - $priceWidth;
+            imagettftext($c, 24, 0, 148, $l['detail'] ? $y + 60 : $y + 72, $ink, $this->font('Medium'), $this->fit($l['title'], 24, 'Medium', $room));
+            if ($l['detail']) {
+                imagettftext($c, 19, 0, 148, $y + 94, $muted, $this->font('Medium'), $this->fit($l['detail'], 19, 'Medium', $room));
+            }
+            imageline($c, 28, $y + $row - 1, self::WIDTH - 28, $y + $row - 1, $line);
+            $y += $row;
+        }
+        if ($footer) {
+            imagefilledrectangle($c, 0, $y, self::WIDTH, $height, $soft);
+            imagettftext($c, 26, 0, 32, $y + 58, $ink, $this->font('ExtraBold'), $this->fit($footer, 26, 'ExtraBold', self::WIDTH - 64));
+        }
+
+        $this->save($path, $c);
+
+        return $this->disk()->url($path);
+    }
+
     public function url(string $path): string
     {
         return $this->disk()->url($path);

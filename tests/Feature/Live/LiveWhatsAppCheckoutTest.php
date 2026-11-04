@@ -157,10 +157,11 @@ class LiveWhatsAppCheckoutTest extends TestCase
         $this->text('A2');
         $this->assertSame(1, Order::count());
         $this->assertSame(21500, (int) $order->fresh()->total);
+        // Un seul message : le récapitulatif mis à jour (l'image montre tous les articles)
         $messages = $this->sent();
-        $this->assertStringContainsString('A2 (Sac cabas, 8 000 F) : réservée pour vous.', $messages[0]['text']['body']);
-        $this->assertStringContainsString('mise à jour', $messages[1]['image']['caption']);
-        $this->assertStringContainsString('21 500 F', $messages[1]['image']['caption']);
+        $this->assertCount(1, $messages);
+        $this->assertStringContainsString('mise à jour', $messages[0]['image']['caption']);
+        $this->assertStringContainsString('21 500 F', $messages[0]['image']['caption']);
 
         // Ajouter un article : la consigne en texte ; un bouton d'une autre cliente ne touche pas la commande
         $this->tap('live:add', 'Ajouter un article', 'button_reply');
@@ -170,13 +171,15 @@ class LiveWhatsAppCheckoutTest extends TestCase
     public function test_several_codes_come_together_with_the_commune_question(): void
     {
         $this->text('A1 + A2');
+        // Une seule image pour les deux articles (les phrases en légende), puis la liste des communes
         $sent = $this->sent();
-        $this->assertCount(1, $sent);
-        $this->assertSame(['interactive', 'list'], [$sent[0]['type'], $sent[0]['interactive']['type']]);
-        $body = $sent[0]['interactive']['body']['text'];
-        $this->assertStringContainsString('A1 (Robe wax, 12 000 F)', $body);
-        $this->assertStringContainsString('A2 (Sac cabas, 8 000 F)', $body);
-        $this->assertStringContainsString('Où faut-il vous livrer', $body);
+        $this->assertCount(2, $sent);
+        $this->assertSame('image', $sent[0]['type']);
+        $this->assertStringEndsWith('.jpg', $sent[0]['image']['link']);
+        $this->assertStringContainsString('A1 (Robe wax, 12 000 F)', $sent[0]['image']['caption']);
+        $this->assertStringContainsString('A2 (Sac cabas, 8 000 F)', $sent[0]['image']['caption']);
+        $this->assertSame(['interactive', 'list'], [$sent[1]['type'], $sent[1]['interactive']['type']]);
+        $this->assertStringContainsString('Où faut-il vous livrer', $sent[1]['interactive']['body']['text']);
     }
 
     public function test_a_typed_neighbourhood_still_works_and_a_reminder_comes_before_the_piece_is_released(): void

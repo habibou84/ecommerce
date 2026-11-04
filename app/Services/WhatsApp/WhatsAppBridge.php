@@ -93,17 +93,18 @@ class WhatsAppBridge
     /**
      * @param  bool  $slow  réponse automatique : plus espacée et plafonnée par minute dans le service
      */
-    public function send(WhatsappLink $link, string $to, string $text, bool $slow = false): string
+    public function send(WhatsappLink $link, string $to, string $text, bool $slow = false, ?string $image = null): string
     {
-        return $this->sendFrom($link->session(), $to, $text, $slow);
+        return $this->sendFrom($link->session(), $to, $text, $slow, $image);
     }
 
     /**
      * @return string identifiant donné par le service
      */
-    public function sendFrom(string $session, string $to, string $text, bool $slow = false): string
+    public function sendFrom(string $session, string $to, string $text, bool $slow = false, ?string $image = null): string
     {
-        $body = ['to' => $to, 'text' => $text] + ($slow ? ['pace' => 'slow'] : []);
+        // Avec une image (adresse publique) : le texte part en légende
+        $body = ['to' => $to, 'text' => $text] + ($slow ? ['pace' => 'slow'] : []) + ($image !== null ? ['image' => $image] : []);
 
         return (string) $this->call(fn () => $this->http()->post('/sessions/'.$session.'/send', $body))->json('id');
     }
