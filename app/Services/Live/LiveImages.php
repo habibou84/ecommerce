@@ -135,7 +135,8 @@ class LiveImages
 
     /**
      * Carte d'un article pour le live (900 × 1200) : photo, code en très grand, prix (ancien prix barré), nom,
-     * pièces restantes et « Envoyez A1 sur WhatsApp » ; version « VENDU » quand l'article est épuisé.
+     * pièces restantes et « Envoie A1 + ta taille » (sans le mot WhatsApp, pour la modération de TikTok) ; version
+     * « VENDU » quand l'article est épuisé.
      *
      * Renvoie le chemin du fichier sur le disque du catalogue (adresse publique : url()).
      *
@@ -143,7 +144,7 @@ class LiveImages
      */
     public function card(int $storeId, array $card, bool $sold = false): string
     {
-        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $card['link'] ?? null, $sold, 6])), 0, 12);
+        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $card['link'] ?? null, $sold, 7])), 0, 12);
         $path = "live/{$storeId}/card-{$card['code']}-{$key}.jpg";
         if ($this->disk()->exists($path)) {
             return $path;
@@ -157,7 +158,6 @@ class LiveImages
         $yellow = imagecolorallocate($c, 250, 204, 21);
         $brown = imagecolorallocate($c, 113, 63, 18);
         $night = imagecolorallocate($c, 15, 23, 42);
-        $green = imagecolorallocate($c, 37, 211, 102);
         imagefill($c, 0, 0, $night);
 
         // Photo (ou fond coloré sans photo)
@@ -206,9 +206,9 @@ class LiveImages
 
         // Pied : appel à commander
         imagefilledrectangle($c, 0, $h - 120, $w, $h, $night);
-        imagefilledellipse($c, 75, $h - 72, 56, 56, $green);
-        imagefilledellipse($c, 75, $h - 72, 22, 22, $white);
-        imagettftext($c, 36, 0, 125, $h - 58, $white, $this->font('ExtraBold'), $this->fit("Envoyez {$card['code']} sur WhatsApp", 36, 'ExtraBold', $w - 160));
+        $call = $this->fit("Envoie {$card['code']} + ta taille", 40, 'ExtraBold', $w - 80);
+        $box = imagettfbbox(40, 0, $this->font('ExtraBold'), $call);
+        imagettftext($c, 40, 0, (int) (($w - ($box[2] - $box[0])) / 2), $h - 56, $white, $this->font('ExtraBold'), $call);
         $this->brand($c, $w, $h - 16, imagecolorallocate($c, 148, 163, 184));
 
         if ($sold) {
