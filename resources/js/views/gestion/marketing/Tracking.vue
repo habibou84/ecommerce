@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../../components/PasswordInput.vue'
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
@@ -203,7 +204,7 @@ async function save(extra = {}) {
         </Field>
         <Field id="meta-capi" label="Jeton d'accès de l'API Conversions (facultatif, recommandé)" :error="errors.meta_capi_token"
                :hint="data.has_capi_token ? 'Jeton enregistré. Laissez vide pour le garder.' : 'Les achats sont aussi envoyés par notre serveur : comptés même quand le navigateur bloque le pixel.'">
-          <input id="meta-capi" v-model="form.meta_capi_token" class="input font-mono" type="password" autocomplete="off" />
+          <PasswordInput id="meta-capi" v-model="form.meta_capi_token" class="input font-mono" autocomplete="off" />
         </Field>
         <p v-if="data.has_capi_token" class="flex items-center gap-3 text-sm text-slate-600">
           <span>{{ data.conversions_sent }} achat(s) envoyé(s) par le serveur ces 30 derniers jours.</span>

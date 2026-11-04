@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../../components/PasswordInput.vue'
 import { reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
@@ -122,7 +123,7 @@ async function importDelivery() {
           <input id="d-address" v-model="delivery.address" class="input" placeholder="entreprise.jibiat.com" autocapitalize="off" />
         </Field>
         <Field id="d-key" label="Clé API" :error="deliveryErrors.api_key">
-          <input id="d-key" v-model="delivery.api_key" class="input" type="password" placeholder="lv_…" autocomplete="off" />
+          <PasswordInput id="d-key" v-model="delivery.api_key" class="input" placeholder="lv_…" autocomplete="off" />
         </Field>
       </div>
       <button class="btn-secondary" :disabled="deliveryBusy || !delivery.address || !delivery.api_key" @click="loadPreview">Voir les produits</button>

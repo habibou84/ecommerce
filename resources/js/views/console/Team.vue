@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../components/PasswordInput.vue'
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
@@ -75,7 +76,7 @@ async function close(id) {
         <button v-if="!a.me" class="text-red-700 underline" @click="revoking = a; revokePassword = ''">Retirer l'accès</button>
         <div v-if="revoking?.id === a.id" class="flex w-full flex-wrap items-end gap-2 rounded-lg bg-red-50 p-3">
           <Field id="revoke-password" :label="`Votre mot de passe pour retirer ${a.name}`" :error="errors.current_password" class="min-w-0 flex-1">
-            <input id="revoke-password" v-model="revokePassword" type="password" class="input" autocomplete="current-password" />
+            <PasswordInput id="revoke-password" v-model="revokePassword" class="input" autocomplete="current-password" />
           </Field>
           <button class="btn-danger" :disabled="!revokePassword" @click="revoke">Retirer</button>
           <button class="btn-ghost" @click="revoking = null">Annuler</button>
@@ -95,7 +96,7 @@ async function close(id) {
         <Field id="admin-phone" label="Numéro" :error="errors.phone"><input id="admin-phone" v-model="form.phone" type="tel" class="input" required /></Field>
         <Field id="admin-email" label="E-mail" :error="errors.email"><input id="admin-email" v-model="form.email" type="email" class="input" required /></Field>
       </div>
-      <Field id="admin-password" label="Votre mot de passe (pour confirmer)" :error="errors.current_password"><input id="admin-password" v-model="form.current_password" type="password" class="input max-w-xs" autocomplete="current-password" required /></Field>
+      <Field id="admin-password" label="Votre mot de passe (pour confirmer)" :error="errors.current_password"><PasswordInput id="admin-password" v-model="form.current_password" class="input max-w-xs" autocomplete="current-password" required /></Field>
       <div class="flex gap-2"><button class="btn-brand">Ajouter</button><button type="button" class="btn-ghost" @click="adding = false">Annuler</button></div>
     </form>
 

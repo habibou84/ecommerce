@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from './PasswordInput.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import http, { errorMessage, fieldErrors } from '../lib/http'
 import Alert from './Alert.vue'
@@ -132,7 +133,7 @@ onBeforeUnmount(() => {
     <form v-if="passwordOnly" class="space-y-4" @submit.prevent="submit">
       <Alert tone="success">Numéro vérifié par WhatsApp. Choisissez votre nouveau mot de passe.</Alert>
       <Field id="new-password" label="Nouveau mot de passe" :error="errors.password" hint="8 caractères au moins.">
-        <input id="new-password" v-model="password" type="password" class="input" autocomplete="new-password" minlength="8" required autofocus />
+        <PasswordInput id="new-password" v-model="password" class="input" autocomplete="new-password" minlength="8" required autofocus />
       </Field>
       <button class="btn-brand w-full" :disabled="busy">{{ busy ? 'Enregistrement…' : submitLabel }}</button>
     </form>
@@ -172,7 +173,7 @@ onBeforeUnmount(() => {
         </Field>
 
         <Field v-if="askPassword" id="new-password" label="Nouveau mot de passe" :error="errors.password" hint="8 caractères au moins.">
-          <input id="new-password" v-model="password" type="password" class="input" autocomplete="new-password" minlength="8" required />
+          <PasswordInput id="new-password" v-model="password" class="input" autocomplete="new-password" minlength="8" required />
         </Field>
 
         <button class="btn-brand w-full" :disabled="busy || code.length < 6">{{ busy ? 'Vérification…' : submitLabel }}</button>

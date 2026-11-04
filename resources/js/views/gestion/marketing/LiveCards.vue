@@ -74,6 +74,20 @@ async function saveAll() {
   }
 }
 
+// Ordinateur (LIVE Studio, OBS, télé) : toutes les cartes dans un fichier ZIP
+async function zip() {
+  busy.value = true
+  notice.value = ''
+  try {
+    await download(`/lives/${props.id}/cards.zip?was=${was.value ? 1 : 0}&stock=${stock.value ? 1 : 0}&sold=${sold.value ? 1 : 0}`, 'cartes-du-live.zip')
+    notice.value = 'Fichier ZIP téléchargé : ouvrez-le pour retrouver les cartes.'
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function shareOne(card) {
   try {
     const one = await file(card)
@@ -89,8 +103,8 @@ async function shareOne(card) {
   <div class="mx-auto max-w-3xl space-y-4">
     <RouterLink :to="`/gestion/live/${id}`" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Retour au live</RouterLink>
     <div>
-      <h1 class="text-xl font-extrabold">Cartes du live</h1>
-      <p class="text-sm text-slate-600">Une image par article, dans l'ordre du live, plus « Comment commander ». Enregistrez-les dans la galerie, puis affichez-les dans un coin de votre live.</p>
+      <h1 class="text-xl font-extrabold">Cartes à afficher à l'écran</h1>
+      <p class="text-sm text-slate-600">Une image par article (photo, code de la pancarte en grand, prix), dans l'ordre du live, plus « Comment commander ». Téléchargez-les, puis affichez la carte de l'article que vous montrez.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
@@ -112,7 +126,8 @@ async function shareOne(card) {
     </section>
 
     <button type="button" class="btn-brand w-full py-3 text-base" :disabled="busy || !cards" @click="saveAll">{{ busy ? 'Préparation…' : `⬇ Enregistrer les ${list.length} cartes dans la galerie` }}</button>
-    <p class="text-center text-xs text-slate-500">Sur le téléphone, choisissez « Enregistrer les images » (iPhone) ou « Enregistrer » / « Galerie » (Android). Le même bouton permet de les envoyer sur WhatsApp (statut, groupes).</p>
+    <button type="button" class="btn-secondary w-full justify-center" :disabled="busy || !cards" @click="zip">💻 Télécharger en ZIP (ordinateur, LIVE Studio, OBS)</button>
+    <p class="text-center text-xs text-slate-500">Touchez une carte pour l'enregistrer seule. Sur le téléphone, choisissez « Enregistrer les images » (iPhone) ou « Enregistrer » / « Galerie » (Android). Le même bouton permet de les envoyer sur WhatsApp (statut, groupes).</p>
 
     <section class="card p-4 text-sm">
       <h2 class="mb-2 font-semibold">Afficher une carte dans le live TikTok</h2>
