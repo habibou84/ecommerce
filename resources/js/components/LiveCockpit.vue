@@ -18,6 +18,7 @@ const props = defineProps({
 const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode'])
 // Ce que montrent les écrans du live (télé, OBS, LIVE Studio) : un article, défilement, comment commander
 const MODES = [['product', '📦 Un article'], ['scroll', '🔁 Défilement'], ['how', '🛒 Commander']]
+const screenMode = computed(() => props.live.display_mode || 'product')
 const auth = useAuthStore()
 // Cartes des articles (photo + code) à afficher à l'écran, sauf si la console les masque
 const cardsOn = computed(() => auth.profile?.features?.live_screens !== false)
@@ -246,8 +247,13 @@ const ago = (iso) => {
     <div class="sticky top-2 z-20 space-y-2">
       <section class="rounded-2xl border-2 border-slate-900 bg-white p-2.5 shadow-sm">
         <div class="flex items-center gap-2 text-[11px] font-extrabold tracking-wider text-slate-900">
-          <span>À L'ÉCRAN MAINTENANT</span>
+          <span>{{ screenMode === 'product' ? 'À L\'ÉCRAN MAINTENANT' : 'PANCARTE MONTRÉE' }}</span>
           <span v-if="current" class="ml-auto font-bold text-slate-500">{{ currentIndex + 1 }} / {{ products.length }}</span>
+        </div>
+        <!-- Défilement ou « comment commander » : les écrans ne montrent pas l'article ci-dessous, on le dit clairement -->
+        <div v-if="cardsOn && screenMode !== 'product'" class="mt-1.5 flex items-center gap-2 rounded-xl bg-slate-900 px-2.5 py-2 text-white">
+          <span class="min-w-0 flex-1 text-[13px] font-bold leading-tight">{{ screenMode === 'scroll' ? '🔁 À l\'écran : les articles défilent tout seuls (8 s chacun)' : '🛒 À l\'écran : comment commander' }}</span>
+          <button type="button" class="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-extrabold text-slate-900" :disabled="busy" @click="emit('mode', 'product')">Montrer {{ current?.code ?? 'un article' }}</button>
         </div>
         <!-- Messages et Commandes : l'article à l'écran sur une ligne, avec « suivant » -->
         <div v-if="current && tab !== 'articles'" class="mt-1.5 flex items-center gap-2">
