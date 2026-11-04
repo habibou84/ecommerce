@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../components/PasswordInput.vue'
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AuthShell from '../../components/AuthShell.vue'
@@ -84,7 +85,7 @@ async function done() {
     <CodeStep v-else-if="pending" :verification="pending.verification" :demo-code="pending.demo_code" submit-label="Ouvrir la console" @done="done" />
     <form v-else class="space-y-4" @submit.prevent="submit()">
       <Field id="phone" label="Numéro de téléphone" :error="errors.phone"><input id="phone" v-model="form.phone" class="input" type="tel" autocomplete="tel" required autofocus /></Field>
-      <Field id="password" label="Mot de passe" :error="errors.password"><input id="password" v-model="form.password" class="input" type="password" autocomplete="current-password" required /></Field>
+      <Field id="password" label="Mot de passe" :error="errors.password"><PasswordInput id="password" v-model="form.password" class="input" autocomplete="current-password" required /></Field>
       <button class="btn-brand w-full" :disabled="busy">{{ busy ? '…' : 'Continuer' }}</button>
       <p class="text-center text-sm"><RouterLink to="/console/mot-de-passe-oublie" class="text-emerald-700 hover:underline">Mot de passe oublié ? (ou premier accès)</RouterLink></p>
     </form>

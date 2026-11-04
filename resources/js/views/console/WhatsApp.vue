@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../components/PasswordInput.vue'
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import CatchUpCampaign from '../../components/console/CatchUpCampaign.vue'
@@ -307,11 +308,11 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
           <span v-if="manualErrors.waba_id" class="text-red-700">{{ manualErrors.waba_id }}</span>
         </label>
         <label class="block">Jeton d'accès permanent
-          <input v-model="manual.access_token" class="input mt-1 font-mono" type="password" autocomplete="off" required />
+          <PasswordInput v-model="manual.access_token" class="input mt-1 font-mono" autocomplete="off" required />
           <span v-if="manualErrors.access_token" class="text-red-700">{{ manualErrors.access_token }}</span>
         </label>
         <label class="block">Code secret de l'application Meta <span class="text-slate-500">(seulement si ce n'est pas celle de Jibiat Marchand)</span>
-          <input v-model="manual.app_secret" class="input mt-1 font-mono" type="password" autocomplete="off" />
+          <PasswordInput v-model="manual.app_secret" class="input mt-1 font-mono" autocomplete="off" />
           <span v-if="manualErrors.app_secret" class="text-red-700">{{ manualErrors.app_secret }}</span>
         </label>
         <label class="block">Code PIN à 6 chiffres <span class="text-slate-500">(seulement si le numéro n'est pas encore enregistré sur l'API)</span>

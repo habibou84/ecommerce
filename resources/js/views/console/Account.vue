@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../components/PasswordInput.vue'
 import { reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
@@ -64,13 +65,13 @@ async function sendTest() {
         <p class="font-semibold">Changer le mot de passe <span class="font-normal text-slate-500">(facultatif, 10 caractères au moins)</span></p>
       </div>
       <div class="grid gap-3 sm:grid-cols-2">
-        <Field id="password" label="Nouveau mot de passe" :error="errors.password"><input id="password" v-model="form.password" type="password" class="input" autocomplete="new-password" /></Field>
-        <Field id="password_confirmation" label="Le retaper"><input id="password_confirmation" v-model="form.password_confirmation" type="password" class="input" autocomplete="new-password" /></Field>
+        <Field id="password" label="Nouveau mot de passe" :error="errors.password"><PasswordInput id="password" v-model="form.password" class="input" autocomplete="new-password" /></Field>
+        <Field id="password_confirmation" label="Le retaper"><PasswordInput id="password_confirmation" v-model="form.password_confirmation" class="input" autocomplete="new-password" /></Field>
       </div>
 
       <div class="border-t border-slate-100 pt-4">
         <Field id="current_password" label="Mot de passe actuel (pour enregistrer)" :error="errors.current_password">
-          <input id="current_password" v-model="form.current_password" type="password" class="input" autocomplete="current-password" required />
+          <PasswordInput id="current_password" v-model="form.current_password" class="input" autocomplete="current-password" required />
         </Field>
       </div>
       <div class="flex items-center gap-2"><button class="btn-brand" :disabled="busy">Enregistrer</button><span v-if="saved" class="text-emerald-700">Enregistré ✓</span></div>

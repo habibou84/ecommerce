@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../components/PasswordInput.vue'
 import { onMounted, reactive, ref } from 'vue'
 import AuthShell from '../../components/AuthShell.vue'
 import Alert from '../../components/Alert.vue'
@@ -65,7 +66,7 @@ function done(data) {
       <template v-if="invitation.has_account">
         <p class="text-sm text-slate-600">Ce numéro a déjà un compte Jibiat Marchand : saisissez son mot de passe.</p>
         <Field id="password" label="Mot de passe" :error="errors.password">
-          <input id="password" v-model="form.password" class="input" type="password" autocomplete="current-password" required autofocus />
+          <PasswordInput id="password" v-model="form.password" class="input" autocomplete="current-password" required autofocus />
         </Field>
       </template>
       <template v-else>
@@ -73,7 +74,7 @@ function done(data) {
           <input id="name" v-model="form.name" class="input" autocomplete="name" maxlength="80" required />
         </Field>
         <Field id="password" label="Choisissez un mot de passe" :error="errors.password" hint="8 caractères au moins.">
-          <input id="password" v-model="form.password" class="input" type="password" autocomplete="new-password" minlength="8" required />
+          <PasswordInput id="password" v-model="form.password" class="input" autocomplete="new-password" minlength="8" required />
         </Field>
       </template>
 

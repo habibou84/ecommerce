@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../components/PasswordInput.vue'
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AuthShell from '../../components/AuthShell.vue'
@@ -120,7 +121,7 @@ async function openStore(store) {
         <input id="phone" v-model="form.phone" class="input" type="tel" inputmode="tel" autocomplete="tel" required autofocus />
       </Field>
       <Field id="password" label="Mot de passe" :error="errors.password">
-        <input id="password" v-model="form.password" class="input" type="password" autocomplete="current-password" required />
+        <PasswordInput id="password" v-model="form.password" class="input" autocomplete="current-password" required />
       </Field>
       <button class="btn-brand w-full" :disabled="busy">{{ busy ? 'Connexion…' : 'Se connecter' }}</button>
       <p class="flex items-center gap-3 text-xs text-slate-400"><span class="h-px flex-1 bg-slate-200"></span>ou<span class="h-px flex-1 bg-slate-200"></span></p>

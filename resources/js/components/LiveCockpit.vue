@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import http, { errorMessage } from '../lib/http'
 import { money, phoneDisplay } from '../lib/format'
 import Modal from './Modal.vue'
+import { useAuthStore } from '../stores/auth'
 
 /**
  * Écran de la vendeuse pendant un live avec pancartes : la pancarte montrée toujours en haut (photo, ce qui reste,
@@ -15,6 +16,9 @@ const props = defineProps({
   busy: { type: Boolean, default: false },
 })
 const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel'])
+const auth = useAuthStore()
+// Cartes des articles (photo + code) à afficher à l'écran, sauf si la console les masque
+const cardsOn = computed(() => auth.profile?.features?.live_screens !== false)
 
 // ── Un produit = une pancarte (ses tailles et couleurs la partagent), dans l'ordre de la liste ──
 const products = computed(() => {
@@ -314,6 +318,7 @@ const ago = (iso) => {
       </div>
       <div class="flex gap-2 pt-2">
         <button type="button" class="btn-ghost flex-1 justify-center text-sm" @click="emit('share')">Partager le lien</button>
+        <RouterLink v-if="cardsOn" :to="`/gestion/live/${live.id}/cartes`" class="btn-ghost flex-1 justify-center text-sm">🖼 Cartes à l'écran</RouterLink>
         <button type="button" class="btn-ghost flex-1 justify-center text-sm text-slate-500" :disabled="busy" @click="emit('end')">Terminer le live</button>
       </div>
     </section>

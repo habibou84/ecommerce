@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../components/PasswordInput.vue'
 import { reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
@@ -111,13 +112,13 @@ async function removeAccount() {
 
       <div class="grid gap-4 sm:grid-cols-3">
         <Field id="current-password" label="Mot de passe actuel" :error="pwdErrors.current_password">
-          <input id="current-password" v-model="pwd.current_password" class="input" type="password" autocomplete="current-password" required />
+          <PasswordInput id="current-password" v-model="pwd.current_password" class="input" autocomplete="current-password" required />
         </Field>
         <Field id="new-password" label="Nouveau mot de passe" :error="pwdErrors.password" hint="8 caractères au moins.">
-          <input id="new-password" v-model="pwd.password" class="input" type="password" autocomplete="new-password" minlength="8" required />
+          <PasswordInput id="new-password" v-model="pwd.password" class="input" autocomplete="new-password" minlength="8" required />
         </Field>
         <Field id="new-password-confirmation" label="Confirmer" :error="pwdErrors.password_confirmation">
-          <input id="new-password-confirmation" v-model="pwd.password_confirmation" class="input" type="password" autocomplete="new-password" required />
+          <PasswordInput id="new-password-confirmation" v-model="pwd.password_confirmation" class="input" autocomplete="new-password" required />
         </Field>
       </div>
       <button class="btn-brand" :disabled="pwdSaving">{{ pwdSaving ? 'Modification…' : 'Changer le mot de passe' }}</button>
@@ -136,7 +137,7 @@ async function removeAccount() {
         <p>C'est définitif. Pour confirmer, saisissez votre mot de passe.</p>
         <Alert v-if="removeError">{{ removeError }}</Alert>
         <Field id="remove-password" label="Mot de passe">
-          <input id="remove-password" v-model="removePassword" class="input" type="password" autocomplete="current-password" required />
+          <PasswordInput id="remove-password" v-model="removePassword" class="input" autocomplete="current-password" required />
         </Field>
         <div class="grid grid-cols-2 gap-2">
           <button type="button" class="btn-secondary" @click="removing = false">Annuler</button>
