@@ -448,8 +448,7 @@ class LiveSales
             }
             $codes = $group->pluck('item.code')->filter()->unique()->implode(', ');
             $minutes = max(1, (int) ceil(now()->diffInMinutes($group->min('expires_at'))));
-            $text = "⏰ Votre {$codes} est gardé encore {$minutes} minute".($minutes > 1 ? 's' : '').'. Dites-nous où vous livrer pour le garder.';
-            app(LiveCheckout::class)->askCommune($conversation, $text) || $this->reply($conversation, $text.' Répondez avec votre quartier (et un repère).');
+            $this->askAddress($conversation, "⏰ *Votre {$codes} est gardé encore {$minutes} minute".($minutes > 1 ? 's' : '').'*'."\nDonnez votre adresse pour le garder.");
         }
 
         return $due->count();
@@ -559,8 +558,7 @@ class LiveSales
             return false;
         }
         if (Cache::add('live-place-ask:'.$conversation->id, 1, self::PLACE_ASK_SECONDS)) {
-            $ask = "Je n'ai pas reconnu ce quartier. Écrivez votre commune et votre quartier (ex. Yopougon Siporex).";
-            app(LiveCheckout::class)->askCommune($conversation, $ask) || $this->reply($conversation, $ask);
+            $this->askAddress($conversation, '⚠️ *Quartier non reconnu*', 'Yopougon Siporex');
         }
 
         return true;
@@ -855,7 +853,6 @@ class LiveSales
         $added = $created->firstWhere('status', 'ordered')?->order;
         $held = LiveReservation::forStore($conversation->store_id)->where('customer_phone', $phone)->where('status', 'reserved')->whereNull('order_id')->exists();
         $checkout = app(LiveCheckout::class);
-        $official = $checkout->official($conversation);
         // Commande créée ou complétée : le récapitulatif (en image), qui montre déjà tous les articles
         if ($added !== null) {
             $wait = collect(explode("\n", $text))->filter(fn (string $l) => str_starts_with($l, '⏳'))->implode("\n");
@@ -864,15 +861,36 @@ class LiveSales
 
             return;
         }
-        // Une seule image pour tous les articles demandés (gardés ou en liste d'attente), la phrase en légende
-        $caption = trim($text.($held ? ($official ? "\n\nOù faut-il vous livrer ? Choisissez votre commune juste après." : "\nPour la livraison, répondez avec votre quartier (et un repère).") : ''));
+        // Une seule image pour tous les articles demandés (gardés ou en liste d'attente) avec une légende courte ; la
+        // question de l'adresse part ensuite, seule, pour qu'on la voie bien
+        $kept = $items->filter(fn (LiveItem $item) => $mine($item, LiveReservation::HOLDING)->exists());
+        $waits = collect(explode("\n", $text))->filter(fn (string $l) => str_starts_with($l, '⏳'));
+        $caption = trim(($kept->isEmpty() ? '' : "✅ *C'est réservé pour vous !*\n"
+            .$kept->map(fn (LiveItem $item) => $item->code.' '.($item->variant?->product?->title ?? 'Article').($item->optionValues() !== [] ? " ({$item->variant->title})" : '')
+                .(($n = $mine($item, LiveReservation::HOLDING)->count()) > 1 ? " × {$n}" : ''))->implode("\n")
+            .($held ? "\n⏱️ Gardé *".self::duration((int) ($session->hold_minutes ?: 120)).'* pour vous' : '')."\n")
+            .$waits->implode("\n"));
         $sent = $text !== '' && $checkout->picture($conversation, $this->askedImage($session, $items, $mine, $held), $caption);
-        if ($held && $official) {
-            $ask = ($sent || $text === '' ? '' : $text."\n").'Où faut-il vous livrer ?';
-            $checkout->askCommune($conversation, $ask) || $this->reply($conversation, $ask.' Répondez avec votre quartier (et un repère).');
-        } elseif (! $sent && $caption !== '') {
-            $this->reply($conversation, $caption);
+        $sent || $text === '' || $this->reply($conversation, $text);
+        if ($held) {
+            $this->askAddress($conversation, "📍 *DERNIÈRE ÉTAPE : L'ADRESSE*");
         }
+    }
+
+    /**
+     * Question de l'adresse, en message à part : liste des communes (WhatsApp officiel) ou consigne à taper avec un
+     * exemple (WhatsApp relié par QR code, ou liste impossible).
+     */
+    public function askAddress(Conversation $conversation, string $title, string $example = 'Cocody Angré 8e tranche'): void
+    {
+        app(LiveCheckout::class)->askCommune($conversation, $title."\n\n👇 Touchez *« Choisir ma commune »* ci-dessous")
+            || $this->reply($conversation, $title."\n\n✍️ Écrivez *votre commune + votre quartier*\n_Exemple : {$example}_");
+    }
+
+    /** « 30 minutes », « 2 h », « 1 h 30 » */
+    private static function duration(int $minutes): string
+    {
+        return $minutes < 60 ? "{$minutes} minutes" : intdiv($minutes, 60).' h'.($minutes % 60 > 0 ? ' '.str_pad((string) ($minutes % 60), 2, '0', STR_PAD_LEFT) : '');
     }
 
     /**
