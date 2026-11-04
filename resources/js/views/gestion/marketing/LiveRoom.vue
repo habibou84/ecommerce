@@ -1,17 +1,19 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import ColorIcon from '../../../components/ColorIcon.vue'
 import Icon from '../../../components/Icon.vue'
 import LiveLink from '../../../components/LiveLink.vue'
 import LiveCockpit from '../../../components/LiveCockpit.vue'
+import LiveScreenTabs from '../../../components/LiveScreenTabs.vue'
 import LiveSigns from '../../../components/LiveSigns.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money, phoneDisplay } from '../../../lib/format'
+import { useAuthStore } from '../../../stores/auth'
 
 
 /**
@@ -21,6 +23,12 @@ import { formatDateTime, money, phoneDisplay } from '../../../lib/format'
  */
 const props = defineProps({ id: { type: [String, Number], required: true } })
 const router = useRouter()
+const route = useRoute()
+// Deux onglets avant et pendant le live : « Live » (articles, messages, commandes, ce qui passe à l'écran) et
+// « Support » (pancartes à imprimer, liens OBS / TikTok LIVE Studio, écran télé)
+const pane = ref(route.query.onglet === 'support' ? 'support' : 'live')
+watch(pane, (p) => router.replace({ query: { ...route.query, onglet: p === 'support' ? 'support' : undefined } }))
+const screensOn = computed(() => useAuthStore().profile?.features?.live_screens !== false)
 const live = ref(null)
 const error = ref('')
 const busy = ref(false)
@@ -272,13 +280,27 @@ async function redo() {
     <p v-if="!live" class="text-sm text-slate-500">Chargement…</p>
 
     <template v-else>
+      <!-- ═══ Onglets Live / Support (avant et pendant le live) ═══ -->
+      <nav v-if="live.status !== 'ended'" class="grid grid-cols-2 border-b border-slate-200" role="tablist" aria-label="Live ou support">
+        <button v-for="[value, label] in [['live', 'Live'], ['support', 'Support']]" :key="value" type="button" role="tab" :aria-selected="pane === value"
+                class="-mb-px border-b-[3px] py-2.5 text-base font-extrabold" :class="pane === value ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'" @click="pane = value">
+          {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-[10px] font-black text-white">● EN DIRECT</span>
+        </button>
+      </nav>
+
+      <!-- ═══ Support : supports physiques, OBS / LIVE Studio, télé ═══ -->
+      <template v-if="live.status !== 'ended' && pane === 'support'">
+        <LiveSigns :live="live" open @updated="live = $event" />
+        <LiveScreenTabs v-if="screensOn" :id="id" screen-only @add="pane = 'live'" />
+      </template>
+
       <!-- ═══ En-tête selon l'état ═══ -->
       <!-- Pendant le live : la pancarte montrée et les onglets Articles, Messages, Commandes -->
-      <LiveCockpit v-if="live.status === 'live'" :live="live" :now="now" :busy="busy"
+      <LiveCockpit v-if="live.status === 'live' && pane === 'live'" :live="live" :now="now" :busy="busy"
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
-                   @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" />
+                   @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" />
 
-      <section v-else-if="live.status === 'draft'" class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
+      <section v-else-if="live.status === 'draft' && pane === 'live'" class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
         <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
         <h2 class="mt-2 text-xl font-extrabold">{{ live.title }}</h2>
         <p class="text-sm text-white/90">{{ live.items.length }} article{{ live.items.length > 1 ? 's' : '' }} · lancez le live au moment où vous passez à l'antenne.</p>
@@ -287,7 +309,7 @@ async function redo() {
       </section>
 
       <!-- Bilan du live terminé -->
-      <template v-else>
+      <template v-else-if="live.status === 'ended'">
         <section class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
           <span class="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-bold">TERMINÉ · {{ formatDateTime(live.ended_at) }} · {{ duration }}</span>
           <p class="mt-1 text-sm font-semibold text-white/90">{{ live.title }}</p>
@@ -335,7 +357,7 @@ async function redo() {
       </template>
 
       <!-- ═══ Articles (avant le live) ═══ -->
-      <section v-if="live.status === 'draft'" class="space-y-2">
+      <section v-if="live.status === 'draft' && pane === 'live'" class="space-y-2">
         <div class="flex items-center justify-between px-0.5">
           <h3 class="text-[17px] font-extrabold">Articles</h3>
           <button type="button" class="text-sm font-semibold text-emerald-700" @click="openAdding">+ Ajouter</button>
@@ -362,22 +384,20 @@ async function redo() {
         <p v-if="live.status === 'live'" class="px-0.5 text-xs text-slate-500">Touchez un code pour l'afficher en grand. « Montrer » met l'article en avant sur la page de vos clients. « Prix live » baisse le prix quelques minutes, avec un chrono sur l'écran.</p>
       </section>
 
-      <!-- Pancartes montrées à la caméra -->
-      <LiveSigns v-if="live.status === 'draft'" :live="live" @updated="live = $event" />
 
       <!-- Avant de lancer -->
-      <section v-if="live.status === 'draft'" class="card space-y-2 p-4 text-sm">
+      <section v-if="live.status === 'draft' && pane === 'live'" class="card space-y-2 p-4 text-sm">
         <p class="font-semibold">Avant de lancer le live <span class="font-normal text-slate-500">· {{ ready.length }} / {{ BEFORE_LIVE.length }}</span></p>
         <label v-for="c in BEFORE_LIVE" :key="c" class="flex items-start gap-2">
           <input v-model="ready" type="checkbox" :value="c" class="mt-0.5 h-4 w-4 accent-emerald-700" />
           <span :class="{ 'text-slate-400 line-through': ready.includes(c) }">{{ c }}</span>
         </label>
       </section>
-      <LiveWhatsApp v-if="live.status === 'draft' && live.whatsapp === null" />
+      <LiveWhatsApp v-if="live.status === 'draft' && pane === 'live' && live.whatsapp === null" />
 
 
       <!-- ═══ Clientes ═══ -->
-      <section v-if="live.status === 'ended' ? showAll : live.status === 'draft' && clients.length" id="live-clientes" class="card scroll-mt-48 p-4">
+      <section v-if="live.status === 'ended' ? showAll : live.status === 'draft' && pane === 'live' && clients.length" id="live-clientes" class="card scroll-mt-48 p-4">
         <div class="flex flex-wrap items-center gap-2">
           <h3 class="flex-1 text-[17px] font-extrabold">Clientes</h3>
           <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs" role="radiogroup" aria-label="Filtrer les clientes">

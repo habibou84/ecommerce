@@ -9,7 +9,7 @@ import { useAuthStore } from '../stores/auth'
  * live, ou pendant tant que personne ne l'a réservé), l'impression des pancartes, la liste d'aide et les cartes à
  * afficher à l'écran (photo + code de chaque article, à télécharger).
  */
-const props = defineProps({ live: { type: Object, required: true } })
+const props = defineProps({ live: { type: Object, required: true }, open: { type: Boolean, default: false } })
 const emit = defineEmits(['updated'])
 const auth = useAuthStore()
 // Cartes à l'écran : masquables dans la console (« Affichage des articles dans le live »)
@@ -43,14 +43,14 @@ async function choose(code) {
 </script>
 
 <template>
-  <details class="card p-4">
+  <details class="card p-4" :open="open">
     <summary class="flex cursor-pointer items-center gap-3">
       <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border-2 border-slate-900 bg-white text-sm font-black">A1</span>
-      <span class="min-w-0 flex-1"><b class="block">Pancartes à montrer à la caméra</b><span class="text-sm text-slate-500">Le code de chaque article, à imprimer, ou en cartes avec la photo à afficher à l'écran</span></span>
+      <span class="min-w-0 flex-1"><b class="block">🖨 Supports à imprimer</b><span class="text-sm text-slate-500">Pancartes à montrer à la caméra (le code de chaque article), liste d'aide et cartes avec la photo</span></span>
     </summary>
     <p v-if="error" class="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
-    <ul class="mt-3 grid gap-2 sm:grid-cols-2">
-      <li v-for="p in products" :key="p.code">
+    <ul class="mt-3 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+      <li v-for="p in products" :key="p.code" class="min-w-0">
         <button type="button" class="flex w-full items-center gap-3 rounded-xl border border-slate-200 p-2 text-left hover:border-red-600 disabled:opacity-60" :disabled="busy" @click="signing = p">
           <span class="grid h-10 w-12 shrink-0 place-items-center rounded-lg border-2 border-slate-900 font-black">{{ p.code }}</span>
           <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ p.title }}</span>

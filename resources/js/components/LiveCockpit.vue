@@ -15,7 +15,9 @@ const props = defineProps({
   now: { type: Number, required: true },
   busy: { type: Boolean, default: false },
 })
-const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel'])
+const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode'])
+// Ce que montrent les écrans du live (télé, OBS, LIVE Studio) : un article, défilement, comment commander
+const MODES = [['product', '📦 Un article'], ['scroll', '🔁 Défilement'], ['how', '🛒 Commander']]
 const auth = useAuthStore()
 // Cartes des articles (photo + code) à afficher à l'écran, sauf si la console les masque
 const cardsOn = computed(() => auth.profile?.features?.live_screens !== false)
@@ -56,9 +58,9 @@ function say(p) {
   if (p.remaining === 0) return 'Tout est parti ! Passez à la pancarte suivante.'
   const left = p.sizes.filter((s) => s.remaining > 0).map((s) => `${s.remaining > 1 ? `${s.remaining} en` : 'une'} ${s.name}`)
   const sizes = p.sizes.length && left.length <= 3 ? ` ${left.join(', ').replace(/^./, (c) => c.toUpperCase())}.` : ''
-  if (p.remaining === 1) return `Dernière pièce !${sizes} Écris ${p.code}${p.sizes.length ? ' + ta taille' : ''}.`
-  if (p.remaining <= 3) return `Plus que ${p.remaining} !${sizes} Écris ${p.code}${p.sizes.length ? ' + ta taille' : ''}.`
-  return `Écris ${p.code}${p.sizes.length ? ' + ta taille' : ''} pour le réserver.`
+  if (p.remaining === 1) return `Dernière pièce !${sizes} Envoie ${p.code}${p.sizes.length ? ' + ta taille' : ''}.`
+  if (p.remaining <= 3) return `Plus que ${p.remaining} !${sizes} Envoie ${p.code}${p.sizes.length ? ' + ta taille' : ''}.`
+  return `Envoie ${p.code}${p.sizes.length ? ' + ta taille' : ''} pour le réserver.`
 }
 function chrono(item) {
   const s = Math.max(0, Math.round((new Date(item.flash.ends_at).getTime() - props.now) / 1000))
@@ -244,10 +246,17 @@ const ago = (iso) => {
     <div class="sticky top-2 z-20 space-y-2">
       <section class="rounded-2xl border-2 border-slate-900 bg-white p-2.5 shadow-sm">
         <div class="flex items-center gap-2 text-[11px] font-extrabold tracking-wider text-slate-900">
-          <span>PANCARTE MONTRÉE</span>
+          <span>À L'ÉCRAN MAINTENANT</span>
           <span v-if="current" class="ml-auto font-bold text-slate-500">{{ currentIndex + 1 }} / {{ products.length }}</span>
         </div>
-        <template v-if="current">
+        <!-- Messages et Commandes : l'article à l'écran sur une ligne, avec « suivant » -->
+        <div v-if="current && tab !== 'articles'" class="mt-1.5 flex items-center gap-2">
+          <img v-if="current.image" :src="current.image" alt="" class="h-11 w-11 shrink-0 rounded-lg object-cover" />
+          <span class="shrink-0 rounded-md border-[3px] border-slate-900 px-1.5 text-lg leading-tight font-black">{{ current.code }}</span>
+          <span class="min-w-0 flex-1 truncate text-xs text-slate-600">{{ current.title }} · {{ money(current.price) }} · reste {{ current.remaining }}</span>
+          <button v-if="next" type="button" class="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-black text-white" :disabled="busy" :aria-label="`Suivante : ${next.code}`" @click="show(next)">▶ {{ next.code }}</button>
+        </div>
+        <template v-else-if="current">
           <div class="mt-1.5 flex gap-2.5">
             <button type="button" class="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-slate-100" :aria-label="`Afficher ${current.code} en grand`" @click="emit('big', current.items[0])">
               <img v-if="current.image" :src="current.image" alt="" class="h-full w-full object-cover" />
@@ -265,9 +274,13 @@ const ago = (iso) => {
             </div>
           </div>
           <p class="mt-2 rounded-xl bg-slate-100 px-2.5 py-1.5 text-[13px] font-bold">🗣 « {{ say(current) }} »</p>
+          <div v-if="cardsOn" class="mt-2 grid grid-cols-3 gap-1" role="radiogroup" aria-label="Que montrer sur l'écran du live ?">
+            <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="(live.display_mode || 'product') === value" :disabled="busy"
+                    class="rounded-lg border-[1.5px] py-1.5 text-[11px] font-extrabold" :class="(live.display_mode || 'product') === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600'" @click="emit('mode', value)">{{ label }}</button>
+          </div>
         </template>
         <p v-else class="mt-1 text-sm text-slate-600">Prenez votre première pancarte et touchez « Commencer » : l'application saura de quel article vous parlez.</p>
-        <div class="mt-2 flex gap-1.5">
+        <div v-if="!current || tab === 'articles'" class="mt-2 flex gap-1.5">
           <button v-if="previous" type="button" class="flex shrink-0 items-center gap-1.5 rounded-xl border-[1.5px] border-slate-300 py-1 pr-2 pl-1 text-xs font-extrabold" :disabled="busy" @click="show(previous)">
             <img v-if="previous.image" :src="previous.image" alt="" class="h-8 w-8 rounded-lg object-cover" />◀ {{ previous.code }}
           </button>
