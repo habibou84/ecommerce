@@ -390,7 +390,11 @@ class LiveSales
         if ($pending->isEmpty()) {
             return null;
         }
-        // Seulement un message qui nomme un quartier livré : une question (« c'est combien ? ») reste à l'équipe
+        // Seulement un message qui nomme un quartier livré : une question (« c'est combien ? », « vous livrez à
+        // Bingerville ? ») reste à l'équipe ; « Yopougon ? » tout court reste une réponse
+        if (str_contains($text, '?') && str_word_count(Str::ascii($text)) > 2) {
+            return null;
+        }
         $place = $this->matcher->search($text, $this->places->forStore($store), 1)->first();
         if ($place === null) {
             return null;
@@ -534,7 +538,48 @@ class LiveSales
             return true;
         }
 
-        return false;
+        return $this->placeNotFound($conversation, (string) $message->body);
+    }
+
+    /** Une seule relance « quartier pas reconnu » par cliente toutes les 10 minutes */
+    private const PLACE_ASK_SECONDS = 600;
+
+    /**
+     * Pièce gardée en attente du quartier, et une réponse courte où aucun lieu n'est reconnu (« près du marché ») :
+     * on le dit à la cliente au lieu de se taire (liste des communes avec le WhatsApp officiel). Une question
+     * (« c'est combien la livraison ? ») ou un long message restent à l'équipe. La vendeuse voit « quartier à vérifier ».
+     */
+    private function placeNotFound(Conversation $conversation, string $text): bool
+    {
+        if (str_contains($text, '?') || str_word_count(Str::ascii($text)) > 8) {
+            return false;
+        }
+        $waiting = LiveReservation::forStore($conversation->store_id)->where('customer_phone', PhoneNumber::normalize($conversation->contact))
+            ->where('status', 'reserved')->whereNull('order_id')->exists();
+        if (! $waiting) {
+            return false;
+        }
+        if (Cache::add('live-place-ask:'.$conversation->id, 1, self::PLACE_ASK_SECONDS)) {
+            $ask = "Je n'ai pas reconnu ce quartier. Écrivez votre commune et votre quartier (ex. Yopougon Siporex).";
+            app(LiveCheckout::class)->askCommune($conversation, $ask) || $this->reply($conversation, $ask);
+        }
+
+        return true;
+    }
+
+    /**
+     * Quartier choisi par l'équipe pour une cliente dont la réponse n'a pas été reconnue : ses pièces gardées de ce
+     * live deviennent une commande.
+     */
+    public function placeFor(LiveSession $session, LiveReservation $reservation, Place $place, ?string $address = null): ?Order
+    {
+        $pending = LiveReservation::forStore($session->store_id)->with('item.session')->where('live_session_id', $session->id)
+            ->where('customer_phone', $reservation->customer_phone)->where('status', 'reserved')->whereNull('order_id')->get();
+        if ($pending->isEmpty()) {
+            throw new BusinessRuleException('Cette cliente n\'a plus de pièce gardée dans ce live.');
+        }
+
+        return $this->deliverTo($pending, $place, $address);
     }
 
     /**
@@ -1015,6 +1060,10 @@ class LiveSales
                 'codes' => $read,
                 // « LIVE » : la liste des articles a été envoyée, rien à répondre
                 'list' => $m->type === 'text' && self::asksForList((string) $m->body),
+                // Réponse sans code d'une cliente dont la pièce attend encore son quartier : à vérifier par la vendeuse
+                'place_check' => $read === [] && $m->type === 'text' && ! self::asksForList((string) $m->body)
+                    && $reservations->contains(fn (LiveReservation $r) => $r->status === 'reserved' && $r->customer_phone === $m->conversation?->contact && $r->created_at->lte($m->created_at)),
+                'reservation_id' => $reservations->first(fn (LiveReservation $r) => $r->status === 'reserved' && $r->customer_phone === $m->conversation?->contact)?->id,
                 'answered' => ($answered[$m->conversation_id] ?? 0) > $m->id,
                 'created_at' => $m->created_at->toIso8601String(),
             ];
