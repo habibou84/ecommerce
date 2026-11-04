@@ -308,6 +308,20 @@ class Inbox
     }
 
     /**
+     * Réponse automatique avec une image (le texte en légende), par le WhatsApp relié par QR code ou le numéro officiel.
+     */
+    public function replyImageAutomatically(Conversation $conversation, string $image, string $caption): ConversationMessage
+    {
+        $link = $this->linkFor($conversation);
+        if ($link !== null) {
+            return $this->record($conversation, 'auto', '📷 '.$caption, 'queued', $this->bridge->send($link, $conversation->contact, $caption, slow: true, image: $image));
+        }
+        $account = $this->officialFor($conversation) ?? throw new BusinessRuleException('Aucun WhatsApp connecté ne permet d\'envoyer une image à ce client.');
+
+        return $this->record($conversation, 'auto', '📷 '.$caption, 'sent', $this->cloud->sendImage($account, $conversation->contact, $image, $caption));
+    }
+
+    /**
      * Réponse automatique riche (photo, liste, boutons) par le WhatsApp officiel, dans les 24 h ; elle apparaît dans
      * le fil avec un résumé. Null si la conversation ne passe pas par le numéro officiel (l'appelant répond en texte).
      *

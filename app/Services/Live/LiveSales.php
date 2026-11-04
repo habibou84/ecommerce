@@ -854,35 +854,51 @@ class LiveSales
         $text = $said->filter()->implode("\n");
         $added = $created->firstWhere('status', 'ordered')?->order;
         $held = LiveReservation::forStore($conversation->store_id)->where('customer_phone', $phone)->where('status', 'reserved')->whereNull('order_id')->exists();
-        // WhatsApp officiel : photo de chaque article, puis la liste des communes ou le récapitulatif de la commande
         $checkout = app(LiveCheckout::class);
-        if ($checkout->official($conversation)) {
-            // Un seul article gardé : sa phrase part en légende de sa photo, le reste en un texte. Plusieurs articles
-            // (« A1 + A2 ») : tout dans un seul message avec la question de la commune, sans photos, car WhatsApp livre
-            // les photos plus lentement que le texte et la question arriverait au milieu des articles
-            $several = $items->filter(fn (LiveItem $item) => ($said[$item->id] ?? '') !== '')->count() > 1;
-            $rest = $several ? $text : $items->map(fn (LiveItem $item) => ($line = $said[$item->id] ?? '') !== '' && $mine($item, LiveReservation::HOLDING)->exists()
-                && $checkout->itemPhoto($conversation, $item, $line) ? null : $line)->filter()->implode("\n");
-            if ($added !== null) {
-                $rest === '' || $this->reply($conversation, $rest);
-                $checkout->recap($conversation, $added);
-            } elseif ($held) {
-                $ask = ($rest !== '' ? $rest."\n" : '').'Où faut-il vous livrer ?';
-                $checkout->askCommune($conversation, $ask) || $this->reply($conversation, $ask.' Répondez avec votre quartier (et un repère).');
-            } elseif ($rest !== '') {
-                $this->reply($conversation, $rest);
-            }
-
-            return;
-        }
-        // Article ajouté à une commande déjà faite : le nouveau récapitulatif (nouveau total)
-        if ($added !== null && $open !== null && $added->id === $open->id) {
-            $text === '' || $this->reply($conversation, $text);
+        $official = $checkout->official($conversation);
+        // Commande créée ou complétée : le récapitulatif (en image), qui montre déjà tous les articles
+        if ($added !== null) {
+            $wait = collect(explode("\n", $text))->filter(fn (string $l) => str_starts_with($l, '⏳'))->implode("\n");
+            $wait === '' || $this->reply($conversation, $wait);
             $checkout->recap($conversation, $added);
 
             return;
         }
-        $this->reply($conversation, $text.($held ? "\nPour la livraison, répondez avec votre quartier (et un repère)." : ''));
+        // Une seule image pour tous les articles demandés (gardés ou en liste d'attente), la phrase en légende
+        $caption = trim($text.($held ? ($official ? "\n\nOù faut-il vous livrer ? Choisissez votre commune juste après." : "\nPour la livraison, répondez avec votre quartier (et un repère).") : ''));
+        $sent = $text !== '' && $checkout->picture($conversation, $this->askedImage($session, $items, $mine, $held), $caption);
+        if ($held && $official) {
+            $ask = ($sent || $text === '' ? '' : $text."\n").'Où faut-il vous livrer ?';
+            $checkout->askCommune($conversation, $ask) || $this->reply($conversation, $ask.' Répondez avec votre quartier (et un repère).');
+        } elseif (! $sent && $caption !== '') {
+            $this->reply($conversation, $caption);
+        }
+    }
+
+    /**
+     * Image des articles demandés dans un message (miniature, code, nom, taille, prix, gardé ou liste d'attente) ; null
+     * si elle ne peut pas être faite (le texte part seul).
+     *
+     * @param  Collection<int, LiveItem>  $items
+     */
+    private function askedImage(LiveSession $session, Collection $items, callable $mine, bool $held): ?string
+    {
+        $items = (new \Illuminate\Database\Eloquent\Collection($items->all()))->loadMissing(['variant.image', 'variant.product.images']);
+        $lines = $items->map(function (LiveItem $item) use ($mine) {
+            $kept = $mine($item, LiveReservation::HOLDING)->count();
+            $waiting = $mine($item, ['waiting'])->oldest('id')->first();
+            if ($kept === 0 && $waiting === null) {
+                return null;
+            }
+            $state = $kept > 0 ? ($kept > 1 ? "{$kept} réservées pour vous" : 'Réservée pour vous') : "Liste d'attente : n°{$this->position($waiting)}";
+
+            return ['code' => $item->code, 'title' => $item->variant?->product?->title ?? 'Article',
+                'detail' => ($item->optionValues() !== [] ? $item->variant->title.' · ' : '').$state,
+                'price' => $item->currentPrice(), 'image' => $item->variant?->image ?? $item->variant?->product?->images->first()];
+        })->filter()->values()->all();
+
+        return $lines === [] ? null : rescue(fn () => app(LiveImages::class)->board($session->store_id, 'Pour vous · '.($session->store?->name ?? 'Live'), $lines,
+            $held ? 'Où faut-il vous livrer ?' : null), report: false);
     }
 
     /**
@@ -1191,7 +1207,7 @@ class LiveSales
 
             return;
         }
-        $lines = $session->items()->with(self::VARIANT_RELATIONS)->orderBy('position')->get()->groupBy('code')
+        $groups = $session->items()->with([...self::VARIANT_RELATIONS, 'variant.image', 'variant.product.images'])->orderBy('position')->get()->groupBy('code')
             ->map(function (Collection $group, string $code) {
                 $left = $group->filter(fn (LiveItem $i) => $this->remaining($i) > 0);
                 if ($left->isEmpty()) {
@@ -1199,22 +1215,36 @@ class LiveSales
                 }
                 $first = $group->first();
                 $sizes = $left->filter(fn (LiveItem $i) => $i->optionValues() !== [])->map(fn (LiveItem $i) => $i->variant->title)->unique()->implode(', ');
-                $price = $left->min(fn (LiveItem $i) => $i->currentPrice());
 
-                return "*{$code}* · ".($first->variant?->product?->title ?? 'Article').($sizes !== '' ? " ({$sizes})" : '').' · '.Money::format((int) $price);
+                return ['code' => $code, 'title' => $first->variant?->product?->title ?? 'Article', 'sizes' => $sizes,
+                    'price' => (int) $left->min(fn (LiveItem $i) => $i->currentPrice()), 'image' => $first->variant?->image ?? $first->variant?->product?->images->first()];
             })->filter()->values();
-        if ($lines->isEmpty()) {
+        if ($groups->isEmpty()) {
             $this->reply($conversation, "Tout est parti pour l'instant ! De nouveaux articles arrivent pendant le live. Nos autres articles : ".$store->url('/'));
 
             return;
         }
-        $shown = $lines->take(30);
-        $example = Str::before(Str::after($shown->first(), '*'), '*');
-        $this->reply($conversation, "🔴 *Encore disponibles en ce moment :*\n\n".$shown->implode("\n\n")
-            .($lines->count() > $shown->count() ? "\n… et ".($lines->count() - $shown->count()).' autres sur la page du live.' : '')
-            ."\n\n👉 Répondez avec *le code + votre taille* (ex. *{$example} M*). Plusieurs articles : *{$example} M, ".($shown->count() > 1 ? Str::before(Str::after($shown->get(1), '*'), '*') : $example).'*.'
-            ."\n📷 Les photos : ".$store->url('/live'));
+        $shown = $groups->take(self::LIST_ON_IMAGE);
+        $more = $groups->count() - $shown->count();
+        $example = $shown->first()['code'];
+        $several = $shown->count() > 1 ? $shown->get(1)['code'] : $example;
+        // Une seule image pour toute la liste (miniature, code, nom, tailles, prix), puis un court texte avec le lien
+        $image = rescue(fn () => app(LiveImages::class)->board($store->id, 'Encore disponibles · '.$store->name, $shown->map(fn (array $g) => [
+            'code' => $g['code'], 'title' => $g['title'], 'detail' => $g['sizes'] !== '' ? 'Tailles : '.$g['sizes'] : 'Taille unique', 'price' => $g['price'], 'image' => $g['image'],
+        ])->all(), 'Répondez : code + taille (ex. '.$example.' M)', $groups->count().' article'.($groups->count() > 1 ? 's' : '').($more > 0 ? " · + {$more} sur la page du live" : '')), report: false);
+        $howTo = "👉 Répondez avec *le code + votre taille* (ex. *{$example} M*). Plusieurs articles : *{$example} M, {$several}*.\n📷 Toutes les photos : ".$store->url('/live');
+        if (app(LiveCheckout::class)->picture($conversation, $image, '🔴 Encore disponibles en ce moment')) {
+            $this->reply($conversation, $howTo);
+
+            return;
+        }
+        $text = $groups->take(30)->map(fn (array $g) => "*{$g['code']}* · {$g['title']}".($g['sizes'] !== '' ? " ({$g['sizes']})" : '').' · '.Money::format($g['price']));
+        $this->reply($conversation, "🔴 *Encore disponibles en ce moment :*\n\n".$text->implode("\n\n")
+            .($groups->count() > 30 ? "\n\n… et ".($groups->count() - 30).' autres sur la page du live.' : '')."\n\n".$howTo);
     }
+
+    /** Articles sur l'image de la liste « LIVE » (au-delà : le nombre, et la page du live) */
+    private const LIST_ON_IMAGE = 12;
 
     private function label(LiveItem $item): string
     {

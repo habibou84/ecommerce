@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Services\Ai\AiClient;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Live\LiveImages;
 use App\Services\Live\LiveSales;
 use App\Services\Live\LiveScreens;
 use App\Services\Places\Places;
@@ -37,6 +38,9 @@ class LiveSalesTest extends TestCase
     /** @var list<string> */
     private array $paces = [];
 
+    /** Images envoyées par le WhatsApp relié (adresse, légende) */
+    private array $images = [];
+
     private FakeAiClient $ai;
 
     /** Image PNG de 1 × 1 pixel (capture simulée) */
@@ -53,6 +57,7 @@ class LiveSalesTest extends TestCase
             'http://127.0.0.1:3210/sessions/*/send' => function ($request) {
                 $this->whatsapp[] = $request->data()['text'] ?? '';
                 $this->paces[] = $request->data()['pace'] ?? 'normal';
+                isset($request->data()['image']) && $this->images[] = ['image' => $request->data()['image'], 'caption' => $request->data()['text'] ?? ''];
 
                 return Http::response(['id' => 'qr-'.count($this->whatsapp)], 202);
             },
@@ -497,7 +502,9 @@ class LiveSalesTest extends TestCase
         $this->assertFalse(LiveSales::asksForList('je veux voir le live demain'));
         $this->assertFalse(LiveSales::asksForList('A1'));
 
-        // « LIVE » : les deux articles, le prix, comment répondre et la page du live
+        // « LIVE » : les deux articles, le prix, comment répondre et la page du live (ici en texte : l'image ne se fait
+        // pas, la liste part alors écrite)
+        $this->partialMock(LiveImages::class, fn ($mock) => $mock->shouldReceive('board')->andThrow(new \RuntimeException('GD')));
         $this->message('L1', 'LIVE');
         $list = end($this->whatsapp);
         $this->assertStringContainsString('*A1* · Robe wax · 12', $list);
@@ -576,7 +583,9 @@ class LiveSalesTest extends TestCase
         $order = Order::forStore($this->store->id)->sole();
         $recap = end($this->whatsapp);
         $this->assertStringContainsString("Votre commande n° {$order->reference()}", $recap);
-        $this->assertStringContainsString('Livraison', $recap);
+        // Le détail (miniatures, livraison, total) part en une seule image juste avant
+        $this->assertStringEndsWith('.jpg', end($this->images)['image']);
+        $this->assertSame("🧾 Commande n° {$order->reference()}", end($this->images)['caption']);
         $this->assertStringContainsString('Total à payer', $recap);
         $this->assertStringContainsString('*4* ou *ANNULER*', $recap);
 
@@ -607,7 +616,8 @@ class LiveSalesTest extends TestCase
         // « LIVE » : un article par ligne, séparés par une ligne vide
         $this->travel(3)->minutes();
         $this->message('L1', 'live', '2250709090909');
-        $this->assertStringContainsString("\n\n*A2*", end($this->whatsapp));
+        $this->assertSame('🔴 Encore disponibles en ce moment', end($this->images)['caption']);
+        $this->assertStringContainsString('le code + votre taille', end($this->whatsapp));
     }
 
     public function test_a_kept_piece_without_neighbourhood_goes_to_the_waiting_list(): void

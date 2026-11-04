@@ -277,13 +277,14 @@ class Session {
   }
 
   /** Message mis dans la file : renvoie tout de suite son identifiant, l'envoi suit (événement sent ou failed) */
-  enqueue (to, text, slow = false) {
+  enqueue (to, text, slow = false, image = null) {
     const id = 'qr-' + crypto.randomUUID()
-    this.queue = this.queue.then(() => this.deliver(id, to, text, slow)).catch(() => {})
+    this.queue = this.queue.then(() => this.deliver(id, to, text, slow, image)).catch(() => {})
     return id
   }
 
-  async deliver (id, to, text, slow = false) {
+  /** image : adresse publique d'une image (récapitulatif, liste des articles), envoyée avec le texte en légende */
+  async deliver (id, to, text, slow = false, image = null) {
     const wait = this.lastSend + (slow ? SLOW_MIN_DELAY + Math.floor(Math.random() * SLOW_EXTRA_DELAY) : MIN_DELAY + Math.floor(Math.random() * EXTRA_DELAY)) - Date.now()
     if (wait > 0) await sleep(wait)
     if (slow) {
@@ -313,7 +314,7 @@ class Session {
       const messageId = generateMessageIDV2(this.sock.user?.id)
       this.sent.set(messageId, id)
       if (this.sent.size > 5000) this.sent.delete(this.sent.keys().next().value)
-      await this.sock.sendMessage(jid, { text }, { messageId })
+      await this.sock.sendMessage(jid, image ? { image: { url: image }, caption: text } : { text }, { messageId })
       log.info({ session: this.id, id, jid }, 'message envoyé')
       notify({ type: 'sent', session: this.id, id })
     } catch (e) {
@@ -446,11 +447,12 @@ const server = http.createServer(async (req, res) => {
       return reply(200, { session: id, status: 'logged_out' })
     }
     if (req.method === 'POST' && action === 'send') {
-      const { to, text, pace } = JSON.parse(await readBody(req) || '{}')
+      const { to, text, pace, image } = JSON.parse(await readBody(req) || '{}')
       const session = sessions.get(id)
       if (!session || session.status !== 'connected') return reply(409, { message: 'WhatsApp n\'est pas relié : scannez le QR code dans Réglages › WhatsApp.' })
       if (!to || !text) return reply(422, { message: 'Destinataire et texte obligatoires.' })
-      return reply(202, { id: session.enqueue(to, String(text), pace === 'slow') })
+      if (image && !/^https?:\/\/\S+$/.test(String(image))) return reply(422, { message: 'Adresse de l\'image invalide.' })
+      return reply(202, { id: session.enqueue(to, String(text), pace === 'slow', image ? String(image) : null) })
     }
     if (req.method === 'POST' && action === 'media') {
       const { id: messageId } = JSON.parse(await readBody(req) || '{}')
