@@ -514,6 +514,10 @@ class LiveSales
         if ($message->type !== 'text') {
             return false;
         }
+        // Réponse au récapitulatif en texte (WhatsApp relié par QR code) : 1 / OUI, 2 / AJOUTER, 3 / ADRESSE, 4 / ANNULER
+        if (app(LiveCheckout::class)->answer($conversation, (string) $message->body)) {
+            return true;
+        }
         // « LIVE » (ou « liste », « articles », « catalogue ») : tous les articles encore disponibles
         if (self::asksForList((string) $message->body)) {
             $this->sendList($conversation, $session);
@@ -526,14 +530,9 @@ class LiveSales
         }
 
         $order = $this->complete($conversation->store, PhoneNumber::normalize($conversation->contact), $message->body);
-        if ($order !== null && app(LiveCheckout::class)->official($conversation)) {
-            app(LiveCheckout::class)->recap($conversation, $order);
-
-            return true;
-        }
+        // Récapitulatif : prix de la livraison, total, et confirmer / ajouter / changer l'adresse / annuler
         if ($order !== null) {
-            $this->reply($conversation, "Merci ! Commande {$order->reference()} enregistrée ({$order->items->map(fn ($i) => $i->title)->implode(', ')}), "
-                .'livraison : '.($order->shipping_address ?? 'à préciser').'. Nous vous appelons pour confirmer.');
+            app(LiveCheckout::class)->recap($conversation, $order);
 
             return true;
         }
@@ -876,11 +875,14 @@ class LiveSales
 
             return;
         }
-        $this->reply($conversation, $text.match (true) {
-            $added !== null && $open !== null && $added->id === $open->id => "\nAjouté à votre commande {$added->reference()}, livraison : ".($added->shipping_address ?? 'à préciser').'.',
-            $held => "\nPour la livraison, répondez avec votre quartier (et un repère).",
-            default => '',
-        });
+        // Article ajouté à une commande déjà faite : le nouveau récapitulatif (nouveau total)
+        if ($added !== null && $open !== null && $added->id === $open->id) {
+            $text === '' || $this->reply($conversation, $text);
+            $checkout->recap($conversation, $added);
+
+            return;
+        }
+        $this->reply($conversation, $text.($held ? "\nPour la livraison, répondez avec votre quartier (et un repère)." : ''));
     }
 
     /**
@@ -960,7 +962,7 @@ class LiveSales
     public function state(LiveSession $session, bool $team = true): array
     {
         $session->loadMissing('items.variant.product.images', 'items.variant.option1.option', 'items.variant.option2.option', 'items.variant.option3.option');
-        $reservations = $team ? LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->with('item:id,code', 'order:id,number,store_id')
+        $reservations = $team ? LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->with('item:id,code', 'order:id,number,store_id,status')
             ->latest('id')->limit(200)->get() : collect();
         $counts = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)
             ->selectRaw('live_item_id, status, count(*) as n')->groupBy('live_item_id', 'status')->get();
@@ -1003,7 +1005,7 @@ class LiveSales
                 'customer_name' => $r->customer_name,
                 'customer_phone' => $r->customer_phone,
                 'shipping_address' => $r->shipping_address,
-                'order' => $r->order ? ['id' => $r->order->id, 'reference' => $r->order->reference()] : null,
+                'order' => $r->order ? ['id' => $r->order->id, 'reference' => $r->order->reference(), 'status' => $r->order->status->value] : null,
                 'expires_at' => $r->expires_at?->toIso8601String(),
                 'created_at' => $r->created_at->toIso8601String(),
             ])->values()->all(),
@@ -1208,7 +1210,7 @@ class LiveSales
         }
         $shown = $lines->take(30);
         $example = Str::before(Str::after($shown->first(), '*'), '*');
-        $this->reply($conversation, "🔴 *Encore disponibles en ce moment :*\n".$shown->implode("\n")
+        $this->reply($conversation, "🔴 *Encore disponibles en ce moment :*\n\n".$shown->implode("\n\n")
             .($lines->count() > $shown->count() ? "\n… et ".($lines->count() - $shown->count()).' autres sur la page du live.' : '')
             ."\n\n👉 Répondez avec *le code + votre taille* (ex. *{$example} M*). Plusieurs articles : *{$example} M, ".($shown->count() > 1 ? Str::before(Str::after($shown->get(1), '*'), '*') : $example).'*.'
             ."\n📷 Les photos : ".$store->url('/live'));

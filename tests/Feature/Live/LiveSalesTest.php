@@ -361,7 +361,8 @@ class LiveSalesTest extends TestCase
 
         // Nouveau code après la commande : ajouté à la même commande, sans redemander le quartier
         $this->message('Q4', '2 A1');
-        $this->assertStringContainsString("Ajouté à votre commande {$order->reference()}", end($this->whatsapp));
+        $this->assertStringContainsString("Votre commande n° {$order->reference()}", end($this->whatsapp));
+        $this->assertStringContainsString('Total à payer', end($this->whatsapp));
         $this->assertSame(1, Order::count());
         $order->refresh()->load('items');
         $this->assertSame([24000 + 2 * 12000, 'Yopougon, carrefour Siporex'], [(int) $order->items->sum('total'), $order->shipping_address]);
@@ -372,7 +373,7 @@ class LiveSalesTest extends TestCase
         $order->forceFill(['status' => 'confirmed'])->save();
         $before = LiveReservation::where('customer_phone', '+2250506070809')->count();
         $this->message('Q5', 'A2 x4');
-        $this->assertStringContainsString("Ajouté à votre commande {$order->reference()}", end($this->whatsapp));
+        $this->assertStringContainsString("Commande mise à jour.\n🧾 *Votre commande n° {$order->reference()}*", end($this->whatsapp));
         $this->assertSame([1, $before + 1], [Order::count(), LiveReservation::where('customer_phone', '+2250506070809')->count()]);
         $this->message('Q6', 'A2 x4');
         $this->assertSame($before + 1, LiveReservation::where('customer_phone', '+2250506070809')->count());
@@ -561,6 +562,52 @@ class LiveSalesTest extends TestCase
             ->assertOk();
         $this->assertSame('ordered', $kept->fresh()->status);
         $this->assertSame(2, Order::forStore($this->store->id)->count());
+    }
+
+    public function test_the_qr_code_whatsapp_gets_a_recap_and_can_confirm_change_or_cancel(): void
+    {
+        $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
+        $this->bridge(['type' => 'status', 'status' => 'connected', 'phone' => '+2250700000001'])->assertOk();
+        $id = $this->prepare(robes: 1);
+
+        // Commande : récapitulatif avec la livraison, le total et les réponses possibles
+        $this->message('R1', 'A1');
+        $this->message('R2', 'Angré');
+        $order = Order::forStore($this->store->id)->sole();
+        $recap = end($this->whatsapp);
+        $this->assertStringContainsString("Votre commande n° {$order->reference()}", $recap);
+        $this->assertStringContainsString('Livraison', $recap);
+        $this->assertStringContainsString('Total à payer', $recap);
+        $this->assertStringContainsString('*4* ou *ANNULER*', $recap);
+
+        // 3 / ADRESSE : le nouveau lieu change l'adresse (nouveau récapitulatif)
+        $this->message('R3', 'adresse');
+        $this->assertStringContainsString('commune et votre quartier', end($this->whatsapp));
+        $this->message('R4', 'Yopugon');
+        $this->assertSame('Yopougon', Place::find($order->fresh()->shipping_place_id)->name);
+        $this->assertStringContainsString('Total à payer', end($this->whatsapp));
+
+        // 4 / ANNULER : à redire une fois ; la robe revient au live et Awa, sur la liste d'attente, est servie
+        $this->message('W1', 'A1', '2250701020304');
+        $this->message('R5', '4');
+        $this->assertStringContainsString('ANNULER* encore une fois', end($this->whatsapp));
+        $this->assertSame('pending_confirmation', $order->fresh()->status->value);
+        $this->message('R6', 'Annuler');
+        $this->assertSame('cancelled', $order->fresh()->status->value);
+        $this->assertStringContainsString('annulée', end($this->whatsapp));
+        $this->assertSame('reserved', LiveReservation::where('customer_phone', '+2250701020304')->sole()->status);
+        $this->assertSame('cancelled', $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.reservations.1.order.status'));
+
+        // 1 / OUI : confirmé
+        $this->message('W2', 'Cocody', '2250701020304');
+        $this->message('W3', 'oui', '2250701020304');
+        $this->assertSame('confirmed', Order::where('customer_phone', '+2250701020304')->sole()->status->value);
+        $this->assertStringContainsString('confirmée', end($this->whatsapp));
+
+        // « LIVE » : un article par ligne, séparés par une ligne vide
+        $this->travel(3)->minutes();
+        $this->message('L1', 'live', '2250709090909');
+        $this->assertStringContainsString("\n\n*A2*", end($this->whatsapp));
     }
 
     public function test_a_kept_piece_without_neighbourhood_goes_to_the_waiting_list(): void
