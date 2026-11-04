@@ -528,6 +528,41 @@ class LiveSalesTest extends TestCase
         $this->assertStringContainsString('pas de live en ce moment', end($this->whatsapp));
     }
 
+    public function test_a_misspelled_neighbourhood_is_understood_and_an_unknown_one_gets_an_answer(): void
+    {
+        $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
+        $this->bridge(['type' => 'status', 'status' => 'connected', 'phone' => '+2250700000001'])->assertOk();
+        $id = $this->prepare(robes: 2);
+
+        // Lieu pas reconnu : la cliente le sait, une seule fois ; la vendeuse voit « quartier à vérifier »
+        $this->message('M1', 'A1');
+        $this->message('M2', 'près du grand marché');
+        $this->assertStringContainsString('pas reconnu ce quartier', end($this->whatsapp));
+        $count = count($this->whatsapp);
+        $this->message('M3', 'derrière la pharmacie');
+        $this->assertCount($count, $this->whatsapp);
+        $feed = $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.messages');
+        $this->assertTrue(collect($feed)->firstWhere('body', 'près du grand marché')['place_check']);
+        $this->assertFalse(collect($feed)->firstWhere('body', 'A1')['place_check']);
+        // Une question reste à l'équipe, sans réponse automatique
+        $this->message('M4', 'vous livrez à Bingerville ?');
+        $this->assertCount($count, $this->whatsapp);
+
+        // Faute de frappe : « Yopugon » est compris, la commande est créée
+        $this->message('M5', 'Yopugon');
+        $order = Order::forStore($this->store->id)->sole();
+        $this->assertSame('Yopougon', $order->shippingPlace?->name ?? Place::find($order->shipping_place_id)->name);
+
+        // Une autre cliente dont la réponse n'est pas comprise : la vendeuse choisit le quartier
+        $this->message('M6', 'A2', '2250701020304');
+        $this->message('M7', 'chez ma tante', '2250701020304');
+        $kept = LiveReservation::where('customer_phone', '+2250701020304')->sole();
+        $this->storeApi($this->store, 'POST', "lives/{$id}/reservations/{$kept->id}/place", ['place_id' => $this->place('Angré')->id, 'address' => 'Angré, chez sa tante'])
+            ->assertOk();
+        $this->assertSame('ordered', $kept->fresh()->status);
+        $this->assertSame(2, Order::forStore($this->store->id)->count());
+    }
+
     public function test_a_kept_piece_without_neighbourhood_goes_to_the_waiting_list(): void
     {
         $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();

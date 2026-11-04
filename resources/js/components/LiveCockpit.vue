@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import http, { errorMessage } from '../lib/http'
 import { money, phoneDisplay } from '../lib/format'
+import Modal from './Modal.vue'
 
 /**
  * Écran de la vendeuse pendant un live avec pancartes : la pancarte montrée toujours en haut (photo, ce qui reste,
@@ -71,10 +72,13 @@ const allPieces = computed(() => products.value.reduce((sum, p) => sum + p.quant
 const messageFilter = ref('all')
 // « LIVE » : la liste des articles est partie toute seule, ce n'est pas une question
 const isQuestion = (m) => m.type === 'text' && !m.list && !m.codes.length && !m.answered
-const questions = computed(() => (props.live.messages ?? []).filter(isQuestion))
+// À traiter : questions sans réponse et quartiers pas reconnus (la vendeuse choisit le quartier)
+const needsAction = (m) => isQuestion(m) || (m.place_check && m.reservation_id && props.live.reservations.some((r) => r.id === m.reservation_id && r.status === 'reserved'))
+const questions = computed(() => (props.live.messages ?? []).filter(needsAction))
 const messages = computed(() => (messageFilter.value === 'todo' ? questions.value : props.live.messages ?? []))
 function messageState(m) {
   if (m.list) return 'LISTE ENVOYÉE'
+  if (m.place_check) return needsAction(m) ? 'QUARTIER À VÉRIFIER' : null
   if (!m.codes.length) return m.type === 'image' ? 'CAPTURE' : null
   const r = props.live.reservations.find((x) => x.customer_phone === m.phone && m.codes.includes(x.code) && x.status !== 'cancelled')
   return { ordered: 'COMMANDÉ', reserved: 'QUARTIER ?', waiting: 'EN ATTENTE', expired: 'LIBÉRÉ' }[r?.status] ?? 'LU'
@@ -136,6 +140,31 @@ async function sendReply(m, body = replying.body) {
     replying.error = errorMessage(e)
   } finally {
     replying.busy = false
+  }
+}
+// Quartier choisi par la vendeuse quand la réponse de la cliente n'a pas été reconnue
+const placing = reactive({ reservation: null, name: '', search: '', results: [], address: '', busy: false, error: '' })
+let placeTimer
+function openPlace(reservationId, name, text = '') {
+  Object.assign(placing, { reservation: reservationId, name, search: '', results: [], address: text, busy: false, error: '' })
+}
+function findPlaces() {
+  clearTimeout(placeTimer)
+  placeTimer = setTimeout(async () => {
+    placing.results = placing.search.trim().length < 2 ? [] : (await http.get('/places', { params: { search: placing.search.trim() } }).catch(() => ({ data: { data: [] } }))).data.data
+  }, 250)
+}
+async function choosePlace(place) {
+  placing.busy = true
+  placing.error = ''
+  try {
+    await http.post(`/lives/${props.live.id}/reservations/${placing.reservation}/place`, { place_id: place.id, address: placing.address.trim() ? `${place.label}, ${placing.address.trim()}`.slice(0, 255) : null })
+    placing.reservation = null
+    emit('reload')
+  } catch (e) {
+    placing.error = errorMessage(e)
+  } finally {
+    placing.busy = false
   }
 }
 const ago = (iso) => {
@@ -236,7 +265,7 @@ const ago = (iso) => {
       </div>
       <p v-if="live.whatsapp === null" class="rounded-xl bg-white p-3 text-sm text-slate-600">Votre WhatsApp n'est pas connecté : les messages des clientes n'arrivent pas ici. <RouterLink to="/gestion/whatsapp" class="font-bold underline">Connecter WhatsApp</RouterLink></p>
       <p v-else-if="!messages.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">{{ messageFilter === 'todo' ? 'Aucune question en attente ✓' : 'Les messages des clientes s\'afficheront ici.' }}</p>
-      <article v-for="m in messages" :key="m.id" class="rounded-xl bg-white p-2" :class="isQuestion(m) ? 'shadow-[inset_4px_0_0_#dc2626]' : ''">
+      <article v-for="m in messages" :key="m.id" class="rounded-xl bg-white p-2" :class="needsAction(m) ? 'shadow-[inset_4px_0_0_#dc2626]' : ''">
         <div class="flex items-center gap-2.5">
           <span v-if="m.codes.length && byCode[m.codes[0]]" class="relative h-10 w-10 shrink-0">
             <img v-if="byCode[m.codes[0]].image" :src="byCode[m.codes[0]].image" alt="" class="h-10 w-10 rounded-lg object-cover" />
@@ -244,13 +273,16 @@ const ago = (iso) => {
           </span>
           <span v-else class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-lg">{{ m.type === 'image' ? '📷' : '💬' }}</span>
           <div class="min-w-0 flex-1">
-            <p class="text-[13px] font-extrabold"><span v-if="isQuestion(m)" class="text-red-600">● </span>{{ m.name }}</p>
+            <p class="text-[13px] font-extrabold"><span v-if="needsAction(m)" class="text-red-600">● </span>{{ m.name }}</p>
             <p class="text-xs break-words text-slate-600">
               {{ m.type === 'image' ? '📷 capture' + (m.codes.length ? ` · lue : ${m.codes.join(', ')}` : '') : `« ${m.body} »` }}
               <span v-if="messageState(m)" class="ml-1 inline-block rounded-full border-[1.5px] border-slate-900 px-1.5 text-[10px] font-black" :class="messageState(m) === 'COMMANDÉ' ? 'bg-slate-900 text-white' : ''">{{ messageState(m) }}</span>
             </p>
           </div>
           <span class="shrink-0 self-start text-[10px] text-slate-400">{{ ago(m.created_at) }}</span>
+        </div>
+        <div v-if="m.place_check && needsAction(m)" class="mt-1.5 pl-12">
+          <button type="button" class="rounded-lg bg-slate-900 px-3 py-1 text-xs font-extrabold text-white" @click="openPlace(m.reservation_id, m.name, m.body)">Choisir le quartier</button>
         </div>
         <div v-if="isQuestion(m)" class="mt-1.5 pl-12">
           <button v-if="replying.id !== m.id" type="button" class="rounded-lg bg-slate-900 px-3 py-1 text-xs font-extrabold text-white" @click="openReply(m)">Répondre</button>
@@ -299,10 +331,27 @@ const ago = (iso) => {
         </div>
         <span class="flex shrink-0 flex-col items-end gap-0.5 self-start">
           <span class="text-[10px] text-slate-400">{{ ago(r.created_at) }}</span>
+          <button v-if="r.status === 'reserved'" type="button" class="text-[11px] font-bold underline" @click="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
           <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-[11px] font-bold underline">{{ r.order.reference }}</RouterLink>
           <button v-else type="button" class="text-[11px] font-bold text-slate-500 underline" :disabled="busy" @click="emit('cancel', r)">Annuler</button>
         </span>
       </article>
     </section>
+
+    <!-- Choisir le quartier d'une cliente -->
+    <Modal v-if="placing.reservation" :title="`Quartier de ${placing.name}`" @close="placing.reservation = null">
+      <div class="space-y-3 text-sm">
+        <p v-if="placing.address" class="rounded-xl bg-slate-100 p-2.5">Elle a écrit : « {{ placing.address }} »</p>
+        <input v-model="placing.search" class="input" placeholder="Commune ou quartier (ex. Yopougon)" autofocus @input="findPlaces" />
+        <ul v-if="placing.results.length" class="max-h-64 divide-y divide-slate-100 overflow-auto rounded-xl border border-slate-200">
+          <li v-for="p in placing.results" :key="p.id">
+            <button type="button" class="w-full p-2.5 text-left font-semibold hover:bg-slate-50 disabled:opacity-50" :disabled="placing.busy" @click="choosePlace(p)">{{ p.label }}</button>
+          </li>
+        </ul>
+        <p v-else-if="placing.search.trim().length >= 2" class="text-slate-500">Aucun lieu trouvé.</p>
+        <p class="text-xs text-slate-500">Ses pièces gardées deviennent une commande, livrée à ce quartier. Ce qu'elle a écrit est gardé comme repère pour le livreur.</p>
+        <p v-if="placing.error" class="text-red-600">{{ placing.error }}</p>
+      </div>
+    </Modal>
   </div>
 </template>

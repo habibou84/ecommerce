@@ -8,6 +8,7 @@ use App\Models\LiveReservation;
 use App\Models\LiveSession;
 use App\Models\ProductVariant;
 use App\Services\Live\LiveSales;
+use App\Services\Places\Places;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -175,6 +176,19 @@ class LiveController extends Controller
             return response()->json(['message' => "Aucun article {$data['code']} dans ce live.", 'errors' => ['code' => ["Aucun article {$data['code']} dans ce live."]]], 422);
         }
         $this->live->reserve($item, $data, 'manual');
+
+        return $this->state($live->fresh());
+    }
+
+    /**
+     * Quartier choisi par l'équipe (réponse de la cliente pas reconnue) : ses pièces gardées deviennent une commande.
+     */
+    public function place(Request $request, Places $places, int $session, int $reservation): JsonResponse
+    {
+        $data = $request->validate(['place_id' => ['required', 'integer'], 'address' => ['nullable', 'string', 'max:255']]);
+        $live = $this->session($session);
+        $place = $places->forStore($this->currentStore())->firstWhere('id', $data['place_id']) ?? abort(422, 'Ce quartier n\'est pas livré par la boutique.');
+        $this->live->placeFor($live, LiveReservation::forStore($live->store_id)->where('live_session_id', $live->id)->findOrFail($reservation), $place, $data['address'] ?? null);
 
         return $this->state($live->fresh());
     }
