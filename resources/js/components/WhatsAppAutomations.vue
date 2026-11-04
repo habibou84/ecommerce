@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from './PasswordInput.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from './Alert.vue'
 import ColorIcon from './ColorIcon.vue'
@@ -411,10 +412,10 @@ const META_STEPS = [
             </Field>
             <template v-if="!embedded">
               <Field id="wa-token" label="Jeton d'accès permanent" :error="formErrors.access_token" :hint="account ? 'Laisser vide pour garder le jeton enregistré.' : ''">
-                <input id="wa-token" v-model="form.access_token" class="input" type="password" autocomplete="off" :required="!account" />
+                <PasswordInput id="wa-token" v-model="form.access_token" class="input" autocomplete="off" :required="!account" />
               </Field>
               <Field id="wa-secret" label="Clé secrète de l'application Meta" :error="formErrors.app_secret" :hint="account ? 'Laisser vide pour garder la clé enregistrée.' : 'Sert à vérifier que les notifications viennent bien de Meta.'">
-                <input id="wa-secret" v-model="form.app_secret" class="input" type="password" autocomplete="off" :required="!account" />
+                <PasswordInput id="wa-secret" v-model="form.app_secret" class="input" autocomplete="off" :required="!account" />
               </Field>
             </template>
           </div>

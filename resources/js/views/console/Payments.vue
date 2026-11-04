@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../components/PasswordInput.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage } from '../../lib/http'
@@ -218,7 +219,7 @@ async function removeQr() {
           À chaque paiement, un e-mail part d'abord ; s'il ne part pas (ou sans adresse), un SMS est envoyé. Les paiements apparaissent aussi ici.
         </p>
         <label class="block max-w-xs">Code de validation
-          <input v-model="form.validator_pin" type="password" inputmode="numeric" autocomplete="new-password" class="input mt-1" :placeholder="settings.pin_set ? 'Déjà défini : laisser vide pour le garder' : 'Au moins 4 chiffres'" />
+          <PasswordInput v-model="form.validator_pin" inputmode="numeric" autocomplete="new-password" class="input mt-1" :placeholder="settings.pin_set ? 'Déjà défini : laisser vide pour le garder' : 'Au moins 4 chiffres'" />
           <span class="text-xs text-slate-500">Demandé quand vous validez depuis le lien reçu par e-mail ou SMS.</span>
         </label>
       </template>
@@ -279,7 +280,7 @@ async function removeQr() {
           </ol>
           <div class="mt-3 grid max-w-2xl gap-3 sm:grid-cols-2">
             <label>ID client<input v-model="google.client_id" class="input mt-1" placeholder="….apps.googleusercontent.com" autocomplete="off" /></label>
-            <label>Code secret du client<input v-model="google.client_secret" type="password" class="input mt-1" autocomplete="new-password" :placeholder="gmail.configured ? 'Déjà enregistré : laisser vide pour le garder' : 'GOCSPX-…'" /></label>
+            <label>Code secret du client<PasswordInput v-model="google.client_secret" class="input mt-1" autocomplete="new-password" :placeholder="gmail.configured ? 'Déjà enregistré : laisser vide pour le garder' : 'GOCSPX-…'" /></label>
           </div>
           <button class="btn-secondary mt-3" type="button" @click="saveGoogleClient">Enregistrer l'application Google</button>
         </details>
@@ -294,7 +295,7 @@ async function removeQr() {
         </div>
         <div class="mt-3 grid max-w-xl gap-3 sm:grid-cols-2">
           <label>Identifiant<input v-model="mail.username" class="input mt-1" autocomplete="off" /></label>
-          <label>Mot de passe<input v-model="mail.password" type="password" class="input mt-1" autocomplete="new-password" :placeholder="settings.mail.password_set ? 'Déjà enregistré : laisser vide pour le garder' : ''" /></label>
+          <label>Mot de passe<PasswordInput v-model="mail.password" class="input mt-1" autocomplete="new-password" :placeholder="settings.mail.password_set ? 'Déjà enregistré : laisser vide pour le garder' : ''" /></label>
           <label class="sm:col-span-2">Adresse d'expédition<input v-model="mail.from_address" type="email" class="input mt-1" /></label>
         </div>
         <div class="mt-3 flex items-center gap-2"><button class="btn-secondary" @click="saveMail">Enregistrer</button><span v-if="mailSaved" class="text-emerald-700">Enregistré ✓</span></div>

@@ -1,4 +1,5 @@
 <script setup>
+import PasswordInput from '../../components/PasswordInput.vue'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Modal from '../../components/Modal.vue'
@@ -118,7 +119,7 @@ async function removeAccount() {
       <form class="space-y-4 text-sm" @submit.prevent="removeAccount">
         <p>Votre nom, votre téléphone et vos accès sont effacés ; les livraisons déjà faites restent à la boutique. C'est définitif : saisissez votre mot de passe pour confirmer.</p>
         <p v-if="removeError" class="rounded-lg bg-red-50 p-3 text-red-800">{{ removeError }}</p>
-        <input v-model="removePassword" class="input" type="password" autocomplete="current-password" placeholder="Mot de passe" aria-label="Mot de passe" required />
+        <PasswordInput v-model="removePassword" class="input" autocomplete="current-password" placeholder="Mot de passe" aria-label="Mot de passe" required />
         <div class="grid grid-cols-2 gap-2">
           <button type="button" class="btn-secondary" @click="removing = false">Annuler</button>
           <button class="btn-danger" :disabled="leaving">Supprimer</button>
