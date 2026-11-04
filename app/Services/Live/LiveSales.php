@@ -510,6 +510,12 @@ class LiveSales
         if ($message->type !== 'text') {
             return false;
         }
+        // « LIVE » (ou « liste », « articles », « catalogue ») : tous les articles encore disponibles
+        if (self::asksForList((string) $message->body)) {
+            $this->sendList($conversation, $session);
+
+            return true;
+        }
         // Codes du live (« A1 L rouge ») ; sinon réponse à la question « Quelle taille ? »
         if ($session !== null && ($this->takeCodes($conversation, $session, (string) $message->body) || $this->chooseOption($conversation, (string) $message->body))) {
             return true;
@@ -1007,6 +1013,8 @@ class LiveSales
                 'type' => $m->type,
                 'body' => Str::limit((string) $m->body, 160),
                 'codes' => $read,
+                // « LIVE » : la liste des articles a été envoyée, rien à répondre
+                'list' => $m->type === 'text' && self::asksForList((string) $m->body),
                 'answered' => ($answered[$m->conversation_id] ?? 0) > $m->id,
                 'created_at' => $m->created_at->toIso8601String(),
             ];
@@ -1098,6 +1106,63 @@ class LiveSales
     {
         return LiveReservation::forStore($reservation->store_id)->where('live_item_id', $reservation->live_item_id)->where('status', 'waiting')
             ->where('id', '<=', $reservation->id)->count();
+    }
+
+    /** Mots qui demandent la liste des articles du live (le message entier, sans chiffre : jamais une pancarte) */
+    private const LIST_WORDS = ['live', 'le live', 'liste', 'la liste', 'articles', 'les articles', 'catalogue', 'le catalogue'];
+
+    /** Une même cliente reçoit la liste au plus une fois toutes les 2 minutes */
+    private const LIST_SECONDS = 120;
+
+    /**
+     * Le message demande la liste des articles : « LIVE », « liste », « Articles ? », « catalogue stp »…
+     */
+    public static function asksForList(string $text): bool
+    {
+        $words = Str::of(Str::ascii(mb_strtolower($text)))->replaceMatches('/[^a-z ]+/', ' ')->squish()
+            ->replaceMatches('/\s+(stp|svp|s il vous plait|s il te plait|please|merci)$/', '')->value();
+
+        return in_array($words, self::LIST_WORDS, true);
+    }
+
+    /**
+     * Réponse à « LIVE » : les articles encore disponibles du live en cours (code, nom, tailles qui restent, prix),
+     * comment répondre, et le lien de la page du live avec les photos. Sans live : le lien de la boutique.
+     */
+    private function sendList(Conversation $conversation, ?LiveSession $session): void
+    {
+        if (! Cache::add('live-list:'.$conversation->id, 1, self::LIST_SECONDS)) {
+            return;
+        }
+        $store = $conversation->store ?? Store::findOrFail($conversation->store_id);
+        if ($session === null) {
+            $this->reply($conversation, "Il n'y a pas de live en ce moment. Retrouvez tous nos articles sur notre boutique : ".$store->url('/'));
+
+            return;
+        }
+        $lines = $session->items()->with(self::VARIANT_RELATIONS)->orderBy('position')->get()->groupBy('code')
+            ->map(function (Collection $group, string $code) {
+                $left = $group->filter(fn (LiveItem $i) => $this->remaining($i) > 0);
+                if ($left->isEmpty()) {
+                    return null;
+                }
+                $first = $group->first();
+                $sizes = $left->filter(fn (LiveItem $i) => $i->optionValues() !== [])->map(fn (LiveItem $i) => $i->variant->title)->unique()->implode(', ');
+                $price = $left->min(fn (LiveItem $i) => $i->currentPrice());
+
+                return "*{$code}* · ".($first->variant?->product?->title ?? 'Article').($sizes !== '' ? " ({$sizes})" : '').' · '.Money::format((int) $price);
+            })->filter()->values();
+        if ($lines->isEmpty()) {
+            $this->reply($conversation, "Tout est parti pour l'instant ! De nouveaux articles arrivent pendant le live. Nos autres articles : ".$store->url('/'));
+
+            return;
+        }
+        $shown = $lines->take(30);
+        $example = Str::before(Str::after($shown->first(), '*'), '*');
+        $this->reply($conversation, "🔴 *Encore disponibles en ce moment :*\n".$shown->implode("\n")
+            .($lines->count() > $shown->count() ? "\n… et ".($lines->count() - $shown->count()).' autres sur la page du live.' : '')
+            ."\n\n👉 Répondez avec *le code + votre taille* (ex. *{$example} M*). Plusieurs articles : *{$example} M, ".($shown->count() > 1 ? Str::before(Str::after($shown->get(1), '*'), '*') : $example).'*.'
+            ."\n📷 Les photos : ".$store->url('/live'));
     }
 
     private function label(LiveItem $item): string
