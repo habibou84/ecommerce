@@ -220,11 +220,11 @@ async function loadLink() {
   if (!link.value) link.value = (await http.post('/lives/screens/link')).data.data.url
 }
 // TikTok LIVE Studio : une seule formule, deux cartes en hauteur côte à côte en haut de l'écran vertical.
-// Lien 1 : l'article montré (photo, code, prix) ; lien 2 : pour commander (adresse de la page du live ; numéro WhatsApp et QR code si le WhatsApp est connecté)
+// Lien 1 : l'article montré (photo, code, prix) ; lien 2 : pour commander (« Envoie le code », « Numéro dans la bio » ; ni numéro ni QR code : modération TikTok)
 const CARD = { w: 480, h: 780 }
 const STUDIO_LINKS = [
   { key: 'carte', label: 'Lien 1 · L\'article', hint: 'La photo, le code et le prix de l\'article montré.', place: 'En haut à gauche.' },
-  { key: 'commander', label: 'Lien 2 · Pour commander', hint: 'L\'adresse de votre page du live ; votre numéro WhatsApp et son QR code quand votre WhatsApp est connecté.', place: 'En haut à droite, à côté du lien 1.' },
+  { key: 'commander', label: 'Lien 2 · Pour commander', hint: '« Envoie le code » et « Numéro dans la bio » : sans numéro ni QR code, pour ne pas être coupé par TikTok. Mettez votre numéro WhatsApp dans la bio du profil.', place: 'En haut à droite, à côté du lien 1.' },
 ]
 const studioUrl = (key) => (link.value ? `${link.value}?habillage=${key}` : null)
 const copiedKey = ref('')
