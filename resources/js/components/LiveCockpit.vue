@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import http, { errorMessage } from '../lib/http'
 import { money, phoneDisplay } from '../lib/format'
 import LiveDisplay from './LiveDisplay.vue'
+import LiveOverlay from './LiveOverlay.vue'
 import Modal from './Modal.vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -23,6 +24,8 @@ const screenMode = computed(() => props.live.display_mode || 'product')
 
 // « Agrandir » : ce que montrent vraiment les écrans (télé, OBS, LIVE Studio) en grand, avec les articles à toucher
 const expanded = ref(false)
+// Onglet de l'agrandi : la télé (« Écran ») ou le téléphone d'une cliente sur TikTok LIVE Studio
+const view = ref('screen')
 const display = ref(null)
 let displayTimer
 async function loadDisplay() {
@@ -87,15 +90,6 @@ const next = computed(() => {
 const previous = computed(() => (currentIndex.value > 0 ? products.value[currentIndex.value - 1] : null))
 const show = (p) => p && current.value?.code !== p.code && emit('feature', p.id)
 
-function say(p) {
-  if (!p) return ''
-  if (p.remaining === 0) return 'Tout est parti ! Passez à la pancarte suivante.'
-  const left = p.sizes.filter((s) => s.remaining > 0).map((s) => `${s.remaining > 1 ? `${s.remaining} en` : 'une'} ${s.name}`)
-  const sizes = p.sizes.length && left.length <= 3 ? ` ${left.join(', ').replace(/^./, (c) => c.toUpperCase())}.` : ''
-  if (p.remaining === 1) return `Dernière pièce !${sizes} Envoie ${p.code}${p.sizes.length ? ' + ta taille' : ''}.`
-  if (p.remaining <= 3) return `Plus que ${p.remaining} !${sizes} Envoie ${p.code}${p.sizes.length ? ' + ta taille' : ''}.`
-  return `Envoie ${p.code}${p.sizes.length ? ' + ta taille' : ''} pour le réserver.`
-}
 function chrono(item) {
   const s = Math.max(0, Math.round((new Date(item.flash.ends_at).getTime() - props.now) / 1000))
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
@@ -276,60 +270,51 @@ const ago = (iso) => {
         </span>
       </button>
     </Teleport>
-    <!-- Pancarte montrée et onglets : toujours visibles -->
-    <div class="sticky top-2 z-20 space-y-2">
-      <section class="rounded-2xl border-2 border-slate-900 bg-white p-2.5 shadow-sm">
+    <!-- En haut, petits et non fixes : partager le lien, terminer le live -->
+    <div class="flex gap-2">
+      <button type="button" class="flex-1 rounded-lg border-[1.5px] border-slate-900 bg-white py-1.5 text-xs font-extrabold" @click="emit('share')">📤 Partager le lien</button>
+      <button type="button" class="flex-1 rounded-lg bg-slate-900 py-1.5 text-xs font-extrabold text-white" :disabled="busy" @click="emit('end')">⏹ Terminer le live</button>
+    </div>
+
+    <!-- L'article en vue (grande photo, pièces restantes) et les onglets ; en ligne, réduit et fixe en haut, dans
+         Messages et Commandes -->
+    <div class="space-y-2" :class="tab === 'articles' ? '' : 'sticky top-2 z-20'">
+      <section class="rounded-2xl border-2 border-slate-900 bg-white p-2 shadow-sm">
         <div class="flex items-center gap-2 text-[11px] font-extrabold tracking-wider text-slate-900">
-          <span>{{ screenMode === 'product' ? 'À L\'ÉCRAN MAINTENANT' : 'PANCARTE MONTRÉE' }}</span>
-          <span v-if="current" class="ml-auto font-bold text-slate-500">{{ currentIndex + 1 }} / {{ products.length }}</span>
-          <button v-if="cardsOn" type="button" class="rounded-lg bg-slate-900 px-2 py-1 text-[11px] font-extrabold text-white" :class="{ 'ml-auto': !current }" @click="expanded = true">⤢ Agrandir</button>
+          <span>{{ screenMode === 'product' ? 'À L\'ÉCRAN' : 'PANCARTE MONTRÉE' }}<template v-if="current"> · {{ currentIndex + 1 }} / {{ products.length }}</template></span>
+          <button v-if="cardsOn" type="button" class="ml-auto rounded-lg bg-slate-900 px-2 py-1 text-[11px] font-extrabold tracking-normal text-white" @click="expanded = true">⤢ Agrandir</button>
         </div>
         <!-- Défilement ou « comment commander » : les écrans ne montrent pas l'article ci-dessous, on le dit clairement -->
-        <div v-if="cardsOn && screenMode !== 'product'" class="mt-1.5 flex items-center gap-2 rounded-xl bg-slate-900 px-2.5 py-2 text-white">
-          <span class="min-w-0 flex-1 text-[13px] font-bold leading-tight">{{ screenMode === 'scroll' ? '🔁 À l\'écran : les articles défilent tout seuls (8 s chacun)' : '🛒 À l\'écran : comment commander' }}</span>
+        <div v-if="cardsOn && screenMode !== 'product'" class="mt-1.5 flex items-center gap-2 rounded-xl bg-slate-900 px-2.5 py-1.5 text-white">
+          <span class="min-w-0 flex-1 text-xs font-bold leading-tight">{{ screenMode === 'scroll' ? '🔁 À l\'écran : les articles défilent' : '🛒 À l\'écran : comment commander' }}</span>
           <button type="button" class="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-extrabold text-slate-900" :disabled="busy" @click="emit('mode', 'product')">Montrer {{ current?.code ?? 'un article' }}</button>
         </div>
         <!-- Messages et Commandes : l'article à l'écran sur une ligne, avec « suivant » -->
         <div v-if="current && tab !== 'articles'" class="mt-1.5 flex items-center gap-2">
           <img v-if="current.image" :src="current.image" alt="" class="h-11 w-11 shrink-0 rounded-lg object-cover" />
           <span class="shrink-0 rounded-md border-[3px] border-slate-900 px-1.5 text-lg leading-tight font-black">{{ current.code }}</span>
-          <span class="min-w-0 flex-1 truncate text-xs text-slate-600">{{ current.title }} · {{ money(current.price) }} · reste {{ current.remaining }}</span>
-          <button v-if="next" type="button" class="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-black text-white" :disabled="busy" :aria-label="`Suivante : ${next.code}`" @click="show(next)">▶ {{ next.code }}</button>
+          <span class="min-w-0 flex-1 truncate text-xs text-slate-600"><b class="text-base text-slate-900">{{ current.remaining }}</b> restantes sur {{ current.quantity }}</span>
+          <button v-if="next" type="button" class="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-black text-white" :disabled="busy" :aria-label="`Suivant : ${next.code}`" @click="show(next)">▶ {{ next.code }}</button>
         </div>
-        <template v-else-if="current">
-          <div class="mt-1.5 flex gap-2.5">
-            <button type="button" class="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-slate-100" :aria-label="`Afficher ${current.code} en grand`" @click="emit('big', current.items[0])">
-              <img v-if="current.image" :src="current.image" alt="" class="h-full w-full object-cover" />
-              <span class="absolute top-1.5 left-1.5 rounded-md border-[3px] border-slate-900 bg-white px-1.5 text-lg leading-tight font-black">{{ current.code }}</span>
-            </button>
-            <div class="min-w-0 flex-1">
-              <p class="truncate font-extrabold leading-tight">{{ current.title }}</p>
-              <p v-if="current.flash" class="text-sm font-bold">⚡ {{ money(current.price) }} <s class="font-normal text-slate-400">{{ money(current.flash.flash.was) }}</s> · {{ chrono(current.flash) }}</p>
-              <p v-else class="text-sm font-semibold text-slate-600">{{ money(current.price) }}</p>
-              <p class="mt-0.5 text-[28px] leading-none font-black">{{ current.remaining }} <span class="text-xs font-semibold text-slate-500">{{ current.remaining > 1 ? 'restantes' : 'restante' }} sur {{ current.quantity }}</span></p>
-              <div v-if="current.sizes.length" class="mt-1.5 flex flex-wrap gap-1">
-                <span v-for="s in current.sizes" :key="s.name" class="rounded-md border-[1.5px] px-1.5 py-0.5 text-[11px] font-extrabold"
-                      :class="s.remaining ? 'border-slate-900 text-slate-900' : 'border-slate-200 text-slate-400 line-through'">{{ s.name }}<template v-if="s.remaining"> · {{ s.remaining }}</template></span>
-              </div>
-            </div>
-          </div>
-          <p class="mt-2 rounded-xl bg-slate-100 px-2.5 py-1.5 text-[13px] font-bold">🗣 « {{ say(current) }} »</p>
-          <div v-if="cardsOn" class="mt-2 grid grid-cols-3 gap-1" role="radiogroup" aria-label="Que montrer sur l'écran du live ?">
-            <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="(live.display_mode || 'product') === value" :disabled="busy"
-                    class="rounded-lg border-[1.5px] py-1.5 text-[11px] font-extrabold" :class="(live.display_mode || 'product') === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600'" @click="emit('mode', value)">{{ label }}</button>
-          </div>
-        </template>
+        <!-- Articles : la grande photo, le code et ce qui reste, rien d'autre -->
+        <button v-else-if="current" type="button" class="relative mt-1.5 block h-60 w-full overflow-hidden rounded-xl bg-slate-100 text-left" :aria-label="`Afficher ${current.code} en grand`" @click="emit('big', current.items[0])">
+          <img v-if="current.image" :src="current.image" alt="" class="h-full w-full object-cover" />
+          <span class="absolute top-2 left-2 rounded-lg border-[3px] border-slate-900 bg-white px-2 text-2xl leading-tight font-black">{{ current.code }}</span>
+          <span v-if="current.flash" class="absolute top-2 right-2 rounded-lg bg-red-600 px-2 py-0.5 text-xs font-black text-white">⚡ {{ chrono(current.flash) }}</span>
+          <span class="absolute inset-x-2 bottom-2 flex items-baseline gap-1.5 rounded-xl bg-slate-900/85 px-3 py-1.5 text-white">
+            <b class="text-3xl leading-none font-black">{{ current.remaining }}</b>
+            <span class="text-xs text-slate-300">{{ current.remaining > 1 ? 'restantes' : 'restante' }} sur {{ current.quantity }}</span>
+          </span>
+        </button>
         <p v-else class="mt-1 text-sm text-slate-600">Prenez votre première pancarte et touchez « Commencer » : l'application saura de quel article vous parlez.</p>
-        <div v-if="!current || tab === 'articles'" class="mt-2 flex gap-1.5">
-          <button v-if="previous" type="button" class="flex shrink-0 items-center gap-1.5 rounded-xl border-[1.5px] border-slate-300 py-1 pr-2 pl-1 text-xs font-extrabold" :disabled="busy" @click="show(previous)">
-            <img v-if="previous.image" :src="previous.image" alt="" class="h-8 w-8 rounded-lg object-cover" />◀ {{ previous.code }}
+        <div v-if="!current || tab === 'articles'" class="mt-1.5 flex gap-1.5">
+          <button v-if="previous" type="button" class="shrink-0 rounded-lg border-[1.5px] border-slate-300 px-2.5 py-1.5 text-xs font-extrabold" :disabled="busy" @click="show(previous)">◀ {{ previous.code }}</button>
+          <button v-if="current ? next : products[0]" type="button" class="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg bg-slate-900 py-1 pr-2.5 pl-1 text-left text-white disabled:opacity-60" :disabled="busy" @click="show(current ? next : products[0])">
+            <img v-if="(current ? next : products[0]).image" :src="(current ? next : products[0]).image" alt="" class="h-6 w-6 shrink-0 rounded object-cover" />
+            <b class="min-w-0 flex-1 truncate text-xs">{{ current ? 'Suivant' : 'Commencer' }} · {{ (current ? next : products[0]).code }}</b>
+            <span class="shrink-0">▶</span>
           </button>
-          <button v-if="current ? next : products[0]" type="button" class="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-slate-900 py-1 pr-2.5 pl-1 text-left text-white disabled:opacity-60" :disabled="busy" @click="show(current ? next : products[0])">
-            <img v-if="(current ? next : products[0]).image" :src="(current ? next : products[0]).image" alt="" class="h-8 w-8 shrink-0 rounded-lg object-cover" />
-            <span class="min-w-0 flex-1 leading-tight"><b class="block text-[13px]">{{ current ? 'Suivante' : 'Commencer' }} · {{ (current ? next : products[0]).code }}</b><span class="block truncate text-[11px] opacity-75">{{ (current ? next : products[0]).title }}</span></span>
-            <span class="shrink-0 text-lg">▶</span>
-          </button>
-          <span v-else-if="current" class="flex flex-1 items-center justify-center rounded-xl border-[1.5px] border-dashed border-slate-300 text-xs font-bold text-slate-500">Dernière pancarte</span>
+          <span v-else-if="current" class="flex flex-1 items-center justify-center rounded-lg border-[1.5px] border-dashed border-slate-300 py-1.5 text-xs font-bold text-slate-500">Dernier article</span>
         </div>
       </section>
 
@@ -467,12 +452,6 @@ const ago = (iso) => {
         <p v-if="placing.error" class="text-red-600">{{ placing.error }}</p>
       </div>
     </Modal>
-    <!-- Barre du bas, toujours visible : partager le lien, terminer le live -->
-    <div class="sticky bottom-[84px] z-20 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur lg:bottom-4">
-      <button type="button" class="flex items-center justify-center gap-1.5 rounded-xl border-2 border-slate-900 py-3 text-sm font-extrabold" @click="emit('share')">📤 Partager le lien</button>
-      <button type="button" class="flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-3 text-sm font-extrabold text-white" :disabled="busy" @click="emit('end')">⏹ Terminer le live</button>
-    </div>
-
     <!-- Agrandi : l'écran du live en grand, les articles à toucher, précédent / suivant -->
     <Teleport to="body">
       <div v-if="expanded" class="fixed inset-0 z-50 flex flex-col bg-[#0b1120] text-white" role="dialog" aria-modal="true" aria-label="À l'écran maintenant">
@@ -480,9 +459,26 @@ const ago = (iso) => {
           <b class="text-base">À l'écran maintenant</b>
           <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg" aria-label="Fermer" @click="expanded = false">✕</button>
         </div>
-        <div class="mx-auto aspect-video w-full max-w-3xl shrink-0 px-3">
+        <div class="mx-auto grid w-full max-w-3xl shrink-0 grid-cols-2 gap-1 px-3" role="tablist" aria-label="Où regarder ?">
+          <div class="col-span-2 grid grid-cols-2 gap-1 rounded-xl bg-white/10 p-1">
+            <button v-for="[value, label] in [['screen', '📺 Écran'], ['studio', '📱 TikTok LIVE Studio']]" :key="value" type="button" role="tab" :aria-selected="view === value"
+                    class="rounded-lg py-1.5 text-xs font-extrabold" :class="view === value ? 'bg-white text-slate-900' : 'text-slate-400'" @click="view = value">{{ label }}</button>
+          </div>
+        </div>
+        <!-- Écran : la télé ou la tablette -->
+        <div v-if="view === 'screen'" class="mx-auto mt-2 aspect-video w-full max-w-3xl shrink-0 px-3">
           <div class="h-full overflow-hidden rounded-xl bg-black"><LiveDisplay v-if="display" :data="display" /></div>
         </div>
+        <!-- TikTok LIVE Studio : le téléphone d'une cliente, lien 1 et lien 2 en haut, la vendeuse en dessous -->
+        <div v-else class="mt-2 flex shrink-0 justify-center">
+          <div class="relative h-[min(46vh,360px)] overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16">
+            <span class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[80px] leading-none" aria-hidden="true">🧕🏾</span>
+            <div v-for="(f, i) in ['carte', 'commander']" :key="f" class="absolute top-[3%] w-[45%]" :style="{ left: i ? '52%' : '3%', aspectRatio: '480 / 780' }">
+              <LiveOverlay v-if="display" :data="display" :format="f" />
+            </div>
+          </div>
+        </div>
+        <p class="mt-1 text-center text-[11px] text-slate-400">{{ view === 'screen' ? 'Ce que montre la télé ou la tablette, en direct' : 'Comme sur le téléphone des clientes : lien 1 et lien 2, vous en dessous' }}</p>
         <div class="mx-auto mt-3 grid w-full max-w-3xl shrink-0 grid-cols-3 gap-1.5 px-3" role="radiogroup" aria-label="Que montrer sur l'écran du live ?">
           <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
                   class="rounded-lg px-1 py-2 text-xs font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>

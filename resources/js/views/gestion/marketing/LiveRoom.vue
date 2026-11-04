@@ -28,6 +28,8 @@ const route = useRoute()
 // « Support » (pancartes à imprimer, liens OBS / TikTok LIVE Studio, écran télé)
 const pane = ref(route.query.onglet === 'support' ? 'support' : 'live')
 watch(pane, (p) => router.replace({ query: { ...route.query, onglet: p === 'support' ? 'support' : undefined } }))
+// Support : trois onglets (à imprimer, écran télé, TikTok Studio)
+const supportTab = ref(['print', 'tv', 'studio'].includes(route.query.support) ? route.query.support : 'print')
 const screensOn = computed(() => useAuthStore().profile?.features?.live_screens !== false)
 const live = ref(null)
 const error = ref('')
@@ -290,8 +292,12 @@ async function redo() {
 
       <!-- ═══ Support : supports physiques, OBS / LIVE Studio, télé ═══ -->
       <template v-if="live.status !== 'ended' && pane === 'support'">
-        <LiveSigns :live="live" open @updated="live = $event" />
-        <LiveScreenTabs v-if="screensOn" :id="id" screen-only @add="pane = 'live'" />
+        <div v-if="screensOn" class="grid grid-cols-3 gap-1.5" role="tablist" aria-label="Support">
+          <button v-for="[value, label] in [['print', '🖨 À imprimer'], ['tv', '📺 Écran télé'], ['studio', '📱 TikTok Studio']]" :key="value" type="button" role="tab" :aria-selected="supportTab === value"
+                  class="rounded-xl border-[1.5px] px-1 py-2 text-xs font-extrabold" :class="supportTab === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600'" @click="supportTab = value">{{ label }}</button>
+        </div>
+        <LiveSigns v-if="!screensOn || supportTab === 'print'" :live="live" open @updated="live = $event" />
+        <LiveScreenTabs v-else :id="id" screen-only :part="supportTab" @add="pane = 'live'" />
       </template>
 
       <!-- ═══ En-tête selon l'état ═══ -->
