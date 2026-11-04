@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import http, { errorMessage } from '../lib/http'
 import { money, phoneDisplay } from '../lib/format'
+import LiveDisplay from './LiveDisplay.vue'
 import Modal from './Modal.vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -19,6 +20,38 @@ const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', '
 // Ce que montrent les écrans du live (télé, OBS, LIVE Studio) : un article, défilement, comment commander
 const MODES = [['product', '📦 Un article'], ['scroll', '🔁 Défilement'], ['how', '🛒 Commander']]
 const screenMode = computed(() => props.live.display_mode || 'product')
+
+// « Agrandir » : ce que montrent vraiment les écrans (télé, OBS, LIVE Studio) en grand, avec les articles à toucher
+const expanded = ref(false)
+const display = ref(null)
+let displayTimer
+async function loadDisplay() {
+  try {
+    display.value = (await http.get(`/lives/${props.live.id}/display`)).data.data
+  } catch {
+    // Lecture suivante dans 3 secondes
+  }
+}
+function onExpandKey(e) {
+  if (e.key === 'Escape') expanded.value = false
+}
+watch(expanded, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+  clearInterval(displayTimer)
+  if (open) {
+    loadDisplay()
+    displayTimer = setInterval(loadDisplay, 3000)
+    document.addEventListener('keydown', onExpandKey)
+  } else {
+    document.removeEventListener('keydown', onExpandKey)
+  }
+})
+watch(() => [props.live.display_mode, props.live.featured_item_id], () => expanded.value && loadDisplay())
+onUnmounted(() => {
+  clearInterval(displayTimer)
+  document.body.style.overflow = ''
+  document.removeEventListener('keydown', onExpandKey)
+})
 const auth = useAuthStore()
 // Cartes des articles (photo + code) à afficher à l'écran, sauf si la console les masque
 const cardsOn = computed(() => auth.profile?.features?.live_screens !== false)
@@ -249,6 +282,7 @@ const ago = (iso) => {
         <div class="flex items-center gap-2 text-[11px] font-extrabold tracking-wider text-slate-900">
           <span>{{ screenMode === 'product' ? 'À L\'ÉCRAN MAINTENANT' : 'PANCARTE MONTRÉE' }}</span>
           <span v-if="current" class="ml-auto font-bold text-slate-500">{{ currentIndex + 1 }} / {{ products.length }}</span>
+          <button v-if="cardsOn" type="button" class="rounded-lg bg-slate-900 px-2 py-1 text-[11px] font-extrabold text-white" :class="{ 'ml-auto': !current }" @click="expanded = true">⤢ Agrandir</button>
         </div>
         <!-- Défilement ou « comment commander » : les écrans ne montrent pas l'article ci-dessous, on le dit clairement -->
         <div v-if="cardsOn && screenMode !== 'product'" class="mt-1.5 flex items-center gap-2 rounded-xl bg-slate-900 px-2.5 py-2 text-white">
@@ -334,11 +368,6 @@ const ago = (iso) => {
       <div v-if="current" class="flex gap-2">
         <button v-if="current.flash" type="button" class="btn-secondary flex-1 justify-center" :disabled="busy" @click="emit('stop-flash', current.flash)">Arrêter le prix live {{ current.code }}</button>
         <button v-else-if="current.remaining" type="button" class="btn-secondary flex-1 justify-center" :disabled="busy" @click="emit('flash', current.items[0])">⚡ Prix live pour {{ current.code }}</button>
-      </div>
-      <div class="flex gap-2 pt-2">
-        <button type="button" class="btn-ghost flex-1 justify-center text-sm" @click="emit('share')">Partager le lien</button>
-        <RouterLink v-if="cardsOn" :to="`/gestion/live/${live.id}/cartes`" class="btn-ghost flex-1 justify-center text-sm">🖼 Cartes à l'écran</RouterLink>
-        <button type="button" class="btn-ghost flex-1 justify-center text-sm text-slate-500" :disabled="busy" @click="emit('end')">Terminer le live</button>
       </div>
     </section>
 
@@ -438,5 +467,45 @@ const ago = (iso) => {
         <p v-if="placing.error" class="text-red-600">{{ placing.error }}</p>
       </div>
     </Modal>
+    <!-- Barre du bas, toujours visible : partager le lien, terminer le live -->
+    <div class="sticky bottom-[84px] z-20 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur lg:bottom-4">
+      <button type="button" class="flex items-center justify-center gap-1.5 rounded-xl border-2 border-slate-900 py-3 text-sm font-extrabold" @click="emit('share')">📤 Partager le lien</button>
+      <button type="button" class="flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-3 text-sm font-extrabold text-white" :disabled="busy" @click="emit('end')">⏹ Terminer le live</button>
+    </div>
+
+    <!-- Agrandi : l'écran du live en grand, les articles à toucher, précédent / suivant -->
+    <Teleport to="body">
+      <div v-if="expanded" class="fixed inset-0 z-50 flex flex-col bg-[#0b1120] text-white" role="dialog" aria-modal="true" aria-label="À l'écran maintenant">
+        <div class="flex items-center justify-between px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <b class="text-base">À l'écran maintenant</b>
+          <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg" aria-label="Fermer" @click="expanded = false">✕</button>
+        </div>
+        <div class="mx-auto aspect-video w-full max-w-3xl shrink-0 px-3">
+          <div class="h-full overflow-hidden rounded-xl bg-black"><LiveDisplay v-if="display" :data="display" /></div>
+        </div>
+        <div class="mx-auto mt-3 grid w-full max-w-3xl shrink-0 grid-cols-3 gap-1.5 px-3" role="radiogroup" aria-label="Que montrer sur l'écran du live ?">
+          <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
+                  class="rounded-lg px-1 py-2 text-xs font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>
+        </div>
+        <p class="mx-auto mt-3 w-full max-w-3xl px-4 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Touchez un article pour le montrer</p>
+        <div class="mx-auto mt-2 grid min-h-0 w-full max-w-3xl flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto px-3 pb-2 sm:grid-cols-4">
+          <button v-for="p in products" :key="p.code" type="button" :disabled="busy"
+                  class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="screenMode === 'product' && current?.code === p.code ? 'border-red-600' : 'border-transparent'" @click="screenMode === 'product' && current?.code === p.code ? null : (current?.code === p.code ? emit('mode', 'product') : show(p))">
+            <span class="block h-16 bg-slate-100"><img v-if="p.image" :src="p.image" alt="" class="h-full w-full object-cover" loading="lazy" /></span>
+            <span class="absolute left-1 top-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
+            <span v-if="!p.remaining" class="absolute inset-x-0 top-0 grid h-16 place-items-center bg-white/60 text-sm font-black text-red-600">VENDU</span>
+            <span class="block truncate px-1.5 pb-1 pt-0.5 text-[11px] font-bold">{{ p.title }}</span>
+          </button>
+        </div>
+        <div v-if="current && current.remaining" class="mx-auto w-full max-w-3xl shrink-0 px-3 pt-2">
+          <button v-if="current.flash" type="button" class="w-full rounded-xl bg-red-600 py-2.5 text-sm font-extrabold" :disabled="busy" @click="emit('stop-flash', current.flash)">⚡ {{ money(current.price) }} · {{ chrono(current.flash) }} · Arrêter</button>
+          <button v-else type="button" class="w-full rounded-xl bg-amber-400 py-2.5 text-sm font-extrabold text-slate-900" @click="expanded = false; emit('flash', current.items[0])">⚡ Prix live sur {{ current.code }}</button>
+        </div>
+        <div class="mx-auto grid w-full max-w-3xl shrink-0 grid-cols-2 gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+          <button type="button" class="rounded-xl border border-white/25 bg-white/10 py-3.5 text-base font-extrabold" :disabled="busy || !previous" @click="show(previous)">◀ Précédent</button>
+          <button type="button" class="rounded-xl bg-red-600 py-3.5 text-base font-extrabold" :disabled="busy || !(current ? next : products[0])" @click="show(current ? next : products[0])">Suivant ▶</button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
