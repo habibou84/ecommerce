@@ -182,6 +182,15 @@ class ShipmentController extends Controller
         return response()->json(['data' => $this->present($model)]);
     }
 
+    /** Colis pas ramassé à sa date : nouvelle date choisie par la boutique (contrat 1.10) */
+    public function reschedule(Request $request, int $shipment): JsonResponse
+    {
+        $data = $request->validate(['date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today']], [], ['date' => 'date de livraison']);
+        $model = $this->desk->rescheduleAtCarrier(Shipment::findOrFail($shipment), $data['date'], $request->user());
+
+        return response()->json(['data' => $this->present($model)]);
+    }
+
     public function requestReturn(Request $request, int $shipment): JsonResponse
     {
         $data = $request->validate(['note' => ['nullable', 'string', 'max:1000']]);

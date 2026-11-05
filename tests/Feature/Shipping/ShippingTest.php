@@ -387,6 +387,32 @@ class ShippingTest extends TestCase
         $this->assertSame('Produit en rupture · Dernière pièce vendue', $second->events()->reorder()->latest('id')->first()->note);
     }
 
+    public function test_a_course_not_picked_up_on_its_day_asks_the_store_for_a_new_date(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, $connection);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/reschedule", ['date' => now()->toDateString()])->assertStatus(422);
+
+        // Contrat 1.10 : Jibiat demande une nouvelle date, la boutique est prévenue
+        $asked = Contract::example('order-reschedule-requested')['data'];
+        $asked['tracking_code'] = 'LV-7K2M-QX9P';
+        $this->webhook($connection, 'order.updated', ['order' => $asked, 'updated_fields' => ['reschedule']], 'evt-r')->assertOk();
+        $this->assertSame(now()->addDays(14)->toDateString(), $shipment->fresh()->carrier_reschedule['max_date']);
+        $this->assertTrue(DatabaseNotification::all()->contains(fn ($n) => str_starts_with($n->data['title'], 'Colis à reporter')));
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.shipments.0.carrier_reschedule.missed_day', now()->subDay()->toDateString());
+
+        // La boutique choisit la date : envoyée à Jibiat, la demande disparaît
+        $date = now()->addDays(2)->toDateString();
+        $answered = [...$asked, 'reschedule' => null, 'delivery' => [...$asked['delivery'], 'scheduled_date' => $date]];
+        $this->stub(['POST '.self::API.'/orders/LV-7K2M-QX9P/reschedule' => Http::response(['data' => $answered])]);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/reschedule", ['date' => now()->subDay()->toDateString()])->assertJsonValidationErrors('date');
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/reschedule", ['date' => $date])->assertOk()
+            ->assertJsonPath('data.carrier_reschedule', null)->assertJsonPath('data.scheduled_date', $date);
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/orders/LV-7K2M-QX9P/reschedule') && $r['date'] === $date);
+        $this->assertNull($shipment->fresh()->carrier_reschedule);
+    }
+
     public function test_a_late_webhook_does_not_move_the_status_backwards(): void
     {
         $connection = $this->connect();
