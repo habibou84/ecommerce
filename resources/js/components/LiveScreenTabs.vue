@@ -68,9 +68,10 @@ const shown = computed(() => items.value.find((i) => i.id === featured.value) ??
 const MODES = [
   ['product', '🏷️', 'Montrer un seul produit', 'Touchez un produit ci-dessous : il s\'affiche aussitôt à l\'écran.'],
   ['scroll', '🔁', 'Faire défiler tous les produits', 'Les produits passent tout seuls à l\'écran, l\'un après l\'autre.'],
-  ['how', '🛒', 'Montrer comment commander', 'L\'écran montre le WhatsApp et le lien du site pour commander.'],
+  ['grid', '🧩', 'Montrer la vitrine', 'Dix articles à la fois, chacun avec son code en grand.'],
+  ['how', '🛒', 'Montrer comment commander', 'L\'écran montre comment commander, sans numéro ni QR code.'],
 ]
-const SHORT = { product: 'Un produit', scroll: 'Défiler', how: 'Commander' }
+const SHORT = { product: 'Un produit', scroll: 'Défiler', grid: 'Vitrine', how: 'Commander' }
 // Carte « À l'écran maintenant » agrandie en plein écran (Échap ferme)
 const expanded = ref(false)
 function onKey(e) {
@@ -223,13 +224,19 @@ const copied = ref(false)
 async function loadLink() {
   if (!link.value) link.value = (await http.post('/lives/screens/link')).data.data.url
 }
-// TikTok LIVE Studio : une seule formule, deux cartes en hauteur côte à côte en haut de l'écran vertical.
-// Lien 1 : l'article montré (photo, code, prix) ; lien 2 : pour commander (« Envoie le code », « Numéro dans la bio » ; ni numéro ni QR code : modération TikTok)
+// TikTok LIVE Studio : une seule carte en hauteur en haut à gauche de l'écran vertical : l'article montré (photo,
+// code, « Envoie A1 », numéro dans le style choisi), la vitrine ou « comment commander » selon le mode. Ni prix, ni
+// QR code, ni adresse de site : modération TikTok
 const CARD = { w: 480, h: 780 }
 const STUDIO_LINKS = [
-  { key: 'carte', label: 'Lien 1 · L\'article', hint: 'La photo, le code et le prix de l\'article montré.', place: 'En haut à gauche.' },
-  { key: 'commander', label: 'Lien 2 · Pour commander', hint: '« Envoie le code » et « Numéro dans la bio » : sans numéro ni QR code, pour ne pas être coupé par TikTok. Mettez votre numéro WhatsApp dans la bio du profil.', place: 'En haut à droite, à côté du lien 1.' },
+  { key: 'carte', label: 'Le lien de la carte', hint: 'La photo et le code de l\'article montré, « Envoie A1 » et le numéro (ou « numéro dans la bio »). Suit Un article / Défilement / Vitrine / Commander.', place: 'En haut à gauche.' },
 ]
+// Numéro sur les écrans filmés : réglage de la boutique
+const PHONE_STYLES = [['bio', '📌 Dans la bio', 'Risque le plus faible'], ['spaced', '0 7 • 0 0 …', 'Chiffres espacés'], ['emoji', '0️⃣7️⃣ 0️⃣0️⃣ …', 'En émojis'], ['split', '07 00 + 00 …', 'Coupé en deux']]
+const phoneStyle = computed(() => display.value?.store?.phone_style ?? 'bio')
+async function setPhoneStyle(style) {
+  await run(() => http.post('/lives/phone-style', { style }))
+}
 const studioUrl = (key) => (link.value ? `${link.value}?habillage=${key}` : null)
 const copiedKey = ref('')
 async function copy(key) {
@@ -245,8 +252,9 @@ async function copy(key) {
 // Aperçu « comme sur un téléphone » : les deux cartes à leur vraie taille, réduites dans un écran 9:16
 const preview = ref(false)
 const PHONE_W = 270
-const previewScale = 0.24
-const previewGap = (PHONE_W - 2 * CARD.w * previewScale) / 3
+const previewScale = 0.27
+// Une seule carte, en haut à gauche
+const previewGap = 10
 watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: true })
 </script>
 
@@ -264,7 +272,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
     <!-- ═══ Mes produits ═══ -->
     <template v-if="tab === 'products'">
       <p class="text-[17px] font-extrabold">Que voir sur l'écran du live ?</p>
-      <div class="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Que voir sur l'écran du live ?">
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Que voir sur l'écran du live ?">
         <button v-for="[value, icon, label] in MODES" :key="value" type="button" role="radio" :aria-checked="mode === value" :disabled="busy"
                 class="rounded-2xl border-2 bg-white px-1 py-3 text-center text-sm font-extrabold leading-tight" :class="mode === value ? 'border-emerald-700 bg-emerald-50 text-emerald-900 ring-4 ring-emerald-100' : 'border-slate-200 text-slate-700'" @click="setMode(value)">
           <span class="mx-auto mb-1.5 grid h-11 w-11 place-items-center rounded-xl text-2xl" :class="mode === value ? 'bg-emerald-700' : 'bg-slate-100'" aria-hidden="true">{{ icon }}</span>{{ label }}
@@ -344,7 +352,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
           <div class="mx-auto aspect-video w-full max-w-3xl shrink-0 px-3">
             <div class="h-full overflow-hidden rounded-xl bg-black"><LiveDisplay v-if="display" :data="display" /></div>
           </div>
-          <div class="mx-auto mt-3 grid w-full max-w-3xl shrink-0 grid-cols-3 gap-1.5 px-3" role="radiogroup" aria-label="Que voir sur l'écran du live ?">
+          <div class="mx-auto mt-3 grid w-full max-w-3xl shrink-0 grid-cols-4 gap-1.5 px-3" role="radiogroup" aria-label="Que voir sur l'écran du live ?">
             <button v-for="[value, icon, label] in MODES" :key="value" type="button" role="radio" :aria-checked="mode === value" :disabled="busy"
                     class="rounded-lg px-1 py-2 text-xs font-extrabold" :class="mode === value ? 'bg-emerald-700 text-white' : 'bg-white/10 text-slate-300'" @click="setMode(value)">
               {{ icon }} {{ SHORT[value] }}
@@ -407,6 +415,19 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
     <!-- ═══ Écran ═══ -->
     <template v-else>
       <!-- Télé ou tablette -->
+      <!-- Numéro à l'écran (télé et LIVE Studio) -->
+      <section class="rounded-2xl border border-slate-200 bg-white p-4">
+        <h2 class="font-extrabold">📞 Le numéro à l'écran</h2>
+        <p class="text-sm text-slate-500">Jamais le mot WhatsApp ni de QR code. Écrit ainsi, il est moins lu par les machines de TikTok, mais une coupure du live reste possible : « Dans la bio » est le plus sûr.</p>
+        <div class="mt-2 grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Le numéro à l'écran">
+          <button v-for="[value, label, note] in PHONE_STYLES" :key="value" type="button" role="radio" :aria-checked="phoneStyle === value" :disabled="busy"
+                  class="rounded-xl border-2 p-2 text-left" :class="phoneStyle === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200'" @click="setPhoneStyle(value)">
+            <b class="block text-sm">{{ label }}</b><span class="text-xs opacity-75">{{ note }}</span>
+          </button>
+        </div>
+        <p v-if="display?.store?.phone_shown" class="mt-2 text-sm">À l'écran : <b>{{ display.store.phone_shown }}</b></p>
+      </section>
+
       <section v-if="part !== 'studio'" class="rounded-2xl border-2 border-emerald-700 bg-white p-4">
         <h2 class="text-lg font-extrabold">📺 Télé ou tablette</h2>
         <p class="text-sm text-slate-500">Posée à côté de vous, filmée avec vous</p>
@@ -463,7 +484,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       <!-- TikTok LIVE Studio : deux cartes en hauteur, côte à côte en haut de l'écran -->
       <section v-if="part !== 'tv'" class="rounded-2xl border-2 border-slate-200 bg-white p-4">
         <h2 class="text-lg font-extrabold">🖥️ OBS · TikTok LIVE Studio</h2>
-        <p class="text-sm text-slate-500">Sur l'ordinateur · deux cartes en haut de l'écran, vous en dessous</p>
+        <p class="text-sm text-slate-500">Sur l'ordinateur · une carte en haut à gauche, vous en dessous</p>
         <p v-if="studio?.online" class="mt-3 rounded-xl bg-emerald-50 p-2.5 text-base font-extrabold text-emerald-800">✅ Connecté à LIVE Studio</p>
         <div v-for="(l, i) in STUDIO_LINKS" :key="l.key" class="mt-3 flex gap-3">
           <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">{{ i + 1 }}</span>
@@ -477,9 +498,9 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
           </div>
         </div>
         <div class="mt-3 rounded-xl bg-slate-900 p-3 text-white">
-          <p class="text-sm">Dans LIVE Studio, pour chaque lien : <b>Ajouter une source › Lien</b>, collez-le, puis tapez la taille :</p>
+          <p class="text-sm">Dans LIVE Studio : <b>Ajouter une source › Lien</b>, collez le lien, puis tapez la taille :</p>
           <p class="text-2xl font-black tracking-wide text-yellow-300">{{ CARD.w }} × {{ CARD.h }}</p>
-          <p class="text-xs text-slate-300">La même pour les deux. Ne les agrandissez pas ensuite à la souris : l'image deviendrait floue.</p>
+          <p class="text-xs text-slate-300">Ne l'agrandissez pas ensuite à la souris : l'image deviendrait floue. (L'ancien 2e lien n'est plus utile : retirez-le de LIVE Studio.)</p>
         </div>
         <p class="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
           <b>Restez à l'image et répondez aux commentaires.</b> Ne diffusez jamais une vidéo enregistrée ou une image seule à la place de la caméra : TikTok restreint le compte.

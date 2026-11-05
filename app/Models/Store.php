@@ -29,6 +29,7 @@ class Store extends Model
     // Valeurs par défaut des colonnes, connues avant le rechargement depuis la base
     protected $attributes = [
         'status' => 'trial',
+        'live_phone_style' => 'bio',
         'country' => 'CI',
         'currency' => 'XOF',
         'timezone' => 'Africa/Abidjan',

@@ -19,7 +19,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode'])
 // Ce que montrent les écrans du live (télé, OBS, LIVE Studio) : un article, défilement, comment commander
-const MODES = [['product', '📦 Un article'], ['scroll', '🔁 Défilement'], ['how', '🛒 Commander']]
+const MODES = [['product', '📦 Un article'], ['scroll', '🔁 Défilement'], ['grid', '🧩 Vitrine'], ['how', '🛒 Commander']]
 const screenMode = computed(() => props.live.display_mode || 'product')
 
 // « Agrandir » : ce que montrent vraiment les écrans (télé, OBS, LIVE Studio) en grand, avec les articles à toucher
@@ -286,7 +286,7 @@ const ago = (iso) => {
         </div>
         <!-- Défilement ou « comment commander » : les écrans ne montrent pas l'article ci-dessous, on le dit clairement -->
         <div v-if="cardsOn && screenMode !== 'product'" class="mt-1.5 flex items-center gap-2 rounded-xl bg-slate-900 px-2.5 py-1.5 text-white">
-          <span class="min-w-0 flex-1 text-xs font-bold leading-tight">{{ screenMode === 'scroll' ? '🔁 À l\'écran : les articles défilent' : '🛒 À l\'écran : comment commander' }}</span>
+          <span class="min-w-0 flex-1 text-xs font-bold leading-tight">{{ { scroll: '🔁 À l\'écran : les articles défilent', grid: '🧩 À l\'écran : la vitrine (10 articles)', how: '🛒 À l\'écran : comment commander' }[screenMode] }}</span>
           <button type="button" class="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-extrabold text-slate-900" :disabled="busy" @click="emit('mode', 'product')">Montrer {{ current?.code ?? 'un article' }}</button>
         </div>
         <!-- Messages et Commandes : l'article à l'écran sur une ligne, avec « suivant » -->
@@ -473,13 +473,13 @@ const ago = (iso) => {
         <div v-else class="mt-2 flex shrink-0 justify-center">
           <div class="relative h-[min(46vh,360px)] overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16">
             <span class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[80px] leading-none" aria-hidden="true">🧕🏾</span>
-            <div v-for="(f, i) in ['carte', 'commander']" :key="f" class="absolute top-[3%] w-[45%]" :style="{ left: i ? '52%' : '3%', aspectRatio: '480 / 780' }">
-              <LiveOverlay v-if="display" :data="display" :format="f" />
+            <div class="absolute top-[3%] left-[3%] w-[55%]" style="aspect-ratio: 480 / 780">
+              <LiveOverlay v-if="display" :data="display" format="carte" />
             </div>
           </div>
         </div>
-        <p class="mt-1 text-center text-[11px] text-slate-400">{{ view === 'screen' ? 'Ce que montre la télé ou la tablette, en direct' : 'Comme sur le téléphone des clientes : lien 1 et lien 2, vous en dessous' }}</p>
-        <div class="mx-auto mt-3 grid w-full max-w-3xl shrink-0 grid-cols-3 gap-1.5 px-3" role="radiogroup" aria-label="Que montrer sur l'écran du live ?">
+        <p class="mt-1 text-center text-[11px] text-slate-400">{{ view === 'screen' ? 'Ce que montre la télé ou la tablette, en direct' : 'Comme sur le téléphone des clientes : la carte en haut, vous en dessous' }}</p>
+        <div class="mx-auto mt-3 grid w-full max-w-3xl shrink-0 grid-cols-4 gap-1.5 px-3" role="radiogroup" aria-label="Que montrer sur l'écran du live ?">
           <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
                   class="rounded-lg px-1 py-2 text-xs font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>
         </div>

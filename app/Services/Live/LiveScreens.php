@@ -32,7 +32,10 @@ class LiveScreens
     /** Un code non utilisé est renouvelé au bout de ce délai */
     private const CODE_MINUTES = 30;
 
-    public const MODES = ['product', 'scroll', 'how'];
+    public const MODES = ['product', 'scroll', 'grid', 'how'];
+
+    /** Numéro à l'écran : dans la bio (pas de numéro), chiffres espacés, en émojis, coupé en deux */
+    public const PHONE_STYLES = ['bio', 'spaced', 'emoji', 'split'];
 
     public function create(): LiveScreen
     {
@@ -299,7 +302,28 @@ class LiveScreens
             'qr' => $url ? Cache::remember('live-qr:'.md5($url), now()->addDay(), fn () => (new QRCode(new QROptions([
                 'outputType' => QROutputInterface::GDIMAGE_PNG, 'scale' => 8, 'imageTransparent' => false,
             ])))->render($url)) : null,
+            // Écrans filmés (télé, TikTok LIVE Studio) : jamais le mot WhatsApp ni de QR code ; le numéro seulement
+            // si la boutique l'a choisi, écrit de façon moins lisible par une machine, sinon « numéro dans la bio »
+            'phone_style' => $store->live_phone_style ?: 'bio',
+            'phone_shown' => $normalized ? self::styledNumber($normalized, $store->live_phone_style ?: 'bio') : null,
         ];
+    }
+
+    /**
+     * Numéro écrit pour un écran filmé : « 0 7 • 0 0 • … » (espacé), « 0️⃣7️⃣ 0️⃣0️⃣ … » (émojis), « 07 00 + 00 00 01 »
+     * (coupé en deux) ; null pour « dans la bio ».
+     */
+    public static function styledNumber(string $normalized, string $style): ?string
+    {
+        $local = preg_replace('/^\+'.PhoneNumber::DEFAULT_COUNTRY_CODE.'(?=\d{10}$)/', '', $normalized);
+        $pairs = str_split(preg_replace('/\D/', '', $local), 2);
+
+        return match ($style) {
+            'spaced' => implode(' • ', array_map(fn (string $p) => implode(' ', str_split($p)), $pairs)),
+            'emoji' => implode(' ', array_map(fn (string $p) => implode('', array_map(fn (string $d) => $d."\u{FE0F}\u{20E3}", str_split($p))), $pairs)),
+            'split' => implode(' ', array_slice($pairs, 0, 2)).' + '.implode(' ', array_slice($pairs, 2)),
+            default => null,
+        };
     }
 
     /** Numéro complet, indicatif compris : +2250700000001 → « +225 07 00 00 00 01 » */
