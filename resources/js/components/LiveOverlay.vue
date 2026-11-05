@@ -93,14 +93,14 @@ const gridItems = computed(() => {
 
     <!-- L'article : la photo en grand avec le code, puis « Envoie A1 » et le numéro -->
     <div v-else :key="shown.id" class="lo-card">
+      <!-- Rien sur la photo : le code est en dessous -->
       <div class="lo-photo">
         <img v-if="shown.image" :src="shown.image" alt="" />
-        <span class="lo-code">{{ shown.code }}</span>
         <span v-if="flashLeft > 0 && shown.remaining > 0" class="lo-chrono">⏱ {{ chrono }}</span>
         <span v-else-if="shown.remaining === 0" class="lo-sold">VENDU</span>
       </div>
       <div class="lo-foot">
-        <p class="lo-send">Envoie {{ shown.code }}</p>
+        <p class="lo-send"><small>Envoie</small> {{ shown.code }}</p>
         <p class="lo-phone">{{ phoneLine }}</p>
       </div>
     </div>
@@ -118,12 +118,12 @@ const gridItems = computed(() => {
 .lo-card { display: flex; flex-direction: column; background: #fff; }
 .lo-photo { position: relative; flex: 1; min-height: 0; background: #fde7c7; }
 .lo-photo img { width: 100%; height: 100%; object-fit: cover; }
-.lo-code { position: absolute; top: .3em; left: .3em; background: #fff; color: #0f172a; border: .12em solid #0f172a; border-radius: .25em; font-size: 4.4em; font-weight: 900; line-height: 1; letter-spacing: -.02em; padding: .04em .14em; }
 .lo-chrono, .lo-sold { position: absolute; right: .3em; bottom: .3em; background: #fff; color: #b91c1c; font-weight: 900; font-size: 1.4em; border-radius: .3em; padding: .05em .4em; }
 .lo-sold { background: #111827; color: #fff; }
-.lo-foot { flex-shrink: 0; background: #0f172a; text-align: center; padding: .45em .3em .55em; }
-.lo-send { font-size: 2.2em; font-weight: 900; line-height: 1.05; }
-.lo-phone { margin-top: .2em; font-size: 1.05em; font-weight: 900; color: #fde047; letter-spacing: .02em; line-height: 1.25; overflow-wrap: anywhere; }
+.lo-foot { flex-shrink: 0; background: #0f172a; text-align: center; padding: .35em .3em .45em; }
+.lo-send { font-size: 3.6em; font-weight: 900; line-height: 1; letter-spacing: -.02em; white-space: nowrap; }
+.lo-send small { font-size: .38em; font-weight: 800; letter-spacing: 0; vertical-align: middle; margin-right: .1em; }
+.lo-phone { margin-top: .25em; font-size: .9em; font-weight: 900; color: #fde047; letter-spacing: .02em; line-height: 1.25; overflow-wrap: anywhere; }
 
 /* Vitrine : 10 articles et leur code, 2 colonnes */
 .lo-grid { position: absolute; inset: .25em; border-radius: .7em; overflow: hidden; background: #fff; padding: .3em; display: flex; flex-direction: column; gap: .25em; box-shadow: 0 .15em .5em rgba(0, 0, 0, .35); }
@@ -131,7 +131,7 @@ const gridItems = computed(() => {
 .lo-grid-items { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(5, 1fr); gap: .25em; }
 .lo-grid-item { position: relative; min-height: 0; border-radius: .35em; overflow: hidden; background: #fde7c7; }
 .lo-grid-item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.lo-grid-item b { position: absolute; left: 0; bottom: 0; background: #0f172a; color: #fff; font-weight: 900; font-size: 1.6em; line-height: 1.1; padding: 0 .25em; border-top-right-radius: .25em; }
+.lo-grid-item b { position: absolute; left: .15em; bottom: .15em; background: #0f172a; color: #fff; font-weight: 900; font-size: .7em; line-height: 1.2; padding: 0 .3em; border-radius: .25em; }
 .lo-grid-item.is-out img { filter: grayscale(1) opacity(.45); }
 
 /* Comment commander (480 × 780 : 12 em × 19,5 em) */
