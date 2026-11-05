@@ -34,6 +34,11 @@ final class RemoteShipment
         public readonly ?string $labelUrl = null,
         /** Annulation (contrat 1.9) : by (merchant / company), name, role, reason, reason_label, note ; null sinon */
         public readonly ?array $cancellation = null,
+        /**
+         * Nouvelle date demandée (contrat 1.10) : status, missed_day, requested_at, max_date, answer_url ; false quand
+         * l'entreprise dit qu'il n'y en a pas (ou plus), null quand elle ne l'envoie pas (version plus ancienne)
+         */
+        public readonly array|false|null $reschedule = null,
     ) {}
 
     /**
@@ -70,6 +75,7 @@ final class RemoteShipment
             ratings: is_array($order['ratings'] ?? null) ? $order['ratings'] : null,
             labelUrl: is_string($order['label_url'] ?? null) ? $order['label_url'] : null,
             cancellation: is_array($order['cancellation'] ?? null) ? $order['cancellation'] : null,
+            reschedule: array_key_exists('reschedule', $order) ? (is_array($order['reschedule']) ? $order['reschedule'] : false) : null,
         );
     }
 

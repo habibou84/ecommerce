@@ -127,6 +127,14 @@ class DeliveryAppDriver implements CarrierDriver
         return RemoteShipment::fromDeliveryApp($response->json('data'));
     }
 
+    /** Contrat 1.10 : nouvelle date d'un colis pas ramassé à sa date */
+    public function reschedule(CarrierConnection $connection, Shipment $shipment, string $date): RemoteShipment
+    {
+        $response = $this->send($connection, fn (PendingRequest $http) => $http->post($this->orderPath($shipment).'/reschedule', ['date' => $date]));
+
+        return RemoteShipment::fromDeliveryApp($response->json('data'));
+    }
+
     public function requestReturn(CarrierConnection $connection, Shipment $shipment, ?string $note): RemoteShipment
     {
         $response = $this->send($connection, fn (PendingRequest $http) => $http->post($this->orderPath($shipment).'/return-request', array_filter(['note' => $note])));
