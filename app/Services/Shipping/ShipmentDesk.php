@@ -378,6 +378,24 @@ class ShipmentDesk
         return $shipment->fresh();
     }
 
+    /**
+     * Colis pas ramassé à sa date (contrat 1.10) : la boutique choisit la nouvelle date de livraison.
+     */
+    public function rescheduleAtCarrier(Shipment $shipment, string $date, ?User $actor): Shipment
+    {
+        [$connection, $driver] = $this->carrierLink($shipment);
+        if ($shipment->carrier_reschedule === null) {
+            throw new BusinessRuleException('Aucune nouvelle date n\'est demandée pour cette livraison.');
+        }
+
+        $remote = $driver->reschedule($connection, $shipment, $date);
+        $label = 'Nouvelle date de livraison choisie : '.Carbon::parse($date)->format('d/m/Y');
+        $this->apply($shipment, $remote, 'user', $label, $actor);
+        $this->eventIfUnchanged($shipment, $remote, $label, null, $actor);
+
+        return $shipment->fresh();
+    }
+
     public function requestReturnAtCarrier(Shipment $shipment, ?string $note, ?User $actor): Shipment
     {
         [$connection, $driver] = $this->carrierLink($shipment);
@@ -496,6 +514,7 @@ class ShipmentDesk
             $lastEventAt = ShipmentEvent::where('shipment_id', $shipment->id)->whereIn('source', ['carrier_webhook', 'carrier_sync'])->max('occurred_at');
             $stale = $source !== 'user' && $lastEventAt !== null && $occurredAt->lt(Carbon::parse($lastEventAt));
             $previousDate = $shipment->scheduled_date?->toDateString();
+            $askedBefore = $shipment->carrier_reschedule !== null;
 
             $shipment->forceFill(array_filter([
                 'carrier_status' => $stale ? null : $remote->rawStatus,
@@ -515,7 +534,15 @@ class ShipmentDesk
                 'return_requested' => $stale ? null : $remote->returnRequested,
                 'carrier_ratings' => $remote->ratings,
                 'carrier_cancellation' => $remote->cancellation,
-            ], fn ($v) => $v !== null))->forceFill(['last_synced_at' => $source === 'user' ? $shipment->last_synced_at : now()]);
+            ], fn ($v) => $v !== null))
+                // Nouvelle date demandée : remise à zéro quand l'entreprise dit qu'il n'y en a plus
+                ->forceFill($remote->reschedule === null || $stale ? [] : ['carrier_reschedule' => $remote->reschedule ?: null]);
+            // Pas ramassé à sa date : la boutique doit choisir une nouvelle date (ou annuler)
+            if ($remote->reschedule && ! $askedBefore && $source !== 'user') {
+                $this->notifier->notify($shipment->store, Permission::OrdersView->value, new ShipmentAlert($shipment, 'Colis à reporter',
+                    'pas ramassé à sa date : choisissez une nouvelle date'));
+            }
+            $shipment->forceFill(['last_synced_at' => $source === 'user' ? $shipment->last_synced_at : now()]);
             $newDate = $shipment->scheduled_date?->toDateString();
 
             $to = $remote->status;

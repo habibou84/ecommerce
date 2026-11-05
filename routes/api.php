@@ -436,6 +436,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 // Actions sur la course chez l'entreprise de livraison (Delivery App)
                 Route::patch('shipments/{shipment}/carrier', [ShipmentController::class, 'updateAtCarrier'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.carrier-update');
                 Route::post('shipments/{shipment}/decision', [ShipmentController::class, 'decide'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.decision');
+                Route::post('shipments/{shipment}/reschedule', [ShipmentController::class, 'reschedule'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.reschedule');
                 Route::post('shipments/{shipment}/return-request', [ShipmentController::class, 'requestReturn'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.return-request');
                 Route::post('shipments/{shipment}/notes', [ShipmentController::class, 'note'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.notes');
                 Route::post('shipments/{shipment}/rating', [ShipmentController::class, 'rate'])->whereNumber('shipment')->middleware('throttle:30,1')->name('shipments.rating');

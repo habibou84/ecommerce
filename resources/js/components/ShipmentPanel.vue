@@ -20,6 +20,7 @@ function dayLabel(iso) {
   const diff = Math.round((day - today) / 86400000)
   if (diff === 0) return 'aujourd\'hui'
   if (diff === 1) return 'demain'
+  if (diff === -1) return 'hier'
   return 'le ' + day.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
@@ -171,6 +172,10 @@ function saveEdit() {
   return run(() => http.patch(`/shipments/${current.value.id}/carrier`, fields))
 }
 const decide = (decision) => run(() => http.post(`/shipments/${current.value.id}/decision`, { decision, date: decision === 'redeliver' ? form.date : null, note: form.note || null }))
+function reschedule(s, date) {
+  current.value = s
+  return run(() => http.post(`/shipments/${s.id}/reschedule`, { date }))
+}
 const askReturn = () => run(() => http.post(`/shipments/${current.value.id}/return-request`, { note: form.note || null }))
 const sendNote = () => run(() => http.post(`/shipments/${current.value.id}/notes`, { note: form.note }))
 
@@ -253,6 +258,15 @@ async function whatsapp(s) {
         <template v-if="s.collected_amount !== null"> · encaissé {{ money(s.collected_amount) }}</template>
       </p>
       <p v-if="s.scheduled_date && !s.is_final" class="text-slate-600">Livraison prévue <strong>{{ dayLabel(s.scheduled_date) }}</strong></p>
+      <!-- Pas ramassé à sa date (contrat 1.10) : l'entreprise attend une nouvelle date ou l'annulation -->
+      <div v-if="s.carrier_reschedule" class="rounded bg-amber-50 p-2 text-amber-900">
+        <p class="font-medium">📅 {{ s.carrier?.name || 'L\'entreprise de livraison' }} n'a pas pu ramasser ce colis {{ dayLabel(s.carrier_reschedule.missed_day) }}. Choisissez une nouvelle date.</p>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button class="btn-brand px-3 py-1.5" :disabled="busy" @click="reschedule(s, todayIso)">Livrer aujourd'hui</button>
+          <button class="btn-secondary px-3 py-1.5" @click="openModal('reschedule', s)">Autre date…</button>
+          <button v-if="s.is_cancellable" class="btn-ghost px-3 py-1.5 text-red-700" @click="openModal('cancel', s)">Annuler</button>
+        </div>
+      </div>
       <div v-if="s.needs_decision && !s.is_final" class="rounded bg-rose-50 p-2 text-rose-900">
         <p class="font-medium">{{ s.carrier?.name || 'L\'entreprise de livraison' }} attend votre décision : nouvelle date ou retour du colis.</p>
         <div v-if="s.carrier_actions?.decide" class="mt-2 flex flex-wrap gap-2">
@@ -416,6 +430,16 @@ async function whatsapp(s) {
           <input id="ce-amount" v-model.number="edit.items_amount" class="input" type="number" min="0" />
         </Field>
         <button class="btn-brand w-full" :disabled="busy">Enregistrer chez {{ current.carrier?.name }}</button>
+      </form>
+    </Modal>
+
+    <Modal v-if="modal === 'reschedule'" :title="`Nouvelle date pour ${current.reference}`" @close="modal = null">
+      <form class="space-y-4" @submit.prevent="reschedule(current, form.date)">
+        <Alert v-if="error">{{ error }}</Alert>
+        <Field id="rs-date" label="Nouvelle date de livraison">
+          <input id="rs-date" v-model="form.date" class="input" type="date" :min="todayIso" :max="current.carrier_reschedule?.max_date" required />
+        </Field>
+        <button class="btn-brand w-full" :disabled="busy">Envoyer à {{ current.carrier?.name }}</button>
       </form>
     </Modal>
 

@@ -82,6 +82,8 @@ class ShipmentPresenter
             // Notes du livreur chez l'entreprise de livraison : peut-on le noter, note de la boutique, note du client
             'carrier_ratings' => $s->carrier_ratings,
             'carrier_cancellation' => $s->carrier_cancellation,
+            // Colis pas ramassé à sa date : l'entreprise attend une nouvelle date (ou l'annulation)
+            'carrier_reschedule' => $s->carrier_reschedule && ! $s->status->isFinal() ? $s->carrier_reschedule : null,
             // Course chez une entreprise par API : annuler demande un motif de la liste
             'connection_is_api' => (bool) ($s->connection?->isApi() && $s->carrier_tracking_code),
             'cancellation_text' => RemoteShipment::cancellationText($s->carrier_cancellation, $s->connection?->name ?? 'l\'entreprise'),
