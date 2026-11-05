@@ -121,6 +121,19 @@ class LiveScreensTest extends TestCase
         $this->storeApi($this->store, 'GET', 'lives/screens')->assertJsonCount(2, 'data');
         $this->storeApi($this->store, 'DELETE', 'lives/screens/'.$link['id'])->assertOk();
         $this->platformApi('GET', 'screens/'.basename($link['url']))->assertNotFound();
+
+        // Vitrine (10 articles et leur code)
+        $this->travel(2)->minutes();
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/display", ['mode' => 'grid'])->assertOk();
+        $this->assertSame('grid', $this->platformApi('GET', 'screens/'.$created['token'])->json('data.live.mode'));
+
+        // Numéro sur les écrans filmés : « dans la bio » par défaut, puis espacé, en émojis ou coupé en deux
+        $this->assertNull($this->storeApi($this->store, 'GET', "lives/{$this->live}/display")->json('data.store.phone_shown'));
+        $this->storeApi($this->store, 'POST', 'lives/phone-style', ['style' => 'spaced'])->assertOk()->assertJsonPath('data.phone_style', 'spaced');
+        $this->assertMatchesRegularExpression('/^(\d \d • ){4}\d \d$/u', $this->storeApi($this->store, 'GET', "lives/{$this->live}/display")->json('data.store.phone_shown'));
+        $this->storeApi($this->store, 'POST', 'lives/phone-style', ['style' => 'split'])->assertOk();
+        $this->assertMatchesRegularExpression('/^\d\d \d\d \+ \d\d \d\d \d\d$/', $this->storeApi($this->store, 'GET', "lives/{$this->live}/display")->json('data.store.phone_shown'));
+        $this->storeApi($this->store, 'POST', 'lives/phone-style', ['style' => 'whatsapp'])->assertStatus(422);
     }
 
     public function test_screens_share_one_computation_and_get_an_empty_answer_when_nothing_changed(): void
