@@ -60,7 +60,7 @@ const quotes = ref(null)
 const locations = ref([])
 const couriers = ref([])
 const suggestion = ref(null)
-const form = reactive({ target: null, carrier_connection_id: null, courier_id: null, origin_location_id: null, fee_payer: '', note: '', status: 'delivered', collected_amount: '', reason: '', date: '' })
+const form = reactive({ target: null, carrier_connection_id: null, courier_id: null, origin_location_id: null, fee_payer: '', note: '', status: 'delivered', collected_amount: '', reason: '', reason_code: null, date: '' })
 const auth = useAuthStore()
 const current = ref(null)
 // Livreur créé dans la fenêtre « Faire livrer » : ajouté à la liste et choisi
@@ -134,7 +134,15 @@ async function openReassign(s) {
 }
 
 const refresh = (s) => run(() => http.post(`/shipments/${s.id}/refresh`), false)
-const cancel = () => run(() => http.post(`/shipments/${current.value.id}/cancel`, { reason: form.reason || null }))
+// Motifs d'annulation de la boutique (Contract::CANCEL_REASONS_MERCHANT du socle)
+const CANCEL_REASONS = {
+  customer_cancelled: 'Le client a annulé sa commande',
+  out_of_stock: 'Produit en rupture',
+  order_mistake: 'Erreur dans la course',
+  self_delivery: 'Je livre moi-même',
+  other: 'Autre',
+}
+const cancel = () => run(() => http.post(`/shipments/${current.value.id}/cancel`, { reason: form.reason || null, reason_code: form.reason_code || null }))
 const setStatus = () => run(() => http.post(`/shipments/${current.value.id}/status`, {
   status: form.status,
   note: form.note || null,
@@ -191,6 +199,7 @@ function openModal(name, s) {
   current.value = s
   form.note = ''
   form.reason = ''
+  form.reason_code = null
   form.date = ''
   form.collected_amount = s.cod_amount
   error.value = ''
@@ -252,7 +261,9 @@ async function whatsapp(s) {
         </div>
       </div>
       <p v-else-if="s.return_requested && !s.is_final" class="rounded bg-violet-50 p-2 text-violet-900">Retour du colis demandé.</p>
-      <p v-if="s.failure_reason" class="rounded bg-amber-50 p-2 text-amber-900">{{ s.failure_reason }}<template v-if="s.attempts_count"> ({{ s.attempts_count }} tentative{{ s.attempts_count > 1 ? 's' : '' }})</template></p>
+      <!-- Annulée ou refusée : par qui et pourquoi (entreprise de livraison) -->
+      <p v-if="s.cancellation_text" class="rounded bg-red-50 p-2 text-red-900">{{ s.cancellation_text }}</p>
+      <p v-if="s.failure_reason && !s.cancellation_text" class="rounded bg-amber-50 p-2 text-amber-900">{{ s.failure_reason }}<template v-if="s.attempts_count"> ({{ s.attempts_count }} tentative{{ s.attempts_count > 1 ? 's' : '' }})</template></p>
       <a v-if="s.proof_photo_url" :href="s.proof_photo_url" target="_blank" rel="noopener" class="text-emerald-700 underline">Photo de livraison</a>
       <!-- Étiquette de l'entreprise de livraison, à coller sur le colis avant le ramassage -->
       <a v-if="s.label_url && !s.is_final" :href="s.label_url" target="_blank" rel="noopener" class="btn-secondary inline-flex w-fit px-3 py-1.5">🏷️ Imprimer l'étiquette{{ s.carrier?.name ? ` de ${s.carrier.name}` : '' }}</a>
@@ -458,10 +469,17 @@ async function whatsapp(s) {
     <Modal v-if="modal === 'cancel'" :title="`Annuler la course ${current.reference}`" @close="modal = null">
       <form class="space-y-4" @submit.prevent="cancel">
         <Alert v-if="error">{{ error }}</Alert>
-        <Field id="sh-reason" label="Motif">
-          <input id="sh-reason" v-model="form.reason" class="input" maxlength="255" />
+        <!-- Entreprise de livraison : motif de la liste obligatoire (contrat 1.9) -->
+        <fieldset v-if="current.connection_is_api !== false" class="space-y-1.5">
+          <legend class="mb-1 text-sm font-semibold">Pourquoi annulez-vous ? *</legend>
+          <label v-for="(label, code) in CANCEL_REASONS" :key="code" :class="['flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm', form.reason_code === code ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200']">
+            <input v-model="form.reason_code" type="radio" :value="code"> {{ label }}
+          </label>
+        </fieldset>
+        <Field id="sh-reason" :label="form.reason_code === 'other' ? 'Précision *' : 'Précision (facultatif)'">
+          <input id="sh-reason" v-model="form.reason" class="input" maxlength="255" :required="form.reason_code === 'other'" />
         </Field>
-        <button class="btn-danger w-full" :disabled="busy">Annuler la course</button>
+        <button class="btn-danger w-full" :disabled="busy || (current.connection_is_api !== false && !form.reason_code)">Annuler la course</button>
       </form>
     </Modal>
     <DelivererPicker v-if="pickerOpen" :model-value="plannedKey" :options="pickerOptions" :place-label="order.shipping_place_label ?? ''" @update:model-value="assignTo" @close="pickerOpen = false" />
