@@ -64,7 +64,7 @@ async function choose(code) {
       <RouterLink :to="`/gestion/live/${live.id}/pancartes?vue=liste`" class="btn-secondary justify-center">📋 Liste d'aide</RouterLink>
       <RouterLink v-if="cardsOn" :to="`/gestion/live/${live.id}/cartes`" class="btn-secondary justify-center">🖼 Cartes à l'écran</RouterLink>
     </div>
-    <p v-if="cardsOn" class="mt-2 text-xs text-slate-500">Cartes à l'écran : une image par article (photo, code en grand, prix), à télécharger puis à afficher dans le live (TikTok, LIVE Studio, télé).</p>
+    <p v-if="cardsOn" class="mt-2 text-xs text-slate-500">Cartes à l'écran : une image par article (photo, code en grand, sans prix), à télécharger puis à afficher dans le live (TikTok, LIVE Studio, télé).</p>
     <LiveSignPicker v-if="signing" :title="signing.title" :current="signing.code" :used="used" @pick="choose" @close="signing = null" />
   </details>
 </template>

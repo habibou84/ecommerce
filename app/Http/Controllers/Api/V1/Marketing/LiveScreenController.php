@@ -103,6 +103,19 @@ class LiveScreenController extends Controller
     }
 
     /**
+     * Comment le numéro apparaît sur les écrans filmés (télé, TikTok LIVE Studio) : dans la bio, espacé, en émojis,
+     * coupé en deux. Réglage de la boutique, gardé d'un live à l'autre.
+     */
+    public function phoneStyle(Request $request): JsonResponse
+    {
+        $data = $request->validate(['style' => ['required', Rule::in(LiveScreens::PHONE_STYLES)]]);
+        $store = $this->currentStore();
+        $store->forceFill(['live_phone_style' => $data['style']])->save();
+
+        return response()->json(['data' => $this->screens->storeInfo($store->fresh())]);
+    }
+
+    /**
      * Affichage du live tel que le voient les écrans (mode présentation de l'application).
      */
     public function display(int $session): JsonResponse

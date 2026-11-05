@@ -554,6 +554,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('lives/screens/{screen}/test', [LiveScreenController::class, 'test'])->whereNumber('screen')->middleware('feature:live,live_screens')->name('lives.screens.test');
                 Route::delete('lives/screens/{screen}', [LiveScreenController::class, 'destroy'])->whereNumber('screen')->middleware('feature:live,live_screens')->name('lives.screens.destroy');
                 Route::post('lives/{session}/display', [LiveScreenController::class, 'mode'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live,live_screens')->name('lives.display');
+                Route::post('lives/phone-style', [LiveScreenController::class, 'phoneStyle'])->middleware('feature:live,live_screens')->name('lives.phone-style');
                 Route::get('lives/{session}/display', [LiveScreenController::class, 'display'])->whereNumber('session')->middleware('feature:live,live_screens')->name('lives.display.show');
                 Route::get('lives/{session}/cards', [LiveScreenController::class, 'cards'])->whereNumber('session')->middleware('throttle:30,1')->middleware('feature:live,live_screens')->name('lives.cards');
                 Route::get('lives/cards/file', [LiveScreenController::class, 'file'])->middleware('throttle:120,1')->middleware('feature:live,live_screens')->name('lives.cards.file');
