@@ -188,7 +188,6 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
           <span class="ld-live"><i />EN DIRECT · {{ store?.name }}<b v-if="effects && live?.orders" :key="live.orders" class="ld-count">🛍️ {{ live.orders }}</b></span>
           <!-- Le code à côté du nom, hors de la photo : rien ne cache l'article -->
           <div class="ld-head">
-            <span class="ld-code">{{ shown.code }}</span>
             <div class="ld-titles">
               <p class="ld-name">{{ shown.title }}</p>
               <p v-if="shown.variant" class="ld-variant">{{ shown.variant }}</p>
@@ -200,9 +199,11 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
           </div>
           <p v-for="o in others" :key="o.name" class="ld-others">{{ o.name }} : {{ o.values.filter((v) => v.remaining > 0).map((v) => v.value).join(', ') || 'épuisé' }}</p>
           <!-- Comment commander cet article : le code (et la taille), puis le numéro dans le style choisi -->
+          <!-- Là où était le QR code : le code de l'article en très grand, puis comment commander -->
           <div class="ld-wa ld-send">
+            <span class="ld-code ld-bigcode">{{ shown.code }}</span>
             <div class="ld-wa-text">
-              <b>Envoie <u>{{ shown.code }}</u><template v-if="sizes"> + ta taille</template></b>
+              <b>Envoie {{ shown.code }}<template v-if="sizes"> + ta taille</template></b>
               <span>{{ phoneLine }}</span>
             </div>
           </div>
@@ -337,6 +338,15 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 
 /* Envoie le code (sans QR code ni le mot WhatsApp) */
 .ld-send { margin-top: auto; }
+/* Le code en très grand dans le bloc du bas (à la place de l'ancien QR code) */
+.live-display .ld-send { flex-direction: column; justify-content: center; text-align: center; }
+.live-display .ld-send .ld-bigcode { line-height: .9; border-width: .05em; color: #fff; display: inline-block; align-self: center; }
+.is-land .ld-send { flex: 1 1 auto; min-height: 0; gap: .6em !important; }
+.live-display .ld-send .ld-wa-text { flex: none; width: 100%; }
+.live-display.is-land .ld-send { container-type: size; }
+.live-display.is-land .ld-send .ld-bigcode { font-size: min(48cqh, 34cqi); }
+.live-display.is-square .ld-send .ld-bigcode { font-size: 6em; }
+.live-display.is-port .ld-send .ld-bigcode { font-size: 4.2em; }
 .ld-bio { width: auto !important; max-width: 46%; padding: 1.2em !important; text-align: center; }
 .ld-bio b { white-space: normal !important; line-height: 1.2; font-size: 2.4em !important; overflow-wrap: anywhere; }
 .is-port .ld-bio, .is-square .ld-bio { max-width: none; }
@@ -348,14 +358,14 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .ld-grid-head .ld-live { font-size: .5em; }
 .ld-grid-items { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(2, 1fr); gap: .8em; }
 .ld-grid-item { position: relative; min-height: 0; border-radius: .6em; overflow: hidden; background: linear-gradient(160deg, #f97316, #be123c); }
-.ld-grid-item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.ld-grid-item b { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; color: #0f172a; text-align: center; font-weight: 900; font-size: 2.6em; line-height: 1.2; letter-spacing: -.02em; }
+.ld-grid-item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #fde7c7; }
+.ld-grid-item b { position: absolute; left: .3em; bottom: .3em; background: #fff; color: #0f172a; font-weight: 900; font-size: 1.5em; line-height: 1.15; padding: 0 .3em; border-radius: .25em; box-shadow: 0 .1em .3em rgba(0, 0, 0, .3); }
 .ld-grid-item.is-out img { filter: grayscale(1) opacity(.5); }
 .ld-grid-sold { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) rotate(-12deg); color: #dc2626; background: #fff; border: .12em solid #dc2626; border-radius: .2em; font-weight: 900; font-size: 1.4em; padding: 0 .3em; }
 .ld-grid-foot { background: #facc15; color: #0f172a; border-radius: .4em; text-align: center; font-weight: 900; font-size: 1.5em; padding: .3em; }
 .is-port .ld-grid-items { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(5, 1fr); }
 .is-square .ld-grid-items { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); }
-.is-port .ld-grid-item b, .is-square .ld-grid-item b { font-size: 1.6em; }
+.is-port .ld-grid-item b, .is-square .ld-grid-item b { font-size: 1.1em; }
 
 /* Bloc WhatsApp : QR code (sur fond blanc pour se scanner) et numéro en gros */
 .ld-wa { display: flex; align-items: center; background: #fff; color: #064e3b; flex-shrink: 0; }
