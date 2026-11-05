@@ -61,6 +61,7 @@ class Shipment extends Model
             'needs_decision' => 'boolean',
             'return_requested' => 'boolean',
             'carrier_ratings' => 'array',
+            'carrier_cancellation' => 'array',
             'requested_at' => 'datetime',
             'picked_up_at' => 'datetime',
             'delivered_at' => 'datetime',

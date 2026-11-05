@@ -32,6 +32,8 @@ final class RemoteShipment
         public readonly ?array $ratings = null,
         /** Étiquette à imprimer (contrat 1.5) : lien signé, valable 7 jours ; null si l'entreprise ne l'envoie pas */
         public readonly ?string $labelUrl = null,
+        /** Annulation (contrat 1.9) : by (merchant / company), name, role, reason, reason_label, note ; null sinon */
+        public readonly ?array $cancellation = null,
     ) {}
 
     /**
@@ -67,6 +69,20 @@ final class RemoteShipment
             returnRequested: array_key_exists('return_requested', $order) ? (bool) $order['return_requested'] : null,
             ratings: is_array($order['ratings'] ?? null) ? $order['ratings'] : null,
             labelUrl: is_string($order['label_url'] ?? null) ? $order['label_url'] : null,
+            cancellation: is_array($order['cancellation'] ?? null) ? $order['cancellation'] : null,
         );
+    }
+
+    /** « Annulée par Koné (Dispatch) : Client injoignable avant le ramassage · Appelé 3 fois » */
+    public static function cancellationText(?array $cancellation, string $carrier = 'l\'entreprise'): ?string
+    {
+        if ($cancellation === null) {
+            return null;
+        }
+        $who = ($cancellation['by'] ?? null) === 'merchant' ? 'la boutique'
+            : trim(($cancellation['name'] ?? '') ?: $carrier).(! empty($cancellation['role']) ? ' ('.$cancellation['role'].')' : '');
+        $why = collect([$cancellation['reason_label'] ?? null, $cancellation['note'] ?? null])->filter()->unique()->implode(' · ');
+
+        return (! empty($cancellation['rejected']) ? 'Refusée' : 'Annulée').' par '.$who.($why !== '' ? ' : '.$why : '');
     }
 }

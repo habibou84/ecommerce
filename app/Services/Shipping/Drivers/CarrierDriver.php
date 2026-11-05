@@ -49,7 +49,7 @@ interface CarrierDriver
      */
     public function create(CarrierConnection $connection, Shipment $shipment, array $payload): RemoteShipment;
 
-    public function cancel(CarrierConnection $connection, Shipment $shipment, ?string $reason): RemoteShipment;
+    public function cancel(CarrierConnection $connection, Shipment $shipment, ?string $reason, ?string $reasonCode = null): RemoteShipment;
 
     public function fetch(CarrierConnection $connection, Shipment $shipment): RemoteShipment;
 
