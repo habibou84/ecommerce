@@ -4,7 +4,7 @@ import Alert from '../../../components/Alert.vue'
 import http, { download, errorMessage } from '../../../lib/http'
 
 /**
- * Cartes du live : une image par article (photo, code en très grand, prix, « Envoie A1 + ta taille »), sa
+ * Cartes du live : une image par article (photo, code en très grand, nom, « Envoie A1 + ta taille », sans prix), sa
  * version « VENDU » et « Comment commander », à enregistrer dans la galerie du téléphone puis à poser dans un coin
  * du live TikTok (effet image), ou à partager sur WhatsApp avant le live.
  */
@@ -104,14 +104,13 @@ async function shareOne(card) {
     <RouterLink :to="`/gestion/live/${id}`" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Retour au live</RouterLink>
     <div>
       <h1 class="text-xl font-extrabold">Cartes à afficher à l'écran</h1>
-      <p class="text-sm text-slate-600">Une image par article (photo, code de la pancarte en grand, prix), dans l'ordre du live, plus « Comment commander ». Téléchargez-les, puis affichez la carte de l'article que vous montrez.</p>
+      <p class="text-sm text-slate-600">Une image par article (photo, code de la pancarte en grand, nom ; sans prix, à cause de TikTok), dans l'ordre du live, plus « Comment commander ». Téléchargez-les, puis affichez la carte de l'article que vous montrez.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
     <section class="card space-y-3 p-4">
       <div class="flex flex-wrap gap-2 text-sm">
-        <button type="button" class="rounded-full px-3 py-1.5 font-semibold" :class="was ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'" @click="was = !was">Avec prix barré</button>
         <button type="button" class="rounded-full px-3 py-1.5 font-semibold" :class="stock ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'" @click="stock = !stock">Pièces restantes</button>
         <button type="button" class="rounded-full px-3 py-1.5 font-semibold" :class="sold ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'" @click="sold = !sold">Versions VENDU</button>
       </div>

@@ -144,7 +144,7 @@ class LiveImages
      */
     public function card(int $storeId, array $card, bool $sold = false): string
     {
-        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $card['link'] ?? null, $sold, 7])), 0, 12);
+        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $card['link'] ?? null, $sold, 9])), 0, 12);
         $path = "live/{$storeId}/card-{$card['code']}-{$key}.jpg";
         if ($this->disk()->exists($path)) {
             return $path;
@@ -156,7 +156,6 @@ class LiveImages
         $ink = imagecolorallocate($c, 17, 17, 17);
         $red = imagecolorallocate($c, 220, 38, 38);
         $yellow = imagecolorallocate($c, 250, 204, 21);
-        $brown = imagecolorallocate($c, 113, 63, 18);
         $night = imagecolorallocate($c, 15, 23, 42);
         imagefill($c, 0, 0, $night);
 
@@ -180,36 +179,26 @@ class LiveImages
             imagettftext($c, 36, 0, $w - 45 - $lw, 92, $white, $this->font('Bold'), $label);
         }
 
-        // Bande jaune : le code (hors de la photo, rien ne cache l'article), le prix, l'ancien prix barré, le nom
+        // Bande jaune : le code en très grand (hors de la photo, rien ne cache l'article) et le nom. Ni prix ni adresse
+        // de site : TikTok freine les lives qui en montrent
         imagefilledrectangle($c, 0, $photoH, $w, $h - 120, $yellow);
-        $codeSize = $this->size($card['code'], 92, 'ExtraBold', 240);
+        $codeSize = $this->size($card['code'], 150, 'ExtraBold', 360);
         $codeW = $this->width($card['code'], $codeSize, 'ExtraBold');
-        imagefilledrectangle($c, 40, $photoH + 30, 40 + $codeW + 50, $photoH + 150, $red);
-        imagettftext($c, $codeSize, 0, 65, $photoH + 90 + (int) ($codeSize / 2), $white, $this->font('ExtraBold'), $card['code']);
-        $x = 40 + $codeW + 80;
-        $price = Money::format($card['price']);
-        $was = $card['was'] ? Money::format($card['was']) : null;
-        $priceSize = $this->size($price, 96, 'ExtraBold', $w - 40 - $x);
-        $priceY = $was ? $photoH + 112 : $photoH + 90 + (int) ($priceSize / 2);
-        imagettftext($c, $priceSize, 0, $x, $priceY, $ink, $this->font('ExtraBold'), $price);
-        if ($was) {
-            // Ancien prix barré, sous le prix
-            $ww = $this->width($was, 34, 'Bold');
-            imagettftext($c, 34, 0, $x + 4, $photoH + 165, $brown, $this->font('Bold'), $was);
-            imagefilledrectangle($c, $x + 2, $photoH + 150, $x + 6 + $ww, $photoH + 154, $brown);
-        }
+        imagefilledrectangle($c, 40, $photoH + 40, 40 + $codeW + 60, $photoH + 260, $red);
+        imagettftext($c, $codeSize, 0, 70, $photoH + 150 + (int) ($codeSize / 2), $white, $this->font('ExtraBold'), $card['code']);
+        $x = 40 + $codeW + 100;
         $name = $card['title'].($card['variant'] ? ' · '.$card['variant'] : '');
-        imagettftext($c, 46, 0, 40, $photoH + 232, $ink, $this->font('Bold'), $this->fit($name, 46, 'Bold', $w - 80));
-        if (! empty($card['link'])) {
-            imagettftext($c, 26, 0, 40, $photoH + 283, $brown, $this->font('Bold'), $this->fit('Aussi sur '.$card['link'], 26, 'Bold', $w - 80));
+        $lines = $this->wrap($name, 44, 'Bold', $w - 40 - $x, 3);
+        foreach ($lines as $i => $line) {
+            imagettftext($c, 44, 0, $x, $photoH + 150 - (count($lines) - 1) * 28 + $i * 56 + 16, $ink, $this->font('Bold'), $line);
         }
 
         // Pied : appel à commander
         imagefilledrectangle($c, 0, $h - 120, $w, $h, $night);
         $call = $this->fit("Envoie {$card['code']} + ta taille", 40, 'ExtraBold', $w - 80);
         $box = imagettfbbox(40, 0, $this->font('ExtraBold'), $call);
-        imagettftext($c, 40, 0, (int) (($w - ($box[2] - $box[0])) / 2), $h - 56, $white, $this->font('ExtraBold'), $call);
-        $this->brand($c, $w, $h - 16, imagecolorallocate($c, 148, 163, 184));
+        imagettftext($c, 40, 0, (int) (($w - ($box[2] - $box[0])) / 2), $h - 42, $white, $this->font('ExtraBold'), $call);
+        // Pas de « Propulsé par … » ni d'adresse de site sur une carte filmée (TikTok)
 
         if ($sold) {
             $this->stamp($c, 'VENDU', (int) ($w / 2), (int) ($photoH / 2) + 40, $red);
@@ -446,6 +435,33 @@ class LiveImages
         }
 
         return $size;
+    }
+
+    /**
+     * Texte coupé en lignes qui tiennent dans la largeur (au plus $max lignes, la dernière raccourcie si besoin).
+     *
+     * @return list<string>
+     */
+    private function wrap(string $text, int $size, string $weight, int $width, int $max): array
+    {
+        $lines = [];
+        $line = '';
+        foreach (preg_split('/\s+/', trim($text)) as $word) {
+            $try = $line === '' ? $word : $line.' '.$word;
+            if ($line !== '' && $this->width($try, $size, $weight) > $width) {
+                $lines[] = $line;
+                $line = $word;
+            } else {
+                $line = $try;
+            }
+        }
+        $lines[] = $line;
+        if (count($lines) > $max) {
+            $lines = array_slice($lines, 0, $max);
+            $lines[$max - 1] .= ' …';
+        }
+
+        return array_map(fn (string $l) => $this->fit($l, $size, $weight, $width), $lines);
     }
 
     private function fit(string $text, int $size, string $weight, int $max): string

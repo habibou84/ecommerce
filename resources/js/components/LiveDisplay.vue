@@ -3,8 +3,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 /**
  * Affichage du live pour un écran filmé (télé, tablette), TikTok LIVE Studio ou le partage d'écran : l'article
- * montré en très grand (photo, code, prix, pièces restantes, « VENDU »), le défilement des articles, ou « Comment
- * commander » avec le QR code WhatsApp ; bandeau des dernières commandes (commune seulement).
+ * montré en très grand (photo, code, tailles, pièces restantes, « VENDU »), le défilement des articles, la vitrine
+ * (10 articles et leur code) ou « Comment commander » ; bandeau des dernières commandes (commune seulement).
+ * Conforme aux règles de TikTok : ni prix, ni QR code, ni adresse de site, ni le mot WhatsApp ; le numéro seulement
+ * si la boutique l'a choisi (écrit espacé, en émojis ou coupé en deux), sinon « numéro dans la bio ».
  * Tout est dessiné en « em » : la taille suit celle de l'écran, du téléviseur au téléphone.
  * Effets (calculés par l'écran, rien de plus demandé au serveur) : fond qui bouge, entrée de chaque article, zoom
  * lent de la photo, barre de stock, bandeau qui défile ; à chaque pièce prise, confettis et « Cocody vient de
@@ -65,6 +67,15 @@ const shown = computed(() => {
   return items.value.find((i) => i.id === id) ?? available.value[0] ?? items.value[0] ?? null
 })
 const showHow = computed(() => !live.value || mode.value === 'how' || !shown.value)
+// Vitrine : 10 articles et leur code, puis les 10 suivants toutes les 10 secondes
+const showGrid = computed(() => !!live.value && mode.value === 'grid' && items.value.length > 0)
+const pages = computed(() => Math.max(1, Math.ceil(items.value.length / 10)))
+const gridItems = computed(() => {
+  const page = Math.floor((step.value * 8) / 10) % pages.value
+  return items.value.slice(page * 10, page * 10 + 10)
+})
+// Le numéro à l'écran, dans le style choisi par la boutique, sinon « dans la bio »
+const phoneLine = computed(() => (store.value?.phone_shown ? `📞 ${store.value.phone_shown}` : '📌 Le numéro est dans la bio'))
 const position = computed(() => (shown.value ? items.value.findIndex((i) => i.id === shown.value.id) + 1 : 0))
 
 // Bandeau : les dernières commandes à tour de rôle, sinon le nombre de commandes
@@ -74,7 +85,7 @@ const ticker = computed(() => {
   const list = live.value?.ticker ?? []
   if (list.length) return `✓ ${list[tickIndex.value % list.length].text} 🎉`
   if (live.value?.orders) return `✓ ${live.value.orders} commande${live.value.orders > 1 ? 's' : ''} pendant ce live 🎉`
-  return live.value ? 'Envoyez un ou plusieurs codes sur WhatsApp : A1 + A3' : 'Le live commence bientôt'
+  return live.value ? 'Envoie un ou plusieurs codes : A1 + A3' : 'Le live commence bientôt'
 })
 watch(() => live.value?.ticker?.[0]?.id, () => (tickIndex.value = 0))
 
@@ -82,7 +93,7 @@ watch(() => live.value?.ticker?.[0]?.id, () => (tickIndex.value = 0))
 const tickerLine = computed(() => {
   const list = live.value?.ticker ?? []
   if (!props.effects || !list.length) return ticker.value
-  return `${list.map((t) => `✓ ${t.text}`).join('   ·   ')}   🎉   Envoyez votre code sur WhatsApp`
+  return `${list.map((t) => `✓ ${t.text}`).join('   ·   ')}   🎉   Envoie ton code`
 })
 const tickerSeconds = computed(() => Math.max(12, Math.round(tickerLine.value.length * 0.22)))
 
@@ -111,19 +122,8 @@ const chrono = computed(() => `${String(Math.floor(flashLeft.value / 60)).padSta
 const sizes = computed(() => shown.value?.options?.[0] ?? null)
 const others = computed(() => (shown.value?.options ?? []).slice(1))
 const sizeNote = (v) => (v.remaining === 0 ? 'épuisé' : v.remaining === 1 ? 'dernière' : `${v.remaining} pièces`)
-// Exemple de message avec la taille : « A1 L »
-const example = computed(() => {
-  const free = sizes.value?.values.find((v) => v.remaining > 0)
-  return free ? `${shown.value.code} ${free.value}` : shown.value?.code
-})
 const stockWidth = (i) => `${Math.max(6, Math.min(100, Math.round((100 * i.remaining) / Math.max(1, i.quantity))))}%`
 
-const money = (v) => `${new Intl.NumberFormat('fr-FR').format(v).replace(/ /g, ' ')} F`
-// Numéro complet : l'indicatif (+225) plus petit, pour que le numéro tienne en entier sur une ligne
-const number = computed(() => {
-  const [first, ...rest] = String(store.value?.whatsapp || '').split(' ')
-  return first.startsWith('+') && rest.length ? { prefix: first, local: rest.join(' ') } : { prefix: '', local: store.value?.whatsapp || '' }
-})
 const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.code}` : 'Épuisé') : i.remaining === 1 ? '🔥 Dernière pièce !' : i.remaining <= 3 ? `🔥 Plus que ${i.remaining} !` : `${i.remaining} pièces`)
 </script>
 
@@ -141,25 +141,29 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
           <p class="ld-soon">{{ store?.name }} · {{ live ? 'en direct' : 'le live commence bientôt' }}</p>
           <h2>Comment commander ?</h2>
           <ol>
-            <li><span>1</span>Notez vos codes (A1, A2…)</li>
-            <li><span>2</span>{{ store?.qr ? 'Scannez, envoyez « A1 + A3 »' : 'Envoyez « A1 + A3 » sur WhatsApp' }}</li>
-            <li><span>3</span>Touchez votre commune</li>
-            <li><span>4</span>On vous livre ✅</li>
+            <li><span>1</span>Note le code de l'article (A1, A2…)</li>
+            <li><span>2</span>Envoie le code + ta taille</li>
+            <li><span>3</span>Choisis ton quartier</li>
+            <li><span>4</span>On te livre ✅</li>
           </ol>
-          <div v-if="store?.link" class="ld-site ld-how-site">
-            <img :src="store.link_qr" alt="QR code du site" />
-            <div class="ld-site-text">
-              <small>Ou commandez sur le site</small>
-              <b>{{ store.link_label }}</b>
-            </div>
-          </div>
         </div>
-        <div v-if="store?.whatsapp" class="ld-qr">
-          <img v-if="store.qr" :src="store.qr" alt="QR code WhatsApp" />
-          <small class="ld-wa-label">WhatsApp</small>
-          <b><small v-if="number.prefix" class="ld-cc">{{ number.prefix }}</small>{{ number.local }}</b>
+        <div class="ld-qr ld-bio">
+          <b>{{ phoneLine }}</b>
           <small>Paiement à la livraison</small>
         </div>
+      </div>
+
+      <!-- Vitrine : 10 articles en miniature, le code écrit en grand -->
+      <div v-else-if="showGrid" class="ld-grid">
+        <p class="ld-grid-head"><span>En direct maintenant</span><span class="ld-live"><i />{{ store?.name }}</span></p>
+        <div class="ld-grid-items">
+          <div v-for="i in gridItems" :key="i.id" class="ld-grid-item" :class="{ 'is-out': i.remaining === 0 }">
+            <img v-if="i.image" :src="i.image" alt="" />
+            <span v-if="i.remaining === 0" class="ld-grid-sold">VENDU</span>
+            <b>{{ i.code }}</b>
+          </div>
+        </div>
+        <p class="ld-grid-foot">Envoie le code + ta taille · {{ phoneLine }}</p>
       </div>
 
       <!-- Article montré : la photo en grand, puis le prix et le bloc WhatsApp (QR code et numéro) -->
@@ -176,7 +180,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
           <div v-if="effects && shown.remaining > 0 && shown.quantity > 0" class="ld-stock"><b :style="{ width: stockWidth(shown) }" /></div>
           <!-- Vente flash : ruban et chrono -->
           <template v-if="flashLeft > 0 && shown.remaining > 0">
-            <span class="ld-ribbon">PRIX LIVE</span>
+            <span class="ld-ribbon">OFFRE LIVE</span>
             <span class="ld-chrono">⏱ {{ chrono }}</span>
           </template>
         </div>
@@ -190,25 +194,16 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
               <p v-if="shown.variant" class="ld-variant">{{ shown.variant }}</p>
             </div>
           </div>
-          <p class="ld-price" :class="{ 'is-flash': flashLeft > 0 }"><small v-if="shown.from" class="ld-from">dès</small><b>{{ money(shown.price) }}</b><s v-if="shown.was">{{ money(shown.was) }}</s></p>
           <!-- Tailles (ou couleurs) qui restent : une taille épuisée est barrée, VENDU seulement quand tout est parti -->
           <div v-if="sizes" class="ld-sizes">
             <span v-for="v in sizes.values" :key="v.value" class="ld-size" :class="{ 'is-out': v.remaining === 0, 'is-low': v.remaining === 1 }">{{ v.value }}<small>{{ sizeNote(v) }}</small></span>
           </div>
           <p v-for="o in others" :key="o.name" class="ld-others">{{ o.name }} : {{ o.values.filter((v) => v.remaining > 0).map((v) => v.value).join(', ') || 'épuisé' }}</p>
-          <div v-if="store?.whatsapp" class="ld-wa">
-            <img v-if="store.qr" :src="store.qr" alt="QR code WhatsApp" />
+          <!-- Comment commander cet article : le code (et la taille), puis le numéro dans le style choisi -->
+          <div class="ld-wa ld-send">
             <div class="ld-wa-text">
-              <small class="ld-wa-label">WhatsApp</small>
-              <b><small v-if="number.prefix" class="ld-cc">{{ number.prefix }}</small>{{ number.local }}</b>
-              <span>Envoyez <u>{{ example }}</u><template v-if="layout !== 'square' && !sizes"> (ou plusieurs : {{ shown.code }} + …)</template><template v-else-if="layout !== 'square'"> (le code et la taille)</template><template v-if="store.qr && layout === 'land' && !sizes"><br>ou scannez le code</template></span>
-            </div>
-          </div>
-          <div v-if="store?.link" class="ld-site">
-            <img :src="store.link_qr" alt="QR code du site" />
-            <div class="ld-site-text">
-              <small>{{ store?.whatsapp ? 'Ou commandez sur le site' : 'Commandez sur le site' }}</small>
-              <b>{{ store.link_label }}</b>
+              <b>Envoie <u>{{ shown.code }}</u><template v-if="sizes"> + ta taille</template></b>
+              <span>{{ phoneLine }}</span>
             </div>
           </div>
         </div>
@@ -217,12 +212,10 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
       <!-- Bandeau : dernières commandes -->
       <div v-if="layout !== 'port'" class="ld-ticker">
         <span class="ld-ticker-text"><span :key="tickerLine" :class="{ 'ld-marquee': tickerLine !== ticker }" :style="{ animationDuration: `${tickerSeconds}s` }">{{ tickerLine }}</span></span>
-        <span v-if="!showHow" class="ld-ticker-pos">{{ position }} / {{ items.length }}</span>
-        <span class="ld-brand">Propulsé par <b>Jibiat Marchand</b><template v-if="layout === 'land'"> · jibiat-marchand.com</template></span>
+        <span v-if="!showHow && !showGrid" class="ld-ticker-pos">{{ position }} / {{ items.length }}</span>
       </div>
       <template v-else>
-        <p v-if="!showHow" class="ld-mini-ticker">{{ ticker }}</p>
-        <p class="ld-brand-line">Propulsé par <b>Jibiat Marchand</b> · jibiat-marchand.com</p>
+        <p v-if="!showHow && !showGrid" class="ld-mini-ticker">{{ ticker }}</p>
       </template>
 
       <!-- Pièce prise : confettis et carte qui glisse -->
@@ -341,6 +334,28 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 .is-square .has-sizes .ld-wa img { width: 7.5em; }
 .ld-price b { color: #facc15; font-weight: 900; letter-spacing: -.03em; line-height: 1; }
 .ld-price s { color: #94a3b8; font-weight: 700; }
+
+/* Envoie le code (sans QR code ni le mot WhatsApp) */
+.ld-send { margin-top: auto; }
+.ld-bio { width: auto !important; max-width: 46%; padding: 1.2em !important; text-align: center; }
+.ld-bio b { white-space: normal !important; line-height: 1.2; font-size: 2.4em !important; overflow-wrap: anywhere; }
+.is-port .ld-bio, .is-square .ld-bio { max-width: none; }
+.is-port .ld-bio b, .is-square .ld-bio b { font-size: 1.6em !important; }
+.ld-send span { white-space: normal; overflow-wrap: anywhere; }
+/* Vitrine : 10 articles et leur code */
+.ld-grid { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .8em; padding: 1.2em 1.6em; }
+.ld-grid-head { display: flex; justify-content: space-between; align-items: center; font-weight: 900; font-size: 2em; }
+.ld-grid-head .ld-live { font-size: .5em; }
+.ld-grid-items { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(2, 1fr); gap: .8em; }
+.ld-grid-item { position: relative; min-height: 0; border-radius: .6em; overflow: hidden; background: linear-gradient(160deg, #f97316, #be123c); }
+.ld-grid-item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ld-grid-item b { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; color: #0f172a; text-align: center; font-weight: 900; font-size: 2.6em; line-height: 1.2; letter-spacing: -.02em; }
+.ld-grid-item.is-out img { filter: grayscale(1) opacity(.5); }
+.ld-grid-sold { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) rotate(-12deg); color: #dc2626; background: #fff; border: .12em solid #dc2626; border-radius: .2em; font-weight: 900; font-size: 1.4em; padding: 0 .3em; }
+.ld-grid-foot { background: #facc15; color: #0f172a; border-radius: .4em; text-align: center; font-weight: 900; font-size: 1.5em; padding: .3em; }
+.is-port .ld-grid-items { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(5, 1fr); }
+.is-square .ld-grid-items { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); }
+.is-port .ld-grid-item b, .is-square .ld-grid-item b { font-size: 1.6em; }
 
 /* Bloc WhatsApp : QR code (sur fond blanc pour se scanner) et numéro en gros */
 .ld-wa { display: flex; align-items: center; background: #fff; color: #064e3b; flex-shrink: 0; }
