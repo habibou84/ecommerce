@@ -74,6 +74,10 @@ class MetaHealth
             return;
         }
 
+        // Meta annonce déjà l'absence de carte : mode sans carte tout de suite, sans attendre un premier envoi refusé
+        if ($account->payment_missing_at === null && collect($raw['errors'] ?? [])->contains(fn ($e) => self::isPayment($e))) {
+            $account->payment_missing_at = now();
+        }
         $account->forceFill(['meta_health' => $raw, 'meta_health_at' => now()]);
         $state = self::present($account)['state'];
         $account->forceFill([
@@ -94,11 +98,18 @@ class MetaHealth
         $lines = [];
 
         // Envois bloqués ou limités par Meta, avec la raison donnée par Meta
+        // Sans carte, Meta ne bloque que les messages payants (écrits en premier par la boutique) : c'est le mode
+        // sans carte (ligne « payment » plus bas), pas un blocage ; la demande de vérification seule non plus.
+        $paymentOnly = collect($raw['errors'] ?? [])->contains(fn ($e) => self::isPayment($e));
         foreach ($raw['errors'] ?? [] as $i => $e) {
-            $blocked = ($e['level'] ?? $raw['can_send'] ?? null) === 'BLOCKED';
-            [$title, $action] = self::explainHealth($e, $links);
-            $lines[] = ['key' => 'health-'.$i, 'tone' => $blocked ? 'bad' : 'warn', 'title' => $title,
-                'detail' => trim(($e['description'] ?? '').' '.($e['solution'] ?? '')), 'action' => $action];
+            if (self::isPayment($e)) {
+                continue;
+            }
+            [$title, $action, $detail] = self::explainHealth($e, $links);
+            // Bloqué avec une erreur de carte : c'est la carte qui bloque, la vérification n'est qu'une demande en plus
+            $soft = $paymentOnly && str_contains(strtolower(($e['description'] ?? '').' '.($e['solution'] ?? '')), 'verif');
+            $blocked = ! $soft && ($e['level'] ?? $raw['can_send'] ?? null) === 'BLOCKED';
+            $lines[] = ['key' => 'health-'.$i, 'tone' => $blocked ? 'bad' : 'warn', 'title' => $title, 'detail' => $detail, 'action' => $action];
         }
         if (($raw['can_send'] ?? null) === 'BLOCKED' && empty($raw['errors'])) {
             $lines[] = ['key' => 'health', 'tone' => 'bad', 'title' => 'Meta bloque vos messages', 'detail' => 'Ouvrez votre Gestionnaire WhatsApp chez Meta pour voir la raison.', 'action' => ['label' => 'Voir chez Meta', 'url' => $links['manager']]];
@@ -122,7 +133,7 @@ class MetaHealth
         };
 
         // Moyen de paiement : Meta ne le dit qu'en refusant un envoi
-        $lines[] = $account->payment_missing_at !== null || str_contains((string) $account->last_error, '(#131042)')
+        $lines[] = $paymentOnly || $account->payment_missing_at !== null || str_contains((string) $account->last_error, '(#131042)')
             ? ['key' => 'payment', 'tone' => 'warn', 'title' => 'Mode sans carte', 'detail' => 'Le live, vos réponses et les messages aux clientes qui ont écrit depuis moins de 24 h partent tout seuls. Les autres : bouton WhatsApp sur la commande. Avec une carte, tout redevient automatique.', 'action' => ['label' => 'Ajouter une carte chez Meta', 'url' => $links['payment']]]
             : ['key' => 'payment', 'tone' => 'ok', 'title' => 'Moyen de paiement', 'detail' => 'Aucun refus de paiement signalé par Meta', 'action' => null];
 
@@ -188,19 +199,24 @@ class MetaHealth
      *
      * @param  array{code: int, description: string}  $e
      * @param  array<string, string>  $links
-     * @return array{0: string, 1: array{label: string, url: string}}
+     * @return array{0: string, 1: array{label: string, url: string}, 2: string}
      */
     private static function explainHealth(array $e, array $links): array
     {
         $text = strtolower(($e['description'] ?? '').' '.($e['solution'] ?? ''));
 
         return match (true) {
-            str_contains($text, 'payment') => ['Aucun moyen de paiement valide chez Meta', ['label' => 'Ajouter une carte chez Meta', 'url' => $links['payment']]],
-            str_contains($text, 'verif') => ['Meta demande de vérifier votre entreprise', ['label' => 'Vérifier mon entreprise', 'url' => $links['verification']]],
-            str_contains($text, 'display name') || str_contains($text, 'name') => ['Le nom affiché bloque les envois', ['label' => 'Voir le nom chez Meta', 'url' => $links['numbers']]],
-            str_contains($text, 'policy') || str_contains($text, 'restrict') || str_contains($text, 'disabled') => ['Compte restreint par Meta', ['label' => 'Faire appel chez Meta', 'url' => $links['support']]],
-            default => ['Meta limite vos messages', ['label' => 'Voir chez Meta', 'url' => $links['manager']]],
+            str_contains($text, 'verif') => ['Meta demande de vérifier votre entreprise', ['label' => 'Vérifier mon entreprise', 'url' => $links['verification']], 'Le live et vos réponses fonctionnent. La vérification permet d\'écrire à plus de clients.'],
+            str_contains($text, 'display name') || str_contains($text, 'name') => ['Le nom affiché bloque les envois', ['label' => 'Voir le nom chez Meta', 'url' => $links['numbers']], 'Corrigez le nom affiché du numéro chez Meta.'],
+            str_contains($text, 'policy') || str_contains($text, 'restrict') || str_contains($text, 'disabled') => ['Compte restreint par Meta', ['label' => 'Faire appel chez Meta', 'url' => $links['support']], 'Meta a restreint le compte. Si c\'est une erreur, faites appel.'],
+            default => ['Meta limite vos messages', ['label' => 'Voir chez Meta', 'url' => $links['manager']], 'La raison est indiquée dans votre Gestionnaire WhatsApp chez Meta.'],
         };
+    }
+
+    /** Erreur « moyen de paiement » de health_status : seuls les messages payants sont refusés */
+    private static function isPayment(array $e): bool
+    {
+        return str_contains(strtolower(($e['description'] ?? '').' '.($e['solution'] ?? '')), 'payment');
     }
 
     /** @return array<string, mixed> */

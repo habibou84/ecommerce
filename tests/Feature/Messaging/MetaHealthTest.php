@@ -116,6 +116,23 @@ class MetaHealthTest extends TestCase
         $this->storeApi($this->store, 'GET', 'whatsapp')->assertOk()->assertJsonPath('data.account.meta.lines.0.key', 'payment');
     }
 
+    public function test_meta_announcing_no_payment_method_turns_on_the_no_card_mode_without_a_red_block(): void
+    {
+        $this->health = ['can_send_message' => 'BLOCKED', 'entities' => [['entity_type' => 'BUSINESS', 'id' => '9900', 'can_send_message' => 'BLOCKED', 'errors' => [
+            ['error_code' => 141010, 'error_description' => 'There is an error with the payment method. This will block business initiated conversations.', 'possible_solution' => 'Please add a new payment method to the account.'],
+            ['error_code' => 141006, 'error_description' => 'The Business has not passed business verification.', 'possible_solution' => 'Visit business settings and start or resolve the business verification request.'],
+        ]]]];
+        $this->artisan('whatsapp:health')->assertSuccessful();
+
+        $this->assertNotNull(WhatsappAccount::sole()->payment_missing_at);
+        $lines = collect($this->storeApi($this->store, 'GET', 'whatsapp')->assertOk()
+            ->assertJsonPath('data.account.meta.state', 'partial')->json('data.account.meta.lines'))->keyBy('key');
+        $this->assertSame('Mode sans carte', $lines['payment']['title']);
+        $this->assertSame('warn', $lines['health-1']['tone']);
+        $this->assertStringNotContainsString('business verification', $lines['health-1']['detail']);
+        $this->storeApi($this->store, 'GET', 'auth/me')->assertJsonPath('data.whatsapp_payment.url', fn ($url) => str_contains($url, 'billing_hub'));
+    }
+
     public function test_without_card_paid_templates_are_not_tried_except_one_check_every_12_hours(): void
     {
         Queue::fake();
