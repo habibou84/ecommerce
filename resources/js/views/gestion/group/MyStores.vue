@@ -145,11 +145,10 @@ async function separate(store) {
       <div>
         <h2 class="font-semibold">Ces boutiques ont encore leur propre adresse</h2>
         <p v-if="group" class="text-sm text-slate-600">
-          Réunissez-les à l'adresse {{ address }} : vous passerez de l'une à l'autre avec le menu en haut, sans changer de lien.
-          Leurs produits, commandes et équipes ne changent pas, et leurs anciennes adresses redirigent vers leurs nouvelles pages.
+          Réunissez-les à {{ address }} : passez de l'une à l'autre en haut. Rien d'autre ne change.
         </p>
         <p v-else class="text-sm text-slate-600">
-          Pour les réunir à une seule adresse et passer de l'une à l'autre sans changer de lien, votre boutique principale doit avoir l'offre <strong>Business</strong>.
+          Pour les réunir à une adresse : offre <strong>Business</strong>.
           <RouterLink to="/gestion/abonnement" class="text-emerald-700 underline">Voir les offres</RouterLink>
         </p>
       </div>
@@ -177,10 +176,9 @@ async function separate(store) {
       <div>
         <h2 class="font-semibold">Créer une autre boutique</h2>
         <p class="text-sm text-slate-600">
-          Avec votre compte actuel, sans nouvelle inscription.
-          <template v-if="data.next_address">Elle reste à la même adresse : vous passez de l'une à l'autre avec le menu en haut de l'écran, et ses clients la trouvent sur sa page. Elle est couverte par votre abonnement {{ group.plan }}.</template>
-          <template v-else>Elle aura sa propre adresse, commence par l'essai gratuit puis a sa propre offre.</template>
-          Produits, commandes et équipe sont séparés d'une boutique à l'autre.
+          Même compte, sans inscription.
+          <template v-if="data.next_address">Même adresse, comprise dans votre offre {{ group.plan }}.</template>
+          <template v-else>Sa propre adresse, avec l'essai gratuit.</template>
         </p>
       </div>
       <Field id="new-name" label="Nom de la boutique" :error="errors.name">

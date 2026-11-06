@@ -218,7 +218,7 @@ async function save() {
             <div v-if="g.variants.length > 1" class="flex items-center gap-3 bg-slate-50 p-2">
               <img v-if="g.variants[0].image" :src="g.variants[0].image" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
               <label v-else class="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-lg border-2 border-dashed border-red-300 bg-red-50 text-base" :title="`Ajouter la photo de ${g.title}`">
-                <input type="file" accept="image/*" capture="environment" class="sr-only" @change="addPhoto(g.id, $event)" />{{ uploading === g.id ? '…' : '📷' }}
+                <input type="file" accept="image/*" class="sr-only" @change="addPhoto(g.id, $event)" />{{ uploading === g.id ? '…' : '📷' }}
               </label>
               <b class="min-w-0 flex-1 truncate text-sm">{{ g.title }}</b>
               <button type="button" class="shrink-0 rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-bold text-white" @click="toggleProduct(g)">Tout le produit</button>
@@ -230,7 +230,7 @@ async function save() {
                 <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ g.variants.length > 1 ? v.variant : v.title }}</b><span class="text-xs text-slate-500">{{ money(v.price) }} · {{ v.available }} en stock</span></span>
               </button>
               <label v-if="!v.image && g.variants.length === 1" class="shrink-0 cursor-pointer rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-bold text-red-700">
-                <input type="file" accept="image/*" capture="environment" class="sr-only" @change="addPhoto(g.id, $event)" />{{ uploading === g.id ? 'Envoi…' : '📷 Photo' }}
+                <input type="file" accept="image/*" class="sr-only" @change="addPhoto(g.id, $event)" />{{ uploading === g.id ? 'Envoi…' : '📷 Photo' }}
               </label>
               <span v-if="line(v.id)" class="flex shrink-0 items-center gap-1.5 font-extrabold">
                 <button type="button" class="grid h-7 w-7 place-items-center rounded-lg bg-slate-100" aria-label="Une pièce de moins" @click="step(v, -1)">−</button>
@@ -250,7 +250,7 @@ async function save() {
           <span class="min-w-0 flex-1"><b class="block first-letter:uppercase">{{ day(l.started_at ?? l.ended_at) }}</b><span class="text-sm text-slate-500">{{ l.items_count }} article(s) · {{ l.summary?.orders ?? 0 }} commande(s) · {{ money(l.summary?.amount ?? 0) }}</span></span>
           <button type="button" class="btn-brand shrink-0 px-3 py-2 text-sm" :disabled="loading === l.id" @click="reuse(l)">{{ loading === l.id ? '…' : 'Reprendre' }}</button>
         </div>
-        <p v-if="past.length" class="text-xs text-slate-500">« Reprendre » remet les mêmes articles, dans le même ordre et aux mêmes prix. Tu peux ensuite en ajouter ou en retirer.</p>
+        <p v-if="past.length" class="text-sm text-slate-500">« Reprendre » remet les mêmes articles et prix.</p>
       </div>
 
       <!-- Sélection -->
@@ -264,7 +264,7 @@ async function save() {
             </button>
             <img v-if="i.image" :src="i.image" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover" />
             <label v-else class="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-xl border-2 border-dashed border-red-300 bg-red-50 text-lg" :aria-label="`Ajouter la photo de ${i.title.split(' — ')[0]}`">
-              <input type="file" accept="image/*" capture="environment" class="sr-only" @change="addPhoto(i.product_id, $event)" />{{ uploading === i.product_id ? '…' : '📷' }}
+              <input type="file" accept="image/*" class="sr-only" @change="addPhoto(i.product_id, $event)" />{{ uploading === i.product_id ? '…' : '📷' }}
             </label>
             <span class="min-w-0 flex-1"><b class="block truncate text-sm" :title="i.title">{{ i.title.split(' — ')[0] }}</b><span class="block truncate text-xs text-slate-500"><template v-if="i.title.includes(' — ')">{{ i.title.split(' — ').slice(1).join(' — ') }}</template><template v-if="i.title.includes(' — ') && i.available != null"> · </template><template v-if="i.available != null">{{ i.available }} en stock</template></span></span>
             <span class="flex shrink-0 flex-col">
@@ -274,7 +274,7 @@ async function save() {
             <button type="button" class="shrink-0 px-1 text-red-600" aria-label="Retirer" @click="items.splice(index, 1)">✕</button>
           </div>
           <label v-if="!i.image && i.product_id" class="mt-2 flex cursor-pointer items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
-            <input type="file" accept="image/*" capture="environment" class="sr-only" @change="addPhoto(i.product_id, $event)" />
+            <input type="file" accept="image/*" class="sr-only" @change="addPhoto(i.product_id, $event)" />
             <span class="min-w-0 flex-1">Sans photo, cet article ne peut pas passer en live.</span><b class="shrink-0">{{ uploading === i.product_id ? 'Envoi…' : '📷 Ajouter la photo' }}</b>
           </label>
           <div class="mt-2 flex flex-wrap gap-3 pl-14 text-sm">

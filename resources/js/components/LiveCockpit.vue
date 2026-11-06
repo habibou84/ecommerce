@@ -448,7 +448,7 @@ const ago = (iso) => {
           </li>
         </ul>
         <p v-else-if="placing.search.trim().length >= 2" class="text-slate-500">Aucun lieu trouvé.</p>
-        <p class="text-xs text-slate-500">Ses pièces gardées deviennent une commande, livrée à ce quartier. Ce qu'elle a écrit est gardé comme repère pour le livreur.</p>
+        <p class="text-sm text-slate-600">Ses pièces deviennent une commande, livrée à ce quartier.</p>
         <p v-if="placing.error" class="text-red-600">{{ placing.error }}</p>
       </div>
     </Modal>

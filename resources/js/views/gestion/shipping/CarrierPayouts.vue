@@ -95,7 +95,7 @@ async function savePayout() {
         <p v-if="balances" class="text-sm text-slate-600">Total : <strong class="text-slate-900">{{ money(balances.total) }}</strong></p>
       </div>
       <p class="text-sm text-slate-600">
-        Courses livrées pas encore reversées : encaissé par l'entreprise de livraison, moins son tarif. Une commande déjà payée compte en négatif : vous lui devez la livraison.
+        Encaissé par l'entreprise, moins son tarif, pas encore reversé.
       </p>
       <p v-if="balances && !balances.data.length" class="card p-6 text-sm text-slate-500">Aucune entreprise de livraison connectée.</p>
       <article v-for="c in balances?.data ?? []" :key="c.connection_id" class="card text-sm">

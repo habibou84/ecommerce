@@ -179,7 +179,7 @@ async function toggle(c, reload = false) {
       <!-- Expéditions vers les autres villes -->
       <section class="card space-y-3 p-4">
         <h2 class="font-semibold">📦 Expéditions vers les autres villes</h2>
-        <p class="text-sm text-slate-600">Un prix convenu avec le client couvre la livraison jusqu'à la gare et les frais d'expédition (UTB, STIF, AVS…). Pour chaque ville, le dernier prix convenu est repris tout seul.</p>
+        <p class="text-sm text-slate-600">Le prix couvre la gare et l'expédition. Le dernier prix par ville est repris.</p>
         <div class="flex items-center gap-3">
           <span class="min-w-0 flex-1 text-sm font-medium">Prix de départ (livraison + expédition)</span>
           <input v-model="expedition.fee" class="input w-28 text-right font-bold" type="number" min="0" inputmode="numeric" placeholder="à indiquer" aria-label="Prix de départ des expéditions" />
@@ -189,7 +189,7 @@ async function toggle(c, reload = false) {
           <ToggleSwitch v-model="expedition.prepay" label="Paiement avant expédition" />
           <span class="text-sm font-medium">Paiement avant expédition (conseillé)</span>
         </div>
-        <p class="text-xs text-slate-500">Le livreur ne part à la gare qu'une fois les articles et la livraison payés. Modifiable commande par commande.</p>
+        <p class="text-sm text-slate-600">Départ à la gare une fois tout payé.</p>
         <button type="button" class="btn-brand" :disabled="busy" @click="saveExpedition">Enregistrer</button>
       </section>
 

@@ -122,9 +122,8 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
           </tfoot>
         </table>
       </div>
-      <p class="text-xs text-slate-500">
-        Un encaissement de livreur compte quand il vous est remis, celui d'une entreprise de livraison quand elle le reverse : rien n'est compté deux fois.
-        La colonne « espèces » donne ce qui doit être entré dans le tiroir-caisse.
+      <p class="text-sm text-slate-500">
+        Chaque somme compte une fois, quand vous la recevez. « Espèces » : à mettre dans le tiroir.
         <template v-if="data?.flows.online_fees"> Frais des paiements en ligne : {{ money(data.flows.online_fees) }}.</template>
       </p>
     </section>

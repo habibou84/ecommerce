@@ -78,4 +78,17 @@ class FeaturesTest extends TestCase
         $features->set('signup', 'hidden');
         $this->apiOn($this->platformUrl(), 'POST', 'signup', [])->assertForbidden();
     }
+
+    public function test_swipe_navigation_is_on_in_preproduction_and_hidden_in_production(): void
+    {
+        PlatformSetting::where('key', 'feature.swipe_nav')->delete();
+        $this->assertTrue(app(Features::class)->enabled('swipe_nav'));
+
+        $this->app['env'] = 'production';
+        $this->assertFalse((new Features)->enabled('swipe_nav'));
+
+        // La console garde la main
+        PlatformSetting::put('feature.swipe_nav', 'on');
+        $this->assertTrue((new Features)->enabled('swipe_nav'));
+    }
 }

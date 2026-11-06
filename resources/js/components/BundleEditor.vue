@@ -39,7 +39,7 @@ async function save() {
 <template>
   <section class="card space-y-3 p-4 sm:p-6">
     <label class="flex items-center gap-2 font-semibold"><input v-model="open" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Ce produit est un lot (pack)</label>
-    <p class="text-sm text-slate-500">Ex. « Robe + sac ». Le lot n'a pas de stock à lui : le vendre sort chaque article de son stock, et il est disponible tant que tous ses articles le sont.</p>
+    <p class="text-sm text-slate-500">Ex. « Robe + sac ». Le vendre sort chaque article de son stock.</p>
     <template v-if="open">
       <Alert v-if="error">{{ error }}</Alert>
       <Alert v-if="saved" tone="success">Contenu du lot enregistré.</Alert>

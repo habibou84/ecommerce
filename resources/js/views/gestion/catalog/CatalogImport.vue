@@ -113,8 +113,7 @@ async function importDelivery() {
       <div>
         <h2 class="font-semibold">Depuis votre entreprise de livraison</h2>
         <p class="mt-1 text-sm text-slate-600">
-          Vous utilisiez la boutique de votre entreprise de livraison (Jibiat) ? Reprenez vos produits : créez une clé API dans
-          <em>Profil › Intégrations</em> de votre espace marchand chez elle, avec l'accès « Lire les produits et le stock ». La clé n'est pas conservée.
+          Vos produits Jibiat : collez une clé API (<em>Profil › Intégrations</em>, accès « Lire les produits »).
         </p>
       </div>
       <Alert v-if="deliveryError">{{ deliveryError }}</Alert>

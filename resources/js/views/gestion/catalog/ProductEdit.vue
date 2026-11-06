@@ -545,12 +545,12 @@ const margin = computed(() => {
     <section v-if="ai.enabled && !props.id && canEdit" class="card space-y-3 border-emerald-200 bg-emerald-50/60 p-4 sm:p-6">
       <div>
         <h2 class="font-semibold"><Icon name="sparkles" :size="18" class="mr-1 inline-block align-[-3px]" />Remplir la fiche avec une photo</h2>
-        <p class="text-sm text-slate-600">Prenez le produit en photo : l'assistant propose le nom, la description, les tailles ou couleurs et les mots-clés. Vous fixez le prix et vérifiez avant d'enregistrer.</p>
+        <p class="text-sm text-slate-600">Une photo : l'assistant remplit la fiche. Vous mettez le prix.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <label class="btn-secondary cursor-pointer px-3 py-1.5">
           <Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Photo
-          <input type="file" accept="image/*" capture="environment" class="hidden" @change="onFiles" />
+          <input type="file" accept="image/*" class="hidden" @change="onFiles" />
         </label>
         <label class="btn-secondary cursor-pointer px-3 py-1.5">
           + Galerie
@@ -588,7 +588,7 @@ const margin = computed(() => {
             <!-- Sur téléphone, le choix de fichier n'ouvre que la galerie : l'appareil photo a son propre bouton -->
             <label class="btn-secondary cursor-pointer px-3 py-1.5" :class="{ 'opacity-60': uploading }">
               <Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Photo
-              <input type="file" accept="image/*" capture="environment" class="hidden" :disabled="uploading" @change="onFiles" />
+              <input type="file" accept="image/*" class="hidden" :disabled="uploading" @change="onFiles" />
             </label>
             <label class="btn-secondary cursor-pointer px-3 py-1.5">
               {{ uploading ? 'Envoi…' : '+ Galerie' }}
@@ -810,7 +810,7 @@ const margin = computed(() => {
       <section v-if="props.id" class="card space-y-3 p-4 sm:p-6">
         <div>
           <h2 class="font-semibold">Prix par quantité</h2>
-          <p class="text-sm text-slate-500">Ex. 3 pour 25 000 F : appliqué au panier, toutes tailles et couleurs confondues, si c'est plus avantageux pour le client.</p>
+          <p class="text-sm text-slate-500">Ex. 3 pour 25 000 F, toutes tailles confondues.</p>
         </div>
         <Alert v-if="tiersErrors.form">{{ tiersErrors.form }}</Alert>
         <div v-for="(t, i) in tiers" :key="i" class="flex flex-wrap items-center gap-2 text-sm">
@@ -848,7 +848,7 @@ const margin = computed(() => {
     <section v-if="otherStores.length" class="card space-y-3 p-4 sm:p-6">
       <div>
         <h2 class="font-semibold">Dans vos autres boutiques</h2>
-        <p class="text-sm text-slate-500">La copie reprend les photos, les variantes et les prix ; son stock part de zéro (envoyez-en depuis Stock › Transferts).</p>
+        <p class="text-sm text-slate-500">Photos, variantes et prix copiés ; stock à zéro.</p>
       </div>
       <Alert v-if="copied" tone="success">{{ copied }}</Alert>
       <ul class="divide-y divide-slate-100 text-sm">

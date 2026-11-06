@@ -141,8 +141,20 @@ async function finishFacebook(result) {
     connecting.value = false
   }
 }
+// Page d'où la connexion a été lancée (live, commandes…), lue une fois ; `take` l'efface
+function afterWhatsapp(take = false) {
+  try {
+    const after = sessionStorage.getItem('jm.after-whatsapp')
+    if (take) sessionStorage.removeItem('jm.after-whatsapp')
+    return after?.startsWith('/gestion/') ? after : null
+  } catch {
+    return null
+  }
+}
 onMounted(() => {
   const facebook = takeFacebookResult()
+  // Connexion lancée depuis une autre page (live, commandes…) puis annulée chez Facebook : retour à cette page
+  if (facebook?.error && afterWhatsapp()) return router.replace(afterWhatsapp(true))
   if (facebook?.error) error.value = facebook.error
   else if (facebook) finishFacebook(facebook)
 })

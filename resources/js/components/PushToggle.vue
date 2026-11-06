@@ -25,13 +25,13 @@ async function test() {
     <p class="text-sm text-slate-600">Nouvelles commandes, alertes et missions arrivent même application fermée, avec un son.</p>
 
     <p v-if="webPush.iosNeedsInstall" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-      Sur iPhone, installez d'abord l'application : dans Safari, touchez Partager puis « Sur l'écran d'accueil ». Ouvrez-la ensuite depuis l'icône et revenez ici.
+      iPhone : Safari › Partager › « Sur l'écran d'accueil », puis ouvrez l'icône.
     </p>
     <p v-else-if="webPush.checked && !webPush.serverEnabled" class="text-sm text-slate-500">Bientôt disponible.</p>
     <template v-else-if="webPush.checked">
       <p v-if="webPush.subscribed" class="text-sm font-medium text-emerald-800">✅ Activées sur cet appareil.</p>
       <p v-else-if="webPush.permission === 'denied'" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-        Les notifications sont bloquées pour ce site : autorisez-les dans les réglages du navigateur (le cadenas à côté de l'adresse), puis réessayez.
+        Notifications bloquées : autorisez-les avec le cadenas, à côté de l'adresse.
       </p>
       <div class="flex flex-wrap gap-2">
         <button v-if="!webPush.subscribed" type="button" class="btn-brand" :disabled="webPush.busy" @click="enableWebPush">{{ webPush.busy ? 'Activation…' : '🔔 Activer les notifications' }}</button>

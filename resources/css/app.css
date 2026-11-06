@@ -29,8 +29,8 @@
     /* Lisibilité : petits textes un peu plus grands, gris plus foncés (contraste AA sur fond blanc, même au soleil) */
     --text-xs: 0.8125rem;
     --text-xs--line-height: 1.15rem;
-    --color-slate-400: #66727f;
-    --color-slate-500: #556270;
+    --color-slate-400: #5f6b78;
+    --color-slate-500: #4b5866;
     /* Fond des écrans : blanc légèrement vert, plus doux que le gris bleuté */
     --color-slate-50: #f5f7f4;
     /* Ocre wax : ce qui demande de l'attention sans être grave (à encaisser, à confirmer, nouveautés) */
