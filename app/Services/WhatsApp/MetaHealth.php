@@ -123,7 +123,7 @@ class MetaHealth
 
         // Moyen de paiement : Meta ne le dit qu'en refusant un envoi
         $lines[] = $account->payment_missing_at !== null || str_contains((string) $account->last_error, '(#131042)')
-            ? ['key' => 'payment', 'tone' => 'warn', 'title' => 'Aucun moyen de paiement chez Meta', 'detail' => 'Les messages automatiques (confirmation, livreur en route, avis…) ne partent pas. Vos réponses aux clients, elles, partent.', 'action' => ['label' => 'Ajouter une carte chez Meta', 'url' => $links['payment']]]
+            ? ['key' => 'payment', 'tone' => 'warn', 'title' => 'Mode sans carte', 'detail' => 'Le live, vos réponses et les messages aux clientes qui ont écrit depuis moins de 24 h partent tout seuls. Les autres : bouton WhatsApp sur la commande. Avec une carte, tout redevient automatique.', 'action' => ['label' => 'Ajouter une carte chez Meta', 'url' => $links['payment']]]
             : ['key' => 'payment', 'tone' => 'ok', 'title' => 'Moyen de paiement', 'detail' => 'Aucun refus de paiement signalé par Meta', 'action' => null];
 
         // Qualité du numéro et nombre de clients par jour

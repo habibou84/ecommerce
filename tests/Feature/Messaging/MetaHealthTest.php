@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Messaging;
 
+use App\Jobs\SendWhatsAppMessage;
 use App\Models\Conversation;
 use App\Models\Store;
 use App\Models\User;
@@ -9,6 +10,7 @@ use App\Models\WhatsappAccount;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -112,6 +114,25 @@ class MetaHealthTest extends TestCase
         $url = $this->storeApi($this->store, 'GET', 'auth/me')->assertOk()->json('data.whatsapp_payment.url');
         $this->assertStringContainsString('business.facebook.com/billing_hub/payment_settings', $url);
         $this->storeApi($this->store, 'GET', 'whatsapp')->assertOk()->assertJsonPath('data.account.meta.lines.0.key', 'payment');
+    }
+
+    public function test_without_card_paid_templates_are_not_tried_except_one_check_every_12_hours(): void
+    {
+        Queue::fake();
+        $account = WhatsappAccount::sole();
+        $account->forceFill(['templates' => ['campaign' => 'nouveautes'], 'payment_missing_at' => now()->subHour()])->save();
+
+        // Refus récent : pas de modèle tenté, le message est à envoyer depuis le WhatsApp du marchand
+        $message = app(CustomerMessenger::class)->forCampaign($account->fresh(), '+2250700000099', ['Awa', 'Awa Mode', 'Nouveautés', 'https://x'], 1);
+        $this->assertSame('manual', $message->status);
+        Queue::assertNotPushed(SendWhatsAppMessage::class);
+        $this->storeApi($this->store, 'GET', 'whatsapp')->assertOk()->assertJsonPath('data.account.meta.lines.0.title', 'Mode sans carte');
+
+        // Plus de 12 h après : un essai, au cas où une carte a été ajoutée
+        $account->forceFill(['payment_missing_at' => now()->subHours(13)])->save();
+        $message = app(CustomerMessenger::class)->forCampaign($account->fresh(), '+2250700000099', ['Awa', 'Awa Mode', 'Nouveautés', 'https://x'], 1);
+        $this->assertSame('queued', $message->status);
+        Queue::assertPushed(SendWhatsAppMessage::class, 1);
     }
 
     public function test_missing_payment_method_is_partial_and_unreadable_meta_keeps_the_last_state(): void
