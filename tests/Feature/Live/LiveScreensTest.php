@@ -202,6 +202,35 @@ class LiveScreensTest extends TestCase
         $this->assertSame(2, $this->store->owner->fresh()->live_intro_views);
     }
 
+    public function test_preparing_a_live_remembers_the_pinned_photo_until_the_articles_change(): void
+    {
+        $state = $this->storeApi($this->store, 'GET', "lives/{$this->live}")->assertOk()->json('data');
+        $this->assertFalse($state['pin_ready']);
+        $this->assertSame($this->robe->id, $state['items'][0]['product_id']);
+        $this->assertFalse($this->storeApi($this->store, 'GET', 'lives')->json('data.0.pin_ready'));
+
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/pin-ready")->assertOk()->assertJsonPath('data.pin_ready', true);
+        $this->assertTrue($this->storeApi($this->store, 'GET', 'lives')->json('data.0.pin_ready'));
+
+        // Articles modifiés : la photo est à refaire
+        $items = collect($state['items'])->map(fn ($i) => ['variant_id' => $i['variant_id'], 'price' => $i['price'], 'quantity' => $i['quantity'] + 1])->all();
+        $this->storeApi($this->store, 'PUT', "lives/{$this->live}", ['title' => $state['title'], 'items' => $items])->assertOk()->assertJsonPath('data.pin_ready', false);
+    }
+
+    public function test_past_lives_have_their_figures(): void
+    {
+        $empty = $this->storeApi($this->store, 'GET', 'lives/stats')->assertOk()->json('data');
+        $this->assertSame(['lives' => 0, 'orders' => 0, 'amount' => 0], array_intersect_key($empty, ['lives' => 1, 'orders' => 1, 'amount' => 1]));
+        $this->assertNull($empty['best_hour']);
+
+        $this->travelTo(now()->setTime(21, 10));
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/start")->assertOk();
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/end")->assertOk();
+        $stats = $this->storeApi($this->store, 'GET', 'lives/stats')->assertOk()->json('data');
+        $this->assertSame(1, $stats['lives']);
+        $this->assertSame(21, $stats['best_hour']);
+    }
+
     public function test_old_screens_are_replaced_or_forgotten_so_the_list_stays_short(): void
     {
         $pair = function (?string $name) {
