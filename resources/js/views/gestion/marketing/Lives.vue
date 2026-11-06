@@ -14,6 +14,8 @@ import LiveSignPicker from '../../../components/LiveSignPicker.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money } from '../../../lib/format'
+import { boot } from '../../../lib/boot'
+import { facebookRelayUrl } from '../../../lib/facebook'
 import { useAuthStore } from '../../../stores/auth'
 
 /**
@@ -87,16 +89,26 @@ async function redo(live) {
 // ── Préparer un live ──
 // « Comment ça marche » : WhatsApp d'abord (ou « Continuer sans WhatsApp »), puis « Préparer mon live »
 const skipWhatsapp = ref(false)
+const introReady = computed(() => !!whatsapp.value || skipWhatsapp.value || !auth.can('store.manage'))
 function showIntro() {
   intro.value = 'how'
   window.scrollTo({ top: 0 })
 }
-// Connexion WhatsApp depuis le live : retour ici une fois connecté
-function connectWhatsapp() {
+// Connexion WhatsApp depuis le live : directement la fenêtre Facebook (comme dans Réglages › WhatsApp), puis retour ici
+async function connectWhatsapp() {
   try {
     sessionStorage.setItem('jm.after-whatsapp', '/gestion/live')
   } catch {
     // Sans stockage : la personne revient au live par le menu
+  }
+  try {
+    const e = (await http.get('/whatsapp')).data.data?.embedded
+    if (e) {
+      window.location.assign(facebookRelayUrl(boot.platformUrl, { appId: e.app_id, configId: e.config_id, version: e.graph_version, coexistence: 'auto' }, `${window.location.origin}/gestion/whatsapp`))
+      return
+    }
+  } catch {
+    // Réglages indisponibles : on passe par la page WhatsApp
   }
   router.push('/gestion/whatsapp?onglet=messages')
 }
@@ -217,19 +229,16 @@ async function save() {
 </script>
 
 <template>
-  <div class="space-y-4" :class="intro ? 'pb-40' : ''">
+  <div class="space-y-4" :class="intro && introReady ? 'pb-40' : intro ? 'pb-8' : ''">
     <Alert v-if="error">{{ error }}</Alert>
 
     <!-- ═══ « Comment ça marche » : en grand, la vidéo sur la même page, WhatsApp en étape 1 ═══ -->
     <template v-if="intro === 'how'">
       <button v-if="lives?.length" type="button" class="text-sm font-semibold text-emerald-700" @click="intro = null">← Tous les lives</button>
-      <LiveIntro :whatsapp="whatsapp" :video="INTRO_VIDEO" @connect="connectWhatsapp" />
-      <div class="fixed inset-x-0 bottom-[76px] z-20 space-y-1.5 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:bottom-0 lg:left-64">
-        <template v-if="!whatsapp && !skipWhatsapp && auth.can('store.manage')">
-          <button type="button" class="w-full rounded-2xl bg-[#25d366] py-3.5 text-[18px] font-black text-white" @click="connectWhatsapp">1 · Connecter WhatsApp</button>
-          <button type="button" class="w-full text-center text-sm font-semibold text-slate-500" @click="skipWhatsapp = true">Continuer sans WhatsApp</button>
-        </template>
-        <button v-else type="button" class="btn-brand w-full justify-center py-3.5 text-[18px] font-black" @click="introDone">Préparer mon live ▸</button>
+      <LiveIntro :whatsapp="whatsapp" :video="INTRO_VIDEO" :skipped="skipWhatsapp" @connect="connectWhatsapp" @skip="skipWhatsapp = true" />
+      <!-- Collé en bas seulement pour « Préparer mon live » (WhatsApp connecté ou « Continuer sans WhatsApp ») -->
+      <div v-if="introReady" class="fixed inset-x-0 bottom-[76px] z-20 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:bottom-0 lg:left-64">
+        <button type="button" class="btn-brand w-full justify-center py-3.5 text-[18px] font-black" @click="introDone">Préparer mon live ▸</button>
       </div>
     </template>
 
