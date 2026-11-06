@@ -20,6 +20,7 @@ use App\Services\WhatsApp\WhatsAppMetaApp;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Jibiat\Socle\Money;
@@ -161,6 +162,11 @@ class WhatsAppController extends Controller
 
     public function destroy(): JsonResponse
     {
+        // Numéro déconnecté retenu une semaine : à la reconnexion, un autre numéro du compte Meta est préféré
+        $previous = WhatsappAccount::query()->value('phone_number_id');
+        if ($previous) {
+            Cache::put('whatsapp-previous:'.$this->currentStore()->id, $previous, now()->addWeek());
+        }
         WhatsappAccount::query()->delete();
 
         return $this->show();

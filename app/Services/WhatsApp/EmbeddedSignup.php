@@ -5,6 +5,7 @@ namespace App\Services\WhatsApp;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
+use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 
 /**
@@ -43,17 +44,53 @@ class EmbeddedSignup
      */
     public function findWaba(WhatsAppCloud $cloud, string $token): string
     {
+        $ids = $this->wabaIds($cloud, $token);
+        if ($ids === []) {
+            throw new RuntimeException('Aucun compte WhatsApp n\'a été choisi dans Facebook.');
+        }
+
+        return end($ids);
+    }
+
+    /**
+     * Comptes WhatsApp autorisés par la personne dans Facebook (le dernier est celui choisi en dernier).
+     *
+     * @return list<string>
+     */
+    private function wabaIds(WhatsAppCloud $cloud, string $token): array
+    {
         $scopes = $cloud->graph('GET', 'debug_token', null, [
             'input_token' => $token, 'access_token' => WhatsAppMetaApp::id().'|'.WhatsAppMetaApp::secret(),
         ])['data']['granular_scopes'] ?? [];
         foreach (['whatsapp_business_management', 'whatsapp_business_messaging'] as $scope) {
             $ids = collect($scopes)->firstWhere('scope', $scope)['target_ids'] ?? [];
             if ($ids !== []) {
-                return (string) end($ids);
+                return array_values(array_map('strval', $ids));
             }
         }
 
-        throw new RuntimeException('Aucun compte WhatsApp n\'a été choisi dans Facebook.');
+        return [];
+    }
+
+    /**
+     * Numéro à connecter quand la fenêtre ne l'a pas transmis (connexion par la page entière) : le vrai numéro de
+     * la boutique plutôt que le numéro américain de test de Meta, et un autre que celui qu'on vient de déconnecter.
+     *
+     * @param  list<string>  $wabaIds
+     * @return array{0: string, 1: string}|null [compte, numéro]
+     */
+    private function pickNumber(array $wabaIds, string $token, ?string $previous): ?array
+    {
+        $numbers = [];
+        foreach (array_reverse($wabaIds) as $waba) {
+            foreach ($this->cloud->graph('GET', $waba.'/phone_numbers', $token, ['fields' => 'id,display_phone_number'])['data'] ?? [] as $n) {
+                $numbers[] = ['waba' => $waba, 'id' => (string) ($n['id'] ?? ''), 'test' => NumberStatus::metaProvided($n['display_phone_number'] ?? '')];
+            }
+        }
+        $numbers = array_values(array_filter($numbers, fn ($n) => $n['id'] !== ''));
+        usort($numbers, fn ($a, $b) => [$a['test'], $a['id'] === $previous] <=> [$b['test'], $b['id'] === $previous]);
+
+        return $numbers === [] ? null : [$numbers[0]['waba'], $numbers[0]['id']];
     }
 
     /**
@@ -67,13 +104,18 @@ class EmbeddedSignup
 
         try {
             $token = $this->exchange($this->cloud, $code, $redirectUri);
-            $wabaId = $wabaId ?: $this->findWaba($this->cloud, $token);
 
-            // Numéro choisi dans la fenêtre ; à défaut, le premier numéro du compte
-            $phoneNumberId = $phoneNumberId ?: (string) ($this->cloud->graph('GET', $wabaId.'/phone_numbers', $token)['data'][0]['id'] ?? '');
-            if ($phoneNumberId === '') {
-                throw new RuntimeException('Aucun numéro trouvé sur ce compte WhatsApp.');
+            // Numéro choisi dans la fenêtre ; à défaut (page entière), le vrai numéro de la boutique parmi les comptes
+            // autorisés, pas le numéro de test de Meta ni celui qu'on vient de déconnecter
+            if (! $phoneNumberId) {
+                $previous = WhatsappAccount::forStore($store->id)->value('phone_number_id') ?? Cache::get('whatsapp-previous:'.$store->id);
+                $picked = $this->pickNumber($wabaId ? [$wabaId] : $this->wabaIds($this->cloud, $token), $token, $previous);
+                if ($picked === null) {
+                    throw new RuntimeException('Aucun numéro trouvé sur ce compte WhatsApp.');
+                }
+                [$wabaId, $phoneNumberId] = $picked;
             }
+            $wabaId = $wabaId ?: $this->findWaba($this->cloud, $token);
             WhatsAppMetaApp::subscribe($this->cloud, $wabaId, $token);
             $number = $this->cloud->graph('GET', $phoneNumberId, $token, ['fields' => 'display_phone_number,verified_name,name_status']);
         } catch (RuntimeException $e) {

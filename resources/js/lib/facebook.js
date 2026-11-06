@@ -152,5 +152,7 @@ export function takeFacebookResult() {
     phone_number_id: params.get('phone_number_id') || null,
     coexistence: params.get('coexistence') === '1',
     redirect_uri: params.get('redirect_uri') || null,
+    // Page d'où la connexion a été lancée (même boutique) : on y revient une fois connecté
+    depuis: params.get('depuis') || null,
   }
 }
