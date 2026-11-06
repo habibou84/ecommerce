@@ -130,8 +130,10 @@ export async function connectWhatsApp({ appId, configId, version, coexistence = 
 // Gestion de la boutique → page de la plateforme qui ouvre la fenêtre Facebook, puis revient sur `back`.
 // coexistence : true = numéro gardé dans l'application WhatsApp Business (console) ; 'auto' = Meta le propose
 // seulement si le numéro y est déjà (boutiques).
-export function facebookRelayUrl(platformUrl, { appId, configId, version, coexistence }, back) {
+// `from` : page d'où l'on vient, rouverte par « Revenir » (sinon `back`).
+export function facebookRelayUrl(platformUrl, { appId, configId, version, coexistence }, back, from = null) {
   const query = new URLSearchParams({ app: appId, config: configId, v: version, retour: back })
+  if (from) query.set('depuis', from)
   if (coexistence) query.set('coexistence', coexistence === 'auto' ? 'auto' : '1')
   return `${platformUrl.replace(/\/$/, '')}/whatsapp/facebook?${query}`
 }

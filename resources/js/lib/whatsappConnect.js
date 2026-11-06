@@ -15,7 +15,7 @@ export async function connectWhatsappDirect(router, after) {
   try {
     const e = (await http.get('/whatsapp')).data.data?.embedded
     if (e) {
-      window.location.assign(facebookRelayUrl(boot.platformUrl, { appId: e.app_id, configId: e.config_id, version: e.graph_version, coexistence: 'auto' }, `${window.location.origin}/gestion/whatsapp`))
+      window.location.assign(facebookRelayUrl(boot.platformUrl, { appId: e.app_id, configId: e.config_id, version: e.graph_version, coexistence: 'auto' }, `${window.location.origin}/gestion/whatsapp`, `${window.location.origin}${after}`))
       return
     }
   } catch {
