@@ -7,6 +7,7 @@ import LivePrepare from '../views/gestion/marketing/LivePrepare.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
 import { platformOn } from '../router'
+import { boot } from '../lib/boot'
 import { useAuthStore } from '../stores/auth'
 
 /**
@@ -61,7 +62,7 @@ const PAGES = [
     settings: [{ to: '/gestion/boutique-en-ligne', label: 'Apparence' }, { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus' }, { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' }] },
   { key: 'items', name: 'Articles', icon: '👗', show: () => canOpen('/gestion/catalogue'), badge: () => (s.value.stock && s.value.stock.out + s.value.stock.low ? { n: s.value.stock.out + s.value.stock.low, level: s.value.stock.out ? 'red' : 'orange' } : null),
     settings: [{ to: '/gestion/collections', label: 'Collections' }, { to: '/gestion/stock', label: 'Stock détaillé et mouvements' }, { to: '/gestion/stock/commandes', label: 'Fournisseurs et bons de commande' }, { to: '/gestion/catalogue/import', label: 'Importer des produits' }] },
-  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => null, settings: [{ to: '/gestion/parametres', label: 'Informations de l\'espace marchand' }, { to: '/gestion/equipe', label: 'Équipe' }] },
+  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (s.value.unread_messages ? { n: s.value.unread_messages, level: 'orange' } : null), settings: [{ to: '/gestion/parametres', label: 'Informations de l\'espace marchand' }, { to: '/gestion/equipe', label: 'Équipe' }] },
 ]
 const pages = computed(() => PAGES.filter((p) => p.show()))
 
@@ -165,6 +166,10 @@ const PLUS = [
   { to: '/gestion/parametres', label: 'Informations', color: 'reglages' },
 ]
 const plus = computed(() => links(PLUS))
+// Réglages de chaque page, regroupés dans Plus
+const pageSettings = computed(() => pages.value.filter((p) => p.key !== 'more').map((p) => ({ ...p, items: links(p.settings) })).filter((p) => p.items.length))
+const helpUrl = computed(() => (boot.supportWhatsapp ? `https://wa.me/${String(boot.supportWhatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide pour mon espace marchand ${auth.store?.name ?? ''}.`)}` : null))
+const openMenu = () => window.dispatchEvent(new Event('jm:open-menu'))
 
 // ── Feuilles du bas : ⚙ de la page, et ＋ ──
 const sheet = ref(null)
@@ -183,30 +188,20 @@ function open(to) {
 </script>
 
 <template>
-  <div class="-mx-4 -mt-4 flex h-[calc(100dvh-4rem)] flex-col sm:-mx-6 sm:-mt-6">
-    <!-- Nom de la page, ⚙ et Messages ; onglets avec pastilles d'alerte -->
-    <div class="px-4 pt-2">
-      <div class="flex items-center gap-2">
-        <h2 class="min-w-0 flex-1 truncate text-[24px] font-black">{{ page?.name }}</h2>
-        <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative grid h-10 w-10 place-items-center rounded-full bg-white shadow-soft" aria-label="Messages">
-          <ColorIcon name="whatsapp" :size="24" :tile="false" />
-          <span v-if="s.unread_messages" class="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-rose-600 px-1 text-center text-[10px] font-black leading-[18px] text-white ring-2 ring-slate-50">{{ s.unread_messages }}</span>
-        </RouterLink>
-        <button v-if="links(page?.settings ?? []).length" type="button" class="grid h-10 w-10 place-items-center rounded-full bg-white shadow-soft" :aria-label="`Réglages : ${page?.name}`" @click="sheet = 'settings'">
-          <ColorIcon name="reglages" :size="24" :tile="false" />
-        </button>
-      </div>
-      <div ref="tabs" class="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-2 pt-2 [scrollbar-width:none]" role="tablist">
+  <div class="-mx-4 -mt-4 flex h-[calc(100dvh-4rem)] flex-col pt-2 sm:-mx-6 sm:-mt-6">
+    <!-- Onglets des pages, tout en haut dans l'en-tête figé (ils passent sous la cloche) -->
+    <Teleport defer to="#swipe-tabs">
+      <div ref="tabs" class="flex h-full w-full items-center gap-2 overflow-x-auto pl-4 pr-20 [scrollbar-width:none]" role="tablist">
         <button v-for="(p, i) in pages" :key="p.key" type="button" role="tab" :aria-selected="i === current"
-                class="relative shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold transition"
-                :class="i === current ? (p.badge()?.level === 'red' ? 'bg-rose-800 text-white' : 'bg-slate-900 text-white') : (p.badge()?.level === 'red' ? 'bg-rose-100 text-rose-900' : 'bg-slate-200/70 text-slate-600')"
+                class="relative mt-1 shrink-0 rounded-full px-3 py-1.5 text-[13.5px] font-extrabold transition"
+                :class="i === current ? (p.badge()?.level === 'red' ? 'bg-rose-800 text-white' : 'bg-slate-900 text-white') : (p.badge()?.level === 'red' ? 'bg-rose-100 text-rose-900' : 'bg-white text-slate-600 shadow-soft')"
                 @click="go(i)">
           {{ p.icon }} {{ p.name }}
           <span v-if="p.badge()" class="absolute -right-1.5 -top-2 min-w-[19px] rounded-full border-2 border-slate-50 px-1 text-center text-[11px] font-black leading-[15px] text-white"
                 :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-rose-600' : 'bg-amber-500'">{{ p.badge().n }}</span>
         </button>
       </div>
-    </div>
+    </Teleport>
 
     <!-- Les pages, côte à côte, aimantées -->
     <div ref="track" class="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none]" @scroll.passive="onScroll">
@@ -317,13 +312,26 @@ function open(to) {
           </div>
         </template>
 
-        <!-- PLUS : grandes icônes -->
+        <!-- PLUS : grandes icônes, aide, réglages de chaque page, compte -->
         <template v-else>
           <div class="grid grid-cols-3 gap-2.5">
+            <a v-if="helpUrl" :href="helpUrl" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-white px-1 py-3 text-center shadow-soft transition active:scale-95">
+              <ColorIcon name="aide" :size="44" /><span class="text-[12.5px] font-semibold leading-tight text-slate-700">Aide</span>
+            </a>
             <RouterLink v-for="t in plus" :key="t.to + t.label" :to="t.to" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-white px-1 py-3 text-center shadow-soft transition active:scale-95">
               <ColorIcon :name="t.color" :size="44" />
               <span class="text-[12.5px] font-semibold leading-tight text-slate-700">{{ t.label }}</span>
+              <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-rose-600 px-1.5 text-[10px] font-black text-white">{{ s.unread_messages }} non lu(s)</span>
             </RouterLink>
+          </div>
+          <h3 class="mb-2 mt-5 px-1 text-[15px] font-black text-slate-700">⚙ Réglages</h3>
+          <details v-for="g in pageSettings" :key="g.key" class="mb-2 rounded-2xl bg-white shadow-soft">
+            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-[15px] font-extrabold">{{ g.icon }} {{ g.name }}<span class="ml-auto text-slate-400" aria-hidden="true">›</span></summary>
+            <RouterLink v-for="l in g.items" :key="l.to + l.label" :to="l.to" class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-[14.5px] font-semibold">{{ l.label }}<span class="text-lg text-slate-400" aria-hidden="true">›</span></RouterLink>
+          </details>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <RouterLink to="/gestion/compte" class="rounded-2xl bg-white py-3 text-center text-sm font-bold shadow-soft">👤 Mon compte</RouterLink>
+            <button type="button" class="rounded-2xl bg-white py-3 text-center text-sm font-bold shadow-soft" @click="openMenu">☰ Tout le menu</button>
           </div>
         </template>
       </section>
