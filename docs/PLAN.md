@@ -708,3 +708,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - Navigation par glissement : boutons d'ajout en haut des pages Commandes (＋ Commande, Comptoir) et Articles (Nouvel article, ＋ Stock).
 - WhatsApp : « Revenir » sur la page de connexion Facebook ramène à la page d'où l'on vient (live, commandes, réglages…) sans message d'erreur ; une connexion annulée chez Facebook y ramène aussi.
 - Textes clairs et brefs : gris d'aide plus foncé, phrases d'aide en 14 px minimum, ~50 paragraphes longs raccourcis à une ligne (Live, Commandes, Caisse, Articles, Boutique, réglages).
+- Photos d'articles (live, nouvel article, fiche produit) : le téléphone propose l'appareil photo ou la galerie.

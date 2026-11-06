@@ -100,7 +100,7 @@ async function save() {
 
     <label class="relative flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed text-center"
            :class="preview ? 'border-emerald-300' : 'border-slate-300 bg-slate-50 py-8'">
-      <input type="file" accept="image/*" capture="environment" class="sr-only" @change="pick" />
+      <input type="file" accept="image/*" class="sr-only" @change="pick" />
       <template v-if="preview">
         <img :src="preview" alt="Photo de l'article" class="max-h-64 w-full object-contain" />
         <span class="absolute bottom-2 right-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-bold text-slate-700 shadow">📷 Changer</span>
