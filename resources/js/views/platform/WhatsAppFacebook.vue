@@ -40,6 +40,9 @@ const back = computed(() => {
 })
 const redirectUri = facebookReturnUrl(boot.platformUrl)
 const embeddedBrowser = inAppBrowser()
+// Version téléphone de la page de Meta (navigateur pas en « Version pour ordinateur ») : le choix de la devise de
+// la carte bancaire s'y bloque ; la version ordinateur marche
+const phoneLayout = /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent)
 const copied = ref(false)
 
 onMounted(() => {
@@ -101,6 +104,15 @@ async function copyLink() {
         <p>Menu ⋮ (ou ⋯) › « Ouvrir dans le navigateur », ou copiez le lien et collez-le dans Chrome.</p>
         <button type="button" class="btn-secondary w-full" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien' }}</button>
       </div>
+      <div v-if="phoneLayout && !embeddedBrowser" class="space-y-1.5 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+        <p><b>📱 Sur téléphone, activez d'abord la version pour ordinateur</b>, sinon l'étape de la carte bancaire peut se bloquer chez Meta.</p>
+        <ul class="list-disc space-y-0.5 pl-5">
+          <li>Chrome : menu ⋮ › cochez « Version pour ordinateur »</li>
+          <li>Safari (iPhone) : bouton « aA » › « Demander le site pour ordinateur »</li>
+        </ul>
+        <p>Puis touchez « Continuer avec Facebook ».</p>
+      </div>
+      <p class="rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><b>Devise de la carte :</b> choisissez USD (dollar) ou EUR (euro), le franc CFA n'est pas proposé par Meta. Ne gardez pas la devise proposée par défaut sans la vérifier.</p>
       <p class="text-sm text-slate-600">
         Facebook vous guide : compte Business, nom affiché, numéro de votre espace marchand et code reçu par SMS.
         Vous revenez ensuite automatiquement sur votre espace marchand.
