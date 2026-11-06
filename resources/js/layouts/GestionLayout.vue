@@ -5,6 +5,7 @@ import AiRechargeModal from '../components/AiRechargeModal.vue'
 import ColorIcon from '../components/ColorIcon.vue'
 import Icon from '../components/Icon.vue'
 import NotificationBell from '../components/NotificationBell.vue'
+import Dashboard from '../views/gestion/Dashboard.vue'
 import { aiRecharge } from '../lib/aiQuota'
 import { inApp } from '../lib/app'
 import { platformOn } from '../router'
@@ -141,8 +142,48 @@ const bottomTabs = computed(() => [
   { to: '/gestion', label: 'Accueil', icon: 'home', exact: true },
   { to: '/gestion/commandes', label: 'Commandes', icon: 'orders' },
 ])
-// Navigation par glissement sur l'accueil du téléphone : ses pages ont leur titre et leur ＋, pas de barre du bas
-const swipeHome = computed(() => route.path === '/gestion' && auth.profile?.features?.swipe_nav === true)
+// Navigation par glissement (téléphone) : l'accueil reste derrière, chaque écran s'ouvre dans une fenêtre par-dessus
+// (croix ou glisser vers le bas pour la fermer) ; onglets en haut, pas de barre du bas
+const phoneQuery = window.matchMedia('(max-width: 1023px)')
+const isPhone = ref(phoneQuery.matches)
+const onPhoneChange = (e) => { isPhone.value = e.matches }
+phoneQuery.addEventListener?.('change', onPhoneChange)
+onBeforeUnmount(() => phoneQuery.removeEventListener?.('change', onPhoneChange))
+const swipeOn = computed(() => isPhone.value && auth.profile?.features?.swipe_nav === true)
+const sheetOpen = computed(() => swipeOn.value && route.path !== '/gestion')
+const swipeHome = computed(() => auth.profile?.features?.swipe_nav === true && (route.path === '/gestion' || sheetOpen.value))
+// Écrans ouverts l'un après l'autre dans la fenêtre : flèche retour tant qu'il y en a plus d'un
+const sheetDepth = ref(0)
+watch(() => route.path, (to, from) => {
+  if (!sheetOpen.value) sheetDepth.value = 0
+  else if (from === '/gestion' || !from) sheetDepth.value = 1
+  else sheetDepth.value += 1
+}, { immediate: true })
+function closeSheet() {
+  sheetDrag.value = 0
+  router.push('/gestion')
+}
+function sheetBack() {
+  sheetDepth.value = Math.max(0, sheetDepth.value - 2)
+  router.back()
+}
+// Glisser vers le bas : depuis la poignée, ou depuis le contenu quand il est déjà tout en haut
+const sheetDrag = ref(0)
+let dragStart = null
+function dragBegin(e, fromContent = false) {
+  if (fromContent && e.currentTarget.scrollTop > 0) return
+  dragStart = e.touches[0].clientY
+}
+function dragMove(e) {
+  if (dragStart === null) return
+  sheetDrag.value = Math.max(0, e.touches[0].clientY - dragStart)
+}
+function dragEnd() {
+  if (dragStart === null) return
+  dragStart = null
+  if (sheetDrag.value > 120) closeSheet()
+  else sheetDrag.value = 0
+}
 const canOrder = computed(() => canOpen('/gestion/commandes/nouvelle'))
 const todayLabel = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
 const bottomColor = { home: 'accueil', orders: 'panier' }
@@ -384,13 +425,33 @@ async function switchTo(store) {
       </div>
       <main class="mx-auto max-w-6xl p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
         <!-- Changement de boutique : la page est recréée avec les données de la nouvelle boutique -->
-        <RouterView v-slot="{ Component }">
+        <!-- Glissement : l'accueil reste chargé derrière la fenêtre -->
+        <Dashboard v-if="swipeOn" :key="`home${auth.store?.id}`" />
+        <RouterView v-else v-slot="{ Component }">
           <component :is="Component" :key="auth.store?.id" />
         </RouterView>
       </main>
+      <!-- Glissement : l'écran ouvert depuis un onglet, dans une fenêtre (croix, ou glisser vers le bas) -->
+      <div v-if="sheetOpen" class="fixed inset-0 z-30 bg-slate-900/40 transition-opacity" :style="{ opacity: Math.max(0.2, 1 - sheetDrag / 400) }" @click="closeSheet" />
+      <section v-if="sheetOpen" class="fixed inset-x-0 bottom-0 top-3 z-40 flex flex-col overflow-hidden rounded-t-[28px] bg-slate-50 shadow-2xl"
+               :class="sheetDrag ? '' : 'transition-transform duration-200'" :style="{ transform: `translateY(${sheetDrag}px)` }" role="dialog" :aria-label="route.meta.title">
+        <header class="shrink-0 bg-white px-4 pb-2 pt-2" @touchstart.passive="dragBegin($event)" @touchmove.passive="dragMove" @touchend="dragEnd">
+          <div class="mx-auto mb-2 h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
+          <div class="flex items-center gap-2">
+            <button v-if="sheetDepth > 1" type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xl font-bold" aria-label="Retour" @click="sheetBack">‹</button>
+            <h2 class="min-w-0 flex-1 truncate text-[18px] font-extrabold">{{ route.meta.title }}</h2>
+            <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-700" aria-label="Fermer" @click="closeSheet"><Icon name="close" :size="20" /></button>
+          </div>
+        </header>
+        <div class="sheet-body relative min-h-0 flex-1 overflow-y-auto p-4 pb-28" @touchstart.passive="dragBegin($event, true)" @touchmove.passive="dragMove" @touchend="dragEnd">
+          <RouterView v-slot="{ Component }">
+            <component :is="Component" :key="auth.store?.id" />
+          </RouterView>
+        </div>
+      </section>
     </div>
     <!-- Téléphone : les gestes de tous les jours sous le pouce (onglet actif en couleur sur une pastille, comme dans Jibiat) -->
-    <nav v-if="!swipeHome" class="hide-on-keyboard fixed inset-x-0 bottom-0 z-10 border-t border-slate-200/70 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
+    <nav v-if="!swipeHome && !swipeOn" class="hide-on-keyboard fixed inset-x-0 bottom-0 z-10 border-t border-slate-200/70 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
       <div class="mx-auto grid h-[66px] max-w-md items-start px-1 pt-1.5" :class="canOpen('/gestion/live') ? 'grid-cols-6' : 'grid-cols-5'">
         <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive(tab) ? 'bg-emerald-50' : ''">
