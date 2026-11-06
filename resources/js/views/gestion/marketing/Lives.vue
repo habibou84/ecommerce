@@ -14,8 +14,7 @@ import LiveSignPicker from '../../../components/LiveSignPicker.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money } from '../../../lib/format'
-import { boot } from '../../../lib/boot'
-import { facebookRelayUrl } from '../../../lib/facebook'
+import { connectWhatsappDirect } from '../../../lib/whatsappConnect'
 import { useAuthStore } from '../../../stores/auth'
 
 /**
@@ -94,24 +93,8 @@ function showIntro() {
   intro.value = 'how'
   window.scrollTo({ top: 0 })
 }
-// Connexion WhatsApp depuis le live : directement la fenêtre Facebook (comme dans Réglages › WhatsApp), puis retour ici
-async function connectWhatsapp() {
-  try {
-    sessionStorage.setItem('jm.after-whatsapp', '/gestion/live')
-  } catch {
-    // Sans stockage : la personne revient au live par le menu
-  }
-  try {
-    const e = (await http.get('/whatsapp')).data.data?.embedded
-    if (e) {
-      window.location.assign(facebookRelayUrl(boot.platformUrl, { appId: e.app_id, configId: e.config_id, version: e.graph_version, coexistence: 'auto' }, `${window.location.origin}/gestion/whatsapp`))
-      return
-    }
-  } catch {
-    // Réglages indisponibles : on passe par la page WhatsApp
-  }
-  router.push('/gestion/whatsapp?onglet=messages')
-}
+// Connexion WhatsApp depuis le live : directement la fenêtre Facebook, puis retour ici
+const connectWhatsapp = () => connectWhatsappDirect(router, '/gestion/live')
 function introDone() {
   intro.value = null
   startNew()
