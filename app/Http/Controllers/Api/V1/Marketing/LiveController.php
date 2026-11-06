@@ -44,8 +44,20 @@ class LiveController extends Controller
                 'minutes' => $s->started_at ? (int) $s->started_at->diffInMinutes($s->ended_at ?? now()) : null,
                 'summary' => $s->status === 'draft' ? null : $this->live->summary($s),
             ])->values(),
-            'meta' => ['page_url' => $store->url('/live'), 'whatsapp' => LiveSales::whatsapp($store->id)],
+            'meta' => ['page_url' => $store->url('/live'), 'whatsapp' => LiveSales::whatsapp($store->id), ...$this->numberMeta($store->id)],
         ]);
+    }
+
+    /**
+     * Numéro WhatsApp relié (affiché dans « Préparer un live ») et mode sans carte.
+     *
+     * @return array<string, mixed>
+     */
+    private function numberMeta(int $storeId): array
+    {
+        $number = LiveSales::whatsappNumber($storeId);
+
+        return ['whatsapp_phone' => $number['phone'], 'whatsapp_no_card' => $number['no_card']];
     }
 
     /**

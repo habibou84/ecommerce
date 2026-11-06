@@ -122,7 +122,7 @@ async function copyLink() {
       <!-- Deux consignes, en grand : le reste, Facebook le guide -->
       <div class="space-y-3">
         <p v-if="phoneLayout && !embeddedBrowser" class="flex items-center gap-3 rounded-2xl bg-sky-50 p-4 text-[17px] font-bold leading-snug text-sky-950"><span class="text-3xl" aria-hidden="true">💻</span><span>Active le mode ordinateur</span></p>
-        <p class="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-[17px] font-bold leading-snug text-amber-950"><span class="text-3xl" aria-hidden="true">💳</span><span>Carte : choisis <u>USD</u> ou <u>EUR</u></span></p>
+        <p class="flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-[17px] font-bold leading-snug text-emerald-950"><span class="text-3xl" aria-hidden="true">💳</span><span>Carte bancaire : pas obligatoire<small class="mt-0.5 block text-[14px] font-semibold">Tu peux passer cette étape. Elle sert seulement aux messages en masse (relances). Le live et les réponses sont gratuits.</small></span></p>
       </div>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
       <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>

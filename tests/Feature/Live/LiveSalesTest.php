@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\WhatsappAccount;
 use App\Services\Ai\AiClient;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Live\LiveImages;
@@ -128,7 +129,13 @@ class LiveSalesTest extends TestCase
         $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('Pas de live en ce moment');
         $id = $this->prepare(robes: 1);
         // Aucun WhatsApp relié : la page « Vendre en live » propose de le relier
-        $this->storeApi($this->store, 'GET', 'lives')->assertOk()->assertJsonPath('meta.whatsapp', null);
+        $this->storeApi($this->store, 'GET', 'lives')->assertOk()->assertJsonPath('meta.whatsapp', null)->assertJsonPath('meta.whatsapp_phone', null);
+        // Numéro relié : affiché dans « Préparer un live » et dans les infos du live, avec le mode sans carte
+        $account = WhatsappAccount::create(['store_id' => $this->store->id, 'phone_number_id' => '1', 'display_phone' => '+225 07 00 00 00 01', 'access_token' => 't', 'status' => 'active', 'payment_missing_at' => now()]);
+        $this->storeApi($this->store, 'GET', 'lives')->assertJsonPath('meta.whatsapp', 'official')
+            ->assertJsonPath('meta.whatsapp_phone', '+225 07 00 00 00 01')->assertJsonPath('meta.whatsapp_no_card', true);
+        $this->storeApi($this->store, 'GET', "lives/{$id}")->assertJsonPath('data.whatsapp_phone', '+225 07 00 00 00 01');
+        $account->delete();
         $items = $this->page('GET', '/live/etat')->assertOk()->assertJsonPath('data.items.0.remaining', 1)->json('data.items');
         $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('EN DIRECT')->assertSee('A1')->assertSee('Propulsé par')->assertSee('Jibiat Marchand');
 
