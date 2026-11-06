@@ -38,6 +38,10 @@ class Features
         'loyalty' => ['group' => 'Outils', 'label' => 'Fidélité et parrainage clients', 'description' => 'Points, récompenses et parrainage entre clients.', 'default' => 'on'],
         'reviews' => ['group' => 'Outils', 'label' => 'Avis clients', 'description' => 'Avis demandés après la livraison et publiés sur la boutique.', 'default' => 'on'],
         'suppliers' => ['group' => 'Outils', 'label' => 'Fournisseurs et bons de commande', 'description' => 'Achats aux fournisseurs et réception du stock.', 'default' => 'on'],
+        // Interface
+        // Accueil du téléphone en pages à glisser (Live, Commandes, Caisse, Boutique, Articles, Plus) ; active d'office
+        // hors production pour l'essayer en préproduction
+        'swipe_nav' => ['group' => 'Interface', 'label' => 'Navigation par glissement', 'description' => 'Sur téléphone, l\'accueil devient des pages à glisser : Live, Commandes, Caisse, Boutique, Articles, Plus.', 'default' => 'hidden', 'default_preprod' => 'on'],
         // Plateforme
         'signup' => ['group' => 'Plateforme', 'label' => 'Inscription de nouvelles boutiques', 'description' => 'Création d\'un espace marchand depuis le site.', 'default' => 'on'],
     ];
@@ -52,7 +56,12 @@ class Features
     {
         $this->states ??= PlatformSetting::group('feature');
 
-        return in_array($this->states[$key] ?? null, self::STATES, true) ? $this->states[$key] : (self::FEATURES[$key]['default'] ?? 'on');
+        if (in_array($this->states[$key] ?? null, self::STATES, true)) {
+            return $this->states[$key];
+        }
+        $feature = self::FEATURES[$key] ?? [];
+
+        return (app()->environment('production') ? null : ($feature['default_preprod'] ?? null)) ?? $feature['default'] ?? 'on';
     }
 
     /**

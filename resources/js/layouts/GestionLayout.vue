@@ -137,6 +137,8 @@ const bottomTabs = computed(() => [
   { to: '/gestion', label: 'Accueil', icon: 'home', exact: true },
   { to: '/gestion/commandes', label: 'Commandes', icon: 'orders' },
 ])
+// Navigation par glissement sur l'accueil du téléphone : ses pages ont leur titre et leur ＋, pas de barre du bas
+const swipeHome = computed(() => route.path === '/gestion' && auth.profile?.features?.swipe_nav === true)
 const canOrder = computed(() => canOpen('/gestion/commandes/nouvelle'))
 const todayLabel = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
 const bottomColor = { home: 'accueil', orders: 'panier' }
@@ -343,7 +345,7 @@ async function switchTo(store) {
         <button class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-slate-700 shadow-soft lg:hidden" aria-label="Menu" @click="menuOpen = true">
           <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <div class="min-w-0">
+        <div class="min-w-0" :class="swipeHome ? 'hidden lg:block' : ''">
           <h1 class="truncate text-[17px] font-bold leading-tight sm:text-xl">{{ route.meta.title }}</h1>
           <p v-if="route.path === '/gestion'" class="truncate text-[12.5px] leading-tight text-slate-500 first-letter:uppercase sm:text-sm">{{ todayLabel }}</p>
         </div>
@@ -382,7 +384,7 @@ async function switchTo(store) {
       </main>
     </div>
     <!-- Téléphone : les gestes de tous les jours sous le pouce (onglet actif en couleur sur une pastille, comme dans Jibiat) -->
-    <nav class="hide-on-keyboard fixed inset-x-0 bottom-0 z-10 border-t border-slate-200/70 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
+    <nav v-if="!swipeHome" class="hide-on-keyboard fixed inset-x-0 bottom-0 z-10 border-t border-slate-200/70 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
       <div class="mx-auto grid h-[66px] max-w-md items-start px-1 pt-1.5" :class="canOpen('/gestion/live') ? 'grid-cols-6' : 'grid-cols-5'">
         <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive(tab) ? 'bg-emerald-50' : ''">

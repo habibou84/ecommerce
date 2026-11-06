@@ -4,12 +4,22 @@ import { useRoute } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import ColorIcon from '../../components/ColorIcon.vue'
 import Icon from '../../components/Icon.vue'
+import SwipeHome from '../../components/SwipeHome.vue'
+import { platformOn } from '../../router'
 import http from '../../lib/http'
 import { daysUntil, formatDate, money } from '../../lib/format'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
 const route = useRoute()
+
+// Navigation par glissement (console) : sur téléphone, l'accueil devient les pages à glisser, avec les mêmes chiffres
+const phone = window.matchMedia('(max-width: 1023px)')
+const isPhone = ref(phone.matches)
+const onPhone = (e) => { isPhone.value = e.matches }
+phone.addEventListener?.('change', onPhone)
+onBeforeUnmount(() => phone.removeEventListener?.('change', onPhone))
+const swipe = computed(() => isPhone.value && platformOn(auth, 'swipe_nav') && auth.profile?.features?.swipe_nav === true)
 
 const stats = ref(null)
 async function load() {
@@ -208,7 +218,8 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
 </script>
 
 <template>
-  <div class="space-y-4">
+  <SwipeHome v-if="swipe" :stats="stats" />
+  <div v-else class="space-y-4">
     <Alert v-if="welcome" tone="success">
       Votre espace marchand <strong>{{ auth.store?.name }}</strong> est créé. Il est à l'adresse
       <a :href="auth.store?.url" target="_blank" class="font-medium underline">{{ auth.store?.url.replace(/^https?:\/\//, '').replace(/\/$/, '') }}</a>.
