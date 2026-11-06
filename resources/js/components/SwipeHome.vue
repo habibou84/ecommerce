@@ -108,6 +108,44 @@ onMounted(async () => {
   await nextTick()
   current.value = i
   go(i, false)
+  startPage = i
+})
+
+// ── Indicateur de glissement : points des pages toujours visibles, et une aide animée tant qu'on n'a jamais glissé ──
+const HINT_KEY = 'jm.swipe-hint-done'
+function hintDone() {
+  try {
+    return localStorage.getItem(HINT_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+const hint = ref(!hintDone())
+let startPage = null
+function closeHint() {
+  hint.value = false
+  try {
+    localStorage.setItem(HINT_KEY, '1')
+  } catch {
+    // aide de nouveau à la prochaine visite
+  }
+}
+// Voile d'aide : glisser dessus change de page (et ferme l'aide), le toucher ferme l'aide
+let touchX = null
+function hintStart(e) {
+  touchX = e.touches?.[0]?.clientX ?? null
+}
+function hintEnd(e) {
+  const x = e.changedTouches?.[0]?.clientX
+  const dx = touchX === null || x === undefined ? 0 : x - touchX
+  touchX = null
+  closeHint()
+  if (Math.abs(dx) > 40) go(current.value + (dx < 0 ? 1 : -1))
+}
+const nextName = computed(() => pages.value[current.value + 1]?.name ?? pages.value[current.value - 1]?.name ?? '')
+// Changer de page une fois suffit : l'aide ne revient plus
+watch(current, (i) => {
+  if (startPage !== null && i !== startPage && hint.value) closeHint()
 })
 
 // ── Commandes : les dernières, chargées une fois à l'arrivée sur la page ──
@@ -204,7 +242,7 @@ function open(to) {
     </Teleport>
 
     <!-- Les pages, côte à côte, aimantées -->
-    <div ref="track" class="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none]" @scroll.passive="onScroll">
+    <div ref="track" :class="{ 'swipe-peek': hint }" class="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none]" @scroll.passive="onScroll">
       <section v-for="p in pages" :key="p.key" class="h-full w-full shrink-0 snap-start overflow-y-auto px-4 pb-28 pt-1" :aria-label="p.name">
         <!-- LIVE : préparer, en direct (« Revenir au live »), lives passés -->
         <template v-if="p.key === 'live'">
@@ -337,6 +375,26 @@ function open(to) {
       </section>
     </div>
 
+    <!-- Points des pages : où l'on est, et qu'il y en a d'autres de chaque côté -->
+    <div class="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1.9rem)] z-20 flex justify-center">
+      <div class="pointer-events-auto flex items-center gap-1.5 rounded-full bg-slate-900/80 px-2.5 py-2 shadow-lg backdrop-blur" role="tablist" aria-label="Pages">
+        <button v-for="(p, i) in pages" :key="p.key" type="button" role="tab" :aria-selected="i === current" :aria-label="p.name"
+                class="h-2 rounded-full transition-all" :class="i === current ? 'w-5 bg-white' : 'w-2 bg-white/45'" @click="go(i)" />
+      </div>
+    </div>
+
+    <!-- Aide de la première fois : voile, main qui glisse et page qui suit ; disparaît au premier glissement -->
+    <div v-if="hint" class="fixed inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-slate-900/55 px-6 text-center text-white" role="dialog" aria-label="Glissez pour changer de page"
+         @touchstart.passive="hintStart" @touchend="hintEnd" @click="closeHint">
+      <div class="relative h-24 w-60" aria-hidden="true">
+        <span class="swipe-trail absolute right-10 top-9 h-2.5 rounded-full bg-gradient-to-r from-white/0 to-white/80" />
+        <span class="swipe-hand absolute right-2 top-2 text-6xl drop-shadow-lg">👆</span>
+      </div>
+      <p class="text-xl font-black leading-tight">Glissez pour passer<br>d'une page à l'autre</p>
+      <p v-if="nextName" class="text-base font-extrabold opacity-90">‹ {{ page?.name }} · {{ nextName }} ›</p>
+      <p class="text-sm opacity-80">Touchez pour fermer</p>
+    </div>
+
     <!-- ＋ partout -->
     <button type="button" class="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-20 grid h-14 w-14 place-items-center rounded-[20px] bg-emerald-700 text-white shadow-lg shadow-emerald-900/30" aria-label="Ajouter" @click="sheet = 'add'">
       <Icon name="plus" :size="28" />
@@ -355,6 +413,25 @@ function open(to) {
 </template>
 
 <style>
+@keyframes swipe-hand {
+  0%, 10% { transform: translateX(0) scale(1); opacity: 1; }
+  15% { transform: translateX(0) scale(0.88); }
+  60% { transform: translateX(-150px) scale(0.88); opacity: 1; }
+  72%, 100% { transform: translateX(-150px) scale(1); opacity: 0; }
+}
+@keyframes swipe-trail {
+  0%, 15% { width: 0; opacity: 1; }
+  60% { width: 150px; opacity: 1; }
+  75%, 100% { width: 150px; opacity: 0; }
+}
+@keyframes swipe-peek {
+  0%, 15% { transform: translateX(0); }
+  60% { transform: translateX(-18%); }
+  82%, 100% { transform: translateX(0); }
+}
+.swipe-hand { animation: swipe-hand 2.2s ease-in-out infinite; }
+.swipe-trail { animation: swipe-trail 2.2s ease-in-out infinite; }
+.swipe-peek > section { animation: swipe-peek 2.2s ease-in-out infinite; }
 @keyframes swipe-pulse {
   0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.6); }
   70% { box-shadow: 0 0 0 9px rgba(225, 29, 72, 0); }
