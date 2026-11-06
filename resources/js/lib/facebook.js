@@ -82,7 +82,14 @@ export async function connectWhatsApp({ appId, configId, version, coexistence = 
         return
       }
       if (message?.type !== 'WA_EMBEDDED_SIGNUP') return
-      if (message.event === 'CANCEL') return done(reject, new Error('Connexion interrompue. Vous pouvez recommencer quand vous voulez.'))
+      // Arrêt : erreur signalée par Meta (message et numéro à donner au support) ou fenêtre quittée à une étape
+      if (message.event === 'CANCEL') {
+        const data = message.data ?? {}
+        if (data.error_message) {
+          return done(reject, new Error(`Meta a arrêté la connexion : ${data.error_message}${data.error_id ? ` (code ${data.error_id})` : ''}. Recommencez ; si cela se répète, envoyez ce message au support.`))
+        }
+        return done(reject, new Error(`Connexion interrompue${data.current_step ? ` à l'étape « ${data.current_step} »` : ''}. Vous pouvez recommencer quand vous voulez.`))
+      }
       if (message.event === 'ERROR') return done(reject, new Error(message.data?.error_message || 'Meta a signalé une erreur pendant la connexion.'))
       if (String(message.event).startsWith('FINISH') && message.data?.waba_id) {
         // FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING : numéro gardé dans l'application WhatsApp Business (déjà actif chez Meta)
