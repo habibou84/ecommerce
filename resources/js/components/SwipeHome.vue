@@ -108,6 +108,41 @@ onMounted(async () => {
   await nextTick()
   current.value = i
   go(i, false)
+  startPage = i
+  // Première fois : la page voisine s'entrouvre pour montrer qu'on peut glisser
+  if (hint.value) setTimeout(peek, 900)
+})
+
+// ── Indicateur de glissement : points des pages toujours visibles, et une aide animée tant qu'on n'a jamais glissé ──
+const HINT_KEY = 'jm.swipe-hint-done'
+function hintDone() {
+  try {
+    return localStorage.getItem(HINT_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+const hint = ref(!hintDone())
+let startPage = null
+function closeHint() {
+  hint.value = false
+  try {
+    localStorage.setItem(HINT_KEY, '1')
+  } catch {
+    // aide de nouveau à la prochaine visite
+  }
+}
+function peek() {
+  const el = track.value
+  if (!el || !hint.value || pages.value.length < 2) return
+  const back = current.value * el.clientWidth
+  const dir = current.value < pages.value.length - 1 ? 1 : -1
+  el.scrollTo({ left: back + dir * 70, behavior: 'smooth' })
+  setTimeout(() => el.scrollTo({ left: back, behavior: 'smooth' }), 650)
+}
+// Changer de page une fois suffit : l'aide ne revient plus
+watch(current, (i) => {
+  if (startPage !== null && i !== startPage && hint.value) closeHint()
 })
 
 // ── Commandes : les dernières, chargées une fois à l'arrivée sur la page ──
@@ -337,6 +372,21 @@ function open(to) {
       </section>
     </div>
 
+    <!-- Points des pages : où l'on est, et qu'il y en a d'autres de chaque côté -->
+    <div class="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1.9rem)] z-20 flex justify-center">
+      <div class="pointer-events-auto flex items-center gap-1.5 rounded-full bg-slate-900/80 px-2.5 py-2 shadow-lg backdrop-blur" role="tablist" aria-label="Pages">
+        <button v-for="(p, i) in pages" :key="p.key" type="button" role="tab" :aria-selected="i === current" :aria-label="p.name"
+                class="h-2 rounded-full transition-all" :class="i === current ? 'w-5 bg-white' : 'w-2 bg-white/45'" @click="go(i)" />
+      </div>
+    </div>
+
+    <!-- Aide de la première fois : une main qui glisse -->
+    <div v-if="hint" class="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+4.6rem)] z-30 mx-auto flex max-w-sm items-center gap-3 rounded-2xl bg-slate-900 p-3 text-white shadow-2xl" role="status">
+      <span class="swipe-hand text-3xl" aria-hidden="true">👆</span>
+      <span class="min-w-0 flex-1 text-[15px] font-bold leading-snug">Glissez à gauche ou à droite pour changer de page</span>
+      <button type="button" class="shrink-0 rounded-xl bg-white px-3 py-2 text-sm font-black text-slate-900" @click="closeHint">OK</button>
+    </div>
+
     <!-- ＋ partout -->
     <button type="button" class="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-20 grid h-14 w-14 place-items-center rounded-[20px] bg-emerald-700 text-white shadow-lg shadow-emerald-900/30" aria-label="Ajouter" @click="sheet = 'add'">
       <Icon name="plus" :size="28" />
@@ -355,6 +405,11 @@ function open(to) {
 </template>
 
 <style>
+@keyframes swipe-hand {
+  0%, 100% { transform: translateX(10px) rotate(8deg); }
+  50% { transform: translateX(-14px) rotate(-8deg); }
+}
+.swipe-hand { display: inline-block; animation: swipe-hand 1.4s ease-in-out infinite; }
 @keyframes swipe-pulse {
   0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.6); }
   70% { box-shadow: 0 0 0 9px rgba(225, 29, 72, 0); }
