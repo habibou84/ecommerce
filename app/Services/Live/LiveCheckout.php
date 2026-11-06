@@ -128,19 +128,22 @@ class LiveCheckout
         $title = "🧾 *COMMANDE N° {$order->reference()}*";
 
         // WhatsApp relié par QR code : pas de boutons, le récapitulatif en texte et des réponses à taper
+        // Un seul message (la photo porte tout le récapitulatif en légende) : rien ne peut arriver dans le désordre
         if (! $this->official($conversation)) {
-            // L'image du récapitulatif (miniatures, prix, livraison, total) avec le numéro en légende ; sinon tout en texte
-            $pictured = $this->picture($conversation, $image, "🧾 Commande n° {$order->reference()}");
-            $details = $title."\n".($pictured ? '' : $lines."\n".$delivery."\n").$total;
+            $details = $title."\n".($image ? '' : $lines."\n").$delivery."\n".$total;
             if ($order->status !== OrderStatus::PendingConfirmation) {
-                return $this->text($conversation, "✅ *COMMANDE MISE À JOUR*\n".$details);
+                $text = "✅ *COMMANDE MISE À JOUR*\n".$details;
+
+                return $this->picture($conversation, $image, $text) || $this->text($conversation, "✅ *COMMANDE MISE À JOUR*\n".$title."\n".$lines."\n".$delivery."\n".$total);
             }
             Cache::put(self::menuKey($conversation), $order->id, now()->addDay());
+            $menu = "\n_Paiement à la livraison_\n━━━━━━━━━━━━\n👉 *RÉPONDEZ AVEC UN CHIFFRE :*\n\n"
+                ."*1* ✅ Je confirme\n*2* ➕ Ajouter un article\n*3* 📍 Changer l'adresse\n*4* ❌ Annuler";
 
-            return $this->text($conversation, $details."\n_Paiement à la livraison_\n━━━━━━━━━━━━\n👉 *RÉPONDEZ AVEC UN CHIFFRE :*\n\n"
-                ."*1* ✅ Je confirme\n*2* ➕ Ajouter un article\n*3* 📍 Changer l'adresse\n*4* ❌ Annuler");
+            return $this->picture($conversation, $image, $details."\n📷 _Vérifiez les photos avant de confirmer_".$menu)
+                || $this->text($conversation, $title."\n".$lines."\n".$delivery."\n".$total.$menu);
         }
-        $details = $title."\n".($image ? '' : $lines."\n").$delivery."\n".$total;
+        $details = $title."\n".($image ? '' : $lines."\n").$delivery."\n".$total.($image ? "\n📷 _Vérifiez les photos avant de confirmer_" : '');
         if ($order->status !== OrderStatus::PendingConfirmation) {
             $text = "✅ *COMMANDE MISE À JOUR*\n".$details;
 
@@ -331,7 +334,8 @@ class LiveCheckout
         if ($order === null) {
             return $this->text($conversation, 'Cette commande n\'existe plus : envoyez le code d\'un article pour recommencer.');
         }
-        if ($order->status === OrderStatus::PendingConfirmation) {
+        $first = $order->status === OrderStatus::PendingConfirmation;
+        if ($first) {
             $order = $this->desk->recordConfirmation($order, ConfirmationOutcome::Confirmed, 'whatsapp', 'Confirmée par la cliente sur WhatsApp (live)', null, null);
         }
         if ($order->status === OrderStatus::Cancelled) {
@@ -339,11 +343,53 @@ class LiveCheckout
         }
         Cache::forget(self::menuKey($conversation));
         $place = $order->shipping_place_id ? Place::with('parent')->find($order->shipping_place_id)?->label() : null;
-        $first = trim(strtok((string) $order->customer_name, ' ') ?: '');
+        $name = trim(strtok((string) $order->customer_name, ' ') ?: '');
 
-        return $this->text($conversation, "🎉 *COMMANDE CONFIRMÉE !*\n\nMerci".($first !== '' ? " {$first}" : '')." 🙏\n🧾 N° {$order->reference()}\n"
+        $sent = $this->text($conversation, "🎉 *COMMANDE CONFIRMÉE !*\n\nMerci".($name !== '' ? " {$name}" : '')." 🙏\n🧾 N° {$order->reference()}\n"
             .'💰 *'.Money::format((int) $order->total)."* à payer à la livraison\n"
             .'🛵 '.($place ? "{$place} : l" : 'L').'e livreur vous appelle avant de passer.');
+        if ($first) {
+            $this->photos($conversation, $order);
+        }
+
+        return $sent;
+    }
+
+    /** Au-delà, une seule image avec toutes les miniatures */
+    private const BIG_PHOTOS = 4;
+
+    /**
+     * Après « Je confirme » : « Voici les photos de votre commande », la vraie photo de chaque article en grand avec
+     * son code, sa taille et son prix (4 au plus ; au-delà une seule image avec toutes les miniatures).
+     */
+    public function photos(Conversation $conversation, Order $order): void
+    {
+        $items = LiveReservation::forStore($order->store_id)->where('order_id', $order->id)->whereNot('status', 'cancelled')
+            ->with(['item.variant.image', 'item.variant.product.images', 'item.variant.option1.option', 'item.variant.option2.option', 'item.variant.option3.option'])
+            ->get()->filter(fn (LiveReservation $r) => $r->item !== null)->groupBy('live_item_id')
+            ->map(fn (Collection $rs) => ['item' => $rs->first()->item, 'count' => $rs->count()])->values();
+        if ($items->isEmpty()) {
+            return;
+        }
+        $intro = "📷 *Voici les photos de votre commande N° {$order->reference()}*";
+        $line = fn (array $row) => $row['item']->code.' · '.($row['item']->variant?->product?->title ?? 'Article')
+            .($row['item']->optionValues() !== [] ? ' · Taille '.$row['item']->variant->title : '')
+            .($row['count'] > 1 ? " × {$row['count']}" : '').' · '.Money::format($row['item']->currentPrice());
+
+        if ($items->count() > self::BIG_PHOTOS) {
+            $board = $this->tryImage(fn () => $this->images->board($order->store_id, 'Votre commande N° '.$order->reference(), $items->map(fn (array $row) => [
+                'code' => $row['item']->code, 'title' => $row['item']->variant?->product?->title ?? 'Article',
+                'detail' => trim(($row['item']->optionValues() !== [] ? 'Taille '.$row['item']->variant->title : '').($row['count'] > 1 ? " × {$row['count']}" : '')),
+                'price' => $row['item']->currentPrice(), 'image' => $row['item']->variant?->image ?? $row['item']->variant?->product?->images->first(),
+            ])->all()));
+            $this->picture($conversation, $board, $intro);
+
+            return;
+        }
+        foreach ($items as $i => $row) {
+            $photo = $this->tryImage(fn () => $this->images->item($row['item']));
+            $this->picture($conversation, $photo, ($i === 0 ? $intro."\n" : '').$line($row));
+        }
     }
 
     /**

@@ -599,11 +599,11 @@ class LiveSalesTest extends TestCase
         $this->message('R1', 'A1');
         $this->message('R2', 'Angré');
         $order = Order::forStore($this->store->id)->sole();
-        $recap = end($this->whatsapp);
-        $this->assertStringContainsString("🧾 *COMMANDE N° {$order->reference()}*", $recap);
-        // Le détail (miniatures, livraison, total) part en une seule image juste avant
+        // Un seul message : l'image (miniatures) avec tout le récapitulatif et les réponses en légende
         $this->assertStringEndsWith('.jpg', end($this->images)['image']);
-        $this->assertSame("🧾 Commande n° {$order->reference()}", end($this->images)['caption']);
+        $recap = end($this->images)['caption'];
+        $this->assertStringContainsString("🧾 *COMMANDE N° {$order->reference()}*", $recap);
+        $this->assertStringContainsString('Vérifiez les photos avant de confirmer', $recap);
         $this->assertStringContainsString('Total à payer', $recap);
         $this->assertStringContainsString("*1* ✅ Je confirme\n*2* ➕ Ajouter un article\n*3* 📍 Changer l'adresse\n*4* ❌ Annuler", $recap);
 
@@ -612,7 +612,7 @@ class LiveSalesTest extends TestCase
         $this->assertStringContainsString('NOUVELLE ADRESSE', end($this->whatsapp));
         $this->message('R4', 'Yopugon');
         $this->assertSame('Yopougon', Place::find($order->fresh()->shipping_place_id)->name);
-        $this->assertStringContainsString('Total à payer', end($this->whatsapp));
+        $this->assertStringContainsString('Total à payer', end($this->images)['caption']);
 
         // 4 / ANNULER : à redire une fois ; la robe revient au live et Awa, sur la liste d'attente, est servie
         $this->message('W1', 'A1', '2250701020304');
@@ -629,7 +629,8 @@ class LiveSalesTest extends TestCase
         $this->message('W2', 'Cocody', '2250701020304');
         $this->message('W3', 'oui', '2250701020304');
         $this->assertSame('confirmed', Order::where('customer_phone', '+2250701020304')->sole()->status->value);
-        $this->assertStringContainsString('COMMANDE CONFIRMÉE', end($this->whatsapp));
+        $this->assertStringContainsString('COMMANDE CONFIRMÉE', $this->whatsapp[count($this->whatsapp) - 2]);
+        $this->assertStringStartsWith('📷 *Voici les photos de votre commande', end($this->images)['caption']);
 
         // « LIVE » : un article par ligne, séparés par une ligne vide
         $this->travel(3)->minutes();
