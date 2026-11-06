@@ -20,6 +20,8 @@ const props = defineProps({
   screenOnly: { type: Boolean, default: false },
   // Partie de l'écran montrée seule : 'tv' (télé ou tablette) ou 'studio' (OBS · TikTok LIVE Studio) ; vide = les deux
   part: { type: String, default: '' },
+  // Sans le réglage « numéro à l'écran » (déjà affiché sous l'autre support)
+  noPhone: { type: Boolean, default: false },
 })
 // « + Ajouter » : la page du live ouvre sa fenêtre d'ajout de produits
 const emit = defineEmits(['add'])
@@ -229,7 +231,7 @@ async function loadLink() {
 // QR code, ni adresse de site : modération TikTok
 const CARD = { w: 480, h: 780 }
 const STUDIO_LINKS = [
-  { key: 'carte', label: 'Le lien de la carte', hint: 'La photo et le code de l\'article montré, « Envoie A1 » et le numéro (ou « numéro dans la bio »). Suit Un article / Défilement / Vitrine / Commander.', place: 'En haut à gauche.' },
+  { key: 'carte', label: 'Le lien de la carte', hint: 'L\'article montré, son code et votre numéro.', place: 'En haut à gauche.' },
 ]
 // Numéro sur les écrans filmés : réglage de la boutique
 const PHONE_STYLES = [['bio', '📌 Dans la bio', 'Risque le plus faible'], ['spaced', '0 7 • 0 0 …', 'Chiffres espacés'], ['emoji', '0️⃣7️⃣ 0️⃣0️⃣ …', 'En émojis'], ['split', '07 00 + 00 …', 'Coupé en deux']]
@@ -415,22 +417,12 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
     <!-- ═══ Écran ═══ -->
     <template v-else>
       <!-- Télé ou tablette -->
-      <!-- Numéro à l'écran (télé et LIVE Studio) -->
-      <section class="rounded-2xl border border-slate-200 bg-white p-4">
-        <h2 class="font-extrabold">📞 Le numéro à l'écran</h2>
-        <p class="text-sm text-slate-500">Sans le mot WhatsApp. « Dans la bio » reste le plus sûr.</p>
-        <div class="mt-2 grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Le numéro à l'écran">
-          <button v-for="[value, label, note] in PHONE_STYLES" :key="value" type="button" role="radio" :aria-checked="phoneStyle === value" :disabled="busy"
-                  class="rounded-xl border-2 p-2 text-left" :class="phoneStyle === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200'" @click="setPhoneStyle(value)">
-            <b class="block text-sm">{{ label }}</b><span class="text-xs opacity-75">{{ note }}</span>
-          </button>
-        </div>
-        <p v-if="display?.store?.phone_shown" class="mt-2 text-sm">À l'écran : <b>{{ display.store.phone_shown }}</b></p>
-      </section>
 
       <section v-if="part !== 'studio'" class="rounded-2xl border-2 border-emerald-700 bg-white p-4">
-        <h2 class="text-lg font-extrabold">📺 Télé ou tablette</h2>
-        <p class="text-sm text-slate-500">Posée à côté de vous, filmée avec vous</p>
+        <template v-if="!part">
+          <h2 class="text-lg font-extrabold">📺 Télé ou tablette</h2>
+          <p class="text-sm text-slate-500">Posée à côté de vous, filmée avec vous</p>
+        </template>
 
         <template v-if="tvs.length && !adding">
           <div v-for="s in mainTvs" :key="s.id" class="mt-3 rounded-xl border-2 p-3" :class="s.online ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'">
@@ -464,7 +456,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
           <div class="mt-4 flex gap-3">
             <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">1</span>
             <div class="min-w-0">
-              <p class="text-base font-bold">Sur la télé, ouvrez :</p>
+              <p class="text-base font-bold">Sur votre télé connectée ou votre tablette, ouvrez :</p>
               <p class="mt-1 break-words rounded-xl bg-emerald-50 px-3 py-2 text-2xl font-black text-emerald-800">{{ host }}/ecran</p>
             </div>
           </div>
@@ -476,15 +468,21 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
               <p v-if="pairErrors.code" class="mt-1 text-sm text-red-600">{{ pairErrors.code }}</p>
             </div>
           </div>
-          <button class="btn-brand w-full py-4 text-lg" :disabled="busy || code.length !== 4">{{ busy ? 'Connexion…' : 'Connecter l\'écran' }}</button>
+          <div class="flex gap-3">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">3</span>
+            <p class="min-w-0 flex-1 text-base"><b>Placez la télé derrière vous</b>, bien visible par la caméra.</p>
+          </div>
+          <button class="btn-brand w-full py-4 text-lg" :disabled="busy || code.length !== 4">{{ busy ? 'Connexion…' : 'Connecter la télé' }}</button>
           <button v-if="tvs.length" type="button" class="btn-ghost w-full" @click="adding = false">Annuler</button>
         </form>
       </section>
 
       <!-- TikTok LIVE Studio : deux cartes en hauteur, côte à côte en haut de l'écran -->
       <section v-if="part !== 'tv'" class="rounded-2xl border-2 border-slate-200 bg-white p-4">
-        <h2 class="text-lg font-extrabold">🖥️ OBS · TikTok LIVE Studio</h2>
-        <p class="text-sm text-slate-500">Sur l'ordinateur · une carte en haut à gauche, vous en dessous</p>
+        <template v-if="!part">
+          <h2 class="text-lg font-extrabold">🖥️ OBS · TikTok LIVE Studio</h2>
+          <p class="text-sm text-slate-500">Sur l'ordinateur · une carte en haut à gauche, vous en dessous</p>
+        </template>
         <p v-if="studio?.online" class="mt-3 rounded-xl bg-emerald-50 p-2.5 text-base font-extrabold text-emerald-800">✅ Connecté à LIVE Studio</p>
         <div v-for="(l, i) in STUDIO_LINKS" :key="l.key" class="mt-3 flex gap-3">
           <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">{{ i + 1 }}</span>
@@ -506,6 +504,18 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
           <b>Restez à l'image.</b> Pas de vidéo enregistrée : TikTok restreint le compte.
         </p>
         <button type="button" class="btn-secondary mt-4 w-full py-3 text-base" :disabled="!link" @click="preview = true">👁 Voir comme sur un téléphone</button>
+      </section>
+      <!-- Numéro à l'écran (télé et LIVE Studio) -->
+      <section v-if="!noPhone" class="rounded-2xl border border-slate-200 bg-white p-4">
+        <h2 class="font-extrabold">📞 Le numéro à l'écran</h2>
+        <p class="text-sm text-slate-500">Sans le mot WhatsApp. « Dans la bio » reste le plus sûr.</p>
+        <div class="mt-2 grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Le numéro à l'écran">
+          <button v-for="[value, label, note] in PHONE_STYLES" :key="value" type="button" role="radio" :aria-checked="phoneStyle === value" :disabled="busy"
+                  class="rounded-xl border-2 p-2 text-left" :class="phoneStyle === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200'" @click="setPhoneStyle(value)">
+            <b class="block text-sm">{{ label }}</b><span class="text-xs opacity-75">{{ note }}</span>
+          </button>
+        </div>
+        <p v-if="display?.store?.phone_shown" class="mt-2 text-sm">À l'écran : <b>{{ display.store.phone_shown }}</b></p>
       </section>
 
       <!-- Aperçu : l'écran TikTok vertical d'une cliente, avec les deux cartes à leur vraie taille -->

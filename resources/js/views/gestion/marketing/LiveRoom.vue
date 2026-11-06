@@ -28,9 +28,91 @@ const route = useRoute()
 // « Support » (photo à épingler, écran télé, liens OBS / TikTok LIVE Studio)
 const pane = ref(route.query.onglet === 'support' ? 'support' : 'live')
 watch(pane, (p) => router.replace({ query: { ...route.query, onglet: p === 'support' ? 'support' : undefined } }))
-// Support : trois onglets (photo à épingler, écran télé, TikTok Studio)
-const supportTab = ref(['pin', 'tv', 'studio'].includes(route.query.support) ? route.query.support : 'pin')
 const screensOn = computed(() => useAuthStore().profile?.features?.live_screens !== false)
+// Support : sur quoi la vendeuse est en live (un ou deux supports), gardé sur cet appareil pour ce live. L'onglet Live
+// montre en haut ce que voient les clientes sur ces supports.
+const SUPPORTS = [['tv', '📺', 'Télé ou tablette'], ['studio', '📱', 'TikTok LIVE Studio'], ['pin', '📌', 'Étiquette à épingler']]
+const supportKey = `jm.live-supports.${props.id}`
+function readStore(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? 'null')
+  } catch {
+    return null
+  }
+}
+function writeStore(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // stockage indisponible : le choix vaut pour cette visite
+  }
+}
+const asked = ['pin', 'tv', 'studio'].includes(route.query.support) ? [route.query.support] : null
+const supports = ref(asked ?? readStore(supportKey) ?? (screensOn.value ? ['tv'] : ['pin']))
+const supportList = computed(() => SUPPORTS.filter(([key]) => screensOn.value || key === 'pin'))
+// Sans écrans (console), seule l'étiquette reste
+const activeSupports = computed(() => {
+  const list = supports.value.filter((s) => screensOn.value || s === 'pin')
+  return list.length ? list : ['pin']
+})
+watch(supports, (v) => writeStore(supportKey, v), { deep: true })
+// Deux supports au plus ; toujours au moins un
+function chooseSupport(key) {
+  const list = activeSupports.value.filter((s) => s !== key)
+  supports.value = [...list, key].slice(-2)
+  sheet.value = null
+}
+function dropSupport(key) {
+  if (activeSupports.value.length > 1) supports.value = activeSupports.value.filter((s) => s !== key)
+  sheet.value = null
+}
+// Fenêtre d'explication d'un support : à quoi il sert, comment le mettre en place ; coché quand il est prêt
+const sheet = ref(null)
+const SUPPORT_HELP = {
+  tv: { why: 'Vos articles s\'affichent en grand derrière vous. Vous les faites défiler depuis ce téléphone, les clientes les voient en direct.', video: '/videos/supports/tv.mp4?v=1', poster: '/videos/supports/tv.jpg?v=1' },
+  studio: { why: 'La carte de l\'article montré apparaît sur votre live TikTok, en haut à gauche.', video: '/videos/supports/studio.mp4?v=1', poster: '/videos/supports/studio.jpg?v=1' },
+  pin: { why: 'Une image avec vos articles et leurs codes, en fond vert sur votre live : les clientes la voient pendant tout le live.', video: '/videos/supports/pin.mp4?v=1', poster: '/videos/supports/pin.jpg?v=1' },
+}
+// Écrans reliés (télé, LIVE Studio) : état de chaque support, et télé cochée toute seule dès qu'elle est reliée
+const screens = ref(null)
+async function loadScreens() {
+  if (!screensOn.value || document.hidden) return
+  try {
+    screens.value = (await http.get('/lives/screens')).data.data
+  } catch {
+    // lecture suivante
+  }
+}
+const tvOnline = computed(() => !!screens.value?.some((s) => !s.is_link && s.online))
+const studioOnline = computed(() => !!screens.value?.some((s) => s.is_link && s.online))
+watch(tvOnline, (on, was) => on && !was && sheet.value === 'tv' && chooseSupport('tv'))
+let screensTimer
+watch([pane, sheet], ([p, s]) => {
+  clearInterval(screensTimer)
+  if (p !== 'support') return
+  loadScreens()
+  screensTimer = setInterval(loadScreens, s ? 3000 : 10000)
+}, { immediate: true })
+onUnmounted(() => clearInterval(screensTimer))
+const pinStale = computed(() => pinShared.value !== (live.value?.items ?? []).map((i) => i.code).join(','))
+function supportState(key) {
+  if (!activeSupports.value.includes(key)) return ['Choisir', 'bg-slate-100 text-slate-700']
+  if (key === 'pin') return pinStale.value ? ['⚠ À ré-épingler', 'bg-amber-100 text-amber-900'] : ['✓ À jour', 'bg-emerald-100 text-emerald-800']
+  if (screens.value === null) return ['✓ Choisi', 'bg-emerald-100 text-emerald-800']
+  const on = key === 'tv' ? tvOnline.value : studioOnline.value
+  return on ? ['✓ Prête', 'bg-emerald-100 text-emerald-800'] : [key === 'tv' ? 'Pas connectée' : 'Pas connecté', 'bg-red-100 text-red-800']
+}
+function onPinSheetShared(signature) {
+  onPinShared(signature)
+  chooseSupport('pin')
+}
+// Étiquette : la dernière téléchargée ou partagée (ses codes), pour prévenir quand elle n'est plus à jour
+const pinKey = `jm.live-pin.${props.id}`
+const pinShared = ref(readStore(pinKey))
+function onPinShared(signature) {
+  pinShared.value = signature
+  writeStore(pinKey, signature)
+}
 const live = ref(null)
 const error = ref('')
 const busy = ref(false)
@@ -290,19 +372,54 @@ async function redo() {
         </button>
       </nav>
 
-      <!-- ═══ Support : photo à épingler, télé, OBS / LIVE Studio ═══ -->
+      <!-- ═══ Support : un ou deux supports cochés, le réglage de chacun sous sa case, puis les infos du live ═══ -->
       <template v-if="live.status !== 'ended' && pane === 'support'">
-        <div v-if="screensOn" class="grid grid-cols-3 gap-1.5" role="tablist" aria-label="Support">
-          <button v-for="[value, label] in [['pin', '📌 À épingler'], ['tv', '📺 Écran télé'], ['studio', '📱 TikTok Studio']]" :key="value" type="button" role="tab" :aria-selected="supportTab === value"
-                  class="rounded-xl border-[1.5px] px-1 py-2 text-xs font-extrabold" :class="supportTab === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600'" @click="supportTab = value">{{ label }}</button>
+        <p class="text-base font-extrabold">Je suis en live avec… <span v-if="supportList.length > 1" class="text-sm font-semibold text-slate-500">(1 ou 2)</span></p>
+        <div class="space-y-2">
+          <button v-for="[key, icon, label] in supportList" :key="key" type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 bg-white p-3 text-left"
+                  :class="activeSupports.includes(key) ? 'border-slate-900' : 'border-slate-200'" @click="sheet = key">
+            <span class="text-2xl" aria-hidden="true">{{ icon }}</span>
+            <b class="min-w-0 flex-1 text-base">{{ label }}</b>
+            <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-extrabold" :class="supportState(key)[1]">{{ supportState(key)[0] }}</span>
+          </button>
         </div>
-        <LivePin v-if="!screensOn || supportTab === 'pin'" :live="live" />
-        <LiveScreenTabs v-else :id="id" screen-only :part="supportTab" @add="pane = 'live'" />
+
+        <!-- Fenêtre d'un support : vidéo, à quoi il sert, comment le mettre en place, puis « Choisir » -->
+        <Modal v-if="sheet" :title="SUPPORTS.find(([k]) => k === sheet).slice(1).join(' ')" @close="sheet = null">
+          <div class="space-y-3">
+            <video v-if="SUPPORT_HELP[sheet].video" :key="sheet" :src="SUPPORT_HELP[sheet].video" :poster="SUPPORT_HELP[sheet].poster" class="aspect-video w-full rounded-2xl bg-slate-900" controls playsinline preload="metadata" />
+            <p class="rounded-xl bg-emerald-50 p-3 text-[15px] font-semibold text-emerald-900">{{ SUPPORT_HELP[sheet].why }}</p>
+            <template v-if="sheet === 'pin'">
+              <ol class="space-y-2 text-[15px]">
+                <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white">1</span><span>Choisissez le format, puis <b>téléchargez</b> l'étiquette.</span></li>
+                <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white">2</span><span>Dans votre live TikTok, ouvrez le menu <b>Fond vert</b> et choisissez l'étiquette dans la galerie.</span></li>
+                <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white">3</span><span><b>Épinglez-la sur le live.</b></span></li>
+              </ol>
+              <LivePin :live="live" bare @shared="onPinSheetShared" />
+            </template>
+            <LiveScreenTabs v-else :id="id" screen-only :part="sheet" :no-phone="sheet === 'studio' && activeSupports.includes('tv')" @add="sheet = null; pane = 'live'" />
+            <button v-if="sheet !== 'pin' && !activeSupports.includes(sheet)" type="button" class="btn-brand w-full justify-center py-3.5 text-base" @click="chooseSupport(sheet)">✓ Choisir {{ sheet === 'tv' ? 'la télé' : 'LIVE Studio' }}</button>
+            <button v-if="activeSupports.includes(sheet) && activeSupports.length > 1" type="button" class="btn-ghost w-full justify-center text-red-600" @click="dropSupport(sheet)">Ne plus utiliser</button>
+          </div>
+        </Modal>
+
+        <p class="pt-2 text-base font-extrabold">Infos du live</p>
+        <div class="divide-y divide-slate-100 rounded-2xl bg-white px-4 text-sm">
+          <p class="flex justify-between py-2.5"><span class="text-slate-600">Live</span><b class="truncate pl-3">{{ live.title }}</b></p>
+          <p v-if="live.status === 'live'" class="flex justify-between py-2.5"><span class="text-slate-600">En direct depuis</span><b>{{ duration }}</b></p>
+          <p class="flex justify-between py-2.5"><span class="text-slate-600">Articles</span><b>{{ live.items.length }}</b></p>
+          <p class="flex justify-between py-2.5"><span class="text-slate-600">WhatsApp</span>
+            <b v-if="live.whatsapp" class="text-emerald-700">✓ Connecté</b>
+            <RouterLink v-else to="/gestion/whatsapp?onglet=messages" class="font-bold text-amber-700 underline">Connecter</RouterLink>
+          </p>
+          <p class="flex items-center justify-between py-2.5"><span class="text-slate-600">Lien du live</span><button type="button" class="font-bold text-emerald-700" @click="share = true">📤 Partager</button></p>
+        </div>
+        <button v-if="live.status === 'live'" type="button" class="w-full rounded-2xl bg-slate-900 py-3 text-base font-extrabold text-white" :disabled="busy" @click="end">⏹ Terminer le live</button>
       </template>
 
       <!-- ═══ En-tête selon l'état ═══ -->
       <!-- Pendant le live : la pancarte montrée et les onglets Articles, Messages, Commandes -->
-      <LiveCockpit v-if="live.status === 'live' && pane === 'live'" :live="live" :now="now" :busy="busy"
+      <LiveCockpit v-if="live.status === 'live' && pane === 'live'" :live="live" :now="now" :busy="busy" :supports="activeSupports" :pin-shared="pinShared" @support="pane = 'support'"
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
                    @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" />
 
