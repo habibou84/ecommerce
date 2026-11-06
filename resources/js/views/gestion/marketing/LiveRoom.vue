@@ -409,7 +409,7 @@ async function redo() {
           <p v-if="live.status === 'live'" class="flex justify-between py-2.5"><span class="text-slate-600">En direct depuis</span><b>{{ duration }}</b></p>
           <p class="flex justify-between py-2.5"><span class="text-slate-600">Articles</span><b>{{ live.items.length }}</b></p>
           <p class="flex justify-between py-2.5"><span class="text-slate-600">WhatsApp</span>
-            <b v-if="live.whatsapp" class="text-emerald-700">✓ Connecté</b>
+            <b v-if="live.whatsapp" class="text-emerald-700">✓ {{ live.whatsapp_phone || 'Connecté' }}</b>
             <RouterLink v-else to="/gestion/whatsapp?onglet=messages" class="font-bold text-amber-700 underline">Connecter</RouterLink>
           </p>
           <p class="flex items-center justify-between py-2.5"><span class="text-slate-600">Lien du live</span><button type="button" class="font-bold text-emerald-700" @click="share = true">📤 Partager</button></p>

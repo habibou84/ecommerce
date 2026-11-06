@@ -65,7 +65,15 @@ async function finishFacebook() {
     warnings.value = response.warnings ?? []
     const after = startPage()
     finished.value = after ? 'WhatsApp connecté ✓ Retour à votre page…' : 'WhatsApp connecté ✓'
-    if (after && !warnings.value.length) setTimeout(() => router.push(after), 1500)
+    // Toujours retour à la page de départ, même avec des avertissements de Meta (ils restent visibles ici)
+    if (after) {
+      try {
+        sessionStorage.setItem('jm.whatsapp-connected', '1')
+      } catch {
+        // Sans stockage : pas de petit message au retour
+      }
+      setTimeout(() => router.push(after), warnings.value.length ? 2500 : 1500)
+    }
   } catch (e) {
     error.value = errorMessage(e)
   } finally {

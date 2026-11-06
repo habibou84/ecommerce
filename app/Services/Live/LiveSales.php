@@ -1069,6 +1069,7 @@ class LiveSales
             'previous_amount' => $team && $session->status === 'ended' ? $this->previousAmount($session) : null,
             // WhatsApp qui répond aux clients pendant le live : official (Meta), link (relié par QR code) ou null
             'whatsapp' => $team ? self::whatsapp($session->store_id) : null,
+            'whatsapp_phone' => $team ? self::whatsappNumber($session->store_id)['phone'] : null,
         ];
     }
 
@@ -1131,6 +1132,18 @@ class LiveSales
     public static function whatsapp(int $storeId): ?string
     {
         return WhatsappAccount::forStore($storeId)->exists() ? 'official' : (WhatsappLink::connectedFor($storeId) ? 'link' : null);
+    }
+
+    /**
+     * Numéro WhatsApp (Meta) relié à la boutique, et s'il est en mode sans carte, pour l'afficher dans le live.
+     *
+     * @return array{phone: ?string, no_card: bool}
+     */
+    public static function whatsappNumber(int $storeId): array
+    {
+        $account = WhatsappAccount::forStore($storeId)->first();
+
+        return ['phone' => $account?->display_phone, 'no_card' => (bool) $account?->withoutCard()];
     }
 
     /**
