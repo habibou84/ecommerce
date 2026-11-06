@@ -81,7 +81,7 @@ class DeliveryRates
     /**
      * Autres villes (expéditions), les plus utilisées d'abord.
      *
-     * @return list<array{id: int, name: string, uses: int}>
+     * @return list<array{id: int, name: string, uses: int, fee: ?int, learned: bool}>
      */
     public function cities(Store $store): array
     {
@@ -89,7 +89,10 @@ class DeliveryRates
         $cities = Place::visibleTo($store->id)->whereNull('parent_id')->where('is_active', true)->when($home, fn ($q) => $q->whereKeyNot($home->id))->get();
         $uses = Order::where('expedition_city_id', '!=', null)->selectRaw('expedition_city_id, count(*) as n')->groupBy('expedition_city_id')->pluck('n', 'expedition_city_id');
 
-        return $cities->map(fn (Place $c) => ['id' => $c->id, 'name' => $c->name, 'uses' => (int) ($uses[$c->id] ?? 0)])
+        $own = $this->ownZones($store, $cities->pluck('id')->all());
+
+        return $cities->map(fn (Place $c) => ['id' => $c->id, 'name' => $c->name, 'uses' => (int) ($uses[$c->id] ?? 0),
+            'fee' => $own->has($c->id) ? (int) $own[$c->id]->fee : null, 'learned' => $own->has($c->id)])
             ->sort(fn (array $a, array $b) => [$b['uses'], $a['name']] <=> [$a['uses'], $b['name']])->values()->all();
     }
 

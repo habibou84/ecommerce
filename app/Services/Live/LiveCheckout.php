@@ -13,6 +13,7 @@ use App\Models\Order;
 use App\Models\Place;
 use App\Models\Store;
 use App\Services\Orders\OrderDesk;
+use App\Services\Places\DeliveryRates;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\Inbox;
@@ -56,7 +57,12 @@ class LiveCheckout
         $store = Store::findOrFail($conversation->store_id);
         $rows = $this->communes($store)->map(fn (array $c) => [
             'id' => 'live:commune:'.$c['place']->id, 'title' => $c['place']->name, 'description' => $this->feeLabel($c['fee'], $c['from'], $c['eta']),
-        ])->push(['id' => 'live:other', 'title' => 'Autre commune…', 'description' => 'Écrivez-la simplement'])->values()->all();
+        ])->push(['id' => 'live:other', 'title' => 'Autre commune…', 'description' => 'Écrivez-la simplement']);
+        if ($this->expeditions($store)) {
+            $from = $this->cities($store)->min('fee') ?? (int) $store->expedition_fee;
+            $rows->push(['id' => 'live:cities', 'title' => '🚚 Autre ville', 'description' => 'Expédition dès '.Money::format((int) $from)]);
+        }
+        $rows = $rows->values()->all();
 
         return $this->rich($conversation, $text.' (liste des communes)', fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendList($account, $to, $text, 'Choisir ma commune', 'Communes livrées', $rows));
     }
@@ -104,6 +110,8 @@ class LiveCheckout
                 : $this->deliverTo($conversation, $place),
             $action === 'place' && $place !== null => $this->deliverTo($conversation, $place),
             $action === 'confirm' => $this->confirm($conversation, (int) $id),
+            $action === 'cities' => $this->askCity($conversation, $store),
+            $action === 'othercity' => $this->text($conversation, "🚚 *VOTRE VILLE*\n\n✍️ Écrivez *votre ville*\n_Exemple : Bouaké_"),
             $action === 'address' => $this->askCommune($conversation, "📍 *NOUVELLE ADRESSE*\n\n👇 Touchez *« Choisir ma commune »* ci-dessous"),
             $action === 'add' => $this->text($conversation, "➕ *AJOUTER UN ARTICLE*\n\n✍️ Envoyez *le code de l'article*\n_Exemple : A4, ou plusieurs : A4 + A5_"),
             default => $this->text($conversation, "📍 *VOTRE ADRESSE*\n\n✍️ Écrivez *votre commune + votre quartier*\n_Exemple : Cocody Angré 8e tranche_"),
@@ -123,7 +131,8 @@ class LiveCheckout
         $image = $this->tryImage(fn () => $this->images->recap($order, $store->name));
         $lines = $order->items->map(fn ($i) => '• '.$i->title.($i->quantity > 1 ? " × {$i->quantity}" : '').' : '.Money::format((int) $i->total))->implode("\n");
         $place = $order->shipping_place_id ? Place::with('parent')->find($order->shipping_place_id)?->label() : null;
-        $delivery = '🛵 Livraison'.($place ? " ({$place})" : '').' : '.($order->shipping_fee > 0 ? Money::format((int) $order->shipping_fee) : 'offerte');
+        $delivery = ($order->isExpedition() ? '🚚 Expédition' : '🛵 Livraison').($place ? " ({$place})" : '').' : '.($order->shipping_fee > 0 ? Money::format((int) $order->shipping_fee) : 'offerte')
+            .($order->isExpedition() && $order->expedition_prepay ? "\n💳 _À payer avant l'envoi : la boutique vous écrit pour le paiement._" : '');
         $total = '💰 *Total à payer : '.Money::format((int) $order->total).'*';
         $title = "🧾 *COMMANDE N° {$order->reference()}*";
 
@@ -167,29 +176,71 @@ class LiveCheckout
      */
     public function communes(Store $store): Collection
     {
-        $zones = DeliveryZone::forStore($store->id)->where('is_active', true)->with('places')->get();
-        $communes = collect();
+        $home = app(DeliveryRates::class)->home($store);
+        $zones = DeliveryZone::forStore($store->id)->where('is_active', true)->with('places.parent')->get();
+        $targets = collect();
+        $cheaperInside = []; // commune → plus petit prix d'un de ses quartiers à part
         foreach ($zones as $zone) {
             foreach ($zone->places as $place) {
-                $targets = match ($place->type) {
+                $found = match ($place->type) {
                     'commune' => collect([$place]),
-                    'neighborhood' => collect([$place->parent_id ? Place::find($place->parent_id) : null])->filter(),
-                    default => Place::visibleTo($store->id)->where('parent_id', $place->id)->where('type', 'commune')->get(),
+                    'neighborhood' => collect([$place->parent])->filter(),
+                    default => Place::visibleTo($store->id)->with('parent')->where('parent_id', $place->id)->where('type', 'commune')->get(),
                 };
-                foreach ($targets as $commune) {
-                    $known = $communes->get($commune->id);
-                    // Quartier seulement : le prix vaut « dès » pour la commune
-                    $partial = $place->type === 'neighborhood';
-                    if ($known === null || $zone->fee < $known['fee']) {
-                        $communes->put($commune->id, ['place' => $commune, 'fee' => (int) $zone->fee, 'from' => $partial || ($known['from'] ?? false), 'eta' => $zone->eta_label]);
+                foreach ($found as $commune) {
+                    // Seulement la ville de la boutique : les autres villes sont des expéditions
+                    if ($home !== null && $commune->parent_id !== $home->id) {
+                        continue;
+                    }
+                    $targets->put($commune->id, $commune);
+                    if ($place->type === 'neighborhood') {
+                        $cheaperInside[$commune->id] = min($cheaperInside[$commune->id] ?? PHP_INT_MAX, (int) $zone->fee);
                     }
                 }
             }
         }
+        // Le prix le plus précis l'emporte (commune, sinon ville) ; « dès » si un quartier à part coûte moins
+        $communes = $targets->map(function (Place $commune) use ($store, $cheaperInside) {
+            $zone = $this->places->zoneFor($store, $commune);
+
+            return $zone === null ? null : ['place' => $commune, 'fee' => (int) $zone->fee,
+                'from' => ($cheaperInside[$commune->id] ?? PHP_INT_MAX) < (int) $zone->fee, 'eta' => $zone->eta_label];
+        })->filter();
         $popular = $this->popularity($store->id, $communes->keys()->all(), true);
 
-        return $communes->sortBy([fn ($a, $b) => ($popular[$b['place']->id] ?? 0) <=> ($popular[$a['place']->id] ?? 0), fn ($a, $b) => $a['fee'] <=> $b['fee'], fn ($a, $b) => strcoll($a['place']->name, $b['place']->name)])
-            ->take(self::ROWS)->values();
+        return $communes->sortBy([fn ($a, $b) => ($popular[$b['place']->id] ?? 0) <=> ($popular[$a['place']->id] ?? 0), fn ($a, $b) => strcoll($a['place']->name, $b['place']->name)])
+            ->take($this->expeditions($store) ? self::ROWS - 1 : self::ROWS)->values();
+    }
+
+    /** Expéditions vers les autres villes proposées : un prix est réglé dans les tarifs */
+    private function expeditions(Store $store): bool
+    {
+        return $store->expedition_fee !== null;
+    }
+
+    /**
+     * Autres villes (expédition), les plus demandées d'abord, avec leur prix (celui de la ville, sinon celui de toutes
+     * les villes).
+     *
+     * @return Collection<int, array{place: Place, fee: int}>
+     */
+    public function cities(Store $store): Collection
+    {
+        $rates = app(DeliveryRates::class);
+
+        return collect($rates->cities($store))->take(self::ROWS)
+            ->map(fn (array $c) => ['place' => Place::find($c['id']), 'fee' => (int) ($c['fee'] ?? $store->expedition_fee ?? 0)])
+            ->filter(fn (array $c) => $c['place'] !== null)->values();
+    }
+
+    private function askCity(Conversation $conversation, Store $store): bool
+    {
+        $rows = $this->cities($store)->map(fn (array $c) => [
+            'id' => 'live:place:'.$c['place']->id, 'title' => $c['place']->name, 'description' => 'Expédition '.Money::format($c['fee']),
+        ])->push(['id' => 'live:othercity', 'title' => 'Autre ville…', 'description' => 'Écrivez-la simplement'])->values()->all();
+        $text = "🚚 *QUELLE VILLE ?*\n\n👇 Touchez *« Choisir ma ville »*";
+
+        return $this->rich($conversation, $text, fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendList($account, $to, $text, 'Choisir ma ville', 'Villes', $rows));
     }
 
     /**

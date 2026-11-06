@@ -9,12 +9,14 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Places\DeliveryRates;
 use App\Services\Places\Places;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use Jibiat\Socle\Money;
 use Tests\Concerns\LiveProductsHavePhotos;
 use Tests\TestCase;
 
@@ -177,6 +179,38 @@ class LiveWhatsAppCheckoutTest extends TestCase
         // Ajouter un article : la consigne en texte ; un bouton d'une autre cliente ne touche pas la commande
         $this->tap('live:add', 'Ajouter un article', 'button_reply');
         $this->assertStringContainsString('AJOUTER UN ARTICLE', $this->sent()[0]['text']['body']);
+    }
+
+    public function test_commune_prices_win_over_the_city_and_other_cities_are_shipped(): void
+    {
+        $rates = app(DeliveryRates::class);
+        $rates->remember($this->store, $this->place('Cocody'), 2000);
+        $this->store->forceFill(['expedition_fee' => 3000, 'expedition_prepay' => true])->save();
+        $bouake = Place::whereNull('store_id')->whereNull('parent_id')->where('name', 'Bouaké')->firstOrFail();
+        $rates->remember($this->store, $bouake, 4000);
+
+        // Liste des communes : Cocody à son prix (pas celui d'Abidjan), pas de Bouaké, et la ligne des expéditions
+        $this->text('A1');
+        [, $list] = $this->sent();
+        $rows = collect($list['interactive']['action']['sections'][0]['rows']);
+        $this->assertStringStartsWith('Livraison '.Money::format(2000), $rows->firstWhere('title', 'Cocody')['description']);
+        $this->assertStringStartsWith('Livraison '.Money::format(1500), $rows->firstWhere('title', 'Abobo')['description']);
+        $this->assertNull($rows->firstWhere('title', 'Bouaké'));
+        $this->assertLessThanOrEqual(10, $rows->count());
+        $this->assertSame('Expédition dès '.Money::format(3000), $rows->firstWhere('id', 'live:cities')['description']);
+
+        // Autre ville : la liste des villes avec leur prix, puis la commande au prix de Bouaké, payée avant l'envoi
+        $this->tap('live:cities', '🚚 Autre ville');
+        [$cities] = $this->sent();
+        $row = collect($cities['interactive']['action']['sections'][0]['rows'])->firstWhere('title', 'Bouaké');
+        $this->assertSame('Expédition '.Money::format(4000), $row['description']);
+        $this->tap($row['id'], 'Bouaké');
+        $order = Order::sole();
+        $this->assertTrue($order->isExpedition());
+        $this->assertSame(4000, (int) $order->shipping_fee);
+        [$recap] = $this->sent();
+        $this->assertStringContainsString('🚚 Expédition (Bouaké) : '.Money::format(4000), $recap['interactive']['body']['text']);
+        $this->assertStringContainsString("À payer avant l'envoi", $recap['interactive']['body']['text']);
     }
 
     public function test_several_codes_come_together_with_the_commune_question(): void
