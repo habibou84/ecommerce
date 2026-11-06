@@ -418,7 +418,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       <!-- Numéro à l'écran (télé et LIVE Studio) -->
       <section class="rounded-2xl border border-slate-200 bg-white p-4">
         <h2 class="font-extrabold">📞 Le numéro à l'écran</h2>
-        <p class="text-sm text-slate-500">Jamais le mot WhatsApp ni de QR code. Écrit ainsi, il est moins lu par les machines de TikTok, mais une coupure du live reste possible : « Dans la bio » est le plus sûr.</p>
+        <p class="text-sm text-slate-500">Sans le mot WhatsApp. « Dans la bio » reste le plus sûr.</p>
         <div class="mt-2 grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Le numéro à l'écran">
           <button v-for="[value, label, note] in PHONE_STYLES" :key="value" type="button" role="radio" :aria-checked="phoneStyle === value" :disabled="busy"
                   class="rounded-xl border-2 p-2 text-left" :class="phoneStyle === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200'" @click="setPhoneStyle(value)">
@@ -456,7 +456,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
               </div>
               <div class="mt-1 text-right"><button type="button" class="text-xs font-bold text-red-600" @click="removeAllOld">Tout retirer</button></div>
             </template>
-            <p class="mt-2 rounded-lg bg-slate-50 p-2 text-xs text-slate-500">Un écran relié à nouveau sous le même nom remplace l'ancien ; un écran éteint depuis plus de 7 jours est retiré tout seul.</p>
+            <p class="mt-2 rounded-lg bg-slate-50 p-2 text-sm text-slate-500">Un écran éteint depuis 7 jours est retiré tout seul.</p>
           </div>
         </template>
 
@@ -500,10 +500,10 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
         <div class="mt-3 rounded-xl bg-slate-900 p-3 text-white">
           <p class="text-sm">Dans LIVE Studio : <b>Ajouter une source › Lien</b>, collez le lien, puis tapez la taille :</p>
           <p class="text-2xl font-black tracking-wide text-yellow-300">{{ CARD.w }} × {{ CARD.h }}</p>
-          <p class="text-xs text-slate-300">Ne l'agrandissez pas ensuite à la souris : l'image deviendrait floue. (L'ancien 2e lien n'est plus utile : retirez-le de LIVE Studio.)</p>
+          <p class="text-sm text-slate-300">Ne l'agrandissez pas à la souris : l'image serait floue.</p>
         </div>
         <p class="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-          <b>Restez à l'image et répondez aux commentaires.</b> Ne diffusez jamais une vidéo enregistrée ou une image seule à la place de la caméra : TikTok restreint le compte.
+          <b>Restez à l'image.</b> Pas de vidéo enregistrée : TikTok restreint le compte.
         </p>
         <button type="button" class="btn-secondary mt-4 w-full py-3 text-base" :disabled="!link" @click="preview = true">👁 Voir comme sur un téléphone</button>
       </section>

@@ -172,7 +172,7 @@ async function act(action) {
             <input id="st-note" v-model="sending.note" class="input" maxlength="200" />
           </Field>
         </div>
-        <p class="text-sm text-slate-500">Un article doit exister dans l'autre boutique : copiez-le d'abord depuis sa fiche produit (« Dans vos autres boutiques »).</p>
+        <p class="text-sm text-slate-500">Copiez d'abord l'article dans l'autre boutique (fiche produit).</p>
         <VariantLines :lines="sending.items" :location-id="sending.location_id" />
         <button class="btn-brand w-full" :disabled="busy || !sending.items.length">Envoyer</button>
       </form>

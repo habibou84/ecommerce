@@ -250,7 +250,7 @@ async function save() {
           <span class="min-w-0 flex-1"><b class="block first-letter:uppercase">{{ day(l.started_at ?? l.ended_at) }}</b><span class="text-sm text-slate-500">{{ l.items_count }} article(s) · {{ l.summary?.orders ?? 0 }} commande(s) · {{ money(l.summary?.amount ?? 0) }}</span></span>
           <button type="button" class="btn-brand shrink-0 px-3 py-2 text-sm" :disabled="loading === l.id" @click="reuse(l)">{{ loading === l.id ? '…' : 'Reprendre' }}</button>
         </div>
-        <p v-if="past.length" class="text-xs text-slate-500">« Reprendre » remet les mêmes articles, dans le même ordre et aux mêmes prix. Tu peux ensuite en ajouter ou en retirer.</p>
+        <p v-if="past.length" class="text-sm text-slate-500">« Reprendre » remet les mêmes articles et prix.</p>
       </div>
 
       <!-- Sélection -->

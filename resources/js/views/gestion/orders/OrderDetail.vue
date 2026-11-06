@@ -412,7 +412,7 @@ async function addNote() {
       </div>
       <form v-else class="space-y-4" @submit.prevent="createPayLink">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-sm text-slate-600">Le client paie en ligne (Wave, mobile money ou carte) ; la commande est mise à jour dès que le paiement est vérifié. Un nouveau lien remplace le précédent.</p>
+        <p class="text-sm text-slate-600">Le client paie en ligne ; la commande se met à jour toute seule.</p>
         <Field id="link-amount" label="Montant (F)" :error="formErrors.amount" :hint="`Reste à payer : ${money(order.amount_due)}`">
           <input id="link-amount" v-model="form.amount" class="input" type="number" min="5" :max="order.amount_due" required />
         </Field>

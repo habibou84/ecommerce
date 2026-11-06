@@ -111,9 +111,8 @@ onBeforeUnmount(() => timer && clearInterval(timer))
       <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[link.status][1]">{{ STATUS[link.status][0] }}</span>
     </div>
     <p v-if="link.status !== 'connected' && compact" class="text-sm text-slate-600">
-      Reliez votre WhatsApp comme sur WhatsApp Web. Les messages de vos clients arrivent
-      <template v-if="compact">ici</template><RouterLink v-else to="/gestion/messages" class="font-medium text-emerald-700 underline">dans Messages</RouterLink>,
-      vous répondez depuis votre numéro, à tout moment, et tout reste aussi sur votre téléphone.
+      Vos messages clients arrivent
+      <template v-if="compact">ici</template><RouterLink v-else to="/gestion/messages" class="font-medium text-emerald-700 underline">dans Messages</RouterLink>.
     </p>
 
     <!-- Numéro relié -->

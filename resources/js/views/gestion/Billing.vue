@@ -271,7 +271,7 @@ async function cancel(value) {
           <option v-for="(label, key) in data.methods" :key="key" :value="key">{{ label }}</option>
         </select>
         <button class="btn-brand" :disabled="busy || !price" @click="pay">{{ busy ? 'Un instant…' : `Payer ${money(price)}` }}</button>
-        <span class="text-xs text-slate-500">Sans carte bancaire : Wave, Orange Money, MTN ou Moov. Une facture à chaque paiement. Sans renouvellement, votre espace marchand repasse à l'offre gratuite (rien n'est supprimé).</span>
+        <span class="text-sm text-slate-600">Wave, Orange Money, MTN ou Moov. Sans renouvellement : offre gratuite, rien n'est supprimé.</span>
       </div>
     </section>
 

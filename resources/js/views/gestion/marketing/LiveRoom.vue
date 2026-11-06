@@ -387,7 +387,7 @@ async function redo() {
             </div>
           </div>
         </div>
-        <p v-if="live.status === 'live'" class="px-0.5 text-xs text-slate-500">Touchez un code pour l'afficher en grand. « Montrer » met l'article en avant sur la page de vos clients. « Prix live » baisse le prix quelques minutes, avec un chrono sur l'écran.</p>
+        <p v-if="live.status === 'live'" class="px-0.5 text-sm text-slate-500">Touchez un code pour l'afficher en grand.</p>
       </section>
 
 
@@ -459,7 +459,7 @@ async function redo() {
     <!-- Ajouter des articles -->
     <Modal v-if="adding" :title="live?.status === 'live' ? 'Ajouter des articles pendant le live' : 'Ajouter des articles'" @close="closeAdding">
       <div class="space-y-3 text-sm">
-        <p class="text-xs text-slate-500">Les codes déjà annoncés ne changent pas : un nouvel article prend le code suivant. Un article déjà dans le live reçoit les pièces en plus.</p>
+        <p class="text-sm text-slate-600">Un nouvel article prend le code suivant. Les codes annoncés ne changent pas.</p>
         <div v-for="(i, index) in extra" :key="i.variant_id" class="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 p-2">
           <span class="min-w-0 flex-1 basis-[calc(100%-3rem)] font-medium [overflow-wrap:anywhere] sm:basis-0">
             {{ i.title }}
@@ -494,7 +494,7 @@ async function redo() {
     <!-- Partager : lien, message à épingler, WhatsApp -->
     <Modal v-if="flashing" :title="`⚡ Prix live · ${flashing.code}`" @close="flashing = null">
       <form class="space-y-4" @submit.prevent="startFlash">
-        <p class="text-sm text-slate-600">{{ flashing.title }} · prix du live <strong>{{ money(flashing.price) }}</strong>. Pendant le chrono, les clients qui envoient {{ flashing.code }} ont le prix live ; l'article est montré sur l'écran avec le chrono.</p>
+        <p class="text-sm text-slate-600">{{ flashing.title }} · prix du live <strong>{{ money(flashing.price) }}</strong>. Pendant le chrono, {{ flashing.code }} est à ce prix.</p>
         <label class="block">
           <span class="text-sm font-semibold">Prix live</span>
           <input v-model.number="flashForm.price" type="number" min="0" :max="flashing.price - 1" step="100" class="input mt-1" required />
@@ -513,10 +513,10 @@ async function redo() {
     <Modal v-if="share && live" title="Partager le live" @close="share = false">
       <div class="space-y-3 text-sm">
         <LiveLink :url="pageUrl" compact />
-        <p v-if="live.whatsapp === 'official'" class="rounded-xl bg-emerald-50 p-3 text-emerald-900">✓ WhatsApp officiel connecté : les codes et captures envoyés par vos clients sont lus tout seuls.</p>
-        <p v-else-if="live.whatsapp === 'link'" class="rounded-xl bg-amber-50 p-3 text-amber-900">Pour des lives sans risque de blocage, passez au WhatsApp officiel. <RouterLink to="/gestion/whatsapp?onglet=messages" class="font-medium underline">Connecter le WhatsApp officiel</RouterLink></p>
-        <p v-else class="rounded-xl bg-amber-50 p-3 text-amber-900">WhatsApp pas connecté : les clients réservent seulement par le lien. <RouterLink to="/gestion/whatsapp?onglet=messages" class="font-medium underline">Connecter le WhatsApp officiel</RouterLink></p>
-        <p class="text-slate-600">📷 Montrez le code de l'article à l'écran : quand une cliente envoie sa capture sur WhatsApp, le code est lu et l'article réservé. Pour plusieurs pièces : « A2 x3 ».</p>
+        <p v-if="live.whatsapp === 'official'" class="rounded-xl bg-emerald-50 p-3 text-emerald-900"><b class="block">✓ WhatsApp connecté</b>Les codes des clientes sont lus tout seuls.</p>
+        <p v-else-if="live.whatsapp === 'link'" class="rounded-xl bg-amber-50 p-3 text-amber-900">Passez au WhatsApp officiel, sans risque de blocage. <RouterLink to="/gestion/whatsapp?onglet=messages" class="font-medium underline">Connecter le WhatsApp officiel</RouterLink></p>
+        <p v-else class="rounded-xl bg-amber-50 p-3 text-amber-900">WhatsApp pas connecté : réservation par le lien seulement. <RouterLink to="/gestion/whatsapp?onglet=messages" class="font-medium underline">Connecter le WhatsApp officiel</RouterLink></p>
+        <p class="text-slate-600">📷 La capture envoyée sur WhatsApp réserve l'article. Plusieurs pièces : « A2 x3 ».</p>
       </div>
     </Modal>
 
