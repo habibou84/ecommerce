@@ -222,6 +222,8 @@ class AuthController extends Controller
             'ai' => app(Assistant::class)->status($store),
             // Liaison WhatsApp par QR code autorisée pour la boutique (console) : sinon pas de « Relier mon WhatsApp »
             'whatsapp_qr' => $store->whatsapp_qr_enabled && app(Features::class)->enabled('whatsapp_qr', $store),
+            // « Comment ça marche » du live déjà vu (en entier aux 2 premières visites)
+            'live_intro_views' => (int) $user->live_intro_views,
             // Fonctions allumées dans la console pour cette boutique (masquées, en test ou actives)
             'features' => app(Features::class)->forStore($store),
         ];

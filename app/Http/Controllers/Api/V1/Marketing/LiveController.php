@@ -8,11 +8,13 @@ use App\Models\LiveReservation;
 use App\Models\LiveSession;
 use App\Models\ProductVariant;
 use App\Services\Catalog\ImageStore;
+use App\Services\Live\LiveImages;
 use App\Services\Live\LiveSales;
 use App\Services\Places\Places;
 use App\Services\Storefront\ThemeSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 /**
  * Vente en live : préparation (articles, codes, prix, pièces), écran du live (réservations en direct, mode
@@ -134,6 +136,52 @@ class LiveController extends Controller
     /**
      * Article montré en ce moment : mis en avant sur la page du live (item_id null : plus aucun).
      */
+    /**
+     * Photos à épingler du live : les photos des articles et leur code, en hauteur et carrées, 12 articles par photo.
+     */
+    public function pin(int $session, LiveImages $images): JsonResponse
+    {
+        $model = LiveSession::with('items.variant.product.images', 'items.variant.image')->findOrFail($session);
+        $store = $this->currentStore();
+        // Un produit = un code (ses tailles et couleurs le partagent) : la photo du produit, comme sur l'écran du live
+        $tiles = $model->items->groupBy('code')->map(function ($group, $code) {
+            $variant = $group->first()->variant;
+            $image = ($group->count() === 1 ? $variant?->image : null) ?? $variant?->product?->images->first() ?? $variant?->image;
+
+            return ['code' => (string) $code, 'image' => $image];
+        })->values();
+        $pages = $tiles->chunk(LiveImages::PIN_PER_IMAGE)->map(fn ($chunk) => $chunk->values()->all())->values();
+        $build = fn (bool $square) => $pages->map(function (array $chunk) use ($images, $store, $square) {
+            $path = $images->pin($store->id, $chunk, $square);
+
+            return ['path' => $path, 'url' => $images->url($path), 'codes' => array_column($chunk, 'code')];
+        })->all();
+
+        return response()->json(['data' => ['portrait' => $build(false), 'square' => $build(true)]]);
+    }
+
+    /**
+     * Une photo à épingler servie par l'application (même adresse que la page : téléchargement et partage sans blocage).
+     */
+    public function pinFile(Request $request, LiveImages $images): Response
+    {
+        $data = $request->validate(['path' => ['required', 'string', 'max:200']]);
+        abort_unless(preg_match('#^live/'.$this->currentStore()->id.'/pin-(haut|carre)-[a-f0-9]{16}\.jpg$#', $data['path']) === 1, 404);
+
+        return response($images->contents($data['path']), 200, ['Content-Type' => 'image/jpeg', 'Cache-Control' => 'private, max-age=3600']);
+    }
+
+    /**
+     * « Comment ça marche » vu une fois de plus par la personne (affiché en entier aux 2 premières visites).
+     */
+    public function introSeen(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $user->forceFill(['live_intro_views' => min(99, (int) $user->live_intro_views + 1)])->save();
+
+        return response()->json(['data' => ['live_intro_views' => $user->live_intro_views]]);
+    }
+
     public function feature(Request $request, int $session): JsonResponse
     {
         $data = $request->validate(['item_id' => ['nullable', 'integer']]);

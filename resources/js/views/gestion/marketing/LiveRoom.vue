@@ -7,7 +7,7 @@ import Icon from '../../../components/Icon.vue'
 import LiveLink from '../../../components/LiveLink.vue'
 import LiveCockpit from '../../../components/LiveCockpit.vue'
 import LiveScreenTabs from '../../../components/LiveScreenTabs.vue'
-import LiveSigns from '../../../components/LiveSigns.vue'
+import LivePin from '../../../components/LivePin.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
@@ -25,11 +25,11 @@ const props = defineProps({ id: { type: [String, Number], required: true } })
 const router = useRouter()
 const route = useRoute()
 // Deux onglets avant et pendant le live : « Live » (articles, messages, commandes, ce qui passe à l'écran) et
-// « Support » (pancartes à imprimer, liens OBS / TikTok LIVE Studio, écran télé)
+// « Support » (photo à épingler, écran télé, liens OBS / TikTok LIVE Studio)
 const pane = ref(route.query.onglet === 'support' ? 'support' : 'live')
 watch(pane, (p) => router.replace({ query: { ...route.query, onglet: p === 'support' ? 'support' : undefined } }))
-// Support : trois onglets (à imprimer, écran télé, TikTok Studio)
-const supportTab = ref(['print', 'tv', 'studio'].includes(route.query.support) ? route.query.support : 'print')
+// Support : trois onglets (photo à épingler, écran télé, TikTok Studio)
+const supportTab = ref(['pin', 'tv', 'studio'].includes(route.query.support) ? route.query.support : 'pin')
 const screensOn = computed(() => useAuthStore().profile?.features?.live_screens !== false)
 const live = ref(null)
 const error = ref('')
@@ -290,13 +290,13 @@ async function redo() {
         </button>
       </nav>
 
-      <!-- ═══ Support : supports physiques, OBS / LIVE Studio, télé ═══ -->
+      <!-- ═══ Support : photo à épingler, télé, OBS / LIVE Studio ═══ -->
       <template v-if="live.status !== 'ended' && pane === 'support'">
         <div v-if="screensOn" class="grid grid-cols-3 gap-1.5" role="tablist" aria-label="Support">
-          <button v-for="[value, label] in [['print', '🖨 À imprimer'], ['tv', '📺 Écran télé'], ['studio', '📱 TikTok Studio']]" :key="value" type="button" role="tab" :aria-selected="supportTab === value"
+          <button v-for="[value, label] in [['pin', '📌 À épingler'], ['tv', '📺 Écran télé'], ['studio', '📱 TikTok Studio']]" :key="value" type="button" role="tab" :aria-selected="supportTab === value"
                   class="rounded-xl border-[1.5px] px-1 py-2 text-xs font-extrabold" :class="supportTab === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600'" @click="supportTab = value">{{ label }}</button>
         </div>
-        <LiveSigns v-if="!screensOn || supportTab === 'print'" :live="live" open @updated="live = $event" />
+        <LivePin v-if="!screensOn || supportTab === 'pin'" :live="live" />
         <LiveScreenTabs v-else :id="id" screen-only :part="supportTab" @add="pane = 'live'" />
       </template>
 

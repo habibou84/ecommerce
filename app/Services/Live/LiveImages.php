@@ -25,6 +25,8 @@ class LiveImages
 {
     private const WIDTH = 800;
 
+    public const PIN_PER_IMAGE = 12;
+
     /**
      * Adresse publique de la photo de l'article, ou null s'il n'en a pas.
      */
@@ -339,6 +341,70 @@ class LiveImages
         $this->save($path, $c);
 
         return $this->disk()->url($path);
+    }
+
+    /**
+     * Photo à épingler (TikTok, Facebook, statut WhatsApp) : les photos des articles du live et leur code en petit dans
+     * le coin, rien d'autre (ni nom, ni prix, ni numéro). En hauteur (1080 × 1920, 3 × 4) ou carrée (1080 × 1080,
+     * 4 × 3) : 12 articles au plus par photo. Chemin du fichier sur le disque du catalogue.
+     *
+     * @param  list<array{code: string, image: ?ProductImage}>  $tiles
+     */
+    public function pin(int $storeId, array $tiles, bool $square = false): string
+    {
+        $tiles = array_slice($tiles, 0, self::PIN_PER_IMAGE);
+        $key = substr(md5(json_encode([array_map(fn ($t) => [$t['code'], $t['image']?->path], $tiles), $square, 2])), 0, 16);
+        $path = "live/{$storeId}/pin-".($square ? 'carre' : 'haut')."-{$key}.jpg";
+        if ($this->disk()->exists($path)) {
+            return $path;
+        }
+
+        [$w, $h, $cols, $rows] = $square ? [1080, 1080, 4, 3] : [1080, 1920, 3, 4];
+        $c = imagecreatetruecolor($w, $h);
+        $night = imagecolorallocate($c, 15, 23, 42);
+        $tile = imagecolorallocate($c, 30, 41, 59);
+        $white = imagecolorallocate($c, 255, 255, 255);
+        $ink = imagecolorallocate($c, 15, 23, 42);
+        imagefill($c, 0, 0, $night);
+
+        // Grille centrée : moins d'articles, moins de lignes (et des cases plus grandes quand il y en a peu)
+        $count = max(1, count($tiles));
+        if ($count <= 4) {
+            [$cols, $rows] = [2, (int) ceil($count / 2)];
+        } elseif ($count <= 6) {
+            [$cols, $rows] = $square ? [3, (int) ceil($count / 3)] : [2, (int) ceil($count / 2)];
+        } else {
+            $rows = (int) ceil($count / $cols);
+        }
+        $gap = 16;
+        $pad = 24;
+        $tw = intdiv($w - 2 * $pad - ($cols - 1) * $gap, $cols);
+        $th = min(intdiv($h - 2 * $pad - ($rows - 1) * $gap, $rows), (int) round($tw * 1.4));
+        $top = intdiv($h - ($rows * $th + ($rows - 1) * $gap), 2);
+        $size = $square ? 30 : 40;
+
+        foreach (array_values($tiles) as $i => $t) {
+            $row = intdiv($i, $cols);
+            $inRow = min($cols, $count - $row * $cols);
+            $left = intdiv($w - ($inRow * $tw + ($inRow - 1) * $gap), 2);
+            $x = $left + ($i % $cols) * ($tw + $gap);
+            $y = $top + $row * ($th + $gap);
+            imagefilledrectangle($c, $x, $y, $x + $tw, $y + $th, $tile);
+            $photo = $t['image'] ? $this->load($t['image']) : null;
+            if ($photo) {
+                $this->whole($c, $photo, $x, $y, $tw, $th);
+            }
+            // Code en petit, en bas à gauche
+            $bw = $this->width($t['code'], $size, 'ExtraBold') + (int) ($size * 0.7);
+            $bh = (int) ($size * 1.45);
+            [$bx, $by] = [$x + 10, $y + $th - $bh - 10];
+            imagefilledrectangle($c, $bx, $by, $bx + $bw, $by + $bh, $white);
+            imagettftext($c, $size, 0, $bx + (int) ($size * 0.35), $by + (int) ($size * 1.2), $ink, $this->font('ExtraBold'), $t['code']);
+        }
+
+        $this->save($path, $c);
+
+        return $path;
     }
 
     public function url(string $path): string
