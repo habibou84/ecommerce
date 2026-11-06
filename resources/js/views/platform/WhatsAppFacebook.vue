@@ -73,7 +73,7 @@ function leave() {
 }
 
 function goBack(params) {
-  window.location.assign(`${back.value}#${new URLSearchParams({ whatsapp: '1', ...params })}`)
+  window.location.assign(`${back.value}#${new URLSearchParams({ whatsapp: '1', ...params, ...(from.value ? { depuis: from.value } : {}) })}`)
 }
 
 // Téléphone : la page entière chez Facebook
