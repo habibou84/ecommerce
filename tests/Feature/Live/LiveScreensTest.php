@@ -11,6 +11,7 @@ use App\Services\Catalog\CatalogWriter;
 use App\Services\Places\Places;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\LiveProductsHavePhotos;
 use Tests\TestCase;
 
 /**
@@ -19,6 +20,8 @@ use Tests\TestCase;
  */
 class LiveScreensTest extends TestCase
 {
+    use LiveProductsHavePhotos;
+
     private Store $store;
 
     private Product $robe;
@@ -28,6 +31,7 @@ class LiveScreensTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->giveProductsPhotos();
         Storage::fake('public');
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode', 'whatsapp_phone' => '+2250700000001']);
         app(Places::class)->provisionDefaultZone($this->store);
@@ -215,6 +219,25 @@ class LiveScreensTest extends TestCase
         // Articles modifiés : la photo est à refaire
         $items = collect($state['items'])->map(fn ($i) => ['variant_id' => $i['variant_id'], 'price' => $i['price'], 'quantity' => $i['quantity'] + 1])->all();
         $this->storeApi($this->store, 'PUT', "lives/{$this->live}", ['title' => $state['title'], 'items' => $items])->assertOk()->assertJsonPath('data.pin_ready', false);
+    }
+
+    public function test_an_article_without_photo_does_not_go_live(): void
+    {
+        // Le sac perd sa photo : le live ne démarre pas et dit lequel
+        $sac = Product::where('title', 'Sac cabas')->sole();
+        $sac->images()->delete();
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/start")->assertStatus(422)
+            ->assertJsonPath('message', 'Ajoute une photo avant le live : A2 Sac cabas.');
+
+        // Photo ajoutée : le live démarre ; un article sans photo ne peut pas être ajouté pendant le live
+        $this->withCredentials()->withHeaders(['Referer' => $this->storeUrl($this->store, '/gestion')])
+            ->post($this->storeUrl($this->store, "/api/v1/products/{$sac->id}/images"), ['image' => UploadedFile::fake()->image('sac.jpg', 600, 800)], ['Accept' => 'application/json'])
+            ->assertCreated();
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/start")->assertOk();
+        $foulard = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Foulard', 'variants' => [['price' => 3000, 'on_hand' => 5]]]);
+        $foulard->images()->delete();
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/items", ['items' => [['variant_id' => $foulard->variants()->value('id'), 'quantity' => 1]]])
+            ->assertStatus(422)->assertJsonPath('message', 'Ajoute une photo à « Foulard » avant de le mettre en live.');
     }
 
     public function test_past_lives_have_their_figures(): void
