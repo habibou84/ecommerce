@@ -69,9 +69,9 @@ function dropSupport(key) {
 // Fenêtre d'explication d'un support : à quoi il sert, comment le mettre en place ; coché quand il est prêt
 const sheet = ref(null)
 const SUPPORT_HELP = {
-  tv: { why: 'Vos articles s\'affichent en grand derrière vous. Vous les faites défiler depuis ce téléphone, les clientes les voient en direct.', video: null },
-  studio: { why: 'La carte de l\'article montré apparaît sur votre live TikTok, en haut à gauche.', video: null },
-  pin: { why: 'Une image avec vos articles et leurs codes, en fond vert sur votre live : les clientes la voient pendant tout le live.', video: null },
+  tv: { why: 'Vos articles s\'affichent en grand derrière vous. Vous les faites défiler depuis ce téléphone, les clientes les voient en direct.', video: '/videos/supports/tv.mp4?v=1', poster: '/videos/supports/tv.jpg?v=1' },
+  studio: { why: 'La carte de l\'article montré apparaît sur votre live TikTok, en haut à gauche.', video: '/videos/supports/studio.mp4?v=1', poster: '/videos/supports/studio.jpg?v=1' },
+  pin: { why: 'Une image avec vos articles et leurs codes, en fond vert sur votre live : les clientes la voient pendant tout le live.', video: '/videos/supports/pin.mp4?v=1', poster: '/videos/supports/pin.jpg?v=1' },
 }
 // Écrans reliés (télé, LIVE Studio) : état de chaque support, et télé cochée toute seule dès qu'elle est reliée
 const screens = ref(null)
@@ -387,7 +387,7 @@ async function redo() {
         <!-- Fenêtre d'un support : vidéo, à quoi il sert, comment le mettre en place, puis « Choisir » -->
         <Modal v-if="sheet" :title="SUPPORTS.find(([k]) => k === sheet).slice(1).join(' ')" @close="sheet = null">
           <div class="space-y-3">
-            <video v-if="SUPPORT_HELP[sheet].video" :src="SUPPORT_HELP[sheet].video" class="aspect-video w-full rounded-2xl bg-slate-900" controls playsinline preload="metadata" />
+            <video v-if="SUPPORT_HELP[sheet].video" :key="sheet" :src="SUPPORT_HELP[sheet].video" :poster="SUPPORT_HELP[sheet].poster" class="aspect-video w-full rounded-2xl bg-slate-900" controls playsinline preload="metadata" />
             <p class="rounded-xl bg-emerald-50 p-3 text-[15px] font-semibold text-emerald-900">{{ SUPPORT_HELP[sheet].why }}</p>
             <template v-if="sheet === 'pin'">
               <ol class="space-y-2 text-[15px]">
