@@ -22,12 +22,6 @@ function loadSdk(appId, version) {
   return sdk
 }
 
-// Téléphone : la fenêtre Facebook s'ouvre dans un autre onglet et son résultat se perd souvent ; on passe par la
-// page entière (aller chez Facebook, puis retour sur la plateforme avec le code)
-export function prefersRedirect() {
-  return window.matchMedia?.('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-}
-
 // Navigateur intégré de WhatsApp, Facebook, Instagram, TikTok… : les fenêtres et les retours y marchent mal
 export function inAppBrowser() {
   return /FBAN|FBAV|FB_IAB|Instagram|WhatsApp|musical_ly|TikTok|Line\/|; wv\)/i.test(navigator.userAgent)
