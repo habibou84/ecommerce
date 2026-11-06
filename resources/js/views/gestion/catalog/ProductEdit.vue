@@ -550,7 +550,7 @@ const margin = computed(() => {
       <div class="flex flex-wrap items-center gap-2">
         <label class="btn-secondary cursor-pointer px-3 py-1.5">
           <Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Photo
-          <input type="file" accept="image/*" capture="environment" class="hidden" @change="onFiles" />
+          <input type="file" accept="image/*" class="hidden" @change="onFiles" />
         </label>
         <label class="btn-secondary cursor-pointer px-3 py-1.5">
           + Galerie
@@ -588,7 +588,7 @@ const margin = computed(() => {
             <!-- Sur téléphone, le choix de fichier n'ouvre que la galerie : l'appareil photo a son propre bouton -->
             <label class="btn-secondary cursor-pointer px-3 py-1.5" :class="{ 'opacity-60': uploading }">
               <Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Photo
-              <input type="file" accept="image/*" capture="environment" class="hidden" :disabled="uploading" @change="onFiles" />
+              <input type="file" accept="image/*" class="hidden" :disabled="uploading" @change="onFiles" />
             </label>
             <label class="btn-secondary cursor-pointer px-3 py-1.5">
               {{ uploading ? 'Envoi…' : '+ Galerie' }}
