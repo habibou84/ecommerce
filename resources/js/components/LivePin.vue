@@ -6,7 +6,13 @@ import http, { errorMessage } from '../lib/http'
  * Photo à épingler (Support du live) : les photos des articles et leur code, rien d'autre. En hauteur (TikTok, statut
  * WhatsApp) ou carrée (Facebook), 12 articles par photo. À télécharger ou à partager, refaite quand les articles changent.
  */
-const props = defineProps({ live: { type: Object, required: true } })
+const props = defineProps({
+  live: { type: Object, required: true },
+  // Sans titre : affichée sous la case « Étiquette à épingler » du Support
+  bare: { type: Boolean, default: false },
+})
+// Téléchargée ou partagée : la page du live sait que l'étiquette épinglée est à jour
+const emit = defineEmits(['shared'])
 
 const pages = ref(null)
 const format = ref('portrait')
@@ -53,6 +59,7 @@ async function download() {
       setTimeout(() => URL.revokeObjectURL(url), 5000)
     }
     flash(shown.value.length > 1 ? 'Photos téléchargées ✓' : 'Photo téléchargée ✓')
+    emit('shared', signature.value)
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -72,6 +79,7 @@ async function share() {
       return
     }
     await navigator.share({ files })
+    emit('shared', signature.value)
   } catch (e) {
     if (e?.name !== 'AbortError') error.value = errorMessage(e)
   } finally {
@@ -82,7 +90,7 @@ async function share() {
 
 <template>
   <section class="card space-y-3 p-4">
-    <div>
+    <div v-if="!bare">
       <h3 class="font-extrabold">📌 Photo à épingler</h3>
       <p class="mt-1 text-sm text-slate-600">Tes articles et leurs codes sur une image. Épingle-la avant le live.</p>
     </div>

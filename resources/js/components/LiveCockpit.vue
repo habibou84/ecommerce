@@ -16,8 +16,12 @@ const props = defineProps({
   live: { type: Object, required: true },
   now: { type: Number, required: true },
   busy: { type: Boolean, default: false },
+  // Supports choisis dans « Support » : 'tv', 'studio', 'pin' (un ou deux)
+  supports: { type: Array, default: () => ['tv'] },
+  // Codes de la dernière étiquette téléchargée ou partagée
+  pinShared: { type: String, default: null },
 })
-const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode'])
+const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode', 'support'])
 // Ce que montrent les écrans du live (télé, OBS, LIVE Studio) : un article, défilement, comment commander
 const MODES = [['product', '📦 Un article'], ['scroll', '🔁 Défilement'], ['grid', '🧩 Vitrine'], ['how', '🛒 Commander']]
 const screenMode = computed(() => props.live.display_mode || 'product')
@@ -25,7 +29,7 @@ const screenMode = computed(() => props.live.display_mode || 'product')
 // « Agrandir » : ce que montrent vraiment les écrans (télé, OBS, LIVE Studio) en grand, avec les articles à toucher
 const expanded = ref(false)
 // Onglet de l'agrandi : la télé (« Écran ») ou le téléphone d'une cliente sur TikTok LIVE Studio
-const view = ref('screen')
+const view = ref(props.supports.includes('tv') ? 'screen' : 'studio')
 const display = ref(null)
 let displayTimer
 async function loadDisplay() {
@@ -58,6 +62,44 @@ onUnmounted(() => {
 const auth = useAuthStore()
 // Cartes des articles (photo + code) à afficher à l'écran, sauf si la console les masque
 const cardsOn = computed(() => auth.profile?.features?.live_screens !== false)
+
+// ── Supports : en haut, ce que voient les clientes ──
+const onTv = computed(() => cardsOn.value && props.supports.includes('tv'))
+const onStudio = computed(() => cardsOn.value && props.supports.includes('studio'))
+const onPin = computed(() => props.supports.includes('pin'))
+// L'article montré : sur la télé ou LIVE Studio, ou sur la pancarte tenue quand la console masque les écrans
+const showsArticle = computed(() => onTv.value || onStudio.value || !cardsOn.value)
+const screenLabel = computed(() => (!cardsOn.value ? 'PANCARTE MONTRÉE'
+  : onTv.value && onStudio.value ? '📺📱 À L\'ÉCRAN' : onTv.value ? '📺 À LA TÉLÉ' : '📱 SUR TIKTOK'))
+const SHORT_MODES = [['product', 'Article'], ['scroll', 'Défile'], ['grid', 'Vitrine'], ['how', 'Commander']]
+// Étiquette : à ré-épingler quand les articles ont changé depuis la dernière téléchargée ou partagée
+const pinSignature = computed(() => props.live.items.map((i) => i.code).join(','))
+const pinCount = computed(() => new Set(props.live.items.map((i) => i.code)).size)
+const pinStale = computed(() => props.pinShared !== pinSignature.value)
+// Télé ou LIVE Studio déconnecté : bandeau rouge qui renvoie vers Support
+const screens = ref(null)
+let screensTimer
+async function loadScreens() {
+  if (!onTv.value && !onStudio.value) return
+  try {
+    screens.value = (await http.get('/lives/screens')).data.data
+  } catch {
+    // lecture suivante
+  }
+}
+onMounted(() => {
+  loadScreens()
+  screensTimer = setInterval(() => !document.hidden && loadScreens(), 10000)
+})
+onUnmounted(() => clearInterval(screensTimer))
+watch(() => props.supports.join(), loadScreens)
+const offline = computed(() => {
+  if (!screens.value) return []
+  const out = []
+  if (onTv.value && !screens.value.some((s) => !s.is_link && s.online)) out.push('La télé n\'est pas connectée')
+  if (onStudio.value && !screens.value.some((s) => s.is_link && s.online)) out.push('LIVE Studio n\'est pas connecté')
+  return out
+})
 
 // ── Un produit = une pancarte (ses tailles et couleurs la partagent), dans l'ordre de la liste ──
 const products = computed(() => {
@@ -98,7 +140,13 @@ function chrono(item) {
 // ── Onglets ──
 const tab = ref('articles')
 const articleFilter = ref('all')
-const shownProducts = computed(() => products.value.filter((p) => articleFilter.value === 'all' || p.remaining > 0))
+// Triés par épuisement : ceux qui partent vite en haut, les épuisés en bas
+const almostGone = (p) => p.remaining > 0 && (p.remaining <= 2 || p.remaining / p.quantity <= 0.25)
+const shownProducts = computed(() => products.value
+  .filter((p) => articleFilter.value === 'all' || p.remaining > 0)
+  .map((p, index) => ({ p, index }))
+  .sort((a, b) => (!a.p.remaining - !b.p.remaining) || (a.p.remaining / a.p.quantity - b.p.remaining / b.p.quantity) || a.index - b.index)
+  .map(({ p }) => p))
 const soldPieces = computed(() => products.value.reduce((sum, p) => sum + p.sold, 0))
 const allPieces = computed(() => products.value.reduce((sum, p) => sum + p.quantity, 0))
 
@@ -270,18 +318,17 @@ const ago = (iso) => {
         </span>
       </button>
     </Teleport>
-    <!-- En haut, petits et non fixes : partager le lien, terminer le live -->
-    <div class="flex gap-2">
-      <button type="button" class="flex-1 rounded-lg border-[1.5px] border-slate-900 bg-white py-1.5 text-xs font-extrabold" @click="emit('share')">📤 Partager le lien</button>
-      <button type="button" class="flex-1 rounded-lg bg-slate-900 py-1.5 text-xs font-extrabold text-white" :disabled="busy" @click="emit('end')">⏹ Terminer le live</button>
-    </div>
+    <!-- Support déconnecté : à régler dans « Support » -->
+    <button v-if="offline.length" type="button" class="flex w-full items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-left text-sm font-extrabold text-white" @click="emit('support')">
+      <span class="min-w-0 flex-1">⚠ {{ offline.join(' · ') }}</span><span class="shrink-0 underline">Régler</span>
+    </button>
 
     <!-- L'article en vue (grande photo, pièces restantes) et les onglets ; en ligne, réduit et fixe en haut, dans
          Messages et Commandes -->
     <div class="space-y-2" :class="tab === 'articles' ? '' : 'sticky top-2 z-20'">
-      <section class="rounded-2xl border-2 border-slate-900 bg-white p-2 shadow-sm">
+      <section v-if="showsArticle" class="rounded-2xl border-2 border-slate-900 bg-white p-2 shadow-sm">
         <div class="flex items-center gap-2 text-[11px] font-extrabold tracking-wider text-slate-900">
-          <span>{{ screenMode === 'product' ? 'À L\'ÉCRAN' : 'PANCARTE MONTRÉE' }}<template v-if="current"> · {{ currentIndex + 1 }} / {{ products.length }}</template></span>
+          <span>{{ screenLabel }}<template v-if="current"> · {{ currentIndex + 1 }} / {{ products.length }}</template></span>
           <button v-if="cardsOn" type="button" class="ml-auto rounded-lg bg-slate-900 px-2 py-1 text-[11px] font-extrabold tracking-normal text-white" @click="expanded = true">⤢ Agrandir</button>
         </div>
         <!-- Défilement ou « comment commander » : les écrans ne montrent pas l'article ci-dessous, on le dit clairement -->
@@ -316,10 +363,26 @@ const ago = (iso) => {
           </button>
           <span v-else-if="current" class="flex flex-1 items-center justify-center rounded-lg border-[1.5px] border-dashed border-slate-300 py-1.5 text-xs font-bold text-slate-500">Dernier article</span>
         </div>
+        <!-- Ce que montrent la télé et LIVE Studio : un article, défilement, vitrine, comment commander -->
+        <div v-if="(onTv || onStudio) && (!current || tab === 'articles')" class="mt-1.5 grid grid-cols-4 gap-1" role="radiogroup" aria-label="Que montrer à l'écran ?">
+          <button v-for="[value, label] in SHORT_MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
+                  class="rounded-lg border-[1.5px] px-0.5 py-1.5 text-[11.5px] font-extrabold" :class="screenMode === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="emit('mode', value)">{{ label }}</button>
+        </div>
+      </section>
+
+      <!-- Étiquette à épingler : à ré-épingler quand les articles ont changé -->
+      <section v-if="onPin" class="flex items-center gap-2.5 rounded-2xl border-2 border-slate-900 bg-white p-2">
+        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-xl" aria-hidden="true">📌</span>
+        <span class="min-w-0 flex-1 text-sm">
+          <b class="block">Étiquette · {{ pinCount }} article{{ pinCount > 1 ? 's' : '' }}</b>
+          <span v-if="pinStale" class="block font-bold text-amber-800">⚠ {{ pinShared ? 'Articles changés : épinglez la nouvelle' : 'À télécharger et épingler' }}</span>
+          <span v-else class="block text-slate-600">✓ À jour</span>
+        </span>
+        <button type="button" class="shrink-0 rounded-lg px-3 py-2 text-sm font-extrabold" :class="pinStale ? 'bg-emerald-700 text-white' : 'border-[1.5px] border-slate-300'" @click="emit('support')">{{ pinStale ? 'Ouvrir' : 'Voir' }}</button>
       </section>
 
       <nav class="grid grid-cols-3 overflow-hidden rounded-xl border border-slate-200 bg-white text-[13px] font-extrabold" role="tablist">
-        <button v-for="[key, label, count] in [['articles', 'Articles', 0], ['messages', 'Messages', questions.length], ['commandes', 'Commandes', newOrders]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
+        <button v-for="[key, label, count] in [['articles', 'Articles', 0], ['commandes', 'Commandes', newOrders], ['messages', 'Messages', questions.length]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
                 class="relative py-2.5" :class="tab === key ? 'bg-slate-900 text-white' : 'text-slate-500'" @click="tab = key">
           {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{{ count }}</span>
         </button>
@@ -340,7 +403,8 @@ const ago = (iso) => {
             <span class="absolute top-1 left-1 rounded border-[2.5px] border-slate-900 bg-white px-1 text-sm font-black">{{ p.code }}</span>
             <span v-if="current?.code === p.code" class="absolute top-1 right-1 rounded-full bg-slate-900 px-1.5 text-[9px] font-black text-white">MONTRÉE</span>
             <span v-else-if="next?.code === p.code" class="absolute top-1 right-1 rounded-full border-[1.5px] border-slate-900 bg-white px-1.5 text-[9px] font-black">SUIVANTE</span>
-            <span v-else-if="!p.remaining" class="absolute top-1 right-1 rounded-full bg-slate-500 px-1.5 text-[9px] font-black text-white">VENDU</span>
+            <span v-else-if="!p.remaining" class="absolute top-1 right-1 rounded-full bg-slate-500 px-1.5 text-[9px] font-black text-white">ÉPUISÉ</span>
+            <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[9px] font-black text-white">BIENTÔT ÉPUISÉ</span>
           </span>
           <span class="block px-2 pt-1 pb-1.5" :class="{ 'opacity-50': !p.remaining }">
             <b class="block truncate text-xs">{{ p.title }}</b>

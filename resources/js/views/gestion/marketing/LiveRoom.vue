@@ -28,9 +28,51 @@ const route = useRoute()
 // « Support » (photo à épingler, écran télé, liens OBS / TikTok LIVE Studio)
 const pane = ref(route.query.onglet === 'support' ? 'support' : 'live')
 watch(pane, (p) => router.replace({ query: { ...route.query, onglet: p === 'support' ? 'support' : undefined } }))
-// Support : trois onglets (photo à épingler, écran télé, TikTok Studio)
-const supportTab = ref(['pin', 'tv', 'studio'].includes(route.query.support) ? route.query.support : 'pin')
 const screensOn = computed(() => useAuthStore().profile?.features?.live_screens !== false)
+// Support : sur quoi la vendeuse est en live (un ou deux supports), gardé sur cet appareil pour ce live. L'onglet Live
+// montre en haut ce que voient les clientes sur ces supports.
+const SUPPORTS = [['tv', '📺', 'Télé ou tablette'], ['studio', '📱', 'TikTok LIVE Studio'], ['pin', '📌', 'Étiquette à épingler']]
+const supportKey = `jm.live-supports.${props.id}`
+function readStore(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? 'null')
+  } catch {
+    return null
+  }
+}
+function writeStore(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // stockage indisponible : le choix vaut pour cette visite
+  }
+}
+const asked = ['pin', 'tv', 'studio'].includes(route.query.support) ? [route.query.support] : null
+const supports = ref(asked ?? readStore(supportKey) ?? (screensOn.value ? ['tv'] : ['pin']))
+const supportList = computed(() => SUPPORTS.filter(([key]) => screensOn.value || key === 'pin'))
+// Sans écrans (console), seule l'étiquette reste
+const activeSupports = computed(() => {
+  const list = supports.value.filter((s) => screensOn.value || s === 'pin')
+  return list.length ? list : ['pin']
+})
+watch(supports, (v) => writeStore(supportKey, v), { deep: true })
+// Deux supports au plus ; toujours au moins un
+function toggleSupport(key) {
+  const list = [...activeSupports.value]
+  if (list.includes(key)) {
+    if (list.length > 1) supports.value = list.filter((s) => s !== key)
+    return
+  }
+  list.push(key)
+  supports.value = list.slice(-2)
+}
+// Étiquette : la dernière téléchargée ou partagée (ses codes), pour prévenir quand elle n'est plus à jour
+const pinKey = `jm.live-pin.${props.id}`
+const pinShared = ref(readStore(pinKey))
+function onPinShared(signature) {
+  pinShared.value = signature
+  writeStore(pinKey, signature)
+}
 const live = ref(null)
 const error = ref('')
 const busy = ref(false)
@@ -290,19 +332,40 @@ async function redo() {
         </button>
       </nav>
 
-      <!-- ═══ Support : photo à épingler, télé, OBS / LIVE Studio ═══ -->
+      <!-- ═══ Support : un ou deux supports cochés, le réglage de chacun sous sa case, puis les infos du live ═══ -->
       <template v-if="live.status !== 'ended' && pane === 'support'">
-        <div v-if="screensOn" class="grid grid-cols-3 gap-1.5" role="tablist" aria-label="Support">
-          <button v-for="[value, label] in [['pin', '📌 À épingler'], ['tv', '📺 Écran télé'], ['studio', '📱 TikTok Studio']]" :key="value" type="button" role="tab" :aria-selected="supportTab === value"
-                  class="rounded-xl border-[1.5px] px-1 py-2 text-xs font-extrabold" :class="supportTab === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600'" @click="supportTab = value">{{ label }}</button>
+        <p class="text-base font-extrabold">Je suis en live avec… <span v-if="supportList.length > 1" class="text-sm font-semibold text-slate-500">(1 ou 2)</span></p>
+        <div class="space-y-2">
+          <section v-for="[key, icon, label] in supportList" :key="key" class="rounded-2xl border-2 bg-white" :class="activeSupports.includes(key) ? 'border-slate-900' : 'border-slate-200'">
+            <button type="button" role="checkbox" :aria-checked="activeSupports.includes(key)" class="flex w-full items-center gap-3 p-3 text-left" @click="toggleSupport(key)">
+              <span class="text-2xl" aria-hidden="true">{{ icon }}</span>
+              <b class="min-w-0 flex-1 text-base">{{ label }}</b>
+              <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 text-sm font-black" :class="activeSupports.includes(key) ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300'">{{ activeSupports.includes(key) ? '✓' : '' }}</span>
+            </button>
+            <div v-if="activeSupports.includes(key)" class="border-t border-slate-200 p-2">
+              <LivePin v-if="key === 'pin'" :live="live" bare @shared="onPinShared" />
+              <LiveScreenTabs v-else :id="id" screen-only :part="key" :no-phone="key === 'studio' && activeSupports.includes('tv')" @add="pane = 'live'" />
+            </div>
+          </section>
         </div>
-        <LivePin v-if="!screensOn || supportTab === 'pin'" :live="live" />
-        <LiveScreenTabs v-else :id="id" screen-only :part="supportTab" @add="pane = 'live'" />
+
+        <p class="pt-2 text-base font-extrabold">Infos du live</p>
+        <div class="divide-y divide-slate-100 rounded-2xl bg-white px-4 text-sm">
+          <p class="flex justify-between py-2.5"><span class="text-slate-600">Live</span><b class="truncate pl-3">{{ live.title }}</b></p>
+          <p v-if="live.status === 'live'" class="flex justify-between py-2.5"><span class="text-slate-600">En direct depuis</span><b>{{ duration }}</b></p>
+          <p class="flex justify-between py-2.5"><span class="text-slate-600">Articles</span><b>{{ live.items.length }}</b></p>
+          <p class="flex justify-between py-2.5"><span class="text-slate-600">WhatsApp</span>
+            <b v-if="live.whatsapp" class="text-emerald-700">✓ Connecté</b>
+            <RouterLink v-else to="/gestion/whatsapp?onglet=messages" class="font-bold text-amber-700 underline">Connecter</RouterLink>
+          </p>
+          <p class="flex items-center justify-between py-2.5"><span class="text-slate-600">Lien du live</span><button type="button" class="font-bold text-emerald-700" @click="share = true">📤 Partager</button></p>
+        </div>
+        <button v-if="live.status === 'live'" type="button" class="w-full rounded-2xl bg-slate-900 py-3 text-base font-extrabold text-white" :disabled="busy" @click="end">⏹ Terminer le live</button>
       </template>
 
       <!-- ═══ En-tête selon l'état ═══ -->
       <!-- Pendant le live : la pancarte montrée et les onglets Articles, Messages, Commandes -->
-      <LiveCockpit v-if="live.status === 'live' && pane === 'live'" :live="live" :now="now" :busy="busy"
+      <LiveCockpit v-if="live.status === 'live' && pane === 'live'" :live="live" :now="now" :busy="busy" :supports="activeSupports" :pin-shared="pinShared" @support="pane = 'support'"
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
                    @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" />
 
