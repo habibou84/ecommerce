@@ -166,6 +166,21 @@ watch(sheetOpen, (open) => {
 onBeforeUnmount(() => {
   for (const el of [document.documentElement, document.body]) el.style.overscrollBehaviorY = ''
 })
+// Bandeau « mode sans carte » : masquable, il revient au prochain lancement
+const noCardHidden = ref(false)
+try {
+  noCardHidden.value = sessionStorage.getItem('jm.nocard-hidden') === '1'
+} catch {
+  noCardHidden.value = false
+}
+function hideNoCard() {
+  noCardHidden.value = true
+  try {
+    sessionStorage.setItem('jm.nocard-hidden', '1')
+  } catch {
+    // masqué pour cette page seulement
+  }
+}
 function closeSheet() {
   sheetDrag.value = 0
   router.push('/gestion')
@@ -416,10 +431,11 @@ async function switchTo(store) {
         <span><Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Le support Jibiat Marchand ({{ support.admin }}) a accès à votre gestion jusqu'à {{ supportUntil }} : « {{ support.reason }} »</span>
         <button class="underline" @click="endSupport">Mettre fin</button>
       </div>
-      <!-- Meta refuse les messages automatiques faute de carte : court, en grand, lien direct vers les cartes chez Meta -->
-      <div v-if="auth.profile?.whatsapp_payment && auth.can('store.manage')" class="flex flex-col gap-2 bg-amber-100 px-4 py-3 text-amber-950 sm:flex-row sm:items-center sm:gap-3">
-        <span class="flex min-w-0 flex-1 items-center gap-3"><span class="text-3xl" aria-hidden="true">💳</span><span><b class="block text-[16px] leading-tight">Ajoute une carte chez Meta</b><span class="text-sm">Sinon, les messages automatiques ne partent pas.</span></span></span>
-        <a :href="auth.profile.whatsapp_payment.url" target="_blank" rel="noopener" class="shrink-0 rounded-xl bg-amber-900 px-4 py-2.5 text-center text-sm font-black text-white">Ajouter ma carte chez Meta ▸</a>
+      <!-- Mode sans carte : une information calme (le live et les réponses partent), carte proposée sans insister -->
+      <div v-if="auth.profile?.whatsapp_payment && auth.can('store.manage') && !noCardHidden" class="flex items-center gap-3 bg-sky-50 px-4 py-2.5 text-sky-950">
+        <span class="text-2xl" aria-hidden="true">📱</span>
+        <span class="min-w-0 flex-1 text-sm"><b class="block text-[15px] leading-tight">WhatsApp en mode sans carte</b>Live et réponses : automatiques. Le reste : bouton WhatsApp sur la commande. <a :href="auth.profile.whatsapp_payment.url" target="_blank" rel="noopener" class="font-bold underline">Ajouter une carte</a></span>
+        <button type="button" class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sky-900" aria-label="Masquer" @click="hideNoCard">✕</button>
       </div>
       <!-- Gratuité pour tous, avec le message choisi dans la console -->
       <div v-if="auth.store?.free?.banner" class="bg-emerald-700 px-4 py-2 text-center text-sm font-semibold text-white">🎁 {{ auth.store.free.banner }}</div>

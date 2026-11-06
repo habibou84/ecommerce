@@ -258,6 +258,15 @@ class CustomerMessenger
 
     private function queue(WhatsappAccount $account, string $phone, string $event, array $params, array $buttons, string $type, int $id, ?\DateTimeInterface $delay = null): OutboundMessage
     {
+        // Mode sans carte : pas de modèle payant tenté (il serait refusé) ; le marchand l'envoie depuis son WhatsApp
+        if ($account->skipsTemplates()) {
+            return OutboundMessage::create([
+                'store_id' => $account->store_id, 'channel' => 'whatsapp', 'to_phone' => $phone, 'event' => $event,
+                'body' => ($account->templates[$event] ?? $event).' · '.implode(' · ', $params),
+                'related_type' => $type, 'related_id' => $id, 'status' => 'manual',
+                'error' => 'Sans carte chez Meta : à envoyer depuis votre WhatsApp',
+            ]);
+        }
         $message = OutboundMessage::create([
             'store_id' => $account->store_id,
             'channel' => 'whatsapp',

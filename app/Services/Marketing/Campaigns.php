@@ -119,6 +119,10 @@ class Campaigns
             throw new BusinessRuleException('Connectez le WhatsApp de votre espace marchand et créez le modèle « Nouveautés » (Réglages › WhatsApp › Modèles) avant d\'envoyer une relance.');
         }
 
+        if ($account->skipsTemplates()) {
+            throw new BusinessRuleException('Les relances groupées passent par des messages payants chez Meta : ajoutez une carte dans votre compte Meta (WhatsApp › État chez Meta) pour les envoyer.');
+        }
+
         return DB::transaction(function () use ($store, $campaign, $account) {
             $campaign = Campaign::forStore($store->id)->lockForUpdate()->findOrFail($campaign->id);
             if ($campaign->status !== 'draft') {
