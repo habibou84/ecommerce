@@ -1,6 +1,7 @@
 <script setup>
 import PasswordInput from './PasswordInput.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import Alert from './Alert.vue'
 import ColorIcon from './ColorIcon.vue'
 import Field from './Field.vue'
@@ -17,6 +18,7 @@ import { facebookRelayUrl, takeFacebookResult } from '../lib/facebook'
  */
 const props = defineProps({ data: { type: Object, required: true } })
 const emit = defineEmits(['update'])
+const router = useRouter()
 
 const error = ref('')
 const notice = ref('')
@@ -124,6 +126,15 @@ async function finishFacebook(result) {
     warnings.value = response.warnings ?? []
     emit('update', response)
     notice.value = 'WhatsApp connecté ✓ Vos modèles de messages ont été créés et partent en vérification chez Meta.'
+    // Connexion demandée depuis une autre page (ex. « Comment ça marche » du live) : on y revient
+    let after = null
+    try {
+      after = sessionStorage.getItem('jm.after-whatsapp')
+      sessionStorage.removeItem('jm.after-whatsapp')
+    } catch {
+      after = null
+    }
+    if (after?.startsWith('/gestion/')) setTimeout(() => router.push(after), 1500)
   } catch (e) {
     error.value = errorMessage(e)
   } finally {

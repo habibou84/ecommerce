@@ -18,14 +18,14 @@ import { useAuthStore } from '../../../stores/auth'
 
 /**
  * Vendre en live (menu Ventes) : le live en cours en premier, les lives prêts, les lives passés (avec « Refaire ce
- * live »), la formation repliée. « Faire un live » : « Comment ça marche » puis la vidéo aux 2 premières visites,
- * puis « Préparer » (articles choisis d'un coup, ordre = codes, barre fixe).
+ * live »), la formation repliée. Sans live encore : « Comment ça marche » d'abord (WhatsApp en étape 1, la vidéo
+ * sur la même page), puis « Préparer » (articles choisis d'un coup, ordre = codes, barre fixe).
  */
 const router = useRouter()
 const auth = useAuthStore()
 // Vidéo qui explique le live en détail (voix off et sous-titres)
-const INTRO_VIDEO = '/videos/live/formation-03'
-// Parcours d'explication avant « Préparer » : null, 'how' (comment ça marche) ou 'video'
+const INTRO_VIDEO = '/videos/live/comment-ca-marche-v'
+// « Comment ça marche » affiché à la place de la liste : null ou 'how'
 const intro = ref(null)
 const lives = ref(null)
 const pageUrl = ref('')
@@ -46,6 +46,8 @@ async function load() {
     lives.value = data.data
     pageUrl.value = data.meta.page_url
     whatsapp.value = data.meta.whatsapp
+    // Aucun live encore : la page s'ouvre sur « Comment ça marche »
+    if (!lives.value.length && !editing.value) intro.value = 'how'
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -83,30 +85,23 @@ async function redo(live) {
 }
 
 // ── Préparer un live ──
-// « Faire un live » : l'explication en entier aux 2 premières visites, sinon directement « Préparer »
-function begin() {
-  if ((auth.profile?.live_intro_views ?? 0) < 2) {
-    intro.value = 'how'
-    window.scrollTo({ top: 0 })
-  } else {
-    startNew()
-  }
-}
-
-function introStep(step) {
-  intro.value = step
+// « Comment ça marche » : WhatsApp d'abord (ou « Continuer sans WhatsApp »), puis « Préparer mon live »
+const skipWhatsapp = ref(false)
+function showIntro() {
+  intro.value = 'how'
   window.scrollTo({ top: 0 })
 }
-
-// Fin de l'explication (vidéo regardée ou passée) : une visite de plus, puis « Préparer »
-async function introDone() {
-  intro.value = null
+// Connexion WhatsApp depuis le live : retour ici une fois connecté
+function connectWhatsapp() {
   try {
-    const { data } = await http.post('/lives/intro-seen')
-    if (auth.profile) auth.profile.live_intro_views = data.data.live_intro_views
+    sessionStorage.setItem('jm.after-whatsapp', '/gestion/live')
   } catch {
-    // Sans gravité : l'explication sera simplement proposée une fois de plus
+    // Sans stockage : la personne revient au live par le menu
   }
+  router.push('/gestion/whatsapp?onglet=messages')
+}
+function introDone() {
+  intro.value = null
   startNew()
 }
 
@@ -225,23 +220,16 @@ async function save() {
   <div class="space-y-4" :class="intro ? 'pb-40' : ''">
     <Alert v-if="error">{{ error }}</Alert>
 
-    <!-- ═══ « Faire un live » : comment ça marche, puis la vidéo ═══ -->
+    <!-- ═══ « Comment ça marche » : en grand, la vidéo sur la même page, WhatsApp en étape 1 ═══ -->
     <template v-if="intro === 'how'">
-      <LiveIntro :shop="auth.profile?.store?.name ?? ''" />
-      <div class="fixed inset-x-0 bottom-[76px] z-20 space-y-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:bottom-0 lg:left-64">
-        <button type="button" class="btn-brand w-full justify-center py-3 text-base" @click="introStep('video')">Suivant : voir la vidéo ▸</button>
-        <button type="button" class="w-full text-center text-sm font-semibold text-slate-500" @click="intro = null">Retour</button>
-      </div>
-    </template>
-    <template v-else-if="intro === 'video'">
-      <section class="card space-y-3 p-4">
-        <h2 class="text-[19px] font-extrabold">🎬 Le live en vidéo</h2>
-        <p class="text-[14px] text-slate-600">Comment préparer et réussir votre live, pas à pas (avec le son, ou en lisant les sous-titres).</p>
-        <video class="mx-auto max-h-[62vh] w-full rounded-2xl bg-black" controls playsinline preload="metadata" :poster="`${INTRO_VIDEO}.jpg`" :src="`${INTRO_VIDEO}.mp4`" />
-      </section>
-      <div class="fixed inset-x-0 bottom-[76px] z-20 space-y-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:bottom-0 lg:left-64">
-        <button type="button" class="btn-brand w-full justify-center py-3 text-base" :disabled="busy" @click="introDone">Préparer mon live ▸</button>
-        <button type="button" class="w-full text-center text-sm font-semibold text-slate-500" @click="introDone">Passer la vidéo</button>
+      <button v-if="lives?.length" type="button" class="text-sm font-semibold text-emerald-700" @click="intro = null">← Tous les lives</button>
+      <LiveIntro :whatsapp="whatsapp" :video="INTRO_VIDEO" @connect="connectWhatsapp" />
+      <div class="fixed inset-x-0 bottom-[76px] z-20 space-y-1.5 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:bottom-0 lg:left-64">
+        <template v-if="!whatsapp && !skipWhatsapp && auth.can('store.manage')">
+          <button type="button" class="w-full rounded-2xl bg-[#25d366] py-3.5 text-[18px] font-black text-white" @click="connectWhatsapp">1 · Connecter WhatsApp</button>
+          <button type="button" class="w-full text-center text-sm font-semibold text-slate-500" @click="skipWhatsapp = true">Continuer sans WhatsApp</button>
+        </template>
+        <button v-else type="button" class="btn-brand w-full justify-center py-3.5 text-[18px] font-black" @click="introDone">Préparer mon live ▸</button>
       </div>
     </template>
 
@@ -260,18 +248,13 @@ async function save() {
         <RouterLink :to="`/gestion/live/${current.id}`" class="mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-ocre-700">Revenir au live</RouterLink>
       </section>
 
-      <!-- Premier live : explication courte -->
-      <section v-if="lives && !lives.length" class="card p-5">
-        <h2 class="text-xl font-extrabold leading-tight">Vendez en live, sans rien noter</h2>
-        <ol class="mt-4 space-y-3 text-[15px]">
-          <li class="flex items-center gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-sm font-extrabold text-emerald-800">A1</span>Chaque article reçoit un code</li>
-          <li class="flex items-center gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-800"><Icon name="share" :size="17" /></span>Le client réserve par le lien ou sur WhatsApp</li>
-          <li class="flex items-center gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-800"><Icon name="check" :size="17" /></span>La commande se crée toute seule</li>
-        </ol>
-      </section>
+      <!-- « Comment ça marche ? » : rouvre la page d'explication -->
+      <button type="button" class="flex w-full items-center justify-between rounded-[18px] border-2 border-ocre-600 bg-white px-4 py-3 text-[17px] font-black" @click="showIntro">
+        <span>💡 Comment ça marche ?</span><span class="text-ocre-700">Voir ▸</span>
+      </button>
 
       <div class="flex flex-wrap items-center gap-2">
-        <button type="button" class="btn-brand" @click="begin"><Icon name="plus" :size="18" />Faire un live</button>
+        <button type="button" class="btn-brand" @click="startNew"><Icon name="plus" :size="18" />Préparer un live</button>
         <button v-if="pageUrl" type="button" class="btn-secondary" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien des lives' }}</button>
         <button v-if="pageUrl" type="button" class="text-sm font-medium text-emerald-700 underline" @click="share = true">Message à épingler</button>
       </div>
@@ -321,16 +304,6 @@ async function save() {
 
     <!-- ═══ Préparer un live ═══ -->
     <form v-else class="space-y-4 pb-32" @submit.prevent="save">
-      <!-- Explication repliée : un appui la déroule -->
-      <details class="card overflow-hidden border-2 border-ocre-600">
-        <summary class="flex cursor-pointer list-none items-center justify-between p-4 text-[16px] font-bold">
-          <span>💡 Comment ça marche ?</span><span class="text-ocre-700">Voir ▾</span>
-        </summary>
-        <div class="space-y-3.5 px-3 pb-4">
-          <LiveIntro :shop="auth.profile?.store?.name ?? ''" />
-          <video class="mx-auto max-h-[70vh] w-full rounded-2xl bg-black" controls playsinline preload="none" :poster="`${INTRO_VIDEO}.jpg`" :src="`${INTRO_VIDEO}.mp4`" />
-        </div>
-      </details>
       <section class="card space-y-3 p-4">
         <Field id="live-title" label="Nom du live" :error="errors.title"><input id="live-title" v-model="form.title" class="input" required maxlength="120" /></Field>
         <Field id="live-stream" label="Lien du live (TikTok, Facebook…), facultatif" :error="errors.stream_url" hint="Vos clients pourront revenir regarder le live depuis la page de réservation.">
