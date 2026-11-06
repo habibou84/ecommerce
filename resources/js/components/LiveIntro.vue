@@ -3,14 +3,16 @@ import { useAuthStore } from '../stores/auth'
 
 /**
  * « Comment ça marche » du live, en grand et avec peu de mots : le titre, les 4 étapes (WhatsApp d'abord), puis la
- * vidéo sur la même page. Le bouton du bas (connecter WhatsApp ou préparer le live) est porté par la page parente.
+ * vidéo sur la même page. WhatsApp se connecte depuis l'étape 1 (ou « Continuer sans WhatsApp ») ; le bouton « Préparer mon live » est porté par la page parente.
  * whatsapp : 'official', 'link' ou null (pas connecté).
  */
 defineProps({
   whatsapp: { type: String, default: null },
   video: { type: String, required: true },
+  // « Continuer sans WhatsApp » déjà touché
+  skipped: Boolean,
 })
-const emit = defineEmits(['connect'])
+const emit = defineEmits(['connect', 'skip'])
 const auth = useAuthStore()
 
 const steps = [
@@ -37,12 +39,15 @@ const steps = [
       <div class="min-w-0 flex-1">
         <b class="block text-[19px] leading-tight">Connectez WhatsApp</b>
         <span class="text-[14px] text-slate-500">Pour recevoir les commandes</span>
-        <button v-if="auth.can('store.manage')" type="button" class="mt-2 block w-full rounded-xl bg-[#25d366] py-2.5 text-[16px] font-black text-white" @click="emit('connect')">Connecter WhatsApp</button>
+        <template v-if="auth.can('store.manage')">
+          <button type="button" class="mt-2 block w-full rounded-xl bg-[#25d366] py-3 text-[16px] font-black text-white" @click="emit('connect')">Connecter WhatsApp</button>
+          <button v-if="!skipped" type="button" class="mt-2 block w-full text-center text-[13px] font-bold text-slate-500 underline" @click="emit('skip')">Continuer sans WhatsApp</button>
+        </template>
         <span v-else class="mt-1 block text-[13px] text-slate-600">Demandez au responsable de la boutique de le connecter.</span>
       </div>
     </div>
 
-    <div v-for="([icon, title, text], i) in steps" :key="title" class="flex items-center gap-3 rounded-[20px] bg-white px-3.5 py-3 shadow-soft">
+    <div v-for="([icon, title, text], i) in steps" :key="title" class="flex items-center gap-3 rounded-[20px] bg-white px-3.5 py-3 shadow-soft" :class="{ 'opacity-50': !whatsapp && !skipped }">
       <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-900 text-[19px] font-black text-white">{{ i + 2 }}</span>
       <span class="w-11 shrink-0 text-center text-[34px]" aria-hidden="true">{{ icon }}</span>
       <div class="min-w-0"><b class="block text-[19px] leading-tight">{{ title }}</b><span class="text-[14px] text-slate-500">{{ text }}</span></div>
