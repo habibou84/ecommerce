@@ -163,8 +163,8 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
           </div>
           <div v-if="p.per_delivered !== null" class="flex justify-between text-slate-600"><dt>Soit par commande livrée</dt><dd>{{ money(p.per_delivered) }}</dd></div>
         </dl>
-        <p v-if="p.stock_purchases" class="mt-2 text-xs text-slate-500">
-          Achats de marchandises de la période : {{ money(p.stock_purchases) }}. Ils ne sont pas retirés ici : le prix d'achat des produits vendus est déjà compté dans la marge.
+        <p v-if="p.stock_purchases" class="mt-2 text-sm text-slate-500">
+          Achats de stock : {{ money(p.stock_purchases) }} (déjà comptés dans la marge).
         </p>
         <p v-else-if="!p.expenses" class="mt-2 text-xs text-slate-500">Notez vos dépenses (loyer, transport, emballages…) dans Caisse › Dépense pour un bénéfice complet.</p>
       </section>
@@ -183,7 +183,7 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
               </tr>
             </tbody>
           </table>
-          <p v-if="hasAds" class="mt-2 text-xs text-slate-500">Pub / livrée : publicité notée pour ce canal (Caisse › Dépense › Publicité) divisée par ses commandes livrées. En rouge, la publicité coûte plus que la marge de ces commandes.</p>
+          <p v-if="hasAds" class="mt-2 text-sm text-slate-600">Pub / livrée : coût de pub par commande livrée. En rouge : plus cher que la marge.</p>
         </section>
 
         <section class="card overflow-x-auto p-4 text-sm">

@@ -47,7 +47,7 @@ async function save() {
         <Alert v-if="saved" tone="success">Réglages enregistrés.</Alert>
         <section class="space-y-3">
           <label class="flex items-center gap-2 font-semibold"><input v-model="form.enabled" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Points de fidélité</label>
-          <p class="text-sm text-slate-600">Le client gagne des points quand sa commande est livrée (articles, hors livraison) et les utilise en réduction sur une commande que vous saisissez. Il voit ses points sur sa page de suivi.</p>
+          <p class="text-sm text-slate-600">Points gagnés à chaque livraison, utilisés en réduction.</p>
           <div v-if="form.enabled" class="grid gap-3 sm:grid-cols-3">
             <Field id="l-rate" label="Points par 1 000 F d'achat"><input id="l-rate" v-model.number="form.points_per_1000" type="number" min="1" class="input" /></Field>
             <Field id="l-value" label="Valeur d'un point (F)"><input id="l-value" v-model.number="form.point_value" type="number" min="1" class="input" /></Field>
@@ -57,7 +57,7 @@ async function save() {
         </section>
         <section class="space-y-3 border-t border-slate-200 pt-4">
           <label class="flex items-center gap-2 font-semibold"><input v-model="form.referral_enabled" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Parrainage</label>
-          <p class="text-sm text-slate-600">Chaque client a un code à partager (sur sa page de suivi). Un nouveau client qui le donne à sa première commande a une réduction ; le parrain gagne des points quand cette commande est livrée.</p>
+          <p class="text-sm text-slate-600">Le filleul a une réduction, le parrain gagne des points.</p>
           <div v-if="form.referral_enabled" class="grid gap-3 sm:grid-cols-2">
             <Field id="l-rd" label="Réduction du filleul (F)"><input id="l-rd" v-model.number="form.referral_discount" type="number" min="0" class="input" /></Field>
             <Field id="l-rp" label="Points du parrain"><input id="l-rp" v-model.number="form.referral_points" type="number" min="0" class="input" /></Field>

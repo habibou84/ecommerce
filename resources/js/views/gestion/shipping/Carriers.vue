@@ -240,15 +240,14 @@ const copy = (text) => navigator.clipboard?.writeText(text)
   <div class="space-y-4">
     <DeliveryTabs />
     <div class="flex items-center justify-between gap-3">
-      <p class="text-sm text-slate-600">Vos entreprises de livraison : les courses leur sont demandées en un clic depuis la commande et suivies automatiquement.</p>
+      <p class="text-sm text-slate-600">Courses demandées en un clic, suivies toutes seules.</p>
       <button class="btn-brand shrink-0" @click="openConnect">+ Entreprise</button>
     </div>
     <Alert v-if="error && !modal">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
     <p v-if="carriers && !carriers.length" class="card p-6 text-sm text-slate-500">
-      Aucune entreprise de livraison connectée. Choisissez-en une dans l'annuaire ci-dessous et touchez « Connecter » :
-      les courses, statuts et reversements arrivent tout seuls. Votre entreprise n'y est pas ? Connectez-la avec une clé API (« + Entreprise »).
+      Aucune entreprise connectée. Choisissez-en une ci-dessous : « Connecter ».
     </p>
 
     <article v-for="c in carriers ?? []" :key="c.id" class="card space-y-3 p-4 text-sm">
@@ -300,14 +299,14 @@ const copy = (text) => navigator.clipboard?.writeText(text)
     <section class="space-y-3">
       <div>
         <h2 class="text-base font-semibold">Trouver une entreprise de livraison</h2>
-        <p class="text-sm text-slate-600">Des entreprises qui livrent avec Jibiat, avec leurs vrais résultats des 90 derniers jours. Touchez « Connecter » : vous vous connectez chez elle (ou ouvrez votre compte), et c'est fait, sans clé à copier.</p>
+        <p class="text-sm text-slate-600">Elles livrent avec Jibiat : leurs résultats sur 90 jours.</p>
       </div>
       <p v-if="directory === null" class="text-sm text-slate-500">Chargement de l'annuaire…</p>
-      <p v-else-if="!directoryAvailable" class="card p-4 text-sm text-slate-500">L'annuaire ne répond pas pour le moment. Vous pouvez connecter votre entreprise avec une clé API (« + Entreprise »).</p>
+      <p v-else-if="!directoryAvailable" class="card p-4 text-sm text-slate-500">Annuaire indisponible. Connectez-vous avec une clé API (« + Entreprise »).</p>
       <p v-else-if="!directory.length" class="card p-4 text-sm text-slate-500">Aucune entreprise dans l'annuaire pour l'instant.</p>
       <template v-else>
       <p v-if="partner && !partner.connected" class="rounded-lg bg-sky-50 p-3 text-sm text-sky-900">
-        Vous êtes arrivé sur Jibiat Marchand avec <strong>{{ partner.name }}</strong>. Connectez-la en un clic : vos courses lui sont envoyées toutes seules.
+        Connectez <strong>{{ partner.name }}</strong> en un clic.
       </p>
       <div class="grid gap-3 sm:grid-cols-2">
         <article v-for="d in shownDirectory" :key="d.slug" class="card flex flex-col gap-3 p-4 text-sm" :class="{ 'ring-2 ring-sky-500': d.partner }">
@@ -372,8 +371,8 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <h4 class="mb-1 text-sm font-semibold">Tarifs</h4>
         <p class="mb-2 text-sm text-slate-600">
           {{ current.driver === 'delivery_app'
-            ? 'Le prix de chaque course est demandé à l\'entreprise au moment de la commande. Le tarif saisi ici sert seulement si elle ne répond pas.'
-            : 'Prix payé par le client pour chaque zone. Il est repris tel quel dans le formulaire de commande quand vous choisissez cette entreprise.' }}
+            ? 'Prix donné par l\'entreprise à chaque commande.'
+            : 'Prix payé par le client, par zone.' }}
         </p>
         <ul class="mb-3 max-h-[30vh] divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200 text-sm">
           <li v-for="z in zones.zones" :key="z.id" class="flex items-center gap-2 px-3 py-2">
@@ -391,7 +390,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
           <button class="btn-secondary" :disabled="busy"><Icon name="plus" :size="16" />Ajouter</button>
         </form>
         <h4 class="mb-1 text-sm font-semibold">Quartiers couverts</h4>
-        <p class="mb-3 text-sm text-slate-600">Pour chaque commune ou quartier de vos clients, la zone de l'entreprise de livraison. Sans zone : l'entreprise n'y livre pas.</p>
+        <p class="mb-3 text-sm text-slate-600">La zone de l'entreprise pour chaque quartier. Sans zone : pas de livraison.</p>
         <div class="mb-3 flex gap-2 text-sm">
           <button class="rounded-full px-3 py-1" :class="zoneFilter === 'unmapped' ? 'bg-emerald-700 text-white' : 'bg-slate-100'" @click="zoneFilter = 'unmapped'">Sans zone</button>
           <button class="rounded-full px-3 py-1" :class="zoneFilter === 'all' ? 'bg-emerald-700 text-white' : 'bg-slate-100'" @click="zoneFilter = 'all'">Tous</button>

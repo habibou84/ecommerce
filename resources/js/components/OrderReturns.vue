@@ -140,7 +140,7 @@ async function act(r, action) {
           <p v-if="hasExchange">Articles de remplacement : <strong>{{ money(replacementValue) }}</strong></p>
           <p v-if="returnedValue > replacementValue">À rembourser au client : <strong>{{ money(returnedValue - replacementValue) }}</strong></p>
           <p v-else-if="replacementValue > returnedValue">Le client paie la différence à la livraison : <strong>{{ money(replacementValue - returnedValue) }}</strong> (+ frais de livraison)</p>
-          <p v-if="hasExchange" class="mt-1 text-xs text-slate-500">Une commande d'échange est créée, déjà confirmée : confiez-la à un livreur, il reprendra l'article rendu en livrant le nouveau.</p>
+          <p v-if="hasExchange" class="mt-1 text-sm text-slate-600">Le livreur reprend l'article en livrant le nouveau.</p>
         </div>
         <button class="btn-brand w-full" :disabled="busy || !chosen.length">Enregistrer</button>
       </form>

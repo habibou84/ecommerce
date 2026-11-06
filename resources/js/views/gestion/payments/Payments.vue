@@ -137,7 +137,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <h3 class="font-semibold">Comptes de paiement</h3>
         <button class="btn-secondary ml-auto px-3 py-1.5" @click="openAccount(null)">+ Compte</button>
       </div>
-      <p v-if="!data.accounts.length" class="text-sm text-slate-500">Aucun compte. Wave en direct coûte en général moins cher ; CinetPay et PayDunya acceptent aussi Orange Money, MTN, Moov et les cartes.</p>
+      <p v-if="!data.accounts.length" class="text-sm text-slate-500">Aucun compte. Wave est le moins cher ; CinetPay et PayDunya ajoutent Orange, MTN, Moov et cartes.</p>
       <ul class="divide-y divide-slate-100 text-sm">
         <li v-for="a in data.accounts" :key="a.id">
           <button class="flex w-full flex-wrap items-center gap-2 py-2 text-left hover:text-emerald-700" @click="openAccount(a)">

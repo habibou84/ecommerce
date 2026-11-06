@@ -263,7 +263,7 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
 
     <Modal v-if="modal === 'link'" :title="`Accès de ${link.name}`" @close="modal = null">
       <div class="space-y-3 text-sm">
-        <p>Envoyez son accès à {{ link.name }} sur WhatsApp : en touchant le lien, il arrive dans l'application livreur avec ses courses, <strong>sans mot de passe</strong>. Le lien s'ouvre une seule fois, puis il reste connecté sur son téléphone.</p>
+        <p>Envoyez-lui son lien sur WhatsApp : il entre <strong>sans mot de passe</strong>.</p>
         <CourierWhatsAppButton :courier-id="link.id" label="Envoyer par WhatsApp" />
       </div>
     </Modal>

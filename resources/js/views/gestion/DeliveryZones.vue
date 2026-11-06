@@ -107,7 +107,7 @@ async function destroy() {
     <section v-if="calendar" class="card space-y-4 p-4 sm:p-5">
       <div>
         <h3 class="font-semibold">Jours et heures de livraison</h3>
-        <p class="text-sm text-slate-600">Chaque commande reçoit d'office la première date possible : aujourd'hui avant l'heure limite, sinon le jour suivant, en sautant les jours sans livraison. Une entreprise de livraison qui a ses propres horaires (Delivery App) les fait passer en premier.</p>
+        <p class="text-sm text-slate-600">Date proposée : aujourd'hui avant l'heure limite, sinon le jour de livraison suivant.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-sm">
         <label for="cutoff" class="font-medium">Livrée le jour même si commandée avant</label>

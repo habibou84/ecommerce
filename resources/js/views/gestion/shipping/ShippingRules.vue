@@ -114,7 +114,7 @@ function describe(rule) {
           <h3 class="font-semibold">Règles</h3>
           <button class="btn-secondary ml-auto px-3 py-1.5" @click="open()">+ Règle</button>
         </div>
-        <p class="mb-3 text-sm text-slate-500">La première règle qui correspond à la commande s'applique. Sans règle : un de vos livreurs du quartier, sinon l'entreprise de livraison la moins chère.</p>
+        <p class="mb-3 text-sm text-slate-500">La première règle qui correspond s'applique.</p>
         <ol class="divide-y divide-slate-100 text-sm">
           <li v-for="(r, i) in data.data" :key="r.id" class="flex items-center gap-3 py-2" :class="{ 'opacity-50': !r.is_active }">
             <span class="w-6 text-center text-slate-400">{{ i + 1 }}</span>

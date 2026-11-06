@@ -84,7 +84,7 @@ async function share() {
   <section class="card space-y-3 p-4">
     <div>
       <h3 class="font-extrabold">📌 Photo à épingler</h3>
-      <p class="mt-1 text-sm text-slate-600">Les photos de tes articles et leur code, sur une seule image. Épingle-la sur ton profil TikTok ou Facebook, ou en statut WhatsApp, avant le live.</p>
+      <p class="mt-1 text-sm text-slate-600">Tes articles et leurs codes sur une image. Épingle-la avant le live.</p>
     </div>
 
     <div class="grid grid-cols-2 gap-1.5" role="tablist" aria-label="Format de la photo">

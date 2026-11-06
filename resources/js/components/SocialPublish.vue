@@ -114,10 +114,10 @@ async function publish() {
       <div>
         <label for="sp-caption" class="label">Texte de la publication</label>
         <textarea id="sp-caption" v-model="caption" rows="6" class="input" maxlength="2000" required />
-        <p class="mt-1 text-xs text-slate-500">« {lien} » est remplacé par le lien de commande, différent pour chaque réseau : vous saurez d'où viennent les commandes.</p>
+        <p class="mt-1 text-sm text-slate-500">« {lien} » devient le lien de commande de chaque réseau.</p>
       </div>
 
-      <p class="rounded-lg bg-slate-50 p-2 text-xs text-slate-600"><Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />L'application crée les visuels avec la photo, le prix du moment et le nom de la boutique : carré pour Facebook et Instagram, vertical pour TikTok.</p>
+      <p class="rounded-lg bg-slate-50 p-2 text-xs text-slate-600"><Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Visuels créés tout seuls : carré (Facebook, Instagram), vertical (TikTok).</p>
 
       <div class="space-y-2">
         <label class="flex items-center gap-2"><input v-model="when" type="radio" value="now" class="accent-emerald-700" /> Publier maintenant</label>

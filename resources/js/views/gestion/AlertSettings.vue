@@ -108,7 +108,7 @@ function toggle(key) {
         </div>
       </section>
       <h3 class="pt-2 font-semibold">Argent et colis chez les livreurs</h3>
-      <p class="-mt-2 text-sm text-slate-600">Pour les personnes qui gèrent les livreurs et les entreprises de livraison. Les mêmes délais servent à l'accueil.</p>
+      <p class="-mt-2 text-sm text-slate-600">Pour qui gère les livreurs et les entreprises de livraison.</p>
       <section class="card divide-y divide-slate-100">
         <div v-for="a in OUTSIDE" :key="a.key" class="flex items-start gap-3 p-4 sm:px-5">
           <div class="min-w-0 flex-1">

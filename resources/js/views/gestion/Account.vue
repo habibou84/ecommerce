@@ -127,7 +127,7 @@ async function removeAccount() {
     <section class="card space-y-3 p-4 sm:p-6">
       <h2 class="font-semibold">Supprimer mon compte</h2>
       <p class="text-sm text-slate-600">
-        Votre nom, votre téléphone et votre email sont effacés et vous perdez l'accès à toutes vos boutiques. Les commandes que vous avez enregistrées restent dans les boutiques. Si vous êtes propriétaire, fermez d'abord la boutique (Réglages › Données et fermeture).
+        Vos données sont effacées et vous perdez l'accès. Les commandes restent. Propriétaire : fermez d'abord la boutique.
       </p>
       <button type="button" class="btn-secondary text-red-700" @click="removing = true">Supprimer mon compte</button>
     </section>
