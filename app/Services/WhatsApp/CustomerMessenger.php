@@ -288,6 +288,10 @@ class CustomerMessenger
                 $value = $change['value'] ?? [];
 
                 foreach ($value['statuses'] ?? [] as $status) {
+                    // Refus de paiement annoncé après coup par Meta (#131042) : avertissement « ajoutez une carte »
+                    if (($status['status'] ?? null) === 'failed' && (int) ($status['errors'][0]['code'] ?? 0) === 131042) {
+                        $account->forceFill(['payment_missing_at' => now()])->save();
+                    }
                     $this->inbox->updateStatus($account->store_id, (string) ($status['id'] ?? ''), (string) ($status['status'] ?? ''), ($status['status'] ?? null) === 'failed' ? mb_substr((string) ($status['errors'][0]['title'] ?? 'Échec'), 0, 250) : null);
                     $column = ['sent' => 'sent_at', 'delivered' => 'delivered_at', 'read' => 'read_at'][$status['status'] ?? ''] ?? null;
                     OutboundMessage::forStore($account->store_id)->where('provider_message_id', $status['id'] ?? '')->update(array_filter([

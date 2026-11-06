@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\Store;
 use App\Models\User;
 use App\Models\WhatsappAccount;
+use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -97,6 +98,20 @@ class MetaHealthTest extends TestCase
             ->apiOn(self::CONSOLE, 'GET', 'console/whatsapp-health', ['filter' => 'help'])->assertOk()
             ->assertJsonPath('counts.blocked', 1)->assertJsonPath('data.0.store.name', 'Awa Mode')
             ->assertJsonPath('data.0.state', 'blocked')->assertJsonPath('data.0.reason', 'Meta demande de vérifier votre entreprise');
+    }
+
+    public function test_a_payment_refusal_shows_the_card_banner_until_a_template_goes_out(): void
+    {
+        $this->storeApi($this->store, 'GET', 'auth/me')->assertOk()->assertJsonPath('data.whatsapp_payment', null);
+
+        // Meta annonce après coup qu'un modèle n'est pas parti faute de moyen de paiement
+        app(CustomerMessenger::class)->handleInbound(WhatsappAccount::sole(), ['entry' => [['changes' => [['value' => ['statuses' => [
+            ['id' => 'wamid.x', 'status' => 'failed', 'errors' => [['code' => 131042, 'title' => 'Business eligibility payment issue']]],
+        ]]]]]]]);
+        $this->assertNotNull(WhatsappAccount::sole()->payment_missing_at);
+        $url = $this->storeApi($this->store, 'GET', 'auth/me')->assertOk()->json('data.whatsapp_payment.url');
+        $this->assertStringContainsString('business.facebook.com/billing_hub/payment_settings', $url);
+        $this->storeApi($this->store, 'GET', 'whatsapp')->assertOk()->assertJsonPath('data.account.meta.lines.0.key', 'payment');
     }
 
     public function test_missing_payment_method_is_partial_and_unreadable_meta_keeps_the_last_state(): void

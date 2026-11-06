@@ -360,6 +360,11 @@ async function switchTo(store) {
         <span><Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Le support Jibiat Marchand ({{ support.admin }}) a accès à votre gestion jusqu'à {{ supportUntil }} : « {{ support.reason }} »</span>
         <button class="underline" @click="endSupport">Mettre fin</button>
       </div>
+      <!-- Meta refuse les messages automatiques faute de carte : court, en grand, lien direct vers les cartes chez Meta -->
+      <div v-if="auth.profile?.whatsapp_payment && auth.can('store.manage')" class="flex flex-col gap-2 bg-amber-100 px-4 py-3 text-amber-950 sm:flex-row sm:items-center sm:gap-3">
+        <span class="flex min-w-0 flex-1 items-center gap-3"><span class="text-3xl" aria-hidden="true">💳</span><span><b class="block text-[16px] leading-tight">Ajoute une carte chez Meta</b><span class="text-sm">Sinon, les messages automatiques ne partent pas.</span></span></span>
+        <a :href="auth.profile.whatsapp_payment.url" target="_blank" rel="noopener" class="shrink-0 rounded-xl bg-amber-900 px-4 py-2.5 text-center text-sm font-black text-white">Ajouter ma carte chez Meta ▸</a>
+      </div>
       <!-- Gratuité pour tous, avec le message choisi dans la console -->
       <div v-if="auth.store?.free?.banner" class="bg-emerald-700 px-4 py-2 text-center text-sm font-semibold text-white">🎁 {{ auth.store.free.banner }}</div>
       <!-- Venu du guide de démarrage : un bandeau pour y revenir une fois le réglage fait -->
