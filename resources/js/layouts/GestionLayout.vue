@@ -28,10 +28,13 @@ const groups = [
     { to: '/gestion/messages', label: 'Messages', badge: 'messages' },
     { to: '/gestion/confirmation', label: 'À confirmer' },
     { to: '/gestion/caisse/vente', label: 'Vente au comptoir' },
-    { to: '/gestion/live', label: 'Vendre en live' },
     { to: '/gestion/clients', label: 'Clients' },
     { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' },
     { to: '/gestion/statistiques', label: 'Statistiques' },
+  ] },
+  { label: 'Live', color: 'live', icon: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8', items: [
+    { to: '/gestion/live', label: 'Préparer un live', exact: true },
+    { to: '/gestion/live/passes', label: 'Lives passés' },
   ] },
   { label: 'Produits', color: 'produit', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', items: [
     { to: '/gestion/catalogue', label: 'Mes produits' },
@@ -147,7 +150,7 @@ const PLUS_TILES = [
   { to: '/gestion/clients', label: 'Clients', color: 'clients' },
   { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
   { to: '/gestion/caisse', label: 'Caisse', color: 'caisse' },
-  { to: '/gestion/live', label: 'Vendre en live', color: 'live' },
+  { to: '/gestion/live', label: 'Live', color: 'live' },
   { to: '/gestion/boutique-en-ligne', label: 'Boutique en ligne', color: 'boutique' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
   { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
