@@ -112,12 +112,12 @@ class LiveWhatsAppCheckoutTest extends TestCase
 
     public function test_the_customer_orders_by_tapping_and_confirms(): void
     {
-        // Code envoyé : photo de la robe avec la légende, puis la liste des communes avec le prix
+        // Code envoyé : un court texte (pas de photo, elle arriverait après la question), puis la liste des communes
         $this->text('A1 svp');
-        [$photo, $list] = $this->sent();
-        $this->assertSame('image', $photo['type']);
-        $this->assertStringEndsWith('.jpg', $photo['image']['link']);
-        $this->assertStringContainsString("✅ *C'est réservé pour vous !*\nA1 Robe wax", $photo['image']['caption']);
+        [$reserved, $list] = $this->sent();
+        $this->assertSame('text', $reserved['type']);
+        $this->assertStringContainsString("✅ *C'est réservé pour vous !*\nA1 Robe wax", $reserved['text']['body']);
+        $this->assertMatchesRegularExpression('/A1 Robe wax.* · [\d\x{202F}\x{A0} ]+ F/u', $reserved['text']['body']);
         $this->assertStringStartsWith("📍 *DERNIÈRE ÉTAPE : L'ADRESSE*", $list['interactive']['body']['text']);
         $this->assertSame(['interactive', 'list'], [$list['type'], $list['interactive']['type']]);
         $rows = $list['interactive']['action']['sections'][0]['rows'];
@@ -156,8 +156,13 @@ class LiveWhatsAppCheckoutTest extends TestCase
         // Je confirme : la commande passe confirmée, sans appel
         $this->tap("live:confirm:{$order->id}", '✅ Je confirme', 'button_reply');
         $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
-        $this->assertStringStartsWith('🎉 *COMMANDE CONFIRMÉE !*', $body = $this->sent()[0]['text']['body']);
+        [$confirmed, $photo] = $this->sent();
+        $this->assertStringStartsWith('🎉 *COMMANDE CONFIRMÉE !*', $body = $confirmed['text']['body']);
         $this->assertStringContainsString("N° {$order->reference()}", $body);
+        // Puis la vraie photo de chaque article, en grand, avec son code et son prix
+        $this->assertSame('image', $photo['type']);
+        $this->assertStringEndsWith('.jpg', $photo['image']['link']);
+        $this->assertStringStartsWith("📷 *Voici les photos de votre commande N° {$order->reference()}*\nA1 · Robe wax", $photo['image']['caption']);
 
         // Un autre code pendant le live : ajouté à la même commande, nouveau total
         $this->text('A2');
@@ -177,12 +182,11 @@ class LiveWhatsAppCheckoutTest extends TestCase
     public function test_several_codes_come_together_with_the_commune_question(): void
     {
         $this->text('A1 + A2');
-        // Une seule image pour les deux articles (les phrases en légende), puis la liste des communes
+        // Un seul court texte pour les deux articles, puis la liste des communes
         $sent = $this->sent();
         $this->assertCount(2, $sent);
-        $this->assertSame('image', $sent[0]['type']);
-        $this->assertStringEndsWith('.jpg', $sent[0]['image']['link']);
-        $this->assertStringContainsString("A1 Robe wax\nA2 Sac cabas", $sent[0]['image']['caption']);
+        $this->assertSame('text', $sent[0]['type']);
+        $this->assertMatchesRegularExpression('/A1 Robe wax · [^\n]+\nA2 Sac cabas/u', $sent[0]['text']['body']);
         $this->assertSame(['interactive', 'list'], [$sent[1]['type'], $sent[1]['interactive']['type']]);
         $this->assertStringContainsString("DERNIÈRE ÉTAPE : L'ADRESSE", $sent[1]['interactive']['body']['text']);
     }
