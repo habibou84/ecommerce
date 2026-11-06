@@ -128,6 +128,10 @@ onMounted(() => {
   badgeTimer = setInterval(() => document.visibilityState === 'visible' && refreshBadges(), 30000)
 })
 onBeforeUnmount(() => clearInterval(badgeTimer))
+// « Tout le menu » depuis la page Plus de la navigation par glissement
+const openMenu = () => { menuOpen.value = true }
+onMounted(() => window.addEventListener('jm:open-menu', openMenu))
+onBeforeUnmount(() => window.removeEventListener('jm:open-menu', openMenu))
 watch(() => route.path, refreshBadges)
 const guideStep = ref(guideCurrent())
 watch(() => route.fullPath, () => { guideStep.value = guideCurrent() })
@@ -342,15 +346,17 @@ async function switchTo(store) {
 
     <div class="min-w-0 flex-1">
       <header class="sticky top-0 z-10 flex h-16 items-center gap-2.5 bg-slate-50/90 px-4 backdrop-blur sm:px-6">
-        <button class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-slate-700 shadow-soft lg:hidden" aria-label="Menu" @click="menuOpen = true">
+        <!-- Navigation par glissement : les onglets des pages prennent toute la largeur et passent sous la cloche -->
+        <div v-if="swipeHome" id="swipe-tabs" class="absolute inset-y-0 left-0 right-0 flex items-center lg:hidden" />
+        <button class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-slate-700 shadow-soft lg:hidden" :class="swipeHome ? '!hidden' : ''" aria-label="Menu" @click="menuOpen = true">
           <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         <div class="min-w-0" :class="swipeHome ? 'hidden lg:block' : ''">
           <h1 class="truncate text-[17px] font-bold leading-tight sm:text-xl">{{ route.meta.title }}</h1>
           <p v-if="route.path === '/gestion'" class="truncate text-[12.5px] leading-tight text-slate-500 first-letter:uppercase sm:text-sm">{{ todayLabel }}</p>
         </div>
-        <div class="ml-auto flex shrink-0 items-center gap-2">
-          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" class="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-2.5 text-sm font-semibold text-slate-700 shadow-soft sm:px-3.5" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide"><ColorIcon name="aide" :size="24" :tile="false" /><span class="hidden sm:inline">Aide</span></a>
+        <div class="relative ml-auto flex shrink-0 items-center gap-2" :class="swipeHome ? 'before:pointer-events-none before:absolute before:-left-8 before:inset-y-0 before:w-8 before:bg-gradient-to-r before:from-transparent before:to-slate-50 max-lg:-mr-4 max-lg:bg-slate-50 max-lg:pr-4' : ''">
+          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" :class="swipeHome ? 'max-lg:!hidden' : ''" class="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-2.5 text-sm font-semibold text-slate-700 shadow-soft sm:px-3.5" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide"><ColorIcon name="aide" :size="24" :tile="false" /><span class="hidden sm:inline">Aide</span></a>
           <span class="rounded-full bg-white shadow-soft"><NotificationBell /></span>
         </div>
       </header>
