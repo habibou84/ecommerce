@@ -4,12 +4,12 @@ import { useRoute } from 'vue-router'
 import AuthShell from '../../components/AuthShell.vue'
 import Alert from '../../components/Alert.vue'
 import { boot } from '../../lib/boot'
-import { connectWhatsApp, facebookDialogUrl, facebookReturnUrl, inAppBrowser, prepareFacebook } from '../../lib/facebook'
+import { connectWhatsApp, facebookDialogUrl, facebookReturnUrl, inAppBrowser, prefersRedirect, prepareFacebook } from '../../lib/facebook'
 
 // Fenêtre Facebook de la connexion WhatsApp, ouverte depuis la plateforme pour toutes les boutiques (Meta n'accepte
 // pas les sous-domaines en joker) ; le résultat repart vers la gestion de la boutique qui l'a demandée.
-// Fenêtre Facebook (pop-up) partout, téléphone compris ; en secours « Ouvrir en pleine page » : la page entière part
-// chez Facebook et revient ici avec le code (?code=…&state=…), puis repart vers la boutique.
+// Ordinateur : fenêtre Facebook par-dessus la page. Téléphone : la page entière part chez Facebook (la pop-up s'y
+// ferme avant de démarrer) et revient ici avec le code (?code=…&state=…), puis repart vers la boutique.
 const route = useRoute()
 const error = ref('')
 const busy = ref(false)
@@ -55,14 +55,14 @@ onMounted(() => {
     }
     return
   }
-  if (back.value && options.appId) prepareFacebook(options)
+  if (back.value && options.appId && !prefersRedirect()) prepareFacebook(options)
 })
 
 function goBack(params) {
   window.location.assign(`${back.value}#${new URLSearchParams({ whatsapp: '1', ...params })}`)
 }
 
-// Secours : la page entière chez Facebook (fenêtre bloquée ou résultat perdu dans un autre onglet)
+// Téléphone : la page entière chez Facebook
 function fullPage() {
   const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value }))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -72,6 +72,7 @@ function fullPage() {
 async function start() {
   busy.value = true
   error.value = ''
+  if (prefersRedirect()) return fullPage()
   try {
     const result = await connectWhatsApp(options)
     goBack({ code: result.code, waba_id: result.waba_id, phone_number_id: result.phone_number_id ?? '', coexistence: sure || result.coexistence ? '1' : '0' })
@@ -106,12 +107,11 @@ async function copyLink() {
       </div>
       <!-- Deux consignes, en grand : le reste, Facebook le guide -->
       <div class="space-y-3">
-        <p v-if="phoneLayout && !embeddedBrowser" class="flex items-center gap-3 rounded-2xl bg-sky-50 p-4 text-[17px] font-bold leading-snug text-sky-950"><span class="text-3xl" aria-hidden="true">💻</span><span>Chrome ⋮ › « Version pour ordinateur »</span></p>
+        <p v-if="phoneLayout && !embeddedBrowser" class="flex items-center gap-3 rounded-2xl bg-sky-50 p-4 text-[17px] font-bold leading-snug text-sky-950"><span class="text-3xl" aria-hidden="true">💻</span><span>Active le mode ordinateur</span></p>
         <p class="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-[17px] font-bold leading-snug text-amber-950"><span class="text-3xl" aria-hidden="true">💳</span><span>Carte : choisis <u>USD</u> ou <u>EUR</u></span></p>
       </div>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
-      <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Fenêtre Facebook ouverte…' : 'Continuer avec Facebook' }}</button>
-      <button v-if="phoneLayout || error" type="button" class="w-full text-center text-sm font-semibold text-slate-500 underline" @click="fullPage">La fenêtre ne s'ouvre pas ? Ouvrir en pleine page</button>
+      <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
       <button type="button" class="btn-secondary w-full" @click="goBack({ erreur: 'Connexion interrompue. Vous pouvez recommencer quand vous voulez.' })">Revenir</button>
     </div>
   </AuthShell>

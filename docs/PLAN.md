@@ -701,3 +701,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - WhatsApp : connexion Facebook en fenêtre pop-up aussi sur téléphone (« Ouvrir en pleine page » en secours) ; page de connexion réduite à deux consignes en grand (version pour ordinateur, carte en USD ou EUR).
 - Live : vidéo « Comment ça marche » refaite (1 min 30) : menu Live en 4 étapes, nouvel article avec l'IA, bilan du live, lives passés (article le plus commandé, meilleure heure) et avantages.
 - WhatsApp : refus de Meta faute de carte (#131042, à l'envoi ou annoncé après coup) gardé à part jusqu'au prochain modèle accepté ; bandeau « 💳 Ajoute une carte chez Meta » en haut de la gestion avec le lien vers les moyens de paiement du compte Business.
+- WhatsApp : retour à la page entière chez Facebook sur téléphone (la pop-up s'y fermait avant de démarrer) ; consignes : « Active le mode ordinateur » et « Carte : choisis USD ou EUR ».
