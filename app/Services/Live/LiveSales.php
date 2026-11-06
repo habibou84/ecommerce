@@ -112,7 +112,13 @@ class LiveSales
         if ($session->status === 'ended') {
             throw new BusinessRuleException('Ce live est terminé : créez-en un nouveau.');
         }
-        $variants = ProductVariant::forStore($session->store_id)->with('product')->whereIn('id', collect($lines)->pluck('variant_id'))->get()->keyBy('id');
+        $variants = ProductVariant::forStore($session->store_id)->with('product.images')->whereIn('id', collect($lines)->pluck('variant_id'))->get()->keyBy('id');
+        foreach (array_values($lines) as $i => $line) {
+            $product = $variants->get($line['variant_id'])?->product;
+            if ($product !== null && $product->images->isEmpty()) {
+                throw new BusinessRuleException("Ajoute une photo à « {$product->title} » avant de le mettre en live.", "items.{$i}.variant_id");
+            }
+        }
 
         $touched = DB::transaction(function () use ($session, $lines, $variants) {
             LiveSession::forStore($session->store_id)->lockForUpdate()->find($session->id);
@@ -175,6 +181,14 @@ class LiveSales
         }
         if (LiveSession::forStore($session->store_id)->where('status', 'live')->whereKeyNot($session->id)->exists()) {
             throw new BusinessRuleException('Un autre live est en cours : terminez-le d\'abord.');
+        }
+        // Les clientes commandent sur la photo : un article sans photo ne passe pas en live
+        $missing = $session->items()->with('variant.product.images')->orderBy('position')->get()
+            ->filter(fn (LiveItem $item) => $item->variant?->product !== null && $item->variant->product->images->isEmpty())
+            ->unique(fn (LiveItem $item) => $item->variant->product_id)
+            ->map(fn (LiveItem $item) => "{$item->code} {$item->variant->product->title}");
+        if ($missing->isNotEmpty()) {
+            throw new BusinessRuleException('Ajoute une photo avant le live : '.$missing->implode(', ').'.');
         }
         $session->update(['status' => 'live', 'started_at' => $session->started_at ?? now()]);
 

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import Icon from './Icon.vue'
+import LiveNewProduct from './LiveNewProduct.vue'
 import LiveSignPicker from './LiveSignPicker.vue'
 import http, { errorMessage, fieldErrors } from '../lib/http'
 import { money } from '../lib/format'
@@ -9,6 +10,8 @@ import { money } from '../lib/format'
  * « Préparer un live », étape 2 : fenêtre plein écran pour choisir les articles. Trois onglets : le catalogue (cocher,
  * pièces + / −), un live passé (« Reprendre » ses articles, son ordre et ses prix) et la sélection (ordre = codes A1,
  * A2…, prix du live, pièces, code à changer). « Valider » enregistre le live en préparation (créé s'il n'existe pas).
+ * « Nouvel article » crée au catalogue un article qui n'y est pas (photo, fiche remplie par l'IA). Un article sans photo
+ * ne passe pas en live : « Ajouter la photo » est proposé à sa place, et « Valider » attend les photos.
  */
 const props = defineProps({
   draft: { type: Object, default: null }, // état du live en préparation (GET lives/{id}) ou null
@@ -54,6 +57,37 @@ function step(v, delta) {
   const l = line(v.id)
   if (l) l.quantity = Math.max(1, (Number(l.quantity) || 1) + delta)
 }
+// ── Nouvel article (créé au catalogue puis ajouté, toutes ses variantes sous un code) ──
+async function created({ id, title, quantity }) {
+  const variants = (await http.get('/lives/variants', { params: { search: title } })).data.data.filter((v) => v.product_id === id)
+  variants.forEach((v) => line(v.id) || items.value.push({ variant_id: v.id, product_id: v.product_id, title: v.title, image: v.image, price: v.price, quantity, available: v.available }))
+  search.value = ''
+  find()
+  tab.value = 'selection'
+}
+
+// ── Photo manquante : ajoutée ici, puis reportée sur le catalogue et la sélection ──
+const uploading = ref(null)
+async function addPhoto(productId, event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  uploading.value = productId
+  error.value = ''
+  try {
+    const body = new FormData()
+    body.append('image', file)
+    const thumb = (await http.post(`/products/${productId}/images`, body)).data.data.urls.thumb
+    results.value.filter((v) => v.product_id === productId).forEach((v) => { v.image = thumb })
+    items.value.filter((i) => i.product_id === productId).forEach((i) => { i.image = thumb })
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    uploading.value = null
+  }
+}
+const withoutPhoto = computed(() => [...new Set(items.value.filter((i) => !i.image).map((i) => productKey(i)))].length)
+
 const groups = computed(() => {
   const list = []
   results.value.forEach((v) => {
@@ -158,10 +192,10 @@ async function save() {
 <template>
   <div class="fixed inset-0 z-50 flex flex-col bg-white" role="dialog" aria-modal="true" aria-label="Choisis tes articles">
     <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-      <h2 class="text-[18px] font-black">Choisis tes articles</h2>
+      <h2 class="text-[18px] font-black">{{ tab === 'new' ? 'Nouvel article' : 'Choisis tes articles' }}</h2>
       <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-lg" aria-label="Fermer" @click="emit('close')">✕</button>
     </header>
-    <nav class="grid grid-cols-3 gap-1.5 px-4 pt-3" role="tablist">
+    <nav v-if="tab !== 'new'" class="grid grid-cols-3 gap-1.5 px-4 pt-3" role="tablist">
       <button v-for="[value, label] in [['catalog', 'Mon catalogue'], ['past', 'Un live passé'], ['selection', `Ma sélection (${items.length})`]]" :key="value" type="button" role="tab" :aria-selected="tab === value"
               class="rounded-xl py-2 text-[13px] font-extrabold" :class="tab === value ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'" @click="tab = value">{{ label }}</button>
     </nav>
@@ -169,13 +203,23 @@ async function save() {
     <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
       <p v-if="error" class="mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
 
+      <!-- Nouvel article -->
+      <LiveNewProduct v-if="tab === 'new'" @created="created" @cancel="tab = 'catalog'" />
+
       <!-- Catalogue -->
-      <div v-if="tab === 'catalog'" class="space-y-3">
+      <div v-else-if="tab === 'catalog'" class="space-y-3">
+        <button type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-3 text-left" @click="tab = 'new'">
+          <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-700 text-2xl text-white">＋</span>
+          <span class="min-w-0 flex-1"><b class="block text-[15px] text-emerald-900">Nouvel article</b><span class="text-xs text-emerald-800">Pas encore au catalogue ? Prends la photo, l'IA remplit la fiche.</span></span>
+        </button>
         <input v-model="search" class="input" placeholder="🔍 Chercher un article" @input="find" />
         <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200">
           <li v-for="g in groups" :key="g.id">
             <div v-if="g.variants.length > 1" class="flex items-center gap-3 bg-slate-50 p-2">
               <img v-if="g.variants[0].image" :src="g.variants[0].image" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
+              <label v-else class="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-lg border-2 border-dashed border-red-300 bg-red-50 text-base" :title="`Ajouter la photo de ${g.title}`">
+                <input type="file" accept="image/*" capture="environment" class="sr-only" @change="addPhoto(g.id, $event)" />{{ uploading === g.id ? '…' : '📷' }}
+              </label>
               <b class="min-w-0 flex-1 truncate text-sm">{{ g.title }}</b>
               <button type="button" class="shrink-0 rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-bold text-white" @click="toggleProduct(g)">Tout le produit</button>
             </div>
@@ -185,6 +229,9 @@ async function save() {
                 <img v-if="v.image && g.variants.length === 1" :src="v.image" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
                 <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ g.variants.length > 1 ? v.variant : v.title }}</b><span class="text-xs text-slate-500">{{ money(v.price) }} · {{ v.available }} en stock</span></span>
               </button>
+              <label v-if="!v.image && g.variants.length === 1" class="shrink-0 cursor-pointer rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-bold text-red-700">
+                <input type="file" accept="image/*" capture="environment" class="sr-only" @change="addPhoto(g.id, $event)" />{{ uploading === g.id ? 'Envoi…' : '📷 Photo' }}
+              </label>
               <span v-if="line(v.id)" class="flex shrink-0 items-center gap-1.5 font-extrabold">
                 <button type="button" class="grid h-7 w-7 place-items-center rounded-lg bg-slate-100" aria-label="Une pièce de moins" @click="step(v, -1)">−</button>
                 <span class="w-6 text-center">{{ line(v.id).quantity }}</span>
@@ -216,6 +263,9 @@ async function save() {
               {{ codes[productKey(i)] }}<span class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-[9px] text-red-600 shadow">✎</span>
             </button>
             <img v-if="i.image" :src="i.image" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover" />
+            <label v-else class="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-xl border-2 border-dashed border-red-300 bg-red-50 text-lg" :aria-label="`Ajouter la photo de ${i.title.split(' — ')[0]}`">
+              <input type="file" accept="image/*" capture="environment" class="sr-only" @change="addPhoto(i.product_id, $event)" />{{ uploading === i.product_id ? '…' : '📷' }}
+            </label>
             <span class="min-w-0 flex-1"><b class="block truncate text-sm" :title="i.title">{{ i.title.split(' — ')[0] }}</b><span class="block truncate text-xs text-slate-500"><template v-if="i.title.includes(' — ')">{{ i.title.split(' — ').slice(1).join(' — ') }}</template><template v-if="i.title.includes(' — ') && i.available != null"> · </template><template v-if="i.available != null">{{ i.available }} en stock</template></span></span>
             <span class="flex shrink-0 flex-col">
               <button type="button" class="px-1 text-slate-400 disabled:opacity-30" :disabled="index === 0" aria-label="Monter" @click="move(index, -1)">▲</button>
@@ -223,6 +273,10 @@ async function save() {
             </span>
             <button type="button" class="shrink-0 px-1 text-red-600" aria-label="Retirer" @click="items.splice(index, 1)">✕</button>
           </div>
+          <label v-if="!i.image && i.product_id" class="mt-2 flex cursor-pointer items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+            <input type="file" accept="image/*" capture="environment" class="sr-only" @change="addPhoto(i.product_id, $event)" />
+            <span class="min-w-0 flex-1">Sans photo, cet article ne peut pas passer en live.</span><b class="shrink-0">{{ uploading === i.product_id ? 'Envoi…' : '📷 Ajouter la photo' }}</b>
+          </label>
           <div class="mt-2 flex flex-wrap gap-3 pl-14 text-sm">
             <label class="flex items-center gap-1">Prix <input v-model="i.price" type="number" min="0" class="input w-28 py-1" /></label>
             <label class="flex items-center gap-1">Pièces <input v-model="i.quantity" type="number" min="1" class="input w-20 py-1" /></label>
@@ -233,8 +287,11 @@ async function save() {
       </div>
     </div>
 
-    <footer class="border-t border-slate-200 p-3">
-      <button type="button" class="btn-brand w-full justify-center py-3.5 text-[16px] font-black" :disabled="busy || !items.length" @click="save">
+    <footer v-if="tab !== 'new'" class="border-t border-slate-200 p-3">
+      <button v-if="withoutPhoto" type="button" class="w-full rounded-xl bg-red-50 py-3.5 text-[15px] font-black text-red-700" @click="tab = 'selection'">
+        📷 Ajoute la photo de {{ withoutPhoto }} article(s) pour valider
+      </button>
+      <button v-else type="button" class="btn-brand w-full justify-center py-3.5 text-[16px] font-black" :disabled="busy || !items.length" @click="save">
         {{ busy ? 'Enregistrement…' : `Valider · ${items.length} article(s), ${pieces} pièces` }}
       </button>
     </footer>
