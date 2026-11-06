@@ -877,17 +877,18 @@ class LiveSales
 
             return;
         }
-        // Une seule image pour tous les articles demandés (gardés ou en liste d'attente) avec une légende courte ; la
-        // question de l'adresse part ensuite, seule, pour qu'on la voie bien
+        // Un court texte pour tous les articles demandés (gardés ou en liste d'attente) ; la question de l'adresse part
+        // ensuite, seule, pour qu'on la voie bien
         $kept = $items->filter(fn (LiveItem $item) => $mine($item, LiveReservation::HOLDING)->exists());
         $waits = collect(explode("\n", $text))->filter(fn (string $l) => str_starts_with($l, '⏳'));
         $caption = trim(($kept->isEmpty() ? '' : "✅ *C'est réservé pour vous !*\n"
             .$kept->map(fn (LiveItem $item) => $item->code.' '.($item->variant?->product?->title ?? 'Article').($item->optionValues() !== [] ? " ({$item->variant->title})" : '')
-                .(($n = $mine($item, LiveReservation::HOLDING)->count()) > 1 ? " × {$n}" : ''))->implode("\n")
+                .(($n = $mine($item, LiveReservation::HOLDING)->count()) > 1 ? " × {$n}" : '').' · '.Money::format($item->currentPrice()))->implode("\n")
             .($held ? "\n⏱️ Gardé *".self::duration((int) ($session->hold_minutes ?: 120)).'* pour vous' : '')."\n")
             .$waits->implode("\n"));
-        $sent = $text !== '' && $checkout->picture($conversation, $this->askedImage($session, $items, $mine, $held), $caption);
-        $sent || $text === '' || $this->reply($conversation, $text);
+        // Pendant la commande : du texte seul (une image arrive plus tard qu'un texte et tomberait après la question de
+        // l'adresse) ; les photos viennent avec le récapitulatif, puis en grand après « Je confirme »
+        $text === '' || $this->reply($conversation, $caption !== '' ? $caption : $text);
         if ($held) {
             $this->askAddress($conversation, "📍 *DERNIÈRE ÉTAPE : L'ADRESSE*");
         }
@@ -907,32 +908,6 @@ class LiveSales
     private static function duration(int $minutes): string
     {
         return $minutes < 60 ? "{$minutes} minutes" : intdiv($minutes, 60).' h'.($minutes % 60 > 0 ? ' '.str_pad((string) ($minutes % 60), 2, '0', STR_PAD_LEFT) : '');
-    }
-
-    /**
-     * Image des articles demandés dans un message (miniature, code, nom, taille, prix, gardé ou liste d'attente) ; null
-     * si elle ne peut pas être faite (le texte part seul).
-     *
-     * @param  Collection<int, LiveItem>  $items
-     */
-    private function askedImage(LiveSession $session, Collection $items, callable $mine, bool $held): ?string
-    {
-        $items = (new \Illuminate\Database\Eloquent\Collection($items->all()))->loadMissing(['variant.image', 'variant.product.images']);
-        $lines = $items->map(function (LiveItem $item) use ($mine) {
-            $kept = $mine($item, LiveReservation::HOLDING)->count();
-            $waiting = $mine($item, ['waiting'])->oldest('id')->first();
-            if ($kept === 0 && $waiting === null) {
-                return null;
-            }
-            $state = $kept > 0 ? ($kept > 1 ? "{$kept} réservées pour vous" : 'Réservée pour vous') : "Liste d'attente : n°{$this->position($waiting)}";
-
-            return ['code' => $item->code, 'title' => $item->variant?->product?->title ?? 'Article',
-                'detail' => ($item->optionValues() !== [] ? $item->variant->title.' · ' : '').$state,
-                'price' => $item->currentPrice(), 'image' => $item->variant?->image ?? $item->variant?->product?->images->first()];
-        })->filter()->values()->all();
-
-        return $lines === [] ? null : rescue(fn () => app(LiveImages::class)->board($session->store_id, 'Pour vous · '.($session->store?->name ?? 'Live'), $lines,
-            $held ? 'Où faut-il vous livrer ?' : null), report: false);
     }
 
     /**
@@ -1069,6 +1044,7 @@ class LiveSales
             'previous_amount' => $team && $session->status === 'ended' ? $this->previousAmount($session) : null,
             // WhatsApp qui répond aux clients pendant le live : official (Meta), link (relié par QR code) ou null
             'whatsapp' => $team ? self::whatsapp($session->store_id) : null,
+            'whatsapp_phone' => $team ? self::whatsappNumber($session->store_id)['phone'] : null,
         ];
     }
 
@@ -1131,6 +1107,18 @@ class LiveSales
     public static function whatsapp(int $storeId): ?string
     {
         return WhatsappAccount::forStore($storeId)->exists() ? 'official' : (WhatsappLink::connectedFor($storeId) ? 'link' : null);
+    }
+
+    /**
+     * Numéro WhatsApp (Meta) relié à la boutique, et s'il est en mode sans carte, pour l'afficher dans le live.
+     *
+     * @return array{phone: ?string, no_card: bool}
+     */
+    public static function whatsappNumber(int $storeId): array
+    {
+        $account = WhatsappAccount::forStore($storeId)->first();
+
+        return ['phone' => $account?->display_phone, 'no_card' => (bool) $account?->withoutCard()];
     }
 
     /**

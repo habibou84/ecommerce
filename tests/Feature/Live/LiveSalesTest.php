@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\WhatsappAccount;
 use App\Services\Ai\AiClient;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Live\LiveImages;
@@ -128,7 +129,13 @@ class LiveSalesTest extends TestCase
         $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('Pas de live en ce moment');
         $id = $this->prepare(robes: 1);
         // Aucun WhatsApp relié : la page « Vendre en live » propose de le relier
-        $this->storeApi($this->store, 'GET', 'lives')->assertOk()->assertJsonPath('meta.whatsapp', null);
+        $this->storeApi($this->store, 'GET', 'lives')->assertOk()->assertJsonPath('meta.whatsapp', null)->assertJsonPath('meta.whatsapp_phone', null);
+        // Numéro relié : affiché dans « Préparer un live » et dans les infos du live, avec le mode sans carte
+        $account = WhatsappAccount::create(['store_id' => $this->store->id, 'phone_number_id' => '1', 'display_phone' => '+225 07 00 00 00 01', 'access_token' => 't', 'status' => 'active', 'payment_missing_at' => now()]);
+        $this->storeApi($this->store, 'GET', 'lives')->assertJsonPath('meta.whatsapp', 'official')
+            ->assertJsonPath('meta.whatsapp_phone', '+225 07 00 00 00 01')->assertJsonPath('meta.whatsapp_no_card', true);
+        $this->storeApi($this->store, 'GET', "lives/{$id}")->assertJsonPath('data.whatsapp_phone', '+225 07 00 00 00 01');
+        $account->delete();
         $items = $this->page('GET', '/live/etat')->assertOk()->assertJsonPath('data.items.0.remaining', 1)->json('data.items');
         $this->get($this->storeUrl($this->store, '/live'))->assertOk()->assertSee('EN DIRECT')->assertSee('A1')->assertSee('Propulsé par')->assertSee('Jibiat Marchand');
 
@@ -592,11 +599,11 @@ class LiveSalesTest extends TestCase
         $this->message('R1', 'A1');
         $this->message('R2', 'Angré');
         $order = Order::forStore($this->store->id)->sole();
-        $recap = end($this->whatsapp);
-        $this->assertStringContainsString("🧾 *COMMANDE N° {$order->reference()}*", $recap);
-        // Le détail (miniatures, livraison, total) part en une seule image juste avant
+        // Un seul message : l'image (miniatures) avec tout le récapitulatif et les réponses en légende
         $this->assertStringEndsWith('.jpg', end($this->images)['image']);
-        $this->assertSame("🧾 Commande n° {$order->reference()}", end($this->images)['caption']);
+        $recap = end($this->images)['caption'];
+        $this->assertStringContainsString("🧾 *COMMANDE N° {$order->reference()}*", $recap);
+        $this->assertStringContainsString('Vérifiez les photos avant de confirmer', $recap);
         $this->assertStringContainsString('Total à payer', $recap);
         $this->assertStringContainsString("*1* ✅ Je confirme\n*2* ➕ Ajouter un article\n*3* 📍 Changer l'adresse\n*4* ❌ Annuler", $recap);
 
@@ -605,7 +612,7 @@ class LiveSalesTest extends TestCase
         $this->assertStringContainsString('NOUVELLE ADRESSE', end($this->whatsapp));
         $this->message('R4', 'Yopugon');
         $this->assertSame('Yopougon', Place::find($order->fresh()->shipping_place_id)->name);
-        $this->assertStringContainsString('Total à payer', end($this->whatsapp));
+        $this->assertStringContainsString('Total à payer', end($this->images)['caption']);
 
         // 4 / ANNULER : à redire une fois ; la robe revient au live et Awa, sur la liste d'attente, est servie
         $this->message('W1', 'A1', '2250701020304');
@@ -622,7 +629,8 @@ class LiveSalesTest extends TestCase
         $this->message('W2', 'Cocody', '2250701020304');
         $this->message('W3', 'oui', '2250701020304');
         $this->assertSame('confirmed', Order::where('customer_phone', '+2250701020304')->sole()->status->value);
-        $this->assertStringContainsString('COMMANDE CONFIRMÉE', end($this->whatsapp));
+        $this->assertStringContainsString('COMMANDE CONFIRMÉE', $this->whatsapp[count($this->whatsapp) - 2]);
+        $this->assertStringStartsWith('📷 *Voici les photos de votre commande', end($this->images)['caption']);
 
         // « LIVE » : un article par ligne, séparés par une ligne vide
         $this->travel(3)->minutes();

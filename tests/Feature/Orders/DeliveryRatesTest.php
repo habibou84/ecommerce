@@ -113,6 +113,16 @@ class DeliveryRatesTest extends TestCase
         $this->assertSame(1000, (int) $this->order('Angré')->shipping_fee);
     }
 
+    public function test_free_delivery_is_set_with_the_prices_and_applied_to_the_order(): void
+    {
+        $this->storeApi($this->store, 'PUT', 'delivery-rates', ['base_fee' => 1500, 'free_shipping_above' => 30000])->assertOk()
+            ->assertJsonPath('data.base_fee', 1500)->assertJsonPath('data.free_shipping_above', 30000);
+        $this->assertSame(1500, $this->order('Cocody')->shipping_fee);
+        $this->assertSame(0, $this->order('Cocody', ['items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 2]]])->shipping_fee);
+        // Vide : la livraison reste payante
+        $this->storeApi($this->store, 'PUT', 'delivery-rates', ['free_shipping_above' => null])->assertOk()->assertJsonPath('data.free_shipping_above', null);
+    }
+
     public function test_expedition_to_another_city_is_paid_before_and_dropped_at_the_station(): void
     {
         $this->storeApi($this->store, 'POST', 'delivery-rates/remember', ['expedition' => true, 'fee' => 1500])->assertOk()

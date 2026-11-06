@@ -39,7 +39,7 @@ const connect = () => connectWhatsappDirect(router, route.fullPath)
       <p class="text-[12px] font-bold uppercase tracking-wide text-slate-500">Avant de commencer</p>
       <ul class="mt-1.5 space-y-1.5 text-[13px] leading-snug text-slate-700">
         <li class="flex gap-2"><span aria-hidden="true">📱</span><span><b>Un numéro réservé au live</b>, qui n'est pas déjà utilisé sur WhatsApp.</span></li>
-        <li class="flex gap-2"><span aria-hidden="true">💳</span><span><b>Une carte bancaire chez Meta</b>, pour les messages publicitaires envoyés en masse. Les réponses aux commandes de tes clientes sont gratuites.</span></li>
+        <li class="flex gap-2"><span aria-hidden="true">💳</span><span><b>Carte bancaire : pas obligatoire.</b> Tu peux passer cette étape. Elle sert seulement aux messages en masse (relances). Le live et les réponses sont gratuits.</span></li>
       </ul>
     </div>
   </section>
