@@ -49,9 +49,16 @@ class SendWhatsAppMessage implements ShouldQueue
             if ($account->last_error !== null) {
                 $account->forceFill(['last_error' => null])->save();
             }
+            // Un modèle accepté : Meta a de nouveau un moyen de paiement (les réponses libres, elles, passent sans)
+            if ($this->text === null && $account->payment_missing_at !== null) {
+                $account->forceFill(['payment_missing_at' => null])->save();
+            }
         } catch (Throwable $e) {
             $message->forceFill(['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 250)])->save();
             $account->forceFill(['last_error' => mb_substr($e->getMessage(), 0, 250)])->save();
+            if (str_contains($e->getMessage(), '131042')) {
+                $account->forceFill(['payment_missing_at' => now()])->save();
+            }
         }
     }
 }

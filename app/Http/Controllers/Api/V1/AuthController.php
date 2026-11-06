@@ -8,6 +8,7 @@ use App\Http\Resources\StoreResource;
 use App\Models\Store;
 use App\Models\SupportSession;
 use App\Models\User;
+use App\Models\WhatsappAccount;
 use App\Services\Accounts\AccountDeletion;
 use App\Services\Accounts\LoginHandoff;
 use App\Services\Accounts\PhoneVerifier;
@@ -17,6 +18,7 @@ use App\Services\Console\SupportSessions;
 use App\Services\Couriers\CourierRoster;
 use App\Services\Materiel\MaterielShop;
 use App\Services\Platform\Features;
+use App\Services\WhatsApp\MetaHealth;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -224,6 +226,10 @@ class AuthController extends Controller
             'whatsapp_qr' => $store->whatsapp_qr_enabled && app(Features::class)->enabled('whatsapp_qr', $store),
             // « Comment ça marche » du live déjà vu (en entier aux 2 premières visites)
             'live_intro_views' => (int) $user->live_intro_views,
+            // Meta refuse les messages automatiques faute de carte : bandeau avec le lien vers les cartes du compte Business
+            'whatsapp_payment' => ($wa = WhatsappAccount::where('store_id', $store->id)->first())?->payment_missing_at !== null
+                ? ['url' => MetaHealth::links($wa, $wa->meta_health['business_id'] ?? null)['payment']]
+                : null,
             // Fonctions allumées dans la console pour cette boutique (masquées, en test ou actives)
             'features' => app(Features::class)->forStore($store),
         ];
