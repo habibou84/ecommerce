@@ -4,12 +4,12 @@ import { useRoute } from 'vue-router'
 import AuthShell from '../../components/AuthShell.vue'
 import Alert from '../../components/Alert.vue'
 import { boot } from '../../lib/boot'
-import { connectWhatsApp, facebookDialogUrl, facebookReturnUrl, inAppBrowser, prefersRedirect, prepareFacebook } from '../../lib/facebook'
+import { connectWhatsApp, facebookDialogUrl, facebookReturnUrl, inAppBrowser, prepareFacebook } from '../../lib/facebook'
 
 // Fenêtre Facebook de la connexion WhatsApp, ouverte depuis la plateforme pour toutes les boutiques (Meta n'accepte
 // pas les sous-domaines en joker) ; le résultat repart vers la gestion de la boutique qui l'a demandée.
-// Ordinateur : fenêtre Facebook par-dessus la page. Téléphone : la page entière part chez Facebook et revient ici
-// avec le code (?code=…&state=…), puis repart vers la boutique.
+// Fenêtre Facebook (pop-up) partout, téléphone compris ; en secours « Ouvrir en pleine page » : la page entière part
+// chez Facebook et revient ici avec le code (?code=…&state=…), puis repart vers la boutique.
 const route = useRoute()
 const error = ref('')
 const busy = ref(false)
@@ -55,23 +55,23 @@ onMounted(() => {
     }
     return
   }
-  if (back.value && options.appId && !prefersRedirect()) prepareFacebook(options)
+  if (back.value && options.appId) prepareFacebook(options)
 })
 
 function goBack(params) {
   window.location.assign(`${back.value}#${new URLSearchParams({ whatsapp: '1', ...params })}`)
 }
 
+// Secours : la page entière chez Facebook (fenêtre bloquée ou résultat perdu dans un autre onglet)
+function fullPage() {
+  const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value }))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  window.location.assign(facebookDialogUrl(options, redirectUri, state))
+}
+
 async function start() {
   busy.value = true
   error.value = ''
-  // Téléphone : la page entière (pas de fenêtre qui se perd dans un autre onglet)
-  if (prefersRedirect()) {
-    const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value }))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-    window.location.assign(facebookDialogUrl(options, redirectUri, state))
-    return
-  }
   try {
     const result = await connectWhatsApp(options)
     goBack({ code: result.code, waba_id: result.waba_id, phone_number_id: result.phone_number_id ?? '', coexistence: sure || result.coexistence ? '1' : '0' })
@@ -92,7 +92,7 @@ async function copyLink() {
 </script>
 
 <template>
-  <AuthShell title="Connecter WhatsApp" subtitle="Avec votre compte Facebook, pour l'espace qui vous a envoyé ici (espace marchand ou console).">
+  <AuthShell title="Connecter WhatsApp" subtitle="Avec ton compte Facebook.">
     <p v-if="returned && back" class="text-center text-sm text-slate-600">Connexion reçue de Facebook, retour vers votre espace…</p>
     <Alert v-else-if="!back || !options.appId || !options.configId" tone="error">
       Ce lien n'est pas valable. Revenez dans votre espace marchand (Réglages › WhatsApp) et recommencez.
@@ -104,21 +104,14 @@ async function copyLink() {
         <p>Menu ⋮ (ou ⋯) › « Ouvrir dans le navigateur », ou copiez le lien et collez-le dans Chrome.</p>
         <button type="button" class="btn-secondary w-full" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien' }}</button>
       </div>
-      <div v-if="phoneLayout && !embeddedBrowser" class="space-y-1.5 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
-        <p><b>📱 Sur téléphone, activez d'abord la version pour ordinateur</b>, sinon l'étape de la carte bancaire peut se bloquer chez Meta.</p>
-        <ul class="list-disc space-y-0.5 pl-5">
-          <li>Chrome : menu ⋮ › cochez « Version pour ordinateur »</li>
-          <li>Safari (iPhone) : bouton « aA » › « Demander le site pour ordinateur »</li>
-        </ul>
-        <p>Puis touchez « Continuer avec Facebook ».</p>
+      <!-- Deux consignes, en grand : le reste, Facebook le guide -->
+      <div class="space-y-3">
+        <p v-if="phoneLayout && !embeddedBrowser" class="flex items-center gap-3 rounded-2xl bg-sky-50 p-4 text-[17px] font-bold leading-snug text-sky-950"><span class="text-3xl" aria-hidden="true">💻</span><span>Chrome ⋮ › « Version pour ordinateur »</span></p>
+        <p class="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-[17px] font-bold leading-snug text-amber-950"><span class="text-3xl" aria-hidden="true">💳</span><span>Carte : choisis <u>USD</u> ou <u>EUR</u></span></p>
       </div>
-      <p class="rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><b>Devise de la carte :</b> choisissez USD (dollar) ou EUR (euro), le franc CFA n'est pas proposé par Meta. Ne gardez pas la devise proposée par défaut sans la vérifier.</p>
-      <p class="text-sm text-slate-600">
-        Facebook vous guide : compte Business, nom affiché, numéro de votre espace marchand et code reçu par SMS.
-        Vous revenez ensuite automatiquement sur votre espace marchand.
-      </p>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
-      <button type="button" class="btn-brand w-full" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
+      <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Fenêtre Facebook ouverte…' : 'Continuer avec Facebook' }}</button>
+      <button v-if="phoneLayout || error" type="button" class="w-full text-center text-sm font-semibold text-slate-500 underline" @click="fullPage">La fenêtre ne s'ouvre pas ? Ouvrir en pleine page</button>
       <button type="button" class="btn-secondary w-full" @click="goBack({ erreur: 'Connexion interrompue. Vous pouvez recommencer quand vous voulez.' })">Revenir</button>
     </div>
   </AuthShell>
