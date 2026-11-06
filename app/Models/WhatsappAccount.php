@@ -36,6 +36,20 @@ class WhatsappAccount extends Model
         return $this->getAttribute('connection') === 'embedded';
     }
 
+    /**
+     * Mode sans carte : Meta a refusé un modèle faute de moyen de paiement. Les modèles (payants) ne sont plus
+     * tentés ; un seul essai toutes les 12 h pour voir si une carte a été ajoutée entre-temps.
+     */
+    public function withoutCard(): bool
+    {
+        return $this->payment_missing_at !== null;
+    }
+
+    public function skipsTemplates(): bool
+    {
+        return $this->payment_missing_at !== null && $this->payment_missing_at->gt(now()->subHours(12));
+    }
+
     public function automates(string $event): bool
     {
         return $this->status === 'active' && ($this->automations[$event] ?? false);

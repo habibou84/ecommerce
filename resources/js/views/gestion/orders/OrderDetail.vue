@@ -310,8 +310,10 @@ async function addNote() {
         </section>
 
         <section v-if="order.messages.length" class="card space-y-2 p-4 text-sm">
-          <h3 class="font-semibold">Message WhatsApp au client</h3>
-          <a v-for="m in order.messages" :key="m.key" :href="m.url" target="_blank" rel="noopener" class="btn-secondary w-full justify-start gap-2"><Icon name="messages" :size="16" />{{ m.label }}</a>
+          <h3 class="font-semibold">{{ auth.profile?.whatsapp_payment ? 'À envoyer depuis votre WhatsApp' : 'Message WhatsApp au client' }}</h3>
+          <!-- Mode sans carte : ces messages ne partent pas tout seuls, le bouton vert ouvre WhatsApp avec le texte prêt -->
+          <a v-for="m in order.messages" :key="m.key" :href="m.url" target="_blank" rel="noopener" class="w-full justify-start gap-2"
+             :class="auth.profile?.whatsapp_payment ? 'btn flex bg-green-600 font-black text-white hover:bg-green-700' : 'btn-secondary'"><Icon name="messages" :size="16" />{{ m.label }}</a>
         </section>
 
         <section class="card space-y-2 p-4 text-sm">
