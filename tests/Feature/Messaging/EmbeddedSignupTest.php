@@ -27,6 +27,9 @@ class EmbeddedSignupTest extends TestCase
     /** @var array<string, string> numéro lu chez Meta */
     private array $number = ['display_phone_number' => '+225 07 00 00 00 01', 'verified_name' => 'Awa Mode', 'id' => '5555'];
 
+    /** Numéros du compte WhatsApp lus chez Meta */
+    private array $phoneNumbers = [['id' => '5555', 'display_phone_number' => '+225 07 00 00 00 01']];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -43,7 +46,7 @@ class EmbeddedSignupTest extends TestCase
             return match (true) {
                 str_ends_with($path, '/oauth/access_token') => Http::response(['access_token' => 'biz-token', 'token_type' => 'bearer']),
                 str_ends_with($path, '/subscribed_apps'), str_ends_with($path, '/register') => Http::response(['success' => true]),
-                str_ends_with($path, '/phone_numbers') => Http::response(['data' => [['id' => '5555']]]),
+                str_ends_with($path, '/phone_numbers') => Http::response(['data' => $this->phoneNumbers]),
                 // Jeton vérifié par la plateforme : comptes WhatsApp choisis dans Facebook
                 str_ends_with($path, '/debug_token') => Http::response(['data' => ['granular_scopes' => [
                     ['scope' => 'business_management'], ['scope' => 'whatsapp_business_management', 'target_ids' => ['4444']],
@@ -106,6 +109,15 @@ class EmbeddedSignupTest extends TestCase
         $this->assertSame(['4444', '5555'], [WhatsappAccount::sole()->waba_id, WhatsappAccount::sole()->phone_number_id]);
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), 'oauth/access_token?') && str_contains($r->url(), 'redirect_uri='.urlencode($redirect)));
         Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/debug_token?input_token=biz-token') && str_contains($r->url(), 'access_token='.urlencode('7777|platform-secret')));
+    }
+
+    public function test_whole_page_connection_takes_the_shop_number_not_the_meta_test_number(): void
+    {
+        // Le compte Meta contient le numéro de test américain (en premier) et le vrai numéro de la boutique
+        $this->phoneNumbers = [['id' => '6666', 'display_phone_number' => '+1 711-121-1670'], ['id' => '5555', 'display_phone_number' => '+225 07 00 00 00 01']];
+        $this->storeApi($this->store, 'POST', 'whatsapp/embedded', ['code' => 'code-tel', 'redirect_uri' => 'http://localhost/whatsapp/facebook'])->assertOk()
+            ->assertJsonPath('data.account.display_phone', '+225 07 00 00 00 01');
+        $this->assertSame('5555', WhatsappAccount::sole()->phone_number_id);
     }
 
     public function test_number_provided_by_meta_and_display_name_review_are_explained(): void
