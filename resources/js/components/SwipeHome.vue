@@ -213,6 +213,10 @@ function open(to) {
 
         <!-- COMMANDES (+ livraisons) -->
         <template v-else-if="p.key === 'orders'">
+          <div class="mb-3 grid grid-cols-2 gap-2">
+            <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center py-3 text-[15px] font-black">＋ Commande</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center py-3 text-[15px] font-black">🏪 Comptoir</RouterLink>
+          </div>
           <div class="rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
             <p class="text-sm font-semibold opacity-90">Aujourd'hui</p>
             <p class="text-[26px] font-black leading-tight">{{ s.orders?.today_count ?? 0 }} commande(s) · {{ money(s.orders?.today_amount ?? 0) }}</p>
@@ -237,10 +241,6 @@ function open(to) {
               <span class="min-w-0 flex-1"><b class="block truncate text-[14.5px]">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }} · {{ o.source_label }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template></span></span>
               <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold" :class="tone(o)">{{ o.status_label }}</span>
             </RouterLink>
-          </div>
-          <div class="mt-3 grid grid-cols-2 gap-2">
-            <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center py-3 text-[15px] font-black">＋ Commande</RouterLink>
-            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center py-3 text-[15px] font-black">🏪 Comptoir</RouterLink>
           </div>
         </template>
 
@@ -291,6 +291,10 @@ function open(to) {
 
         <!-- ARTICLES : catalogue et stock réunis -->
         <template v-else-if="p.key === 'items'">
+          <div class="mb-3 grid grid-cols-2 gap-2">
+            <RouterLink v-if="canOpen('/gestion/catalogue/nouveau')" to="/gestion/catalogue/nouveau" class="btn-brand justify-center py-3 text-[15px] font-black">📷 Nouvel article</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/stock')" to="/gestion/stock" class="btn-secondary justify-center py-3 text-[15px] font-black">＋ Stock</RouterLink>
+          </div>
           <input v-model="itemSearch" class="input" placeholder="🔍 Chercher un article" @input="searchItems" />
           <div class="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
             <button v-for="[v, label] in [['', 'Tout'], ['low', `⚠ Stock bas ${s.stock?.low ?? ''}`], ['out', `Épuisés ${s.stock?.out ?? ''}`]]" :key="v" type="button"
@@ -305,10 +309,6 @@ function open(to) {
               <span class="block p-2"><b class="block truncate text-[13.5px]">{{ a.title }}</b><span class="text-xs text-slate-500">{{ money(a.price_min ?? 0) }}</span>
                 <span class="mt-1 block w-fit rounded-full px-2 py-0.5 text-[11px] font-extrabold" :class="stockPill(a).cls">{{ stockPill(a).text }}</span></span>
             </RouterLink>
-          </div>
-          <div class="mt-3 grid grid-cols-2 gap-2">
-            <RouterLink v-if="canOpen('/gestion/catalogue/nouveau')" to="/gestion/catalogue/nouveau" class="btn-brand justify-center py-3 text-[15px] font-black">📷 Nouvel article</RouterLink>
-            <RouterLink v-if="canOpen('/gestion/stock')" to="/gestion/stock" class="btn-secondary justify-center py-3 text-[15px] font-black">＋ Stock</RouterLink>
           </div>
         </template>
 
