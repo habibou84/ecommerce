@@ -5,6 +5,7 @@ import Alert from '../../../components/Alert.vue'
 import ColorIcon from '../../../components/ColorIcon.vue'
 import Field from '../../../components/Field.vue'
 import Icon from '../../../components/Icon.vue'
+import LiveIntro from '../../../components/LiveIntro.vue'
 import LiveLink from '../../../components/LiveLink.vue'
 import LiveTraining from '../../../components/LiveTraining.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
@@ -13,12 +14,19 @@ import LiveSignPicker from '../../../components/LiveSignPicker.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money } from '../../../lib/format'
+import { useAuthStore } from '../../../stores/auth'
 
 /**
  * Vendre en live (menu Ventes) : le live en cours en premier, les lives prêts, les lives passés (avec « Refaire ce
- * live »), la formation repliée. « Préparer un live » : articles choisis d'un coup, ordre = codes, barre fixe.
+ * live »), la formation repliée. « Faire un live » : « Comment ça marche » puis la vidéo aux 2 premières visites,
+ * puis « Préparer » (articles choisis d'un coup, ordre = codes, barre fixe).
  */
 const router = useRouter()
+const auth = useAuthStore()
+// Vidéo qui explique le live en détail (voix off et sous-titres)
+const INTRO_VIDEO = '/videos/live/formation-03'
+// Parcours d'explication avant « Préparer » : null, 'how' (comment ça marche) ou 'video'
+const intro = ref(null)
 const lives = ref(null)
 const pageUrl = ref('')
 const whatsapp = ref(null)
@@ -75,6 +83,33 @@ async function redo(live) {
 }
 
 // ── Préparer un live ──
+// « Faire un live » : l'explication en entier aux 2 premières visites, sinon directement « Préparer »
+function begin() {
+  if ((auth.profile?.live_intro_views ?? 0) < 2) {
+    intro.value = 'how'
+    window.scrollTo({ top: 0 })
+  } else {
+    startNew()
+  }
+}
+
+function introStep(step) {
+  intro.value = step
+  window.scrollTo({ top: 0 })
+}
+
+// Fin de l'explication (vidéo regardée ou passée) : une visite de plus, puis « Préparer »
+async function introDone() {
+  intro.value = null
+  try {
+    const { data } = await http.post('/lives/intro-seen')
+    if (auth.profile) auth.profile.live_intro_views = data.data.live_intro_views
+  } catch {
+    // Sans gravité : l'explication sera simplement proposée une fois de plus
+  }
+  startNew()
+}
+
 function startNew() {
   const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' })
   Object.assign(form, { title: `Live du ${date}`, stream_url: '', hold_minutes: 120, items: [] })
@@ -187,11 +222,31 @@ async function save() {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4" :class="intro ? 'pb-40' : ''">
     <Alert v-if="error">{{ error }}</Alert>
 
+    <!-- ═══ « Faire un live » : comment ça marche, puis la vidéo ═══ -->
+    <template v-if="intro === 'how'">
+      <LiveIntro :shop="auth.profile?.store?.name ?? ''" />
+      <div class="fixed inset-x-0 bottom-[76px] z-20 space-y-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:bottom-0 lg:left-64">
+        <button type="button" class="btn-brand w-full justify-center py-3 text-base" @click="introStep('video')">Suivant : voir la vidéo ▸</button>
+        <button type="button" class="w-full text-center text-sm font-semibold text-slate-500" @click="intro = null">Retour</button>
+      </div>
+    </template>
+    <template v-else-if="intro === 'video'">
+      <section class="card space-y-3 p-4">
+        <h2 class="text-[19px] font-extrabold">🎬 Le live en vidéo</h2>
+        <p class="text-[14px] text-slate-600">Comment préparer et réussir votre live, pas à pas (avec le son, ou en lisant les sous-titres).</p>
+        <video class="mx-auto max-h-[62vh] w-full rounded-2xl bg-black" controls playsinline preload="metadata" :poster="`${INTRO_VIDEO}.jpg`" :src="`${INTRO_VIDEO}.mp4`" />
+      </section>
+      <div class="fixed inset-x-0 bottom-[76px] z-20 space-y-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:bottom-0 lg:left-64">
+        <button type="button" class="btn-brand w-full justify-center py-3 text-base" :disabled="busy" @click="introDone">Préparer mon live ▸</button>
+        <button type="button" class="w-full text-center text-sm font-semibold text-slate-500" @click="introDone">Passer la vidéo</button>
+      </div>
+    </template>
+
     <!-- ═══ Liste des lives ═══ -->
-    <template v-if="!editing">
+    <template v-else-if="!editing">
       <!-- Live en cours : au style de l'accueil -->
       <section v-if="current" class="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 p-5 text-white">
         <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><span class="h-2 w-2 animate-pulse rounded-full bg-white" />EN DIRECT · {{ length(current.minutes) }}</span>
@@ -216,7 +271,7 @@ async function save() {
       </section>
 
       <div class="flex flex-wrap items-center gap-2">
-        <button type="button" class="btn-brand" @click="startNew"><Icon name="plus" :size="18" />Préparer un live</button>
+        <button type="button" class="btn-brand" @click="begin"><Icon name="plus" :size="18" />Faire un live</button>
         <button v-if="pageUrl" type="button" class="btn-secondary" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien des lives' }}</button>
         <button v-if="pageUrl" type="button" class="text-sm font-medium text-emerald-700 underline" @click="share = true">Message à épingler</button>
       </div>
@@ -266,6 +321,16 @@ async function save() {
 
     <!-- ═══ Préparer un live ═══ -->
     <form v-else class="space-y-4 pb-32" @submit.prevent="save">
+      <!-- Explication repliée : un appui la déroule -->
+      <details class="card overflow-hidden border-2 border-ocre-600">
+        <summary class="flex cursor-pointer list-none items-center justify-between p-4 text-[16px] font-bold">
+          <span>💡 Comment ça marche ?</span><span class="text-ocre-700">Voir ▾</span>
+        </summary>
+        <div class="space-y-3.5 px-3 pb-4">
+          <LiveIntro :shop="auth.profile?.store?.name ?? ''" />
+          <video class="mx-auto max-h-[70vh] w-full rounded-2xl bg-black" controls playsinline preload="none" :poster="`${INTRO_VIDEO}.jpg`" :src="`${INTRO_VIDEO}.mp4`" />
+        </div>
+      </details>
       <section class="card space-y-3 p-4">
         <Field id="live-title" label="Nom du live" :error="errors.title"><input id="live-title" v-model="form.title" class="input" required maxlength="120" /></Field>
         <Field id="live-stream" label="Lien du live (TikTok, Facebook…), facultatif" :error="errors.stream_url" hint="Vos clients pourront revenir regarder le live depuis la page de réservation.">
@@ -284,7 +349,7 @@ async function save() {
           <h3 class="font-extrabold">Articles du live</h3>
           <button type="button" class="btn-secondary px-3 py-1.5 text-sm" @click="openPicker">+ Choisir des articles</button>
         </div>
-        <p class="mt-1 text-xs text-slate-500">Dans l'ordre où vous les présenterez : les flèches changent l'ordre et les codes. Vous montrez des pancartes à la caméra ? Touchez le code pour choisir la pancarte de l'article.</p>
+        <p class="mt-1 text-xs text-slate-500">Dans l'ordre où vous les présenterez : les flèches changent l'ordre et les codes. Touchez le code pour le changer.</p>
         <p v-if="!form.items.length" class="mt-4 rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">Aucun article pour l'instant. Touchez « Choisir des articles ».</p>
         <ul class="mt-3 space-y-2">
           <li v-for="(i, index) in form.items" :key="i.variant_id" class="rounded-2xl border border-slate-200 p-2">
@@ -308,7 +373,6 @@ async function save() {
         </ul>
         <p v-if="errors.items" class="mt-2 text-sm text-red-600">{{ errors.items }}</p>
         <p v-for="(message, field) in signErrors" :key="field" class="mt-2 text-sm text-red-600">{{ message }}</p>
-        <RouterLink to="/gestion/live/pancartes" class="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-emerald-700">🖨 Imprimer des pancartes (A1, A2…)</RouterLink>
       </section>
 
       <!-- Barre fixe : totaux et enregistrement -->

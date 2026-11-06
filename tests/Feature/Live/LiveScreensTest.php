@@ -176,6 +176,32 @@ class LiveScreensTest extends TestCase
         $this->assertSame(['00-comment-commander.jpg', '01-A1-vendu.jpg', '01-A1.jpg', '02-A2-vendu.jpg', '02-A2.jpg'], $names);
     }
 
+    public function test_the_photo_to_pin_shows_only_the_photos_and_codes_in_both_formats(): void
+    {
+        $pin = $this->storeApi($this->store, 'GET', "lives/{$this->live}/pin")->assertOk()->json('data');
+        foreach (['portrait' => [1080, 1920], 'square' => [1080, 1080]] as $format => $size) {
+            $this->assertCount(1, $pin[$format]);
+            $this->assertSame(['A1', 'A2'], $pin[$format][0]['codes']);
+            Storage::disk('public')->assertExists($pin[$format][0]['path']);
+            $this->assertSame($size, array_slice(getimagesizefromstring(Storage::disk('public')->get($pin[$format][0]['path'])), 0, 2));
+        }
+
+        // Servie par l'application pour le téléchargement ; un autre fichier est refusé
+        $this->storeApi($this->store, 'GET', 'lives/pin/file?path='.urlencode($pin['portrait'][0]['path']))->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+        $this->storeApi($this->store, 'GET', 'lives/pin/file?path='.urlencode('live/'.$this->store->id.'/card-A1-000000000000.jpg'))->assertNotFound();
+
+        // Même contenu, même fichier (pas refait à chaque fois)
+        $this->assertSame($pin['portrait'][0]['path'], $this->storeApi($this->store, 'GET', "lives/{$this->live}/pin")->json('data.portrait.0.path'));
+    }
+
+    public function test_how_it_works_is_counted_per_person(): void
+    {
+        $this->assertSame(0, $this->storeApi($this->store, 'GET', 'auth/me')->json('data.live_intro_views'));
+        $this->storeApi($this->store, 'POST', 'lives/intro-seen')->assertOk()->assertJsonPath('data.live_intro_views', 1);
+        $this->storeApi($this->store, 'POST', 'lives/intro-seen')->assertOk()->assertJsonPath('data.live_intro_views', 2);
+        $this->assertSame(2, $this->store->owner->fresh()->live_intro_views);
+    }
+
     public function test_old_screens_are_replaced_or_forgotten_so_the_list_stays_short(): void
     {
         $pair = function (?string $name) {

@@ -53,6 +53,7 @@ async function refresh() {
           <span v-if="l.detail" class="block text-xs text-slate-600">{{ l.detail }}</span>
           <a v-if="l.action" :href="l.action.url" target="_blank" rel="noopener" class="mt-1.5 inline-block rounded-lg px-3 py-1.5 text-xs font-bold"
              :class="l.tone === 'bad' || l.tone === 'warn' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-800'">{{ l.action.label }} ↗</a>
+          <span v-if="l.key === 'payment' && l.action" class="mt-1.5 block text-xs text-slate-600">Sur téléphone, activez d'abord la « Version pour ordinateur » du navigateur (Chrome : menu ⋮). Devise : USD ou EUR (le franc CFA n'est pas proposé).</span>
         </span>
       </li>
     </ul>
