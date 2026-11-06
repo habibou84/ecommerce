@@ -693,3 +693,4 @@ Les suggestions marquées ✅ sont déjà intégrées au plan ci-dessus ; les au
 - WhatsApp : quand Meta arrête la fenêtre de connexion, son message et son numéro d'erreur (ou l'étape quittée) s'affichent au lieu de « Connexion interrompue ».
 - WhatsApp : sur téléphone, conseil d'activer la « Version pour ordinateur » avant la fenêtre Meta (étape carte bancaire bloquée en version téléphone) et devise USD ou EUR, aussi sur la carte « État chez Meta ».
 - Live : sans live encore, le menu Live ouvre « Comment ça marche » (grand, peu de mots, WhatsApp en étape 1 avec « Continuer sans WhatsApp », la vidéo sur la même page, « Préparer mon live » en bas) ; ensuite « 💡 Comment ça marche ? » en haut de la liste ; retour au live après la connexion WhatsApp.
+- Live : vidéo dédiée « Comment ça marche » (1 min 05, voix et sous-titres, écrans actuels : WhatsApp, articles et codes, photo à épingler, télé et LIVE Studio, commandes, bilan).

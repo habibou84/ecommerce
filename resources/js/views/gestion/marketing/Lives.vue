@@ -24,7 +24,7 @@ import { useAuthStore } from '../../../stores/auth'
 const router = useRouter()
 const auth = useAuthStore()
 // Vidéo qui explique le live en détail (voix off et sous-titres)
-const INTRO_VIDEO = '/videos/live/formation-03'
+const INTRO_VIDEO = '/videos/live/comment-ca-marche-v'
 // « Comment ça marche » affiché à la place de la liste : null ou 'how'
 const intro = ref(null)
 const lives = ref(null)
