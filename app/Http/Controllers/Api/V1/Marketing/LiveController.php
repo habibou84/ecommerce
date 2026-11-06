@@ -39,7 +39,7 @@ class LiveController extends Controller
 
         return response()->json([
             'data' => $sessions->map(fn (LiveSession $s) => [
-                'id' => $s->id, 'title' => $s->title, 'status' => $s->status, 'items_count' => $s->items_count,
+                'id' => $s->id, 'title' => $s->title, 'status' => $s->status, 'items_count' => $s->items_count, 'pin_ready' => $s->pin_ready_at !== null,
                 'started_at' => $s->started_at?->toIso8601String(), 'ended_at' => $s->ended_at?->toIso8601String(),
                 'minutes' => $s->started_at ? (int) $s->started_at->diffInMinutes($s->ended_at ?? now()) : null,
                 'summary' => $s->status === 'draft' ? null : $this->live->summary($s),
@@ -180,6 +180,49 @@ class LiveController extends Controller
         $user->forceFill(['live_intro_views' => min(99, (int) $user->live_intro_views + 1)])->save();
 
         return response()->json(['data' => ['live_intro_views' => $user->live_intro_views]]);
+    }
+
+    /**
+     * « Préparer un live », étape 3 : la photo à épingler est publiée (« C'est fait »).
+     */
+    public function pinReady(int $session): JsonResponse
+    {
+        $live = $this->session($session);
+        $live->forceFill(['pin_ready_at' => now()])->save();
+
+        return $this->state($live);
+    }
+
+    /**
+     * « Lives passés » : chiffres de tous les lives terminés (lives, commandes, montant, commandes par live), le
+     * produit le plus commandé et l'heure de début qui rapporte le plus en moyenne.
+     */
+    public function stats(): JsonResponse
+    {
+        $store = $this->currentStore();
+        $ended = LiveSession::forStore($store->id)->where('status', 'ended')->whereNotNull('started_at')->latest('id')->limit(200)->get();
+        $summaries = $ended->mapWithKeys(fn (LiveSession $s) => [$s->id => $this->live->summary($s)]);
+        $orders = (int) $summaries->sum('orders');
+
+        $best = LiveReservation::forStore($store->id)->whereIn('live_session_id', $ended->pluck('id'))->where('status', 'ordered')
+            ->with('item.variant.product:id,title')->get()
+            ->groupBy(fn (LiveReservation $r) => $r->item?->variant?->product_id)
+            ->filter(fn ($group, $product) => $product !== '' && $product !== null)
+            ->sortByDesc(fn ($group) => $group->count())->first();
+
+        // Heure de début (heure d'Abidjan) au meilleur montant moyen
+        $hour = $ended->groupBy(fn (LiveSession $s) => (int) $s->started_at->copy()->setTimezone('Africa/Abidjan')->format('G'))
+            ->map(fn ($group) => $group->avg(fn (LiveSession $s) => $summaries[$s->id]['amount']))
+            ->sortDesc()->keys()->first();
+
+        return response()->json(['data' => [
+            'lives' => $ended->count(),
+            'orders' => $orders,
+            'amount' => (int) $summaries->sum('amount'),
+            'orders_per_live' => $ended->count() ? round($orders / $ended->count(), 1) : 0,
+            'best_product' => $best ? ['title' => $best->first()->item?->variant?->product?->title, 'orders' => $best->count()] : null,
+            'best_hour' => $hour,
+        ]]);
     }
 
     public function feature(Request $request, int $session): JsonResponse

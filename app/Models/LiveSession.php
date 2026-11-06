@@ -13,11 +13,11 @@ class LiveSession extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'display_mode', 'started_at', 'ended_at', 'created_by'];
+    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'display_mode', 'started_at', 'ended_at', 'created_by', 'pin_ready_at'];
 
     protected function casts(): array
     {
-        return ['hold_minutes' => 'integer', 'featured_item_id' => 'integer', 'started_at' => 'datetime', 'ended_at' => 'datetime'];
+        return ['hold_minutes' => 'integer', 'featured_item_id' => 'integer', 'started_at' => 'datetime', 'ended_at' => 'datetime', 'pin_ready_at' => 'datetime'];
     }
 
     public function items(): HasMany

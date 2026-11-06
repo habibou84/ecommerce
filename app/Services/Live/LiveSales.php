@@ -63,6 +63,8 @@ class LiveSales
 
         return DB::transaction(function () use ($store, $session, $data, $user, $variants) {
             $session ??= new LiveSession(['store_id' => $store->id, 'status' => 'draft', 'created_by' => $user?->id]);
+            // Articles changés : la photo à épingler est à refaire (étape 3 de « Préparer un live »)
+            $session->pin_ready_at = null;
             $session->fill([
                 'title' => $data['title'], 'hold_minutes' => $data['hold_minutes'] ?? $session->hold_minutes ?? 120,
                 'stream_url' => array_key_exists('stream_url', $data) ? ($data['stream_url'] ?: null) : $session->stream_url,
@@ -1011,10 +1013,13 @@ class LiveSales
             'display_mode' => $session->display_mode ?: 'product',
             'started_at' => $session->started_at?->toIso8601String(),
             'ended_at' => $session->ended_at?->toIso8601String(),
+            // « Préparer un live » : photo à épingler publiée (étape 3)
+            'pin_ready' => $session->pin_ready_at !== null,
             'items' => $session->items->map(fn (LiveItem $item) => [
                 'id' => $item->id,
                 'code' => $item->code,
                 'variant_id' => $item->variant_id,
+                'product_id' => $item->variant?->product_id,
                 'title' => $this->label($item),
                 // Produit et variante séparés : une carte par produit (même code), les tailles et couleurs à choisir
                 'product' => $item->variant?->product?->title ?? 'Article',

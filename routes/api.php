@@ -562,6 +562,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('lives/{session}/cards.zip', [LiveScreenController::class, 'zip'])->whereNumber('session')->middleware('throttle:10,1')->middleware('feature:live,live_screens')->name('lives.cards.zip');
                 Route::get('lives/{session}/pin', [LiveController::class, 'pin'])->whereNumber('session')->middleware('throttle:30,1')->middleware('feature:live')->name('lives.pin');
                 Route::get('lives/pin/file', [LiveController::class, 'pinFile'])->middleware('throttle:120,1')->middleware('feature:live')->name('lives.pin.file');
+                Route::post('lives/{session}/pin-ready', [LiveController::class, 'pinReady'])->whereNumber('session')->middleware('feature:live')->name('lives.pin-ready');
+                Route::get('lives/stats', [LiveController::class, 'stats'])->middleware('feature:live')->name('lives.stats');
                 Route::post('lives/intro-seen', [LiveController::class, 'introSeen'])->middleware('throttle:30,1')->middleware('feature:live')->name('lives.intro-seen');
                 Route::post('lives/{session}/feature', [LiveController::class, 'feature'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live')->name('lives.feature');
                 Route::post('lives/{session}/items/{item}/code', [LiveController::class, 'code'])->whereNumber(['session', 'item'])->middleware('throttle:120,1')->middleware('feature:live')->name('lives.code');
