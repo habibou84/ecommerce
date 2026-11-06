@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import ColorIcon from '../../components/ColorIcon.vue'
@@ -26,6 +26,8 @@ async function load() {
   stats.value = (await http.get('/dashboard')).data.data
 }
 onMounted(load)
+// Glissement : l'accueil reste chargé derrière les fenêtres ; ses chiffres se mettent à jour à la fermeture
+watch(() => route.path, (to, from) => { if (to === '/gestion' && from && from !== '/gestion') load() })
 
 // Vendre en live, en tête : en direct, les chiffres se mettent à jour toutes les 30 secondes
 const live = computed(() => stats.value?.live ?? null)
