@@ -46,9 +46,6 @@ const storeRoutes = [
   },
   { path: '/livreur/:any(.*)*', redirect: '/livreur' },
   // Mode présentation du live : plein écran, sans le menu de la gestion (partagé à l'écran dans TikTok)
-  // Pancartes du live et liste d'aide à imprimer : sans le menu, seules les feuilles partent à l'impression
-  { path: '/gestion/live/pancartes', component: () => import('../views/gestion/marketing/LiveSignsPrint.vue'), meta: { platform: 'live', auth: true, title: 'Pancartes du live', permission: 'orders.manage' } },
-  { path: '/gestion/live/:id(\\d+)/pancartes', component: () => import('../views/gestion/marketing/LiveSignsPrint.vue'), props: true, meta: { platform: 'live', auth: true, title: 'Pancartes du live', permission: 'orders.manage' } },
   { path: '/gestion/live/:id(\\d+)/presentation', component: () => import('../views/gestion/marketing/LivePresentation.vue'), props: true, meta: { platform: 'live_screens', auth: true, title: 'Mode présentation', permission: 'orders.manage' } },
   {
     path: '/gestion',
@@ -107,7 +104,6 @@ const storeRoutes = [
       { path: 'marketing/live/:id?', redirect: (to) => `/gestion/live${to.params.id ? `/${to.params.id}` : ''}` },
       { path: 'live/:id', component: () => import('../views/gestion/marketing/LiveRoom.vue'), props: true, meta: { platform: 'live', title: 'Live', permission: 'orders.manage' } },
       { path: 'live/:id/afficher', component: () => import('../views/gestion/marketing/LiveShow.vue'), props: true, meta: { platform: 'live_screens', title: 'Écran du live', permission: 'orders.manage' } },
-      { path: 'live/:id/cartes', component: () => import('../views/gestion/marketing/LiveCards.vue'), props: true, meta: { platform: 'live_screens', title: 'Cartes à l\'écran', permission: 'orders.manage' } },
       { path: 'caisse', component: () => import('../views/gestion/Cash.vue'), meta: { title: 'Caisse', permissionAny: ['finance.view', 'cash.manage'] } },
       { path: 'caisse/vente', component: () => import('../views/gestion/CounterSale.vue'), meta: { title: 'Vente au comptoir', permission: 'cash.manage' } },
       { path: 'caisse/livreurs', component: () => import('../views/gestion/couriers/CashDesk.vue'), meta: { title: 'Argent des livreurs', permissionAny: ['couriers.manage', 'finance.view'] } },
