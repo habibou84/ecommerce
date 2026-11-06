@@ -109,8 +109,6 @@ onMounted(async () => {
   current.value = i
   go(i, false)
   startPage = i
-  // Première fois : la page voisine s'entrouvre pour montrer qu'on peut glisser
-  if (hint.value) setTimeout(peek, 900)
 })
 
 // ── Indicateur de glissement : points des pages toujours visibles, et une aide animée tant qu'on n'a jamais glissé ──
@@ -132,14 +130,19 @@ function closeHint() {
     // aide de nouveau à la prochaine visite
   }
 }
-function peek() {
-  const el = track.value
-  if (!el || !hint.value || pages.value.length < 2) return
-  const back = current.value * el.clientWidth
-  const dir = current.value < pages.value.length - 1 ? 1 : -1
-  el.scrollTo({ left: back + dir * 70, behavior: 'smooth' })
-  setTimeout(() => el.scrollTo({ left: back, behavior: 'smooth' }), 650)
+// Voile d'aide : glisser dessus change de page (et ferme l'aide), le toucher ferme l'aide
+let touchX = null
+function hintStart(e) {
+  touchX = e.touches?.[0]?.clientX ?? null
 }
+function hintEnd(e) {
+  const x = e.changedTouches?.[0]?.clientX
+  const dx = touchX === null || x === undefined ? 0 : x - touchX
+  touchX = null
+  closeHint()
+  if (Math.abs(dx) > 40) go(current.value + (dx < 0 ? 1 : -1))
+}
+const nextName = computed(() => pages.value[current.value + 1]?.name ?? pages.value[current.value - 1]?.name ?? '')
 // Changer de page une fois suffit : l'aide ne revient plus
 watch(current, (i) => {
   if (startPage !== null && i !== startPage && hint.value) closeHint()
@@ -239,7 +242,7 @@ function open(to) {
     </Teleport>
 
     <!-- Les pages, côte à côte, aimantées -->
-    <div ref="track" class="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none]" @scroll.passive="onScroll">
+    <div ref="track" :class="{ 'swipe-peek': hint }" class="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none]" @scroll.passive="onScroll">
       <section v-for="p in pages" :key="p.key" class="h-full w-full shrink-0 snap-start overflow-y-auto px-4 pb-28 pt-1" :aria-label="p.name">
         <!-- LIVE : préparer, en direct (« Revenir au live »), lives passés -->
         <template v-if="p.key === 'live'">
@@ -380,11 +383,16 @@ function open(to) {
       </div>
     </div>
 
-    <!-- Aide de la première fois : une main qui glisse -->
-    <div v-if="hint" class="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+4.6rem)] z-30 mx-auto flex max-w-sm items-center gap-3 rounded-2xl bg-slate-900 p-3 text-white shadow-2xl" role="status">
-      <span class="swipe-hand text-3xl" aria-hidden="true">👆</span>
-      <span class="min-w-0 flex-1 text-[15px] font-bold leading-snug">Glissez à gauche ou à droite pour changer de page</span>
-      <button type="button" class="shrink-0 rounded-xl bg-white px-3 py-2 text-sm font-black text-slate-900" @click="closeHint">OK</button>
+    <!-- Aide de la première fois : voile, main qui glisse et page qui suit ; disparaît au premier glissement -->
+    <div v-if="hint" class="fixed inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-slate-900/55 px-6 text-center text-white" role="dialog" aria-label="Glissez pour changer de page"
+         @touchstart.passive="hintStart" @touchend="hintEnd" @click="closeHint">
+      <div class="relative h-24 w-60" aria-hidden="true">
+        <span class="swipe-trail absolute right-10 top-9 h-2.5 rounded-full bg-gradient-to-r from-white/0 to-white/80" />
+        <span class="swipe-hand absolute right-2 top-2 text-6xl drop-shadow-lg">👆</span>
+      </div>
+      <p class="text-xl font-black leading-tight">Glissez pour passer<br>d'une page à l'autre</p>
+      <p v-if="nextName" class="text-base font-extrabold opacity-90">‹ {{ page?.name }} · {{ nextName }} ›</p>
+      <p class="text-sm opacity-80">Touchez pour fermer</p>
     </div>
 
     <!-- ＋ partout -->
@@ -406,10 +414,24 @@ function open(to) {
 
 <style>
 @keyframes swipe-hand {
-  0%, 100% { transform: translateX(10px) rotate(8deg); }
-  50% { transform: translateX(-14px) rotate(-8deg); }
+  0%, 10% { transform: translateX(0) scale(1); opacity: 1; }
+  15% { transform: translateX(0) scale(0.88); }
+  60% { transform: translateX(-150px) scale(0.88); opacity: 1; }
+  72%, 100% { transform: translateX(-150px) scale(1); opacity: 0; }
 }
-.swipe-hand { display: inline-block; animation: swipe-hand 1.4s ease-in-out infinite; }
+@keyframes swipe-trail {
+  0%, 15% { width: 0; opacity: 1; }
+  60% { width: 150px; opacity: 1; }
+  75%, 100% { width: 150px; opacity: 0; }
+}
+@keyframes swipe-peek {
+  0%, 15% { transform: translateX(0); }
+  60% { transform: translateX(-18%); }
+  82%, 100% { transform: translateX(0); }
+}
+.swipe-hand { animation: swipe-hand 2.2s ease-in-out infinite; }
+.swipe-trail { animation: swipe-trail 2.2s ease-in-out infinite; }
+.swipe-peek > section { animation: swipe-peek 2.2s ease-in-out infinite; }
 @keyframes swipe-pulse {
   0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.6); }
   70% { box-shadow: 0 0 0 9px rgba(225, 29, 72, 0); }
