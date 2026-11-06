@@ -38,6 +38,15 @@ const back = computed(() => {
     return null
   }
 })
+// Page d'où l'on vient (même boutique) : « Revenir » y ramène, au lieu des réglages WhatsApp
+const from = computed(() => {
+  try {
+    const url = new URL(String(source.depuis ?? ''))
+    return back.value && url.origin === new URL(back.value).origin ? url.href : null
+  } catch {
+    return null
+  }
+})
 const redirectUri = facebookReturnUrl(boot.platformUrl)
 const embeddedBrowser = inAppBrowser()
 // Version téléphone de la page de Meta (navigateur pas en « Version pour ordinateur ») : le choix de la devise de
@@ -58,13 +67,18 @@ onMounted(() => {
   if (back.value && options.appId && !prefersRedirect()) prepareFacebook(options)
 })
 
+// « Revenir » : la page d'où l'on vient, sans message d'erreur
+function leave() {
+  window.location.assign(from.value ?? back.value)
+}
+
 function goBack(params) {
   window.location.assign(`${back.value}#${new URLSearchParams({ whatsapp: '1', ...params })}`)
 }
 
 // Téléphone : la page entière chez Facebook
 function fullPage() {
-  const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value }))
+  const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value, depuis: from.value }))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   window.location.assign(facebookDialogUrl(options, redirectUri, state))
 }
@@ -112,7 +126,7 @@ async function copyLink() {
       </div>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
       <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
-      <button type="button" class="btn-secondary w-full" @click="goBack({ erreur: 'Connexion interrompue. Vous pouvez recommencer quand vous voulez.' })">Revenir</button>
+      <button type="button" class="btn-secondary w-full" @click="leave">Revenir</button>
     </div>
   </AuthShell>
 </template>
