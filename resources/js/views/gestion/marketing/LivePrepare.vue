@@ -63,9 +63,11 @@ function skipWhatsapp() {
     // Sans stockage : redemandé à la prochaine visite
   }
 }
+const noPhoto = computed(() => new Set((draft.value?.items ?? []).filter((i) => !i.image).map((i) => i.code)).size)
 const done = computed(() => ({
   wa: !!whatsapp.value || skipped.value || !auth.can('store.manage'),
-  items: !!draft.value?.items?.length,
+  // Un article sans photo ne passe pas en live : l'étape attend ses photos
+  items: !!draft.value?.items?.length && !noPhoto.value,
   pin: !!draft.value?.pin_ready,
 }))
 const step = computed(() => (!done.value.wa ? 1 : !done.value.items ? 2 : !done.value.pin ? 3 : 4))
@@ -161,7 +163,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         <span :class="bubble(2)">{{ step > 2 ? '✓' : 2 }}</span>
         <div class="min-w-0 flex-1">
           <b class="block text-[18px] leading-tight">{{ done.items ? `${products.count} article(s) · ${products.first} à ${products.last}` : 'Choisis tes articles' }}</b>
-          <span class="text-[13.5px] text-slate-500">{{ done.items ? `${products.pieces} pièces` : 'Dans ton catalogue ou un live passé' }}</span>
+          <span class="text-[13.5px] text-slate-500">{{ done.items ? `${products.pieces} pièces` : noPhoto ? `📷 ${noPhoto} article(s) sans photo` : 'Dans ton catalogue, un live passé ou un nouvel article' }}</span>
         </div>
         <button v-if="step >= 2" type="button" class="shrink-0 text-[14px] font-black" :class="done.items ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'items'">{{ done.items ? 'Modifier' : 'Choisir ▸' }}</button>
       </div>

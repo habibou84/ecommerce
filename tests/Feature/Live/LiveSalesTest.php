@@ -17,6 +17,7 @@ use App\Services\Live\LiveScreens;
 use App\Services\Places\Places;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\LiveProductsHavePhotos;
 use Tests\Support\FakeAiClient;
 use Tests\TestCase;
 
@@ -26,6 +27,8 @@ use Tests\TestCase;
  */
 class LiveSalesTest extends TestCase
 {
+    use LiveProductsHavePhotos;
+
     private Store $store;
 
     private Product $robe;
@@ -55,6 +58,7 @@ class LiveSalesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->giveProductsPhotos();
         config(['services.whatsapp_bridge' => ['url' => 'http://127.0.0.1:3210', 'token' => 'bridge-secret']]);
         Http::preventStrayRequests();
         Http::fake([

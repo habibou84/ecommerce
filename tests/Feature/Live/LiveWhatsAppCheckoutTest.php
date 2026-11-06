@@ -15,6 +15,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\LiveProductsHavePhotos;
 use Tests\TestCase;
 
 /**
@@ -24,6 +25,8 @@ use Tests\TestCase;
  */
 class LiveWhatsAppCheckoutTest extends TestCase
 {
+    use LiveProductsHavePhotos;
+
     private Store $store;
 
     private Product $robe;
@@ -40,6 +43,7 @@ class LiveWhatsAppCheckoutTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->giveProductsPhotos();
         Storage::fake('public');
         Http::preventStrayRequests();
         Http::fake(['https://graph.facebook.com/v25.0/*' => function (Request $request) {
