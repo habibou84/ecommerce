@@ -159,6 +159,13 @@ watch(() => route.path, (to, from) => {
   else if (from === '/gestion' || !from) sheetDepth.value = 1
   else sheetDepth.value += 1
 }, { immediate: true })
+// Fenêtre ouverte : glisser vers le bas ferme la fenêtre, sans « tirer pour rafraîchir » la page du navigateur
+watch(sheetOpen, (open) => {
+  for (const el of [document.documentElement, document.body]) el.style.overscrollBehaviorY = open ? 'none' : ''
+}, { immediate: true })
+onBeforeUnmount(() => {
+  for (const el of [document.documentElement, document.body]) el.style.overscrollBehaviorY = ''
+})
 function closeSheet() {
   sheetDrag.value = 0
   router.push('/gestion')
@@ -443,7 +450,7 @@ async function switchTo(store) {
             <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-700" aria-label="Fermer" @click="closeSheet"><Icon name="close" :size="20" /></button>
           </div>
         </header>
-        <div class="sheet-body relative min-h-0 flex-1 overflow-y-auto p-4 pb-28" @touchstart.passive="dragBegin($event, true)" @touchmove.passive="dragMove" @touchend="dragEnd">
+        <div class="sheet-body relative min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-28" @touchstart.passive="dragBegin($event, true)" @touchmove.passive="dragMove" @touchend="dragEnd">
           <RouterView v-slot="{ Component }">
             <component :is="Component" :key="auth.store?.id" />
           </RouterView>

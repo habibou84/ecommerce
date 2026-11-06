@@ -93,7 +93,10 @@ watch(current, (i) => {
   } catch {
     // Sans stockage : on revient sur le Live
   }
-  tabs.value?.children[i]?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
+  // L'onglet de la page affichée vient au milieu de la barre (jamais caché sous la cloche)
+  const bar = tabs.value
+  const tab = bar?.children[i]
+  if (bar && tab) bar.scrollTo({ left: Math.max(0, tab.offsetLeft - (bar.clientWidth - tab.offsetWidth) / 2), behavior: 'smooth' })
   if (key === 'orders') loadOrders()
   if (key === 'items') loadItems()
 }, { immediate: true })
