@@ -231,7 +231,7 @@ async function loadLink() {
 // QR code, ni adresse de site : modération TikTok
 const CARD = { w: 480, h: 780 }
 const STUDIO_LINKS = [
-  { key: 'carte', label: 'Le lien de la carte', hint: 'La photo et le code de l\'article montré, « Envoie A1 » et le numéro (ou « numéro dans la bio »). Suit Un article / Défilement / Vitrine / Commander.', place: 'En haut à gauche.' },
+  { key: 'carte', label: 'Le lien de la carte', hint: 'L\'article montré, son code et votre numéro.', place: 'En haut à gauche.' },
 ]
 // Numéro sur les écrans filmés : réglage de la boutique
 const PHONE_STYLES = [['bio', '📌 Dans la bio', 'Risque le plus faible'], ['spaced', '0 7 • 0 0 …', 'Chiffres espacés'], ['emoji', '0️⃣7️⃣ 0️⃣0️⃣ …', 'En émojis'], ['split', '07 00 + 00 …', 'Coupé en deux']]
@@ -456,7 +456,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
           <div class="mt-4 flex gap-3">
             <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">1</span>
             <div class="min-w-0">
-              <p class="text-base font-bold">Sur la télé, ouvrez :</p>
+              <p class="text-base font-bold">Sur votre télé connectée ou votre tablette, ouvrez :</p>
               <p class="mt-1 break-words rounded-xl bg-emerald-50 px-3 py-2 text-2xl font-black text-emerald-800">{{ host }}/ecran</p>
             </div>
           </div>
@@ -468,7 +468,11 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
               <p v-if="pairErrors.code" class="mt-1 text-sm text-red-600">{{ pairErrors.code }}</p>
             </div>
           </div>
-          <button class="btn-brand w-full py-4 text-lg" :disabled="busy || code.length !== 4">{{ busy ? 'Connexion…' : 'Connecter l\'écran' }}</button>
+          <div class="flex gap-3">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">3</span>
+            <p class="min-w-0 flex-1 text-base"><b>Placez la télé derrière vous</b>, bien visible par la caméra.</p>
+          </div>
+          <button class="btn-brand w-full py-4 text-lg" :disabled="busy || code.length !== 4">{{ busy ? 'Connexion…' : 'Connecter la télé' }}</button>
           <button v-if="tvs.length" type="button" class="btn-ghost w-full" @click="adding = false">Annuler</button>
         </form>
       </section>
