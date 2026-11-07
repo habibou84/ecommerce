@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Console\ConsoleFeaturesController;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
+use App\Http\Controllers\Api\V1\Console\ConsoleLiveBillingController;
 use App\Http\Controllers\Api\V1\Console\ConsoleMaterielController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
@@ -33,6 +34,7 @@ use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\CampaignController;
+use App\Http\Controllers\Api\V1\Marketing\LiveBillingController;
 use App\Http\Controllers\Api\V1\Marketing\LiveController;
 use App\Http\Controllers\Api\V1\Marketing\LiveScreenController;
 use App\Http\Controllers\Api\V1\Marketing\LoyaltyController;
@@ -166,6 +168,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('free', [ConsoleController::class, 'free'])->name('free');
             Route::put('free', [ConsoleController::class, 'updateFree'])->name('free.update');
             Route::get('plans', [ConsoleController::class, 'plans'])->name('plans');
+            // Lives payants : réglages, ventes du mois, lives offerts à une boutique
+            Route::get('lives', [ConsoleLiveBillingController::class, 'show'])->name('lives');
+            Route::put('lives', [ConsoleLiveBillingController::class, 'update'])->name('lives.update');
+            Route::post('stores/{store}/lives', [ConsoleLiveBillingController::class, 'offer'])->whereNumber('store')->name('stores.lives');
             // Clés d'accès (cartes à QR code) : lots, cartes à imprimer, annulation
             Route::get('access-keys', [ConsoleAccessKeyController::class, 'index'])->name('access-keys');
             Route::post('access-keys', [ConsoleAccessKeyController::class, 'store'])->name('access-keys.store');
@@ -550,6 +556,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->middleware('feature:live')->name('lives.show');
                 Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->middleware('feature:live')->name('lives.update');
                 Route::post('lives/{session}/items', [LiveController::class, 'addItems'])->whereNumber('session')->middleware('feature:live')->name('lives.items');
+                // Lives payants : prix et droits, achat 24 h ou 30 jours (PayDunya), retour du paiement
+                Route::get('lives/billing', [LiveBillingController::class, 'show'])->middleware('feature:live')->name('lives.billing');
+                Route::post('lives/billing/checkout', [LiveBillingController::class, 'checkout'])->middleware(['feature:live', 'throttle:10,1'])->name('lives.billing.checkout');
+                Route::post('lives/billing/{number}/confirm', [LiveBillingController::class, 'confirm'])->middleware(['feature:live', 'throttle:30,1'])->name('lives.billing.confirm');
                 Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->middleware('feature:live')->name('lives.start');
                 // Live en images : écrans reliés, mode d'affichage, affichage (mode présentation), cartes à enregistrer
                 Route::get('lives/screens', [LiveScreenController::class, 'index'])->middleware('feature:live,live_screens')->name('lives.screens');

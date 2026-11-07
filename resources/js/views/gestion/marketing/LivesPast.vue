@@ -16,11 +16,14 @@ import { money } from '../../../lib/format'
 const router = useRouter()
 const lives = ref(null)
 const stats = ref(null)
+// Paiements des lives (à part de l'abonnement) : 24 h, 30 jours, lives offerts
+const billing = ref(null)
 const pageUrl = ref('')
 const error = ref('')
 const busy = ref(false)
 
 onMounted(async () => {
+  http.get('/lives/billing').then(({ data }) => (billing.value = data.data)).catch(() => null)
   try {
     const [l, s] = await Promise.all([http.get('/lives'), http.get('/lives/stats')])
     lives.value = l.data.data
@@ -89,6 +92,24 @@ async function redo(live) {
       </summary>
       <div class="mt-3"><LiveTraining :url="pageUrl" @prepare="router.push('/gestion/live')" /></div>
     </details>
+
+    <section v-if="billing?.paid && (billing.payments.length || billing.offered_lives.length)" class="card p-4">
+      <h3 class="font-bold">💳 Paiements des lives</h3>
+      <p v-if="billing.month_until" class="mt-1 text-sm font-bold text-emerald-700">Lives illimités jusqu'au {{ new Date(billing.month_until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) }}</p>
+      <p v-else-if="billing.pass_until" class="mt-1 text-sm font-bold text-emerald-700">Pass 24 h jusqu'à {{ new Date(billing.pass_until).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' }) }}</p>
+      <p class="mt-1 text-sm text-slate-500">Lives offerts restants : {{ billing.free_left }} sur {{ billing.free_lives }}</p>
+      <ul class="mt-2 divide-y divide-slate-100 text-sm">
+        <li v-for="p in billing.payments" :key="p.number" class="flex items-center justify-between gap-2 py-2">
+          <span class="min-w-0 truncate">{{ day(p.paid_at || p.created_at) }} · {{ p.label }}</span>
+          <b class="shrink-0">{{ money(p.amount) }}</b>
+          <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black" :class="p.status === 'pending' ? 'bg-amber-100 text-amber-900' : p.status === 'offered' ? 'bg-sky-100 text-sky-900' : 'bg-emerald-100 text-emerald-900'">{{ { paid: 'Payé', pending: 'En attente', offered: 'Offert' }[p.status] }}</span>
+        </li>
+        <li v-for="l in billing.offered_lives" :key="`o${l.id}`" class="flex items-center justify-between gap-2 py-2">
+          <span class="min-w-0 truncate">{{ day(l.started_at) }} · {{ l.title }}</span>
+          <span class="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-black text-sky-900">Live offert</span>
+        </li>
+      </ul>
+    </section>
 
     <MaterielTip category="live" text="Pour des lives nets et bien éclairés :" />
   </div>

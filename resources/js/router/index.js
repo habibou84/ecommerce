@@ -151,6 +151,7 @@ const consoleRoutes = [
       { path: 'materiel', component: () => import('../views/console/Materiel.vue'), meta: { title: 'Matériel' } },
       { path: 'cles', component: () => import('../views/console/AccessKeys.vue'), meta: { title: 'Clés d\'accès' } },
       { path: 'ia', component: () => import('../views/console/AiUsage.vue'), meta: { title: 'Assistant IA' } },
+      { path: 'lives', component: () => import('../views/console/Lives.vue'), meta: { title: 'Lives' } },
       { path: 'compte', component: () => import('../views/console/Account.vue'), meta: { title: 'Mon compte' } },
       { path: 'journal', component: () => import('../views/console/Journal.vue'), meta: { title: 'Journal' } },
       { path: 'equipe', component: () => import('../views/console/Team.vue'), meta: { title: 'Équipe' } },
