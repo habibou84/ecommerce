@@ -37,6 +37,7 @@ const orderTodo = computed(() => {
   if (!o) return []
   const late = (s.value.couriers?.late_returns ?? 0) + (s.value.carriers?.late_returns ?? 0)
   return [
+    { key: 'proofs', icon: '💳', count: o.waiting?.proofs ?? 0, text: `${o.waiting?.proofs} paiement(s) à valider`, action: 'Valider', to: '/gestion/commandes?alert=proof', urgent: true },
     { key: 'confirm', icon: '⏰', count: o.to_confirm, text: `${o.to_confirm} commande(s) à confirmer`, action: 'Confirmer', to: canOpen('/gestion/confirmation') ? '/gestion/confirmation' : '/gestion/commandes?status=pending_confirmation', urgent: o.callbacks_due > 0 },
     { key: 'unassigned', icon: '🛵', count: o.waiting?.unassigned ?? 0, text: `${o.waiting?.unassigned} colis sans livreur`, action: 'Choisir', to: '/gestion/commandes?status=to_ship', urgent: true },
     { key: 'not_picked', icon: '📦', count: o.waiting?.not_picked ?? 0, text: `${o.waiting?.not_picked} colis pas encore ramassé(s)`, action: 'Voir', to: '/gestion/commandes?alert=not_picked', urgent: false },
