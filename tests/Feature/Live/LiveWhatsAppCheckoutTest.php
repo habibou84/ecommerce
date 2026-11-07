@@ -225,6 +225,9 @@ class LiveWhatsAppCheckoutTest extends TestCase
     public function test_the_wave_link_is_sent_the_receipt_is_kept_and_the_shop_validates_the_payment(): void
     {
         $this->storeApi($this->store, 'PUT', 'delivery-rates', ['wave_link' => 'pas un lien'])->assertUnprocessable();
+        // Tout le message copié depuis Wave : seul le lien est gardé
+        $this->storeApi($this->store, 'PUT', 'delivery-rates', ['wave_link' => "Veuillez payer C'joli avec Wave :\nhttps://pay.wave.com/m/M_ci_test/c/ci/."])
+            ->assertOk()->assertJsonPath('data.wave_link', 'https://pay.wave.com/m/M_ci_test/c/ci/');
         $this->storeApi($this->store, 'PUT', 'delivery-rates', ['expedition_fee' => 3000, 'expedition_prepay' => true, 'wave_link' => 'https://pay.wave.com/m/M_ci_test/c/ci/'])
             ->assertOk()->assertJsonPath('data.wave_link', 'https://pay.wave.com/m/M_ci_test/c/ci/');
         $this->text('A1');

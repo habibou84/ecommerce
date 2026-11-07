@@ -86,6 +86,10 @@ class DeliveryRatesController extends Controller
     public function update(Request $request): JsonResponse
     {
         $store = $this->currentStore();
+        if (filled($request->input('wave_link'))) {
+            // La boutique colle souvent tout le message de Wave (« Veuillez payer… » puis le lien) : on garde le lien seul
+            $request->merge(['wave_link' => self::extractWaveLink((string) $request->input('wave_link'))]);
+        }
         $data = $request->validate([
             'home_place_id' => ['sometimes', 'integer', Rule::exists('places', 'id')->whereNull('parent_id')],
             'base_fee' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
@@ -111,5 +115,17 @@ class DeliveryRatesController extends Controller
         }
 
         return $this->show();
+    }
+
+    /**
+     * Le premier lien Wave trouvé dans un texte collé (message de Wave compris), sinon le texte tel quel.
+     */
+    public static function extractWaveLink(string $text): string
+    {
+        if (preg_match('#https?://([a-z0-9-]+\.)*wave\.[a-z]{2,}/[^\s<>"\']*#i', $text, $m)) {
+            return (string) preg_replace('#^http://#i', 'https://', rtrim($m[0], '.,;:!?)»'));
+        }
+
+        return trim($text);
     }
 }
