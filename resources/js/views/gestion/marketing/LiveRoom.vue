@@ -13,6 +13,7 @@ import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import { pinSignature, readPin } from '../../../lib/livePin'
 import { fullscreenOn, livesChanged } from '../../../lib/fullscreen'
+import LivePaySheet from '../../../components/live/LivePaySheet.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money, phoneDisplay } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
@@ -174,6 +175,8 @@ const duration = computed(() => {
   return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`
 })
 
+// Lives payants : plus de lives offerts ni de pass en cours → choix 24 h ou 30 jours (PayDunya)
+const payBilling = ref(null)
 async function act(path, body) {
   busy.value = true
   error.value = ''
@@ -182,6 +185,10 @@ async function act(path, body) {
     if (path === 'start' || path === 'end') livesChanged()
     return true
   } catch (e) {
+    if (path === 'start' && e.response?.data?.errors?.payment) {
+      payBilling.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? null
+      if (payBilling.value) return false
+    }
     error.value = errorMessage(e)
     return false
   } finally {
@@ -674,5 +681,6 @@ async function redo() {
     </button>
   </div>
   </div>
+  <LivePaySheet v-if="payBilling" :billing="payBilling" @close="payBilling = null" />
   </Teleport>
 </template>

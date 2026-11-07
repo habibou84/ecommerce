@@ -8,6 +8,7 @@ use App\Models\LiveReservation;
 use App\Models\LiveSession;
 use App\Models\ProductVariant;
 use App\Services\Catalog\ImageStore;
+use App\Services\Live\LiveBilling;
 use App\Services\Live\LiveImages;
 use App\Services\Live\LiveSales;
 use App\Services\Places\Places;
@@ -15,6 +16,7 @@ use App\Services\Storefront\ThemeSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Vente en live : préparation (articles, codes, prix, pièces), écran du live (réservations en direct, mode
@@ -273,7 +275,17 @@ class LiveController extends Controller
 
     public function start(int $session): JsonResponse
     {
-        return $this->state($this->live->start($this->session($session)));
+        $live = $this->session($session);
+        if ($live->status !== 'draft') {
+            return $this->state($this->live->start($live));
+        }
+
+        // Lives payants : pass ou forfait en cours, sinon un live offert, sinon le paiement est demandé
+        return $this->state(DB::transaction(function () use ($live) {
+            app(LiveBilling::class)->authorize($this->currentStore(), $live);
+
+            return $this->live->start($live);
+        }));
     }
 
     public function end(int $session): JsonResponse

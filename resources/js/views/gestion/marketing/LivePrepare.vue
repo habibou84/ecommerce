@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import LiveDeliveryFees from '../../../components/LiveDeliveryFees.vue'
 import LiveItemsPanel from '../../../components/LiveItemsPanel.vue'
 import LivePin from '../../../components/LivePin.vue'
+import LivePaySheet from '../../../components/live/LivePaySheet.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { money } from '../../../lib/format'
@@ -18,6 +19,7 @@ import { livesChanged, livesVersion } from '../../../lib/fullscreen'
  * Le live en préparation est repris tel quel (étapes déjà faites cochées) ; un live en cours passe devant.
  */
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const VIDEO = '/videos/live/comment-ca-marche-v'
 
@@ -30,6 +32,10 @@ const error = ref('')
 const busy = ref(false)
 const panel = ref(null) // 'fees' | 'items' | 'pin'
 const video = ref(false)
+// Lives payants : prix, lives offerts restants, pass ou forfait en cours (GET lives/billing)
+const billing = ref(null)
+const paying = ref(false)
+const payNotice = ref('')
 
 const current = computed(() => lives.value?.find((l) => l.status === 'live'))
 const past = computed(() => (lives.value ?? []).filter((l) => l.status === 'ended'))
@@ -43,12 +49,41 @@ async function load() {
     number.value = { phone: data.meta.whatsapp_phone, noCard: !!data.meta.whatsapp_no_card }
     const latest = data.data.find((l) => l.status === 'draft')
     draft.value = latest ? (await http.get(`/lives/${latest.id}`)).data.data : null
+    billing.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? null
     if (auth.can('store.manage')) fees.value = (await http.get('/delivery-rates').catch(() => null))?.data.data ?? null
   } catch (e) {
     error.value = errorMessage(e)
   }
 }
-onMounted(load)
+onMounted(async () => {
+  await load()
+  // Retour de PayDunya : paiement relu, puis le live démarre tout de suite
+  const number = route.query.paiement
+  if (!number) return
+  router.replace({ query: { ...route.query, paiement: undefined } })
+  try {
+    const { data } = await http.post(`/lives/billing/${number}/confirm`)
+    billing.value = data.data
+    if (data.data.status === 'paid' && draft.value && !current.value) await start()
+    else if (data.data.status === 'pending') payNotice.value = 'Paiement en cours de vérification : touchez « Je commence mon live » dans un instant.'
+    else if (data.data.status !== 'paid') payNotice.value = 'Le paiement n\'a pas abouti : rien n\'a été débité. Vous pouvez réessayer.'
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+})
+const until = (iso) => new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+const startLabel = computed(() => {
+  const b = billing.value
+  if (!b?.paid) return '● Je commence mon live'
+  return { offered: '● Je commence mon live · offert', covered: '● Je commence mon live', pay: '● Je commence mon live' }[b.next] ?? '● Je commence mon live'
+})
+const billingLine = computed(() => {
+  const b = billing.value
+  if (!b?.paid) return ''
+  if (b.next === 'covered') return `Lives illimités jusqu'au ${until(b.month_until && (!b.pass_until || b.month_until > b.pass_until) ? b.month_until : b.pass_until)}`
+  if (b.next === 'offered') return `🎁 Il vous reste ${b.free_left} live${b.free_left > 1 ? 's' : ''} offert${b.free_left > 1 ? 's' : ''} sur ${b.free_lives}`
+  return `${money(b.prices.day)} les 24 h, ou ${money(b.prices.month)} les 30 jours`
+})
 // Live lancé ou terminé ailleurs (fenêtre du live, autre copie de cette page) : la carte se met à jour
 watch(livesVersion, load)
 
@@ -166,13 +201,24 @@ async function start() {
   error.value = ''
   try {
     const id = draft.value.id
+    // Plus de lives offerts ni de pass en cours : choix 24 h ou 30 jours, payé par PayDunya
+    if (billing.value?.paid && billing.value.next === 'pay') {
+      paying.value = true
+      busy.value = false
+      return
+    }
     await http.post(`/lives/${id}/start`)
     livesChanged()
     // Directement dans la fenêtre du live, en plein écran
     await router.push(`/gestion/live/${id}`)
     busy.value = false
   } catch (e) {
-    error.value = errorMessage(e)
+    if (e.response?.data?.errors?.payment) {
+      billing.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? billing.value
+      paying.value = !!billing.value
+    } else {
+      error.value = errorMessage(e)
+    }
     busy.value = false
   }
 }
@@ -267,9 +313,24 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         </div>
       </div>
       <template v-if="step === 5">
-        <button type="button" class="block w-full rounded-2xl bg-rose-600 py-4 text-[18px] font-black text-white" :disabled="busy" @click="start">● Je commence mon live</button>
+        <p v-if="payNotice" class="rounded-2xl bg-amber-50 p-3 text-[14px] font-bold text-amber-900 ring-1 ring-amber-200">{{ payNotice }}</p>
+        <p v-if="billingLine" class="text-center text-[14.5px] font-extrabold" :class="billing.next === 'pay' ? 'text-slate-700' : 'text-emerald-700'">{{ billingLine }}</p>
+        <button type="button" class="block w-full rounded-2xl bg-rose-600 py-4 text-[18px] font-black text-white" :disabled="busy" @click="start">{{ startLabel }}</button>
         <RouterLink :to="`/gestion/live/${draft.id}?onglet=support&support=tv`" class="block text-center text-[13px] font-bold text-slate-500 underline">📺 Afficher sur une télé ou TikTok LIVE Studio</RouterLink>
       </template>
+
+      <!-- Combien ça coûte : seulement quand les lives sont payants -->
+      <section v-if="billing?.paid" class="rounded-[20px] bg-white p-4">
+        <h3 class="text-[18px] font-black">💰 Combien ça coûte</h3>
+        <div class="mt-1 divide-y divide-slate-100 text-[14.5px]">
+          <p class="flex justify-between py-2"><span>Vos {{ billing.free_lives }} premiers lives</span><b class="text-emerald-700">Offerts</b></p>
+          <p v-if="billing.free_ai" class="flex justify-between py-2"><span>+ {{ billing.free_ai }} actions IA (photos)</span><b class="text-emerald-700">Offertes</b></p>
+          <p class="flex justify-between py-2"><span>Lives pendant 24 h</span><b>{{ money(billing.prices.day) }}</b></p>
+          <p class="flex justify-between py-2"><span>Lives illimités 30 jours</span><b>{{ money(billing.prices.month) }}</b></p>
+          <p class="flex justify-between py-2"><span>Ajouter un article à la main</span><b class="text-emerald-700">Gratuit</b></p>
+        </div>
+        <p class="mt-1 text-center text-[12.5px] text-slate-500">Paiement par Orange Money, MTN, Moov, Wave ou carte, au moment de démarrer.</p>
+      </section>
 
       <RouterLink to="/gestion/live/passes" class="block pt-2 text-center text-sm font-semibold text-emerald-700">Voir les lives passés ▸</RouterLink>
     </template>
@@ -278,6 +339,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     <LiveDeliveryFees v-if="panel === 'fees'" @done="feesDone" @close="panel = null" />
 
     <!-- Étape 3 : fenêtre des articles -->
+    <LivePaySheet v-if="paying && billing" :billing="billing" @close="paying = false" />
     <LiveItemsPanel v-if="panel === 'items'" :draft="draft" :past="past" @saved="saved" @close="panel = null" />
 
     <!-- Étape 4 : la photo et les consignes -->
