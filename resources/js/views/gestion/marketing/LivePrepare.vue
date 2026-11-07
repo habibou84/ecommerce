@@ -249,7 +249,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     <template v-else-if="lives">
       <div class="rounded-[24px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 px-4 py-5 text-center text-white">
         <h2 class="text-[26px] font-black leading-tight">Ton live en 5 étapes</h2>
-        <p class="mt-1 text-[16px] font-bold text-orange-50">Les clientes envoient le code, la commande se crée seule.</p>
+        <p class="mt-1 text-[16px] font-bold text-orange-50">Tes clients envoient le code, la commande se crée seule.</p>
         <button type="button" class="mt-3 rounded-full bg-white/20 px-4 py-1.5 text-sm font-bold" @click="video = true">🎬 Voir la vidéo (1 min 30)</button>
       </div>
 
@@ -361,7 +361,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     </div>
 
     <Modal v-if="video" title="Le live en vidéo" @close="video = false">
-      <video class="mx-auto max-h-[75vh] w-full rounded-2xl bg-black" controls autoplay playsinline :poster="`${VIDEO}.jpg?v=2`" :src="`${VIDEO}.mp4?v=2`" />
+      <video class="mx-auto max-h-[75vh] w-full rounded-2xl bg-black" controls autoplay playsinline :poster="`${VIDEO}.jpg?v=3`" :src="`${VIDEO}.mp4?v=3`" />
     </Modal>
   </div>
 </template>
