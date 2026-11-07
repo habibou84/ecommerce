@@ -12,6 +12,7 @@ import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import { pinSignature, readPin } from '../../../lib/livePin'
+import { fullscreenOn } from '../../../lib/fullscreen'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money, phoneDisplay } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
@@ -155,8 +156,19 @@ function minutesBetween(from, to) {
 }
 // Pendant le live : plein écran, la page derrière ne défile plus
 const fullscreen = computed(() => live.value?.status === 'live')
-watch(fullscreen, (on) => (document.body.style.overflow = on ? 'hidden' : ''))
-onUnmounted(() => (document.body.style.overflow = ''))
+watch(fullscreen, (on) => {
+  document.body.style.overflow = on ? 'hidden' : ''
+  fullscreenOn.value = on
+})
+onUnmounted(() => {
+  document.body.style.overflow = ''
+  fullscreenOn.value = false
+})
+// ✕ : retour à la page d'où l'on vient (« Préparer un live »), sans empiler les fenêtres
+function closeLive() {
+  if (window.history.state?.back === '/gestion/live') router.back()
+  else router.replace('/gestion/live')
+}
 const duration = computed(() => {
   const m = minutesBetween(live.value?.started_at, live.value?.ended_at)
   return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`
@@ -426,7 +438,7 @@ async function redo() {
 
       <!-- ═══ En-tête selon l'état ═══ -->
       <!-- Pendant le live : la pancarte montrée et les onglets Articles, Messages, Commandes -->
-      <LiveCockpit v-if="live.status === 'live'" :live="live" :now="now" :busy="busy" :duration="duration" :pin-shared="pinShared" @pin-shared="onPinShared" @close="router.push('/gestion/live')"
+      <LiveCockpit v-if="live.status === 'live'" :live="live" :now="now" :busy="busy" :duration="duration" :pin-shared="pinShared" @pin-shared="onPinShared" @close="closeLive"
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
                    @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" />
 
