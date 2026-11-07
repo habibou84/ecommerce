@@ -65,7 +65,7 @@ onMounted(async () => {
     const { data } = await http.post(`/lives/billing/${number}/confirm`)
     billing.value = data.data
     if (data.data.status === 'paid' && draft.value && !current.value) await start()
-    else if (data.data.status === 'pending') payNotice.value = 'Paiement en cours de vérification : touchez « Je commence mon live » dans un instant.'
+    else if (data.data.status === 'pending') payNotice.value = 'Paiement en cours de vérification : touchez « J\'ouvre les commandes du live » dans un instant.'
     else if (data.data.status !== 'paid') payNotice.value = 'Le paiement n\'a pas abouti : rien n\'a été débité. Vous pouvez réessayer.'
   } catch (e) {
     error.value = errorMessage(e)
@@ -73,9 +73,8 @@ onMounted(async () => {
 })
 const until = (iso) => new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
 const startLabel = computed(() => {
-  const b = billing.value
-  if (!b?.paid) return '● Je commence mon live'
-  return { offered: '● Je commence mon live · offert', covered: '● Je commence mon live', pay: '● Je commence mon live' }[b.next] ?? '● Je commence mon live'
+  const label = '● J\'ouvre les commandes du live'
+  return billing.value?.paid && billing.value.next === 'offered' ? `${label} · offert` : label
 })
 const billingLine = computed(() => {
   const b = billing.value
@@ -183,7 +182,7 @@ async function pinReady() {
 // Terminer le live en cours depuis sa carte : les clientes ne réservent plus, celles qui ont une pièce gardée peuvent
 // encore donner leur quartier
 async function endLive() {
-  if (!window.confirm('Terminer le live ? Les clientes ne pourront plus réserver ; celles qui ont une pièce gardée peuvent encore donner leur quartier.')) return
+  if (!window.confirm('Fermer les commandes du live ? Les clients ne pourront plus réserver ; ceux qui ont une pièce gardée peuvent encore donner leur quartier.')) return
   busy.value = true
   error.value = ''
   try {
@@ -239,17 +238,17 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
 
     <!-- Live en cours : on y retourne d'abord -->
     <section v-if="current" class="rounded-[24px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 p-5 text-white">
-      <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold"><span class="h-2 w-2 animate-pulse rounded-full bg-white" />EN DIRECT</span>
+      <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold"><span class="h-2 w-2 animate-pulse rounded-full bg-white" />COMMANDES OUVERTES</span>
       <h2 class="mt-2 text-xl font-extrabold">{{ current.title }}</h2>
       <p class="mt-1 text-3xl font-extrabold">{{ money(current.summary?.amount ?? 0) }}</p>
-      <RouterLink :to="`/gestion/live/${current.id}`" class="mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-ocre-700">Revenir au live</RouterLink>
-      <button type="button" class="mt-2 block w-full rounded-2xl border-2 border-white/70 py-2.5 text-center text-[15px] font-extrabold text-white disabled:opacity-60" :disabled="busy" @click="endLive">⏹ Terminer le live</button>
+      <RouterLink :to="`/gestion/live/${current.id}`" class="mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-ocre-700">Revenir aux commandes du live</RouterLink>
+      <button type="button" class="mt-2 block w-full rounded-2xl border-2 border-white/70 py-2.5 text-center text-[15px] font-extrabold text-white disabled:opacity-60" :disabled="busy" @click="endLive">⏹ Fermer les commandes du live</button>
     </section>
 
     <template v-else-if="lives">
       <div class="rounded-[24px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 px-4 py-5 text-center text-white">
         <h2 class="text-[26px] font-black leading-tight">Ton live en 5 étapes</h2>
-        <p class="mt-1 text-[16px] font-bold text-orange-50">Tes clients envoient le code, la commande se crée seule.</p>
+        <p class="mt-1 text-[16px] font-bold text-orange-50">Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes.</p>
         <button type="button" class="mt-3 rounded-full bg-white/20 px-4 py-1.5 text-sm font-bold" @click="video = true">🎬 Voir la vidéo (1 min 30)</button>
       </div>
 
@@ -308,8 +307,8 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <div :class="card(5)">
         <span :class="bubble(5)">5</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">Commence ton live</b>
-          <span class="text-[13.5px] text-slate-500">Lance-le sur TikTok, puis touche le bouton ici</span>
+          <b class="block text-[18px] leading-tight">Lance ton live sur TikTok</b>
+          <span class="text-[13.5px] text-slate-500">Puis ouvre les commandes du live ici</span>
         </div>
       </div>
       <template v-if="step === 5">
@@ -361,7 +360,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     </div>
 
     <Modal v-if="video" title="Le live en vidéo" @close="video = false">
-      <video class="mx-auto max-h-[75vh] w-full rounded-2xl bg-black" controls autoplay playsinline :poster="`${VIDEO}.jpg?v=3`" :src="`${VIDEO}.mp4?v=3`" />
+      <video class="mx-auto max-h-[75vh] w-full rounded-2xl bg-black" controls autoplay playsinline :poster="`${VIDEO}.jpg?v=4`" :src="`${VIDEO}.mp4?v=4`" />
     </Modal>
   </div>
 </template>

@@ -202,7 +202,7 @@ async function start() {
   await act('start')
 }
 async function end() {
-  if (window.confirm('Terminer le live ? Les clients ne pourront plus réserver ; ceux qui ont une pièce gardée peuvent encore donner leur quartier.')) await act('end')
+  if (window.confirm('Fermer les commandes du live ? Les clients ne pourront plus réserver ; ceux qui ont une pièce gardée peuvent encore donner leur quartier.')) await act('end')
 }
 
 // Article montré aux clients (mis en avant sur la page du live) ; toucher à nouveau l'enlève
@@ -396,7 +396,7 @@ async function redo() {
       <nav v-if="live.status === 'draft'" class="grid grid-cols-2 border-b border-slate-200" role="tablist" aria-label="Live ou support">
         <button v-for="[value, label] in [['live', 'Live'], ['support', 'Support']]" :key="value" type="button" role="tab" :aria-selected="pane === value"
                 class="-mb-px border-b-[3px] py-2.5 text-base font-extrabold" :class="pane === value ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'" @click="pane = value">
-          {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-[10px] font-black text-white">● EN DIRECT</span>
+          {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-[10px] font-black text-white">● OUVERT</span>
         </button>
       </nav>
 
@@ -441,7 +441,7 @@ async function redo() {
           </p>
           <p class="flex items-center justify-between py-2.5"><span class="text-slate-600">Lien du live</span><button type="button" class="font-bold text-emerald-700" @click="share = true">📤 Partager</button></p>
         </div>
-        <button v-if="live.status === 'live'" type="button" class="w-full rounded-2xl bg-slate-900 py-3 text-base font-extrabold text-white" :disabled="busy" @click="end">⏹ Terminer le live</button>
+        <button v-if="live.status === 'live'" type="button" class="w-full rounded-2xl bg-slate-900 py-3 text-base font-extrabold text-white" :disabled="busy" @click="end">⏹ Fermer les commandes du live</button>
       </template>
 
       <!-- ═══ En-tête selon l'état ═══ -->
