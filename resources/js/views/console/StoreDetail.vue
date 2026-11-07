@@ -51,6 +51,22 @@ function open(name) {
   modal.value = name
 }
 
+// Lives payants : lives offerts en plus de ceux du départ, ou 30 jours de lives illimités
+const livesDone = ref('')
+async function offerLives(payload) {
+  busy.value = true
+  error.value = ''
+  try {
+    const { data } = await http.post(`/console/stores/${props.id}/lives`, payload)
+    livesDone.value = data.data.month_until ? `Lives illimités jusqu'au ${new Date(data.data.month_until).toLocaleDateString('fr-FR')}` : `${data.data.free_left} live(s) offert(s) restant(s)`
+    modal.value = null
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function act(path, payload = {}) {
   busy.value = true
   error.value = ''
@@ -86,6 +102,7 @@ async function endSession(id) {
     </div>
     <Alert v-if="store.suspended_reason" tone="warning">Suspendue : {{ store.suspended_reason }}</Alert>
     <Alert v-if="error && !modal">{{ error }}</Alert>
+    <Alert v-if="livesDone" tone="success">🔴 {{ livesDone }}</Alert>
 
     <div class="flex flex-wrap gap-2">
       <button class="btn-brand" @click="open('support')">🛟 Session de support</button>
@@ -93,6 +110,7 @@ async function endSession(id) {
       <button class="btn-secondary" @click="open('offer')">Offrir des mois</button>
       <button v-if="!store.free_forever" class="btn-secondary" @click="open('free')">Gratuit à vie</button>
       <button v-else class="btn-ghost" :disabled="busy" @click="removeFree">Retirer « gratuit à vie »</button>
+      <button class="btn-secondary" @click="open('lives')">🔴 Offrir des lives</button>
       <button v-if="store.status !== 'suspended'" class="btn-ghost text-red-600" @click="open('suspend')">Suspendre</button>
       <button v-else class="btn-secondary" :disabled="busy" @click="act('reactivate')">Réactiver</button>
     </div>
@@ -182,6 +200,17 @@ async function endSession(id) {
         <Field id="offer-months" label="Mois"><input id="offer-months" v-model="form.months" type="number" min="1" max="24" class="input w-32" /></Field>
         <button class="btn-brand w-full" :disabled="busy">Offrir</button>
       </form>
+    </Modal>
+    <Modal v-if="modal === 'lives'" title="Offrir des lives" @close="modal = null">
+      <div class="space-y-4">
+        <Alert v-if="error">{{ error }}</Alert>
+        <p class="text-sm text-slate-600">En plus des lives offerts au départ. Ou 30 jours de lives illimités, ajoutés à ceux en cours.</p>
+        <form class="flex gap-2" @submit.prevent="offerLives({ lives: form.days })">
+          <input v-model.number="form.days" type="number" min="1" max="1000" class="input w-24" aria-label="Nombre de lives" />
+          <button class="btn-brand flex-1" :disabled="busy">Offrir {{ form.days }} live(s)</button>
+        </form>
+        <button type="button" class="btn-secondary w-full" :disabled="busy" @click="offerLives({ month: true })">Offrir 30 jours de lives illimités</button>
+      </div>
     </Modal>
     <Modal v-if="modal === 'free'" title="Gratuit à vie" @close="modal = null">
       <form class="space-y-4" @submit.prevent="act('free', { plan: form.plan })">

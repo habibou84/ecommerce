@@ -18,6 +18,7 @@ const nav = [
   { to: '/console/factures', label: 'Factures' },
   { to: '/console/parrainage', label: 'Parrainage' },
   { to: '/console/offres', label: 'Offres' },
+  { to: '/console/lives', label: 'Lives' },
   { to: '/console/fonctions', label: 'Fonctions' },
   { to: '/console/materiel', label: 'Matériel' },
   { to: '/console/cles', label: 'Clés d\'accès' },

@@ -15,6 +15,7 @@ use App\Models\SubscriptionInvoice;
 use App\Models\User;
 use App\Notifications\BillingNotice;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Live\LiveBilling;
 use App\Services\Partners\PartnerReferrals;
 use App\Services\Payments\Gateways\GatewayResult;
 use App\Services\Payments\PaymentDesk;
@@ -47,12 +48,12 @@ class Billing
     /**
      * Compte de la plateforme chez le prestataire (prestataire choisi dans la console, clés sur le serveur).
      */
-    public function account(): PaymentAccount
+    public function account(?string $provider = null): PaymentAccount
     {
         $config = config('platform.billing');
 
         return (new PaymentAccount)->forceFill([
-            'provider' => $this->settings->provider(),
+            'provider' => $provider ?? $this->settings->provider(),
             'mode' => $config['mode'],
             'credentials' => $config['credentials'],
             'label' => 'Jibiat Marchand',
@@ -117,7 +118,8 @@ class Billing
             // Recharges de l'assistant : actions achetées restantes et prix d'une recharge
             'ai_credits' => (int) $store->ai_credits,
             'ai_pack' => config('platform.ai_pack'),
-            'invoices' => SubscriptionInvoice::forStore($store->id)->with('plan')->whereIn('status', ['paid', 'offered', 'pending'])->latest('id')->limit(12)->get()
+            // Les lives se paient à part (page du live) : pas dans les factures de l'abonnement
+            'invoices' => SubscriptionInvoice::forStore($store->id)->with('plan')->whereNotIn('kind', LiveBilling::KINDS)->whereIn('status', ['paid', 'offered', 'pending'])->latest('id')->limit(12)->get()
                 ->map(fn (SubscriptionInvoice $i) => $this->presentInvoice($i)),
         ];
     }
@@ -166,6 +168,47 @@ class Billing
             'billing_cycle' => 'pack',
             'amount' => $price,
         ], "Recharge de l'assistant ({$actions} actions) · {$store->name}", $payerPhone);
+    }
+
+    /**
+     * Lives payants : facture et page de paiement du prestataire choisi pour les lives (PayDunya), quel que soit
+     * celui des abonnements. Retour sur la page du live, qui démarre le live dès le paiement reçu.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function payLive(Store $store, User $user, string $provider, array $data, string $description): SubscriptionInvoice
+    {
+        if (! ($this->settings->available()[$provider] ?? false) || $provider === 'wave_link') {
+            throw new BusinessRuleException('Le paiement des lives est indisponible pour le moment. Réessayez dans quelques minutes.', 'payment');
+        }
+        $invoice = $this->newInvoice($data + [
+            'store_id' => $store->id,
+            'status' => 'pending',
+            'provider' => $provider,
+            'method' => array_key_first(array_intersect_key(PaymentDesk::METHODS, array_flip($this->payments->gateway($provider)->methods()))) ?? 'wave',
+            'idempotency_key' => (string) Str::uuid(),
+            'created_by' => $user->id,
+        ]);
+        $return = $store->url('/gestion/live?paiement='.$invoice->number);
+        try {
+            $checkout = $this->payments->gateway($provider)->createCheckout($this->account($provider), $this->payment($invoice), [
+                'return_url' => $return,
+                'cancel_url' => $return,
+                'notify_url' => Tenancy::apiUrl('/webhooks/billing?provider='.$provider),
+                'description' => $description,
+                'customer_name' => $user->name,
+                'customer_phone' => $user->phone,
+                'store_name' => 'Jibiat Marchand',
+            ]);
+        } catch (Throwable $e) {
+            $invoice->update(['status' => 'failed', 'raw' => ['error' => mb_substr($e->getMessage(), 0, 300)]]);
+            Log::warning('Paiement de live impossible', ['invoice' => $invoice->number, 'error' => $e->getMessage()]);
+
+            throw new BusinessRuleException('Le paiement en ligne est indisponible pour le moment. Réessayez dans quelques minutes.', 'payment');
+        }
+        $invoice->update(['checkout_url' => $checkout->url, 'provider_reference' => $checkout->reference, 'raw' => $checkout->raw]);
+
+        return $invoice;
     }
 
     /**
@@ -297,7 +340,7 @@ class Billing
             return $invoice;
         }
 
-        $result = $this->payments->gateway($invoice->provider)->verify($this->account(), $this->payment($invoice));
+        $result = $this->payments->gateway($invoice->provider)->verify($this->account($invoice->provider), $this->payment($invoice));
         // Comme pour les commandes : sans montant confirmé par le prestataire (ou s'il manque), l'offre n'est pas activée
         if ($result->status === GatewayResult::SUCCEEDED && $result->amount !== null && $result->amount >= $invoice->amount) {
             return $this->activate($invoice, 'paid', $result->method, $result->raw);
@@ -314,11 +357,16 @@ class Billing
      */
     public function webhook(Request $request): bool
     {
+        // Prestataire de la notification : celui des lives quand il est indiqué, sinon celui des abonnements
+        $provider = (string) $request->query('provider', $this->settings->provider());
+        if (! array_key_exists($provider, BillingSettings::PROVIDERS) || ! ($this->settings->available()[$provider] ?? false)) {
+            $provider = $this->settings->provider();
+        }
         // Lien marchand Wave : aucun prestataire n'envoie de notification
-        if ($this->manual()) {
+        if ($provider === 'wave_link') {
             return false;
         }
-        $parsed = $this->payments->gateway($this->settings->provider())->parseWebhook($this->account(), $request);
+        $parsed = $this->payments->gateway($provider)->parseWebhook($this->account($provider), $request);
         if ($parsed === null) {
             return false;
         }
@@ -448,7 +496,11 @@ class Billing
         return [
             'id' => $i->id,
             'number' => $i->number,
-            'plan' => $i->kind === 'ai_pack' ? "Recharge de l'assistant ({$i->ai_actions} actions)" : $i->plan?->name,
+            'plan' => match (true) {
+                $i->kind === 'ai_pack' => "Recharge de l'assistant ({$i->ai_actions} actions)",
+                in_array($i->kind, LiveBilling::KINDS, true) => LiveBilling::label($i->kind),
+                default => $i->plan?->name,
+            },
             'kind' => $i->kind,
             'billing_cycle' => $i->billing_cycle,
             'cycle_label' => $this->cycleLabel($i->billing_cycle),
@@ -480,6 +532,15 @@ class Billing
             }
 
             $store = Store::findOrFail($invoice->store_id);
+
+            if (in_array($invoice->kind, LiveBilling::KINDS, true)) {
+                $until = app(LiveBilling::class)->activate($store, $invoice);
+                $invoice->update(['status' => $status, 'method' => $method ?? $invoice->method, 'raw' => $raw, 'paid_at' => now(),
+                    'period_start' => now(), 'period_end' => $invoice->kind === 'live_month' ? $store->live_month_until : $store->live_pass_until]);
+                DB::afterCommit(fn () => $this->notify($store, $status === 'offered' ? 'Lives offerts' : 'Paiement des lives reçu', $until.'.'));
+
+                return $invoice->fresh();
+            }
 
             if ($invoice->kind === 'ai_pack') {
                 $store->increment('ai_credits', (int) $invoice->ai_actions);
@@ -641,6 +702,7 @@ class Billing
             'yearly' => 'annuel',
             'weekly' => 'à la semaine',
             'pack' => 'recharge',
+            'day' => '24 h',
             default => 'mensuel',
         };
     }
