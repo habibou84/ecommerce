@@ -38,8 +38,8 @@ const connect = () => connectWhatsappDirect(router, route.fullPath)
     <div class="mt-3 border-t border-dashed border-slate-200 pt-2.5">
       <p class="text-[12px] font-bold uppercase tracking-wide text-slate-500">Avant de commencer</p>
       <ul class="mt-1.5 space-y-1.5 text-[13px] leading-snug text-slate-700">
-        <li class="flex gap-2"><span aria-hidden="true">📱</span><span><b>Un numéro réservé au live</b>, qui n'est pas déjà utilisé sur WhatsApp.</span></li>
-        <li class="flex gap-2"><span aria-hidden="true">💳</span><span><b>Carte bancaire : pas obligatoire.</b> Tu peux passer cette étape. Elle sert seulement aux messages en masse (relances). Le live et les réponses sont gratuits.</span></li>
+        <li class="flex gap-2"><span aria-hidden="true">📱</span><span><b>Un numéro spécial live</b>, connecté à aucun WhatsApp sur un téléphone (ni WhatsApp, ni WhatsApp Business).</span></li>
+        <li class="flex gap-2"><span aria-hidden="true">💳</span><span><b>Pas de carte bancaire</b> : tu peux continuer sans.</span></li>
       </ul>
     </div>
   </section>
