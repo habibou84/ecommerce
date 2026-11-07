@@ -5,3 +5,10 @@ import { ref } from 'vue'
  * s'ouvre pas en dessous.
  */
 export const fullscreenOn = ref(false)
+
+/**
+ * Un live lancé ou terminé : les pages qui montrent la carte du live (accueil glissant, fenêtre « Live ») se
+ * rechargent tout de suite, sans rafraîchir la page.
+ */
+export const livesVersion = ref(0)
+export const livesChanged = () => { livesVersion.value += 1 }

@@ -225,6 +225,9 @@ class LiveWhatsAppCheckoutTest extends TestCase
     public function test_the_wave_link_is_sent_the_receipt_is_kept_and_the_shop_validates_the_payment(): void
     {
         $this->storeApi($this->store, 'PUT', 'delivery-rates', ['wave_link' => 'pas un lien'])->assertUnprocessable();
+        // Tout le message copié depuis Wave : seul le lien est gardé
+        $this->storeApi($this->store, 'PUT', 'delivery-rates', ['wave_link' => "Veuillez payer C'joli avec Wave :\nhttps://pay.wave.com/m/M_ci_test/c/ci/."])
+            ->assertOk()->assertJsonPath('data.wave_link', 'https://pay.wave.com/m/M_ci_test/c/ci/');
         $this->storeApi($this->store, 'PUT', 'delivery-rates', ['expedition_fee' => 3000, 'expedition_prepay' => true, 'wave_link' => 'https://pay.wave.com/m/M_ci_test/c/ci/'])
             ->assertOk()->assertJsonPath('data.wave_link', 'https://pay.wave.com/m/M_ci_test/c/ci/');
         $this->text('A1');
@@ -237,7 +240,9 @@ class LiveWhatsAppCheckoutTest extends TestCase
 
         // Je confirme : le lien Wave de la boutique et la capture du reçu à envoyer
         $this->tap("live:confirm:{$order->id}", '✅ Je confirme', 'button_reply');
-        $body = $this->sent()[0]['text']['body'];
+        $sent = $this->sent();
+        $this->assertCount(1, $sent, 'Pas de photos avant le paiement : le message « payez » reste le dernier');
+        $body = $sent[0]['text']['body'];
         $due = $order->fresh()->expeditionPrepayDue();
         $this->assertStringContainsString("Payez avec Wave : https://pay.wave.com/m/M_ci_test/c/ci/?amount={$due}", $body);
         $this->assertSame('https://pay.wave.com/m/x/c/ci/?ref=1&amount=500', LiveCheckout::waveLink('https://pay.wave.com/m/x/c/ci/?amount=200&ref=1', 500));
@@ -255,7 +260,11 @@ class LiveWhatsAppCheckoutTest extends TestCase
         $due = $detail->json('data.expedition.prepay_due');
         $this->storeApi($this->store, 'POST', "orders/{$order->id}/payments", ['amount' => $due, 'method' => 'wave', 'reference' => 'Reçu WhatsApp'])->assertOk()
             ->assertJsonPath('data.expedition.prepay_due', 0);
-        $this->assertStringContainsString('Paiement reçu', collect($this->sent())->last()['text']['body']);
+        $sent = $this->sent();
+        $this->assertStringContainsString('Paiement reçu', $sent[0]['text']['body']);
+        // Puis les photos de la commande
+        $this->assertSame('image', $sent[1]['type']);
+        $this->assertStringContainsString('Voici les photos', $sent[1]['image']['caption']);
     }
 
     public function test_an_expedition_without_payment_before_keeps_payment_on_delivery(): void

@@ -12,7 +12,7 @@ import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import { pinSignature, readPin } from '../../../lib/livePin'
-import { fullscreenOn } from '../../../lib/fullscreen'
+import { fullscreenOn, livesChanged } from '../../../lib/fullscreen'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money, phoneDisplay } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
@@ -179,6 +179,7 @@ async function act(path, body) {
   error.value = ''
   try {
     live.value = (await http.post(`/lives/${props.id}/${path}`, body)).data.data
+    if (path === 'start' || path === 'end') livesChanged()
     return true
   } catch (e) {
     error.value = errorMessage(e)
