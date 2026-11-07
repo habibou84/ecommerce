@@ -182,9 +182,15 @@ function hideNoCard() {
     // masqué pour cette page seulement
   }
 }
+// Fermer : retour à l'écran d'où l'on vient (liste, live…) ; sans écran précédent (lien, notification), l'accueil
 function closeSheet() {
   sheetDrag.value = 0
-  router.push('/gestion')
+  if (window.history.state?.back) {
+    sheetDepth.value = Math.max(0, sheetDepth.value - 2)
+    router.back()
+  } else {
+    router.push('/gestion')
+  }
 }
 function sheetBack() {
   sheetDepth.value = Math.max(0, sheetDepth.value - 2)
