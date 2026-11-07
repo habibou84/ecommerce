@@ -4,102 +4,103 @@ import http, { errorMessage } from '../lib/http'
 import { money, phoneDisplay } from '../lib/format'
 import LiveDisplay from './LiveDisplay.vue'
 import LiveOverlay from './LiveOverlay.vue'
+import LivePin from './LivePin.vue'
+import LiveScreenTabs from './LiveScreenTabs.vue'
 import Modal from './Modal.vue'
+import { pinChanges, pinCodes, pinSignature } from '../lib/livePin'
 import { useAuthStore } from '../stores/auth'
 
 /**
- * Écran de la vendeuse pendant un live avec pancartes : la pancarte montrée toujours en haut (photo, ce qui reste,
- * par taille, phrase à dire, « Suivante »), puis trois onglets : Articles, Messages, Commandes. Noir et blanc ; les
- * seules couleurs sont les photos des articles et un rouge réservé à ce qui demande une action.
+ * Écran de la vendeuse pendant le live : en-tête « en direct » (durée, montant, menu ⋯), puis trois onglets.
+ * - Live : sous-menus Télé, TikTok Studio et Étiquette. Télé et Studio montrent en grand ce que voient les clientes
+ *   (avec « connecté » ou un bandeau dépliable pour connecter), le mode d'affichage, les articles à toucher et
+ *   Précédent / Suivant ; l'Étiquette dit ce qui a changé depuis la dernière épinglée et propose la nouvelle.
+ * - Commandes, Messages.
  */
 const props = defineProps({
   live: { type: Object, required: true },
   now: { type: Number, required: true },
   busy: { type: Boolean, default: false },
-  // Supports choisis dans « Support » : 'tv', 'studio', 'pin' (un ou deux)
-  supports: { type: Array, default: () => ['tv'] },
-  // Codes de la dernière étiquette téléchargée ou partagée
-  pinShared: { type: String, default: null },
+  duration: { type: String, default: '' },
+  // Dernière étiquette partagée : { sig (codes), at }
+  pinShared: { type: Object, default: null },
 })
-const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode', 'support'])
+const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode', 'pin-shared'])
 // Ce que montrent les écrans du live (télé, OBS, LIVE Studio) : un article, défilement, comment commander
 const MODES = [['product', '📦 Un article'], ['scroll', '🔁 Défilement'], ['grid', '🧩 Vitrine'], ['how', '🛒 Commander']]
 const screenMode = computed(() => props.live.display_mode || 'product')
 
-// « Agrandir » : ce que montrent vraiment les écrans (télé, OBS, LIVE Studio) en grand, avec les articles à toucher
-const expanded = ref(false)
-// Onglet de l'agrandi : la télé (« Écran ») ou le téléphone d'une cliente sur TikTok LIVE Studio
-const view = ref(props.supports.includes('tv') ? 'screen' : 'studio')
-const display = ref(null)
-let displayTimer
-async function loadDisplay() {
-  try {
-    display.value = (await http.get(`/lives/${props.live.id}/display`)).data.data
-  } catch {
-    // Lecture suivante dans 3 secondes
-  }
-}
-function onExpandKey(e) {
-  if (e.key === 'Escape') expanded.value = false
-}
-watch(expanded, (open) => {
-  document.body.style.overflow = open ? 'hidden' : ''
-  clearInterval(displayTimer)
-  if (open) {
-    loadDisplay()
-    displayTimer = setInterval(loadDisplay, 3000)
-    document.addEventListener('keydown', onExpandKey)
-  } else {
-    document.removeEventListener('keydown', onExpandKey)
-  }
-})
-watch(() => [props.live.display_mode, props.live.featured_item_id], () => expanded.value && loadDisplay())
-onUnmounted(() => {
-  clearInterval(displayTimer)
-  document.body.style.overflow = ''
-  document.removeEventListener('keydown', onExpandKey)
-})
 const auth = useAuthStore()
 // Cartes des articles (photo + code) à afficher à l'écran, sauf si la console les masque
 const cardsOn = computed(() => auth.profile?.features?.live_screens !== false)
 
-// ── Supports : en haut, ce que voient les clientes ──
-const onTv = computed(() => cardsOn.value && props.supports.includes('tv'))
-const onStudio = computed(() => cardsOn.value && props.supports.includes('studio'))
-const onPin = computed(() => props.supports.includes('pin'))
-// L'article montré : sur la télé ou LIVE Studio, ou sur la pancarte tenue quand la console masque les écrans
-const showsArticle = computed(() => onTv.value || onStudio.value || !cardsOn.value)
-const screenLabel = computed(() => (!cardsOn.value ? 'PANCARTE MONTRÉE'
-  : onTv.value && onStudio.value ? '📺📱 À L\'ÉCRAN' : onTv.value ? '📺 À LA TÉLÉ' : '📱 SUR TIKTOK'))
-const SHORT_MODES = [['product', 'Article'], ['scroll', 'Défile'], ['grid', 'Vitrine'], ['how', 'Commander']]
-// Étiquette : à ré-épingler quand les articles ont changé depuis la dernière téléchargée ou partagée
-const pinSignature = computed(() => props.live.items.map((i) => i.code).join(','))
-const pinCount = computed(() => new Set(props.live.items.map((i) => i.code)).size)
-const pinStale = computed(() => props.pinShared !== pinSignature.value)
-// Télé ou LIVE Studio déconnecté : bandeau rouge qui renvoie vers Support
+// ── Sous-menus du Live : Télé, TikTok Studio, Étiquette (gardé sur cet appareil) ──
+const viewKey = `jm.live-view.${props.live.id}`
+const VIEWS = computed(() => (cardsOn.value ? [['tv', '📺 Télé'], ['studio', '📱 TikTok Studio'], ['pin', '📌 Étiquette']] : [['pin', '📌 Étiquette']]))
+const view = ref((() => {
+  try {
+    return localStorage.getItem(viewKey) || 'tv'
+  } catch {
+    return 'tv'
+  }
+})())
+watch(view, (v) => {
+  try {
+    localStorage.setItem(viewKey, v)
+  } catch {
+    // sans stockage : le choix vaut pour cette visite
+  }
+})
+const shownView = computed(() => (VIEWS.value.some(([k]) => k === view.value) ? view.value : VIEWS.value[0][0]))
+
+// Ce que montrent la télé et LIVE Studio, en direct
+const display = ref(null)
+async function loadDisplay() {
+  if (!cardsOn.value) return
+  try {
+    display.value = (await http.get(`/lives/${props.live.id}/display`)).data.data
+  } catch {
+    // lecture suivante
+  }
+}
+// Télé et LIVE Studio : connectés quand leur page est ouverte (elle se signale toute seule)
 const screens = ref(null)
-let screensTimer
 async function loadScreens() {
-  if (!onTv.value && !onStudio.value) return
+  if (!cardsOn.value) return
   try {
     screens.value = (await http.get('/lives/screens')).data.data
   } catch {
     // lecture suivante
   }
 }
+const tvOnline = computed(() => !!screens.value?.some((s) => !s.is_link && s.online))
+const studioOnline = computed(() => !!screens.value?.some((s) => s.is_link && s.online))
+// Bandeau « Connecter » déplié
+const connecting = ref(false)
+watch(shownView, () => (connecting.value = false))
+watch([tvOnline, studioOnline], () => (connecting.value = false))
+let liveTimer
 onMounted(() => {
+  loadDisplay()
   loadScreens()
-  screensTimer = setInterval(() => !document.hidden && loadScreens(), 10000)
+  liveTimer = setInterval(() => {
+    if (document.hidden) return
+    if (tab.value === 'live' && shownView.value !== 'pin') loadDisplay()
+    loadScreens()
+  }, 3000)
 })
-onUnmounted(() => clearInterval(screensTimer))
-watch(() => props.supports.join(), loadScreens)
-const offline = computed(() => {
-  if (!screens.value) return []
-  const out = []
-  if (onTv.value && !screens.value.some((s) => !s.is_link && s.online)) out.push('La télé n\'est pas connectée')
-  if (onStudio.value && !screens.value.some((s) => s.is_link && s.online)) out.push('LIVE Studio n\'est pas connecté')
-  return out
-})
+onUnmounted(() => clearInterval(liveTimer))
+watch(() => [props.live.display_mode, props.live.featured_item_id], loadDisplay)
+
+// Étiquette : à refaire quand un article est fini ou ajouté depuis la dernière partagée
+const pinStale = computed(() => props.pinShared?.sig !== pinSignature(props.live.items))
+const changes = computed(() => pinChanges(props.live.items, props.pinShared))
+const pinCount = computed(() => pinCodes(props.live.items).length)
+const pinTime = computed(() => (props.pinShared?.at ? new Date(props.pinShared.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null))
+const viewState = (key) => (key === 'pin' ? !pinStale.value : key === 'tv' ? tvOnline.value : studioOnline.value)
+
+// Menu ⋯ : partager, ajouter, réservation vue, terminer
+const menu = ref(false)
 
 // ── Un produit = une pancarte (ses tailles et couleurs la partagent), dans l'ordre de la liste ──
 const products = computed(() => {
@@ -138,17 +139,10 @@ function chrono(item) {
 }
 
 // ── Onglets ──
-const tab = ref('articles')
-const articleFilter = ref('all')
-// Triés par épuisement : ceux qui partent vite en haut, les épuisés en bas
-const almostGone = (p) => p.remaining > 0 && (p.remaining <= 2 || p.remaining / p.quantity <= 0.25)
-const shownProducts = computed(() => products.value
-  .filter((p) => articleFilter.value === 'all' || p.remaining > 0)
-  .map((p, index) => ({ p, index }))
-  .sort((a, b) => (!a.p.remaining - !b.p.remaining) || (a.p.remaining / a.p.quantity - b.p.remaining / b.p.quantity) || a.index - b.index)
-  .map(({ p }) => p))
+const tab = ref('live')
 const soldPieces = computed(() => products.value.reduce((sum, p) => sum + p.sold, 0))
-const allPieces = computed(() => products.value.reduce((sum, p) => sum + p.quantity, 0))
+// Bientôt épuisé : badge rouge sur l'article
+const almostGone = (p) => p.remaining > 0 && (p.remaining <= 2 || p.remaining / p.quantity <= 0.25)
 
 // Messages : code lu (ou capture lue), question sans réponse
 const messageFilter = ref('all')
@@ -318,106 +312,111 @@ const ago = (iso) => {
         </span>
       </button>
     </Teleport>
-    <!-- Support déconnecté : à régler dans « Support » -->
-    <button v-if="offline.length" type="button" class="flex w-full items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-left text-sm font-extrabold text-white" @click="emit('support')">
-      <span class="min-w-0 flex-1">⚠ {{ offline.join(' · ') }}</span><span class="shrink-0 underline">Régler</span>
-    </button>
-
-    <!-- L'article en vue (grande photo, pièces restantes) et les onglets ; en ligne, réduit et fixe en haut, dans
-         Messages et Commandes -->
-    <div class="space-y-2" :class="tab === 'articles' ? '' : 'sticky top-2 z-20'">
-      <section v-if="showsArticle" class="rounded-2xl border-2 border-slate-900 bg-white p-2 shadow-sm">
-        <div class="flex items-center gap-2 text-[11px] font-extrabold tracking-wider text-slate-900">
-          <span>{{ screenLabel }}<template v-if="current"> · {{ currentIndex + 1 }} / {{ products.length }}</template></span>
-          <button v-if="cardsOn" type="button" class="ml-auto rounded-lg bg-slate-900 px-2 py-1 text-[11px] font-extrabold tracking-normal text-white" @click="expanded = true">⤢ Agrandir</button>
-        </div>
-        <!-- Défilement ou « comment commander » : les écrans ne montrent pas l'article ci-dessous, on le dit clairement -->
-        <div v-if="cardsOn && screenMode !== 'product'" class="mt-1.5 flex items-center gap-2 rounded-xl bg-slate-900 px-2.5 py-1.5 text-white">
-          <span class="min-w-0 flex-1 text-xs font-bold leading-tight">{{ { scroll: '🔁 À l\'écran : les articles défilent', grid: '🧩 À l\'écran : la vitrine (10 articles)', how: '🛒 À l\'écran : comment commander' }[screenMode] }}</span>
-          <button type="button" class="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-extrabold text-slate-900" :disabled="busy" @click="emit('mode', 'product')">Montrer {{ current?.code ?? 'un article' }}</button>
-        </div>
-        <!-- Messages et Commandes : l'article à l'écran sur une ligne, avec « suivant » -->
-        <div v-if="current && tab !== 'articles'" class="mt-1.5 flex items-center gap-2">
-          <img v-if="current.image" :src="current.image" alt="" class="h-11 w-11 shrink-0 rounded-lg object-cover" />
-          <span class="shrink-0 rounded-md border-[3px] border-slate-900 px-1.5 text-lg leading-tight font-black">{{ current.code }}</span>
-          <span class="min-w-0 flex-1 truncate text-xs text-slate-600"><b class="text-base text-slate-900">{{ current.remaining }}</b> restantes sur {{ current.quantity }}</span>
-          <button v-if="next" type="button" class="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-black text-white" :disabled="busy" :aria-label="`Suivant : ${next.code}`" @click="show(next)">▶ {{ next.code }}</button>
-        </div>
-        <!-- Articles : la grande photo, le code et ce qui reste, rien d'autre -->
-        <button v-else-if="current" type="button" class="relative mt-1.5 block h-60 w-full overflow-hidden rounded-xl bg-slate-100 text-left" :aria-label="`Afficher ${current.code} en grand`" @click="emit('big', current.items[0])">
-          <img v-if="current.image" :src="current.image" alt="" class="h-full w-full object-cover" />
-          <span class="absolute top-2 left-2 rounded-lg border-[3px] border-slate-900 bg-white px-2 text-2xl leading-tight font-black">{{ current.code }}</span>
-          <span v-if="current.flash" class="absolute top-2 right-2 rounded-lg bg-red-600 px-2 py-0.5 text-xs font-black text-white">⚡ {{ chrono(current.flash) }}</span>
-          <span class="absolute inset-x-2 bottom-2 flex items-baseline gap-1.5 rounded-xl bg-slate-900/85 px-3 py-1.5 text-white">
-            <b class="text-3xl leading-none font-black">{{ current.remaining }}</b>
-            <span class="text-xs text-slate-300">{{ current.remaining > 1 ? 'restantes' : 'restante' }} sur {{ current.quantity }}</span>
-          </span>
-        </button>
-        <p v-else class="mt-1 text-sm text-slate-600">Prenez votre première pancarte et touchez « Commencer » : l'application saura de quel article vous parlez.</p>
-        <div v-if="!current || tab === 'articles'" class="mt-1.5 flex gap-1.5">
-          <button v-if="previous" type="button" class="shrink-0 rounded-lg border-[1.5px] border-slate-300 px-2.5 py-1.5 text-xs font-extrabold" :disabled="busy" @click="show(previous)">◀ {{ previous.code }}</button>
-          <button v-if="current ? next : products[0]" type="button" class="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg bg-slate-900 py-1 pr-2.5 pl-1 text-left text-white disabled:opacity-60" :disabled="busy" @click="show(current ? next : products[0])">
-            <img v-if="(current ? next : products[0]).image" :src="(current ? next : products[0]).image" alt="" class="h-6 w-6 shrink-0 rounded object-cover" />
-            <b class="min-w-0 flex-1 truncate text-xs">{{ current ? 'Suivant' : 'Commencer' }} · {{ (current ? next : products[0]).code }}</b>
-            <span class="shrink-0">▶</span>
-          </button>
-          <span v-else-if="current" class="flex flex-1 items-center justify-center rounded-lg border-[1.5px] border-dashed border-slate-300 py-1.5 text-xs font-bold text-slate-500">Dernier article</span>
-        </div>
-        <!-- Ce que montrent la télé et LIVE Studio : un article, défilement, vitrine, comment commander -->
-        <div v-if="(onTv || onStudio) && (!current || tab === 'articles')" class="mt-1.5 grid grid-cols-4 gap-1" role="radiogroup" aria-label="Que montrer à l'écran ?">
-          <button v-for="[value, label] in SHORT_MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
-                  class="rounded-lg border-[1.5px] px-0.5 py-1.5 text-[11.5px] font-extrabold" :class="screenMode === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="emit('mode', value)">{{ label }}</button>
-        </div>
-      </section>
-
-      <!-- Étiquette à épingler : à ré-épingler quand les articles ont changé -->
-      <section v-if="onPin" class="flex items-center gap-2.5 rounded-2xl border-2 border-slate-900 bg-white p-2">
-        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-xl" aria-hidden="true">📌</span>
-        <span class="min-w-0 flex-1 text-sm">
-          <b class="block">Étiquette · {{ pinCount }} article{{ pinCount > 1 ? 's' : '' }}</b>
-          <span v-if="pinStale" class="block font-bold text-amber-800">⚠ {{ pinShared ? 'Articles changés : épinglez la nouvelle' : 'À télécharger et épingler' }}</span>
-          <span v-else class="block text-slate-600">✓ À jour</span>
-        </span>
-        <button type="button" class="shrink-0 rounded-lg px-3 py-2 text-sm font-extrabold" :class="pinStale ? 'bg-emerald-700 text-white' : 'border-[1.5px] border-slate-300'" @click="emit('support')">{{ pinStale ? 'Ouvrir' : 'Voir' }}</button>
-      </section>
-
-      <nav class="grid grid-cols-3 overflow-hidden rounded-xl border border-slate-200 bg-white text-[13px] font-extrabold" role="tablist">
-        <button v-for="[key, label, count] in [['articles', 'Articles', 0], ['commandes', 'Commandes', newOrders], ['messages', 'Messages', questions.length]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
-                class="relative py-2.5" :class="tab === key ? 'bg-slate-900 text-white' : 'text-slate-500'" @click="tab = key">
-          {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{{ count }}</span>
-        </button>
-      </nav>
+    <!-- En direct : durée, montant, menu ⋯ -->
+    <div class="flex items-center gap-2 px-0.5">
+      <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
+      <b class="text-[15px] font-black">EN DIRECT</b>
+      <span class="text-xs font-bold text-slate-500">{{ duration }}</span>
+      <b class="ml-auto text-lg font-black">{{ money(live.summary?.amount ?? 0) }}</b>
+      <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-900 text-lg font-black text-white" aria-label="Plus" :aria-expanded="menu" @click="menu = !menu">⋯</button>
+    </div>
+    <div v-if="menu" class="grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-2 text-sm font-extrabold">
+      <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('share')">📤 Lien du live</button>
+      <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('add')">＋ Ajouter un article</button>
+      <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('quick')">✍️ Réservation vue</button>
+      <RouterLink v-if="live.whatsapp" to="/gestion/whatsapp" class="rounded-xl bg-emerald-50 py-2.5 text-center text-emerald-800">✓ {{ live.whatsapp_phone || 'WhatsApp' }}</RouterLink>
+      <RouterLink v-else to="/gestion/whatsapp?onglet=messages" class="rounded-xl bg-amber-50 py-2.5 text-center text-amber-800">WhatsApp à connecter</RouterLink>
+      <button type="button" class="col-span-2 rounded-xl bg-slate-900 py-2.5 text-white" :disabled="busy" @click="menu = false; emit('end')">⏹ Terminer le live</button>
     </div>
 
-    <!-- ═══ Articles ═══ -->
-    <section v-if="tab === 'articles'" class="space-y-2">
-      <div class="flex items-center gap-1.5 text-xs font-extrabold">
-        <button v-for="[key, label] in [['all', `Toutes · ${products.length}`], ['left', `Restantes · ${products.filter((p) => p.remaining > 0).length}`]]" :key="key" type="button" :aria-pressed="articleFilter === key"
-                class="rounded-full border-[1.5px] px-3 py-1" :class="articleFilter === key ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white'" @click="articleFilter = key">{{ label }}</button>
-        <span class="ml-auto text-slate-500">{{ soldPieces }} / {{ allPieces }} pièces vendues</span>
-      </div>
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        <button v-for="p in shownProducts" :key="p.code" type="button" class="overflow-hidden rounded-xl border-2 bg-white text-left" :class="current?.code === p.code ? 'border-slate-900' : 'border-white'" :disabled="busy" @click="show(p)">
-          <span class="relative block h-24 bg-slate-100" :class="{ 'opacity-45 grayscale': !p.remaining }">
-            <img v-if="p.image" :src="p.image" alt="" class="h-full w-full object-cover" />
-            <span class="absolute top-1 left-1 rounded border-[2.5px] border-slate-900 bg-white px-1 text-sm font-black">{{ p.code }}</span>
-            <span v-if="current?.code === p.code" class="absolute top-1 right-1 rounded-full bg-slate-900 px-1.5 text-[9px] font-black text-white">MONTRÉE</span>
-            <span v-else-if="next?.code === p.code" class="absolute top-1 right-1 rounded-full border-[1.5px] border-slate-900 bg-white px-1.5 text-[9px] font-black">SUIVANTE</span>
-            <span v-else-if="!p.remaining" class="absolute top-1 right-1 rounded-full bg-slate-500 px-1.5 text-[9px] font-black text-white">ÉPUISÉ</span>
-            <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[9px] font-black text-white">BIENTÔT ÉPUISÉ</span>
-          </span>
-          <span class="block px-2 pt-1 pb-1.5" :class="{ 'opacity-50': !p.remaining }">
-            <b class="block truncate text-xs">{{ p.title }}</b>
-            <span class="text-[11px] text-slate-500"><b class="text-base text-slate-900">{{ p.remaining }}</b> {{ p.remaining > 1 ? 'restent' : 'reste' }} sur {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} en attente</template></span>
-            <span class="mt-1 block h-1 overflow-hidden rounded bg-slate-200"><span class="block h-full bg-slate-900" :style="{ width: `${p.quantity ? (p.sold / p.quantity) * 100 : 0}%` }" /></span>
-          </span>
+    <!-- Live, Commandes, Messages -->
+    <nav class="sticky top-2 z-20 grid grid-cols-3 overflow-hidden rounded-xl border border-slate-200 bg-white text-[14px] font-extrabold" role="tablist">
+      <button v-for="[key, label, count] in [['live', '🔴 Live', 0], ['commandes', 'Commandes', newOrders], ['messages', 'Messages', questions.length]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
+              class="relative py-2.5" :class="tab === key ? 'bg-slate-900 text-white' : 'text-slate-500'" @click="tab = key">
+        {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{{ count }}</span>
+      </button>
+    </nav>
+
+    <!-- ═══ Live : Télé, TikTok Studio, Étiquette ═══ -->
+    <section v-if="tab === 'live'" class="space-y-2.5 rounded-[22px] bg-[#0b1120] p-3 text-white">
+      <div class="grid gap-1 rounded-xl bg-white/10 p-1" :style="{ gridTemplateColumns: `repeat(${VIEWS.length}, minmax(0, 1fr))` }" role="tablist" aria-label="Où regarder ?">
+        <button v-for="[key, label] in VIEWS" :key="key" type="button" role="tab" :aria-selected="shownView === key"
+                class="relative rounded-lg py-2 text-[12.5px] font-extrabold" :class="shownView === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="view = key">
+          {{ label }}<span class="absolute top-1 right-1 h-2 w-2 rounded-full" :class="viewState(key) ? 'bg-emerald-400' : key === 'pin' ? 'bg-amber-400' : 'bg-red-500'" />
         </button>
-        <button type="button" class="grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-slate-300 text-sm font-extrabold text-slate-600" @click="emit('add')">+ Ajouter un article</button>
       </div>
-      <div v-if="current" class="flex gap-2">
-        <button v-if="current.flash" type="button" class="btn-secondary flex-1 justify-center" :disabled="busy" @click="emit('stop-flash', current.flash)">Arrêter le prix live {{ current.code }}</button>
-        <button v-else-if="current.remaining" type="button" class="btn-secondary flex-1 justify-center" :disabled="busy" @click="emit('flash', current.items[0])">⚡ Prix live pour {{ current.code }}</button>
-      </div>
+
+      <!-- Télé ou TikTok Studio : connecté, ou bandeau à déplier pour connecter -->
+      <template v-if="shownView !== 'pin'">
+        <p v-if="shownView === 'tv' ? tvOnline : studioOnline" class="flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-[13px] font-extrabold text-emerald-300">
+          ✓ {{ shownView === 'tv' ? 'Télé connectée : les clientes voient vos articles en temps réel' : 'TikTok Studio connecté : la carte de l\'article est sur votre live' }}
+        </p>
+        <div v-else class="overflow-hidden rounded-xl bg-red-500/15 ring-1 ring-red-400/50">
+          <button type="button" class="flex w-full items-center gap-2 px-3 py-2.5 text-left" :aria-expanded="connecting" @click="connecting = !connecting">
+            <span class="min-w-0 flex-1">
+              <b class="block text-[14px]">{{ shownView === 'tv' ? '📺 Connecter la télé' : '📱 Connecter TikTok Studio' }}</b>
+              <span class="block text-[12.5px] text-red-100">{{ shownView === 'tv' ? 'Pour afficher vos articles en grand derrière vous, en temps réel.' : 'Pour mettre la carte de l\'article en haut de votre live TikTok.' }}</span>
+            </span>
+            <span class="shrink-0 text-lg">{{ connecting ? '▴' : '▾' }}</span>
+          </button>
+          <div v-if="connecting" class="bg-white p-3 text-slate-900">
+            <LiveScreenTabs :id="live.id" screen-only :part="shownView" :no-phone="shownView === 'studio'" @add="connecting = false" />
+          </div>
+        </div>
+
+        <!-- Ce que voient les clientes -->
+        <div v-if="shownView === 'tv'" class="aspect-video overflow-hidden rounded-xl bg-black"><LiveDisplay v-if="display" :data="display" /></div>
+        <div v-else class="flex justify-center">
+          <div class="relative h-[min(46vh,340px)] overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16">
+            <span class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[72px] leading-none" aria-hidden="true">🧕🏾</span>
+            <div class="absolute top-[3%] left-[3%] w-[55%]" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Que montrer à l'écran ?">
+          <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
+                  class="rounded-lg px-1 py-2 text-[11.5px] font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>
+        </div>
+      </template>
+
+      <!-- Étiquette à épingler : à jour, ou ce qui a changé et la nouvelle -->
+      <template v-else>
+        <div v-if="pinStale" class="rounded-xl bg-amber-500/15 p-3 ring-1 ring-amber-400/60">
+          <b class="block text-[14px] text-amber-200">⚠ {{ pinShared ? 'Étiquette à refaire' : 'Étiquette pas encore épinglée' }}</b>
+          <template v-if="changes.length">
+            <span class="block text-[12.5px] text-amber-100">Depuis la dernière<template v-if="pinTime"> ({{ pinTime }})</template> :</span>
+            <span v-for="c in changes" :key="c" class="block text-[13px] font-bold">{{ c }}</span>
+          </template>
+          <span class="mt-1 block text-[12.5px] text-amber-100">Voici la nouvelle : partagez-la, puis dans TikTok ouvrez <b>Fond vert</b> et épinglez-la sur le live.</span>
+        </div>
+        <p v-else class="rounded-xl bg-emerald-500/15 px-3 py-2 text-[13px] font-extrabold text-emerald-300">✓ Étiquette à jour · {{ pinCount }} article{{ pinCount > 1 ? 's' : '' }}<template v-if="pinTime"> · épinglée à {{ pinTime }}</template></p>
+        <div class="rounded-xl bg-white p-3 text-slate-900"><LivePin :live="live" bare @shared="(sig) => emit('pin-shared', sig)" /></div>
+      </template>
+
+      <!-- Les articles à toucher pour les montrer (Télé et Studio, ou sans écrans) -->
+      <template v-if="shownView !== 'pin' || !cardsOn">
+        <p class="pt-1 text-[11px] font-extrabold tracking-wider text-slate-400 uppercase">Touchez un article pour le montrer · {{ soldPieces }} pièce{{ soldPieces > 1 ? 's' : '' }} vendue{{ soldPieces > 1 ? 's' : '' }}</p>
+        <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          <button v-for="p in products" :key="p.code" type="button" :disabled="busy"
+                  class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="current?.code === p.code ? 'border-red-600' : 'border-transparent'" @click="current?.code === p.code ? (screenMode !== 'product' && emit('mode', 'product')) : show(p)">
+            <span class="block h-16 bg-slate-100" :class="{ 'opacity-40 grayscale': !p.remaining }"><img v-if="p.image" :src="p.image" alt="" class="h-full w-full object-cover" loading="lazy" /></span>
+            <span class="absolute top-1 left-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
+            <span v-if="!p.remaining" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-sm font-black text-red-600">VENDU</span>
+            <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[9px] font-black text-white">BIENTÔT</span>
+            <span class="block truncate px-1.5 pt-0.5 text-[11px] font-bold">{{ p.title }}</span>
+            <span class="block px-1.5 pb-1 text-[10.5px] text-slate-500"><b class="text-slate-900">{{ p.remaining }}</b> / {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} att.</template></span>
+          </button>
+          <button type="button" class="grid min-h-24 place-items-center rounded-xl border-2 border-dashed border-white/30 text-xs font-extrabold text-slate-300" @click="emit('add')">＋ Ajouter</button>
+        </div>
+        <div v-if="current && current.remaining">
+          <button v-if="current.flash" type="button" class="w-full rounded-xl bg-red-600 py-2.5 text-sm font-extrabold" :disabled="busy" @click="emit('stop-flash', current.flash)">⚡ {{ money(current.price) }} · {{ chrono(current.flash) }} · Arrêter</button>
+          <button v-else type="button" class="w-full rounded-xl bg-amber-400 py-2.5 text-sm font-extrabold text-slate-900" @click="emit('flash', current.items[0])">⚡ Prix live sur {{ current.code }}</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class="rounded-xl border border-white/25 bg-white/10 py-3.5 text-base font-extrabold" :disabled="busy || !previous" @click="show(previous)">◀ Précédent</button>
+          <button type="button" class="rounded-xl bg-red-600 py-3.5 text-base font-extrabold disabled:opacity-50" :disabled="busy || !(current ? next : products[0])" @click="show(current ? next : products[0])">{{ current ? 'Suivant' : 'Commencer' }} ▶</button>
+        </div>
+      </template>
     </section>
 
     <!-- ═══ Messages ═══ -->
@@ -516,56 +515,5 @@ const ago = (iso) => {
         <p v-if="placing.error" class="text-red-600">{{ placing.error }}</p>
       </div>
     </Modal>
-    <!-- Agrandi : l'écran du live en grand, les articles à toucher, précédent / suivant -->
-    <Teleport to="body">
-      <div v-if="expanded" class="fixed inset-0 z-50 flex flex-col bg-[#0b1120] text-white" role="dialog" aria-modal="true" aria-label="À l'écran maintenant">
-        <div class="flex items-center justify-between px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <b class="text-base">À l'écran maintenant</b>
-          <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg" aria-label="Fermer" @click="expanded = false">✕</button>
-        </div>
-        <div class="mx-auto grid w-full max-w-3xl shrink-0 grid-cols-2 gap-1 px-3" role="tablist" aria-label="Où regarder ?">
-          <div class="col-span-2 grid grid-cols-2 gap-1 rounded-xl bg-white/10 p-1">
-            <button v-for="[value, label] in [['screen', '📺 Écran'], ['studio', '📱 TikTok LIVE Studio']]" :key="value" type="button" role="tab" :aria-selected="view === value"
-                    class="rounded-lg py-1.5 text-xs font-extrabold" :class="view === value ? 'bg-white text-slate-900' : 'text-slate-400'" @click="view = value">{{ label }}</button>
-          </div>
-        </div>
-        <!-- Écran : la télé ou la tablette -->
-        <div v-if="view === 'screen'" class="mx-auto mt-2 aspect-video w-full max-w-3xl shrink-0 px-3">
-          <div class="h-full overflow-hidden rounded-xl bg-black"><LiveDisplay v-if="display" :data="display" /></div>
-        </div>
-        <!-- TikTok LIVE Studio : le téléphone d'une cliente, lien 1 et lien 2 en haut, la vendeuse en dessous -->
-        <div v-else class="mt-2 flex shrink-0 justify-center">
-          <div class="relative h-[min(46vh,360px)] overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16">
-            <span class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[80px] leading-none" aria-hidden="true">🧕🏾</span>
-            <div class="absolute top-[3%] left-[3%] w-[55%]" style="aspect-ratio: 480 / 780">
-              <LiveOverlay v-if="display" :data="display" format="carte" />
-            </div>
-          </div>
-        </div>
-        <p class="mt-1 text-center text-[11px] text-slate-400">{{ view === 'screen' ? 'Ce que montre la télé ou la tablette, en direct' : 'Comme sur le téléphone des clientes : la carte en haut, vous en dessous' }}</p>
-        <div class="mx-auto mt-3 grid w-full max-w-3xl shrink-0 grid-cols-4 gap-1.5 px-3" role="radiogroup" aria-label="Que montrer sur l'écran du live ?">
-          <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
-                  class="rounded-lg px-1 py-2 text-xs font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>
-        </div>
-        <p class="mx-auto mt-3 w-full max-w-3xl px-4 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Touchez un article pour le montrer</p>
-        <div class="mx-auto mt-2 grid min-h-0 w-full max-w-3xl flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto px-3 pb-2 sm:grid-cols-4">
-          <button v-for="p in products" :key="p.code" type="button" :disabled="busy"
-                  class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="screenMode === 'product' && current?.code === p.code ? 'border-red-600' : 'border-transparent'" @click="screenMode === 'product' && current?.code === p.code ? null : (current?.code === p.code ? emit('mode', 'product') : show(p))">
-            <span class="block h-16 bg-slate-100"><img v-if="p.image" :src="p.image" alt="" class="h-full w-full object-cover" loading="lazy" /></span>
-            <span class="absolute left-1 top-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
-            <span v-if="!p.remaining" class="absolute inset-x-0 top-0 grid h-16 place-items-center bg-white/60 text-sm font-black text-red-600">VENDU</span>
-            <span class="block truncate px-1.5 pb-1 pt-0.5 text-[11px] font-bold">{{ p.title }}</span>
-          </button>
-        </div>
-        <div v-if="current && current.remaining" class="mx-auto w-full max-w-3xl shrink-0 px-3 pt-2">
-          <button v-if="current.flash" type="button" class="w-full rounded-xl bg-red-600 py-2.5 text-sm font-extrabold" :disabled="busy" @click="emit('stop-flash', current.flash)">⚡ {{ money(current.price) }} · {{ chrono(current.flash) }} · Arrêter</button>
-          <button v-else type="button" class="w-full rounded-xl bg-amber-400 py-2.5 text-sm font-extrabold text-slate-900" @click="expanded = false; emit('flash', current.items[0])">⚡ Prix live sur {{ current.code }}</button>
-        </div>
-        <div class="mx-auto grid w-full max-w-3xl shrink-0 grid-cols-2 gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-          <button type="button" class="rounded-xl border border-white/25 bg-white/10 py-3.5 text-base font-extrabold" :disabled="busy || !previous" @click="show(previous)">◀ Précédent</button>
-          <button type="button" class="rounded-xl bg-red-600 py-3.5 text-base font-extrabold" :disabled="busy || !(current ? next : products[0])" @click="show(current ? next : products[0])">Suivant ▶</button>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
