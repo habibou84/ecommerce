@@ -49,9 +49,6 @@ const from = computed(() => {
 })
 const redirectUri = facebookReturnUrl(boot.platformUrl)
 const embeddedBrowser = inAppBrowser()
-// Version téléphone de la page de Meta (navigateur pas en « Version pour ordinateur ») : le choix de la devise de
-// la carte bancaire s'y bloque ; la version ordinateur marche
-const phoneLayout = /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent)
 const copied = ref(false)
 
 onMounted(() => {
@@ -119,10 +116,10 @@ async function copyLink() {
         <p>Menu ⋮ (ou ⋯) › « Ouvrir dans le navigateur », ou copiez le lien et collez-le dans Chrome.</p>
         <button type="button" class="btn-secondary w-full" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien' }}</button>
       </div>
-      <!-- Deux consignes, en grand : le reste, Facebook le guide -->
+      <!-- Deux consignes, en grand : le numéro spécial live, la carte facultative ; le reste, Facebook le guide -->
       <div class="space-y-3">
-        <p v-if="phoneLayout && !embeddedBrowser" class="flex items-center gap-3 rounded-2xl bg-sky-50 p-4 text-[17px] font-bold leading-snug text-sky-950"><span class="text-3xl" aria-hidden="true">💻</span><span>Active le mode ordinateur</span></p>
-        <p class="flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-[17px] font-bold leading-snug text-emerald-950"><span class="text-3xl" aria-hidden="true">💳</span><span>Carte bancaire : pas obligatoire<small class="mt-0.5 block text-[14px] font-semibold">Tu peux passer cette étape. Elle sert seulement aux messages en masse (relances). Le live et les réponses sont gratuits.</small></span></p>
+        <p class="flex items-center gap-3 rounded-2xl bg-sky-50 p-4 text-[17px] font-bold leading-snug text-sky-950"><span class="text-3xl" aria-hidden="true">📱</span><span>Un numéro spécial live<small class="mt-0.5 block text-[14px] font-semibold">Il ne doit être connecté à aucun WhatsApp sur un téléphone (ni WhatsApp, ni WhatsApp Business).</small></span></p>
+        <p class="flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-[17px] font-bold leading-snug text-emerald-950"><span class="text-3xl" aria-hidden="true">💳</span><span>Tu peux continuer sans mettre de carte bancaire</span></p>
       </div>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
       <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
