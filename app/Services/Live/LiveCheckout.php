@@ -406,7 +406,9 @@ class LiveCheckout
                 ."\n🚚 ".($place ? "{$place} : v" : 'V').'otre colis part à la gare dès que le paiement est reçu.'
             : $thanks.'💰 *'.Money::format((int) $order->total)."* à payer à la livraison\n"
                 .'🛵 '.($place ? "{$place} : l" : 'L').'e livreur vous appelle avant de passer.');
-        if ($first) {
+        // Expédition payée avant l'envoi : les photos attendent la validation du paiement, pour que le message
+        // « payez puis envoyez le reçu » reste le dernier et ne soit pas noyé sous les photos
+        if ($first && ! $this->prepaid($order)) {
             $this->photos($conversation, $order);
         }
 
@@ -481,6 +483,7 @@ class LiveCheckout
         $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
         if ($conversation !== null) {
             $this->text($conversation, "✅ *Paiement reçu, merci !*\nVotre commande n° {$order->reference()} part à la gare. Nous vous envoyons le ticket dès le dépôt.");
+            $this->photos($conversation, $order);
         }
     }
 

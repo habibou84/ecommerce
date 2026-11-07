@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import LiveDeliveryFees from '../../../components/LiveDeliveryFees.vue'
@@ -10,6 +10,7 @@ import http, { errorMessage } from '../../../lib/http'
 import { money } from '../../../lib/format'
 import { connectWhatsappDirect } from '../../../lib/whatsappConnect'
 import { useAuthStore } from '../../../stores/auth'
+import { livesChanged, livesVersion } from '../../../lib/fullscreen'
 
 /**
  * Menu Live › « Préparer un live » : 5 étapes qui se cochent (WhatsApp, prix de livraison, articles, photo à
@@ -48,6 +49,8 @@ async function load() {
   }
 }
 onMounted(load)
+// Live lancé ou terminé ailleurs (fenêtre du live, autre copie de cette page) : la carte se met à jour
+watch(livesVersion, load)
 
 // Retour de la connexion WhatsApp : petit message avec le numéro relié
 const toast = ref('')
@@ -150,7 +153,7 @@ async function endLive() {
   error.value = ''
   try {
     await http.post(`/lives/${current.value.id}/end`)
-    await load()
+    livesChanged()
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -162,8 +165,12 @@ async function start() {
   busy.value = true
   error.value = ''
   try {
-    await http.post(`/lives/${draft.value.id}/start`)
-    router.push(`/gestion/live/${draft.value.id}`)
+    const id = draft.value.id
+    await http.post(`/lives/${id}/start`)
+    livesChanged()
+    // Directement dans la fenêtre du live, en plein écran
+    await router.push(`/gestion/live/${id}`)
+    busy.value = false
   } catch (e) {
     error.value = errorMessage(e)
     busy.value = false
