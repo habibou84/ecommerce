@@ -584,8 +584,8 @@ class OrderDesk
         if ($shippingFee !== null) {
             $order->shipping_fee = $shippingFee;
         } elseif ($refreshFee && $order->isExpedition()) {
-            // Expédition : livraison jusqu'à la gare retenue par la boutique (les frais de la compagnie viennent au dépôt)
-            $order->shipping_fee = $freeShipping ? 0 : ($order->store->expedition_fee ?? $order->zone?->fee ?? 0);
+            // Expédition : le prix de la ville s'il est réglé, sinon celui de toutes les villes
+            $order->shipping_fee = $freeShipping ? 0 : ($order->zone?->fee ?? $order->store->expedition_fee ?? 0);
         } elseif ($refreshFee) {
             $order->shipping_fee = $order->delivery_method === 'pickup' || $freeShipping ? 0 : ($order->zone?->feeFor($order->subtotal, $order->store->free_shipping_above) ?? 0);
         }

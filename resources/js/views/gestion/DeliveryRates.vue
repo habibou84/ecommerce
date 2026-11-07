@@ -1,26 +1,21 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
+import DeliveryPrices from '../../components/DeliveryPrices.vue'
 import DeliveryTabs from '../../components/DeliveryTabs.vue'
-import ToggleSwitch from '../../components/ToggleSwitch.vue'
 import http, { errorMessage } from '../../lib/http'
-import { money } from '../../lib/format'
 
-// Tarifs de livraison sans zones à construire : la ville de la boutique et son prix de départ, puis les communes
-// (et quelques quartiers à part) avec leur prix, souvent retenu depuis les commandes ; les expéditions vers les
-// autres villes (livraison jusqu'à la gare, paiement avant).
+// Tarifs de livraison : les prix à toucher (ville, communes, quartiers à part, expéditions vers les autres villes,
+// livraison offerte), la ville de la boutique, et la question du guide de démarrage.
 const rates = ref(null)
 const error = ref('')
 const notice = ref('')
 const busy = ref(false)
 const base = ref('')
-const expedition = reactive({ fee: '', prepay: true })
-const editing = ref(null) // id du lieu dont le prix est modifié
-const draft = ref('')
-const open = reactive({}) // commune → quartiers chargés
 const homeOpen = ref(false)
 const homeChoice = ref(null)
+const pricesKey = ref(0)
 // Venue du guide de démarrage : une seule question, le prix habituel dans la ville
 const route = useRoute()
 const router = useRouter()
@@ -33,14 +28,10 @@ async function saveStart() {
 async function load() {
   rates.value = (await http.get('/delivery-rates')).data.data
   base.value = rates.value.base_fee ?? ''
-  expedition.fee = rates.value.expedition.fee ?? ''
-  expedition.prepay = rates.value.expedition.prepay
   homeChoice.value = rates.value.home?.id ?? null
 }
 onMounted(load)
 
-// Communes : celles avec un prix retenu d'abord, puis les autres par ordre alphabétique
-const communes = computed(() => [...(rates.value?.places ?? [])].sort((a, b) => (b.learned - a.learned) || a.name.localeCompare(b.name, 'fr')))
 const cities = computed(() => [...(rates.value?.home ? [rates.value.home] : []), ...(rates.value?.cities ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'fr')))
 
 async function run(action, message) {
@@ -60,33 +51,12 @@ async function run(action, message) {
 }
 
 const saveBase = () => run(() => http.put('/delivery-rates', { base_fee: Number(base.value || 0) }), 'Prix de départ enregistré ✓')
-const saveExpedition = () => run(() => http.put('/delivery-rates', { expedition_fee: expedition.fee === '' ? null : Number(expedition.fee), expedition_prepay: expedition.prepay }), 'Expéditions enregistrées ✓')
 async function saveHome() {
   if (await run(() => http.put('/delivery-rates', { home_place_id: homeChoice.value }), 'Ville de la boutique enregistrée ✓')) {
     homeOpen.value = false
     await load()
+    pricesKey.value++
   }
-}
-
-function edit(p) {
-  editing.value = p.id
-  draft.value = p.fee ?? ''
-}
-async function savePlace(p, parent = null) {
-  if (await run(() => http.post('/delivery-rates/remember', { place_id: p.id, fee: Number(draft.value || 0) }), `Prix retenu pour ${p.name} ✓`)) {
-    editing.value = null
-    if (parent) await toggle(parent, true)
-  }
-}
-async function forget(p, parent = null) {
-  if (await run(() => http.delete(`/delivery-rates/places/${p.id}`), `${p.name} reprend le prix ${parent ? `de ${parent.name}` : 'de départ'}`)) {
-    editing.value = null
-    if (parent) await toggle(parent, true)
-  }
-}
-async function toggle(c, reload = false) {
-  if (open[c.id] && !reload) return delete open[c.id]
-  open[c.id] = (await http.get(`/delivery-rates/places/${c.id}`)).data.data.places
 }
 </script>
 
@@ -118,21 +88,13 @@ async function toggle(c, reload = false) {
     </section>
 
     <template v-if="rates && !start">
-      <!-- Prix de départ -->
-      <section class="card space-y-3 p-4">
-        <div class="flex items-center gap-3">
-          <div class="min-w-0 flex-1">
-            <h2 class="font-semibold">Prix de départ · {{ rates.home?.name }}</h2>
-            <p class="text-sm text-slate-500">Partout dans la ville où aucun prix n'est retenu.</p>
-          </div>
-          <input v-model="base" class="input w-28 text-right font-bold" type="number" min="0" inputmode="numeric" aria-label="Prix de départ" />
-          <span class="text-sm">F</span>
-        </div>
-        <div class="flex flex-wrap items-center gap-3">
-          <button type="button" class="btn-brand" :disabled="busy" @click="saveBase">Enregistrer</button>
-          <button type="button" class="text-sm font-medium text-emerald-700 underline" @click="homeOpen = !homeOpen">Ma boutique n'est pas à {{ rates.home?.name }}</button>
-        </div>
-        <div v-if="homeOpen" class="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3 text-sm">
+      <!-- Prix à toucher : ville, communes, quartiers, expéditions, livraison offerte (comme dans « Préparer un live ») -->
+      <DeliveryPrices :key="pricesKey" />
+
+      <!-- Ville de la boutique -->
+      <section class="card space-y-2 p-4 text-sm">
+        <button type="button" class="font-medium text-emerald-700 underline" @click="homeOpen = !homeOpen">Ma boutique n'est pas à {{ rates.home?.name }}</button>
+        <div v-if="homeOpen" class="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3">
           <span>Ville de la boutique :</span>
           <select v-model="homeChoice" class="input w-auto">
             <option v-for="c in cities" :key="c.id" :value="c.id">{{ c.name }}</option>
@@ -140,57 +102,6 @@ async function toggle(c, reload = false) {
           <button type="button" class="btn-secondary px-3 py-1.5" :disabled="busy" @click="saveHome">Enregistrer</button>
           <p class="w-full text-xs text-slate-500">Les autres villes passent alors en expédition.</p>
         </div>
-      </section>
-
-      <!-- Communes (ou quartiers) de la ville -->
-      <section class="card p-4">
-        <h2 class="mb-1 flex items-baseline justify-between font-semibold">{{ rates.home?.name }} <span class="text-xs font-normal text-slate-500">{{ communes.length }} lieu(x)</span></h2>
-        <p v-if="!communes.length" class="text-sm text-slate-500">Aucun quartier encore : ajoutez-les depuis une commande (« Quartier pas dans la liste »).</p>
-        <ul class="divide-y divide-slate-100">
-          <li v-for="c in communes" :key="c.id" class="py-2">
-            <div class="flex items-center gap-2">
-              <button type="button" class="min-w-0 flex-1 text-left" @click="c.has_children ? toggle(c) : edit(c)">
-                <span class="block font-semibold">{{ c.name }}<span v-if="c.has_children" class="ml-1 text-xs text-slate-400">{{ open[c.id] ? '▾' : '▸' }}</span></span>
-                <span class="block text-xs" :class="c.learned ? 'text-emerald-700' : 'text-slate-500'">{{ c.learned ? 'retenu de vos commandes' : 'prix de départ' }}</span>
-              </button>
-              <template v-if="editing === c.id">
-                <input v-model="draft" class="input w-24 py-1 text-right" type="number" min="0" inputmode="numeric" :aria-label="`Prix pour ${c.name}`" />
-                <button type="button" class="btn-brand px-3 py-1.5" :disabled="busy" @click="savePlace(c)">OK</button>
-              </template>
-              <button v-else type="button" class="font-semibold tabular-nums" :class="c.learned ? '' : 'text-slate-400'" @click="edit(c)">{{ c.fee !== null ? money(c.fee) : '—' }} ✎</button>
-            </div>
-            <button v-if="editing === c.id && c.learned" type="button" class="mt-1 text-xs text-red-600 underline" @click="forget(c)">Retirer ce prix (revenir au prix de départ)</button>
-            <!-- Quartiers de la commune : un prix à part si besoin -->
-            <ul v-if="open[c.id]" class="mt-2 space-y-1 border-l-2 border-emerald-100 pl-3">
-              <li v-for="q in open[c.id]" :key="q.id" class="flex items-center gap-2 text-sm">
-                <span class="min-w-0 flex-1">{{ q.name }}<span v-if="q.learned" class="ml-1 text-xs text-emerald-700">· à part</span></span>
-                <template v-if="editing === q.id">
-                  <input v-model="draft" class="input w-24 py-1 text-right" type="number" min="0" inputmode="numeric" :aria-label="`Prix pour ${q.name}`" />
-                  <button type="button" class="btn-brand px-2 py-1" :disabled="busy" @click="savePlace(q, c)">OK</button>
-                  <button v-if="q.learned" type="button" class="text-xs text-red-600 underline" @click="forget(q, c)">Retirer</button>
-                </template>
-                <button v-else type="button" class="tabular-nums" :class="q.learned ? 'font-semibold' : 'text-slate-400'" @click="edit(q)">{{ q.fee !== null ? money(q.fee) : '—' }} ✎</button>
-              </li>
-            </ul>
-          </li>
-        </ul>
-      </section>
-
-      <!-- Expéditions vers les autres villes -->
-      <section class="card space-y-3 p-4">
-        <h2 class="font-semibold">📦 Expéditions vers les autres villes</h2>
-        <p class="text-sm text-slate-600">Le prix couvre la gare et l'expédition. Le dernier prix par ville est repris.</p>
-        <div class="flex items-center gap-3">
-          <span class="min-w-0 flex-1 text-sm font-medium">Prix de départ (livraison + expédition)</span>
-          <input v-model="expedition.fee" class="input w-28 text-right font-bold" type="number" min="0" inputmode="numeric" placeholder="à indiquer" aria-label="Prix de départ des expéditions" />
-          <span class="text-sm">F</span>
-        </div>
-        <div class="flex items-center gap-3">
-          <ToggleSwitch v-model="expedition.prepay" label="Paiement avant expédition" />
-          <span class="text-sm font-medium">Paiement avant expédition (conseillé)</span>
-        </div>
-        <p class="text-sm text-slate-600">Départ à la gare une fois tout payé.</p>
-        <button type="button" class="btn-brand" :disabled="busy" @click="saveExpedition">Enregistrer</button>
       </section>
 
       <p class="text-center text-sm text-slate-500">
