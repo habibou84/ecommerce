@@ -1,39 +1,24 @@
 @extends('layouts.page')
 
-@section('title', 'Jibiat Marchand · Votre boutique en ligne, vos commandes, vos livraisons')
-@section('description', 'Boutique en ligne, commandes WhatsApp, Facebook et TikTok, un assistant qui remplit vos commandes et vos fiches produits, et des entreprises de livraison fiables connectées en un clic. '.\App\Support\TrialOffer::duration().' de l\'offre Pro offert.')
+@section('title', 'Jibiat Marchand · Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes.')
+@section('description', 'Tu fais ton live sur TikTok, tes clients envoient le code de l\'article sur WhatsApp : Jibiat Marchand répond, garde la pièce, demande le quartier et enregistre la commande. Application gratuite.')
 
 @php
     $whatsapp = preg_replace('/\D+/', '', (string) config('platform.support_whatsapp'));
-    $whatsappUrl = $whatsapp !== '' ? 'https://wa.me/'.$whatsapp.'?text='.rawurlencode('Bonjour, je souhaite en savoir plus sur Jibiat Marchand pour ma boutique.') : null;
-    // Essai offert à chaque nouvelle boutique : « 1 mois de l'offre Pro »
-    $trial = \App\Support\TrialOffer::duration();
-    $trialPlan = \App\Support\TrialOffer::planName();
-    // Actions de l'assistant par offre publique, telles que réglées dans la console
-    $aiActions = $plans->filter(fn ($p) => array_key_exists('ai_actions_per_month', $p->limits ?? []) && ($p->limits['ai_actions_per_month'] ?? 0) !== 0)
-        ->map(fn ($p) => ($p->limits['ai_actions_per_month'] === null ? 'illimitées' : number_format($p->limits['ai_actions_per_month'], 0, ',', ' ')).' en '.$p->name);
-    $trialActions = $plans->firstWhere('code', config('platform.trial_plan'))?->limits['ai_actions_per_month'] ?? null;
-    // Montant sans coupure de ligne (espaces insécables)
+    $whatsappUrl = $whatsapp !== '' ? 'https://wa.me/'.$whatsapp.'?text='.rawurlencode('Bonjour, je souhaite en savoir plus sur Jibiat Marchand pour mes lives TikTok.') : null;
+    // Lives payants (console) : quand ils sont allumés, on montre les lives offerts et les prix
+    $lives = app(\App\Services\Live\LiveBilling::class)->settings();
     $f = fn (int $amount) => number_format($amount, 0, ',', "\u{00A0}")."\u{00A0}F";
-    // Prix d'entrée des offres payantes, au mois et à la semaine
-    $fromMonthly = $plans->where('monthly_price', '>', 0)->min('monthly_price');
-    $fromWeekly = $plans->where('weekly_price', '>', 0)->min('weekly_price');
-    $aiPack = config('platform.ai_pack');
-    $partnerTrial = \App\Support\TrialOffer::duration(\App\Support\TrialOffer::partnerDays());
+    $tagline = 'Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes.';
     $faq = [
-        ['Combien ça coûte ?', 'Vous commencez avec '.$trial.' de l\'offre '.$trialPlan.' offert : WhatsApp automatique, les statistiques avancées, le paiement en ligne, sans carte bancaire. Ensuite, l\'offre Gratuit reste disponible'.($fromMonthly ? ', et les offres payantes commencent à '.$f($fromMonthly).' par mois'.($fromWeekly ? ', ou '.$f($fromWeekly).' par semaine' : '') : '').'.'.($aiActions->isEmpty() ? ' L\'assistant IA se paie à part, par recharge.' : ' L\'assistant IA est compris dans chaque offre, avec des recharges en plus si besoin.')],
-        ['Comment je paie mon abonnement ?', 'Sans carte bancaire : par Wave, Orange Money, MTN ou Moov, depuis votre téléphone. À la semaine, au mois ou à l\'année (12 mois pour le prix de 10). Vous recevez une facture à chaque paiement, et rien n\'est prélevé tout seul.'],
-        ['Combien coûte l\'assistant ?', ($aiActions->isEmpty() ? 'Il se paie à part, quelle que soit votre offre : ' : 'Chaque offre comprend des actions par mois ('.$aiActions->join(', ', ' et ').'). Au-delà, ').$aiPack['actions'].' actions pour '.$f($aiPack['price']).' par Mobile Money. Vous rechargez quand vous voulez, et elles ne périment pas.'],
-        ['Mon entreprise de livraison m\'a envoyé un lien. Qu\'est-ce que j\'y gagne ?', 'Si elle est dans l\'annuaire Jibiat, son lien vous offre '.$partnerTrial.' de l\'offre '.$trialPlan.' au lieu de '.$trial.', et vous la connectez en un clic.'],
-        ['Que fait l\'assistant ?', 'Il transforme le message WhatsApp d\'un client (même mal écrit, ou en capture d\'écran) en commande, écrit la fiche d\'un produit à partir d\'une photo, prépare vos réponses aux clients avec vos vrais prix et votre stock, rédige vos publications et répond à vos questions sur vos chiffres. Rien n\'est envoyé ni enregistré sans vous.'],
-        ['La boutique en ligne est-elle comprise ?', 'Oui, dans toutes les offres, même Gratuit : vos produits en ligne, le panier, la commande et le suivi pour vos clients, à l\'adresse votre-nom.'.config('platform.domain').'. Les offres payantes ajoutent le paiement en ligne, et Pro et Business votre propre nom de domaine.'],
-        ['Et à la fin du mois d\'essai ?', 'Rien n\'est prélevé : vous choisissez l\'offre qui vous convient, ou votre espace marchand passe sur l\'offre Gratuit. Vos produits, vos clients et vos commandes restent là.'],
-        ['Comment je trouve une entreprise de livraison ?', 'Dans Livraisons › Entreprises de livraison, l\'annuaire Jibiat montre les entreprises près de chez vous avec leur réussite et leur délai réels des 90 derniers jours. Vous touchez « Connecter » et c\'est fait.'],
-        ['Et si j\'ai déjà mes propres livreurs ?', 'Gardez-les : ils ont leur application, avec leurs missions, les encaissements et les preuves de livraison. Vous pouvez mélanger vos livreurs et des entreprises de livraison.'],
-        ['Je vends seulement sur WhatsApp et Facebook. C\'est pour moi ?', 'Oui. Collez le message du client : la commande est prête. Vous avez aussi une boutique en ligne à partager, sans rien installer.'],
-        ['Comment je suis payé ?', 'À la livraison en espèces, ou en ligne avec Wave, Orange Money, MTN, Moov ou par carte. Les reversements des entreprises de livraison sont rapprochés de vos commandes automatiquement.'],
-        ['Ma boutique en ligne vend-elle la nuit ?', 'Oui. Elle reste ouverte jour et nuit : le client choisit, commande et peut payer par Wave, Orange Money, MTN, Moov ou carte. Il reçoit sa confirmation sur WhatsApp, et vous retrouvez la commande le matin, prête à partir.'],
-        ['Faut-il un ordinateur ?', 'Non. Tout se fait depuis votre téléphone, en 5 minutes pour commencer.'],
+        ['Mon live se fait sur Jibiat Marchand ?', 'Non. Ton live se fait sur TikTok, comme d\'habitude, avec tes abonnés. Jibiat Marchand travaille à côté : il enregistre les commandes que tes clients envoient sur WhatsApp et les prépare pour la livraison.'],
+        ['C\'est vraiment gratuit ?', $lives['paid']
+            ? 'Oui : commandes, stock, livraisons et boutique en ligne sont gratuits. Pour les lives, tes '.$lives['free_lives'].' premiers sont offerts, ensuite '.$f($lives['day_price']).' pour 24 h ou '.$f($lives['month_price']).' pour 30 jours.'
+            : 'Oui : l\'application est gratuite, lives compris. Pas de carte bancaire à donner.'],
+        ['Quel numéro WhatsApp utiliser ?', 'De préférence un numéro réservé à tes lives. Tu le relies dans l\'application en quelques minutes : c\'est sur ce numéro que tes clients envoient le code des articles.'],
+        ['Faut-il un ordinateur ?', 'Non. Tout se fait depuis ton téléphone, en 5 minutes pour commencer.'],
+        ['Mes clients paient comment ?', 'À la livraison, en espèces ou mobile money. Pour un client dans une autre ville, il paie avant l\'envoi avec ton lien Wave et tu valides son reçu en un geste.'],
+        ['Qui livre mes colis ?', 'Tes propres livreurs, ou une entreprise de livraison Jibiat que tu connectes en un geste. À la fin du live, les commandes partent au livreur.'],
     ];
 @endphp
 
@@ -42,8 +27,8 @@
     <meta property="og:type" content="website">
     <meta property="og:locale" content="fr_FR">
     <meta property="og:site_name" content="Jibiat Marchand">
-    <meta property="og:title" content="Jibiat Marchand · Vendez partout, livrez sans souci">
-    <meta property="og:description" content="Un assistant qui remplit vos commandes WhatsApp et vos fiches produits, une boutique en ligne, votre stock et des livreurs fiables en un clic. {{ ucfirst($trial) }} de l'offre {{ $trialPlan }} offert.">
+    <meta property="og:title" content="{{ $tagline }}">
+    <meta property="og:description" content="Tes clients envoient le code de l'article sur WhatsApp : la pièce est gardée, le quartier demandé, la commande enregistrée. Gratuit.">
     <meta property="og:url" content="{{ url('/') }}">
     <meta property="og:image" content="{{ url('/videos/og-marchand.jpg') }}">
     <meta property="og:image:width" content="1200">
@@ -54,8 +39,7 @@
             '@context' => 'https://schema.org',
             '@graph' => [
                 ['@type' => 'SoftwareApplication', 'name' => 'Jibiat Marchand', 'applicationCategory' => 'BusinessApplication', 'operatingSystem' => 'Web, Android, iOS', 'url' => url('/'),
-                    'description' => 'Application des e-commerçants : boutique en ligne, commandes, stock, livraisons et paiements.',
-                    'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'XOF']],
+                    'description' => $tagline, 'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'XOF']],
                 ['@type' => 'FAQPage', 'mainEntity' => array_map(fn ($q) => ['@type' => 'Question', 'name' => $q[0], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $q[1]]], $faq)],
             ],
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}
@@ -63,9 +47,6 @@
 @endsection
 
 @section('content')
-    <a href="{{ $signupUrl }}" class="block bg-amber-300 px-4 py-2 text-center text-sm font-semibold text-amber-950 hover:bg-amber-200">
-        🎁 {{ $trial }} de l'offre {{ $trialPlan }} offert à chaque nouvel espace marchand · Sans carte bancaire <span class="underline">J'en profite</span>
-    </a>
     <header class="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur">
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
             <a href="/" class="flex items-center gap-2 font-semibold">
@@ -73,360 +54,161 @@
                 <span>Jibiat <span class="text-emerald-700">Marchand</span></span>
             </a>
             <nav class="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex" aria-label="Navigation principale">
-                <a href="#presentation" class="hover:text-slate-900">Vidéo</a>
-                <a href="/bien-demarrer" class="hover:text-slate-900">Bien démarrer</a>
-                <a href="#assistant" class="hover:text-slate-900">Assistant</a>
-                <a href="#boutique" class="hover:text-slate-900">Boutique</a>
-                <a href="#livraison" class="hover:text-slate-900">Livraison</a>
-                <a href="#fonctions" class="hover:text-slate-900">Fonctions</a>
-                <a href="#tarifs" class="hover:text-slate-900">Tarifs</a>
+                <a href="#qui-fait-quoi" class="hover:text-slate-900">Comment ça marche</a>
+                <a href="#prix" class="hover:text-slate-900">Prix</a>
                 <a href="#questions" class="hover:text-slate-900">Questions</a>
+                <a href="/bien-demarrer" class="hover:text-slate-900">Bien démarrer</a>
             </nav>
             <div class="flex items-center gap-2 text-sm">
                 <a href="{{ $loginUrl }}" class="btn-secondary">Se connecter</a>
-                <a href="{{ $signupUrl }}" class="btn-brand">Créer mon espace marchand</a>
+                <a href="{{ $signupUrl }}" class="btn-brand hidden sm:inline-flex">Créer mon espace marchand</a>
             </div>
         </div>
     </header>
 
     <main>
-        {{-- Présentation et vidéo --}}
-        <section class="overflow-hidden bg-gradient-to-b from-emerald-950 via-emerald-900 to-emerald-800 text-white">
-            <div class="mx-auto grid max-w-6xl items-center gap-12 px-4 py-14 sm:py-20 lg:grid-cols-2">
-                <div>
-                    <p class="inline-block rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-emerald-100 ring-1 ring-white/15">Pour les e-commerçants de Côte d'Ivoire</p>
-                    <h1 class="mt-5 text-4xl font-bold leading-tight tracking-tight text-balance sm:text-5xl">
-                        Vendez partout. Livrez avec des pros. <span class="text-emerald-300">Encaissez sans courir.</span>
+        {{-- La phrase clé et la vidéo problème → solution --}}
+        <section class="overflow-hidden bg-gradient-to-br from-orange-900 via-orange-700 to-orange-500 text-white">
+            <div class="mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:py-16 lg:grid-cols-2">
+                <div class="text-center lg:text-left">
+                    <h1 class="text-4xl font-black leading-tight tracking-tight text-balance sm:text-5xl">
+                        Toi, tu fais ton live sur TikTok.<br><span class="text-amber-200">Jibiat Marchand enregistre les commandes.</span>
                     </h1>
-                    <p class="mt-5 text-lg text-emerald-50/90">
-                        Une boutique en ligne qui vend même quand vous dormez, vos commandes WhatsApp, Facebook et TikTok, votre stock et vos livraisons
-                        dans une seule application, depuis votre téléphone. Un assistant qui remplit vos commandes et vos fiches produits à votre place.
-                        Et des entreprises de livraison fiables, connectées en un clic.
+                    <p class="mt-5 text-lg text-orange-50">
+                        Tes clients envoient le code de l'article sur ton WhatsApp. Jibiat Marchand leur répond, garde la pièce, demande le quartier
+                        et enregistre la commande. Toi, tu restes concentré sur ton live.
                     </p>
-                    <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-                        <a href="{{ $signupUrl }}" class="btn-brand bg-white px-6 py-3 text-base text-emerald-900 hover:bg-emerald-50">Créer mon espace marchand gratuitement</a>
+                    <div class="mt-8 flex flex-col gap-3 sm:flex-row lg:justify-start sm:justify-center">
+                        <a href="{{ $signupUrl }}" class="btn-brand bg-white px-6 py-3 text-base font-extrabold text-orange-800 hover:bg-orange-50">Créer mon espace marchand gratuit</a>
                         @if ($whatsappUrl)
-                            <a href="{{ $whatsappUrl }}" class="btn-secondary border-white/30 bg-transparent px-6 py-3 text-base text-white hover:bg-white/10" target="_blank" rel="noopener">Poser une question sur WhatsApp</a>
+                            <a href="{{ $whatsappUrl }}" class="btn-secondary border-white/40 bg-transparent px-6 py-3 text-base text-white hover:bg-white/10" target="_blank" rel="noopener">Poser une question sur WhatsApp</a>
                         @endif
                     </div>
-                    <p class="mt-3 text-sm text-emerald-100/80">5 minutes pour commencer · <strong class="text-white">{{ $trial }} de l'offre {{ $trialPlan }} offert</strong> · Sans carte bancaire</p>
-                    <a href="#presentation" class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-200 hover:text-white">
-                        <span class="inline-flex size-7 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20" aria-hidden="true">▶</span>
-                        Voir la présentation de Jibiat Marchand (1 min 30)
-                    </a>
+                    <p class="mt-3 text-sm font-semibold text-orange-100">Gratuit · 5 minutes · Depuis ton téléphone</p>
                 </div>
                 <div class="flex justify-center">
-                    <video class="w-full max-w-[20rem] rounded-[2rem] shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-assistant-v.jpg" width="1080" height="1920" autoplay muted loop playsinline preload="metadata" aria-label="Vidéo : l'assistant de Jibiat Marchand remplit vos commandes, vos fiches produits et vos réponses">
-                        <source src="/videos/marchand-assistant-v.mp4" type="video/mp4">
+                    <video class="w-full max-w-[19rem] rounded-[2rem] shadow-2xl ring-1 ring-white/20" poster="/videos/live/probleme-solution-v.jpg?v=1" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : ton live sur TikTok, les commandes enregistrées par Jibiat Marchand">
+                        <source src="/videos/live/probleme-solution-v.mp4?v=1" type="video/mp4">
                     </video>
                 </div>
             </div>
         </section>
 
-        {{-- Présentation en une minute et demie : vidéo horizontale sur ordinateur, verticale sur téléphone --}}
-        <section id="presentation" class="scroll-mt-20 bg-slate-950 py-16 text-white sm:py-20">
-            <div class="mx-auto max-w-5xl px-4">
-                <div class="mx-auto max-w-2xl text-center">
-                    <p class="font-semibold text-emerald-300">Jibiat Marchand en une minute et demie</p>
-                    <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">De la commande WhatsApp au bénéfice du soir</h2>
-                    <p class="mt-4 text-lg text-slate-300">La commande se remplit, le stock suit, le livreur part, l'argent rentre : voyez une journée de vente, écran par écran.</p>
-                </div>
-                <div class="mt-10 flex justify-center lg:hidden">
-                    <video class="w-full max-w-[20rem] rounded-[2rem] shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-presentation-v.jpg" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : Jibiat Marchand en une minute et demie">
-                        <source src="/videos/marchand-presentation-v.mp4" type="video/mp4">
-                    </video>
-                </div>
-                <div class="mt-12 hidden lg:block">
-                    <video class="w-full rounded-3xl shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-presentation-h.jpg" width="1920" height="1080" controls playsinline preload="none" aria-label="Vidéo : Jibiat Marchand en une minute et demie">
-                        <source src="/videos/marchand-presentation-h.mp4" type="video/mp4">
-                    </video>
-                </div>
-                <p class="mt-10 text-center">
-                    <a href="/bien-demarrer" class="btn-secondary border-white/30 bg-transparent px-5 py-3 text-white hover:bg-white/10">▶ Les étapes essentielles pour commencer, en 11 courtes vidéos</a>
-                </p>
-            </div>
-        </section>
-
-        {{-- Présentation générale en vidéo (voix off et sous-titres) --}}
-        <section id="presentation" class="scroll-mt-20 py-16 sm:py-20">
-            <div class="mx-auto max-w-5xl px-4">
-                <div class="mx-auto max-w-2xl text-center">
-                    <p class="font-semibold text-emerald-700">Voir Jibiat Marchand en action</p>
-                    <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">Toute votre boutique dans une seule application</h2>
-                    <p class="mt-4 text-lg text-slate-600">Vos commandes de partout au même endroit, votre boutique en ligne, l'assistant, vos livraisons en un clic et votre argent suivi.</p>
-                </div>
-                <video class="mt-10 block w-full rounded-2xl bg-slate-950 shadow-xl ring-1 ring-slate-900/10" poster="/videos/marchand-presentation-w.jpg" width="1920" height="1080" controls playsinline preload="none" aria-label="Vidéo : présentation de Jibiat Marchand, avec voix et sous-titres">
-                    <source src="/videos/marchand-presentation-w.mp4" type="video/mp4">
-                </video>
-            </div>
-        </section>
-
-        {{-- L'assistant (intelligence artificielle) --}}
-        <section id="assistant" class="scroll-mt-20 py-16 sm:py-20">
-            <div class="mx-auto max-w-6xl px-4">
-                <div class="mx-auto max-w-2xl text-center">
-                    <p class="font-semibold text-emerald-700">Votre assistant, à la recharge</p>
-                    <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">Il fait le travail répétitif. Vous vendez.</h2>
-                    <p class="mt-4 text-lg text-slate-600">
-                        Un assistant d'intelligence artificielle travaille dans votre espace marchand, avec vos vrais produits, vos prix, votre stock et vos frais de livraison.
-                        Il propose, vous vérifiez : rien n'est envoyé ni enregistré sans vous.
-                    </p>
-                </div>
-                <div class="mt-14 space-y-16 sm:space-y-24">
-                    @foreach ([
-                        ['marchand-ia-commande', '💬', 'Un message WhatsApp devient une commande', 'Collez le message du client, même mal écrit, en plusieurs fois ou en capture d\'écran : numéro, nom, quartier, articles et frais de livraison se remplissent.'],
-                        ['marchand-ia-photo', '📸', 'Une photo devient une fiche produit', 'Prenez le produit en photo : nom, description, tailles et couleurs, mots-clés pour Google. Vous fixez le prix et le stock.'],
-                        ['marchand-ia-reponses', '⚡', 'Vos réponses aux clients, prêtes', 'Taille disponible, prix, frais de livraison : l\'assistant prépare la réponse avec vos vrais chiffres. Vous relisez et vous envoyez.'],
-                        ['marchand-ia-reseaux', '📣', 'Vos publications écrites pour vous', 'Trois textes prêts pour Facebook, Instagram et TikTok, avec le bon prix et les hashtags, en français simple ou en nouchi.'],
-                        ['marchand-ia-chiffres', '📊', 'Vos chiffres, en une question', '« Qu\'est-ce qui se vend le mieux cette semaine ? » L\'assistant lit vos ventes et votre stock et vous répond simplement.'],
-                    ] as $i => [$video, $icon, $title, $text])
-                        <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
-                            <div @class(['flex justify-center', 'lg:order-2' => $i % 2 === 1])>
-                                <video class="w-full max-w-[20rem] rounded-[2rem] bg-slate-900 shadow-2xl ring-1 ring-slate-200" poster="/videos/{{ $video }}-v.jpg" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : {{ $title }}">
-                                    <source src="/videos/{{ $video }}-v.mp4" type="video/mp4">
-                                </video>
-                            </div>
-                            <div class="text-center lg:text-left">
-                                <span class="text-4xl" aria-hidden="true">{{ $icon }}</span>
-                                <h3 class="mt-3 text-2xl font-bold tracking-tight text-balance sm:text-3xl">{{ $title }}</h3>
-                                <p class="mt-3 text-lg text-slate-600">{{ $text }}</p>
-                            </div>
-                        </div>
-                    @endforeach
-                    <div class="mx-auto max-w-2xl rounded-3xl bg-emerald-900 p-8 text-center text-white">
-                        <p class="text-sm font-semibold uppercase tracking-wide text-emerald-300">Combien d'actions ?</p>
-                        @if ($aiActions->isNotEmpty())
-                            <p class="mt-3 text-2xl font-bold">Par mois : {{ $aiActions->join(', ', ' et ') }}.</p>
-                        @endif
-                        @if ($aiActions->isEmpty())
-                            <p class="mt-3 text-2xl font-bold">{{ $aiPack['actions'] }} actions pour {{ $f($aiPack['price']) }}, quelle que soit votre offre.</p>
-                        @endif
-                        <p class="mt-3 text-emerald-100">Une action, c'est une commande remplie, une fiche écrite, une réponse ou une question. Vous rechargez par Mobile Money quand vous voulez, et les actions ne périment pas.</p>
-                        <a href="{{ $signupUrl }}" class="btn-brand mt-6 bg-white text-emerald-900 hover:bg-emerald-50">Essayer l'assistant</a>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        {{-- La boutique en ligne, ouverte jour et nuit --}}
-        <section id="boutique" class="scroll-mt-20 bg-slate-950 py-16 text-white sm:py-20">
-            <div class="mx-auto grid max-w-6xl items-center gap-12 px-4 lg:grid-cols-2">
-                <div class="flex justify-center lg:order-2">
-                    <video class="w-full max-w-[20rem] rounded-[2rem] shadow-2xl ring-1 ring-white/15" poster="/videos/marchand-boutique-v.jpg" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : votre boutique en ligne et vos commandes">
-                        <source src="/videos/marchand-boutique-v.mp4" type="video/mp4">
-                    </video>
-                </div>
-                <div>
-                    <p class="font-semibold text-emerald-300">Votre boutique en ligne</p>
-                    <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">Elle vend même quand vous dormez</h2>
-                    <p class="mt-4 text-lg text-slate-300">
-                        Pendant que vous dormez, vos clients regardent vos produits, choisissent leur taille et commandent. Le matin,
-                        les commandes de la nuit vous attendent, confirmées et prêtes à partir.
-                    </p>
-                    <ul class="mt-8 space-y-4">
-                        @foreach ([
-                            ['🌙', 'Ouverte 24 heures sur 24', 'À votre nom : votre-nom.jibiat-marchand.com, ou votre propre nom de domaine.'],
-                            ['💳', 'Le client paie tout seul', 'Wave, Orange Money, MTN, Moov ou carte, en ligne, ou à la livraison s\'il préfère.'],
-                            ['✅', 'Confirmée sur WhatsApp', 'Le client reçoit sa confirmation et la confirme d\'un bouton, même à 3 heures du matin.'],
-                            ['🛒', 'Les paniers oubliés relancés', 'Un client hésite et part ? Il reçoit un rappel sur WhatsApp avec le lien pour finir sa commande.'],
-                            ['📦', 'Le stock suit tout seul', 'Chaque vente le met à jour : vous ne vendez pas ce que vous n\'avez plus.'],
-                        ] as [$icon, $title, $text])
-                            <li class="flex gap-4">
-                                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 text-xl" aria-hidden="true">{{ $icon }}</span>
-                                <span><span class="block font-semibold">{{ $title }}</span><span class="block text-slate-300">{{ $text }}</span></span>
-                            </li>
-                        @endforeach
-                    </ul>
-                    <a href="{{ $signupUrl }}" class="btn-brand mt-8 bg-white px-6 py-3 text-base text-emerald-900 hover:bg-emerald-50">Ouvrir ma boutique en ligne</a>
-                </div>
-            </div>
-        </section>
-
-        {{-- L'atout : la livraison --}}
-        <section id="livraison" class="scroll-mt-20 py-16 sm:py-20">
-            <div class="mx-auto grid max-w-6xl items-center gap-12 px-4 lg:grid-cols-2">
-                <div class="order-2 flex justify-center lg:order-1">
-                    <video class="w-full max-w-[18rem] rounded-[2rem] shadow-xl ring-1 ring-slate-200" poster="/videos/marchand-livreur-fiable-v.jpg" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : trouver une entreprise de livraison fiable et s'y connecter en un clic">
-                        <source src="/videos/marchand-livreur-fiable-v.mp4" type="video/mp4">
-                    </video>
-                </div>
-                <div class="order-1 lg:order-2">
-                    <p class="font-semibold text-emerald-700">La livraison, enfin simple</p>
-                    <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">Des livreurs fiables, toujours disponibles, en un clic</h2>
-                    <p class="mt-4 text-lg text-slate-600">
-                        Fini le livreur qui ne répond plus. Choisissez parmi les entreprises de livraison qui travaillent avec Jibiat,
-                        d'après leurs vrais résultats, et confiez-leur vos colis sans quitter votre espace marchand.
-                    </p>
-                    <ul class="mt-6 space-y-4">
-                        @foreach ([
-                            ['🔎', 'Un annuaire avec les vrais chiffres', 'Réussite et délai moyen des 90 derniers jours, calculés par l\'application, pas déclarés.'],
-                            ['🔗', 'Connecter en un clic', 'Vous vous connectez chez l\'entreprise ou ouvrez votre compte, et c\'est fait. Aucune clé à copier.'],
-                            ['📍', 'Chaque colis suivi en direct', 'Ramassé, en route, livré, échec : le statut arrive tout seul dans votre commande, avec la photo de preuve.'],
-                            ['💰', 'Votre argent contrôlé', 'Ce que chaque entreprise vous doit, les retards de reversement, le rapprochement automatique.'],
-                            ['⚖️', 'Le meilleur choix pour chaque commande', 'Jibiat Marchand compare vos livreurs et les entreprises : prix, réussite et délai, zone par zone.'],
-                        ] as [$icon, $title, $text])
-                            <li class="flex gap-4">
-                                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-xl" aria-hidden="true">{{ $icon }}</span>
-                                <span><span class="block font-semibold">{{ $title }}</span><span class="block text-slate-600">{{ $text }}</span></span>
-                            </li>
-                        @endforeach
-                    </ul>
-                    <a href="https://jibiat.com/annuaire" class="mt-6 inline-block font-semibold text-emerald-700 hover:underline">Voir l'annuaire des entreprises de livraison →</a>
-                </div>
-            </div>
-        </section>
-
-        {{-- Toutes les fonctions --}}
-        <section id="fonctions" class="scroll-mt-20 bg-slate-50 py-16 sm:py-20">
-            <div class="mx-auto max-w-6xl px-4">
-                <div class="mx-auto max-w-2xl text-center">
-                    <p class="font-semibold text-emerald-700">Tout au même endroit</p>
-                    <h2 class="mt-2 text-3xl font-bold tracking-tight text-balance sm:text-4xl">Tout ce qu'il faut pour vendre plus, avec moins d'efforts</h2>
-                </div>
-                <div class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    @foreach ([
-                        ['🛍️', 'Votre boutique en ligne', 'Sur votre-nom.jibiat-marchand.com ou votre propre nom de domaine : catalogue, panier, commande et suivi pour vos clients.'],
-                        ['✅', 'Confirmation par WhatsApp', 'Le client confirme sa commande d\'un bouton, puis reçoit l\'expédition et la livraison : moins de refus à la porte.'],
-                        ['🛒', 'Paniers abandonnés relancés', 'Le client a laissé son panier ? Il reçoit un rappel WhatsApp une heure après, avec le lien pour finir sa commande.'],
-                        ['🔁', 'Relances des anciens clients', 'Nouvelle collection, retour d\'un article : un message aux clients qui l\'ont accepté, avec le coût affiché avant l\'envoi.'],
-                        ['🎁', 'Fidélité, parrainage et promotions', 'Points de fidélité, codes de parrainage, codes promo, ventes flash et livraison offerte dès un montant.'],
-                        ['⭐', 'Avis clients', 'Les avis de vos clients sur votre boutique, pour rassurer ceux qui hésitent.'],
-                        ['📈', 'Publicités qui comptent juste', 'Pixel Meta et TikTok, API Conversions et catalogue Facebook et Google : vos publicités savent qui achète vraiment.'],
-                        ['📱', 'Ce que rapporte chaque réseau', 'Facebook, Instagram, TikTok : publiez depuis l\'application et voyez les commandes et le chiffre de chaque réseau.'],
-                        ['📦', 'Un stock qui se tient tout seul', 'Chaque vente, retour ou réception le met à jour, variante par variante, avec les commandes fournisseurs et les inventaires.'],
-                        ['🛵', 'Vos propres livreurs', 'Leur application marche même sans réseau : missions, encaissements, preuves de livraison.'],
-                        ['💵', 'Caisse et vente au comptoir', 'L\'argent de votre espace marchand, des livreurs et des entreprises de livraison, au franc près, et la vente en magasin.'],
-                        ['💳', 'Paiement mobile money', 'Wave, Orange Money, MTN, Moov ou carte, en ligne ou par QR code à la porte.'],
-                        ['🌅', 'Les conseils du jour', 'Chaque matin : quoi racheter, quoi relancer, quoi livrer. Et le rapport du soir par WhatsApp.'],
-                        ['👥', 'Votre équipe', 'Chaque membre avec son rôle : vendeuse, préparateur, caissière. Chacun voit ce qu\'il doit voir.'],
-                        ['🏬', 'Plusieurs boutiques', 'Avec l\'offre Business, jusqu\'à 3 boutiques sous un seul abonnement, avec une vue d\'ensemble.'],
-                    ] as [$icon, $title, $text])
-                        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-                            <span class="text-2xl" aria-hidden="true">{{ $icon }}</span>
-                            <h3 class="mt-3 font-semibold">{{ $title }}</h3>
-                            <p class="mt-1 text-sm text-slate-600">{{ $text }}</p>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        </section>
-
-        {{-- Comment ça marche --}}
-        <section class="py-16 sm:py-20">
-            <div class="mx-auto max-w-6xl px-4">
-                <h2 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">Prêt en 5 minutes</h2>
-                <ol class="mt-10 grid gap-6 md:grid-cols-3">
-                    @foreach ([
-                        ['Créez votre espace marchand', 'Votre nom, votre adresse en ligne et votre téléphone. C\'est tout.'],
-                        ['Ajoutez vos produits', 'Une photo suffit pour commencer. Partagez le lien de votre boutique.'],
-                        ['Connectez votre livraison', 'Vos livreurs, ou une entreprise de l\'annuaire en un clic.'],
-                    ] as $i => [$title, $text])
-                        <li class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-                            <span class="grid h-10 w-10 place-items-center rounded-full bg-emerald-700 font-bold text-white">{{ $i + 1 }}</span>
-                            <h3 class="mt-4 text-lg font-semibold">{{ $title }}</h3>
-                            <p class="mt-1 text-slate-600">{{ $text }}</p>
-                        </li>
-                    @endforeach
+        {{-- Qui fait quoi : le live reste sur TikTok --}}
+        <section id="qui-fait-quoi" class="scroll-mt-20 py-14 sm:py-20">
+            <div class="mx-auto max-w-3xl px-4">
+                <p class="text-center font-bold text-emerald-700">Qui fait quoi</p>
+                <h2 class="mt-1 text-center text-3xl font-black tracking-tight text-balance sm:text-4xl">3 applications, chacune son rôle</h2>
+                <ol class="mx-auto mt-8 max-w-xl space-y-3">
+                    <li class="flex items-center gap-4 rounded-2xl bg-slate-100 p-4">
+                        <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-slate-900 text-2xl text-white" aria-hidden="true">♪</span>
+                        <span><b class="block text-lg">TikTok : ton live</b><span class="text-slate-600">Tu montres l'article et tu dis son code : A1, A2…</span></span>
+                    </li>
+                    <li class="flex items-center gap-4 rounded-2xl bg-green-50 p-4">
+                        <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#25d366] text-2xl text-white" aria-hidden="true">✆</span>
+                        <span><b class="block text-lg">WhatsApp : la commande du client</b><span class="text-slate-600">Il envoie « A1 M » sur ton numéro</span></span>
+                    </li>
+                    <li class="flex items-center gap-4 rounded-2xl bg-emerald-50 p-4 ring-2 ring-emerald-500">
+                        <img src="/brand/logo-256.png" alt="" class="h-12 w-12 shrink-0 rounded-xl bg-white" width="48" height="48">
+                        <span><b class="block text-lg">Jibiat Marchand : enregistre la commande</b><span class="text-slate-600">Répond, garde la pièce, demande le quartier, enregistre la commande, prépare la livraison</span></span>
+                    </li>
                 </ol>
+                <p class="mx-auto mt-4 max-w-xl rounded-xl bg-orange-50 p-3 text-center font-bold text-orange-800">Jibiat Marchand ne remplace pas TikTok : ton live reste sur TikTok, avec tes abonnés.</p>
             </div>
         </section>
 
-        {{-- L'essai : un mois de l'offre Pro --}}
-        <section id="essai" class="scroll-mt-20 overflow-hidden bg-gradient-to-br from-amber-300 via-amber-200 to-emerald-200 py-16 sm:py-20">
-            <div class="mx-auto grid max-w-6xl items-center gap-12 px-4 lg:grid-cols-2">
+        {{-- Les 5 étapes et la vidéo « Comment ça marche » --}}
+        <section id="etapes" class="scroll-mt-20 bg-slate-950 py-14 text-white sm:py-20">
+            <div class="mx-auto grid max-w-5xl items-center gap-10 px-4 lg:grid-cols-2">
                 <div>
-                    <p class="inline-block rounded-full bg-white/70 px-3 py-1 text-sm font-semibold text-amber-900">Offert à chaque nouvel espace marchand</p>
-                    <h2 class="mt-4 text-4xl font-bold tracking-tight text-balance text-slate-900 sm:text-5xl">{{ ucfirst($trial) }} de l'offre {{ $trialPlan }}, gratuit</h2>
-                    <p class="mt-4 text-lg text-slate-800">Toutes les fonctions de l'offre {{ $trialPlan }} dès la création de votre espace marchand. Sans carte bancaire, sans engagement : à la fin, vous choisissez.</p>
-                    <ul class="mt-6 grid gap-3 text-slate-900 sm:grid-cols-2">
-                        @foreach ([...($trialActions ? [number_format($trialActions, 0, ',', ' ').' actions de l\'assistant par mois'] : []), 'Commandes et produits illimités', 'WhatsApp automatique', 'Statistiques avancées', 'Votre nom de domaine', 'Paiement en ligne', 'Livreurs et entreprises de livraison', 'Votre équipe avec ses rôles'] as $item)
-                            <li class="flex items-center gap-2 font-medium"><span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-700 text-xs text-white" aria-hidden="true">✓</span>{{ $item }}</li>
+                    <p class="font-bold text-emerald-300">Comment ça marche</p>
+                    <h2 class="mt-1 text-3xl font-black tracking-tight text-balance sm:text-4xl">Avant ton live TikTok : 4 réglages. Puis c'est parti.</h2>
+                    <ol class="mt-6 space-y-4 text-lg">
+                        @foreach ([
+                            ['Connecte ton WhatsApp', 'Le numéro où tes clients commandent'],
+                            ['Définis tes prix de livraison et d\'expédition', null],
+                            ['Choisis tes articles', 'Chacun reçoit son code : A1, A2…'],
+                            ['Télécharge la carte de tes articles', 'À mettre en fond vert sur ton live TikTok'],
+                            ['Lance ton live sur TikTok, puis ouvre les commandes du live dans Jibiat Marchand', null],
+                        ] as $i => [$step, $hint])
+                            <li class="flex gap-3">
+                                <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full {{ $i === 4 ? 'bg-white text-slate-900' : 'bg-orange-600' }} font-black">{{ $i + 1 }}</span>
+                                <span class="font-semibold">{{ $step }}@if ($hint)<small class="block text-base font-normal text-slate-300">{{ $hint }}</small>@endif</span>
+                            </li>
                         @endforeach
-                    </ul>
-                    <a href="{{ $signupUrl }}" class="btn-brand mt-8 px-8 py-3 text-base">Créer mon espace marchand et essayer {{ $trialPlan }}</a>
+                    </ol>
                 </div>
                 <div class="flex justify-center">
-                    <video class="w-full max-w-[18rem] rounded-[2rem] shadow-2xl ring-1 ring-black/10" poster="/videos/marchand-essai-pro-v.jpg" width="1080" height="1920" autoplay muted loop playsinline preload="none" aria-label="Vidéo : {{ $trial }} de l'offre {{ $trialPlan }} offert">
-                        <source src="/videos/marchand-essai-pro-v.mp4" type="video/mp4">
+                    <video class="w-full max-w-[17rem] rounded-[2rem] shadow-2xl ring-1 ring-white/15" poster="/videos/live/comment-ca-marche-v.jpg?v=4" width="1080" height="1920" controls playsinline preload="none" aria-label="Vidéo : comment ça marche, en 5 étapes">
+                        <source src="/videos/live/comment-ca-marche-v.mp4?v=4" type="video/mp4">
                     </video>
                 </div>
             </div>
         </section>
 
-        {{-- Tarifs (offres de la console) --}}
-        @if ($plans->isNotEmpty())
-            <section id="tarifs" class="scroll-mt-20 bg-slate-50 py-16 sm:py-20">
-                <div class="mx-auto max-w-6xl px-4">
-                    <div class="mx-auto max-w-2xl text-center">
-                        <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">Des prix simples, en francs CFA</h2>
-                        <p class="mt-3 text-lg text-slate-600">{{ ucfirst($trial) }} de l'offre {{ $trialPlan }} offert, puis l'offre de votre choix. Sans engagement.</p>
-                        <p class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm font-medium text-emerald-800">
-                            <span>✓ Sans carte bancaire</span><span>✓ Wave, Orange Money, MTN, Moov</span><span>✓ Une facture à chaque paiement</span>
-                        </p>
-                    </div>
-                    <div class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                        @foreach ($plans as $plan)
-                            @php
-                                $limits = $plan->limits ?? [];
-                                $count = fn ($key, $one, $many) => array_key_exists($key, $limits) && $limits[$key] !== null ? ($limits[$key] === 0 ? null : $limits[$key].' '.($limits[$key] > 1 ? $many : $one)) : ucfirst($many).' sans limite';
-                            @endphp
-                            <div @class(['flex flex-col rounded-2xl bg-white p-6 shadow-sm ring-1', 'ring-2 ring-emerald-600' => $plan->code === 'pro', 'ring-slate-200' => $plan->code !== 'pro'])>
-                                <h3 class="flex items-center justify-between gap-2 font-semibold">{{ $plan->name }}@if ($plan->code === config('platform.trial_plan'))<span class="rounded-full bg-amber-300 px-2 py-0.5 text-xs font-semibold text-amber-950">{{ $trial }} offert</span>@endif</h3>
-                                <p class="mt-2"><span class="text-3xl font-bold">{{ number_format($plan->monthly_price, 0, ',', ' ') }} F</span><span class="text-slate-500"> / mois</span></p>
-                                @if ($plan->weekly_price)
-                                    <p class="mt-1 text-sm font-medium text-slate-700">ou {{ $f($plan->weekly_price) }} / semaine</p>
-                                @endif
-                                @if ($plan->yearly_price && $plan->monthly_price * 12 > $plan->yearly_price)
-                                    <p class="mt-1 text-sm text-emerald-700">À l'année : {{ $f($plan->yearly_price) }}, soit {{ $f($plan->monthly_price * 12 - $plan->yearly_price) }} d'économie</p>
-                                @endif
-                                <ul class="mt-5 space-y-2 text-sm text-slate-700">
-                                    <li class="font-medium text-emerald-800">✓ @if (! empty($plan->features['custom_domain']))Boutique en ligne à votre nom de domaine @else Boutique en ligne : <span class="whitespace-nowrap">votre-nom.{{ config('platform.domain') }}</span>@endif</li>
-                                    <li>✓ {{ ($limits['orders_per_month'] ?? null) !== null ? $limits['orders_per_month'].' commandes par mois' : 'Commandes illimitées' }}</li>
-                                    <li>✓ {{ ($limits['products'] ?? null) !== null ? $limits['products'].' produits' : 'Produits illimités' }}</li>
-                                    <li>{{ $count('carrier_connections', 'entreprise de livraison', 'entreprises de livraison') ? '✓ '.$count('carrier_connections', 'entreprise de livraison connectée', 'entreprises de livraison connectées') : '— Vos livreurs seulement' }}</li>
-                                    <li>✓ {{ $count('couriers', 'livreur', 'livreurs') }}</li>
-                                    <li>{{ ! empty($plan->features['online_payment']) ? '✓ Paiement en ligne Wave, Orange Money…' : '— Paiement à la livraison seulement' }}</li>
-                                    @if (($limits['ai_actions_per_month'] ?? 0) !== 0)
-                                        <li>{{ '✓ '.($limits['ai_actions_per_month'] === null ? 'Assistant illimité' : number_format($limits['ai_actions_per_month'], 0, ',', ' ').' actions de l\'assistant') }}</li>
-                                    @endif
-                                    @if (! empty($plan->features['whatsapp_api']))
-                                        <li>✓ WhatsApp automatique</li>
-                                    @endif
-                                    @if (! empty($plan->features['multi_store']))
-                                        <li>✓ {{ ($limits['stores'] ?? null) !== null ? 'Jusqu\'à '.$limits['stores'].' boutiques' : 'Toutes vos boutiques' }} sous un seul abonnement</li>
-                                    @endif
-                                </ul>
-                                <div class="mt-auto pt-6"><a href="{{ $signupUrl }}" class="btn-brand w-full">Commencer</a></div>
-                            </div>
-                        @endforeach
-                    </div>
-                    <p class="mt-6 text-center text-sm text-slate-600">{{ $aiActions->isEmpty() ? 'L\'assistant IA se paie à part :' : 'Besoin de plus d\'assistant ? Rechargez' }} {{ $aiPack['actions'] }} actions pour {{ $f($aiPack['price']) }}, sans changer d'offre.</p>
+        {{-- Et tous les jours --}}
+        <section class="py-14 sm:py-20">
+            <div class="mx-auto max-w-5xl px-4">
+                <p class="text-center font-bold text-emerald-700">Et tous les jours</p>
+                <h2 class="mt-1 text-center text-3xl font-black tracking-tight sm:text-4xl">Toute ta boutique au même endroit</h2>
+                <div class="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    @foreach ([
+                        ['💬', 'Commandes', 'WhatsApp, Facebook, TikTok : le message du client devient une commande'],
+                        ['🛵', 'Livraison', 'Tes livreurs ou des entreprises Jibiat, en un geste'],
+                        ['🛍️', 'Boutique en ligne', 'Ouverte jour et nuit, à ton nom'],
+                        ['💰', 'Argent', 'Paiements Wave, caisse et bénéfice du soir'],
+                    ] as [$icon, $title, $text])
+                        <div class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                            <span class="text-3xl" aria-hidden="true">{{ $icon }}</span>
+                            <b class="mt-2 block text-lg">{{ $title }}</b>
+                            <p class="mt-1 text-slate-600">{{ $text }}</p>
+                        </div>
+                    @endforeach
                 </div>
-            </section>
-        @endif
+            </div>
+        </section>
+
+        {{-- Prix --}}
+        <section id="prix" class="scroll-mt-20 bg-slate-50 py-14 sm:py-20">
+            <div class="mx-auto max-w-xl px-4">
+                <p class="text-center font-bold text-emerald-700">Prix</p>
+                <h2 class="mt-1 text-center text-3xl font-black tracking-tight sm:text-4xl">L'application est gratuite</h2>
+                <div class="mt-8 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white text-lg ring-1 ring-slate-200">
+                    <p class="flex justify-between gap-4 p-4"><span>Commandes, stock, livraisons, boutique en ligne</span><b class="shrink-0 text-emerald-700">Gratuit</b></p>
+                    @if ($lives['paid'])
+                        <p class="flex justify-between gap-4 p-4"><span>Commandes de tes {{ $lives['free_lives'] }} premiers lives TikTok</span><b class="shrink-0 text-emerald-700">Offertes</b></p>
+                        <p class="flex justify-between gap-4 p-4"><span>Lives pendant 24 h</span><b class="shrink-0">{{ $f($lives['day_price']) }}</b></p>
+                        <p class="flex justify-between gap-4 p-4"><span>Lives illimités 30 jours</span><b class="shrink-0">{{ $f($lives['month_price']) }}</b></p>
+                    @else
+                        <p class="flex justify-between gap-4 p-4"><span>Commandes de tes lives TikTok</span><b class="shrink-0 text-emerald-700">Gratuit</b></p>
+                    @endif
+                </div>
+                <p class="mt-3 text-center text-slate-600">Sans carte bancaire.</p>
+            </div>
+        </section>
 
         {{-- Questions --}}
-        <section id="questions" class="scroll-mt-20 py-16 sm:py-20">
+        <section id="questions" class="scroll-mt-20 py-14 sm:py-20">
             <div class="mx-auto max-w-3xl px-4">
-                <h2 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">Vos questions</h2>
-                <div class="mt-10 divide-y divide-slate-200 rounded-2xl ring-1 ring-slate-200">
+                <h2 class="text-center text-3xl font-black tracking-tight sm:text-4xl">Tes questions</h2>
+                <div class="mt-8 divide-y divide-slate-200 rounded-2xl ring-1 ring-slate-200">
                     @foreach ($faq as [$q, $a])
                         <details class="group p-5">
-                            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">{{ $q }}<span class="text-xl text-emerald-700 transition group-open:rotate-45" aria-hidden="true">+</span></summary>
+                            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-lg font-semibold">{{ $q }}<span class="text-xl text-emerald-700 transition group-open:rotate-45" aria-hidden="true">+</span></summary>
                             <p class="mt-3 text-slate-600">{{ $a }}</p>
                         </details>
                     @endforeach
                 </div>
+                <p class="mt-6 text-center"><a href="/bien-demarrer" class="font-semibold text-emerald-700 hover:underline">▶ Bien démarrer : les étapes essentielles en courtes vidéos</a></p>
             </div>
         </section>
 
         {{-- Appel final --}}
-        <section class="bg-emerald-800 py-16 text-center text-white">
+        <section class="bg-emerald-800 py-14 text-center text-white">
             <div class="mx-auto max-w-3xl px-4">
-                <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">Votre boutique en 5 minutes, un assistant qui travaille pour vous, vos livraisons en un clic</h2>
-                <a href="{{ $signupUrl }}" class="btn-brand mt-8 bg-white px-8 py-3 text-base text-emerald-900 hover:bg-emerald-50">Créer mon espace marchand gratuitement</a>
-                <p class="mt-3 font-semibold text-amber-200">{{ ucfirst($trial) }} de l'offre {{ $trialPlan }} offert · Sans carte bancaire</p>
-                <p class="mt-4 text-sm text-emerald-100">Vous êtes une entreprise de livraison ? <a href="https://jibiat.com" class="font-semibold underline">Découvrez Jibiat</a> et recevez les colis des boutiques.</p>
+                <h2 class="text-3xl font-black tracking-tight text-balance sm:text-4xl">Ton prochain live TikTok, sans rien noter</h2>
+                <a href="{{ $signupUrl }}" class="btn-brand mt-8 bg-white px-8 py-3 text-base font-extrabold text-emerald-900 hover:bg-emerald-50">Créer mon espace marchand gratuit</a>
+                <p class="mt-4 text-sm text-emerald-100">Tu es une entreprise de livraison ? <a href="https://jibiat.com" class="font-semibold underline">Découvre Jibiat</a> et reçois les colis des boutiques.</p>
             </div>
         </section>
     </main>
