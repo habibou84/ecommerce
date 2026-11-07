@@ -164,10 +164,10 @@ onUnmounted(() => {
   document.body.style.overflow = ''
   fullscreenOn.value = false
 })
-// ✕ : retour à la page d'où l'on vient (« Préparer un live »), sans empiler les fenêtres
+// ✕ : retour exactement là d'où l'on vient (accueil, onglet Live, « Préparer un live »), sans ouvrir d'autre fenêtre
 function closeLive() {
-  if (window.history.state?.back === '/gestion/live') router.back()
-  else router.replace('/gestion/live')
+  if (window.history.state?.back) router.back()
+  else router.replace('/gestion')
 }
 const duration = computed(() => {
   const m = minutesBetween(live.value?.started_at, live.value?.ended_at)
