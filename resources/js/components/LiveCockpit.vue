@@ -7,6 +7,8 @@ import LiveOverlay from './LiveOverlay.vue'
 import LivePin from './LivePin.vue'
 import LiveScreenTabs from './LiveScreenTabs.vue'
 import Modal from './Modal.vue'
+import LiveChatSheet from './live/LiveChatSheet.vue'
+import LiveOrderSheet from './live/LiveOrderSheet.vue'
 import { pinChanges, pinCodes, pinSignature } from '../lib/livePin'
 import { useAuthStore } from '../stores/auth'
 
@@ -275,6 +277,19 @@ onUnmounted(() => {
 })
 
 // Réponse rapide à une question, sans quitter le live
+// Ligne touchée : la commande ou la conversation dans une fenêtre qui monte du bas, le live reste derrière
+const openOrder = ref(null)
+const openChat = ref(null)
+const openedReservation = computed(() => props.live.reservations.find((x) => x.id === openOrder.value) ?? null)
+const chatOrderId = (m) => props.live.reservations.find((x) => x.customer_phone === m.phone && x.order)?.order.id ?? null
+function placeFromSheet(r) {
+  openOrder.value = null
+  openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')
+}
+function cancelFromSheet(r) {
+  openOrder.value = null
+  emit('cancel', r)
+}
 const QUICK = ['Oui, c\'est disponible.', 'Non, désolée, pas pour ce modèle.', 'Écrivez le code de la pancarte et votre taille, je vous le garde.']
 const replying = reactive({ id: null, body: '', busy: false, error: '' })
 function openReply(m) {
@@ -453,7 +468,7 @@ const ago = (iso) => {
       </div>
       <p v-if="live.whatsapp === null" class="rounded-xl bg-white p-3 text-sm text-slate-600">Votre WhatsApp n'est pas connecté : les messages des clientes n'arrivent pas ici. <RouterLink to="/gestion/whatsapp" class="font-bold underline">Connecter WhatsApp</RouterLink></p>
       <p v-else-if="!messages.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">{{ messageFilter === 'todo' ? 'Aucune question en attente ✓' : 'Les messages des clientes s\'afficheront ici.' }}</p>
-      <article v-for="m in messages" :key="m.id" class="rounded-xl bg-white p-2" :class="needsAction(m) ? 'shadow-[inset_4px_0_0_#dc2626]' : ''">
+      <article v-for="m in messages" :key="m.id" role="button" tabindex="0" class="cursor-pointer rounded-xl bg-white p-2 active:bg-slate-100" :class="needsAction(m) ? 'shadow-[inset_4px_0_0_#dc2626]' : ''" @click="openChat = m" @keydown.enter.self="openChat = m">
         <div class="flex items-center gap-2.5">
           <span v-if="m.codes.length && byCode[m.codes[0]]" class="relative h-10 w-10 shrink-0">
             <img v-if="byCode[m.codes[0]].image" :src="byCode[m.codes[0]].image" alt="" class="h-10 w-10 rounded-lg object-cover" />
@@ -468,11 +483,12 @@ const ago = (iso) => {
             </p>
           </div>
           <span class="shrink-0 self-start text-[10px] text-slate-400">{{ ago(m.created_at) }}</span>
+          <span class="shrink-0 text-xl font-black text-slate-300" aria-hidden="true">›</span>
         </div>
-        <div v-if="m.place_check && needsAction(m)" class="mt-1.5 pl-12">
+        <div v-if="m.place_check && needsAction(m)" class="mt-1.5 pl-12" @click.stop>
           <button type="button" class="rounded-lg bg-slate-900 px-3 py-1 text-xs font-extrabold text-white" @click="openPlace(m.reservation_id, m.name, m.body)">Choisir le quartier</button>
         </div>
-        <div v-if="isQuestion(m)" class="mt-1.5 pl-12">
+        <div v-if="isQuestion(m)" class="mt-1.5 pl-12" @click.stop>
           <button v-if="replying.id !== m.id" type="button" class="rounded-lg bg-slate-900 px-3 py-1 text-xs font-extrabold text-white" @click="openReply(m)">Répondre</button>
           <form v-else class="space-y-1.5" @submit.prevent="sendReply(m)">
             <div class="flex flex-wrap gap-1">
@@ -497,7 +513,7 @@ const ago = (iso) => {
       </div>
       <button type="button" class="w-full rounded-xl border-[1.5px] border-slate-900 bg-white py-2 text-sm font-extrabold" @click="emit('quick')">+ Réservation vue dans les commentaires</button>
       <p v-if="!orders.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">Les commandes s'afficheront ici dès les premières.</p>
-      <article v-for="r in orders" :key="r.id" class="flex items-center gap-2.5 rounded-xl bg-white p-2" :class="{ 'opacity-55': r.status === 'waiting' || r.order?.status === 'cancelled', 'ring-[3px] ring-emerald-400': r.order?.proof }">
+      <article v-for="r in orders" :key="r.id" role="button" tabindex="0" class="flex cursor-pointer items-center gap-2.5 rounded-xl bg-white p-2 active:bg-slate-100" @click="openOrder = r.id" @keydown.enter="openOrder = r.id" :class="{ 'opacity-55': r.status === 'waiting' || r.order?.status === 'cancelled', 'ring-[3px] ring-emerald-400': r.order?.proof }">
         <span class="relative h-10 w-10 shrink-0">
           <img v-if="byCode[r.code]?.image" :src="byCode[r.code].image" alt="" class="h-10 w-10 rounded-lg object-cover" :class="{ grayscale: r.status === 'waiting' }" />
           <span v-else class="block h-10 w-10 rounded-lg bg-slate-100" />
@@ -519,13 +535,19 @@ const ago = (iso) => {
         </div>
         <span class="flex shrink-0 flex-col items-end gap-0.5 self-start">
           <span class="text-[10px] text-slate-400">{{ ago(r.created_at) }}</span>
-          <button v-if="r.status === 'reserved'" type="button" class="text-[11px] font-bold underline" @click="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
-          <RouterLink v-if="r.order?.proof" :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-[10.5px] font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
-          <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-[11px] font-bold underline">{{ r.order.reference }}</RouterLink>
-          <button v-else type="button" class="text-[11px] font-bold text-slate-500 underline" :disabled="busy" @click="emit('cancel', r)">Annuler</button>
+          <button v-if="r.status === 'reserved'" type="button" class="text-[11px] font-bold underline" @click.stop="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
+          <RouterLink v-if="r.order?.proof" @click.stop :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-[10.5px] font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
+          <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-[11px] font-bold underline" @click.stop>{{ r.order.reference }}</RouterLink>
+          <button v-else type="button" class="text-[11px] font-bold text-slate-500 underline" :disabled="busy" @click.stop="emit('cancel', r)">Annuler</button>
         </span>
+        <span class="shrink-0 text-xl font-black text-slate-300" aria-hidden="true">›</span>
       </article>
     </section>
+
+    <!-- Commande ou conversation touchée -->
+    <LiveOrderSheet v-if="openedReservation" :key="openedReservation.id" :reservation="openedReservation" :busy="busy"
+                    @close="openOrder = null" @place="placeFromSheet" @cancel="cancelFromSheet" @changed="emit('reload')" />
+    <LiveChatSheet v-if="openChat" :key="openChat.id" :message="openChat" :quick="QUICK" :order-id="chatOrderId(openChat)" @close="openChat = null" @sent="emit('reload')" />
 
     <!-- Connecter la télé ou TikTok Studio : fenêtre qui monte du bas -->
     <div v-if="connecting" class="fixed inset-0 z-50 flex items-end bg-slate-950/60" @click.self="connecting = null">
