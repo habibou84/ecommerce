@@ -142,6 +142,22 @@ async function pinReady() {
   }
 }
 
+// Terminer le live en cours depuis sa carte : les clientes ne réservent plus, celles qui ont une pièce gardée peuvent
+// encore donner leur quartier
+async function endLive() {
+  if (!window.confirm('Terminer le live ? Les clientes ne pourront plus réserver ; celles qui ont une pièce gardée peuvent encore donner leur quartier.')) return
+  busy.value = true
+  error.value = ''
+  try {
+    await http.post(`/lives/${current.value.id}/end`)
+    await load()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function start() {
   busy.value = true
   error.value = ''
@@ -174,6 +190,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <h2 class="mt-2 text-xl font-extrabold">{{ current.title }}</h2>
       <p class="mt-1 text-3xl font-extrabold">{{ money(current.summary?.amount ?? 0) }}</p>
       <RouterLink :to="`/gestion/live/${current.id}`" class="mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-ocre-700">Revenir au live</RouterLink>
+      <button type="button" class="mt-2 block w-full rounded-2xl border-2 border-white/70 py-2.5 text-center text-[15px] font-extrabold text-white disabled:opacity-60" :disabled="busy" @click="endLive">⏹ Terminer le live</button>
     </section>
 
     <template v-else-if="lives">
