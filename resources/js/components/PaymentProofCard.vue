@@ -71,8 +71,12 @@ const reject = () => window.confirm('Le paiement n\'est pas dans votre Wave ? La
       <button type="button" class="block w-full rounded-2xl border-2 border-red-200 bg-white py-3 text-[15px] font-black text-red-700 disabled:opacity-60" :disabled="busy" @click="reject">✗ Je ne le vois pas</button>
     </template>
 
-    <div v-if="big" class="fixed inset-0 z-[60] grid place-items-center bg-slate-950/90 p-3" role="dialog" aria-modal="true" aria-label="Reçu de paiement" @click="big = false">
-      <img :src="image" alt="Reçu de paiement" class="max-h-full max-w-full rounded-xl" />
-    </div>
+    <!-- Reçu en grand : par-dessus tout l'écran (hors de la fenêtre de la commande), croix bien visible -->
+    <Teleport to="body">
+      <div v-if="big" class="fixed inset-0 z-[70] grid place-items-center bg-slate-950/95 p-3 pt-16" role="dialog" aria-modal="true" aria-label="Reçu de paiement" @click="big = false">
+        <button type="button" class="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] grid h-12 w-12 place-items-center rounded-full bg-white text-2xl font-black text-slate-900 shadow-xl" aria-label="Fermer" @click.stop="big = false">✕</button>
+        <img :src="image" alt="Reçu de paiement" class="max-h-full max-w-full rounded-xl" @click.stop />
+      </div>
+    </Teleport>
   </section>
 </template>
