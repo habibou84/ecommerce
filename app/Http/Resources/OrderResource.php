@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Enums\OrderStatus;
+use App\Models\ConversationMessage;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Shipment;
@@ -96,6 +97,9 @@ class OrderResource extends JsonResource
                 'payer_label' => Expeditions::PAYERS[$this->expedition_payer] ?? null,
                 'prepay' => $this->expedition_prepay,
                 'prepay_due' => Expeditions::blockingDue($this->resource),
+                // Reçu de paiement envoyé par la cliente sur WhatsApp (à vérifier, puis valider le paiement)
+                'payment_proof_at' => $this->payment_proof_at?->toIso8601String(),
+                'payment_proof_conversation_id' => $this->payment_proof_message_id ? ConversationMessage::whereKey($this->payment_proof_message_id)->value('conversation_id') : null,
                 'balance' => Expeditions::balance($this->resource),
                 'fee' => $this->expedition_fee,
                 'company' => $this->expedition_company,

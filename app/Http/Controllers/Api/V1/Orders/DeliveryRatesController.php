@@ -29,6 +29,7 @@ class DeliveryRatesController extends Controller
             'cities' => $this->rates->cities($store),
             'expedition' => ['fee' => $store->expedition_fee, 'prepay' => $store->expedition_prepay],
             'free_shipping_above' => $store->free_shipping_above,
+            'wave_link' => $store->wave_link,
             'companies' => $this->rates->companies(),
         ]]);
     }
@@ -91,7 +92,9 @@ class DeliveryRatesController extends Controller
             'expedition_fee' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:1000000'],
             'expedition_prepay' => ['sometimes', 'boolean'],
             'free_shipping_above' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:100000000'],
-        ], [], ['base_fee' => 'prix de départ', 'expedition_fee' => 'livraison jusqu\'à la gare', 'free_shipping_above' => 'livraison offerte dès']);
+            // Lien de paiement Wave de la boutique (Wave › Envoi de lien › Partager, sans somme), envoyé pour les expéditions payées avant
+            'wave_link' => ['sometimes', 'nullable', 'string', 'max:255', 'url:https', 'regex:#^https://([a-z0-9-]+\.)*wave\.[a-z]{2,}/#i'],
+        ], [], ['base_fee' => 'prix de départ', 'expedition_fee' => 'livraison jusqu\'à la gare', 'free_shipping_above' => 'livraison offerte dès', 'wave_link' => 'lien de paiement Wave']);
 
         if (isset($data['home_place_id'])) {
             Place::visibleTo($store->id)->findOrFail($data['home_place_id']);
@@ -99,7 +102,10 @@ class DeliveryRatesController extends Controller
         if (array_key_exists('free_shipping_above', $data)) {
             $data['free_shipping_above'] = $data['free_shipping_above'] ?: null;
         }
-        $store->forceFill(array_intersect_key($data, array_flip(['home_place_id', 'expedition_fee', 'expedition_prepay', 'free_shipping_above'])))->save();
+        if (array_key_exists('wave_link', $data)) {
+            $data['wave_link'] = filled($data['wave_link']) ? trim($data['wave_link']) : null;
+        }
+        $store->forceFill(array_intersect_key($data, array_flip(['home_place_id', 'expedition_fee', 'expedition_prepay', 'free_shipping_above', 'wave_link'])))->save();
         if (isset($data['base_fee'])) {
             $this->rates->setBase($store->fresh(), $data['base_fee']);
         }
