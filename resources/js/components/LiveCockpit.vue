@@ -25,7 +25,7 @@ const props = defineProps({
   // Dernière étiquette partagée : { sig (codes), at }
   pinShared: { type: Object, default: null },
 })
-const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode', 'pin-shared'])
+const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode', 'pin-shared', 'close'])
 // Ce que montrent les écrans du live (télé, OBS, LIVE Studio) : un article, défilement, comment commander
 const MODES = [['product', '📦 Un article'], ['scroll', '🔁 Défilement'], ['grid', '🧩 Vitrine'], ['how', '🛒 Commander']]
 const screenMode = computed(() => props.live.display_mode || 'product')
@@ -75,10 +75,21 @@ async function loadScreens() {
 }
 const tvOnline = computed(() => !!screens.value?.some((s) => !s.is_link && s.online))
 const studioOnline = computed(() => !!screens.value?.some((s) => s.is_link && s.online))
-// Bandeau « Connecter » déplié
-const connecting = ref(false)
-watch(shownView, () => (connecting.value = false))
-watch([tvOnline, studioOnline], () => (connecting.value = false))
+// Fenêtre « Connecter la télé / TikTok Studio » qui monte du bas : elle attend l'écran, affiche ✓ puis se ferme
+const connecting = ref(null) // 'tv' | 'studio'
+const connected = ref(false)
+watch([tvOnline, studioOnline], ([tv, studio]) => {
+  if (!connecting.value || connected.value || !(connecting.value === 'tv' ? tv : studio)) return
+  connected.value = true
+  setTimeout(() => {
+    connecting.value = null
+    connected.value = false
+  }, 2000)
+})
+const CONNECT = {
+  tv: { title: '📺 Connecter la télé', why: 'Vos articles s\'affichent en grand derrière vous, en temps réel.', video: '/videos/supports/tv.mp4?v=1', poster: '/videos/supports/tv.jpg?v=1', done: 'Télé connectée' },
+  studio: { title: '📱 Connecter TikTok Studio', why: 'La carte de l\'article montré apparaît en haut de votre live.', video: '/videos/supports/studio.mp4?v=1', poster: '/videos/supports/studio.jpg?v=1', done: 'TikTok Studio connecté' },
+}
 let liveTimer
 onMounted(() => {
   loadDisplay()
@@ -312,15 +323,16 @@ const ago = (iso) => {
         </span>
       </button>
     </Teleport>
-    <!-- En direct : durée, montant, menu ⋯ -->
-    <div class="flex items-center gap-2 px-0.5">
+    <!-- En direct : durée, montant, menu ⋯, ✕ -->
+    <div class="flex items-center gap-2 px-0.5 text-white">
       <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
       <b class="text-[15px] font-black">EN DIRECT</b>
-      <span class="text-xs font-bold text-slate-500">{{ duration }}</span>
+      <span class="text-xs font-bold text-slate-400">{{ duration }}</span>
       <b class="ml-auto text-lg font-black">{{ money(live.summary?.amount ?? 0) }}</b>
-      <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-900 text-lg font-black text-white" aria-label="Plus" :aria-expanded="menu" @click="menu = !menu">⋯</button>
+      <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg font-black text-white" aria-label="Plus" :aria-expanded="menu" @click="menu = !menu">⋯</button>
+      <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white text-lg font-black text-slate-900" aria-label="Fermer (le live continue)" @click="emit('close')">✕</button>
     </div>
-    <div v-if="menu" class="grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-2 text-sm font-extrabold">
+    <div v-if="menu" class="grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-2 text-sm font-extrabold text-slate-900">
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('share')">📤 Lien du live</button>
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('add')">＋ Ajouter un article</button>
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('quick')">✍️ Réservation vue</button>
@@ -330,15 +342,15 @@ const ago = (iso) => {
     </div>
 
     <!-- Live, Commandes, Messages -->
-    <nav class="sticky top-2 z-20 grid grid-cols-3 overflow-hidden rounded-xl border border-slate-200 bg-white text-[14px] font-extrabold" role="tablist">
+    <nav class="sticky top-0 z-20 grid grid-cols-3 gap-1 rounded-xl bg-[#1e2638] p-1 text-[14px] font-extrabold" role="tablist">
       <button v-for="[key, label, count] in [['live', '🔴 Live', 0], ['commandes', 'Commandes', newOrders], ['messages', 'Messages', questions.length]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
-              class="relative py-2.5" :class="tab === key ? 'bg-slate-900 text-white' : 'text-slate-500'" @click="tab = key">
+              class="relative rounded-lg py-2" :class="tab === key ? 'bg-white text-slate-900' : 'text-slate-400'" @click="tab = key">
         {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{{ count }}</span>
       </button>
     </nav>
 
     <!-- ═══ Live : Télé, TikTok Studio, Étiquette ═══ -->
-    <section v-if="tab === 'live'" class="space-y-2.5 rounded-[22px] bg-[#0b1120] p-3 text-white">
+    <section v-if="tab === 'live'" class="space-y-2.5 text-white">
       <div class="grid gap-1 rounded-xl bg-white/10 p-1" :style="{ gridTemplateColumns: `repeat(${VIEWS.length}, minmax(0, 1fr))` }" role="tablist" aria-label="Où regarder ?">
         <button v-for="[key, label] in VIEWS" :key="key" type="button" role="tab" :aria-selected="shownView === key"
                 class="relative rounded-lg py-2 text-[12.5px] font-extrabold" :class="shownView === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="view = key">
@@ -351,17 +363,12 @@ const ago = (iso) => {
         <p v-if="shownView === 'tv' ? tvOnline : studioOnline" class="flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-[13px] font-extrabold text-emerald-300">
           ✓ {{ shownView === 'tv' ? 'Télé connectée : les clientes voient vos articles en temps réel' : 'TikTok Studio connecté : la carte de l\'article est sur votre live' }}
         </p>
-        <div v-else class="overflow-hidden rounded-xl bg-red-500/15 ring-1 ring-red-400/50">
-          <button type="button" class="flex w-full items-center gap-2 px-3 py-2.5 text-left" :aria-expanded="connecting" @click="connecting = !connecting">
-            <span class="min-w-0 flex-1">
-              <b class="block text-[14px]">{{ shownView === 'tv' ? '📺 Connecter la télé' : '📱 Connecter TikTok Studio' }}</b>
-              <span class="block text-[12.5px] text-red-100">{{ shownView === 'tv' ? 'Pour afficher vos articles en grand derrière vous, en temps réel.' : 'Pour mettre la carte de l\'article en haut de votre live TikTok.' }}</span>
-            </span>
-            <span class="shrink-0 text-lg">{{ connecting ? '▴' : '▾' }}</span>
-          </button>
-          <div v-if="connecting" class="bg-white p-3 text-slate-900">
-            <LiveScreenTabs :id="live.id" screen-only :part="shownView" :no-phone="shownView === 'studio'" @add="connecting = false" />
-          </div>
+        <div v-else class="flex items-center gap-2 rounded-xl bg-red-500/15 px-3 py-2.5 ring-1 ring-red-400/50">
+          <span class="min-w-0 flex-1">
+            <b class="block text-[14px]">{{ shownView === 'tv' ? '📺 Télé pas connectée' : '📱 TikTok Studio pas connecté' }}</b>
+            <span class="block text-[12.5px] text-red-100">{{ shownView === 'tv' ? 'Vos articles en grand derrière vous' : 'La carte de l\'article en haut de votre live' }}</span>
+          </span>
+          <button type="button" class="shrink-0 rounded-lg bg-white px-3 py-2 text-[13px] font-black text-slate-900" @click="connecting = shownView">Connecter</button>
         </div>
 
         <!-- Ce que voient les clientes -->
@@ -499,6 +506,28 @@ const ago = (iso) => {
         </span>
       </article>
     </section>
+
+    <!-- Connecter la télé ou TikTok Studio : fenêtre qui monte du bas -->
+    <div v-if="connecting" class="fixed inset-0 z-50 flex items-end bg-slate-950/60" @click.self="connecting = null">
+      <div class="max-h-[88vh] w-full overflow-y-auto rounded-t-[24px] bg-white px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] text-slate-900" role="dialog" aria-modal="true" :aria-label="CONNECT[connecting].title">
+        <div class="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-300" />
+        <div v-if="connected" class="py-8 text-center">
+          <span class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-500 text-4xl font-black text-white">✓</span>
+          <b class="mt-2 block text-lg">{{ CONNECT[connecting].done }}</b>
+          <span class="text-sm text-slate-500">Retour au live…</span>
+        </div>
+        <template v-else>
+          <div class="flex items-center gap-2">
+            <b class="min-w-0 flex-1 text-[18px]">{{ CONNECT[connecting].title }}</b>
+            <button type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100" aria-label="Fermer" @click="connecting = null">✕</button>
+          </div>
+          <p class="mt-1 text-[14px] text-slate-600">{{ CONNECT[connecting].why }}</p>
+          <video :key="connecting" :src="CONNECT[connecting].video" :poster="CONNECT[connecting].poster" class="mt-2 aspect-video w-full rounded-2xl bg-slate-900" controls playsinline preload="metadata" />
+          <div class="mt-2"><LiveScreenTabs :id="live.id" screen-only :part="connecting" :no-phone="connecting === 'studio'" @add="connecting = null" /></div>
+          <p class="mt-2 flex items-center justify-center gap-2 text-[13px] font-bold text-slate-500"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-200 border-t-sky-700" />En attente {{ connecting === 'tv' ? 'de la télé' : 'de LIVE Studio' }}…</p>
+        </template>
+      </div>
+    </div>
 
     <!-- Choisir le quartier d'une cliente -->
     <Modal v-if="placing.reservation" :title="`Quartier de ${placing.name}`" @close="placing.reservation = null">

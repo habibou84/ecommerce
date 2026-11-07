@@ -153,6 +153,10 @@ watch(() => props.id, load)
 function minutesBetween(from, to) {
   return from ? Math.max(0, Math.round(((to ? new Date(to).getTime() : now.value) - new Date(from).getTime()) / 60000)) : 0
 }
+// Pendant le live : plein écran, la page derrière ne défile plus
+const fullscreen = computed(() => live.value?.status === 'live')
+watch(fullscreen, (on) => (document.body.style.overflow = on ? 'hidden' : ''))
+onUnmounted(() => (document.body.style.overflow = ''))
 const duration = computed(() => {
   const m = minutesBetween(live.value?.started_at, live.value?.ended_at)
   return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`
@@ -358,8 +362,11 @@ async function redo() {
 </script>
 
 <template>
-  <div class="space-y-4" :class="live?.status === 'live' ? 'pb-28' : ''">
-    <RouterLink to="/gestion/live" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
+  <!-- En direct : tout l'écran du téléphone, fond sombre, ✕ pour sortir (le live continue) -->
+  <Teleport to="body" :disabled="!fullscreen">
+  <div :class="fullscreen ? 'fixed inset-0 z-[45] overflow-y-auto overscroll-contain bg-[#0b1120]' : ''">
+  <div class="space-y-4" :class="fullscreen ? 'mx-auto max-w-3xl px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-28' : ''">
+    <RouterLink v-if="!fullscreen" to="/gestion/live" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
     <p v-if="!live" class="text-sm text-slate-500">Chargement…</p>
@@ -419,7 +426,7 @@ async function redo() {
 
       <!-- ═══ En-tête selon l'état ═══ -->
       <!-- Pendant le live : la pancarte montrée et les onglets Articles, Messages, Commandes -->
-      <LiveCockpit v-if="live.status === 'live'" :live="live" :now="now" :busy="busy" :duration="duration" :pin-shared="pinShared" @pin-shared="onPinShared"
+      <LiveCockpit v-if="live.status === 'live'" :live="live" :now="now" :busy="busy" :duration="duration" :pin-shared="pinShared" @pin-shared="onPinShared" @close="router.push('/gestion/live')"
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
                    @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" />
 
@@ -653,4 +660,6 @@ async function redo() {
       <span class="text-sm opacity-80">Touchez pour fermer</span>
     </button>
   </div>
+  </div>
+  </Teleport>
 </template>
