@@ -93,6 +93,15 @@ const togglePrepay = () => run(() => http.put('/delivery-rates', { expedition_pr
 const wave = ref('')
 const waveSaved = ref(false)
 watch(() => rates.value?.wave_link, (v) => (wave.value = v ?? ''), { immediate: true })
+// Le message copié depuis Wave contient du texte avant le lien : on ne garde que le lien
+function onWavePaste(e) {
+  const text = e.clipboardData?.getData('text') ?? ''
+  const link = text.match(/https?:\/\/([a-z0-9-]+\.)*wave\.[a-z]{2,}\/[^\s<>"']*/i)?.[0]
+  if (link) {
+    e.preventDefault()
+    wave.value = link.replace(/[.,;:!?)»]+$/, '').replace(/^http:\/\//i, 'https://')
+  }
+}
 async function saveWave() {
   if (await run(() => http.put('/delivery-rates', { wave_link: wave.value.trim() || null }))) {
     waveSaved.value = true
@@ -156,7 +165,7 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
               <b class="block text-[15px]">🌊 Votre lien de paiement Wave</b>
               <p class="text-[13px] text-slate-600">Collez-le ici : il est envoyé tout seul à la cliente. Elle paie, envoie la capture du reçu, et vous validez.</p>
               <div class="mt-2 flex gap-2">
-                <input v-model="wave" type="url" inputmode="url" placeholder="Collez votre lien Wave" class="min-w-0 flex-1 rounded-xl border-2 border-slate-300 px-3 py-2 text-[14px]" aria-label="Lien de paiement Wave">
+                <input v-model="wave" type="url" @paste="onWavePaste" inputmode="url" placeholder="Collez votre lien Wave" class="min-w-0 flex-1 rounded-xl border-2 border-slate-300 px-3 py-2 text-[14px]" aria-label="Lien de paiement Wave">
                 <button type="button" class="shrink-0 rounded-xl bg-sky-600 px-4 font-black text-white" :disabled="busy || wave.trim() === (rates.wave_link ?? '')" @click="saveWave">{{ waveSaved ? '✓' : 'OK' }}</button>
               </div>
               <p class="mt-1 text-[12px] text-slate-500">Sur l'accueil de Wave : <b>Envoi de lien</b> › <b>Partager</b> sans taper de somme › <b>Copier</b>, puis collez ici.</p>
