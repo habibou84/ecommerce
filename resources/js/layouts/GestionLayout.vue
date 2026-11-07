@@ -7,6 +7,7 @@ import Icon from '../components/Icon.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 import Dashboard from '../views/gestion/Dashboard.vue'
 import { aiRecharge } from '../lib/aiQuota'
+import { fullscreenOn } from '../lib/fullscreen'
 import { inApp } from '../lib/app'
 import { platformOn } from '../router'
 import { registerDevice, unregisterDevice } from '../lib/push'
@@ -455,9 +456,9 @@ async function switchTo(store) {
         </RouterView>
       </main>
       <!-- Glissement : l'écran ouvert depuis un onglet, dans une fenêtre (croix, ou glisser vers le bas) -->
-      <div v-if="sheetOpen" class="fixed inset-0 z-30 bg-slate-900/40 transition-opacity" :style="{ opacity: Math.max(0.2, 1 - sheetDrag / 400) }" @click="closeSheet" />
+      <div v-if="sheetOpen" v-show="!fullscreenOn" class="fixed inset-0 z-30 bg-slate-900/40 transition-opacity" :style="{ opacity: Math.max(0.2, 1 - sheetDrag / 400) }" @click="closeSheet" />
       <section v-if="sheetOpen" class="fixed inset-x-0 bottom-0 top-3 z-40 flex flex-col overflow-hidden rounded-t-[28px] bg-slate-50 shadow-2xl"
-               :class="sheetDrag ? '' : 'transition-transform duration-200'" :style="{ transform: `translateY(${sheetDrag}px)` }" role="dialog" :aria-label="route.meta.title">
+               :class="[sheetDrag ? '' : 'transition-transform duration-200', { invisible: fullscreenOn }]" :style="{ transform: `translateY(${sheetDrag}px)` }" role="dialog" :aria-label="route.meta.title">
         <header class="shrink-0 bg-white px-4 pb-2 pt-2" @touchstart.passive="dragBegin($event)" @touchmove.passive="dragMove" @touchend="dragEnd">
           <div class="mx-auto mb-2 h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
           <div class="flex items-center gap-2">
