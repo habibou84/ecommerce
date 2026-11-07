@@ -150,7 +150,22 @@ function chrono(item) {
 }
 
 // ── Onglets ──
-const tab = ref('live')
+// Onglet gardé le temps de la session : retour d'une commande ouverte depuis « Commandes » sur le même onglet
+const tabKey = `jm.live-tab.${props.live.id}`
+const tab = ref((() => {
+  try {
+    return ['live', 'commandes', 'messages'].includes(sessionStorage.getItem(tabKey)) ? sessionStorage.getItem(tabKey) : 'live'
+  } catch {
+    return 'live'
+  }
+})())
+watch(tab, (t) => {
+  try {
+    sessionStorage.setItem(tabKey, t)
+  } catch {
+    // sans stockage : retour sur l'onglet Live
+  }
+})
 const soldPieces = computed(() => products.value.reduce((sum, p) => sum + p.sold, 0))
 // Bientôt épuisé : badge rouge sur l'article
 const almostGone = (p) => p.remaining > 0 && (p.remaining <= 2 || p.remaining / p.quantity <= 0.25)
