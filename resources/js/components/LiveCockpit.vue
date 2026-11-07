@@ -173,7 +173,11 @@ function messageState(m) {
 
 // Commandes : réservations vivantes, les plus récentes d'abord
 // Commandes : réservations vivantes, et les commandes annulées par la cliente (effacées)
-const orders = computed(() => props.live.reservations.filter((r) => !['cancelled', 'expired'].includes(r.status) || r.order?.status === 'cancelled'))
+const orders = computed(() => props.live.reservations.filter((r) => !['cancelled', 'expired'].includes(r.status) || r.order?.status === 'cancelled')
+  // Reçu à vérifier : en haut de la liste
+  .sort((a, b) => (b.order?.proof ? 1 : 0) - (a.order?.proof ? 1 : 0)))
+// Une commande par reçu (plusieurs articles = une seule commande)
+const proofs = computed(() => new Set(orders.value.filter((r) => r.order?.proof).map((r) => r.order.id)).size)
 const ORDER_STATE = { pending_confirmation: 'à confirmer', confirmed: 'confirmée ✓', cancelled: 'annulée par la cliente' }
 const keptCount = computed(() => orders.value.filter((r) => r.status === 'reserved').length)
 const itemOf = (r) => props.live.items.find((i) => i.id === r.item_id)
@@ -343,7 +347,7 @@ const ago = (iso) => {
 
     <!-- Live, Commandes, Messages -->
     <nav class="sticky top-0 z-20 grid grid-cols-3 gap-1 rounded-xl bg-[#1e2638] p-1 text-[14px] font-extrabold" role="tablist">
-      <button v-for="[key, label, count] in [['live', '🔴 Live', 0], ['commandes', 'Commandes', newOrders], ['messages', 'Messages', questions.length]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
+      <button v-for="[key, label, count] in [['live', '🔴 Live', 0], ['commandes', 'Commandes', newOrders + proofs], ['messages', 'Messages', questions.length]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
               class="relative rounded-lg py-2" :class="tab === key ? 'bg-white text-slate-900' : 'text-slate-400'" @click="tab = key">
         {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{{ count }}</span>
       </button>
@@ -478,7 +482,7 @@ const ago = (iso) => {
       </div>
       <button type="button" class="w-full rounded-xl border-[1.5px] border-slate-900 bg-white py-2 text-sm font-extrabold" @click="emit('quick')">+ Réservation vue dans les commentaires</button>
       <p v-if="!orders.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">Les commandes s'afficheront ici dès les premières.</p>
-      <article v-for="r in orders" :key="r.id" class="flex items-center gap-2.5 rounded-xl bg-white p-2" :class="{ 'opacity-55': r.status === 'waiting' || r.order?.status === 'cancelled' }">
+      <article v-for="r in orders" :key="r.id" class="flex items-center gap-2.5 rounded-xl bg-white p-2" :class="{ 'opacity-55': r.status === 'waiting' || r.order?.status === 'cancelled', 'ring-[3px] ring-emerald-400': r.order?.proof }">
         <span class="relative h-10 w-10 shrink-0">
           <img v-if="byCode[r.code]?.image" :src="byCode[r.code].image" alt="" class="h-10 w-10 rounded-lg object-cover" :class="{ grayscale: r.status === 'waiting' }" />
           <span v-else class="block h-10 w-10 rounded-lg bg-slate-100" />
@@ -501,6 +505,7 @@ const ago = (iso) => {
         <span class="flex shrink-0 flex-col items-end gap-0.5 self-start">
           <span class="text-[10px] text-slate-400">{{ ago(r.created_at) }}</span>
           <button v-if="r.status === 'reserved'" type="button" class="text-[11px] font-bold underline" @click="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
+          <RouterLink v-if="r.order?.proof" :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-[10.5px] font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
           <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-[11px] font-bold underline">{{ r.order.reference }}</RouterLink>
           <button v-else type="button" class="text-[11px] font-bold text-slate-500 underline" :disabled="busy" @click="emit('cancel', r)">Annuler</button>
         </span>

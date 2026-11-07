@@ -5,6 +5,7 @@ namespace App\Services\Live;
 use App\Enums\CancelReason;
 use App\Enums\ConfirmationOutcome;
 use App\Enums\OrderStatus;
+use App\Enums\Permission;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\DeliveryZone;
@@ -13,16 +14,21 @@ use App\Models\LiveReservation;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\Store;
+use App\Models\WhatsappAccount;
+use App\Notifications\OrderAlertNotice;
+use App\Services\Accounts\TeamNotifier;
 use App\Services\Orders\OrderDesk;
 use App\Services\Payments\PaymentDesk;
 use App\Services\Places\DeliveryRates;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\Inbox;
+use App\Services\WhatsApp\WhatsAppBridge;
 use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
 use Jibiat\Socle\PhoneNumber;
@@ -468,8 +474,60 @@ class LiveCheckout
         $order->forceFill(['payment_proof_at' => now(), 'payment_proof_message_id' => $message->id])->save();
         $this->desk->log($order, 'payment_proof', ['message_id' => $message->id], null);
         $this->text($conversation, "🙏 *Merci, reçu bien reçu !*\nLa boutique vérifie le paiement de la commande n° {$order->reference()} et vous prévient dès que le colis part.");
+        // Le marchand est prévenu tout de suite sur son téléphone : un toucher ouvre la commande pour valider
+        rescue(fn () => app(TeamNotifier::class)->notify(Store::findOrFail($order->store_id), Permission::OrdersManage->value, new OrderAlertNotice(
+            $order->store_id, 'payment_proof', '💳 Reçu Wave à vérifier',
+            trim(($order->customer_name ?: 'Une cliente').' · N° '.$order->reference().' · '.Money::format($order->expeditionPrepayDue()).' à recevoir'),
+            '/gestion/commandes/'.$order->id,
+        )), report: false);
 
         return true;
+    }
+
+    /**
+     * « Je ne le vois pas » : la boutique ne trouve pas le paiement dans son Wave. Le reçu est retiré de la commande
+     * (elle attend un nouveau reçu) et la cliente est invitée à vérifier puis à renvoyer la capture.
+     */
+    public function paymentRejected(Order $order): void
+    {
+        $order->forceFill(['payment_proof_at' => null, 'payment_proof_message_id' => null])->save();
+        $this->desk->log($order, 'payment_proof_rejected', [], auth()->user());
+        if (blank($order->customer_phone)) {
+            return;
+        }
+        $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
+        if ($conversation !== null) {
+            $this->text($conversation, "⚠️ *Nous ne voyons pas encore votre paiement* pour la commande n° {$order->reference()} (".Money::format($order->expeditionPrepayDue()).").\n👉 Vérifiez dans Wave puis renvoyez la capture ici.");
+        }
+    }
+
+    /**
+     * Photo du reçu envoyée par la cliente, en octets : lue une fois chez WhatsApp puis gardée (les liens de Meta
+     * expirent) ; null si introuvable.
+     */
+    public function proofImage(Order $order): ?string
+    {
+        if ($order->payment_proof_message_id === null) {
+            return null;
+        }
+        $path = "payment-proofs/{$order->store_id}/{$order->payment_proof_message_id}.jpg";
+        if (Storage::disk('local')->exists($path)) {
+            return Storage::disk('local')->get($path);
+        }
+        $message = ConversationMessage::forStore($order->store_id)->with('conversation')->find($order->payment_proof_message_id);
+        if ($message === null || $message->conversation === null) {
+            return null;
+        }
+        $bytes = rescue(fn () => $message->conversation->via_link
+            ? (($link = app(Inbox::class)->linkFor($message->conversation)) && $message->provider_message_id ? app(WhatsAppBridge::class)->image($link, $message->provider_message_id) : null)
+            : (($account = WhatsappAccount::forStore($order->store_id)->first()) && $message->media_id ? app(WhatsAppCloud::class)->image($account, $message->media_id) : null), null, false);
+        if (is_string($bytes) && $bytes !== '') {
+            Storage::disk('local')->put($path, $bytes);
+
+            return $bytes;
+        }
+
+        return null;
     }
 
     /**

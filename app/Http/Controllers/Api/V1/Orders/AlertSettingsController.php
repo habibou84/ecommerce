@@ -29,7 +29,11 @@ class AlertSettingsController extends Controller
             'stalled.time' => ['required', 'date_format:H:i'],
         ];
         foreach (array_keys(OrderAlerts::DEFAULTS) as $key) {
-            if ($key !== 'hours') {
+            if ($key === 'proof') {
+                // Ajoutée après coup : facultative pour les anciens écrans
+                $rules['proof.on'] = ['sometimes', 'boolean'];
+                $rules['proof.minutes'] = ['sometimes', 'integer', 'between:10,1440'];
+            } elseif ($key !== 'hours') {
                 $rules["{$key}.on"] = ['required', 'boolean'];
             }
         }
@@ -42,7 +46,7 @@ class AlertSettingsController extends Controller
         $data = $request->validate($rules, [], [
             'hours.from' => 'début des alertes', 'hours.to' => 'fin des alertes', 'stalled.time' => 'heure de fin des livraisons',
             'unassigned.minutes' => 'délai « sans livreur »', 'pickup.minutes' => 'délai « pas ramassé »',
-            'confirm.minutes' => 'délai « à confirmer »', 'unhandled.minutes' => 'délai « problème sans suite »',
+            'confirm.minutes' => 'délai « à confirmer »', 'proof.minutes' => 'délai « reçu à valider »', 'unhandled.minutes' => 'délai « problème sans suite »',
             'courier_cash.hours' => 'délai « argent chez un livreur »', 'returns.hours' => 'délai « colis pas rapporté »',
             'carrier_payout.days' => 'délai « reversement en retard »',
         ]);

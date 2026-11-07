@@ -5,6 +5,7 @@ import Field from '../../../components/Field.vue'
 import Icon from '../../../components/Icon.vue'
 import Modal from '../../../components/Modal.vue'
 import ExpeditionPanel from '../../../components/ExpeditionPanel.vue'
+import PaymentProofCard from '../../../components/PaymentProofCard.vue'
 import OrderReturns from '../../../components/OrderReturns.vue'
 import ShipmentPanel from '../../../components/ShipmentPanel.vue'
 import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
@@ -176,6 +177,8 @@ async function addNote() {
     </div>
 
     <Alert v-if="error">{{ error }}</Alert>
+    <!-- Reçu de paiement à vérifier : en haut, le colis attend pour partir -->
+    <PaymentProofCard v-if="order.expedition?.payment_proof_at && order.expedition.prepay_due > 0" :order="order" :can-manage="auth.can('orders.manage')" @changed="load" />
     <Alert v-if="order.duplicates.length" tone="warning">
       Autre(s) commande(s) en cours de ce client depuis 24 h :
       <RouterLink v-for="d in order.duplicates" :key="d.id" :to="`/gestion/commandes/${d.id}`" class="font-medium underline">{{ d.reference }}</RouterLink>. Doublon ?

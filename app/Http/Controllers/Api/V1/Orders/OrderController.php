@@ -268,10 +268,38 @@ class OrderController extends Controller
         $this->desk->recordPayment($model, $data, $request->user());
         // Expédition payée avant l'envoi : la cliente est prévenue que c'est reçu (une seule fois, au paiement qui solde)
         if ($wasDue) {
-            rescue(fn () => app(LiveCheckout::class)->paymentValidated(Order::findOrFail($order)), report: false);
+            $fresh = Order::findOrFail($order);
+            // Soldé : le reçu n'est plus à vérifier
+            if ($fresh->expeditionPrepayDue() === 0 && $fresh->payment_proof_at !== null) {
+                $fresh->forceFill(['payment_proof_at' => null])->save();
+            }
+            rescue(fn () => app(LiveCheckout::class)->paymentValidated($fresh), report: false);
         }
 
         return $this->show($order, app(CustomerBook::class), app(OrderMessages::class));
+    }
+
+    /**
+     * Photo du reçu de paiement envoyée par la cliente sur WhatsApp (expédition payée avant l'envoi).
+     */
+    public function paymentProof(int $order): Response
+    {
+        $bytes = app(LiveCheckout::class)->proofImage(Order::findOrFail($order));
+        abort_if($bytes === null, 404, 'Reçu introuvable.');
+
+        return response($bytes, 200, ['Content-Type' => 'image/jpeg', 'Cache-Control' => 'private, max-age=86400']);
+    }
+
+    /**
+     * « Je ne le vois pas » : le paiement n'est pas arrivé, la cliente est invitée à vérifier et à renvoyer le reçu.
+     */
+    public function rejectPaymentProof(int $order, CustomerBook $customers, OrderMessages $messages): JsonResponse
+    {
+        $model = Order::findOrFail($order);
+        abort_if($model->payment_proof_at === null, 422, 'Aucun reçu à vérifier.');
+        app(LiveCheckout::class)->paymentRejected($model);
+
+        return $this->show($order, $customers, $messages);
     }
 
     public function confirmation(Request $request, int $order): JsonResponse

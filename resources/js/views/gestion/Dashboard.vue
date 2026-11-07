@@ -101,6 +101,9 @@ const todo = computed(() => {
       hint: s.live.session.summary.pending ? 'clients qui n\'ont pas encore donné leur quartier' : '', urgent: s.live.session.summary.pending > 0 })
   }
   if (s.orders) {
+    // Reçus de paiement envoyés par les clientes : en premier, le colis attend pour partir
+    if (s.orders.waiting?.proofs) items.push({ key: 'proofs', icon: 'cash', label: 'Paiements à valider', count: s.orders.waiting.proofs, to: '/gestion/commandes?alert=proof',
+      hint: 'reçus Wave envoyés par les clientes', urgent: true })
     items.push({ key: 'confirm', icon: 'phone', label: 'Commandes à confirmer', count: s.orders.to_confirm, to: auth.can('orders.confirm') ? '/gestion/confirmation' : '/gestion/commandes?status=pending_confirmation',
       hint: s.orders.callbacks_due ? `dont ${s.orders.callbacks_due} rappel(s) à faire maintenant` : '', urgent: s.orders.callbacks_due > 0 })
     items.push({ key: 'ship', icon: 'truck', label: 'Commandes à faire livrer', count: s.orders.to_ship, to: '/gestion/commandes?status=to_ship',

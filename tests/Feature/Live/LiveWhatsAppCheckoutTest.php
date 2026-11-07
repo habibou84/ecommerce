@@ -3,18 +3,22 @@
 namespace Tests\Feature\Live;
 
 use App\Enums\OrderStatus;
+use App\Models\LiveSession;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
+use App\Notifications\OrderAlertNotice;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Live\LiveCheckout;
+use App\Services\Orders\OrderAlerts;
 use App\Services\Places\DeliveryRates;
 use App\Services\Places\Places;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Jibiat\Socle\Money;
@@ -248,9 +252,36 @@ class LiveWhatsAppCheckoutTest extends TestCase
         $this->assertSame('https://pay.wave.com/m/x/c/ci/?ref=1&amount=500', LiveCheckout::waveLink('https://pay.wave.com/m/x/c/ci/?amount=200&ref=1', 500));
         $this->assertStringContainsString('capture du reçu Wave', $body);
 
-        // La capture du reçu : notée sur la commande, la cliente est remerciée
+        // La capture du reçu : notée sur la commande, la cliente est remerciée, le marchand est prévenu tout de suite
+        Notification::fake();
         $this->inbound(['type' => 'image', 'image' => ['id' => 'MEDIA-RECU', 'mime_type' => 'image/jpeg']]);
         $this->assertNotNull($order->fresh()->payment_proof_at);
+        $this->assertStringContainsString('reçu bien reçu', $this->sent()[0]['text']['body']);
+        Notification::assertSentTo($this->store->owner, OrderAlertNotice::class, fn (OrderAlertNotice $n) => $n->toArray($this->store->owner)['title'] === '💳 Reçu Wave à vérifier'
+            && $n->toArray($this->store->owner)['url'] === "/gestion/commandes/{$order->id}");
+        // À valider : accueil, filtre de la liste, étiquette du live
+        $this->assertSame(1, $this->storeApi($this->store, 'GET', 'dashboard')->json('data.orders.waiting.proofs'));
+        $this->assertSame([$order->id], collect($this->storeApi($this->store, 'GET', 'orders?alert=proof')->assertOk()->json('data'))->pluck('id')->all());
+        $live = LiveSession::sole();
+        $this->assertTrue(collect($this->storeApi($this->store, 'GET', "lives/{$live->id}")->json('data.reservations'))->firstWhere('order.id', $order->id)['order']['proof']);
+
+        // Rappel si personne n'a validé après 30 minutes (dans les heures d'alerte)
+        $this->travelTo(now()->setTime(12, 0)->addMinutes(31));
+        $order->forceFill(['payment_proof_at' => now()->subMinutes(31)])->save();
+        app(OrderAlerts::class)->forStore($this->store->fresh());
+        Notification::assertSentTo($this->store->owner, OrderAlertNotice::class, fn (OrderAlertNotice $n) => $n->toArray($this->store->owner)['kind'] === 'order_alert_proof');
+
+        // La photo du reçu, gardée après la première lecture
+        Storage::fake('local');
+        $message = $order->fresh()->payment_proof_message_id;
+        Storage::disk('local')->put("payment-proofs/{$this->store->id}/{$message}.jpg", 'JPEG');
+        $this->get($this->storeUrl($this->store, "/api/v1/orders/{$order->id}/payment-proof"))->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+
+        // « Je ne le vois pas » : la cliente est invitée à renvoyer, la commande attend un nouveau reçu
+        $this->storeApi($this->store, 'POST', "orders/{$order->id}/payment-proof/reject")->assertOk()->assertJsonPath('data.expedition.payment_proof_at', null);
+        $this->assertStringContainsString('Nous ne voyons pas encore votre paiement', $this->sent()[0]['text']['body']);
+        $this->storeApi($this->store, 'POST', "orders/{$order->id}/payment-proof/reject")->assertStatus(422);
+        $this->inbound(['type' => 'image', 'image' => ['id' => 'MEDIA-RECU-2', 'mime_type' => 'image/jpeg']]);
         $this->assertStringContainsString('reçu bien reçu', $this->sent()[0]['text']['body']);
         $detail = $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertOk();
         $this->assertNotNull($detail->json('data.expedition.payment_proof_at'));
@@ -265,6 +296,9 @@ class LiveWhatsAppCheckoutTest extends TestCase
         // Puis les photos de la commande
         $this->assertSame('image', $sent[1]['type']);
         $this->assertStringContainsString('Voici les photos', $sent[1]['image']['caption']);
+        // Validé : plus rien à vérifier
+        $this->assertNull($order->fresh()->payment_proof_at);
+        $this->assertSame(0, $this->storeApi($this->store, 'GET', 'dashboard')->json('data.orders.waiting.proofs'));
     }
 
     public function test_an_expedition_without_payment_before_keeps_payment_on_delivery(): void
