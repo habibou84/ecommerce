@@ -155,8 +155,11 @@ class LiveController extends Controller
     {
         $model = LiveSession::with('items.variant.product.images', 'items.variant.image')->findOrFail($session);
         $store = $this->currentStore();
-        // Un produit = un code (ses tailles et couleurs le partagent) : la photo du produit, comme sur l'écran du live
-        $tiles = $model->items->groupBy('code')->map(function ($group, $code) {
+        // Un produit = un code (ses tailles et couleurs le partagent) : la photo du produit, comme sur l'écran du live.
+        // Les articles finis n'y sont plus (sauf si tout est fini)
+        $groups = $model->items->groupBy('code');
+        $left = $groups->filter(fn ($group) => $group->sum(fn (LiveItem $item) => $this->live->remaining($item)) > 0);
+        $tiles = ($left->isEmpty() ? $groups : $left)->map(function ($group, $code) {
             $variant = $group->first()->variant;
             $image = ($group->count() === 1 ? $variant?->image : null) ?? $variant?->product?->images->first() ?? $variant?->image;
 

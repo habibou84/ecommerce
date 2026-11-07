@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import http, { errorMessage } from '../lib/http'
+import { pinSignature } from '../lib/livePin'
 
 /**
  * Photo à épingler (Support du live) : les photos des articles et leur code, rien d'autre. En hauteur (TikTok, statut
@@ -20,8 +21,8 @@ const error = ref('')
 const busy = ref(false)
 const done = ref('')
 
-// Les articles du live (codes) : la photo est redemandée quand ils changent
-const signature = computed(() => (props.live.items ?? []).map((i) => i.code).join(','))
+// Les articles encore en vente (codes) : la photo est redemandée quand ils changent
+const signature = computed(() => pinSignature(props.live.items ?? []))
 const shown = computed(() => pages.value?.[format.value] ?? [])
 
 async function load() {

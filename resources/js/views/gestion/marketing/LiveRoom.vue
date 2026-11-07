@@ -11,6 +11,7 @@ import LivePin from '../../../components/LivePin.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
+import { pinSignature, readPin } from '../../../lib/livePin'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money, phoneDisplay } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
@@ -94,7 +95,7 @@ watch([pane, sheet], ([p, s]) => {
   screensTimer = setInterval(loadScreens, s ? 3000 : 10000)
 }, { immediate: true })
 onUnmounted(() => clearInterval(screensTimer))
-const pinStale = computed(() => pinShared.value !== (live.value?.items ?? []).map((i) => i.code).join(','))
+const pinStale = computed(() => pinShared.value?.sig !== pinSignature(live.value?.items ?? []))
 function supportState(key) {
   if (!activeSupports.value.includes(key)) return ['Choisir', 'bg-slate-100 text-slate-700']
   if (key === 'pin') return pinStale.value ? ['⚠ À ré-épingler', 'bg-amber-100 text-amber-900'] : ['✓ À jour', 'bg-emerald-100 text-emerald-800']
@@ -108,10 +109,10 @@ function onPinSheetShared(signature) {
 }
 // Étiquette : la dernière téléchargée ou partagée (ses codes), pour prévenir quand elle n'est plus à jour
 const pinKey = `jm.live-pin.${props.id}`
-const pinShared = ref(readStore(pinKey))
+const pinShared = ref(readPin(readStore(pinKey)))
 function onPinShared(signature) {
-  pinShared.value = signature
-  writeStore(pinKey, signature)
+  pinShared.value = { sig: signature, at: new Date().toISOString() }
+  writeStore(pinKey, pinShared.value)
 }
 const live = ref(null)
 const error = ref('')
@@ -365,7 +366,7 @@ async function redo() {
 
     <template v-else>
       <!-- ═══ Onglets Live / Support (avant et pendant le live) ═══ -->
-      <nav v-if="live.status !== 'ended'" class="grid grid-cols-2 border-b border-slate-200" role="tablist" aria-label="Live ou support">
+      <nav v-if="live.status === 'draft'" class="grid grid-cols-2 border-b border-slate-200" role="tablist" aria-label="Live ou support">
         <button v-for="[value, label] in [['live', 'Live'], ['support', 'Support']]" :key="value" type="button" role="tab" :aria-selected="pane === value"
                 class="-mb-px border-b-[3px] py-2.5 text-base font-extrabold" :class="pane === value ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'" @click="pane = value">
           {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-[10px] font-black text-white">● EN DIRECT</span>
@@ -373,7 +374,7 @@ async function redo() {
       </nav>
 
       <!-- ═══ Support : un ou deux supports cochés, le réglage de chacun sous sa case, puis les infos du live ═══ -->
-      <template v-if="live.status !== 'ended' && pane === 'support'">
+      <template v-if="live.status === 'draft' && pane === 'support'">
         <p class="text-base font-extrabold">Je suis en live avec… <span v-if="supportList.length > 1" class="text-sm font-semibold text-slate-500">(1 ou 2)</span></p>
         <div class="space-y-2">
           <button v-for="[key, icon, label] in supportList" :key="key" type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 bg-white p-3 text-left"
@@ -419,7 +420,7 @@ async function redo() {
 
       <!-- ═══ En-tête selon l'état ═══ -->
       <!-- Pendant le live : la pancarte montrée et les onglets Articles, Messages, Commandes -->
-      <LiveCockpit v-if="live.status === 'live' && pane === 'live'" :live="live" :now="now" :busy="busy" :supports="activeSupports" :pin-shared="pinShared" @support="pane = 'support'"
+      <LiveCockpit v-if="live.status === 'live'" :live="live" :now="now" :busy="busy" :duration="duration" :pin-shared="pinShared" @pin-shared="onPinShared"
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
                    @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" />
 

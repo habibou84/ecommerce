@@ -198,6 +198,14 @@ class LiveScreensTest extends TestCase
         $this->assertSame($pin['portrait'][0]['path'], $this->storeApi($this->store, 'GET', "lives/{$this->live}/pin")->json('data.portrait.0.path'));
     }
 
+    public function test_a_finished_article_leaves_the_photo_to_pin(): void
+    {
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/start")->assertOk();
+        $this->storeApi($this->store, 'POST', "lives/{$this->live}/reservations", ['code' => 'A2', 'name' => 'Awa'])->assertOk();
+        $pin = $this->storeApi($this->store, 'GET', "lives/{$this->live}/pin")->assertOk()->json('data');
+        $this->assertSame(['A1'], $pin['portrait'][0]['codes']);
+    }
+
     public function test_how_it_works_is_counted_per_person(): void
     {
         $this->assertSame(0, $this->storeApi($this->store, 'GET', 'auth/me')->json('data.live_intro_views'));
