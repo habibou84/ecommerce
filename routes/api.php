@@ -363,6 +363,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('orders/delivery-options/carriers/{carrier}', [DeliveryOptionsController::class, 'tariffs'])->whereNumber('carrier')->name('orders.delivery-options.tariffs');
                 Route::post('orders/{order}/status', [OrderController::class, 'transition'])->whereNumber('order')->name('orders.status');
                 Route::post('orders/{order}/payments', [OrderController::class, 'payment'])->whereNumber('order')->name('orders.payments');
+                // Reçu de paiement envoyé sur WhatsApp : la photo, et « Je ne le vois pas »
+                Route::get('orders/{order}/payment-proof', [OrderController::class, 'paymentProof'])->whereNumber('order')->name('orders.payment-proof');
+                Route::post('orders/{order}/payment-proof/reject', [OrderController::class, 'rejectPaymentProof'])->whereNumber('order')->name('orders.payment-proof.reject');
                 // Expédition vers une autre ville : dépôt à la gare, colis récupéré
                 Route::post('orders/{order}/expedition', [ExpeditionController::class, 'store'])->whereNumber('order')->name('orders.expedition');
                 Route::post('orders/{order}/expedition/collected', [ExpeditionController::class, 'collected'])->whereNumber('order')->name('orders.expedition.collected');

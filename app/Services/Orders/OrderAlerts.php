@@ -44,6 +44,7 @@ class OrderAlerts
         'cutoff' => ['on' => true],
         'pickup' => ['on' => true, 'minutes' => 120],
         'confirm' => ['on' => true, 'minutes' => 120],
+        'proof' => ['on' => true, 'minutes' => 30],
         'callback' => ['on' => true],
         'morning' => ['on' => true],
         'stalled' => ['on' => true, 'time' => '19:00'],
@@ -118,10 +119,16 @@ class OrderAlerts
         return $orders->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', self::values(OutsideStock::TO_BRING_BACK)));
     }
 
+    /** Reçu de paiement envoyé sur WhatsApp par la cliente, pas encore validé ni refusé par la boutique */
+    public static function proofs(Builder $orders): Builder
+    {
+        return $orders->whereNotNull('payment_proof_at')->where('status', '!=', OrderStatus::Cancelled->value);
+    }
+
     /**
      * Nombre de commandes dans chaque file (tableau de bord).
      *
-     * @return array{unassigned: int, not_picked: int, unhandled: int}
+     * @return array{unassigned: int, not_picked: int, unhandled: int, proofs: int}
      */
     public static function counts(): array
     {
@@ -129,6 +136,7 @@ class OrderAlerts
             'unassigned' => self::unassigned(Order::query())->count(),
             'not_picked' => self::notPicked(Order::query())->count(),
             'unhandled' => self::unhandled(Order::query())->count(),
+            'proofs' => self::proofs(Order::query())->count(),
         ];
     }
 
@@ -207,6 +215,14 @@ class OrderAlerts
             $sent += $this->delays($store, 'confirm', $orders, $settings['confirm']['minutes'], $now,
                 fn (int $n) => $n > 1 ? "{$n} commandes attendent d'être confirmées" : 'Une commande attend d\'être confirmée',
                 'Appelez les clients pour confirmer.', '/gestion/commandes?status=pending_confirmation', 'order', false, Permission::OrdersConfirm);
+        }
+        if ($settings['proof']['on']) {
+            // Rappel : le reçu attend toujours (la première notification part dès qu'il arrive)
+            $orders = self::proofs(Order::forStore($store->id))->where('payment_proof_at', '>=', $since->utc())->get(['id', 'payment_proof_at'])
+                ->mapWithKeys(fn (Order $o) => [$o->id => CarbonImmutable::parse($o->payment_proof_at)]);
+            $sent += $this->delays($store, 'proof', $orders, $settings['proof']['minutes'], $now,
+                fn (int $n) => $n > 1 ? "💳 {$n} reçus de paiement à valider" : '💳 Un reçu de paiement à valider',
+                'Vérifiez dans votre Wave, puis validez : le colis attend pour partir.', '/gestion/commandes?alert=proof', 'order', true, Permission::OrdersManage);
         }
         if ($settings['callback']['on']) {
             $due = Order::forStore($store->id)->where('status', OrderStatus::PendingConfirmation->value)->where('callback_at', '<=', now())->get(['id', 'customer_name', 'callback_at']);

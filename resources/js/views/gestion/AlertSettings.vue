@@ -15,6 +15,7 @@ const hourLabel = (t) => t.replace(':', ' h ')
 
 const ALERTS = [
   { key: 'morning', title: 'Le point du matin', text: 'Au début des alertes : commandes à livrer aujourd\'hui, sans livreur, en retard, date à fixer.' },
+  { key: 'proof', title: 'Reçus de paiement à valider', text: 'Rappel quand le reçu Wave envoyé par une cliente n\'est toujours pas validé après', delay: true, escalate: true },
   { key: 'confirm', title: 'Commandes à confirmer qui attendent', text: 'Une commande attend d\'être confirmée depuis plus de', delay: true },
   { key: 'callback', title: 'Rappels de clients', text: 'À l\'heure où vous aviez prévu de rappeler un client.' },
   { key: 'unassigned', title: 'Commandes confirmées sans livreur', text: 'Le jour de la livraison, une commande confirmée n\'est confiée à personne depuis plus de', delay: true, escalate: true },

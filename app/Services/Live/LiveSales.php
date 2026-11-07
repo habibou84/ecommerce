@@ -991,7 +991,7 @@ class LiveSales
     public function state(LiveSession $session, bool $team = true): array
     {
         $session->loadMissing('items.variant.product.images', 'items.variant.option1.option', 'items.variant.option2.option', 'items.variant.option3.option');
-        $reservations = $team ? LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->with('item:id,code', 'order:id,number,store_id,status')
+        $reservations = $team ? LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->with('item:id,code', 'order:id,number,store_id,status,payment_proof_at')
             ->latest('id')->limit(200)->get() : collect();
         $counts = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)
             ->selectRaw('live_item_id, status, count(*) as n')->groupBy('live_item_id', 'status')->get();
@@ -1037,7 +1037,9 @@ class LiveSales
                 'customer_name' => $r->customer_name,
                 'customer_phone' => $r->customer_phone,
                 'shipping_address' => $r->shipping_address,
-                'order' => $r->order ? ['id' => $r->order->id, 'reference' => $r->order->reference(), 'status' => $r->order->status->value] : null,
+                'order' => $r->order ? ['id' => $r->order->id, 'reference' => $r->order->reference(), 'status' => $r->order->status->value,
+                    // Reçu de paiement envoyé par la cliente, à vérifier par la boutique
+                    'proof' => $r->order->payment_proof_at !== null] : null,
                 'expires_at' => $r->expires_at?->toIso8601String(),
                 'created_at' => $r->created_at->toIso8601String(),
             ])->values()->all(),
