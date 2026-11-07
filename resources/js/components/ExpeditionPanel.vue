@@ -50,6 +50,20 @@ async function save() {
   }
 }
 
+// Reçu vérifié : le paiement Wave est enregistré (la cliente est prévenue par le serveur)
+async function validatePayment() {
+  busy.value = true
+  error.value = ''
+  try {
+    await http.post(`/orders/${props.order.id}/payments`, { amount: e.value.prepay_due, method: 'wave', reference: 'Reçu WhatsApp' })
+    emit('changed')
+  } catch (err) {
+    error.value = errorMessage(err)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function collected() {
   busy.value = true
   try {
@@ -68,7 +82,16 @@ async function collected() {
     <h3 class="font-semibold">📦 Expédition vers {{ e.city }}</h3>
     <p class="text-slate-600">Frais d'expédition : {{ e.payer_label?.toLowerCase() }}</p>
 
-    <Alert v-if="e.prepay_due > 0" tone="warning">Paiement avant expédition : le client doit encore payer {{ money(e.prepay_due) }} avant que le colis parte à la gare.</Alert>
+    <Alert v-if="e.prepay_due > 0 && !e.payment_proof_at" tone="warning">Paiement avant expédition : le client doit encore payer {{ money(e.prepay_due) }} avant que le colis parte à la gare.</Alert>
+    <!-- La cliente a envoyé la capture de son reçu sur WhatsApp : la boutique vérifie, puis valide -->
+    <div v-if="e.prepay_due > 0 && e.payment_proof_at" class="space-y-2 rounded-xl bg-emerald-50 p-3 ring-2 ring-emerald-300">
+      <p class="font-bold text-emerald-900">📸 La cliente a envoyé son reçu de paiement ({{ money(e.prepay_due) }})</p>
+      <p class="text-[13px] text-emerald-800">Vérifiez sur votre Wave que l'argent est arrivé, puis validez : la cliente est prévenue et le colis peut partir.</p>
+      <div class="flex flex-wrap gap-2">
+        <RouterLink v-if="e.payment_proof_conversation_id" :to="`/gestion/messages/${e.payment_proof_conversation_id}`" class="btn-secondary">Voir le reçu</RouterLink>
+        <button v-if="canManage" type="button" class="btn-brand" :disabled="busy" @click="validatePayment">✓ Valider le paiement</button>
+      </div>
+    </div>
 
     <template v-if="e.dropped_at">
       <div class="rounded-lg bg-sky-50 p-3">

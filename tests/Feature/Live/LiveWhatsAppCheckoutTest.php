@@ -221,6 +221,40 @@ class LiveWhatsAppCheckoutTest extends TestCase
         $this->assertStringNotContainsString('à payer à la livraison', $body);
     }
 
+    public function test_the_wave_link_is_sent_the_receipt_is_kept_and_the_shop_validates_the_payment(): void
+    {
+        $this->storeApi($this->store, 'PUT', 'delivery-rates', ['wave_link' => 'pas un lien'])->assertUnprocessable();
+        $this->storeApi($this->store, 'PUT', 'delivery-rates', ['expedition_fee' => 3000, 'expedition_prepay' => true, 'wave_link' => 'https://pay.wave.com/m/M_ci_test/c/ci/'])
+            ->assertOk()->assertJsonPath('data.wave_link', 'https://pay.wave.com/m/M_ci_test/c/ci/');
+        $this->text('A1');
+        $this->sent();
+        $this->tap('live:cities', '🚚 Autre ville');
+        $row = collect($this->sent()[0]['interactive']['action']['sections'][0]['rows'])->firstWhere('title', 'Bouaké');
+        $this->tap($row['id'], 'Bouaké');
+        $order = Order::sole();
+        $this->sent();
+
+        // Je confirme : le lien Wave de la boutique et la capture du reçu à envoyer
+        $this->tap("live:confirm:{$order->id}", '✅ Je confirme', 'button_reply');
+        $body = $this->sent()[0]['text']['body'];
+        $this->assertStringContainsString('Payez avec Wave : https://pay.wave.com/m/M_ci_test/c/ci/', $body);
+        $this->assertStringContainsString('capture du reçu Wave', $body);
+
+        // La capture du reçu : notée sur la commande, la cliente est remerciée
+        $this->inbound(['type' => 'image', 'image' => ['id' => 'MEDIA-RECU', 'mime_type' => 'image/jpeg']]);
+        $this->assertNotNull($order->fresh()->payment_proof_at);
+        $this->assertStringContainsString('reçu bien reçu', $this->sent()[0]['text']['body']);
+        $detail = $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertOk();
+        $this->assertNotNull($detail->json('data.expedition.payment_proof_at'));
+        $this->assertNotNull($detail->json('data.expedition.payment_proof_conversation_id'));
+
+        // La boutique valide : payé, la cliente est prévenue
+        $due = $detail->json('data.expedition.prepay_due');
+        $this->storeApi($this->store, 'POST', "orders/{$order->id}/payments", ['amount' => $due, 'method' => 'wave', 'reference' => 'Reçu WhatsApp'])->assertOk()
+            ->assertJsonPath('data.expedition.prepay_due', 0);
+        $this->assertStringContainsString('Paiement reçu', collect($this->sent())->last()['text']['body']);
+    }
+
     public function test_an_expedition_without_payment_before_keeps_payment_on_delivery(): void
     {
         $this->store->forceFill(['expedition_fee' => 3000, 'expedition_prepay' => false])->save();

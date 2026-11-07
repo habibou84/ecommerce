@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import http, { errorMessage } from '../lib/http'
 import { money } from '../lib/format'
 
@@ -89,6 +89,16 @@ async function loadQuartiers() {
 
 const toggleShipping = () => run(() => http.put('/delivery-rates', { expedition_fee: shipping.value === null ? 3000 : null }))
 const togglePrepay = () => run(() => http.put('/delivery-rates', { expedition_prepay: !rates.value.expedition.prepay }))
+// Lien de paiement Wave de la boutique : envoyé à la cliente quand l'expédition est payée avant l'envoi
+const wave = ref('')
+const waveSaved = ref(false)
+watch(() => rates.value?.wave_link, (v) => (wave.value = v ?? ''), { immediate: true })
+async function saveWave() {
+  if (await run(() => http.put('/delivery-rates', { wave_link: wave.value.trim() || null }))) {
+    waveSaved.value = true
+    setTimeout(() => (waveSaved.value = false), 2000)
+  }
+}
 
 const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-1 text-[15px] font-black tabular-nums', on ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-300 font-bold text-slate-500']
 </script>
@@ -140,7 +150,17 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
               <span>Paiement avant l'envoi</span>
               <span class="relative h-6 w-10 shrink-0 rounded-full transition" :class="rates.expedition.prepay ? 'bg-emerald-600' : 'bg-slate-300'"><span class="absolute top-[3px] h-[18px] w-[18px] rounded-full bg-white transition-all" :class="rates.expedition.prepay ? 'right-[3px]' : 'left-[3px]'" /></span>
             </button>
-            <p class="mt-1 text-[13px] text-slate-500">Le colis part quand la cliente a payé (Wave, Orange Money…).</p>
+            <p class="mt-1 text-[13px] text-slate-500">Le colis part quand la cliente a payé.</p>
+            <!-- Paiement avant l'envoi : le lien Wave de la boutique, envoyé tout seul à la cliente -->
+            <div v-if="rates.expedition.prepay" class="mt-3 rounded-xl p-3" :class="rates.wave_link ? 'bg-sky-50' : 'bg-amber-50 ring-2 ring-amber-300'">
+              <b class="block text-[15px]">🌊 Votre lien de paiement Wave</b>
+              <p class="text-[13px] text-slate-600">Collez-le ici : il est envoyé tout seul à la cliente. Elle paie, envoie la capture du reçu, et vous validez.</p>
+              <div class="mt-2 flex gap-2">
+                <input v-model="wave" type="url" inputmode="url" placeholder="Collez votre lien Wave" class="min-w-0 flex-1 rounded-xl border-2 border-slate-300 px-3 py-2 text-[14px]" aria-label="Lien de paiement Wave">
+                <button type="button" class="shrink-0 rounded-xl bg-sky-600 px-4 font-black text-white" :disabled="busy || wave.trim() === (rates.wave_link ?? '')" @click="saveWave">{{ waveSaved ? '✓' : 'OK' }}</button>
+              </div>
+              <p class="mt-1 text-[12px] text-slate-500">Sur l'accueil de Wave : <b>Envoi de lien</b> › <b>Partager</b> sans taper de somme › <b>Copier</b>, puis collez ici.</p>
+            </div>
           </section>
         </template>
 
