@@ -13,6 +13,7 @@ use App\Models\Order;
 use App\Models\Place;
 use App\Models\Store;
 use App\Services\Orders\OrderDesk;
+use App\Services\Payments\PaymentDesk;
 use App\Services\Places\DeliveryRates;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
@@ -131,8 +132,9 @@ class LiveCheckout
         $image = $this->tryImage(fn () => $this->images->recap($order, $store->name));
         $lines = $order->items->map(fn ($i) => '• '.$i->title.($i->quantity > 1 ? " × {$i->quantity}" : '').' : '.Money::format((int) $i->total))->implode("\n");
         $place = $order->shipping_place_id ? Place::with('parent')->find($order->shipping_place_id)?->label() : null;
-        $delivery = ($order->isExpedition() ? '🚚 Expédition' : '🛵 Livraison').($place ? " ({$place})" : '').' : '.($order->shipping_fee > 0 ? Money::format((int) $order->shipping_fee) : 'offerte')
-            .($order->isExpedition() && $order->expedition_prepay ? "\n💳 _À payer avant l'envoi : la boutique vous écrit pour le paiement._" : '');
+        $delivery = ($order->isExpedition() ? '🚚 Expédition' : '🛵 Livraison').($place ? " ({$place})" : '').' : '.($order->shipping_fee > 0 ? Money::format((int) $order->shipping_fee) : 'offerte');
+        // Expédition payée avant l'envoi (réglage de la boutique) : on le dit à la place de « paiement à la livraison »
+        $payment = $this->prepaid($order) ? "💳 *À payer avant l'envoi* : le colis part dès que vous avez payé" : '_Paiement à la livraison_';
         $total = '💰 *Total à payer : '.Money::format((int) $order->total).'*';
         $title = "🧾 *COMMANDE N° {$order->reference()}*";
 
@@ -146,7 +148,7 @@ class LiveCheckout
                 return $this->picture($conversation, $image, $text) || $this->text($conversation, "✅ *COMMANDE MISE À JOUR*\n".$title."\n".$lines."\n".$delivery."\n".$total);
             }
             Cache::put(self::menuKey($conversation), $order->id, now()->addDay());
-            $menu = "\n_Paiement à la livraison_\n━━━━━━━━━━━━\n👉 *RÉPONDEZ AVEC UN CHIFFRE :*\n\n"
+            $menu = "\n{$payment}\n━━━━━━━━━━━━\n👉 *RÉPONDEZ AVEC UN CHIFFRE :*\n\n"
                 ."*1* ✅ Je confirme\n*2* ➕ Ajouter un article\n*3* 📍 Changer l'adresse\n*4* ❌ Annuler";
 
             return $this->picture($conversation, $image, $details."\n📷 _Vérifiez les photos avant de confirmer_".$menu)
@@ -160,7 +162,7 @@ class LiveCheckout
                 ? $this->rich($conversation, $text, fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendImage($account, $to, $image, $text))
                 : $this->text($conversation, $text);
         }
-        $text = $details."\n_Paiement à la livraison_\n\n👇 *Touchez « Je confirme » pour valider*";
+        $text = $details."\n{$payment}\n\n👇 *Touchez « Je confirme » pour valider*";
 
         return $this->rich($conversation, "Commande n° {$order->reference()} : ".Money::format((int) $order->total).' (à confirmer)', fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendButtons($account, $to, $text, [
             "live:confirm:{$order->id}" => '✅ Je confirme',
@@ -396,14 +398,39 @@ class LiveCheckout
         $place = $order->shipping_place_id ? Place::with('parent')->find($order->shipping_place_id)?->label() : null;
         $name = trim(strtok((string) $order->customer_name, ' ') ?: '');
 
-        $sent = $this->text($conversation, "🎉 *COMMANDE CONFIRMÉE !*\n\nMerci".($name !== '' ? " {$name}" : '')." 🙏\n🧾 N° {$order->reference()}\n"
-            .'💰 *'.Money::format((int) $order->total)."* à payer à la livraison\n"
-            .'🛵 '.($place ? "{$place} : l" : 'L').'e livreur vous appelle avant de passer.');
+        $thanks = "🎉 *COMMANDE CONFIRMÉE !*\n\nMerci".($name !== '' ? " {$name}" : '')." 🙏\n🧾 N° {$order->reference()}\n";
+        $sent = $this->text($conversation, $this->prepaid($order)
+            // Expédition payée avant l'envoi : le montant, comment payer, puis le colis part à la gare
+            ? $thanks.'💳 *'.Money::format($order->expeditionPrepayDue())." à payer maintenant, avant l'envoi*\n".$this->howToPay($order)
+                ."\n🚚 ".($place ? "{$place} : v" : 'V').'otre colis part à la gare dès que le paiement est reçu.'
+            : $thanks.'💰 *'.Money::format((int) $order->total)."* à payer à la livraison\n"
+                .'🛵 '.($place ? "{$place} : l" : 'L').'e livreur vous appelle avant de passer.');
         if ($first) {
             $this->photos($conversation, $order);
         }
 
         return $sent;
+    }
+
+    /** Expédition vers une autre ville que la boutique fait payer avant l'envoi, avec encore quelque chose à payer */
+    private function prepaid(Order $order): bool
+    {
+        return $order->isExpedition() && $order->expedition_prepay && $order->expeditionPrepayDue() > 0;
+    }
+
+    /**
+     * Comment payer avant l'envoi : le lien de paiement en ligne de la commande quand la boutique en a un, sinon la
+     * boutique envoie son numéro Wave ou Orange Money.
+     */
+    private function howToPay(Order $order): string
+    {
+        try {
+            $link = app(PaymentDesk::class)->createLink($order, $order->expeditionPrepayDue(), 'Commande '.$order->reference().' (avant l\'envoi)', null);
+
+            return '👉 Payez ici : '.Store::findOrFail($order->store_id)->url('/payer/'.$link->token);
+        } catch (Throwable) {
+            return '👉 La boutique vous envoie tout de suite son numéro Wave ou Orange Money pour payer.';
+        }
     }
 
     /** Au-delà, une seule image avec toutes les miniatures */

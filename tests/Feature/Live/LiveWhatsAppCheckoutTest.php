@@ -211,6 +211,28 @@ class LiveWhatsAppCheckoutTest extends TestCase
         [$recap] = $this->sent();
         $this->assertStringContainsString('🚚 Expédition (Bouaké) : '.Money::format(4000), $recap['interactive']['body']['text']);
         $this->assertStringContainsString("À payer avant l'envoi", $recap['interactive']['body']['text']);
+        $this->assertStringNotContainsString('Paiement à la livraison', $recap['interactive']['body']['text']);
+
+        // Je confirme : le montant à payer maintenant, comment payer, puis l'envoi (pas « à payer à la livraison »)
+        $this->tap("live:confirm:{$order->id}", '✅ Je confirme', 'button_reply');
+        $body = $this->sent()[0]['text']['body'];
+        $this->assertStringContainsString(Money::format((int) $order->fresh()->total)." à payer maintenant, avant l'envoi", $body);
+        $this->assertStringContainsString('👉', $body);
+        $this->assertStringNotContainsString('à payer à la livraison', $body);
+    }
+
+    public function test_an_expedition_without_payment_before_keeps_payment_on_delivery(): void
+    {
+        $this->store->forceFill(['expedition_fee' => 3000, 'expedition_prepay' => false])->save();
+        $this->text('A1');
+        $this->sent();
+        $this->tap('live:cities', '🚚 Autre ville');
+        $row = collect($this->sent()[0]['interactive']['action']['sections'][0]['rows'])->firstWhere('title', 'Bouaké');
+        $this->tap($row['id'], 'Bouaké');
+        $order = Order::sole();
+        $this->assertFalse((bool) $order->expedition_prepay);
+        [$recap] = $this->sent();
+        $this->assertStringContainsString('Paiement à la livraison', $recap['interactive']['body']['text']);
     }
 
     public function test_several_codes_come_together_with_the_commune_question(): void

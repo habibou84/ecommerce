@@ -652,7 +652,7 @@ class OrderDesk
             $city = $rates->cityOf($place)->id;
             if ($order->expedition_city_id === null) {
                 // Habituel : un prix convenu avec le client (livraison + expédition), payé avant le départ
-                $order->forceFill(['expedition_payer' => 'included', 'expedition_prepay' => true]);
+                $order->forceFill(['expedition_payer' => 'included', 'expedition_prepay' => (bool) ($store->expedition_prepay ?? true)]);
             }
             $order->forceFill(['expedition_city_id' => $city]);
         } else {
