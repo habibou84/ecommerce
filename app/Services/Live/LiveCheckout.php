@@ -6,6 +6,7 @@ use App\Enums\CancelReason;
 use App\Enums\ConfirmationOutcome;
 use App\Enums\OrderStatus;
 use App\Models\Conversation;
+use App\Models\ConversationMessage;
 use App\Models\DeliveryZone;
 use App\Models\LiveItem;
 use App\Models\LiveReservation;
@@ -424,12 +425,62 @@ class LiveCheckout
      */
     private function howToPay(Order $order): string
     {
+        $store = Store::findOrFail($order->store_id);
         try {
             $link = app(PaymentDesk::class)->createLink($order, $order->expeditionPrepayDue(), 'Commande '.$order->reference().' (avant l\'envoi)', null);
 
-            return '👉 Payez ici : '.Store::findOrFail($order->store_id)->url('/payer/'.$link->token);
+            return '👉 Payez ici : '.$store->url('/payer/'.$link->token);
         } catch (Throwable) {
-            return '👉 La boutique vous envoie tout de suite son numéro Wave ou Orange Money pour payer.';
+            // Pas de paiement en ligne : le lien Wave de la boutique, puis la capture du reçu à envoyer ici
+            return filled($store->wave_link)
+                ? '👉 Payez avec Wave : '.self::waveLink($store->wave_link, $order->expeditionPrepayDue())."\n📸 Puis envoyez ici la *capture du reçu Wave*."
+                : '👉 La boutique vous envoie tout de suite son numéro Wave ou Orange Money pour payer.';
+        }
+    }
+
+    /**
+     * Lien Wave de la boutique avec le montant à payer déjà rempli (paramètre amount de Wave) : la cliente n'a
+     * plus qu'à valider.
+     */
+    public static function waveLink(string $link, int $amount): string
+    {
+        $link = (string) preg_replace('/([?&])amount=[^&]*&?/', '$1', trim($link));
+        $link = rtrim($link, '?&');
+
+        return $link.(str_contains($link, '?') ? '&' : '?').'amount='.$amount;
+    }
+
+    /**
+     * Photo envoyée par une cliente dont l'expédition attend d'être payée : c'est le reçu de paiement. Il est
+     * noté sur la commande (la boutique le voit et valide le paiement) et la cliente est remerciée. Vrai si traité.
+     */
+    public function receipt(Conversation $conversation, ConversationMessage $message): bool
+    {
+        if ($message->type !== 'image') {
+            return false;
+        }
+        $order = $this->liveOrder($conversation->store_id, PhoneNumber::normalize($conversation->contact));
+        if ($order === null || $order->status !== OrderStatus::Confirmed || ! $this->prepaid($order)) {
+            return false;
+        }
+        $order->forceFill(['payment_proof_at' => now(), 'payment_proof_message_id' => $message->id])->save();
+        $this->desk->log($order, 'payment_proof', ['message_id' => $message->id], null);
+        $this->text($conversation, "🙏 *Merci, reçu bien reçu !*\nLa boutique vérifie le paiement de la commande n° {$order->reference()} et vous prévient dès que le colis part.");
+
+        return true;
+    }
+
+    /**
+     * Paiement validé par la boutique pour une expédition payée avant l'envoi : la cliente est prévenue.
+     */
+    public function paymentValidated(Order $order): void
+    {
+        if (! $order->isExpedition() || ! $order->expedition_prepay || $order->expeditionPrepayDue() > 0 || blank($order->customer_phone)) {
+            return;
+        }
+        $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
+        if ($conversation !== null) {
+            $this->text($conversation, "✅ *Paiement reçu, merci !*\nVotre commande n° {$order->reference()} part à la gare. Nous vous envoyons le ticket dès le dépôt.");
         }
     }
 

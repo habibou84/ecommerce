@@ -16,6 +16,7 @@ use App\Models\Conversation;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Services\Customers\CustomerBook;
+use App\Services\Live\LiveCheckout;
 use App\Services\Orders\OrderBulk;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
@@ -263,6 +264,8 @@ class OrderController extends Controller
         ], [], ['amount' => 'montant', 'method' => 'moyen de paiement']);
 
         $this->desk->recordPayment(Order::findOrFail($order), $data, $request->user());
+        // Expédition payée avant l'envoi : la cliente est prévenue que c'est reçu
+        rescue(fn () => app(LiveCheckout::class)->paymentValidated(Order::findOrFail($order)), report: false);
 
         return $this->show($order, app(CustomerBook::class), app(OrderMessages::class));
     }

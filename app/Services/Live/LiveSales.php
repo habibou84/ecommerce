@@ -516,6 +516,10 @@ class LiveSales
         if ($payload !== null && str_starts_with($payload, 'live:')) {
             return app(LiveCheckout::class)->onReply($conversation, $payload);
         }
+        // Capture du reçu de paiement d'une expédition payée avant l'envoi (lien Wave de la boutique)
+        if (app(LiveCheckout::class)->receipt($conversation, $message)) {
+            return true;
+        }
         $session = self::current($conversation->store_id);
         if ($message->type === 'image') {
             if ($session === null) {

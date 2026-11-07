@@ -38,6 +38,7 @@ class Order extends Model
             'expedition_prepay' => 'boolean',
             'expedition_advanced' => 'boolean',
             'expedition_dropped_at' => 'datetime',
+            'payment_proof_at' => 'datetime',
             'confirmed_at' => 'datetime',
             'callback_at' => 'datetime',
             'shipped_at' => 'datetime',
