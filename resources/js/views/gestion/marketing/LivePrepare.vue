@@ -24,13 +24,11 @@ const lives = ref(null)
 const whatsapp = ref(null)
 const number = ref({ phone: null, noCard: false }) // numéro WhatsApp relié
 const fees = ref(null) // prix de livraison (GET delivery-rates)
-const pageUrl = ref('')
 const draft = ref(null) // état complet du live en préparation (GET lives/{id})
 const error = ref('')
 const busy = ref(false)
 const panel = ref(null) // 'fees' | 'items' | 'pin'
 const video = ref(false)
-const copied = ref(false)
 
 const current = computed(() => lives.value?.find((l) => l.status === 'live'))
 const past = computed(() => (lives.value ?? []).filter((l) => l.status === 'ended'))
@@ -42,7 +40,6 @@ async function load() {
     lives.value = data.data
     whatsapp.value = data.meta.whatsapp
     number.value = { phone: data.meta.whatsapp_phone, noCard: !!data.meta.whatsapp_no_card }
-    pageUrl.value = data.meta.page_url
     const latest = data.data.find((l) => l.status === 'draft')
     draft.value = latest ? (await http.get(`/lives/${latest.id}`)).data.data : null
     if (auth.can('store.manage')) fees.value = (await http.get('/delivery-rates').catch(() => null))?.data.data ?? null
@@ -145,16 +142,6 @@ async function pinReady() {
   }
 }
 
-async function copyLink() {
-  try {
-    await navigator.clipboard.writeText(pageUrl.value)
-    copied.value = true
-    setTimeout(() => (copied.value = false), 2000)
-  } catch {
-    window.prompt('Copie ce lien :', pageUrl.value)
-  }
-}
-
 async function start() {
   busy.value = true
   error.value = ''
@@ -237,12 +224,12 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         <button v-if="step >= 3" type="button" class="shrink-0 text-[14px] font-black" :class="done.items ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'items'">{{ done.items ? 'Modifier' : 'Choisir ▸' }}</button>
       </div>
 
-      <!-- 4 · Photo à épingler -->
+      <!-- 4 · Carte à épingler (fond vert) -->
       <div :class="card(4)">
         <span :class="bubble(4)">{{ step > 4 ? '✓' : 4 }}</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">{{ done.pin ? 'Photo épinglée' : 'La photo à épingler' }}</b>
-          <span class="text-[13.5px] text-slate-500">{{ done.pin ? 'Lien dans la bio ✓' : 'À publier et épingler sur TikTok' }}</span>
+          <b class="block text-[18px] leading-tight">{{ done.pin ? 'Carte prête' : 'La carte à épingler' }}</b>
+          <span class="text-[13.5px] text-slate-500">{{ done.pin ? 'En fond vert sur le live ✓' : 'À mettre en fond vert sur ton live' }}</span>
         </div>
         <button v-if="step >= 4" type="button" class="shrink-0 text-[14px] font-black" :class="done.pin ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'pin'">{{ done.pin ? 'Revoir' : 'Ouvrir ▸' }}</button>
       </div>
@@ -270,21 +257,16 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     <LiveItemsPanel v-if="panel === 'items'" :draft="draft" :past="past" @saved="saved" @close="panel = null" />
 
     <!-- Étape 4 : la photo et les consignes -->
-    <div v-if="panel === 'pin' && draft" class="fixed inset-0 z-50 flex flex-col bg-white" role="dialog" aria-modal="true" aria-label="La photo à épingler">
+    <div v-if="panel === 'pin' && draft" class="fixed inset-0 z-50 flex flex-col bg-white" role="dialog" aria-modal="true" aria-label="La carte à épingler">
       <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-        <h2 class="text-[18px] font-black">4 · La photo à épingler</h2>
+        <h2 class="text-[18px] font-black">4 · La carte à épingler</h2>
         <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-lg" aria-label="Fermer" @click="panel = null">✕</button>
       </header>
       <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
         <LivePin :live="draft" />
         <section class="space-y-3 rounded-2xl bg-orange-50 p-4">
-          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">1</b><p class="text-[15px]">Publie la photo sur TikTok et <b>épingle-la</b> sur ton profil.</p></div>
-          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">2</b>
-            <div class="min-w-0 flex-1 space-y-2"><p class="text-[15px]">Mets le <b>lien de ton live dans ta bio</b> :</p>
-              <div class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><span class="min-w-0 flex-1 truncate">{{ pageUrl }}</span><button type="button" class="shrink-0 font-black text-ocre-700" @click="copyLink">{{ copied ? 'Copié ✓' : 'Copier' }}</button></div>
-            </div>
-          </div>
-          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">3</b><p class="text-[15px]">Pendant le live, épingle ton <b>numéro WhatsApp</b> en commentaire.</p></div>
+          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">1</b><p class="text-[15px]"><b>Télécharge</b> la carte (bouton ci-dessus).</p></div>
+          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">2</b><p class="text-[15px]">Dans ton live TikTok, ouvre <b>Fond vert</b> et choisis la carte dans ta galerie : les clientes voient tes articles et leurs codes pendant tout le live.</p></div>
         </section>
       </div>
       <footer class="border-t border-slate-200 p-3">

@@ -5,8 +5,8 @@ import { money } from '../lib/format'
 
 /**
  * Prix de livraison à toucher : le prix de la ville, toutes les communes déjà listées (prix de la ville en gris, prix
- * changé en vert), les quartiers à part, les expéditions vers les autres villes (un prix pour toutes, ou par ville,
- * paiement avant l'envoi) et la livraison offerte. Chaque toucher est enregistré tout de suite.
+ * changé en vert), les quartiers à part, les expéditions vers les autres villes (un seul prix pour toutes, paiement
+ * avant l'envoi) et la livraison offerte. Chaque toucher est enregistré tout de suite.
  */
 const emit = defineEmits(['loaded'])
 
@@ -14,7 +14,6 @@ const rates = ref(null)
 const error = ref('')
 const busy = ref(false)
 const allCommunes = ref(false)
-const allCities = ref(false)
 const sheet = ref(null) // { kind, place?, title, value }
 const other = ref('')
 const quartiers = ref(null) // quartiers de la commune ouverte dans la fenêtre
@@ -43,7 +42,6 @@ const base = computed(() => rates.value?.base_fee ?? null)
 const homeName = computed(() => rates.value?.home?.name ?? 'la ville')
 const communes = computed(() => (allCommunes.value ? rates.value?.places ?? [] : (rates.value?.places ?? []).slice(0, 6)))
 const shipping = computed(() => rates.value?.expedition?.fee ?? null)
-const cities = computed(() => (allCities.value ? rates.value?.cities ?? [] : (rates.value?.cities ?? []).slice(0, 5)))
 
 function open(kind, place = null) {
   other.value = ''
@@ -53,14 +51,13 @@ function open(kind, place = null) {
     place: place?.learned ? place.fee : null,
     quartier: place?.learned ? place.fee : null,
     shipping: shipping.value,
-    city: place?.learned ? place.fee : null,
     free: rates.value?.free_shipping_above ?? null,
   }[kind]
   const title = { base: `${homeName.value} (partout)`, shipping: 'Expédition · toutes les villes', free: 'Livraison offerte dès' }[kind] ?? place.name
   sheet.value = { kind, place, title, value, parent: kind === 'quartier' ? sheet.value?.place : null }
 }
 
-const chips = computed(() => ({ shipping: SHIP_CHIPS, city: SHIP_CHIPS, free: FREE_CHIPS }[sheet.value?.kind] ?? CITY_CHIPS))
+const chips = computed(() => ({ shipping: SHIP_CHIPS, free: FREE_CHIPS }[sheet.value?.kind] ?? CITY_CHIPS))
 
 async function choose(fee) {
   const s = sheet.value
@@ -82,10 +79,9 @@ const resetLabel = computed(() => {
   if (s.kind === 'free') return 'Jamais offerte'
   if (s.kind === 'place') return `Comme ${homeName.value} (${money(base.value ?? 0)})`
   if (s.kind === 'quartier') return `Comme ${s.parent?.name ?? 'la commune'}`
-  if (s.kind === 'city') return shipping.value !== null ? `Comme toutes les villes (${money(shipping.value)})` : 'Retirer ce prix'
   return ''
 })
-const canReset = computed(() => sheet.value && (sheet.value.kind === 'free' ? sheet.value.value !== null : ['place', 'quartier', 'city'].includes(sheet.value.kind) && sheet.value.place?.learned))
+const canReset = computed(() => sheet.value && (sheet.value.kind === 'free' ? sheet.value.value !== null : ['place', 'quartier'].includes(sheet.value.kind) && sheet.value.place?.learned))
 
 async function loadQuartiers() {
   quartiers.value = (await http.get(`/delivery-rates/places/${sheet.value.place.id}`)).data.data.places
@@ -133,19 +129,12 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
           </button>
           <template v-if="shipping !== null">
             <button type="button" class="mt-3 flex w-full items-center justify-between gap-3 text-left" @click="open('shipping')">
-              <span><b class="block text-[15.5px]">Prix pour toutes les villes</b><small class="text-[12.5px] text-slate-500">Tout compris : jusqu'à la gare + le car</small></span>
+              <span><b class="block text-[15.5px]">Prix pour toutes les villes</b><small class="text-[12.5px] text-slate-500">Toutes les autres villes, tout compris : jusqu'à la gare + le car</small></span>
               <span :class="pill(true)">{{ money(shipping) }}</span>
             </button>
           </template>
         </section>
         <template v-if="shipping !== null">
-          <section v-if="rates.cities.length" class="rounded-2xl bg-white px-4 py-1">
-            <button v-for="c in cities" :key="c.id" type="button" class="flex w-full items-center justify-between gap-3 border-b border-slate-100 py-2.5 text-left last:border-0" @click="open('city', c)">
-              <span class="min-w-0 truncate text-[16px]">{{ c.name }}</span>
-              <span :class="pill(c.learned)">{{ money((c.learned ? c.fee : shipping) ?? 0) }}</span>
-            </button>
-            <button v-if="!allCities && rates.cities.length > 5" type="button" class="block w-full py-2.5 text-center text-[14px] font-black text-emerald-700" @click="allCities = true">Voir les {{ rates.cities.length - 5 }} autres villes ▾</button>
-          </section>
           <section class="rounded-2xl bg-white p-4">
             <button type="button" class="flex w-full items-center justify-between gap-3 text-left text-[16px] font-extrabold" :disabled="busy" @click="togglePrepay">
               <span>Paiement avant l'envoi</span>

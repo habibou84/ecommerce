@@ -394,7 +394,6 @@ async function redo() {
               <ol class="space-y-2 text-[15px]">
                 <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white">1</span><span>Choisissez le format, puis <b>téléchargez</b> l'étiquette.</span></li>
                 <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white">2</span><span>Dans votre live TikTok, ouvrez le menu <b>Fond vert</b> et choisissez l'étiquette dans la galerie.</span></li>
-                <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white">3</span><span><b>Épinglez-la sur le live.</b></span></li>
               </ol>
               <LivePin :live="live" bare @shared="onPinSheetShared" />
             </template>
