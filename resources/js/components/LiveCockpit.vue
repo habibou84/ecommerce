@@ -382,14 +382,14 @@ const ago = (iso) => {
       <!-- Étiquette à épingler : à jour, ou ce qui a changé et la nouvelle -->
       <template v-else>
         <div v-if="pinStale" class="rounded-xl bg-amber-500/15 p-3 ring-1 ring-amber-400/60">
-          <b class="block text-[14px] text-amber-200">⚠ {{ pinShared ? 'Étiquette à refaire' : 'Étiquette pas encore épinglée' }}</b>
+          <b class="block text-[14px] text-amber-200">⚠ {{ pinShared ? 'Étiquette à refaire' : 'Étiquette pas encore en fond vert' }}</b>
           <template v-if="changes.length">
             <span class="block text-[12.5px] text-amber-100">Depuis la dernière<template v-if="pinTime"> ({{ pinTime }})</template> :</span>
             <span v-for="c in changes" :key="c" class="block text-[13px] font-bold">{{ c }}</span>
           </template>
-          <span class="mt-1 block text-[12.5px] text-amber-100">Voici la nouvelle : partagez-la, puis dans TikTok ouvrez <b>Fond vert</b> et épinglez-la sur le live.</span>
+          <span class="mt-1 block text-[12.5px] text-amber-100">Voici la nouvelle : téléchargez-la, puis dans votre live TikTok ouvrez <b>Fond vert</b> et choisissez-la.</span>
         </div>
-        <p v-else class="rounded-xl bg-emerald-500/15 px-3 py-2 text-[13px] font-extrabold text-emerald-300">✓ Étiquette à jour · {{ pinCount }} article{{ pinCount > 1 ? 's' : '' }}<template v-if="pinTime"> · épinglée à {{ pinTime }}</template></p>
+        <p v-else class="rounded-xl bg-emerald-500/15 px-3 py-2 text-[13px] font-extrabold text-emerald-300">✓ Étiquette à jour · {{ pinCount }} article{{ pinCount > 1 ? 's' : '' }}<template v-if="pinTime"> · faite à {{ pinTime }}</template></p>
         <div class="rounded-xl bg-white p-3 text-slate-900"><LivePin :live="live" bare @shared="(sig) => emit('pin-shared', sig)" /></div>
       </template>
 

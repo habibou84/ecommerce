@@ -92,7 +92,7 @@ async function share() {
 <template>
   <section class="card space-y-3 p-4">
     <div v-if="!bare">
-      <h3 class="font-extrabold">📌 Photo à épingler</h3>
+      <h3 class="font-extrabold">📌 La carte à épingler</h3>
       <p class="mt-1 text-sm text-slate-600">Tes articles et leurs codes sur une image, à mettre en fond vert sur ton live TikTok.</p>
     </div>
 
