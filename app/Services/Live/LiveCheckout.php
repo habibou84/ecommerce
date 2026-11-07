@@ -433,9 +433,21 @@ class LiveCheckout
         } catch (Throwable) {
             // Pas de paiement en ligne : le lien Wave de la boutique, puis la capture du reçu à envoyer ici
             return filled($store->wave_link)
-                ? '👉 Payez avec Wave : '.$store->wave_link."\n📸 Puis envoyez ici la *capture du reçu Wave*."
+                ? '👉 Payez avec Wave : '.self::waveLink($store->wave_link, $order->expeditionPrepayDue())."\n📸 Puis envoyez ici la *capture du reçu Wave*."
                 : '👉 La boutique vous envoie tout de suite son numéro Wave ou Orange Money pour payer.';
         }
+    }
+
+    /**
+     * Lien Wave de la boutique avec le montant à payer déjà rempli (paramètre amount de Wave) : la cliente n'a
+     * plus qu'à valider.
+     */
+    public static function waveLink(string $link, int $amount): string
+    {
+        $link = (string) preg_replace('/([?&])amount=[^&]*&?/', '$1', trim($link));
+        $link = rtrim($link, '?&');
+
+        return $link.(str_contains($link, '?') ? '&' : '?').'amount='.$amount;
     }
 
     /**

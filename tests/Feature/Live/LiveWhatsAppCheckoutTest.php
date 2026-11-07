@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Live\LiveCheckout;
 use App\Services\Places\DeliveryRates;
 use App\Services\Places\Places;
 use Illuminate\Http\Client\Request;
@@ -237,7 +238,9 @@ class LiveWhatsAppCheckoutTest extends TestCase
         // Je confirme : le lien Wave de la boutique et la capture du reçu à envoyer
         $this->tap("live:confirm:{$order->id}", '✅ Je confirme', 'button_reply');
         $body = $this->sent()[0]['text']['body'];
-        $this->assertStringContainsString('Payez avec Wave : https://pay.wave.com/m/M_ci_test/c/ci/', $body);
+        $due = $order->fresh()->expeditionPrepayDue();
+        $this->assertStringContainsString("Payez avec Wave : https://pay.wave.com/m/M_ci_test/c/ci/?amount={$due}", $body);
+        $this->assertSame('https://pay.wave.com/m/x/c/ci/?ref=1&amount=500', LiveCheckout::waveLink('https://pay.wave.com/m/x/c/ci/?amount=200&ref=1', 500));
         $this->assertStringContainsString('capture du reçu Wave', $body);
 
         // La capture du reçu : notée sur la commande, la cliente est remerciée
