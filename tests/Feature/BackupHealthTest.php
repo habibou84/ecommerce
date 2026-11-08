@@ -56,8 +56,7 @@ class BackupHealthTest extends TestCase
     private function signIn(): void
     {
         $this->signedIn = true;
-        $start = $this->apiOn(self::CONSOLE, 'POST', 'console/auth/login', ['phone' => '0701020304', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $this->apiOn(self::CONSOLE, 'POST', 'console/auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+        $this->signInConsole('0701020304');
     }
 
     public function test_backup_states_are_shown_in_the_console(): void

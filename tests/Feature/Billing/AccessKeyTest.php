@@ -31,7 +31,7 @@ class AccessKeyTest extends TestCase
         parent::setUp();
         Notification::fake();
         $this->admin = User::factory()->create(['phone' => '+2250701020304']);
-        $this->admin->forceFill(['is_super_admin' => true])->save();
+        $this->admin->forceFill(['is_super_admin' => true] + self::consoleTwoFactor())->save();
     }
 
     private function console(string $method, string $path, array $data = []): TestResponse

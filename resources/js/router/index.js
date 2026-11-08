@@ -132,6 +132,7 @@ const storeRoutes = [
 // admin.jibiat-marchand.com : console du super administrateur
 const consoleRoutes = [
   { path: '/console/connexion', component: () => import('../views/console/Login.vue'), meta: { guest: true, title: 'Connexion' } },
+  { path: '/console/deux-etapes', component: () => import('../views/console/TwoFactor.vue'), meta: { auth: true, title: 'Validation en deux étapes' } },
   { path: '/console/mot-de-passe-oublie', component: () => import('../views/auth/ForgotPassword.vue'), props: { loginPath: '/console/connexion' }, meta: { guest: true, title: 'Mot de passe oublié' } },
   {
     path: '/console',
@@ -174,6 +175,8 @@ router.beforeEach(async (to) => {
     if (!console_.loaded) await console_.fetch()
     if (to.matched.some((r) => r.meta.auth) && !console_.admin) return '/console/connexion'
     if (to.meta.guest && console_.admin) return '/console'
+    // Validation en deux étapes pas encore activée : rien d'autre avant
+    if (console_.admin && !console_.admin.two_factor && to.path !== '/console/deux-etapes') return '/console/deux-etapes'
     return true
   }
   if (boot.zone !== 'store') return true

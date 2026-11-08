@@ -21,7 +21,7 @@ class User extends Authenticatable
 
     protected $fillable = ['name', 'phone', 'email', 'password', 'phone_verified_at', 'status', 'locale'];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'];
 
     protected function casts(): array
     {
@@ -32,6 +32,10 @@ class User extends Authenticatable
             'is_super_admin' => 'boolean',
             'status' => UserStatus::class,
             'password' => 'hashed',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
+            'two_factor_last_step' => 'integer',
         ];
     }
 

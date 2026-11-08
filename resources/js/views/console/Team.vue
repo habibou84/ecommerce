@@ -17,6 +17,22 @@ const form = reactive({ name: '', phone: '', email: '', current_password: '' })
 const revoking = ref(null) // administrateur à retirer
 const revokePassword = ref('')
 const added = ref('')
+const resetting = ref(null) // administrateur dont l'application est réinitialisée
+const resetPassword = ref('')
+
+async function resetTwoFactor() {
+  errors.value = {}
+  error.value = ''
+  try {
+    admins.value = (await http.post(`/console/team/${resetting.value.id}/reset-2fa`, { current_password: resetPassword.value })).data.data
+    added.value = `Application de ${resetting.value.name} réinitialisée : à sa prochaine connexion, il reçoit un code par e-mail puis active son nouveau téléphone.`
+    resetting.value = null
+    resetPassword.value = ''
+  } catch (e) {
+    errors.value = fieldErrors(e)
+    error.value = errors.value.admin?.[0] ?? (Object.keys(errors.value).length ? '' : errorMessage(e))
+  }
+}
 
 async function load() {
   try {
@@ -33,7 +49,7 @@ async function add() {
   error.value = ''
   try {
     admins.value = (await http.post('/console/team', form)).data.data
-    added.value = `${form.name} est ajouté. Pour son premier accès : console › « Mot de passe oublié ? », avec son numéro, puis le code reçu par e-mail.`
+    added.value = `${form.name} est ajouté. Pour son premier accès : console › « Mot de passe oublié ? », avec son numéro, puis le code reçu par e-mail et l'activation de son application d'authentification.`
     Object.assign(form, { name: '', phone: '', email: '', current_password: '' })
     adding.value = false
   } catch (e) {
@@ -71,9 +87,18 @@ async function close(id) {
         <div class="min-w-0 flex-1">
           <p class="font-semibold">{{ a.name }} <span v-if="a.me" class="font-normal text-slate-500">(vous)</span></p>
           <p class="text-slate-600">{{ a.phone }} · {{ a.email ?? 'pas d\'e-mail' }}</p>
+          <p class="text-xs" :class="a.two_factor ? 'text-emerald-700' : 'text-amber-700'">{{ a.two_factor ? '✓ Validation en deux étapes activée' : 'Validation en deux étapes à activer à la prochaine connexion' }}</p>
           <p class="text-xs text-slate-500">{{ a.last_login_at ? `Dernière connexion le ${formatDateTime(a.last_login_at)}` : 'Jamais connecté' }}</p>
         </div>
-        <button v-if="!a.me" class="text-red-700 underline" @click="revoking = a; revokePassword = ''">Retirer l'accès</button>
+        <button v-if="!a.me && a.two_factor" class="text-slate-700 underline" @click="resetting = a; resetPassword = ''; revoking = null">Téléphone perdu</button>
+        <button v-if="!a.me" class="text-red-700 underline" @click="revoking = a; revokePassword = ''; resetting = null">Retirer l'accès</button>
+        <div v-if="resetting?.id === a.id" class="flex w-full flex-wrap items-end gap-2 rounded-lg bg-amber-50 p-3">
+          <Field id="reset-password" :label="`Votre mot de passe pour réinitialiser l'application de ${a.name}`" :error="errors.current_password" class="min-w-0 flex-1">
+            <PasswordInput id="reset-password" v-model="resetPassword" class="input" autocomplete="current-password" />
+          </Field>
+          <button class="btn-brand" :disabled="!resetPassword" @click="resetTwoFactor">Réinitialiser</button>
+          <button class="btn-ghost" @click="resetting = null">Annuler</button>
+        </div>
         <div v-if="revoking?.id === a.id" class="flex w-full flex-wrap items-end gap-2 rounded-lg bg-red-50 p-3">
           <Field id="revoke-password" :label="`Votre mot de passe pour retirer ${a.name}`" :error="errors.current_password" class="min-w-0 flex-1">
             <PasswordInput id="revoke-password" v-model="revokePassword" class="input" autocomplete="current-password" />
@@ -88,7 +113,7 @@ async function close(id) {
     <form v-else class="card space-y-3 p-4 text-sm" @submit.prevent="add">
       <p class="font-semibold">Nouvel administrateur</p>
       <p class="text-slate-600">
-        Il aura accès à toute la console. Il choisira lui-même son mot de passe (« Mot de passe oublié ? » sur la page de connexion) et recevra le code de connexion à son adresse e-mail.
+        Il aura accès à toute la console. Il choisira lui-même son mot de passe (« Mot de passe oublié ? » sur la page de connexion) recevra un code à son adresse e-mail pour son premier accès, puis activera la validation en deux étapes sur son téléphone.
         Un numéro qui a déjà un compte marchand n'est pas accepté : la console a ses propres comptes.
       </p>
       <div class="grid gap-3 sm:grid-cols-3">

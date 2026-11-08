@@ -233,8 +233,7 @@ class WhatsAppLinkTest extends TestCase
         $this->app['auth']->forgetGuards();
         User::factory()->create(['phone' => '+2250701020304', 'password' => 'motdepasse'])->forceFill(['is_super_admin' => true])->save();
         $console = fn (string $method, string $path, array $data = []) => $this->apiOn('http://admin.localhost', $method, 'console/'.$path, $data);
-        $start = $console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+        $this->signInConsole('0701020304');
 
         $console('GET', "stores/{$this->store->id}")->assertOk()
             ->assertJsonPath('data.whatsapp_qr', ['enabled' => true, 'status' => 'connected']);

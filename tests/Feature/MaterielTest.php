@@ -30,7 +30,7 @@ class MaterielTest extends TestCase
         Notification::fake();
         config(['platform.billing.wave_link' => 'https://pay.wave.com/m/M_jibiat/c/ci/']);
         $this->admin = User::factory()->create(['phone' => '+2250701020304']);
-        $this->admin->forceFill(['is_super_admin' => true])->save();
+        $this->admin->forceFill(['is_super_admin' => true] + self::consoleTwoFactor())->save();
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
     }
 

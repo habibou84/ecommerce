@@ -3,6 +3,7 @@
 use App\Enums\CancelReason;
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
+use App\Models\AdminAction;
 use App\Models\CarrierConnection;
 use App\Models\CarrierWebhookReceipt;
 use App\Models\Cart;
@@ -12,6 +13,7 @@ use App\Models\Store;
 use App\Models\StoreDomain;
 use App\Models\User;
 use App\Models\WhatsappAccount;
+use App\Services\Accounts\ConsoleTwoFactor;
 use App\Services\Accounts\StoreDataExport;
 use App\Services\Billing\Billing;
 use App\Services\Console\SupportSessions;
@@ -38,6 +40,7 @@ use App\Services\WhatsApp\PlatformWhatsApp;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 use Jibiat\Socle\PhoneNumber;
 
@@ -235,6 +238,20 @@ Artisan::command('platform:admin {phone} {--revoke}', function (string $phone) {
     $user->forceFill(['is_super_admin' => ! $this->option('revoke')])->save();
     $this->info($user->name.($this->option('revoke') ? ' n\'a plus accès' : ' a accès').' à la console.');
 })->purpose('Donne (ou retire) l\'accès à la console du super administrateur');
+
+// Dernier recours (seul administrateur, téléphone perdu sans codes de secours) : sur le serveur uniquement
+Artisan::command('platform:2fa-reset {phone}', function (string $phone) {
+    $user = User::where('phone', PhoneNumber::normalize($phone))->where('is_super_admin', true)->first();
+    if ($user === null) {
+        $this->error('Aucun administrateur de la console avec ce numéro.');
+
+        return 1;
+    }
+    app(ConsoleTwoFactor::class)->disable($user);
+    DB::table('sessions')->where('user_id', $user->id)->delete();
+    AdminAction::create(['admin_id' => $user->id, 'action' => 'console_2fa_reset', 'data' => ['admin' => $user->name, 'by' => 'serveur']]);
+    $this->info("Validation en deux étapes retirée pour {$user->name} : à sa prochaine connexion, il recevra un code puis activera une nouvelle application.");
+})->purpose('Retire l\'application d\'authentification d\'un administrateur de la console');
 
 // Sauvegardes et disque : les super administrateurs sont prévenus par le WhatsApp du support (une panne au plus une
 // fois toutes les 6 heures, un point à surveiller une fois par jour). Tout se voit aussi dans la console › Santé.

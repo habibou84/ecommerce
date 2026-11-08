@@ -1,12 +1,13 @@
 <script setup>
 import PasswordInput from '../../components/PasswordInput.vue'
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { useConsoleStore } from '../../stores/console'
 
-// Mon compte : adresse qui reçoit le code de connexion, mot de passe ; tout changement demande le mot de passe actuel
+// Mon compte : validation en deux étapes (téléphone, codes de secours), adresse e-mail (alertes de connexion), mot de
+// passe ; tout changement demande le mot de passe actuel
 const store = useConsoleStore()
 const form = reactive({ email: store.admin?.email ?? '', password: '', password_confirmation: '', current_password: '' })
 const errors = ref({})
@@ -14,6 +15,27 @@ const error = ref('')
 const saved = ref(false)
 const busy = ref(false)
 const test = ref(null)
+const twoFactor = ref(null) // { enabled, since, recovery_left }
+const codesPassword = ref('')
+const newCodes = ref(null)
+const askCodes = ref(false)
+
+onMounted(async () => {
+  twoFactor.value = (await http.get('/console/2fa').catch(() => null))?.data.data ?? null
+})
+
+async function regenerate() {
+  errors.value = {}
+  try {
+    newCodes.value = (await http.post('/console/2fa/recovery-codes', { current_password: codesPassword.value })).data.data.recovery_codes
+    twoFactor.value = { ...twoFactor.value, recovery_left: newCodes.value.length }
+    askCodes.value = false
+    codesPassword.value = ''
+  } catch (e) {
+    errors.value = fieldErrors(e)
+    if (!Object.keys(errors.value).length) error.value = errorMessage(e)
+  }
+}
 
 async function save() {
   busy.value = true
@@ -47,17 +69,33 @@ async function sendTest() {
     <h2 class="text-xl font-semibold">Mon compte</h2>
     <Alert v-if="error">{{ error }}</Alert>
 
+    <section v-if="twoFactor" class="card space-y-3 p-4 text-sm">
+      <p class="font-semibold">Validation en deux étapes <span class="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">✓ activée</span></p>
+      <p class="text-slate-600">À chaque connexion : mot de passe, puis le code de votre application d'authentification. {{ twoFactor.recovery_left }} code(s) de secours restant(s).</p>
+      <div class="flex flex-wrap gap-2">
+        <RouterLink to="/console/deux-etapes?changer=1" class="btn-ghost">Changer de téléphone</RouterLink>
+        <button type="button" class="btn-ghost" @click="askCodes = !askCodes; newCodes = null">Nouveaux codes de secours</button>
+      </div>
+      <form v-if="askCodes" class="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-3" @submit.prevent="regenerate">
+        <Field id="codes-password" label="Mot de passe actuel (les anciens codes ne marcheront plus)" :error="errors.current_password" class="min-w-0 flex-1">
+          <PasswordInput id="codes-password" v-model="codesPassword" class="input" autocomplete="current-password" required />
+        </Field>
+        <button class="btn-brand" :disabled="!codesPassword">Créer</button>
+      </form>
+      <div v-if="newCodes" class="space-y-2">
+        <p class="font-semibold text-amber-800">Notez-les maintenant : ils ne seront plus affichés.</p>
+        <ul class="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 text-center font-mono text-base font-semibold"><li v-for="c in newCodes" :key="c">{{ c }}</li></ul>
+      </div>
+    </section>
+
     <form class="card space-y-4 p-4 text-sm" @submit.prevent="save">
       <div>
-        <p class="font-semibold">Code de connexion par e-mail</p>
-        <p class="text-slate-600">
-          À chaque connexion, après le mot de passe, un code à 6 chiffres arrive à cette adresse. Sans adresse (ou si l'e-mail ne part pas),
-          la connexion repasse par la preuve de votre numéro.
-        </p>
+        <p class="font-semibold">Adresse e-mail</p>
+        <p class="text-slate-600">Elle reçoit l'alerte à chaque nouvelle connexion, et le code du premier accès si votre application est réinitialisée.</p>
       </div>
       <Field id="email" label="Adresse e-mail" :error="errors.email"><input id="email" v-model="form.email" type="email" class="input" autocomplete="email" /></Field>
       <div class="flex flex-wrap items-center gap-2">
-        <button type="button" class="btn-ghost" :disabled="!store.admin?.email" @click="sendTest">Recevoir un code d'essai</button>
+        <button type="button" class="btn-ghost" :disabled="!store.admin?.email" @click="sendTest">Envoyer un e-mail d'essai</button>
         <span v-if="test" :class="test.ok ? 'text-emerald-700' : 'text-red-700'">{{ test.ok ? '✓' : '✗' }} {{ test.detail }}</span>
       </div>
 
