@@ -205,9 +205,8 @@ class SignupByWhatsApp
 
         if ($user !== null && ($store = $user->stores()->orderBy('stores.id')->first()) !== null) {
             $signup->forceFill(['step' => 'existing', 'store_id' => $store->id])->save();
-            $this->choices($signup, 'Re-bonjour '.self::firstName($user->name)." 👋 Ce numéro a déjà la boutique *{$store->name}*.", [
-                'su:login' => 'Me connecter', 'su:second' => 'Créer une 2e boutique',
-            ]);
+            // Numéro déjà inscrit : seulement la connexion (une autre boutique se crée depuis la gestion)
+            $this->choices($signup, 'Re-bonjour '.self::firstName($user->name)." 👋 Ce numéro a déjà la boutique *{$store->name}*.", ['su:login' => 'Me connecter']);
 
             return true;
         }
@@ -226,13 +225,8 @@ class SignupByWhatsApp
 
         switch ($signup->step) {
             case 'existing':
-                if ($payload === 'su:login') {
+                if ($payload === 'su:login' || in_array(self::words($value), ['oui', 'ok', 'connexion', 'me connecter', 'connecter'], true)) {
                     return $this->sendLogin($signup);
-                }
-                if ($payload === 'su:second') {
-                    $this->reach($signup, 'confirmed');
-
-                    return $this->ask($signup, 'name');
                 }
 
                 return $this->ask($signup, 'existing');
@@ -326,7 +320,7 @@ class SignupByWhatsApp
         $signup->forceFill(['step' => $step])->save();
         $data = $signup->data ?? [];
         match ($step) {
-            'existing' => $this->choices($signup, 'Tu veux te connecter à ta boutique ou en créer une deuxième ?', ['su:login' => 'Me connecter', 'su:second' => 'Créer une 2e boutique']),
+            'existing' => $this->choices($signup, 'Touche *Me connecter* pour recevoir ton lien de connexion à ta boutique.', ['su:login' => 'Me connecter']),
             'confirm' => $this->choices($signup, 'Tu veux créer ta boutique avec ce numéro : *'.PhoneNumber::display($signup->phone).'* ?', ['su:yes' => '✅ Oui', 'su:other' => 'Autre numéro']),
             'name' => $this->say($signup->phone, "Super ! Quel est le *nom de ta boutique* ?\n_Exemple : Awa Mode_"),
             'first_name' => $this->say($signup->phone, 'Joli nom ! Et *ton prénom* ?'),
