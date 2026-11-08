@@ -69,6 +69,7 @@ const storeRoutes = [
       { path: 'catalogue/import', component: () => import('../views/gestion/catalog/CatalogImport.vue'), meta: { title: 'Importer des produits', permission: 'products.manage' } },
       { path: 'catalogue/:id(\\d+)', component: () => import('../views/gestion/catalog/ProductEdit.vue'), props: true, meta: { title: 'Produit', permission: 'products.view' } },
       { path: 'collections', component: () => import('../views/gestion/catalog/Collections.vue'), meta: { title: 'Collections', permission: 'products.view' } },
+      { path: 'packs', component: () => import('../views/gestion/catalog/Packs.vue'), meta: { title: 'Packs', permission: 'products.view' } },
       { path: 'stock', component: () => import('../views/gestion/stock/StockLevels.vue'), meta: { title: 'Stock', permission: 'stock.manage' } },
       { path: 'stock/commandes', component: () => import('../views/gestion/stock/PurchaseOrders.vue'), meta: { platform: 'suppliers', title: 'Commandes fournisseurs', permission: 'stock.manage' } },
       { path: 'stock/receptions', component: () => import('../views/gestion/stock/StockReceipts.vue'), meta: { title: 'Stock', permission: 'stock.manage' } },

@@ -23,6 +23,7 @@ class Product extends Model
         'store_id', 'title', 'slug', 'description', 'brand', 'status', 'is_visible_online', 'has_variants',
         'track_inventory', 'allow_backorder', 'requires_shipping', 'is_fragile', 'low_stock_threshold',
         'seo_title', 'seo_description', 'published_at', 'preorder_enabled', 'preorder_ship_date', 'preorder_deposit_percent',
+        'sale_lot', 'min_order_quantity',
     ];
 
     protected function casts(): array
@@ -39,7 +40,31 @@ class Product extends Model
             'preorder_enabled' => 'boolean',
             'preorder_ship_date' => 'date',
             'published_at' => 'datetime',
+            'sale_lot' => 'integer',
+            'min_order_quantity' => 'integer',
         ];
+    }
+
+    /**
+     * Quantité vendable la plus proche de celle demandée : au moins le minimum, et un multiple du lot quand l'article
+     * se vend par lot seulement (4 demandées, lot de 6 : 6). Jamais moins que demandé.
+     */
+    public function sellableQuantity(int $quantity): int
+    {
+        $quantity = max($quantity, (int) $this->min_order_quantity, 1);
+        $lot = (int) $this->sale_lot;
+
+        return $lot > 1 ? (int) (ceil($quantity / $lot) * $lot) : $quantity;
+    }
+
+    /** « par lot de 6 », « 6 pièces minimum », ou null si l'article se vend à la pièce */
+    public function lotLabel(): ?string
+    {
+        return match (true) {
+            (int) $this->sale_lot > 1 => 'par lot de '.$this->sale_lot,
+            (int) $this->min_order_quantity > 1 => $this->min_order_quantity.' pièces minimum',
+            default => null,
+        };
     }
 
     public function options(): HasMany

@@ -41,6 +41,7 @@ const groups = [
   { label: 'Produits', color: 'produit', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', items: [
     { to: '/gestion/catalogue', label: 'Mes produits' },
     { to: '/gestion/collections', label: 'Collections' },
+    { to: '/gestion/packs', label: 'Packs' },
     { to: '/gestion/stock', label: 'Stock' },
   ] },
   { label: 'Livraisons', color: 'moto', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', items: [

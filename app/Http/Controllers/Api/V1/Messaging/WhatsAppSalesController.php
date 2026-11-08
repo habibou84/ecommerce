@@ -34,6 +34,12 @@ class WhatsAppSalesController extends Controller
             // Numéro par lequel partiraient les réponses : relié (non officiel, risque de blocage) ou officiel
             'channel' => $connected ? 'linked' : (WhatsappAccount::first() ? 'official' : null),
             'assistant' => $assistant->status($store),
+            // Modèles montrés aux clients qui écrivent « modèles » (allumé par défaut)
+            'models' => [
+                'enabled' => (bool) $store->whatsapp_models,
+                'orders_last_30_days' => Order::query()->where('source', OrderSource::Whatsapp->value)
+                    ->where('internal_note', 'WhatsApp : commandé depuis les modèles')->where('created_at', '>=', now()->subDays(30))->count(),
+            ],
             'sent_last_7_days' => ConversationMessage::query()->where('type', 'auto')->where('sent_at', '>=', now()->subDays(7))->count(),
             // Catalogue WhatsApp : seulement quand la console l'a allumé (il attend la validation de Meta)
             'catalog' => ! app(Features::class)->enabled('whatsapp_catalog', $store) ? null : [
@@ -45,6 +51,15 @@ class WhatsAppSalesController extends Controller
                     ->where('internal_note', CatalogOrders::NOTE)->where('created_at', '>=', now()->subDays(30))->count(),
             ],
         ]]);
+    }
+
+    /** « Montrer mes modèles aux clients » : allumé ou éteint */
+    public function models(Request $request, Assistant $assistant, CatalogFeed $feed): JsonResponse
+    {
+        $data = $request->validate(['enabled' => ['required', 'boolean']]);
+        $this->currentStore()->forceFill(['whatsapp_models' => $data['enabled']])->save();
+
+        return $this->show($assistant, $feed);
     }
 
     public function update(Request $request, Assistant $assistant, CatalogFeed $feed): JsonResponse

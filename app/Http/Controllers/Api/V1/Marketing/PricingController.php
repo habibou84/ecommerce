@@ -19,9 +19,13 @@ class PricingController extends Controller
 {
     public function volumePrices(int $product): JsonResponse
     {
-        Product::findOrFail($product);
+        $model = Product::findOrFail($product);
 
-        return response()->json(['data' => VolumePrice::where('product_id', $product)->orderBy('min_quantity')->get(['min_quantity', 'price'])]);
+        return response()->json([
+            'data' => VolumePrice::where('product_id', $product)->orderBy('min_quantity')->get(['min_quantity', 'price']),
+            // Vente en gros : par lot seulement (6, 12…) et minimum par commande
+            'sale' => ['sale_lot' => $model->sale_lot, 'min_order_quantity' => $model->min_order_quantity],
+        ]);
     }
 
     public function updateVolumePrices(Request $request, int $product): JsonResponse
@@ -31,6 +35,8 @@ class PricingController extends Controller
             'tiers' => ['present', 'array', 'max:10'],
             'tiers.*.min_quantity' => ['required', 'integer', 'min:2', 'max:1000', 'distinct'],
             'tiers.*.price' => ['required', 'integer', 'min:1', 'max:100000000'],
+            'sale_lot' => ['sometimes', 'nullable', 'integer', 'min:2', 'max:1000'],
+            'min_order_quantity' => ['sometimes', 'nullable', 'integer', 'min:2', 'max:1000'],
         ], ['tiers.*.min_quantity.min' => 'Un palier commence à 2 articles.', 'tiers.*.min_quantity.distinct' => 'Deux paliers ont la même quantité.'], ['tiers.*.price' => 'prix du lot']);
 
         foreach ($data['tiers'] as $i => $tier) {
@@ -40,6 +46,12 @@ class PricingController extends Controller
         }
 
         DB::transaction(function () use ($model, $data) {
+            if (array_key_exists('sale_lot', $data) || array_key_exists('min_order_quantity', $data)) {
+                $model->forceFill([
+                    'sale_lot' => $data['sale_lot'] ?? null,
+                    'min_order_quantity' => $data['min_order_quantity'] ?? null,
+                ])->save();
+            }
             VolumePrice::where('product_id', $model->id)->delete();
             foreach ($data['tiers'] as $tier) {
                 VolumePrice::create(['store_id' => $model->store_id, 'product_id' => $model->id] + $tier);
