@@ -175,8 +175,12 @@ const duration = computed(() => {
   return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`
 })
 
-// Lives payants : plus de lives offerts ni de pass en cours → choix 24 h ou 30 jours (PayDunya)
+// Lives payants : crédit insuffisant (et plus de commandes offertes) → recharge ou 30 jours (PayDunya)
 const payBilling = ref(null)
+// Bilan : crédit insuffisant pour le prochain live, la recharge s'ouvre ici
+async function openRecharge() {
+  payBilling.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? null
+}
 async function act(path, body) {
   busy.value = true
   error.value = ''
@@ -476,6 +480,11 @@ async function redo() {
           <h3 class="text-[17px] font-black">🧾 Prix de ce live : {{ live.billing.price ? money(live.billing.price) : 'gratuit' }}</h3>
           <p class="mt-1 text-[14px] text-slate-700">{{ live.billing.orders }} commande{{ live.billing.orders > 1 ? 's' : '' }} créée{{ live.billing.orders > 1 ? 's' : '' }} pendant le live<template v-if="live.billing.offered"> dont {{ live.billing.offered }} offerte{{ live.billing.offered > 1 ? 's' : '' }}</template>.</p>
           <p class="mt-1 text-[12.5px] text-slate-500">Retiré de ton crédit live. Une commande annulée ensuite reste comptée.</p>
+          <p class="mt-2 flex justify-between border-t border-amber-200 pt-2 text-[14.5px]"><span>Crédit après ce live</span><b :class="live.billing.credit < 0 ? 'text-red-700' : ''">{{ money(live.billing.credit) }}</b></p>
+          <template v-if="live.billing.recharge">
+            <p class="mt-1 text-[14px] font-bold text-orange-900">Recharge au moins {{ money(live.billing.recharge) }} pour ouvrir ton prochain live.</p>
+            <button type="button" class="mt-2 block w-full rounded-xl bg-slate-900 py-2.5 text-[15px] font-black text-white" @click="openRecharge">Recharger</button>
+          </template>
         </section>
         <section v-if="waitingClients.length" class="card flex flex-wrap items-center gap-3 p-4">
           <ColorIcon name="clients" :size="44" />

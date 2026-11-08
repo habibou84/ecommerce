@@ -383,6 +383,7 @@ const ago = (iso) => {
         <span class="text-amber-300">{{ live.billing.billable === 0 && live.billing.offered ? 'Offertes 🎁' : (live.billing.price ? `Palier ${live.billing.tier} · ${money(live.billing.price)}` : 'Gratuit') }}</span>
       </div>
       <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-600"><i class="block h-full rounded-full bg-amber-400" :style="{ width: `${tierFill}%` }" /></div>
+      <p v-if="live.billing.shortfall" class="mt-1.5 rounded-lg bg-amber-400/15 px-2 py-1 text-[12.5px] font-bold text-amber-200">⚠️ Ton crédit ({{ money(live.billing.credit) }}) ne couvre pas ce palier : il restera {{ money(live.billing.shortfall) }} à recharger avant le prochain live.</p>
       <small v-if="live.billing.next && !live.billing.billed" class="mt-1 block text-[12px] text-slate-300">Encore {{ live.billing.next.in }} commande{{ live.billing.next.in > 1 ? 's' : '' }} avant {{ money(live.billing.next.price) }}<template v-if="live.billing.offered"> · {{ live.billing.offered }} offerte{{ live.billing.offered > 1 ? 's' : '' }}</template></small>
     </div>
     <div v-if="menu" class="grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-2 text-sm font-extrabold text-slate-900">
