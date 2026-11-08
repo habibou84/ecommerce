@@ -134,13 +134,20 @@ class LiveBilling
         $tiers = $this->tiers();
         $index = collect($tiers)->search(fn ($t) => $t['to'] === null || $billable <= $t['to']);
         $next = $tiers[$index + 1] ?? null;
+        $price = $session->billed_amount ?? $tiers[$index]['price'];
+        $credit = (int) $store->live_credit;
+        $min = $this->settings()['min_credit'];
 
         return [
             'orders' => $orders,
             'offered' => $offered,
             'billable' => $billable,
             'tier' => $index + 1,
-            'price' => $session->billed_amount ?? $tiers[$index]['price'],
+            'price' => $price,
+            // Crédit live : pendant le live, ce qui manquera à la fermeture ; après, la recharge pour le live suivant
+            'credit' => $credit,
+            'shortfall' => $billed ? 0 : max(0, $price - $credit),
+            'recharge' => $billed ? max(0, $min - $credit) : 0,
             'next' => $next ? ['in' => $next['from'] - $billable, 'price' => $next['price']] : null,
             'tiers' => $tiers,
             'billed' => $billed,
