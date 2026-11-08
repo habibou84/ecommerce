@@ -37,11 +37,12 @@ class TenancyTest extends TestCase
 
     public function test_live_prices_show_only_when_paid_lives_are_on(): void
     {
-        $this->get($this->platformUrl())->assertOk()->assertSee('application est gratuite')->assertDontSee('Lives pendant 24 h');
+        $this->get($this->platformUrl())->assertOk()->assertSee('application est gratuite')->assertDontSee('Live de 11 à 30 commandes');
 
         app(LiveBilling::class)->update(['paid' => true]);
         $this->get($this->platformUrl())->assertOk()
-            ->assertSee('Commandes de tes 10 premiers lives TikTok')
+            ->assertSee('Tes 300 premières commandes en live')
+            ->assertSee('Live de 11 à 30 commandes')
             ->assertSee("500\u{00A0}F", false)->assertSee("7\u{00A0}000\u{00A0}F", false);
     }
 

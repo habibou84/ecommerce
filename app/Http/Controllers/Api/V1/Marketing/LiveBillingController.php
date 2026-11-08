@@ -10,8 +10,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Lives payants côté boutique : prix, lives offerts restants, pass ou forfait en cours, achat par PayDunya et
- * retour du paiement.
+ * Lives payants côté boutique : paliers, crédit live, commandes offertes restantes, forfait en cours, recharge ou
+ * 30 jours par PayDunya et retour du paiement.
  */
 class LiveBillingController extends Controller
 {
@@ -24,8 +24,11 @@ class LiveBillingController extends Controller
 
     public function checkout(Request $request): JsonResponse
     {
-        $data = $request->validate(['kind' => ['required', 'in:live_day,live_month']], [], ['kind' => 'durée']);
-        $invoice = $this->billing->checkout($this->currentStore(), $data['kind'], $request->user());
+        $data = $request->validate([
+            'kind' => ['required', 'in:live_credit,live_month'],
+            'amount' => ['nullable', 'required_if:kind,live_credit', 'integer', 'min:100', 'max:1000000'],
+        ], [], ['kind' => 'choix', 'amount' => 'montant']);
+        $invoice = $this->billing->checkout($this->currentStore(), $data['kind'], $request->user(), isset($data['amount']) ? (int) $data['amount'] : null);
 
         return response()->json(['data' => ['number' => $invoice->number, 'checkout_url' => $invoice->checkout_url]], 201);
     }

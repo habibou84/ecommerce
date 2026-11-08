@@ -536,7 +536,11 @@ class Billing
             if (in_array($invoice->kind, LiveBilling::KINDS, true)) {
                 $until = app(LiveBilling::class)->activate($store, $invoice);
                 $invoice->update(['status' => $status, 'method' => $method ?? $invoice->method, 'raw' => $raw, 'paid_at' => now(),
-                    'period_start' => now(), 'period_end' => $invoice->kind === 'live_month' ? $store->live_month_until : $store->live_pass_until]);
+                    'period_start' => now(), 'period_end' => match ($invoice->kind) {
+                        'live_month' => $store->live_month_until,
+                        'live_day' => $store->live_pass_until,
+                        default => null,
+                    }]);
                 DB::afterCommit(fn () => $this->notify($store, $status === 'offered' ? 'Lives offerts' : 'Paiement des lives reçu', $until.'.'));
 
                 return $invoice->fresh();

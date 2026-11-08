@@ -471,6 +471,12 @@ async function redo() {
             <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ live.summary.sold_out }} / {{ live.items.length }}</b>épuisé{{ live.summary.sold_out > 1 ? 's' : '' }}</span>
           </div>
         </section>
+        <!-- Lives payés par palier : prix de ce live, retiré du crédit à la fermeture -->
+        <section v-if="live.billing?.billed" class="rounded-[20px] border-2 border-amber-400 bg-amber-50 p-4">
+          <h3 class="text-[17px] font-black">🧾 Prix de ce live : {{ live.billing.price ? money(live.billing.price) : 'gratuit' }}</h3>
+          <p class="mt-1 text-[14px] text-slate-700">{{ live.billing.orders }} commande{{ live.billing.orders > 1 ? 's' : '' }} créée{{ live.billing.orders > 1 ? 's' : '' }} pendant le live<template v-if="live.billing.offered"> dont {{ live.billing.offered }} offerte{{ live.billing.offered > 1 ? 's' : '' }}</template>.</p>
+          <p class="mt-1 text-[12.5px] text-slate-500">Retiré de ton crédit live. Une commande annulée ensuite reste comptée.</p>
+        </section>
         <section v-if="waitingClients.length" class="card flex flex-wrap items-center gap-3 p-4">
           <ColorIcon name="clients" :size="44" />
           <div class="min-w-0 flex-1"><p class="font-extrabold">{{ waitingClients.length }} cliente{{ waitingClients.length > 1 ? 's' : '' }} en liste d'attente</p><p class="text-sm text-slate-600">Proposez-leur un autre article par WhatsApp avant qu'elles achètent ailleurs.</p></div>
