@@ -106,6 +106,10 @@ class Checkout
         if (collect($summary['lines'])->contains('short', true)) {
             throw new BusinessRuleException('Certains articles ne sont plus disponibles en quantité suffisante : vérifiez votre panier.');
         }
+        $lot = collect($summary['lines'])->firstWhere('lot_missing', '>', 0);
+        if ($lot !== null) {
+            throw new BusinessRuleException("« {$lot['title']} » se vend {$lot['lot']} : ajoutez-en encore {$lot['lot_missing']}.");
+        }
         if ($summary['discount']['error'] ?? null) {
             $cart->forceFill(['discount_code' => null])->save();
 

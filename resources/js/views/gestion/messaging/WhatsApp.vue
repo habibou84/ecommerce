@@ -28,6 +28,7 @@ const TABS = [
   { key: 'conversations', label: 'Conversations' },
   { key: 'messages', label: 'Messages automatiques' },
   { key: 'assistant', label: 'Assistant' },
+  { key: 'modeles', label: 'Modèles' },
   { key: 'catalogue', label: 'Catalogue' },
   { key: 'historique', label: 'Historique' },
 ]
@@ -137,6 +138,17 @@ const activeMessages = computed(() => {
   return Object.keys(official.value.events).filter((k) => !official.value.events[k].manual && a.automations?.[k] && a.templates?.[k]).length
 })
 
+// « Montrer mes modèles aux clients »
+const savingModels = ref(false)
+async function saveModels(enabled) {
+  savingModels.value = true
+  try {
+    sales.value = (await http.put('/whatsapp/models', { enabled })).data.data
+  } finally {
+    savingModels.value = false
+  }
+}
+
 // Résumé : une ligne par sujet, au style de « À faire maintenant » de l'accueil
 const summary = computed(() => {
   if (!official.value || !sales.value) return []
@@ -161,6 +173,10 @@ const summary = computed(() => {
     {
       key: 'assistant', icon: 'aide', label: 'Assistant (réponses automatiques)',
       ...(auto.enabled ? { ok: true, state: `Activé · ${sales.value.sent_last_7_days} réponse(s) en 7 jours` } : { state: 'Désactivé' }),
+    },
+    sales.value.models && {
+      key: 'modeles', icon: 'produit', label: 'Modèles montrés aux clients',
+      ...(sales.value.models.enabled ? { ok: true, state: `Activé · ${sales.value.models.orders_last_30_days} commande(s) en 30 jours` } : { state: 'Désactivé' }),
     },
     c && {
       key: 'catalogue', icon: 'produit', label: 'Catalogue WhatsApp',
@@ -254,6 +270,27 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
     <WhatsAppAutomations v-else-if="tab === 'messages'" :data="official" @update="official = $event" />
     <WhatsAppAssistant v-else-if="tab === 'assistant'" :data="sales" @update="sales = $event" />
     <WhatsAppCatalog v-else-if="tab === 'catalogue'" :data="sales" />
+    <!-- Modèles : le client écrit « modèles » et reçoit les photos, puis commande en touchant -->
+    <section v-else-if="tab === 'modeles' && sales.models" class="card space-y-4 p-4 sm:p-5">
+      <div class="flex items-start gap-3">
+        <ColorIcon name="produit" :size="44" />
+        <div class="min-w-0 flex-1">
+          <h3 class="text-[17px] font-extrabold">Montrer mes modèles aux clients</h3>
+          <p class="text-sm text-slate-600">Un client écrit « modèles » ou « vous avez quoi ? » : il reçoit vos catégories, puis les photos 5 par 5 avec le prix et les tailles en stock. Il commande en touchant « Je prends ».</p>
+        </div>
+      </div>
+      <label class="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
+        <input type="checkbox" class="h-5 w-5" :checked="sales.models.enabled" :disabled="savingModels" @change="saveModels($event.target.checked)" />
+        <span class="text-sm font-medium">{{ sales.models.enabled ? 'Activé' : 'Désactivé' }}</span>
+        <span class="ml-auto text-sm text-slate-600">{{ sales.models.orders_last_30_days }} commande(s) en 30 jours</span>
+      </label>
+      <ul class="list-disc space-y-1 pl-5 text-sm text-slate-600">
+        <li>Les catégories viennent de vos collections, avec « Packs » et « Nouveautés ».</li>
+        <li>Si vous répondez vous-même dans la conversation, l'assistant se tait pendant 6 h.</li>
+        <li>Pendant un live, « LIVE » montre toujours les articles du live.</li>
+        <li>Ces commandes ne comptent pas dans le prix du live.</li>
+      </ul>
+    </section>
 
     <section v-else-if="tab === 'historique'" class="card p-4 sm:p-5">
       <div class="flex flex-wrap gap-1.5 text-sm" role="radiogroup" aria-label="Filtrer les messages">

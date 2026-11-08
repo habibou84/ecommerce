@@ -149,6 +149,16 @@ class CartService
             ];
         }
 
+        // Vente par lot ou avec un minimum : pièces du même article comptées ensemble (tailles mélangées)
+        $byProduct = collect($kept)->groupBy(fn ($item) => $item->variant->product_id);
+        foreach ($lines as $n => $line) {
+            $product = $kept[$n]->variant->product;
+            $count = (int) $byProduct->get($product->id)->sum('quantity');
+            $needed = $product->sellableQuantity($count);
+            $lines[$n]['lot'] = $product->lotLabel();
+            $lines[$n]['lot_missing'] = $needed > $count ? $needed - $count : 0;
+        }
+
         $subtotal = array_sum(array_column($lines, 'total'));
         $code = $cart->discount_code && $lines !== []
             ? $this->pricing->code($store->id, $cart->discount_code, array_map(fn ($l) => ['product_id' => $l['product_id'], 'total' => $l['total']], $lines), $cart->phone)

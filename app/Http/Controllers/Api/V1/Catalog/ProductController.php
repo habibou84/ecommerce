@@ -56,6 +56,7 @@ class ProductController extends Controller
                 'status' => $p->status->value,
                 'status_label' => $p->status->label(),
                 'has_variants' => $p->has_variants,
+                'is_bundle' => $p->is_bundle,
                 'variants_count' => $p->variants_count,
                 'price_min' => $p->price_min,
                 'price_max' => $p->price_max,

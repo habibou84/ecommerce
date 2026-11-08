@@ -23,6 +23,7 @@ use App\Services\Places\DeliveryRates;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\Inbox;
+use App\Services\WhatsApp\ModelsOnWhatsApp;
 use App\Services\WhatsApp\WhatsAppBridge;
 use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Collection;
@@ -121,6 +122,7 @@ class LiveCheckout
             $action === 'cities' => $this->askCity($conversation, $store),
             $action === 'othercity' => $this->text($conversation, "🚚 *VOTRE VILLE*\n\n✍️ Écrivez *votre ville*\n_Exemple : Bouaké_"),
             $action === 'address' => $this->askCommune($conversation, "📍 *NOUVELLE ADRESSE*\n\n👇 Touchez *« Choisir ma commune »* ci-dessous"),
+            $action === 'add' && $this->modelsInstead($conversation, $store) => true,
             $action === 'add' => $this->text($conversation, "➕ *AJOUTER UN ARTICLE*\n\n✍️ Envoyez *le code de l'article*\n_Exemple : A4, ou plusieurs : A4 + A5_"),
             default => $this->text($conversation, "📍 *VOTRE ADRESSE*\n\n✍️ Écrivez *votre commune + votre quartier*\n_Exemple : Cocody Angré 8e tranche_"),
         };
@@ -142,7 +144,9 @@ class LiveCheckout
         $delivery = ($order->isExpedition() ? '🚚 Expédition' : '🛵 Livraison').($place ? " ({$place})" : '').' : '.($order->shipping_fee > 0 ? Money::format((int) $order->shipping_fee) : 'offerte');
         // Expédition payée avant l'envoi (réglage de la boutique) : on le dit à la place de « paiement à la livraison »
         $payment = $this->prepaid($order) ? "💳 *À payer avant l'envoi* : le colis part dès que vous avez payé" : '_Paiement à la livraison_';
-        $total = '💰 *Total à payer : '.Money::format((int) $order->total).'*';
+        // Prix de gros, pack au choix, prix barré : ce que le client économise
+        $saving = (int) $order->items->sum(fn ($i) => $i->compare_at_price && $i->compare_at_price * $i->quantity > $i->total ? $i->compare_at_price * $i->quantity - $i->total : 0);
+        $total = '💰 *Total à payer : '.Money::format((int) $order->total).'*'.($saving > 0 ? "\n🎁 Vous économisez ".Money::format($saving) : '');
         $title = "🧾 *COMMANDE N° {$order->reference()}*";
 
         // WhatsApp relié par QR code : pas de boutons, le récapitulatif en texte et des réponses à taper
@@ -290,6 +294,13 @@ class LiveCheckout
         $pending = LiveReservation::forStore($conversation->store_id)->with('item.session')->where('customer_phone', $phone)
             ->where('status', 'reserved')->whereNull('order_id')->get();
         $order = $pending->isNotEmpty() ? app(LiveSales::class)->deliverTo($pending, $place) : null;
+        // Articles choisis dans les modèles (hors live) en attente de l'adresse
+        $models = app(ModelsOnWhatsApp::class);
+        if ($order === null && $pending->isEmpty() && $models->waiting($conversation)) {
+            $order = $models->deliverTo($conversation, $place);
+
+            return $order !== null && $this->recap($conversation, $order);
+        }
         if ($order === null && $pending->isEmpty() && ($order = $this->liveOrder($conversation->store_id, $phone)) !== null) {
             try {
                 $order = $this->desk->update($order, ['shipping_place_id' => $place->id, 'shipping_address' => $place->label()], null);
@@ -303,6 +314,16 @@ class LiveCheckout
         return $order !== null
             ? $this->recap($conversation, $order)
             : $this->text($conversation, $pending->isEmpty() ? 'Rien à livrer pour l\'instant : envoyez le code d\'un article du live (par exemple A3).' : 'Merci ! La boutique vous appelle pour confirmer la livraison.');
+    }
+
+    /**
+     * « Ajouter un article » sans live en cours : les catégories des modèles plutôt qu'un code à envoyer.
+     */
+    private function modelsInstead(Conversation $conversation, Store $store): bool
+    {
+        $models = app(ModelsOnWhatsApp::class);
+
+        return LiveSales::ordering($store->id) === null && $models->enabled($conversation) && $models->categories($conversation);
     }
 
     private static function menuKey(Conversation $conversation): string
@@ -356,7 +377,8 @@ class LiveCheckout
 
         return match ($action) {
             'confirm' => $this->confirm($conversation, $order->id),
-            'add' => $this->text($conversation, "➕ *AJOUTER UN ARTICLE*\n\n✍️ Envoyez *le code de l'article + votre taille*\n_Exemple : A4 M_"),
+            'add' => $this->modelsInstead($conversation, Store::findOrFail($conversation->store_id))
+                || $this->text($conversation, "➕ *AJOUTER UN ARTICLE*\n\n✍️ Envoyez *le code de l'article + votre taille*\n_Exemple : A4 M_"),
             'address' => Cache::put($addressKey, $order->id, now()->addHour())
                 && $this->text($conversation, "📍 *NOUVELLE ADRESSE*\n\n✍️ Écrivez *votre commune + votre quartier*\n_Exemple : Yopougon Siporex_"),
             'cancel' => Cache::pull($cancelKey) === $order->id
@@ -594,7 +616,9 @@ class LiveCheckout
         return Order::forStore($storeId)->where('customer_phone', $phone)
             ->whereIn('status', [OrderStatus::PendingConfirmation->value, OrderStatus::Confirmed->value])
             ->whereIn('id', LiveReservation::forStore($storeId)->where('customer_phone', $phone)->whereNotNull('order_id')->select('order_id'))
-            ->where('created_at', '>=', now()->subDays(2))->latest('id')->first();
+            ->where('created_at', '>=', now()->subDays(2))->latest('id')->first()
+            // Commande passée depuis les modèles de la boutique (hors live)
+            ?? ModelsOnWhatsApp::openOrder($storeId, $phone);
     }
 
     /**

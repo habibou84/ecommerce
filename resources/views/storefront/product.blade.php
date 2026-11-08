@@ -86,6 +86,17 @@
                 </div>
             @endif
 
+            @if ($packs !== [])
+                <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                    @foreach ($packs as $pack)
+                        <p>🎁 <strong>{{ $pack['title'] }}</strong> : {{ $pack['quantity'] }} articles au choix pour <strong>@money($pack['price'])</strong></p>
+                    @endforeach
+                </div>
+            @endif
+            @if ($product->lotLabel())
+                <p class="mt-3 text-sm font-medium text-slate-700">📦 Se vend {{ $product->lotLabel() }}</p>
+            @endif
+
             @if ($hasChoices)
                 @foreach ($options as $index => $option)
                     <fieldset class="mt-6">

@@ -16,13 +16,16 @@ use App\Models\Place;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
+use App\Models\VolumePrice;
 use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Services\Ai\Assistant;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
+use App\Services\Promotions\Pricing;
 use App\Services\WhatsApp\Inbox;
+use App\Services\WhatsApp\ModelsOnWhatsApp;
 use App\Services\WhatsApp\WhatsAppBridge;
 use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Collection;
@@ -151,7 +154,13 @@ class LiveSales
                         }
                         $code = $sign;
                     }
-                    while ($code === null && in_array($candidate = self::code($index), $used, true)) {
+                    // Pack : pancarte P1, P2…
+                    for ($n = 1; $code === null && $variant->product->is_bundle && $n < 100; $n++) {
+                        if (! in_array('P'.$n, $used, true)) {
+                            $code = 'P'.$n;
+                        }
+                    }
+                    while ($code === null && (in_array($candidate = self::code($index), $used, true) || str_starts_with($candidate, 'P'))) {
                         $index++;
                     }
                     $code ??= $candidate;
@@ -579,6 +588,10 @@ class LiveSales
         if ($payload !== null && str_starts_with($payload, 'live:')) {
             return app(LiveCheckout::class)->onReply($conversation, $payload);
         }
+        // Modèles de la boutique : catégorie, « Je prends », taille, quantité touchées
+        if ($payload !== null && str_starts_with($payload, 'models:')) {
+            return app(ModelsOnWhatsApp::class)->onReply($conversation, $payload);
+        }
         // Capture du reçu de paiement d'une expédition payée avant l'envoi (lien Wave de la boutique)
         if (app(LiveCheckout::class)->receipt($conversation, $message)) {
             return true;
@@ -600,8 +613,10 @@ class LiveSales
         if (app(LiveCheckout::class)->answer($conversation, (string) $message->body)) {
             return true;
         }
-        // « LIVE » (ou « liste », « articles », « catalogue ») : tous les articles encore disponibles
-        if (self::asksForList((string) $message->body)) {
+        $models = app(ModelsOnWhatsApp::class);
+        // « LIVE » (ou « liste », « articles », « catalogue ») : tous les articles encore disponibles du live ; sans live,
+        // les modèles de la boutique (catégories puis photos)
+        if (self::asksForList((string) $message->body) && ($session !== null || ! $models->enabled($conversation))) {
             $this->sendList($conversation, $session);
 
             return true;
@@ -610,8 +625,13 @@ class LiveSales
         if ($session !== null && ($this->takeCodes($conversation, $session, (string) $message->body) || $this->chooseOption($conversation, (string) $message->body))) {
             return true;
         }
+        // Modèles de la boutique : « modèles », « vous avez quoi ? », ou réponse tapée (numéro, taille, quantité)
+        if ($models->fromText($conversation, (string) $message->body)) {
+            return true;
+        }
 
-        $order = $this->complete($conversation->store, PhoneNumber::normalize($conversation->contact), $message->body);
+        $order = $this->complete($conversation->store, PhoneNumber::normalize($conversation->contact), $message->body)
+            ?? $models->complete($conversation, (string) $message->body);
         // Récapitulatif : prix de la livraison, total, et confirmer / ajouter / changer l'adresse / annuler
         if ($order !== null) {
             app(LiveCheckout::class)->recap($conversation, $order);
@@ -661,7 +681,8 @@ class LiveSales
             return false;
         }
         $waiting = LiveReservation::forStore($conversation->store_id)->where('customer_phone', PhoneNumber::normalize($conversation->contact))
-            ->where('status', 'reserved')->whereNull('order_id')->exists();
+            ->where('status', 'reserved')->whereNull('order_id')->exists()
+            || app(ModelsOnWhatsApp::class)->waiting($conversation);
         if (! $waiting) {
             return false;
         }
@@ -725,25 +746,52 @@ class LiveSales
         if ($groups->isEmpty()) {
             return false;
         }
-        $segments = self::segments($text);
+        $segments = self::segments($text, $groups->keys()->all());
         $items = collect();
         $wanted = [];
         $ask = null;
+        $notes = [];
         foreach (array_keys($quantities) as $code) {
             $group = $groups->get($code);
             if ($group === null) {
                 continue;
             }
+            $product = $group->first()->variant?->product;
+            // Tailles mélangées : « A4 6 M 6 L »
+            $mix = $this->mixedSizes($group, $segments[$code] ?? '');
+            if ($mix !== null) {
+                foreach ($mix as [$item, $quantity]) {
+                    $items->push($item);
+                    $wanted[$item->id] = $quantity;
+                }
+                $total = array_sum(array_column($mix, 1));
+                if ($product !== null && $product->sellableQuantity($total) > $total) {
+                    $notes[] = "📦 {$code} se vend {$product->lotLabel()} : ajoutez encore ".($product->sellableQuantity($total) - $total).' pièce(s) (ex. '.$code.' 2 '.($mix[0][0]->optionValues()[0] ?? 'M').').';
+                }
+                if ($first) {
+                    break;
+                }
+
+                continue;
+            }
+            // Vente par lot ou avec un minimum : quantité arrondie au lot au-dessus (jamais refusée)
+            $quantity = $product?->sellableQuantity($quantities[$code]) ?? $quantities[$code];
+            if ($quantity !== $quantities[$code]) {
+                $notes[] = "📦 {$code} se vend {$product->lotLabel()} : je vous en mets {$quantity}.\nPour changer, écrivez par exemple {$code} x".($quantity * 2).'.';
+            }
             [$item, $chosen] = $this->pickVariant($group, $this->chosenIn($group, $segments[$code] ?? ''));
             if ($item !== null) {
                 $items->push($item);
-                $wanted[$item->id] = $quantities[$code];
+                $wanted[$item->id] = $quantity;
             } elseif ($ask === null) {
-                $ask = ['code' => $code, 'quantity' => $quantities[$code], 'chosen' => $chosen];
+                $ask = ['code' => $code, 'quantity' => $quantity, 'chosen' => $chosen];
             }
             if ($first) {
                 break;
             }
+        }
+        if ($notes !== []) {
+            $this->reply($conversation, implode("\n", $notes));
         }
         if ($items->isNotEmpty()) {
             $this->reserveFor($conversation, $items, $wanted);
@@ -788,6 +836,53 @@ class LiveSales
         $pool = $left->isNotEmpty() ? $left : $candidates;
 
         return [$pool->count() === 1 ? $pool->first() : null, $chosen];
+    }
+
+    /**
+     * Tailles mélangées dans un même code (« 6 M 6 L », « 2 noir 4 rouge ») : pièces par variante, ou null si le texte
+     * n'en donne pas (ou si une autre option manque encore).
+     *
+     * @param  Collection<int, LiveItem>  $group
+     * @return ?list<array{0: LiveItem, 1: int}>
+     */
+    private function mixedSizes(Collection $group, string $segment): ?array
+    {
+        if ($group->count() < 2 || trim($segment) === '') {
+            return null;
+        }
+        $positions = (int) $group->map(fn (LiveItem $item) => count($item->optionValues()))->max();
+        $text = self::normalize($segment);
+        for ($position = 0; $position < $positions; $position++) {
+            $values = $group->map(fn (LiveItem $item) => $item->optionValues()[$position] ?? null)->filter()->unique()->values();
+            if ($values->count() < 2) {
+                continue;
+            }
+            $pairs = [];
+            foreach ($values as $value) {
+                $v = preg_quote(trim(self::normalize($value)), '/');
+                if ($v !== '' && preg_match_all('/(?<![0-9a-z])(\d{1,2})\s*(?:x|×|\*)?\s*'.$v.'(?![a-z0-9])/u', $text, $m)) {
+                    $pairs[$value] = array_sum(array_map('intval', $m[1]));
+                }
+            }
+            $pairs = array_filter($pairs);
+            if ($pairs === []) {
+                return null;
+            }
+            // Les autres options nommées une seule fois s'appliquent à toutes les pièces (« 3 M 3 L rouge »)
+            $others = array_diff_key($this->chosenIn($group, $segment), [$position => true]);
+            $out = [];
+            foreach ($pairs as $value => $quantity) {
+                [$item] = $this->pickVariant($group, $others + [$position => $value]);
+                if ($item === null) {
+                    return null;
+                }
+                $out[] = [$item, min(99, $quantity)];
+            }
+
+            return $out;
+        }
+
+        return null;
     }
 
     /**
@@ -846,9 +941,10 @@ class LiveSales
 
         Cache::put(self::askKey($conversation->id), ['session' => $session->id] + $ask + ['position' => $position, 'values' => $values->all()], now()->addMinutes(self::ASK_MINUTES));
 
-        $text = "{$ask['code']} ".($first->variant?->product?->title ?? 'Article').', '.Money::format($first->currentPrice()).".\n*Quelle {$name} ?*"
+        $text = "{$ask['code']} ".($ask['quantity'] > 1 ? "× {$ask['quantity']} " : '').($first->variant?->product?->title ?? 'Article').', '.Money::format($first->currentPrice()).".\n*Quelle {$name} ?*"
             .($gone->isNotEmpty() ? ' ('.($gone->count() > 1 ? 'déjà parties : ' : 'déjà partie : ').$gone->implode(', ').')' : '')
-            .($left->isEmpty() ? "\nTout est parti : vous serez sur la liste d'attente." : '');
+            .($left->isEmpty() ? "\nTout est parti : vous serez sur la liste d'attente." : '')
+            .($ask['quantity'] > 1 && $values->count() > 1 ? "\n_Pour mélanger, écrivez par exemple : ".intdiv($ask['quantity'], 2).' '.$values[0].' '.($ask['quantity'] - intdiv($ask['quantity'], 2)).' '.$values[1].'_' : '');
         if (! app(LiveCheckout::class)->askOption($conversation, $text, $values->all())) {
             $this->reply($conversation, $text."\nRépondez : ".$values->join(', ', ' ou ').'.');
         }
@@ -864,6 +960,14 @@ class LiveSales
         $session = $ask ? LiveSession::forStore($conversation->store_id)->find($ask['session']) : null;
         if ($session === null || ! $session->takesOrders()) {
             return false;
+        }
+        $group = $session->items()->with(self::VARIANT_RELATIONS)->where('code', $ask['code'])->orderBy('position')->get();
+        $mix = $this->mixedSizes($group, $answer);
+        if ($mix !== null) {
+            Cache::forget(self::askKey($conversation->id));
+            $this->reserveFor($conversation, collect(array_column($mix, 0)), collect($mix)->mapWithKeys(fn ($m) => [$m[0]->id => $m[1]])->all());
+
+            return true;
         }
         $value = collect($ask['values'])->first(fn (string $v) => self::normalize(trim($answer)) === self::normalize($v))
             ?? collect($ask['values'])->first(fn (string $v) => self::mentions($answer, $v));
@@ -896,9 +1000,13 @@ class LiveSales
      *
      * @return array<string, string>
      */
-    private static function segments(string $text): array
+    private static function segments(string $text, ?array $codes = null): array
     {
         preg_match_all(self::CODE_PATTERN, $text, $m, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        // Seulement les codes du live : « A1 6 M 6 L » ne coupe pas sur « M 6 »
+        if ($codes !== null) {
+            $m = array_values(array_filter($m, fn ($x) => in_array(strtoupper($x[2][0]).(int) $x[3][0], $codes, true)));
+        }
         $out = [];
         foreach ($m as $i => $x) {
             $code = strtoupper($x[2][0]).(int) $x[3][0];
@@ -933,7 +1041,7 @@ class LiveSales
             + $mine($item, ['ordered'])->whereHas('order', fn ($o) => $o->whereIn('status', [OrderStatus::PendingConfirmation->value, OrderStatus::Confirmed->value]))->count();
         $lines = [];
         foreach ($items as $item) {
-            $missing = min(10, $quantities[$item->id] ?? 1) - $asked($item);
+            $missing = min(self::maxPieces($item), $quantities[$item->id] ?? 1) - $asked($item);
             if ($missing > 0) {
                 $lines[$item->id] = $missing;
             }
@@ -976,6 +1084,7 @@ class LiveSales
         $caption = trim(($kept->isEmpty() ? '' : "✅ *C'est réservé pour vous !*\n"
             .$kept->map(fn (LiveItem $item) => $item->code.' '.($item->variant?->product?->title ?? 'Article').($item->optionValues() !== [] ? " ({$item->variant->title})" : '')
                 .(($n = $mine($item, LiveReservation::HOLDING)->count()) > 1 ? " × {$n}" : '').' · '.Money::format($item->currentPrice()))->implode("\n")
+            .(($gros = $this->wholesaleNote($session->store_id, $kept, $kept->mapWithKeys(fn (LiveItem $item) => [$item->id => $mine($item, LiveReservation::HOLDING)->count()])->all())) ? "\n".$gros : '')
             .($held ? "\n⏱️ Gardé *".self::duration((int) ($session->hold_minutes ?: 120)).'* pour vous' : '')."\n")
             .$waits->implode("\n"));
         // Pendant la commande : du texte seul (une image arrive plus tard qu'un texte et tomberait après la question de
@@ -1003,6 +1112,22 @@ class LiveSales
     }
 
     /**
+     * Pièces qu'un client peut demander d'un coup : 10 pour un article vendu à la pièce, 99 pour un article vendu en
+     * gros (prix de gros, lot ou minimum), un pack au choix compris.
+     */
+    private static function maxPieces(LiveItem $item): int
+    {
+        $product = $item->variant?->product;
+        if ($product === null) {
+            return 10;
+        }
+        $gros = $product->sale_lot || $product->min_order_quantity
+            || VolumePrice::forStore($product->store_id)->where('product_id', $product->id)->exists();
+
+        return $gros ? 99 : 10;
+    }
+
+    /**
      * Commande du live encore à confirmer de ce client : les articles suivants s'y ajoutent (une seule livraison).
      */
     private function openOrder(LiveSession $session, ?string $phone): ?Order
@@ -1023,7 +1148,8 @@ class LiveSales
     private const CODE_PATTERN = '/(?<![A-Za-z0-9])(?:(\d{1,2})\s*[x×*]?\s*)?([A-Za-z])\s?(\d{1,2})(?![0-9])(?:\s*[x×*]\s*(\d{1,2})(?![0-9])|\s+(\d{1,2})\s*(?:pi[eè]ces?|pcs?|fois|exemplaires?)(?![A-Za-z]))?/iu';
 
     /**
-     * Pièces voulues par code dans un message : « A2 x3 », « A2×3 », « 3 A2 », « 3xA2 », « A2 3 pièces » (10 au plus).
+     * Pièces voulues par code dans un message : « A2 x3 », « A2×3 », « 3 A2 », « 3xA2 », « A2 3 pièces » (99 au plus ;
+     * 10 au plus réservées pour un article vendu à la pièce, voir maxPieces).
      *
      * @return array<string, int>
      */
@@ -1034,7 +1160,7 @@ class LiveSales
         foreach ($m as $x) {
             $code = strtoupper($x[2]).(int) $x[3];
             $qty = (int) (($x[4] ?? '') !== '' ? $x[4] : (($x[5] ?? '') !== '' ? $x[5] : (($x[1] ?? '') !== '' ? $x[1] : 1)));
-            $out[$code] = max($out[$code] ?? 0, min(10, max(1, $qty)));
+            $out[$code] = max($out[$code] ?? 0, min(99, max(1, $qty)));
         }
 
         return $out;
@@ -1310,6 +1436,7 @@ class LiveSales
                 'variant_id' => $items->get($rs->first()->live_item_id)->variant_id, 'quantity' => $rs->count(),
                 'unit_price' => $rs->first()->unit_price ?? $items->get($rs->first()->live_item_id)->price,
             ])->values()->all();
+        $lines = $this->wholesale($store->id, $lines);
         $codes = $byItem->map(fn ($rs, $id) => $items->get($id)?->code.($rs->count() > 1 ? ' ×'.$rs->count() : ''))->implode(', ');
         $open = $this->openOrder($session, $first->customer_phone);
         try {
@@ -1335,6 +1462,57 @@ class LiveSales
         LiveReservation::whereIn('id', $reservations->pluck('id'))->update(['status' => 'ordered', 'order_id' => $order->id, 'expires_at' => null]);
 
         return $order->load('items');
+    }
+
+    /**
+     * Prix de gros et packs au choix en live : quand le prix calculé pour la quantité (« 6 pour 30 000 F », « 3 robes
+     * au choix pour 25 000 F ») est plus bas que le prix du live, c'est lui qui compte (la ligne ne garde pas de prix
+     * forcé). Le prix du live (vente flash comprise) reste sinon.
+     *
+     * @param  list<array{variant_id: int, quantity: int, unit_price: int}>  $lines
+     * @return list<array{variant_id: int, quantity: int, unit_price?: int}>
+     */
+    private function wholesale(int $storeId, array $lines): array
+    {
+        $variants = ProductVariant::forStore($storeId)->with('product')->whereIn('id', array_column($lines, 'variant_id'))->get()->keyBy('id');
+        $catalog = array_values(array_filter(array_map(fn ($l) => $variants->has($l['variant_id']) ? ['variant' => $variants->get($l['variant_id']), 'quantity' => $l['quantity']] : null, $lines)));
+        if (count($catalog) !== count($lines)) {
+            return $lines;
+        }
+        $prices = app(Pricing::class)->lines($storeId, $catalog);
+
+        return array_map(function (array $line, array $price) {
+            if ($price['volume'] && $price['total'] < $line['unit_price'] * $line['quantity']) {
+                unset($line['unit_price']);
+            }
+
+            return $line;
+        }, $lines, $prices);
+    }
+
+    /**
+     * « 💰 Prix de gros : 54 000 F au lieu de 72 000 F » pour les pièces gardées d'un client, ou null sans remise.
+     *
+     * @param  Collection<int, LiveItem>  $items  articles avec le nombre de pièces gardées en clé « held »
+     * @param  array<int, int>  $held  article du live => pièces gardées
+     */
+    private function wholesaleNote(int $storeId, Collection $items, array $held): ?string
+    {
+        $lines = $items->filter(fn (LiveItem $item) => ($held[$item->id] ?? 0) > 0 && $item->variant !== null)->values();
+        if ($lines->isEmpty()) {
+            return null;
+        }
+        $prices = app(Pricing::class)->lines($storeId, $lines->map(fn (LiveItem $item) => ['variant' => $item->variant, 'quantity' => $held[$item->id]])->all());
+        $live = (int) $lines->sum(fn (LiveItem $item) => $item->currentPrice() * $held[$item->id]);
+        $best = 0;
+        foreach ($prices as $i => $p) {
+            $best += min($p['total'], $lines[$i]->currentPrice() * $held[$lines[$i]->id]);
+        }
+        if (! collect($prices)->contains('volume', true) || $best >= $live) {
+            return null;
+        }
+
+        return '💰 *Prix de gros : '.Money::format($best).'* au lieu de '.Money::format($live);
     }
 
     private function position(LiveReservation $reservation): int
@@ -1468,12 +1646,26 @@ class LiveSales
             $owners[$code] = $variant->product->title;
         }
         $index = 0;
+        $pack = 1;
         foreach ($lines as $line) {
-            $productId = $variants->get($line['variant_id'])->product_id;
+            $variant = $variants->get($line['variant_id']);
+            $productId = $variant->product_id;
             if (isset($codes[$productId])) {
                 continue;
             }
-            while (isset($owners[$candidate = self::code($index)])) {
+            // Packs : pancartes P1, P2… (les autres articles A1, A2…)
+            if ($variant->product?->is_bundle) {
+                while (isset($owners['P'.$pack]) && $pack < 99) {
+                    $pack++;
+                }
+                if (! isset($owners['P'.$pack])) {
+                    $codes[$productId] = 'P'.$pack;
+                    $owners['P'.$pack] = true;
+
+                    continue;
+                }
+            }
+            while (isset($owners[$candidate = self::code($index)]) || str_starts_with($candidate, 'P')) {
                 $index++;
             }
             $codes[$productId] = $candidate;

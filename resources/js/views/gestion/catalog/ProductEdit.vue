@@ -3,7 +3,7 @@ import AiMeter from '../../../components/AiMeter.vue'
 import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import Icon from '../../../components/Icon.vue'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import BundleEditor from '../../../components/BundleEditor.vue'
 import ChipsInput from '../../../components/ChipsInput.vue'
@@ -56,6 +56,7 @@ const form = reactive({
 })
 const product = ref(null) // fiche chargée (photos, adresse publique)
 const hasVariants = ref(false)
+const isBundle = ref(false) // pack : contenu modifié dans l'écran Packs quand il a des tailles
 const options = ref([{ name: 'Taille', values: [] }])
 const rows = reactive({}) // variantes par combinaison : « rouge||m » → ligne
 const simple = reactive(newRow([]))
@@ -117,6 +118,7 @@ function load(data) {
   form.tags = [...data.tags]
   images.value = data.images
   hasVariants.value = data.has_variants
+  isBundle.value = Boolean(data.is_bundle)
   Object.keys(rows).forEach((k) => delete rows[k])
   if (data.has_variants) {
     options.value = data.options.map((o) => ({ name: o.name, values: o.values.map((v) => v.value) }))
@@ -436,8 +438,14 @@ async function destroy() {
 const tiers = ref([])
 const tiersSaved = ref(false)
 const tiersErrors = ref({})
+// Vente en gros : à la pièce ou par lot seulement (6, 12…), et minimum par commande
+const sale = ref({ mode: 'piece', sale_lot: '', min_order_quantity: '' })
 async function loadTiers() {
-  if (props.id) tiers.value = (await http.get(`/products/${props.id}/volume-prices`)).data.data
+  if (!props.id) return
+  const { data } = await http.get(`/products/${props.id}/volume-prices`)
+  tiers.value = data.data
+  const s = data.sale ?? {}
+  sale.value = { mode: s.sale_lot ? 'lot' : 'piece', sale_lot: s.sale_lot ?? '', min_order_quantity: s.min_order_quantity ?? '' }
 }
 async function saveTiers() {
   tiersSaved.value = false
@@ -445,6 +453,8 @@ async function saveTiers() {
   try {
     tiers.value = (await http.put(`/products/${props.id}/volume-prices`, {
       tiers: tiers.value.filter((t) => t.min_quantity && t.price).map((t) => ({ min_quantity: Number(t.min_quantity), price: Number(t.price) })),
+      sale_lot: sale.value.mode === 'lot' && Number(sale.value.sale_lot) > 1 ? Number(sale.value.sale_lot) : null,
+      min_order_quantity: Number(sale.value.min_order_quantity) > 1 ? Number(sale.value.min_order_quantity) : null,
     })).data.data
     tiersSaved.value = true
   } catch (e) {
@@ -806,11 +816,14 @@ const margin = computed(() => {
       </section>
 
       <BundleEditor v-if="props.id && !hasVariants" :product-id="props.id" />
+      <section v-else-if="props.id && isBundle" class="card p-4 text-sm sm:p-6">
+        🎁 Ce pack a des tailles au choix : changez ses articles et son prix dans <RouterLink to="/gestion/packs" class="font-medium text-emerald-700 underline">Packs</RouterLink>.
+      </section>
 
       <section v-if="props.id" class="card space-y-3 p-4 sm:p-6">
         <div>
-          <h2 class="font-semibold">Prix par quantité</h2>
-          <p class="text-sm text-slate-500">Ex. 3 pour 25 000 F, toutes tailles confondues.</p>
+          <h2 class="font-semibold">Prix de gros</h2>
+          <p class="text-sm text-slate-500">Ex. 6 pour 30 000 F, tailles mélangées. Au-delà, le même prix à la pièce continue.</p>
         </div>
         <Alert v-if="tiersErrors.form">{{ tiersErrors.form }}</Alert>
         <div v-for="(t, i) in tiers" :key="i" class="flex flex-wrap items-center gap-2 text-sm">
@@ -824,7 +837,26 @@ const margin = computed(() => {
         </div>
         <div class="flex items-center gap-2">
           <button type="button" class="btn-ghost text-emerald-700" @click="tiers.push({ min_quantity: (tiers.at(-1)?.min_quantity ?? 1) + 1, price: '' })">+ Palier</button>
-          <button type="button" class="btn-secondary ml-auto px-3 py-1.5" @click="saveTiers">Enregistrer les prix par quantité</button>
+        </div>
+        <div class="space-y-2 border-t border-slate-100 pt-3">
+          <p class="text-sm font-medium">Comment je vends cet article</p>
+          <label class="flex items-start gap-2 text-sm">
+            <input v-model="sale.mode" type="radio" value="piece" class="mt-1" />
+            <span><b>À la pièce et en gros</b><br /><span class="text-slate-500">Le client prend la quantité qu'il veut.</span></span>
+          </label>
+          <label class="flex items-start gap-2 text-sm">
+            <input v-model="sale.mode" type="radio" value="lot" class="mt-1" />
+            <span><b>Par lot seulement</b><br /><span class="text-slate-500">Lot de <input v-model="sale.sale_lot" type="number" min="2" class="input inline-block w-20 py-1" aria-label="Pièces par lot" @focus="sale.mode = 'lot'" /> pièces : par 6, 12, 18…</span></span>
+          </label>
+          <label class="flex flex-wrap items-center gap-2 text-sm">
+            <span>Minimum par commande</span>
+            <input v-model="sale.min_order_quantity" type="number" min="2" class="input w-20 py-1" placeholder="aucun" aria-label="Minimum par commande" />
+            <span class="text-slate-500">pièces</span>
+          </label>
+          <p v-if="tiersErrors.sale_lot || tiersErrors.min_order_quantity" class="text-sm text-red-700">{{ tiersErrors.sale_lot || tiersErrors.min_order_quantity }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn-secondary ml-auto px-3 py-1.5" @click="saveTiers">Enregistrer les prix de gros</button>
           <span v-if="tiersSaved" class="text-sm text-emerald-700">✓</span>
         </div>
       </section>

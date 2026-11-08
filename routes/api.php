@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Billing\BillingController;
 use App\Http\Controllers\Api\V1\Catalog\BundleController;
 use App\Http\Controllers\Api\V1\Catalog\CatalogTransferController;
 use App\Http\Controllers\Api\V1\Catalog\CollectionController;
+use App\Http\Controllers\Api\V1\Catalog\PackController;
 use App\Http\Controllers\Api\V1\Catalog\ProductController;
 use App\Http\Controllers\Api\V1\Catalog\ProductImageController;
 use App\Http\Controllers\Api\V1\Catalog\TagController;
@@ -552,6 +553,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 // Vendre sur WhatsApp : réponses automatiques et catalogue
                 Route::get('whatsapp/sales', [WhatsAppSalesController::class, 'show'])->name('whatsapp.sales.show');
                 Route::put('whatsapp/sales', [WhatsAppSalesController::class, 'update'])->name('whatsapp.sales.update');
+                Route::put('whatsapp/models', [WhatsAppSalesController::class, 'models'])->name('whatsapp.models.update');
             });
             Route::middleware('permission:'.Permission::OrdersManage->value)->group(function () {
                 Route::get('carts/abandoned', [WhatsAppController::class, 'abandonedCarts'])->name('carts.abandoned');
@@ -686,6 +688,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('collections', [CollectionController::class, 'index'])->name('collections.index');
                 Route::get('collections/{collection}', [CollectionController::class, 'show'])->whereNumber('collection')->name('collections.show');
                 Route::get('tags', [TagController::class, 'index'])->name('tags.index');
+                Route::get('packs', [PackController::class, 'index'])->name('packs.index');
+                Route::get('packs/{product}', [PackController::class, 'show'])->whereNumber('product')->name('packs.show');
             });
             Route::middleware('permission:'.Permission::ProductsManage->value)->group(function () {
                 Route::post('products', [ProductController::class, 'store'])->name('products.store');
@@ -696,6 +700,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::delete('products/{product}', [ProductController::class, 'destroy'])->whereNumber('product')->name('products.destroy');
                 Route::get('products/{product}/bundle', [BundleController::class, 'show'])->whereNumber('product')->name('products.bundle.show');
                 Route::put('products/{product}/bundle', [BundleController::class, 'update'])->whereNumber('product')->name('products.bundle.update');
+                Route::post('packs', [PackController::class, 'store'])->name('packs.store');
+                Route::put('packs/{product}', [PackController::class, 'update'])->whereNumber('product')->name('packs.update');
+                Route::post('pack-offers', [PackController::class, 'storeOffer'])->name('pack-offers.store');
+                Route::put('pack-offers/{offer}', [PackController::class, 'updateOffer'])->whereNumber('offer')->name('pack-offers.update');
+                Route::delete('pack-offers/{offer}', [PackController::class, 'destroyOffer'])->whereNumber('offer')->name('pack-offers.destroy');
                 Route::post('products/{product}/images', [ProductImageController::class, 'store'])->whereNumber('product')->name('products.images.store');
                 Route::put('products/{product}/images/order', [ProductImageController::class, 'reorder'])->whereNumber('product')->name('products.images.order');
                 Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy'])->whereNumber(['product', 'image'])->name('products.images.destroy');

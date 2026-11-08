@@ -572,10 +572,15 @@ class LiveSalesTest extends TestCase
         $this->assertTrue(collect($feed)->firstWhere('body', 'Liste')['list']);
         $this->assertFalse(collect($feed)->firstWhere('body', 'A1')['list']);
 
-        // Sans live : le lien de la boutique
+        // Sans live : les modèles de la boutique (catégories)
         $this->storeApi($this->store, 'POST', "lives/{$id}/end")->assertOk();
         $this->travel(3)->minutes();
         $this->message('L4', 'catalogue');
+        $this->assertStringContainsString('Voici nos catégories', end($this->whatsapp));
+        // Modèles éteints par la boutique : le lien de la boutique, comme avant
+        $this->store->forceFill(['whatsapp_models' => false])->save();
+        $this->travel(3)->minutes();
+        $this->message('L5', 'catalogue');
         $this->assertStringContainsString('pas de live en ce moment', end($this->whatsapp));
     }
 

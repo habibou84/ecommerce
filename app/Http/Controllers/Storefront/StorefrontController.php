@@ -141,6 +141,8 @@ class StorefrontController extends Controller
             'reviews' => app(ReviewBook::class)->published($product),
             // Vente flash : fin la plus proche (compte à rebours) ; prix par quantité
             'flashEndsAt' => $flashEnds?->toIso8601String(),
+            // Packs au choix qui comprennent cet article
+            'packs' => app(Pricing::class)->packsFor($store->id, $product->id),
             'volumePrices' => collect($pricing->tiers[$product->id] ?? [])->map(fn ($t) => ['quantity' => $t->min_quantity, 'price' => $t->price, 'unit' => (int) round($t->price / $t->min_quantity)])->values(),
             'meta' => [
                 'title' => ($product->seo_title ?: $product->title).' · '.$store->name,
