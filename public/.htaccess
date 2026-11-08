@@ -23,3 +23,16 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Réponses de l'application compressées : Apache compresse par défaut les pages et les fichiers, pas le JSON
+# demandé sans arrêt par la gestion (liste des commandes 49 Ko → 3 Ko). Sans mod_deflate, rien ne change.
+<IfModule mod_deflate.c>
+    <IfModule mod_filter.c>
+        AddOutputFilterByType DEFLATE application/json application/manifest+json text/html text/css text/javascript application/javascript image/svg+xml
+    </IfModule>
+</IfModule>
+# Apache ajoute « -gzip » à l'ETag des réponses compressées : on le retire de la question du téléphone pour que
+# « rien de neuf » (304) fonctionne sur le live
+<IfModule mod_headers.c>
+    RequestHeader edit "If-None-Match" "^\"(.*)-gzip\"$" "\"$1\""
+</IfModule>
