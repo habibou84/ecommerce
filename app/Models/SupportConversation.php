@@ -10,11 +10,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class SupportConversation extends Model
 {
-    protected $fillable = ['contact', 'contact_name', 'last_preview', 'last_message_at', 'last_inbound_at', 'unread_count'];
+    protected $fillable = ['contact', 'contact_name', 'last_preview', 'last_message_at', 'last_inbound_at', 'unread_count', 'help_requested_at'];
 
     protected function casts(): array
     {
-        return ['last_message_at' => 'datetime', 'last_inbound_at' => 'datetime'];
+        return ['last_message_at' => 'datetime', 'last_inbound_at' => 'datetime', 'help_requested_at' => 'datetime'];
     }
 
     public function messages(): HasMany

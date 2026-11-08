@@ -9,7 +9,11 @@ use App\Models\SupportMessage;
 use App\Services\WhatsApp\MerchantCatchUp;
 use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\PlatformWhatsApp;
+use App\Services\WhatsApp\SignupByWhatsApp;
 use App\Support\Tenancy;
+use chillerlan\QRCode\Output\QROutputInterface;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -159,7 +163,8 @@ class ConsoleWhatsAppController extends Controller
         $page = SupportConversation::query()
             ->when($request->query('search'), fn ($q, $s) => $q->where(fn ($q) => $q->where('contact_name', 'ilike', '%'.$s.'%')
                 ->when(preg_replace('/\D/', '', $s), fn ($q, $digits) => $q->orWhere('contact', 'like', '%'.$digits.'%'))))
-            ->orderByDesc('last_message_at')->paginate(30);
+            // « aide » demandée : en tête de liste
+            ->orderByRaw('help_requested_at is null')->orderByDesc('last_message_at')->paginate(30);
 
         return response()->json([
             'data' => collect($page->items())->map(fn (SupportConversation $c) => $this->conversation($c)),
@@ -181,7 +186,9 @@ class ConsoleWhatsAppController extends Controller
     public function reply(Request $request, int $conversation): JsonResponse
     {
         $data = $request->validate(['body' => ['required', 'string', 'max:4000']], [], ['body' => 'message']);
-        $message = $this->whatsapp->reply(SupportConversation::findOrFail($conversation), $data['body'], $request->user());
+        $model = SupportConversation::findOrFail($conversation);
+        $message = $this->whatsapp->reply($model, $data['body'], $request->user());
+        $model->forceFill(['help_requested_at' => null])->save();
 
         return response()->json(['data' => $this->message($message->load('user:id,name'))], 201);
     }
@@ -193,7 +200,32 @@ class ConsoleWhatsAppController extends Controller
             'last_preview' => $c->last_preview, 'last_message_at' => $c->last_message_at?->toIso8601String(),
             // Par QR code (téléphone relié) : réponse libre à tout moment ; avec Meta : dans les 24 h du dernier message
             'unread_count' => $c->unread_count, 'can_reply' => $this->whatsapp->isQr() || $c->canReply(),
+            // « aide » tapé par la personne (inscription, live) : en attente d'un humain jusqu'à la réponse
+            'help_requested' => $c->help_requested_at !== null,
         ];
+    }
+
+    /**
+     * Inscription par WhatsApp : interrupteur, lien wa.me « Inscription » (et son QR code), entonnoir sur 30 jours.
+     */
+    public function signups(SignupByWhatsApp $signups): JsonResponse
+    {
+        $digits = preg_replace('/\D/', '', (string) PhoneNumber::normalize((string) $this->whatsapp->phone()));
+        $link = $digits !== '' ? 'https://wa.me/'.$digits.'?text='.rawurlencode('Inscription') : null;
+
+        return response()->json(['data' => [
+            'enabled' => SignupByWhatsApp::enabled(), 'link' => $link,
+            'qr' => $link ? (new QRCode(new QROptions(['outputType' => QROutputInterface::GDIMAGE_PNG, 'scale' => 8, 'imageTransparent' => false])))->render($link) : null,
+            'funnel' => $signups->funnel(),
+        ]]);
+    }
+
+    public function updateSignups(Request $request, SignupByWhatsApp $signups): JsonResponse
+    {
+        $request->validate(['enabled' => ['required', 'boolean']]);
+        SignupByWhatsApp::setEnabled($request->boolean('enabled'));
+
+        return $this->signups($signups);
     }
 
     private function message(SupportMessage $m): array

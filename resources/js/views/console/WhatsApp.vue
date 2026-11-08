@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import CatchUpCampaign from '../../components/console/CatchUpCampaign.vue'
 import OnboardingMessages from '../../components/console/OnboardingMessages.vue'
+import WhatsAppSignups from '../../components/console/WhatsAppSignups.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { boot } from '../../lib/boot'
 import { facebookRelayUrl, takeFacebookResult } from '../../lib/facebook'
@@ -348,6 +349,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
             <li v-for="c in conversations" :key="c.id">
               <button class="w-full px-3 py-2 text-left hover:bg-slate-50" :class="current?.id === c.id ? 'bg-emerald-50' : ''" @click="open(c)">
                 <span class="flex items-center gap-2"><span class="flex-1 truncate font-medium">{{ c.contact_name ?? c.contact }}</span>
+                  <span v-if="c.help_requested" class="rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">Aide demandée</span>
                   <span v-if="c.unread_count" class="rounded-full bg-emerald-600 px-1.5 text-xs text-white">{{ c.unread_count }}</span></span>
                 <span class="block truncate text-slate-500">{{ c.last_preview }}</span>
                 <span class="block text-xs text-slate-400">{{ formatDateTime(c.last_message_at) }}</span>
@@ -383,6 +385,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
       </div>
     </template>
 
+    <WhatsAppSignups v-if="account" />
     <OnboardingMessages v-if="account" />
     <CatchUpCampaign v-if="account" />
   </div>

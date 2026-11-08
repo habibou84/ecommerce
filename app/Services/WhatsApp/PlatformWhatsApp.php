@@ -363,11 +363,17 @@ class PlatformWhatsApp
         if ($to === '+' || $text === '' || ($id !== '' && $this->known($id))) {
             return;
         }
+        // Message parti d'ici (réponse automatique) dont l'écho arrive avant son enregistrement : pas un humain
+        $automatic = SupportMessage::whereHas('conversation', fn ($q) => $q->where('contact', $to))->where('type', 'automatic')
+            ->where('body', $text)->where('created_at', '>=', now()->subMinute())->exists();
         $conversation = SupportConversation::firstOrNew(['contact' => $to]);
         $conversation->fill(['last_preview' => Str::limit($text, 197), 'last_message_at' => now()])->save();
         $conversation->messages()->create([
             'direction' => 'out', 'type' => 'text', 'body' => $text, 'provider_message_id' => $id ?: null, 'status' => 'sent', 'sent_at' => now(),
         ]);
+        if (! $automatic) {
+            app(SignupByWhatsApp::class)->pause($to);
+        }
     }
 
     /**
@@ -423,6 +429,9 @@ class PlatformWhatsApp
         });
         if ($text !== null && ($keyword = app(MerchantOnboarding::class)->handleKeyword($from, $text)) !== null) {
             rescue(fn () => $this->sendAutomatic($from, $keyword), report: false);
+        } elseif ($text !== null || $kind === 'image') {
+            // Par QR code, la photo n'est pas lisible ici : l'inscription le dit
+            rescue(fn () => app(SignupByWhatsApp::class)->handle($from, $text ?? '', null, $kind === 'image' ? '' : null));
         }
     }
 
@@ -503,6 +512,11 @@ class PlatformWhatsApp
         // « STOP » / « START » : messages automatiques arrêtés ou repris, confirmé dans la conversation
         if ($keyword !== null) {
             rescue(fn () => $this->sendAutomatic('+'.ltrim($from, '+'), $keyword), report: false);
+        } else {
+            // Inscription par WhatsApp, mot « live », « aide » : réponses automatiques (sauf pendant une pause)
+            $payload = $message['interactive']['button_reply']['id'] ?? $message['interactive']['list_reply']['id'] ?? $message['button']['payload'] ?? null;
+            rescue(fn () => app(SignupByWhatsApp::class)->handle('+'.ltrim($from, '+'), ($message['type'] ?? null) === 'image' ? '' : $body,
+                is_string($payload) ? $payload : null, ($message['type'] ?? null) === 'image' ? ($message['image']['id'] ?? null) : null));
         }
 
         return $saved;
@@ -514,6 +528,7 @@ class PlatformWhatsApp
     public function reply(SupportConversation $conversation, string $text, User $user): SupportMessage
     {
         if ($this->isQr()) {
+            app(SignupByWhatsApp::class)->pause($conversation->contact);
             try {
                 $id = $this->bridge->sendFrom(WhatsAppBridge::PLATFORM, $conversation->contact, $text);
             } catch (RuntimeException $e) {
@@ -526,6 +541,9 @@ class PlatformWhatsApp
                 'status' => 'sent', 'user_id' => $user->id, 'sent_at' => now(),
             ]);
         }
+
+        // Un humain répond : le robot (inscription, live) se tait pour cette personne
+        app(SignupByWhatsApp::class)->pause($conversation->contact);
 
         if (! $conversation->canReply()) {
             throw new BusinessRuleException('Le client n\'a pas écrit depuis plus de 24 h : WhatsApp n\'autorise plus de réponse libre. Répondez depuis votre téléphone.', 'body');
@@ -548,16 +566,42 @@ class PlatformWhatsApp
      * Message automatique (accueil des commerçants, réponse à « STOP ») : réponse libre, par QR code ou avec Meta dans
      * les 24 h ; recopié dans le fil de la console.
      */
-    public function sendAutomatic(string $to, string $text): SupportMessage
+    public function sendAutomatic(string $to, string $text, bool $preview = true): SupportMessage
     {
         if ($this->isQr()) {
             $id = $this->bridge->sendFrom(WhatsAppBridge::PLATFORM, $to, $text);
         } else {
             $account = $this->account() ?? throw new RuntimeException('Le WhatsApp du support n\'est pas connecté.');
-            $id = $this->cloud->sendText($account, $to, $text);
+            $id = $this->cloud->sendText($account, $to, $text, $preview);
         }
 
         return $this->recordAutomatic($to, $text, $id ?: null);
+    }
+
+    /**
+     * Message à boutons (3 au plus) : boutons de WhatsApp avec Meta, « Tape 1 / Tape 2 » par QR code.
+     *
+     * @param  array<string, string>  $buttons  identifiant => libellé
+     */
+    public function sendChoices(string $to, string $text, array $buttons): SupportMessage
+    {
+        $listed = $text."\n\n".collect(array_values($buttons))->map(fn (string $label, int $i) => 'Tape *'.($i + 1).'* : '.$label)->implode("\n");
+        if ($this->isQr()) {
+            $id = $this->bridge->sendFrom(WhatsAppBridge::PLATFORM, $to, $listed);
+        } else {
+            $account = $this->account() ?? throw new RuntimeException('Le WhatsApp du support n\'est pas connecté.');
+            $id = $this->cloud->sendButtons($account, $to, $text, $buttons);
+        }
+
+        return $this->recordAutomatic($to, $listed, $id ?: null);
+    }
+
+    /** Photo reçue sur le numéro du support (connexion avec Meta) ; null par QR code ou si Meta ne la donne plus */
+    public function media(string $mediaId): ?string
+    {
+        $account = $this->account();
+
+        return $account !== null && $mediaId !== '' ? $this->cloud->image($account, $mediaId) : null;
     }
 
     /**
@@ -602,6 +646,8 @@ class PlatformWhatsApp
             'direction' => 'out', 'type' => $this->type($echo), 'body' => $body,
             'provider_message_id' => $echo['id'] ?? null, 'status' => 'sent', 'sent_at' => $sentAt,
         ]);
+        // Réponse faite depuis le téléphone (WhatsApp Business) : le robot se tait pour cette personne
+        app(SignupByWhatsApp::class)->pause($conversation->contact);
     }
 
     public function markRead(SupportConversation $conversation): void

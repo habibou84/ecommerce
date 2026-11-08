@@ -7,6 +7,7 @@ use App\Services\Console\SupportSessions;
 use App\Support\Tenancy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -15,8 +16,12 @@ use Illuminate\Support\Facades\Auth;
  */
 class HandoffController extends Controller
 {
-    public function __invoke(Request $request, LoginHandoff $handoff, Tenancy $tenancy): RedirectResponse
+    public function __invoke(Request $request, LoginHandoff $handoff, Tenancy $tenancy): RedirectResponse|Response
     {
+        // Aperçu d'un lien envoyé par WhatsApp (robot qui lit la page) : le lien à usage unique n'est pas consommé
+        if (preg_match('/WhatsApp|facebookexternalhit|Facebot|TelegramBot|bot\b|crawler|preview/i', (string) $request->userAgent())) {
+            return response('', 204);
+        }
         $result = $handoff->consume((string) $request->query('jeton'), $tenancy->store());
 
         if ($result === null) {

@@ -16,10 +16,13 @@ class LoginHandoff
 {
     public const TTL_SECONDS = 120;
 
-    public function url(User $user, Store $store, string $redirect = '/gestion'): string
+    /**
+     * @param  int  $ttl  durée de validité en secondes (lien envoyé par WhatsApp : 15 minutes)
+     */
+    public function url(User $user, Store $store, string $redirect = '/gestion', int $ttl = self::TTL_SECONDS): string
     {
         $nonce = Str::random(48);
-        Cache::put(self::key($nonce), ['user_id' => $user->id, 'store_id' => $store->id, 'redirect' => $redirect], self::TTL_SECONDS);
+        Cache::put(self::key($nonce), ['user_id' => $user->id, 'store_id' => $store->id, 'redirect' => $redirect], $ttl);
 
         return ($store->host ?? $store)->url('/auth/relais?'.http_build_query(['jeton' => $nonce]));
     }

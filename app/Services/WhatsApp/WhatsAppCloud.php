@@ -52,9 +52,9 @@ class WhatsAppCloud
     /**
      * Réponse libre, permise par Meta dans les 24 h qui suivent le dernier message du client.
      */
-    public function sendText(WhatsappAccount $account, string $to, string $text): string
+    public function sendText(WhatsappAccount $account, string $to, string $text, bool $preview = true): string
     {
-        return $this->send($account, $to, ['type' => 'text', 'text' => ['preview_url' => true, 'body' => $text]]);
+        return $this->send($account, $to, ['type' => 'text', 'text' => ['preview_url' => $preview, 'body' => $text]]);
     }
 
     /**
