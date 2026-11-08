@@ -5,6 +5,7 @@ namespace App\Services\WhatsApp;
 use App\Enums\StoreStatus;
 use App\Enums\SubscriptionStatus;
 use App\Exceptions\BusinessRuleException;
+use App\Models\LiveSession;
 use App\Models\OnboardingMessage;
 use App\Models\PhoneVerification;
 use App\Models\Plan;
@@ -16,6 +17,7 @@ use App\Models\SupportConversation;
 use App\Models\User;
 use App\Services\Billing\AccessKeys;
 use App\Services\Billing\FreeAccess;
+use App\Services\Live\LiveBilling;
 use App\Services\Shipping\CarrierDirectory;
 use App\Support\Tenancy;
 use App\Support\TrialOffer;
@@ -37,14 +39,15 @@ use RuntimeException;
  */
 class MerchantOnboarding
 {
-    public const STEPS = ['welcome', 'no_product', 'first_products', 'trial_end'];
+    public const STEPS = ['welcome', 'no_product', 'first_products', 'first_live', 'trial_end'];
 
     public const TEXTS = [
         'welcome' => "Bienvenue sur Jibiat Marchand, {prenom} ! 🎉\n\nVotre boutique *{boutique}* est prête : {lien_boutique}\n{essai}\n\nPour bien démarrer, ajoutez votre premier produit avec une photo : 2 minutes suffisent.\n👉 {lien_produit}\n\nUne question ? Répondez simplement à ce message, on vous aide ici.",
         'welcome_premium' => "Bienvenue parmi les membres Premium, {prenom} ! 🏅\n\nVotre carte *n° {numero_carte}* est activée : offre *{offre}*. Votre boutique : {lien_boutique}\n\nPour bien démarrer, ajoutez votre premier produit : {lien_produit}",
         'welcome_partner' => "Bienvenue, {prenom} ! *{entreprise}* vous a invité sur Jibiat Marchand 🚚\n\n{essai} Vos commandes partent directement chez {entreprise} en un clic.\n👉 Ajoutez votre premier produit : {lien_produit}",
         'no_product' => "{prenom}, votre boutique attend son premier produit 🛍️\n\nPrenez une photo, donnez un prix : c'est en ligne tout de suite, et vos clients peuvent commander sur WhatsApp.\n👉 {lien_produit}\n\nPetite vidéo pour vous guider : {lien_video}",
-        'first_products' => "Bravo {prenom}, {nb_produits} déjà dans votre boutique 👏\n\nProchaine étape : *vendre en live*. Pendant votre live TikTok ou Facebook, vos clients commandent eux-mêmes sur votre page, et vous voyez les commandes arriver en direct.\n👉 {lien_live}\n\nPartagez aussi le lien de votre boutique dans votre statut WhatsApp : {lien_boutique}",
+        'first_products' => "Bravo {prenom}, {nb_produits} déjà dans votre boutique 👏\n\nProchaine étape : *vendre en live*.\n« Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes. »\nVos clients écrivent le code de l'article (A1, A2…) sur WhatsApp, et la commande s'enregistre toute seule.\n👉 Préparez votre premier live : {lien_live}\n\nÉcrivez *live* ici pour savoir comment ça marche.",
+        'first_live' => "Bravo {prenom} pour votre premier live ! 🎉\n\n*{nb_commandes}* enregistrée(s) par Jibiat Marchand.\nLe bilan : {lien_bilan}\n\nUne question, un souci ? Écrivez *aide* : on vous répond ici.",
         'trial_end' => "Bonjour {prenom}, votre essai {offre_essai} de *{boutique}* se termine le *{date_fin}*.\n\nPour garder toutes les fonctions, choisissez votre offre, à partir de {prix}, payable par Wave ou Orange Money.\n👉 {lien_abonnement}\n\nSinon, votre boutique passe à l'offre Gratuit, sans rien perdre.",
     ];
 
@@ -186,6 +189,18 @@ class MerchantOnboarding
             }
         }
 
+        // Premier live terminé (dans les dernières 24 h) : le bilan, une fois
+        $firsts = LiveSession::query()->where('status', 'ended')->whereNotNull('ended_at')->where('ended_at', '>=', now()->subDay())
+            ->whereNotExists(fn ($q) => $q->from('live_sessions as earlier')->whereColumn('earlier.store_id', 'live_sessions.store_id')
+                ->where('earlier.status', 'ended')->whereColumn('earlier.ended_at', '<', 'live_sessions.ended_at'))
+            ->with('store.owner')->limit(100)->get();
+        foreach ($firsts as $session) {
+            $store = $session->store;
+            if ($store !== null && $store->status !== StoreStatus::Closed && $this->due($store, 'first_live') && $this->deliver($store, 'first_live', live: $session)) {
+                $sent['first_live']++;
+            }
+        }
+
         // Fin de l'essai dans 2 à 3 jours
         $trials = Subscription::with(['store.owner', 'plan'])->where('status', SubscriptionStatus::Trialing->value)
             ->whereBetween('trial_ends_at', [now()->addDays(2), now()->addDays(3)])->get();
@@ -215,11 +230,12 @@ class MerchantOnboarding
                 && $age->lte(now()->subHours($step === 'no_product' ? 3 : 20))
                 && ($step === 'no_product') === (Product::forStore($store->id)->count() === 0),
             'trial_end' => app(FreeAccess::class)->planFor($store) === null,
+            'first_live' => true,
             default => false,
         };
     }
 
-    private function deliver(Store $store, string $step, ?Subscription $sub = null): bool
+    private function deliver(Store $store, string $step, ?Subscription $sub = null, ?LiveSession $live = null): bool
     {
         $owner = $store->owner;
         $phone = PhoneNumber::normalize($owner?->phone);
@@ -238,6 +254,10 @@ class MerchantOnboarding
         }
 
         $vars = $this->variables($store, $owner, $sub);
+        if ($live !== null) {
+            $orders = app(LiveBilling::class)->ordersOf($live);
+            $vars += ['nb_commandes' => $orders.' commande'.($orders > 1 ? 's' : ''), 'lien_bilan' => $store->url('/gestion/live/'.$live->id)];
+        }
         $texts = $this->settings()['texts'];
         $key = $step === 'welcome' ? $this->welcomeVariant($store, $vars) : $step;
         $text = $this->render($texts[$key], $vars);

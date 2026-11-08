@@ -37,6 +37,7 @@ use App\Services\WhatsApp\MerchantCatchUp;
 use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\MetaHealth;
 use App\Services\WhatsApp\PlatformWhatsApp;
+use App\Services\WhatsApp\SignupByWhatsApp;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -313,3 +314,12 @@ Artisan::command('onboarding:run', function (MerchantOnboarding $onboarding, Mer
 })->purpose('Envoie les messages WhatsApp d\'accueil des nouveaux commerçants');
 
 Schedule::command('onboarding:run')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
+
+// Inscription par WhatsApp arrêtée en route : une relance 3 h après (dans les 24 h permises par Meta)
+Artisan::command('whatsapp:signups', function (SignupByWhatsApp $signups) {
+    if (($count = $signups->remind()) > 0) {
+        $this->line("{$count} relance(s)");
+    }
+})->purpose('Relance une fois les inscriptions par WhatsApp arrêtées en route');
+
+Schedule::command('whatsapp:signups')->everyTenMinutes()->withoutOverlapping();

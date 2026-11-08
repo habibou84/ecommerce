@@ -281,7 +281,7 @@ const META_STEPS = [
       <template v-if="data.embedded">
         <ul class="grid gap-2 text-sm sm:grid-cols-3">
           <li class="rounded-xl bg-slate-50 p-3"><strong class="block">1. Facebook s'ouvre</strong><span class="text-slate-600">compte Business et numéro</span></li>
-          <li class="rounded-xl bg-slate-50 p-3"><strong class="block">2. Code par SMS</strong><span class="text-slate-600">pour vérifier le numéro</span></li>
+          <li class="rounded-xl bg-slate-50 p-3"><strong class="block">2. QR code ou code</strong><span class="text-slate-600">dans WhatsApp Business, pour vérifier le numéro</span></li>
           <li class="rounded-xl bg-slate-50 p-3"><strong class="block">3. C'est prêt</strong><span class="text-slate-600">modèles de messages créés pour vous</span></li>
         </ul>
         <!-- Bonnes pratiques : quel numéro, quel compte (Meta bloque souvent les comptes neufs ou incohérents) -->
@@ -292,8 +292,8 @@ const META_STEPS = [
               <p class="font-semibold">Le numéro</p>
               <ul class="ml-4 list-disc space-y-1">
                 <li>Un numéro <strong>de la boutique</strong>, ivoirien (+225), que vous garderez longtemps. L'idéal : une puce réservée à la boutique.</li>
-                <li>Il doit pouvoir recevoir un <strong>SMS ou un appel</strong> pour le code de vérification.</li>
-                <li><strong>Déjà dans l'application WhatsApp Business</strong> (mise à jour) : Meta le reconnaît et vous propose de le garder sur le téléphone. Vous répondez alors depuis le téléphone et depuis Jibiat Marchand.</li>
+                <li><strong>Le plus simple : votre numéro déjà dans l'application WhatsApp Business</strong> (mise à jour). Vous le gardez sur le téléphone et répondez depuis le téléphone et depuis Jibiat Marchand. Meta demande de scanner un QR code avec WhatsApp Business une fois : depuis le même téléphone, faites la connexion sur un ordinateur ou un autre téléphone.</li>
+                <li>Un numéro sans WhatsApp doit pouvoir recevoir un <strong>SMS ou un appel</strong> pour le code de vérification.</li>
                 <li><strong>Dans WhatsApp « normal »</strong> (pas Business) : Meta le refuse. Passez d'abord ce numéro sur l'application WhatsApp Business (vos discussions sont gardées), utilisez-la quelques jours, puis revenez. Sinon, prenez un numéro sans WhatsApp.</li>
                 <li>Ne choisissez pas le <strong>numéro américain</strong> que Meta propose parfois : vos clients verraient un numéro étranger.</li>
               </ul>
