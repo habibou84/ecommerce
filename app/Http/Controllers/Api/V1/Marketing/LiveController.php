@@ -289,9 +289,22 @@ class LiveController extends Controller
         }));
     }
 
-    public function end(int $session): JsonResponse
+    /**
+     * Terminer le live : commandes arrêtées tout de suite, ou gardées actives 24 h / 48 h (keep_hours).
+     */
+    public function end(Request $request, int $session): JsonResponse
     {
-        return $this->state($this->live->end($this->session($session)));
+        $data = $request->validate(['keep_hours' => ['nullable', 'integer', 'in:'.implode(',', LiveSales::KEEP_HOURS)]]);
+
+        return $this->state($this->live->end($this->session($session), isset($data['keep_hours']) ? (int) $data['keep_hours'] : null));
+    }
+
+    /**
+     * Arrêter les commandes gardées actives après le live (le live est alors compté).
+     */
+    public function stopOrders(int $session): JsonResponse
+    {
+        return $this->state($this->live->stopOrders($this->session($session)));
     }
 
     /**

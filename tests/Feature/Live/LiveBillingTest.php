@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Live;
 
+use App\Exceptions\BusinessRuleException;
 use App\Models\LiveItem;
 use App\Models\LiveSession;
 use App\Models\Place;
@@ -81,6 +82,73 @@ class LiveBillingTest extends TestCase
         $this->assertSame(['free_mode', 12, 0], [LiveSession::find($live)->billing, LiveSession::find($live)->billed_orders, LiveSession::find($live)->billed_amount]);
         $this->assertSame(0, $this->store->fresh()->live_credit);
         $this->storeApi($this->store, 'GET', 'lives/billing')->assertOk()->assertJsonPath('data.paid', false)->assertJsonPath('data.next', 'free_mode');
+    }
+
+    public function test_orders_stay_open_24h_after_the_live_and_count_in_the_same_live(): void
+    {
+        $billing = app(LiveBilling::class);
+        $billing->update(['paid' => true, 'free_orders' => 0]);
+        $this->store->forceFill(['live_credit' => 3000])->save();
+        $live = $this->newLive();
+        $this->start($live)->assertOk();
+        $this->orders($live, 8);
+
+        // « Terminer le live » en gardant les commandes actives 24 h : rien n'est encore compté
+        $this->storeApi($this->store, 'POST', "lives/{$live}/end", ['keep_hours' => 12])->assertStatus(422);
+        $this->storeApi($this->store, 'POST', "lives/{$live}/end", ['keep_hours' => 24])->assertOk()
+            ->assertJsonPath('data.status', 'ended')->assertJsonPath('data.orders_after', 0)
+            ->assertJsonPath('data.orders_until', fn ($at) => abs(now()->addDay()->diffInMinutes($at)) < 2);
+        $this->assertNull(LiveSession::find($live)->billed_at);
+        $this->assertSame(3000, $this->store->fresh()->live_credit);
+        $this->assertSame($live, LiveSales::ordering($this->store->id)?->id);
+        $this->assertNull(LiveSales::current($this->store->id));
+
+        // Le lendemain matin, les codes marchent encore : commandes comptées dans ce live (palier 11 à 30)
+        $this->travel(10)->hours();
+        $this->orders($live, 5);
+        $this->storeApi($this->store, 'GET', "lives/{$live}")->assertOk()
+            ->assertJsonPath('data.orders_after', 5)->assertJsonPath('data.billing.orders', 13)->assertJsonPath('data.billing.price', 500);
+
+        // À l'heure dite, les commandes s'arrêtent et le live est compté une fois
+        $this->travel(15)->hours();
+        $this->assertNull(LiveSales::ordering($this->store->id));
+        $this->expectsReserveRefused($live);
+        $this->artisan('live:expire')->assertSuccessful();
+        $this->assertSame([13, 500], [LiveSession::find($live)->billed_orders, LiveSession::find($live)->billed_amount]);
+        $this->assertSame(2500, $this->store->fresh()->live_credit);
+    }
+
+    public function test_stopping_orders_early_or_starting_a_new_live_counts_the_live(): void
+    {
+        app(LiveBilling::class)->update(['paid' => true, 'free_orders' => 0]);
+        $this->store->forceFill(['live_credit' => 5000])->save();
+        $live = $this->newLive();
+        $this->start($live)->assertOk();
+        $this->orders($live, 12);
+        $this->storeApi($this->store, 'POST', "lives/{$live}/end", ['keep_hours' => 48])->assertOk();
+        $this->storeApi($this->store, 'POST', "lives/{$live}/stop-orders")->assertOk()
+            ->assertJsonPath('data.orders_until', null)->assertJsonPath('data.billing.billed', true)->assertJsonPath('data.billing.price', 500);
+        $this->expectsReserveRefused($live);
+
+        // Commandes encore actives quand un nouveau live commence : l'ancien s'arrête et il est compté
+        $second = $this->newLive();
+        $this->start($second)->assertOk();
+        $this->orders($second, 3);
+        $this->storeApi($this->store, 'POST', "lives/{$second}/end", ['keep_hours' => 24])->assertOk();
+        $third = $this->newLive();
+        $this->start($third)->assertOk();
+        $this->assertNotNull(LiveSession::find($second)->billed_at);
+        $this->assertSame($third, LiveSales::ordering($this->store->id)->id);
+    }
+
+    private function expectsReserveRefused(int $live): void
+    {
+        try {
+            $this->orders($live, 1);
+            $this->fail('Réservation acceptée alors que les commandes sont arrêtées.');
+        } catch (BusinessRuleException $e) {
+            $this->assertStringContainsString('pas en cours', $e->getMessage());
+        }
     }
 
     public function test_tier_prices_and_every_created_order_counts(): void

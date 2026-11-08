@@ -266,8 +266,12 @@ class LiveBilling
     {
         $stale = LiveSession::withoutGlobalScopes()->where('status', 'live')->where('started_at', '<', now()->subHours(self::MAX_HOURS))->get();
         $stale->each(fn (LiveSession $session) => app(LiveSales::class)->end($session));
+        // Commandes gardées actives après le live : à l'heure dite, elles s'arrêtent et le live est compté
+        $expired = LiveSession::withoutGlobalScopes()->where('status', 'ended')->whereNull('billed_at')
+            ->whereNotNull('orders_until')->where('orders_until', '<=', now())->get();
+        $expired->each(fn (LiveSession $session) => $this->bill($session));
 
-        return $stale->count();
+        return $stale->count() + $expired->count();
     }
 
     /**

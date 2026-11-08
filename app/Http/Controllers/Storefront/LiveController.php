@@ -24,7 +24,7 @@ class LiveController extends Controller
     public function show(Request $request): View
     {
         $store = $this->currentStore();
-        $session = LiveSales::current($store->id);
+        $session = LiveSales::ordering($store->id);
 
         return view('storefront.live', $this->view->shared($request, $store) + [
             'live' => $session ? $this->live->state($session, team: false) : null,
@@ -34,7 +34,7 @@ class LiveController extends Controller
 
     public function state(): JsonResponse
     {
-        $session = LiveSales::current($this->currentStore()->id);
+        $session = LiveSales::ordering($this->currentStore()->id);
 
         return response()->json(['data' => $session ? $this->live->state($session, team: false) : null]);
     }
@@ -65,7 +65,7 @@ class LiveController extends Controller
             'place_id' => ['required', 'integer'],
             'address' => ['nullable', 'string', 'max:255'],
         ], [], ['name' => 'nom', 'phone' => 'numéro', 'place_id' => 'quartier']);
-        $session = LiveSales::current($this->currentStore()->id) ?? abort(404, 'Le live est terminé.');
+        $session = LiveSales::ordering($this->currentStore()->id) ?? abort(404, 'Le live est terminé.');
         $item = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->findOrFail($data['item_id']);
 
         $reservation = $this->live->reserve($item, $data, 'page');
@@ -91,7 +91,7 @@ class LiveController extends Controller
             'place_id' => ['required', 'integer'],
             'address' => ['nullable', 'string', 'max:255'],
         ], [], ['items' => 'articles', 'name' => 'nom', 'phone' => 'numéro', 'place_id' => 'quartier']);
-        $session = LiveSales::current($this->currentStore()->id) ?? abort(404, 'Le live est terminé.');
+        $session = LiveSales::ordering($this->currentStore()->id) ?? abort(404, 'Le live est terminé.');
         $lines = collect($data['items'])->mapWithKeys(fn ($line) => [(int) $line['item_id'] => (int) $line['quantity']])->all();
 
         $reservations = $this->live->reserveLines($session, $lines, $data, 'page');

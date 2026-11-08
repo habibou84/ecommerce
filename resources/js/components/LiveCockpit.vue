@@ -392,7 +392,7 @@ const ago = (iso) => {
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('quick')">✍️ Réservation vue</button>
       <RouterLink v-if="live.whatsapp" to="/gestion/whatsapp" class="rounded-xl bg-emerald-50 py-2.5 text-center text-emerald-800">✓ {{ live.whatsapp_phone || 'WhatsApp' }}</RouterLink>
       <RouterLink v-else to="/gestion/whatsapp?onglet=messages" class="rounded-xl bg-amber-50 py-2.5 text-center text-amber-800">WhatsApp à connecter</RouterLink>
-      <button type="button" class="col-span-2 rounded-xl bg-slate-900 py-2.5 text-white" :disabled="busy" @click="menu = false; emit('end')">⏹ Fermer les commandes du live</button>
+      <button type="button" class="col-span-2 rounded-xl bg-slate-900 py-2.5 text-white" :disabled="busy" @click="menu = false; emit('end')">⏹ Terminer le live</button>
     </div>
 
     <!-- Live, Commandes, Messages -->
