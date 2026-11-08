@@ -13,12 +13,12 @@ class LiveSession extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'display_mode', 'started_at', 'ended_at', 'created_by', 'pin_ready_at'];
+    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'display_mode', 'started_at', 'ended_at', 'created_by', 'pin_ready_at', 'orders_until'];
 
     protected function casts(): array
     {
         return ['hold_minutes' => 'integer', 'featured_item_id' => 'integer', 'started_at' => 'datetime', 'ended_at' => 'datetime', 'pin_ready_at' => 'datetime',
-            'billed_orders' => 'integer', 'billed_offered' => 'integer', 'billed_amount' => 'integer', 'billed_at' => 'datetime'];
+            'billed_orders' => 'integer', 'billed_offered' => 'integer', 'billed_amount' => 'integer', 'billed_at' => 'datetime', 'orders_until' => 'datetime'];
     }
 
     public function items(): HasMany
@@ -29,5 +29,19 @@ class LiveSession extends Model
     public function reservations(): HasMany
     {
         return $this->hasMany(LiveReservation::class);
+    }
+
+    /**
+     * Les clients peuvent réserver : live en cours, ou live terminé dont les commandes restent actives (24 h / 48 h).
+     */
+    public function takesOrders(): bool
+    {
+        return $this->status === 'live' || ($this->status === 'ended' && $this->orders_until !== null && $this->orders_until->isFuture());
+    }
+
+    /** Live terminé, commandes encore actives */
+    public function extended(): bool
+    {
+        return $this->status === 'ended' && $this->orders_until !== null && $this->orders_until->isFuture();
     }
 }
