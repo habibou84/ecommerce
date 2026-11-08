@@ -126,7 +126,7 @@ class DashboardController extends Controller
             return ['state' => 'live', 'page_url' => $store->url('/live'), 'session' => $present($current) + [
                 'started_at' => $current->started_at?->toIso8601String(),
                 'summary' => $sales->summary($current),
-                'sold_out' => $items->filter(fn ($item) => $sales->remaining($item) === 0)->count(),
+                'sold_out' => count(array_filter($sales->remainingFor($items), fn (int $left) => $left === 0)),
             ]];
         }
         $draft = LiveSession::forStore($store->id)->where('status', 'draft')->latest('id')->first();

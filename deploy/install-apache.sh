@@ -120,7 +120,7 @@ systemctl enable "php$PHP_V-fpm" >/dev/null 2>&1 || true
 systemctl restart "php$PHP_V-fpm"
 
 step "Apache (hôte virtuel $DOMAIN et *.$DOMAIN)"
-a2enmod -q ssl rewrite headers proxy proxy_fcgi setenvif >/dev/null
+a2enmod -q ssl rewrite headers deflate proxy proxy_fcgi setenvif >/dev/null
 sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__USER__|$APP_USER|g" -e "s|__PHP_V__|$PHP_V|g" \
     -e "s|__INSTANCE__|$INSTANCE|g" "$APP_DIR/deploy/apache.conf" > "/etc/apache2/sites-available/$INSTANCE.conf"
 a2ensite -q "$INSTANCE" >/dev/null

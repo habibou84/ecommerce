@@ -103,7 +103,8 @@ onMounted(() => {
   }, 3000)
 })
 onUnmounted(() => clearInterval(liveTimer))
-watch(() => [props.live.display_mode, props.live.featured_item_id], loadDisplay)
+// Une chaîne, pas une liste : une nouvelle liste à chaque rechargement du live relançait l'aperçu toutes les 3 s
+watch(() => `${props.live.display_mode}|${props.live.featured_item_id}`, loadDisplay)
 
 // Étiquette : à refaire quand un article est fini ou ajouté depuis la dernière partagée
 const pinStale = computed(() => props.pinShared?.sig !== pinSignature(props.live.items))
