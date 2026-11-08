@@ -1,4 +1,5 @@
 <script setup>
+import WhatsAppHelp from '../../../components/WhatsAppHelp.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
@@ -206,16 +207,13 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
           </template>
           <template v-else>
             <strong class="block">Aucun numéro WhatsApp connecté</strong>
-            <span class="text-xs text-slate-600">Connectez votre numéro avec Facebook : messages des clients dans Messages et messages automatiques.</span>
+            <span class="text-xs text-slate-600">Connexion officielle de votre numéro chez Meta : messages des clients dans Messages et messages automatiques.</span>
           </template>
         </span>
-        <button v-if="!official.account" type="button" class="btn-brand w-full sm:w-auto" :disabled="connecting" @click="connect">{{ connecting ? 'Connexion…' : (official.embedded ? 'Connecter avec Facebook' : 'Connecter mon numéro') }}</button>
+        <button v-if="!official.account" type="button" class="btn-brand w-full sm:w-auto" :disabled="connecting" @click="connect">{{ connecting ? 'Connexion…' : (official.embedded ? 'Connecter mon numéro sur Meta' : 'Connecter mon numéro') }}</button>
         <button v-else type="button" class="btn-ghost self-start text-red-600 sm:self-auto" :disabled="disconnecting" @click="disconnect">{{ disconnecting ? 'Déconnexion…' : 'Déconnecter' }}</button>
       </div>
-      <p v-if="!official.account && official.embedded" class="mt-2 text-xs text-slate-500">
-        Avant de commencer, lisez « quel numéro et quel compte » dans
-        <button type="button" class="font-medium text-emerald-700 underline" @click="tab = 'messages'">Messages automatiques</button>.
-      </p>
+      <WhatsAppHelp v-if="!official.account && official.embedded" class="mt-2" />
       <ul class="mt-3 grid gap-x-6 sm:grid-cols-2">
         <li v-for="s in summary" :key="s.key" class="border-t border-slate-100">
           <button type="button" class="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left hover:bg-slate-50" @click="tab = s.to ?? s.key">

@@ -1,4 +1,5 @@
 <script setup>
+import WhatsAppHelp from './WhatsAppHelp.vue'
 import PasswordInput from './PasswordInput.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -279,41 +280,11 @@ const META_STEPS = [
         </div>
       </div>
       <template v-if="data.embedded">
-        <ul class="grid gap-2 text-sm sm:grid-cols-3">
-          <li class="rounded-xl bg-slate-50 p-3"><strong class="block">1. Facebook s'ouvre</strong><span class="text-slate-600">compte Business et numéro</span></li>
-          <li class="rounded-xl bg-slate-50 p-3"><strong class="block">2. QR code ou code</strong><span class="text-slate-600">dans WhatsApp Business, pour vérifier le numéro</span></li>
-          <li class="rounded-xl bg-slate-50 p-3"><strong class="block">3. C'est prêt</strong><span class="text-slate-600">modèles de messages créés pour vous</span></li>
-        </ul>
-        <!-- Bonnes pratiques : quel numéro, quel compte (Meta bloque souvent les comptes neufs ou incohérents) -->
-        <details class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" open>
-          <summary class="cursor-pointer font-bold">Avant de commencer : quel numéro et quel compte ?</summary>
-          <div class="mt-2 space-y-3">
-            <div>
-              <p class="font-semibold">Le numéro</p>
-              <ul class="ml-4 list-disc space-y-1">
-                <li>Un numéro <strong>de la boutique</strong>, ivoirien (+225), que vous garderez longtemps. L'idéal : une puce réservée à la boutique.</li>
-                <li><strong>Le plus simple : votre numéro déjà dans l'application WhatsApp Business</strong> (mise à jour). Vous le gardez sur le téléphone et répondez depuis le téléphone et depuis Jibiat Marchand. Meta demande de scanner un QR code avec WhatsApp Business une fois : depuis le même téléphone, faites la connexion sur un ordinateur ou un autre téléphone.</li>
-                <li>Un numéro sans WhatsApp doit pouvoir recevoir un <strong>SMS ou un appel</strong> pour le code de vérification.</li>
-                <li><strong>Dans WhatsApp « normal »</strong> (pas Business) : Meta le refuse. Passez d'abord ce numéro sur l'application WhatsApp Business (vos discussions sont gardées), utilisez-la quelques jours, puis revenez. Sinon, prenez un numéro sans WhatsApp.</li>
-                <li>Ne choisissez pas le <strong>numéro américain</strong> que Meta propose parfois : vos clients verraient un numéro étranger.</li>
-              </ul>
-            </div>
-            <div>
-              <p class="font-semibold">Le compte</p>
-              <ul class="ml-4 list-disc space-y-1">
-                <li>Le <strong>vrai compte Facebook du gérant</strong>, ancien et à son nom, avec la double authentification. Pas un compte créé pour l'occasion : Meta bloque souvent les comptes neufs.</li>
-                <li>Un compte Business (portefeuille Meta) au <strong>nom de la boutique</strong>, avec un e-mail qui fonctionne. Une page Facebook de la boutique aide beaucoup.</li>
-                <li>Nom affiché : <strong>le nom de la boutique</strong>, écrit comme sur sa page Facebook. Évitez les noms vagues, le mot « WhatsApp » et les majuscules partout.</li>
-                <li>Ajoutez une <strong>carte de paiement</strong> chez Meta : sans elle, les messages automatiques (confirmation, livraison…) ne partent pas.</li>
-                <li>Si Meta demande une vérification, faites-la sans recommencer la connexion plusieurs fois de suite.</li>
-              </ul>
-            </div>
-          </div>
-        </details>
         <div class="flex flex-wrap items-center gap-3">
-          <button type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Connecter en un clic avec Facebook' }}</button>
-          <span class="text-sm text-slate-500">Environ 5 minutes</span>
+          <button type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Connecter mon numéro sur Meta' }}</button>
         </div>
+        <p class="text-sm text-slate-600">Connexion officielle de votre numéro WhatsApp chez Meta, avec votre compte Facebook : Meta vous guide étape par étape.</p>
+        <WhatsAppHelp />
         <p class="border-t border-slate-100 pt-3 text-xs text-slate-500">
           Vous avez déjà vos identifiants Meta ?
           <button type="button" class="font-medium text-emerald-700 underline" @click="openAdvanced">Connexion avancée</button>
