@@ -172,6 +172,7 @@ class LiveScreens
 
         // Un produit = un code : ses variantes (tailles, couleurs) sont regroupées sur une seule carte
         $groups = $session->items->sortBy('position')->groupBy('code');
+        $left = $sales->remainingFor($session->items);
         $featured = $session->featured_item_id !== null ? $session->items->firstWhere('id', $session->featured_item_id)?->code : null;
 
         return [
@@ -180,12 +181,12 @@ class LiveScreens
             'mode' => $session->display_mode ?: 'product',
             // Article montré : la carte de son produit (premier article du code)
             'featured_item_id' => $featured !== null ? $groups->get($featured)?->first()?->id : null,
-            'items' => $groups->map(function ($group) use ($sales, $waiting) {
+            'items' => $groups->map(function ($group) use ($left, $waiting) {
                 /** @var LiveItem $item */
                 $item = $group->first();
                 $variant = $item->variant;
                 $image = ($group->count() === 1 ? $variant?->image : null) ?? $variant?->product?->images->first() ?? $variant?->image;
-                $remaining = $group->mapWithKeys(fn (LiveItem $i) => [$i->id => $sales->remaining($i)]);
+                $remaining = $group->mapWithKeys(fn (LiveItem $i) => [$i->id => $left[$i->id]]);
                 $price = (int) $group->min(fn (LiveItem $i) => $i->currentPrice());
                 $compare = (int) $group->max(fn (LiveItem $i) => max((int) ($i->variant?->compare_at_price ?? 0), (int) ($i->variant?->price ?? 0), $i->flashActive() ? $i->price : 0));
                 $flash = $group->first(fn (LiveItem $i) => $i->flashActive());

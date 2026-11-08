@@ -293,6 +293,24 @@ class LiveSales
     }
 
     /**
+     * Pièces restantes de plusieurs articles en une seule requête (écran du live, affichage, bilans) : id => restantes.
+     *
+     * @param  Collection<int, LiveItem>  $items
+     * @return array<int, int>
+     */
+    public function remainingFor(Collection $items): array
+    {
+        if ($items->isEmpty()) {
+            return [];
+        }
+        $held = LiveReservation::forStore($items->first()->store_id)->whereIn('live_item_id', $items->pluck('id'))->whereIn('status', LiveReservation::HOLDING)
+            ->where(fn ($q) => $q->whereNull('order_id')->orWhereHas('order', fn ($o) => $o->where('status', '!=', 'cancelled')))
+            ->selectRaw('live_item_id, count(*) as n')->groupBy('live_item_id')->pluck('n', 'live_item_id');
+
+        return $items->mapWithKeys(fn (LiveItem $item) => [$item->id => max(0, $item->quantity - (int) ($held[$item->id] ?? 0))])->all();
+    }
+
+    /**
      * Réservation d'un article. Avec le quartier (page du live, équipe) : commande créée tout de suite.
      *
      * @param  array{name?: ?string, phone?: ?string, place_id?: ?int, address?: ?string}  $customer
@@ -995,6 +1013,7 @@ class LiveSales
             ->latest('id')->limit(200)->get() : collect();
         $counts = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)
             ->selectRaw('live_item_id, status, count(*) as n')->groupBy('live_item_id', 'status')->get();
+        $left = $this->remainingFor($session->items);
 
         return [
             'id' => $session->id,
@@ -1024,7 +1043,7 @@ class LiveSales
                 // Vente flash en cours : prix habituel du live et fin du chrono
                 'flash' => $item->flashActive() ? ['was' => $item->price, 'ends_at' => $item->flash_ends_at->toIso8601String()] : null,
                 'quantity' => $item->quantity,
-                'remaining' => $this->remaining($item),
+                'remaining' => $left[$item->id],
                 'waiting' => (int) $counts->where('live_item_id', $item->id)->where('status', 'waiting')->sum('n'),
             ])->values()->all(),
             'reservations' => $reservations->map(fn (LiveReservation $r) => [
@@ -1146,7 +1165,7 @@ class LiveSales
             'waiting' => $all->where('status', 'waiting')->count(),
             'expired' => $all->where('status', 'expired')->count(),
             // Articles dont toutes les pièces sont parties
-            'sold_out' => $session->items()->get()->filter(fn (LiveItem $item) => $this->remaining($item) === 0)->count(),
+            'sold_out' => count(array_filter($this->remainingFor($session->items()->get()), fn (int $left) => $left === 0)),
         ];
     }
 

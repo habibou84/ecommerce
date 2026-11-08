@@ -119,7 +119,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
     // Écran du live (télé, tablette, ordinateur) : sans compte, relié à une boutique par un code à 4 chiffres
     Route::middleware('zone:platform,store')->group(function () {
         Route::post('screens', [LiveScreenController::class, 'create'])->middleware('throttle:10,1')->name('screens.create');
-        Route::get('screens/{token}', [LiveScreenController::class, 'show'])->where('token', '[A-Za-z0-9]{48}')->middleware('throttle:120,1')->name('screens.show');
+        Route::get('screens/{token}', [LiveScreenController::class, 'show'])->where('token', '[A-Za-z0-9]{48}')->middleware('throttle:120,1')->middleware('cache.headers:private;no_cache;etag')->name('screens.show');
     });
     Route::middleware('zone:platform,store,console')->group(function () {
         Route::post('password/forgot', [PasswordResetController::class, 'start'])->middleware('throttle:verification-start')->name('password.forgot');
@@ -553,7 +553,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('lives', [LiveController::class, 'store'])->middleware('feature:live')->name('lives.store');
                 Route::get('lives/variants', [LiveController::class, 'variants'])->middleware('feature:live')->name('lives.variants');
                 Route::get('lives/brand', [LiveController::class, 'brand'])->middleware('feature:live')->name('lives.brand');
-                Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->middleware('feature:live')->name('lives.show');
+                Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->middleware('feature:live')->middleware('cache.headers:private;no_cache;etag')->name('lives.show');
                 Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->middleware('feature:live')->name('lives.update');
                 Route::post('lives/{session}/items', [LiveController::class, 'addItems'])->whereNumber('session')->middleware('feature:live')->name('lives.items');
                 // Lives payants : prix et droits, achat 24 h ou 30 jours (PayDunya), retour du paiement
@@ -562,14 +562,14 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('lives/billing/{number}/confirm', [LiveBillingController::class, 'confirm'])->middleware(['feature:live', 'throttle:30,1'])->name('lives.billing.confirm');
                 Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->middleware('feature:live')->name('lives.start');
                 // Live en images : écrans reliés, mode d'affichage, affichage (mode présentation), cartes à enregistrer
-                Route::get('lives/screens', [LiveScreenController::class, 'index'])->middleware('feature:live,live_screens')->name('lives.screens');
+                Route::get('lives/screens', [LiveScreenController::class, 'index'])->middleware('feature:live,live_screens')->middleware('cache.headers:private;no_cache;etag')->name('lives.screens');
                 Route::post('lives/screens/pair', [LiveScreenController::class, 'pair'])->middleware('throttle:20,1')->middleware('feature:live,live_screens')->name('lives.screens.pair');
                 Route::post('lives/screens/link', [LiveScreenController::class, 'link'])->middleware('throttle:20,1')->middleware('feature:live,live_screens')->name('lives.screens.link');
                 Route::post('lives/screens/{screen}/test', [LiveScreenController::class, 'test'])->whereNumber('screen')->middleware('feature:live,live_screens')->name('lives.screens.test');
                 Route::delete('lives/screens/{screen}', [LiveScreenController::class, 'destroy'])->whereNumber('screen')->middleware('feature:live,live_screens')->name('lives.screens.destroy');
                 Route::post('lives/{session}/display', [LiveScreenController::class, 'mode'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live,live_screens')->name('lives.display');
                 Route::post('lives/phone-style', [LiveScreenController::class, 'phoneStyle'])->middleware('feature:live,live_screens')->name('lives.phone-style');
-                Route::get('lives/{session}/display', [LiveScreenController::class, 'display'])->whereNumber('session')->middleware('feature:live,live_screens')->name('lives.display.show');
+                Route::get('lives/{session}/display', [LiveScreenController::class, 'display'])->whereNumber('session')->middleware('feature:live,live_screens')->middleware('cache.headers:private;no_cache;etag')->name('lives.display.show');
                 Route::get('lives/{session}/cards', [LiveScreenController::class, 'cards'])->whereNumber('session')->middleware('throttle:30,1')->middleware('feature:live,live_screens')->name('lives.cards');
                 Route::get('lives/cards/file', [LiveScreenController::class, 'file'])->middleware('throttle:120,1')->middleware('feature:live,live_screens')->name('lives.cards.file');
                 Route::get('lives/{session}/cards.zip', [LiveScreenController::class, 'zip'])->whereNumber('session')->middleware('throttle:10,1')->middleware('feature:live,live_screens')->name('lives.cards.zip');
