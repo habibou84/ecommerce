@@ -35,8 +35,7 @@ class FeaturesTest extends TestCase
 
         // Console : changement noté dans le journal, fonction inconnue refusée
         $console = fn (string $method, string $path, array $data = []) => $this->apiOn(self::CONSOLE, $method, 'console/'.$path, $data);
-        $start = $console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+        $this->signInConsole('07 01 02 03 04');
         $console('PUT', 'features/meta_messages', ['state' => 'hidden'])->assertOk()->assertJsonFragment(['key' => 'meta_messages', 'state' => 'hidden']);
         $this->assertSame(['from' => 'on', 'to' => 'hidden'], AdminAction::where('action', 'feature.meta_messages')->sole()->data);
         $console('PUT', 'features/test-stores', ['store_ids' => [$store->id]])->assertOk()->assertJsonPath('data.test_stores.0.slug', 'awa');

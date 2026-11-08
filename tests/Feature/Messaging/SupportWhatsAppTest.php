@@ -56,8 +56,7 @@ class SupportWhatsAppTest extends TestCase
 
     public function test_support_number_is_connected_and_messages_are_read_and_answered_in_the_console(): void
     {
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+        $this->signInConsole('07 01 02 03 04');
 
         $this->console('GET', 'whatsapp')->assertOk()->assertJsonPath('data.connected', false)->assertJsonPath('data.embedded.app_id', '7777');
         // Coexistence : le numéro reste sur le téléphone, il n'est pas réactivé chez Meta
@@ -96,8 +95,7 @@ class SupportWhatsAppTest extends TestCase
 
     public function test_support_number_configured_by_hand_with_another_meta_app(): void
     {
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+        $this->signInConsole('07 01 02 03 04');
 
         // Numéro qui n'est pas sur ce compte WhatsApp : refusé, rien n'est gardé
         $this->console('POST', 'whatsapp/manual', ['phone_number_id' => '5555', 'waba_id' => '4242', 'access_token' => str_repeat('t', 30)])->assertStatus(422);

@@ -47,7 +47,7 @@ class MerchantCatchUpTest extends TestCase
             PlatformSetting::put("whatsapp.{$key}", $value);
         }
         $this->admin = User::factory()->create(['phone' => '+2250701020304']);
-        $this->admin->forceFill(['is_super_admin' => true])->save();
+        $this->admin->forceFill(['is_super_admin' => true] + self::consoleTwoFactor())->save();
         $this->travelTo(now()->setTimezone('Africa/Abidjan')->setTime(10, 0));
     }
 

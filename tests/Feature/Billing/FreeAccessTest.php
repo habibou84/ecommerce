@@ -30,7 +30,7 @@ class FreeAccessTest extends TestCase
         parent::setUp();
         Notification::fake();
         $this->admin = User::factory()->create(['phone' => '+2250701020304']);
-        $this->admin->forceFill(['is_super_admin' => true])->save();
+        $this->admin->forceFill(['is_super_admin' => true] + self::consoleTwoFactor())->save();
         // Essai terminé : l'espace marchand est à l'offre gratuite
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode'], plan: null);
     }

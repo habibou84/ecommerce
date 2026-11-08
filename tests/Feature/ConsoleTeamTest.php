@@ -40,8 +40,7 @@ class ConsoleTeamTest extends TestCase
 
     private function signIn(): void
     {
-        $start = $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+        $this->signInConsole('0701020304');
     }
 
     public function test_adding_and_removing_an_administrator_needs_the_password_and_warns_the_team(): void

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAction;
 use App\Models\User;
 use App\Notifications\ConsoleTeamChanged;
+use App\Services\Accounts\ConsoleTwoFactor;
 use App\Services\Billing\BillingSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ class ConsoleTeamController extends Controller
 
         return response()->json(['data' => $admins->map(fn (User $u) => [
             'id' => $u->id, 'name' => $u->name, 'phone' => PhoneNumber::display($u->phone), 'email' => $u->email,
-            'active' => $u->isActive(), 'last_login_at' => $u->last_login_at?->toIso8601String(), 'me' => $u->id === $request->user()->id,
+            'active' => $u->isActive(), 'two_factor' => ConsoleTwoFactor::enabled($u), 'last_login_at' => $u->last_login_at?->toIso8601String(), 'me' => $u->id === $request->user()->id,
         ])]);
     }
 
@@ -91,6 +92,26 @@ class ConsoleTeamController extends Controller
         DB::table('sessions')->where('user_id', $target->id)->delete();
         $this->record($request, 'console_admin_removed', ['admin' => $target->name]);
         $this->tell("{$request->user()->name} a retiré {$target->name} de l'équipe de la console.", $request);
+
+        return $this->index($request);
+    }
+
+    /**
+     * Téléphone perdu sans codes de secours : l'application d'un autre administrateur est retirée. À sa prochaine
+     * connexion, il reçoit un code (e-mail, WhatsApp ou SMS) puis active une nouvelle application.
+     */
+    public function resetTwoFactor(Request $request, int $admin): JsonResponse
+    {
+        $request->validate(['current_password' => ['required', 'string', 'max:100']], [], ['current_password' => 'votre mot de passe']);
+        $this->confirmPassword($request);
+        $target = User::where('is_super_admin', true)->findOrFail($admin);
+        if ($target->id === $request->user()->id) {
+            throw ValidationException::withMessages(['admin' => 'Pour votre propre compte : Mon compte › Changer de téléphone.']);
+        }
+        app(ConsoleTwoFactor::class)->disable($target);
+        DB::table('sessions')->where('user_id', $target->id)->delete();
+        $this->record($request, 'console_2fa_reset', ['admin' => $target->name]);
+        $this->tell("{$request->user()->name} a réinitialisé la validation en deux étapes de {$target->name}.", $request);
 
         return $this->index($request);
     }

@@ -95,7 +95,7 @@ class MetaHealthTest extends TestCase
         WhatsappAccount::sole()->forceFill(['meta_health' => ['can_send' => 'BLOCKED', 'errors' => [['code' => 141000, 'description' => 'Business verification required.', 'solution' => '', 'level' => 'BLOCKED']]],
             'meta_health_at' => now(), 'meta_state' => 'blocked', 'meta_state_since' => now()->subDays(2)])->save();
         $admin = User::factory()->create(['phone' => '+2250701020304']);
-        $admin->forceFill(['is_super_admin' => true])->save();
+        $admin->forceFill(['is_super_admin' => true] + self::consoleTwoFactor())->save();
         $this->actingAs($admin)->withSession(['console_admin' => $admin->id, 'console_since' => now()->timestamp])
             ->apiOn(self::CONSOLE, 'GET', 'console/whatsapp-health', ['filter' => 'help'])->assertOk()
             ->assertJsonPath('counts.blocked', 1)->assertJsonPath('data.0.store.name', 'Awa Mode')

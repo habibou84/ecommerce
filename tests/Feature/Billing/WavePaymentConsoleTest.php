@@ -50,8 +50,7 @@ class WavePaymentConsoleTest extends TestCase
     private function signIn(): void
     {
         $this->logout();
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+        $this->signInConsole('07 01 02 03 04');
     }
 
     public function test_a_subscription_payment_refused_by_paydunya_shows_its_reason_in_the_console(): void

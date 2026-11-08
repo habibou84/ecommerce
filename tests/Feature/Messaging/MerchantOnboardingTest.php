@@ -152,7 +152,7 @@ class MerchantOnboardingTest extends TestCase
     {
         $store = $this->merchant();
         $admin = User::factory()->create(['phone' => '+2250701020304']);
-        $admin->forceFill(['is_super_admin' => true])->save();
+        $admin->forceFill(['is_super_admin' => true] + self::consoleTwoFactor())->save();
         $console = fn (string $method, array $data = []) => $this->actingAs($admin)->withSession(['console_admin' => $admin->id, 'console_since' => now()->timestamp])
             ->apiOn(self::CONSOLE, $method, 'console/whatsapp/onboarding', $data);
 
@@ -204,7 +204,7 @@ class MerchantOnboardingTest extends TestCase
     public function test_the_trial_end_template_is_created_at_meta_and_used_once_approved(): void
     {
         $admin = User::factory()->create(['phone' => '+2250701020304']);
-        $admin->forceFill(['is_super_admin' => true])->save();
+        $admin->forceFill(['is_super_admin' => true] + self::consoleTwoFactor())->save();
         $this->actingAs($admin)->withSession(['console_admin' => $admin->id, 'console_since' => now()->timestamp])
             ->apiOn(self::CONSOLE, 'POST', 'console/whatsapp/onboarding/template')->assertOk()
             ->assertJsonPath('data.trial_template', 'jm_fin_essai')->assertJsonPath('data.trial_template_status', 'PENDING');

@@ -130,7 +130,11 @@ class LiveBillingTest extends TestCase
         $second = $this->newLive();
         $this->start($second)->assertOk();
         $this->orders($second, 20);
-        $this->storeApi($this->store, 'POST', "lives/{$second}/end")->assertOk();
+        // Pendant le live : le crédit (0 F) ne couvre pas le palier atteint, il manquera 500 F
+        $this->storeApi($this->store, 'GET', "lives/{$second}")->assertJsonPath('data.billing.price', 500)->assertJsonPath('data.billing.shortfall', 500);
+        // Bilan : crédit à −500 F, recharger au moins 1 000 F pour ouvrir le live suivant
+        $this->storeApi($this->store, 'POST', "lives/{$second}/end")->assertOk()
+            ->assertJsonPath('data.billing.credit', -500)->assertJsonPath('data.billing.recharge', 1000)->assertJsonPath('data.billing.shortfall', 0);
         $this->assertSame([500, 30, -500], [LiveSession::find($second)->billed_amount, $this->store->fresh()->live_orders_used, $this->store->fresh()->live_credit]);
 
         // Plus rien d'offert et crédit insuffisant : le live ne s'ouvre pas, la recharge est demandée
@@ -187,8 +191,7 @@ class LiveBillingTest extends TestCase
         $admin = User::factory()->create(['phone' => '+2250701020304', 'password' => 'motdepasse']);
         $admin->forceFill(['is_super_admin' => true])->save();
         $this->logout();
-        $login = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $this->console('POST', 'auth/verify', ['token' => $login->json('verification.token'), 'code' => $login->json('demo_code')])->assertOk();
+        $this->signInConsole('07 01 02 03 04');
 
         $this->console('GET', 'lives')->assertOk()->assertJsonPath('data.paid', false)->assertJsonPath('data.free_orders', 300)
             ->assertJsonPath('data.min_credit', 500)->assertJsonPath('data.tier2_price', 500)->assertJsonPath('data.month_price', 7000);
