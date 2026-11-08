@@ -84,7 +84,9 @@ class EmbeddedSignupTest extends TestCase
         $this->assertMatchesRegularExpression('/^\d{6}$/', $account->two_step_pin);
 
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), 'oauth/access_token?client_id=7777&client_secret=platform-secret&code=code-abc'));
-        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/4444/subscribed_apps') && $r->hasHeader('Authorization', 'Bearer biz-token'));
+        // Notifications de ce compte vers l'adresse de ce serveur (préproduction et production partagent l'application)
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/4444/subscribed_apps') && $r->hasHeader('Authorization', 'Bearer biz-token')
+            && $r['override_callback_uri'] === 'http://api.localhost/webhooks/whatsapp' && $r['verify_token'] === 'verif-123');
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/5555/register') && $r['pin'] === $account->two_step_pin && $r['messaging_product'] === 'whatsapp');
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/4444/message_templates') && $r['name'] === 'jm_confirmation_commande'
             && $r['language'] === 'fr' && $r['components'][1]['buttons'][0]['text'] === 'Confirmer' && count($r['components'][0]['example']['body_text'][0]) === 3);
