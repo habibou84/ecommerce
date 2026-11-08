@@ -357,12 +357,12 @@ const ago = (iso) => {
         </span>
       </button>
     </Teleport>
-    <!-- En direct : durée, montant, menu ⋯, ✕ -->
+    <!-- Commandes ouvertes : durée, montant, menu ⋯, ✕ -->
     <div class="flex items-center gap-2 px-0.5 text-white">
-      <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
-      <b class="text-[15px] font-black">EN DIRECT</b>
-      <span class="text-xs font-bold text-slate-400">{{ duration }}</span>
-      <b class="ml-auto text-lg font-black">{{ money(live.summary?.amount ?? 0) }}</b>
+      <span class="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
+      <b class="whitespace-nowrap text-[13px] font-black">COMMANDES OUVERTES</b>
+      <span class="whitespace-nowrap text-xs font-bold text-slate-400">{{ duration }}</span>
+      <b class="ml-auto whitespace-nowrap text-[17px] font-black">{{ money(live.summary?.amount ?? 0) }}</b>
       <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg font-black text-white" aria-label="Plus" :aria-expanded="menu" @click="menu = !menu">⋯</button>
       <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white text-lg font-black text-slate-900" aria-label="Fermer (le live continue)" @click="emit('close')">✕</button>
     </div>
@@ -372,7 +372,7 @@ const ago = (iso) => {
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('quick')">✍️ Réservation vue</button>
       <RouterLink v-if="live.whatsapp" to="/gestion/whatsapp" class="rounded-xl bg-emerald-50 py-2.5 text-center text-emerald-800">✓ {{ live.whatsapp_phone || 'WhatsApp' }}</RouterLink>
       <RouterLink v-else to="/gestion/whatsapp?onglet=messages" class="rounded-xl bg-amber-50 py-2.5 text-center text-amber-800">WhatsApp à connecter</RouterLink>
-      <button type="button" class="col-span-2 rounded-xl bg-slate-900 py-2.5 text-white" :disabled="busy" @click="menu = false; emit('end')">⏹ Terminer le live</button>
+      <button type="button" class="col-span-2 rounded-xl bg-slate-900 py-2.5 text-white" :disabled="busy" @click="menu = false; emit('end')">⏹ Fermer les commandes du live</button>
     </div>
 
     <!-- Live, Commandes, Messages -->

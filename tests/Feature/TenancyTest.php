@@ -4,14 +4,13 @@ namespace Tests\Feature;
 
 use App\Enums\Role;
 use App\Enums\StoreStatus;
-use App\Models\Plan;
 use App\Models\SlugHistory;
 use App\Models\StoreDomain;
 use App\Models\StoreInvitation;
+use App\Services\Live\LiveBilling;
 use App\Support\StartSteps;
 use App\Support\Tenancy;
 use App\Support\TrialOffer;
-use Database\Seeders\PlanSeeder;
 use Tests\TestCase;
 
 class TenancyTest extends TestCase
@@ -22,61 +21,28 @@ class TenancyTest extends TestCase
         $this->get('http://www.localhost/')->assertOk()->assertSee('Créer mon espace marchand');
     }
 
-    public function test_the_presentation_page_puts_delivery_first_and_shows_public_prices(): void
+    public function test_the_presentation_page_says_the_live_stays_on_tiktok(): void
     {
-        $this->seed(PlanSeeder::class);
-        Plan::where('code', 'business')->update(['is_public' => false]);
-
         $this->get($this->platformUrl())->assertOk()
-            ->assertSee('Des livreurs fiables, toujours disponibles, en un clic')
-            ->assertSee('Connecter en un clic')
-            ->assertSee('3 500 F')->assertSee('12 500 F')
-            ->assertDontSee('35 000 F')
+            ->assertSee('Toi, tu fais ton live sur TikTok.')
+            ->assertSee('Jibiat Marchand enregistre les commandes.')
+            ->assertSee('Mon live se fait sur Jibiat Marchand ?')
+            ->assertSee('/videos/live/probleme-solution-v.mp4', false)
+            ->assertSee('/videos/live/comment-ca-marche-v.mp4', false)
             ->assertSee('/videos/og-marchand.jpg', false)
             ->assertSee('https://wa.me/2250507016739?text=', false)
-            ->assertSee('"@type":"FAQPage"', false);
+            ->assertSee('"@type":"FAQPage"', false)
+            ->assertDontSee('Essai gratuit');
     }
 
-    public function test_prices_suit_mobile_money_payments(): void
+    public function test_live_prices_show_only_when_paid_lives_are_on(): void
     {
-        $this->seed(PlanSeeder::class);
+        $this->get($this->platformUrl())->assertOk()->assertSee('application est gratuite')->assertDontSee('Lives pendant 24 h');
 
+        app(LiveBilling::class)->update(['paid' => true]);
         $this->get($this->platformUrl())->assertOk()
-            ->assertSee("ou 1\u{00A0}500\u{00A0}F / semaine", false)
-            ->assertSee("25\u{00A0}000\u{00A0}F d'économie", false)
-            ->assertSee('Wave, Orange Money, MTN, Moov')
-            ->assertSee('60 commandes par mois')
-            ->assertSee('Par mois : 10 en Gratuit, 50 en Starter, 300 en Pro et 1 000 en Business.', false)
-            ->assertSee("Besoin de plus d&#039;assistant ? Rechargez 100 actions pour 1\u{00A0}000\u{00A0}F", false)
-            ->assertSee('2 mois de l&#039;offre Pro au lieu de 1 mois', false);
-    }
-
-    public function test_every_plan_lists_the_online_store(): void
-    {
-        $this->seed(PlanSeeder::class);
-
-        $this->get($this->platformUrl())->assertOk()
-            ->assertSee('votre-nom.'.config('platform.domain').'</span>', false)
-            ->assertSee('Boutique en ligne à votre nom de domaine', false)
-            ->assertSee('La boutique en ligne est-elle comprise ?', false)
-            ->assertSee('Jusqu&#039;à 3 boutiques sous un seul abonnement', false);
-    }
-
-    public function test_the_presentation_page_shows_the_assistant_and_the_pro_trial(): void
-    {
-        $this->seed(PlanSeeder::class);
-        config(['platform.trial_days' => 30, 'platform.trial_plan' => 'pro']);
-
-        $this->get($this->platformUrl())->assertOk()
-            ->assertSee('Un message WhatsApp devient une commande')
-            ->assertSee('Une photo devient une fiche produit')
-            ->assertSee('Paniers abandonnés relancés')
-            ->assertSee('1 mois de l\'offre Pro offert')
-            ->assertSee('Votre assistant, à la recharge')->assertDontSee('Sans assistant')
-            ->assertSee('/videos/marchand-ia-commande-v.mp4', false)
-            ->assertSee('Elle vend même quand vous dormez')
-            ->assertSee('/videos/marchand-boutique-v.mp4', false)
-            ->assertSee('/videos/marchand-presentation-v.mp4', false)->assertSee('/videos/marchand-presentation-h.mp4', false);
+            ->assertSee('Commandes de tes 10 premiers lives TikTok')
+            ->assertSee("500\u{00A0}F", false)->assertSee("7\u{00A0}000\u{00A0}F", false);
     }
 
     public function test_the_trial_is_announced_in_days_when_it_is_not_whole_months(): void
