@@ -176,11 +176,12 @@ class SignupByWhatsAppTest extends TestCase
 
     public function test_help_pause_when_a_human_answers_and_existing_numbers(): void
     {
-        // Numéro déjà inscrit : connexion ou deuxième boutique
+        // Numéro déjà inscrit : seulement la connexion
         $store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
         $phone = ltrim($store->owner->phone, '+');
         $this->say('inscription', from: $phone);
         $this->assertStringContainsString('déjà la boutique *Awa Mode*', $this->last()['text']);
+        $this->assertSame(['su:login'], $this->last()['buttons']);
         $this->say('Me connecter', 'su:login', $phone);
         $this->assertStringContainsString('awa.localhost/auth/relais?jeton=', $this->last()['text']);
 
