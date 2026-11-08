@@ -11,6 +11,7 @@ use App\Models\SupportSession;
 use App\Models\User;
 use App\Notifications\ConsoleLoginCode;
 use App\Notifications\SupportAccess;
+use App\Services\Accounts\ConsoleTwoFactor;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -40,9 +41,7 @@ class ConsoleTest extends TestCase
 
     private function signIn(): void
     {
-        $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])
-            ->assertOk()->assertJsonPath('data.name', 'Équipe Jibiat');
+        $this->signInConsole('07 01 02 03 04')->assertJsonPath('data.name', 'Équipe Jibiat');
     }
 
     public function test_console_login_needs_password_sms_code_and_admin_rights(): void
@@ -57,7 +56,12 @@ class ConsoleTest extends TestCase
         $start = $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
         $this->console('GET', 'stats')->assertUnauthorized();
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => '000000'])->assertStatus(422);
-        $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+        $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk()
+            ->assertJsonPath('data.two_factor', false);
+        // Premier accès : rien d'autre que l'activation de l'application d'authentification
+        $this->console('GET', 'stats')->assertForbidden()->assertJsonPath('two_factor_setup', true);
+        $this->console('GET', 'auth/me')->assertOk();
+        $this->enableConsoleTwoFactor();
 
         $this->console('GET', 'stats')->assertOk()->assertJsonPath('data.stores', 1)->assertJsonPath('data.trials_ending_7d', 0);
         // La console n'existe que sur admin.* ; une session de boutique n'y donne pas accès
@@ -82,12 +86,15 @@ class ConsoleTest extends TestCase
         $this->console('POST', 'auth/email', ['token' => $start->json('token'), 'code' => '000000'])->assertStatus(422);
         $this->console('GET', 'stats')->assertUnauthorized();
         $this->console('POST', 'auth/email', ['token' => $start->json('token'), 'code' => $code])->assertOk()->assertJsonPath('data.email', 'equipe@jibiat.com');
+        $this->console('GET', 'stats')->assertForbidden();
+        $this->enableConsoleTwoFactor();
         $this->console('GET', 'stats')->assertOk();
         // Un code ne sert qu'une fois
         $this->console('POST', 'auth/logout')->assertOk();
         $this->console('POST', 'auth/email', ['token' => $start->json('token'), 'code' => $code])->assertStatus(422);
 
-        // Trop d'essais : la demande est annulée, même avec le bon code ensuite
+        // Trop d'essais : la demande est annulée, même avec le bon code ensuite (premier accès d'un autre administrateur)
+        app(ConsoleTwoFactor::class)->disable($this->admin);
         Notification::fake();
         $again = $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'motdepasse'])->assertStatus(202);
         Notification::assertSentOnDemand(ConsoleLoginCode::class, function (ConsoleLoginCode $n) use (&$code) {
@@ -101,6 +108,7 @@ class ConsoleTest extends TestCase
         $this->console('POST', 'auth/email', ['token' => $again->json('token'), 'code' => $code])->assertStatus(422);
 
         // Mon compte : l'adresse et le mot de passe changent avec le mot de passe actuel
+        $this->travel(2)->minutes(); // limite de 10 codes par minute
         $this->signIn();
         $this->console('PUT', 'account', ['current_password' => 'mauvais', 'email' => 'autre@jibiat.com'])->assertStatus(422)->assertJsonValidationErrors('current_password');
         $this->console('PUT', 'account', ['current_password' => 'motdepasse', 'email' => 'autre@jibiat.com', 'password' => 'nouveau-mot-de-passe', 'password_confirmation' => 'nouveau-mot-de-passe'])
@@ -115,9 +123,16 @@ class ConsoleTest extends TestCase
         $this->console('GET', 'stats')->assertUnauthorized();
         $this->travelBack();
 
-        // Sans adresse : retour à la preuve par WhatsApp ou SMS
-        $this->admin->forceFill(['email' => null])->save();
+        // Application activée : plus aucun code envoyé, ni par e-mail ni par SMS, même sur demande
+        Notification::fake();
         $this->console('POST', 'auth/logout');
+        $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'nouveau-mot-de-passe', 'channel' => 'phone'])->assertStatus(202)->assertJsonPath('method', 'totp');
+        Notification::assertNothingSent();
+        $this->assertCount(0, $this->sentSms());
+
+        // Sans application ni adresse : premier accès par la preuve du numéro (WhatsApp ou SMS)
+        app(ConsoleTwoFactor::class)->disable($this->admin->fresh());
+        $this->admin->forceFill(['email' => null])->save();
         $this->console('POST', 'auth/login', ['phone' => '0701020304', 'password' => 'nouveau-mot-de-passe'])->assertStatus(202)->assertJsonMissingPath('method');
     }
 

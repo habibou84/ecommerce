@@ -78,6 +78,7 @@ class WhatsAppVerificationTest extends TestCase
             ->assertJsonPath('verification.whatsapp', null)->assertJsonPath('verification.sms.available', true);
         $this->assertCount(1, $this->sentSms());
         $this->console('POST', 'auth/verify', ['token' => $start->json('verification.token'), 'code' => $start->json('demo_code')])->assertOk();
+        $this->enableConsoleTwoFactor();
 
         $this->console('GET', 'whatsapp')->assertOk()->assertJsonPath('data.connected', false)->assertJsonPath('data.bridge', true)->assertJsonPath('data.mode', null);
         $this->console('POST', 'whatsapp/qr')->assertOk()->assertJsonPath('data.live.qr', 'data:image/png;base64,QR')->assertJsonPath('data.mode', 'qr')->assertJsonPath('data.qr_status', 'pending');
@@ -219,6 +220,7 @@ class WhatsAppVerificationTest extends TestCase
         $start = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
         $this->message('+2250701020304', $start->json('verification.whatsapp.text'), 'in-c')->assertOk();
         $this->apiOn(self::CONSOLE, 'GET', 'verifications/'.$start->json('verification.token'))->assertOk();
+        $this->enableConsoleTwoFactor();
         $this->console('GET', 'whatsapp')->assertOk()->assertJsonPath('data.sms.fallback', false)->assertJsonPath('data.sms.month', 0);
         $this->console('PUT', 'whatsapp/sms', ['fallback' => true])->assertOk()->assertJsonPath('data.sms.fallback', true);
         $this->logout();

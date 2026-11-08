@@ -191,8 +191,7 @@ class LiveBillingTest extends TestCase
         $admin = User::factory()->create(['phone' => '+2250701020304', 'password' => 'motdepasse']);
         $admin->forceFill(['is_super_admin' => true])->save();
         $this->logout();
-        $login = $this->console('POST', 'auth/login', ['phone' => '07 01 02 03 04', 'password' => 'motdepasse', 'channel' => 'phone'])->assertStatus(202);
-        $this->console('POST', 'auth/verify', ['token' => $login->json('verification.token'), 'code' => $login->json('demo_code')])->assertOk();
+        $this->signInConsole('07 01 02 03 04');
 
         $this->console('GET', 'lives')->assertOk()->assertJsonPath('data.paid', false)->assertJsonPath('data.free_orders', 300)
             ->assertJsonPath('data.min_credit', 500)->assertJsonPath('data.tier2_price', 500)->assertJsonPath('data.month_price', 7000);

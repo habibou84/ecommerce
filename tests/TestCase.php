@@ -9,7 +9,9 @@ use App\Models\Plan;
 use App\Models\PlatformSetting;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Accounts\ConsoleTwoFactor;
 use App\Services\Accounts\StoreRoles;
+use App\Services\Accounts\Totp;
 use App\Services\Platform\Features;
 use App\Support\Tenancy;
 use Database\Seeders\PlacesSeeder;
@@ -19,6 +21,7 @@ use Database\Seeders\ThemeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Testing\TestResponse;
+use Jibiat\Socle\PhoneNumber;
 use Jibiat\Socle\Sms\SmsGateway;
 
 abstract class TestCase extends BaseTestCase
@@ -62,6 +65,43 @@ abstract class TestCase extends BaseTestCase
     {
         return $this->withHeaders(['Referer' => $baseUrl, 'Accept' => 'application/json'])
             ->json($method, rtrim($baseUrl, '/').'/api/v1/'.ltrim($path, '/'), $data);
+    }
+
+    /**
+     * Premier accès à la console (connecté avec un code) : activation de l'application d'authentification, comme
+     * l'écran le fait (QR code puis premier code). Renvoie le secret.
+     */
+    protected function enableConsoleTwoFactor(): string
+    {
+        $secret = $this->apiOn('http://admin.localhost', 'POST', 'console/2fa/setup')->assertOk()->json('data.secret');
+        $this->apiOn('http://admin.localhost', 'POST', 'console/2fa/confirm', ['code' => Totp::code($secret, Totp::step())])
+            ->assertOk()->assertJsonCount(ConsoleTwoFactor::RECOVERY_CODES, 'data.recovery_codes');
+
+        return $secret;
+    }
+
+    /** Application d'authentification déjà activée (administrateur de la console pris tel quel dans un test). */
+    protected static function consoleTwoFactor(): array
+    {
+        return ['two_factor_secret' => Totp::secret(), 'two_factor_confirmed_at' => now()];
+    }
+
+    /**
+     * Connexion à la console d'un administrateur avec son application d'authentification (activée au besoin).
+     */
+    protected function signInConsole(string $phone = '0701020304', string $password = 'motdepasse'): TestResponse
+    {
+        $user = User::where('phone', PhoneNumber::normalize($phone))->firstOrFail();
+        if (! ConsoleTwoFactor::enabled($user)) {
+            $user->forceFill(['two_factor_secret' => Totp::secret(), 'two_factor_confirmed_at' => now()]);
+        }
+        // Un code ne sert qu'une fois : en test, le dernier pas utilisé est oublié pour se reconnecter
+        $user->forceFill(['two_factor_last_step' => null])->save();
+        $start = $this->apiOn('http://admin.localhost', 'POST', 'console/auth/login', ['phone' => $phone, 'password' => $password])
+            ->assertStatus(202)->assertJsonPath('method', 'totp');
+
+        return $this->apiOn('http://admin.localhost', 'POST', 'console/auth/totp', ['token' => $start->json('token'), 'code' => Totp::code($user->two_factor_secret, Totp::step())])
+            ->assertOk();
     }
 
     /**

@@ -9,12 +9,14 @@ use App\Models\AdminAction;
 use App\Models\User;
 use App\Notifications\ConsoleLoginAlert;
 use App\Services\Accounts\ConsoleEmailCode;
+use App\Services\Accounts\ConsoleTwoFactor;
 use App\Services\Accounts\PhoneVerifier;
 use App\Services\Billing\BillingSettings;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -24,13 +26,14 @@ use Jibiat\Socle\PhoneNumber;
 use Throwable;
 
 /**
- * Connexion à la console (admin.jibiat-marchand.com) : mot de passe, puis un code reçu par e-mail (adresse de
- * l'administrateur, réglée dans Mon compte). Sans adresse, si l'e-mail ne part pas ou à la demande : preuve du numéro
- * par WhatsApp (message envoyé au numéro du support) ou, à défaut, par code SMS.
+ * Connexion à la console (admin.jibiat-marchand.com) : mot de passe, puis le code de l'application d'authentification
+ * (validation en deux étapes) ou un code de secours. Aucun code n'est alors envoyé par e-mail ou SMS.
+ * Premier accès (ou application réinitialisée par l'équipe) : code reçu par e-mail ou preuve du numéro (WhatsApp, SMS),
+ * puis activation obligatoire de l'application avant tout le reste de la console.
  */
 class ConsoleAuthController extends Controller
 {
-    public function __construct(private readonly PhoneVerifier $verifier, private readonly ConsoleEmailCode $emailCodes) {}
+    public function __construct(private readonly PhoneVerifier $verifier, private readonly ConsoleEmailCode $emailCodes, private readonly ConsoleTwoFactor $twoFactor) {}
 
     public function login(Request $request): JsonResponse
     {
@@ -39,6 +42,11 @@ class ConsoleAuthController extends Controller
 
         if ($user === null || ! $user->is_super_admin || ! $user->isActive() || ! Hash::check($request->string('password'), (string) $user->password)) {
             throw ValidationException::withMessages(['phone' => 'Numéro ou mot de passe incorrect.']);
+        }
+
+        // Application d'authentification activée : son code, rien n'est envoyé
+        if (ConsoleTwoFactor::enabled($user)) {
+            return response()->json(['method' => 'totp', 'token' => $this->twoFactor->start($user)], 202);
         }
 
         if ($request->input('channel') !== 'phone' && ($sent = $this->emailCodes->start($user)) !== null) {
@@ -63,6 +71,91 @@ class ConsoleAuthController extends Controller
         self::open($request, $verification->user);
 
         return $this->me($request);
+    }
+
+    /**
+     * Code de l'application d'authentification (ou code de secours) après le mot de passe.
+     */
+    public function verifyTotp(Request $request): JsonResponse
+    {
+        $request->validate(['token' => ['required', 'string', 'max:100'], 'code' => ['required', 'string', 'max:20']]);
+        [$user, $how] = $this->twoFactor->finish($request->string('token'), $request->string('code')) ?? [null, null];
+        if ($user === null || ! $user->is_super_admin || ! $user->isActive()) {
+            throw ValidationException::withMessages(['code' => 'Code incorrect ou expiré.']);
+        }
+        self::open($request, $user, $how);
+
+        return $this->me($request);
+    }
+
+    /**
+     * Validation en deux étapes : activée ou non, codes de secours restants.
+     */
+    public function twoFactor(Request $request): JsonResponse
+    {
+        $user = $request->user()->fresh();
+
+        return response()->json(['data' => [
+            'enabled' => ConsoleTwoFactor::enabled($user), 'since' => $user->two_factor_confirmed_at?->toIso8601String(),
+            'recovery_left' => $this->twoFactor->recoveryLeft($user),
+        ]]);
+    }
+
+    /**
+     * Nouveau secret à scanner (gardé dans la session jusqu'à la confirmation). Pour changer de téléphone quand
+     * l'application est déjà active : mot de passe actuel.
+     */
+    public function twoFactorSetup(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (ConsoleTwoFactor::enabled($user)) {
+            $this->confirmPassword($request);
+        }
+        $draft = $this->twoFactor->draft($user);
+        $request->session()->put('console_2fa_draft', encrypt($draft['secret']));
+
+        return response()->json(['data' => $draft]);
+    }
+
+    public function twoFactorConfirm(Request $request): JsonResponse
+    {
+        $request->validate(['code' => ['required', 'string', 'max:10']]);
+        $draft = $request->session()->get('console_2fa_draft');
+        if ($draft === null) {
+            throw ValidationException::withMessages(['code' => 'Recommencez : affichez un nouveau QR code.']);
+        }
+        $user = $request->user();
+        $replaced = ConsoleTwoFactor::enabled($user);
+        $codes = $this->twoFactor->confirm($user, decrypt($draft), $request->string('code'));
+        if ($codes === null) {
+            throw ValidationException::withMessages(['code' => 'Code incorrect. Vérifiez l\'heure du téléphone et réessayez.']);
+        }
+        $request->session()->forget('console_2fa_draft');
+        // Les autres sessions de cet administrateur se ferment
+        DB::table('sessions')->where('user_id', $user->id)->where('id', '!=', $request->session()->getId())->delete();
+        AdminAction::create(['admin_id' => $user->id, 'action' => 'console_2fa', 'data' => ['event' => $replaced ? 'replaced' : 'enabled'], 'ip' => $request->ip()]);
+
+        return response()->json(['data' => ['recovery_codes' => $codes]]);
+    }
+
+    public function recoveryCodes(Request $request): JsonResponse
+    {
+        $this->confirmPassword($request);
+        $user = $request->user();
+        if (! ConsoleTwoFactor::enabled($user)) {
+            throw ValidationException::withMessages(['code' => 'Activez d\'abord la validation en deux étapes.']);
+        }
+        AdminAction::create(['admin_id' => $user->id, 'action' => 'console_2fa', 'data' => ['event' => 'recovery_codes'], 'ip' => $request->ip()]);
+
+        return response()->json(['data' => ['recovery_codes' => $this->twoFactor->regenerateRecoveryCodes($user)]]);
+    }
+
+    private function confirmPassword(Request $request): void
+    {
+        $request->validate(['current_password' => ['required', 'string', 'max:100']], [], ['current_password' => 'mot de passe actuel']);
+        if (! Hash::check($request->string('current_password'), (string) $request->user()->password)) {
+            throw ValidationException::withMessages(['current_password' => 'Mot de passe incorrect.']);
+        }
     }
 
     public function verifyEmail(Request $request): JsonResponse
@@ -115,17 +208,22 @@ class ConsoleAuthController extends Controller
     }
 
     /**
-     * Numéro prouvé (code SMS ou message WhatsApp) ou code reçu par e-mail : ouvre la session de la console.
+     * Code de l'application ($how = 'app' ou 'recovery') ou, au premier accès seulement, numéro prouvé (SMS, WhatsApp)
+     * ou code reçu par e-mail : ouvre la session de la console.
      */
-    public static function open(Request $request, User $user): void
+    public static function open(Request $request, User $user, ?string $how = null): void
     {
+        // Application activée : l'e-mail, le SMS ou WhatsApp ne suffisent plus
+        if ($how === null && ConsoleTwoFactor::enabled($user)) {
+            throw ValidationException::withMessages(['code' => 'Utilisez le code de votre application d\'authentification.']);
+        }
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
         $request->session()->put('console_admin', $user->id);
         // Session de la console limitée dans le temps (EnsureSuperAdmin) : nouveau code chaque jour
         $request->session()->put('console_since', now()->timestamp);
         $user->forceFill(['last_login_at' => now()])->save();
-        AdminAction::create(['admin_id' => $user->id, 'action' => 'console_login', 'data' => ['device' => mb_substr((string) $request->userAgent(), 0, 190)], 'ip' => $request->ip()]);
+        AdminAction::create(['admin_id' => $user->id, 'action' => 'console_login', 'data' => ['device' => mb_substr((string) $request->userAgent(), 0, 190), 'with' => $how ?? 'code'], 'ip' => $request->ip()]);
         self::alert($request, $user);
     }
 
@@ -152,7 +250,8 @@ class ConsoleAuthController extends Controller
     {
         $user = $request->user();
 
-        return response()->json(['data' => ['id' => $user->id, 'name' => $user->name, 'phone' => PhoneNumber::display($user->phone), 'email' => $user->email]]);
+        return response()->json(['data' => ['id' => $user->id, 'name' => $user->name, 'phone' => PhoneNumber::display($user->phone), 'email' => $user->email,
+            'two_factor' => ConsoleTwoFactor::enabled($user)]]);
     }
 
     public function logout(Request $request): JsonResponse
