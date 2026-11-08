@@ -464,6 +464,31 @@ class LiveSalesTest extends TestCase
         $this->assertSame([15000], array_values(array_unique(array_column(array_filter($this->page('GET', '/live/etat')->json('data.items'), fn ($i) => $i['code'] === 'A2'), 'price'))));
     }
 
+    public function test_codes_still_work_on_whatsapp_after_the_live_then_a_polite_reply(): void
+    {
+        $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();
+        $this->bridge(['type' => 'status', 'status' => 'connected', 'phone' => '+2250700000001'])->assertOk();
+        $id = $this->prepare(robes: 2);
+        $this->storeApi($this->store, 'POST', "lives/{$id}/end", ['keep_hours' => 24])->assertOk();
+
+        // Le lendemain, une cliente qui a vu le replay écrit le code : pièce gardée comme pendant le live
+        $this->travel(12)->hours();
+        $this->message('R1', 'A1 svp');
+        $this->assertSame(['reserved'], LiveReservation::pluck('status')->all());
+        $this->assertStringContainsString('A1', $this->whatsapp[0]);
+
+        // Commandes arrêtées : un code reçoit une réponse polie avec le lien de la boutique (une fois)
+        $this->storeApi($this->store, 'POST', "lives/{$id}/stop-orders")->assertOk();
+        $count = count($this->whatsapp);
+        $this->message('R2', 'A2', '2250707070707');
+        $this->assertCount($count + 1, $this->whatsapp);
+        $this->assertStringContainsString('Ce live est terminé', end($this->whatsapp));
+        $this->assertStringContainsString('awa.localhost', end($this->whatsapp));
+        $this->message('R3', 'A2 stp', '2250707070707');
+        $this->assertCount($count + 1, $this->whatsapp);
+        $this->assertSame(1, LiveReservation::count());
+    }
+
     public function test_whatsapp_codes_reserve_then_the_neighbourhood_creates_the_order(): void
     {
         $this->storeApi($this->store, 'POST', 'whatsapp/link')->assertOk();

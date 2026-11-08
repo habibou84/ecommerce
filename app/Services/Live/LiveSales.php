@@ -45,6 +45,9 @@ use Throwable;
  */
 class LiveSales
 {
+    /** Commandes gardées actives après « Terminer le live » (heures) */
+    public const KEEP_HOURS = [24, 48];
+
     public function __construct(private readonly OrderDesk $desk, private readonly Places $places, private readonly PlaceMatcher $matcher) {}
 
     /**
@@ -182,6 +185,9 @@ class LiveSales
         if (LiveSession::forStore($session->store_id)->where('status', 'live')->whereKeyNot($session->id)->exists()) {
             throw new BusinessRuleException('Un autre live est en cours : terminez-le d\'abord.');
         }
+        // Un seul live à la fois : les commandes encore actives d'un live terminé s'arrêtent (et il est compté)
+        LiveSession::forStore($session->store_id)->where('status', 'ended')->where('orders_until', '>', now())->whereKeyNot($session->id)
+            ->get()->each(fn (LiveSession $old) => $this->stopOrders($old));
         // Les clientes commandent sur la photo : un article sans photo ne passe pas en live
         $missing = $session->items()->with('variant.product.images')->orderBy('position')->get()
             ->filter(fn (LiveItem $item) => $item->variant?->product !== null && $item->variant->product->images->isEmpty())
@@ -198,13 +204,50 @@ class LiveSales
     /**
      * Fin du live : plus de nouvelles réservations ; les clients déjà servis peuvent encore donner leur quartier.
      */
-    public function end(LiveSession $session): LiveSession
+    public function end(LiveSession $session, ?int $keepHours = null): LiveSession
     {
-        $session->update(['status' => 'ended', 'ended_at' => now()]);
+        $keep = in_array($keepHours, self::KEEP_HOURS, true) && $session->status === 'live';
+        $session->update(['status' => 'ended', 'ended_at' => $session->ended_at ?? now(), 'orders_until' => $keep ? now()->addHours($keepHours) : null]);
+        if ($keep) {
+            // Commandes encore actives : le live sera compté quand elles s'arrêtent (une seule fois, même palier)
+            return $session->refresh();
+        }
         // Lives payants : commandes comptées et prix du palier retiré du crédit
         app(LiveBilling::class)->bill($session);
 
         return $session->refresh();
+    }
+
+    /**
+     * Commandes après le live arrêtées (bouton, heure passée ou nouveau live) : plus de réservations, live compté.
+     */
+    public function stopOrders(LiveSession $session): LiveSession
+    {
+        if ($session->status !== 'ended') {
+            return $this->end($session);
+        }
+        if ($session->orders_until !== null && $session->orders_until->isFuture()) {
+            $session->update(['orders_until' => now()]);
+        }
+        app(LiveBilling::class)->bill($session);
+
+        return $session->refresh();
+    }
+
+    /** Commandes nées des codes après « Terminer le live » */
+    public function ordersAfter(LiveSession $session): int
+    {
+        return LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->whereNotNull('order_id')
+            ->whereHas('order', fn ($q) => $q->where('created_at', '>', $session->ended_at))->distinct()->count('order_id');
+    }
+
+    /**
+     * Live qui prend les commandes : en cours, sinon terminé avec commandes encore actives.
+     */
+    public static function ordering(int $storeId): ?LiveSession
+    {
+        return self::current($storeId)
+            ?? LiveSession::forStore($storeId)->where('status', 'ended')->where('orders_until', '>', now())->latest('ended_at')->first();
     }
 
     /**
@@ -320,7 +363,7 @@ class LiveSales
     public function reserve(LiveItem $item, array $customer, string $source): LiveReservation
     {
         $session = $item->session;
-        if ($session->status !== 'live') {
+        if (! $session->takesOrders()) {
             throw new BusinessRuleException('Ce live n\'est pas en cours.');
         }
         $phone = PhoneNumber::normalize($customer['phone'] ?? null);
@@ -372,7 +415,7 @@ class LiveSales
      */
     public function reserveLines(LiveSession $session, array $lines, array $customer, string $source): Collection
     {
-        if ($session->status !== 'live') {
+        if (! $session->takesOrders()) {
             throw new BusinessRuleException('Ce live n\'est pas en cours.');
         }
         $items = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->whereIn('id', array_keys($lines))->orderBy('position')->get();
@@ -540,7 +583,7 @@ class LiveSales
         if (app(LiveCheckout::class)->receipt($conversation, $message)) {
             return true;
         }
-        $session = self::current($conversation->store_id);
+        $session = self::ordering($conversation->store_id);
         if ($message->type === 'image') {
             if ($session === null) {
                 return false;
@@ -575,8 +618,33 @@ class LiveSales
 
             return true;
         }
+        // Code d'un live terminé (commandes arrêtées) : réponse polie avec le lien de la boutique
+        if ($session === null && $this->endedLiveCode($conversation, (string) $message->body)) {
+            return true;
+        }
 
         return $this->placeNotFound($conversation, (string) $message->body);
+    }
+
+    /**
+     * Code d'un article d'un live terminé depuis moins de 7 jours, commandes arrêtées : on le dit au client avec le
+     * lien de la boutique (une fois par heure et par conversation) ; le message reste dans Messages pour l'équipe.
+     */
+    private function endedLiveCode(Conversation $conversation, string $text): bool
+    {
+        $codes = array_keys(self::quantities($text));
+        if ($codes === [] || str_word_count(Str::ascii($text)) > 6) {
+            return false;
+        }
+        $last = LiveSession::forStore($conversation->store_id)->where('status', 'ended')->where('ended_at', '>=', now()->subDays(7))->latest('ended_at')->first();
+        if ($last === null || $last->items()->whereIn('code', $codes)->doesntExist()) {
+            return false;
+        }
+        if (Cache::add('live-ended-code:'.$conversation->id, 1, 3600)) {
+            $this->reply($conversation, 'Ce live est terminé 🙏 Tu peux commander sur notre boutique : '.rtrim($conversation->store->url('/'), '/')."\nOu écris-nous ici, on te répond.");
+        }
+
+        return true;
     }
 
     /** Une seule relance « quartier pas reconnu » par cliente toutes les 10 minutes */
@@ -626,7 +694,7 @@ class LiveSales
     public function readCapture(ConversationMessage $message): void
     {
         $conversation = Conversation::forStore($message->store_id)->find($message->conversation_id);
-        $session = self::current($message->store_id);
+        $session = self::ordering($message->store_id);
         if ($conversation === null || $session === null) {
             return;
         }
@@ -793,8 +861,8 @@ class LiveSales
     public function chooseOption(Conversation $conversation, string $answer): bool
     {
         $ask = Cache::get(self::askKey($conversation->id));
-        $session = $ask ? LiveSession::forStore($conversation->store_id)->where('status', 'live')->find($ask['session']) : null;
-        if ($session === null) {
+        $session = $ask ? LiveSession::forStore($conversation->store_id)->find($ask['session']) : null;
+        if ($session === null || ! $session->takesOrders()) {
             return false;
         }
         $value = collect($ask['values'])->first(fn (string $v) => self::normalize(trim($answer)) === self::normalize($v))
@@ -1027,6 +1095,9 @@ class LiveSales
             'display_mode' => $session->display_mode ?: 'product',
             'started_at' => $session->started_at?->toIso8601String(),
             'ended_at' => $session->ended_at?->toIso8601String(),
+            // « Terminer le live » en gardant les commandes actives : jusqu'à quand, et combien de commandes depuis la fin
+            'orders_until' => $session->extended() ? $session->orders_until->toIso8601String() : null,
+            'orders_after' => $team && $session->status === 'ended' && $session->orders_until !== null ? $this->ordersAfter($session) : null,
             // « Préparer un live » : photo à épingler publiée (étape 3)
             'pin_ready' => $session->pin_ready_at !== null,
             // Lives payants par palier : commandes comptées, prix atteint, prochain palier (équipe seulement)

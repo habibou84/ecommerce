@@ -6,6 +6,7 @@ import LiveDeliveryFees from '../../../components/LiveDeliveryFees.vue'
 import LiveItemsPanel from '../../../components/LiveItemsPanel.vue'
 import LivePin from '../../../components/LivePin.vue'
 import LivePaySheet from '../../../components/live/LivePaySheet.vue'
+import EndLiveSheet from '../../../components/EndLiveSheet.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { money } from '../../../lib/format'
@@ -181,12 +182,16 @@ async function pinReady() {
 
 // Terminer le live en cours depuis sa carte : les clientes ne réservent plus, celles qui ont une pièce gardée peuvent
 // encore donner leur quartier
-async function endLive() {
-  if (!window.confirm('Fermer les commandes du live ? Les clients ne pourront plus réserver ; ceux qui ont une pièce gardée peuvent encore donner leur quartier.')) return
+const ending = ref(false)
+function endLive() {
+  ending.value = true
+}
+async function confirmEnd(hours) {
   busy.value = true
   error.value = ''
   try {
-    await http.post(`/lives/${current.value.id}/end`)
+    await http.post(`/lives/${current.value.id}/end`, hours ? { keep_hours: hours } : {})
+    ending.value = false
     livesChanged()
   } catch (e) {
     error.value = errorMessage(e)
@@ -242,7 +247,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <h2 class="mt-2 text-xl font-extrabold">{{ current.title }}</h2>
       <p class="mt-1 text-3xl font-extrabold">{{ money(current.summary?.amount ?? 0) }}</p>
       <RouterLink :to="`/gestion/live/${current.id}`" class="mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-ocre-700">Revenir aux commandes du live</RouterLink>
-      <button type="button" class="mt-2 block w-full rounded-2xl border-2 border-white/70 py-2.5 text-center text-[15px] font-extrabold text-white disabled:opacity-60" :disabled="busy" @click="endLive">⏹ Fermer les commandes du live</button>
+      <button type="button" class="mt-2 block w-full rounded-2xl border-2 border-white/70 py-2.5 text-center text-[15px] font-extrabold text-white disabled:opacity-60" :disabled="busy" @click="endLive">⏹ Terminer le live</button>
     </section>
 
     <template v-else-if="lives">
@@ -256,7 +261,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <div :class="card(1)">
         <span :class="bubble(1)">{{ step > 1 ? '✓' : 1 }}</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">{{ whatsapp ? 'WhatsApp connecté' : step > 1 ? 'Sans WhatsApp' : 'Connecte ton WhatsApp' }}</b>
+          <b class="block text-[18px] leading-tight">{{ whatsapp ? 'WhatsApp connecté' : step > 1 ? 'Sans WhatsApp' : 'Connecte ton numéro WhatsApp sur Meta' }}</b>
           <span class="text-[13.5px] text-slate-500">{{ whatsapp ? 'Les commandes arrivent toutes seules' : 'Pour recevoir les commandes' }}</span>
           <template v-if="step === 1">
             <button type="button" class="mt-2 block w-full rounded-xl bg-[#25d366] py-3 text-[16px] font-black text-white" @click="connectWhatsapp">Connecter WhatsApp</button>
@@ -371,5 +376,6 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     <Modal v-if="video" title="Le live en vidéo" @close="video = false">
       <video class="mx-auto max-h-[75vh] w-full rounded-2xl bg-black" controls autoplay playsinline :poster="`${VIDEO}.jpg?v=4`" :src="`${VIDEO}.mp4?v=4`" />
     </Modal>
+    <EndLiveSheet v-if="ending" :busy="busy" @close="ending = false" @confirm="confirmEnd" />
   </div>
 </template>

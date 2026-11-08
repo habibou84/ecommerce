@@ -9,6 +9,7 @@ import LiveCockpit from '../../../components/LiveCockpit.vue'
 import LiveScreenTabs from '../../../components/LiveScreenTabs.vue'
 import LivePin from '../../../components/LivePin.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
+import EndLiveSheet from '../../../components/EndLiveSheet.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import { pinSignature, readPin } from '../../../lib/livePin'
@@ -205,9 +206,18 @@ async function start() {
   if (live.value.whatsapp === null && !window.confirm('Votre WhatsApp n\'est pas connecté : les codes et captures envoyés sur WhatsApp ne seront pas lus, les clients réserveront seulement par le lien du live.\n\nLancer le live quand même ?')) return
   await act('start')
 }
-async function end() {
-  if (window.confirm('Fermer les commandes du live ? Les clients ne pourront plus réserver ; ceux qui ont une pièce gardée peuvent encore donner leur quartier.')) await act('end')
+// « Terminer le live » : commandes gardées actives 24 h / 48 h, ou arrêtées maintenant
+const ending = ref(false)
+function end() {
+  ending.value = true
 }
+async function confirmEnd(hours) {
+  if (await act('end', hours ? { keep_hours: hours } : {})) ending.value = false
+}
+async function stopOrders() {
+  if (window.confirm('Arrêter les commandes maintenant ? Les codes ne marcheront plus et le live sera compté.')) await act('stop-orders')
+}
+const ordersUntil = computed(() => live.value?.orders_until ? new Date(live.value.orders_until).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' }).replace(':', ' h ') : null)
 
 // Article montré aux clients (mis en avant sur la page du live) ; toucher à nouveau l'enlève
 const feature = (item) => act('feature', { item_id: live.value.featured_item_id === item.id ? null : item.id })
@@ -445,7 +455,7 @@ async function redo() {
           </p>
           <p class="flex items-center justify-between py-2.5"><span class="text-slate-600">Lien du live</span><button type="button" class="font-bold text-emerald-700" @click="share = true">📤 Partager</button></p>
         </div>
-        <button v-if="live.status === 'live'" type="button" class="w-full rounded-2xl bg-slate-900 py-3 text-base font-extrabold text-white" :disabled="busy" @click="end">⏹ Fermer les commandes du live</button>
+        <button v-if="live.status === 'live'" type="button" class="w-full rounded-2xl bg-slate-900 py-3 text-base font-extrabold text-white" :disabled="busy" @click="end">⏹ Terminer le live</button>
       </template>
 
       <!-- ═══ En-tête selon l'état ═══ -->
@@ -464,6 +474,14 @@ async function redo() {
 
       <!-- Bilan du live terminé -->
       <template v-else-if="live.status === 'ended'">
+        <!-- Commandes gardées actives après le live : jusqu'à quand, combien depuis, arrêter avant l'heure -->
+        <section v-if="live.orders_until" class="rounded-[20px] border-2 border-amber-300 bg-amber-50 p-4">
+          <p class="text-[13px] font-extrabold uppercase tracking-wide text-amber-800">● Live terminé · commandes actives</p>
+          <h3 class="mt-1 text-[17px] font-black">⏳ Commandes actives jusqu'à {{ ordersUntil }}</h3>
+          <p class="mt-1 text-[14px] text-slate-700">Les clients peuvent encore écrire A1, A2… sur WhatsApp. Ces commandes comptent dans ce live<template v-if="live.billing"> : prix calculé quand les commandes s'arrêtent</template>.</p>
+          <p class="mt-2 text-[14px]"><b>{{ live.orders_after ?? 0 }}</b> commande{{ (live.orders_after ?? 0) > 1 ? 's' : '' }} depuis la fin du live<template v-if="live.billing"> · palier actuel : <b>{{ live.billing.price ? money(live.billing.price) : 'gratuit' }}</b> ({{ live.billing.orders }} commandes)</template></p>
+          <button type="button" class="mt-3 block w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-2.5 font-extrabold text-orange-800 disabled:opacity-60" :disabled="busy" @click="stopOrders">Arrêter les commandes maintenant</button>
+        </section>
         <section class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
           <span class="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-bold">TERMINÉ · {{ formatDateTime(live.ended_at) }} · {{ duration }}</span>
           <p class="mt-1 text-sm font-semibold text-white/90">{{ live.title }}</p>
@@ -616,6 +634,7 @@ async function redo() {
     </template>
 
     <!-- Ajouter des articles -->
+    <EndLiveSheet v-if="ending" :busy="busy" @close="ending = false" @confirm="confirmEnd" />
     <Modal v-if="adding" :title="live?.status === 'live' ? 'Ajouter des articles pendant le live' : 'Ajouter des articles'" @close="closeAdding">
       <div class="space-y-3 text-sm">
         <p class="text-sm text-slate-600">Un nouvel article prend le code suivant. Les codes annoncés ne changent pas.</p>
