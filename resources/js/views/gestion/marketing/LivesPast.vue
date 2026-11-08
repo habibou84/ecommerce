@@ -93,20 +93,20 @@ async function redo(live) {
       <div class="mt-3"><LiveTraining :url="pageUrl" @prepare="router.push('/gestion/live')" /></div>
     </details>
 
-    <section v-if="billing?.paid && (billing.payments.length || billing.offered_lives.length)" class="card p-4">
-      <h3 class="font-bold">💳 Paiements des lives</h3>
+    <section v-if="billing?.paid" class="card p-4">
+      <h3 class="font-bold">💳 Crédit et paiements des lives</h3>
+      <p class="mt-1 text-sm font-bold" :class="billing.credit < 0 ? 'text-red-700' : 'text-emerald-700'">Crédit live : {{ money(billing.credit) }}</p>
       <p v-if="billing.month_until" class="mt-1 text-sm font-bold text-emerald-700">Lives illimités jusqu'au {{ new Date(billing.month_until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) }}</p>
-      <p v-else-if="billing.pass_until" class="mt-1 text-sm font-bold text-emerald-700">Pass 24 h jusqu'à {{ new Date(billing.pass_until).toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' }) }}</p>
-      <p class="mt-1 text-sm text-slate-500">Lives offerts restants : {{ billing.free_left }} sur {{ billing.free_lives }}</p>
+      <p class="mt-1 text-sm text-slate-500">Commandes en live offertes restantes : {{ billing.free_left }} sur {{ billing.free_orders }}</p>
       <ul class="mt-2 divide-y divide-slate-100 text-sm">
+        <li v-for="l in billing.billed_lives" :key="`l${l.id}`" class="flex items-center justify-between gap-2 py-2">
+          <span class="min-w-0 truncate">{{ day(l.started_at) }} · {{ l.title }} · {{ l.orders }} cmd</span>
+          <b class="shrink-0" :class="l.amount ? '' : 'text-emerald-700'">{{ l.amount ? `− ${money(l.amount)}` : 'Gratuit' }}</b>
+        </li>
         <li v-for="p in billing.payments" :key="p.number" class="flex items-center justify-between gap-2 py-2">
           <span class="min-w-0 truncate">{{ day(p.paid_at || p.created_at) }} · {{ p.label }}</span>
           <b class="shrink-0">{{ money(p.amount) }}</b>
           <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black" :class="p.status === 'pending' ? 'bg-amber-100 text-amber-900' : p.status === 'offered' ? 'bg-sky-100 text-sky-900' : 'bg-emerald-100 text-emerald-900'">{{ { paid: 'Payé', pending: 'En attente', offered: 'Offert' }[p.status] }}</span>
-        </li>
-        <li v-for="l in billing.offered_lives" :key="`o${l.id}`" class="flex items-center justify-between gap-2 py-2">
-          <span class="min-w-0 truncate">{{ day(l.started_at) }} · {{ l.title }}</span>
-          <span class="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-black text-sky-900">Live offert</span>
         </li>
       </ul>
     </section>

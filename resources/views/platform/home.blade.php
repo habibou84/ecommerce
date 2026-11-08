@@ -7,13 +7,15 @@
     $whatsapp = preg_replace('/\D+/', '', (string) config('platform.support_whatsapp'));
     $whatsappUrl = $whatsapp !== '' ? 'https://wa.me/'.$whatsapp.'?text='.rawurlencode('Bonjour, je souhaite en savoir plus sur Jibiat Marchand pour mes lives TikTok.') : null;
     // Lives payants (console) : quand ils sont allumés, on montre les lives offerts et les prix
-    $lives = app(\App\Services\Live\LiveBilling::class)->settings();
+    $liveBilling = app(\App\Services\Live\LiveBilling::class);
+    $lives = $liveBilling->settings();
+    $liveTiers = $liveBilling->tiers();
     $f = fn (int $amount) => number_format($amount, 0, ',', "\u{00A0}")."\u{00A0}F";
     $tagline = 'Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes.';
     $faq = [
         ['Mon live se fait sur Jibiat Marchand ?', 'Non. Ton live se fait sur TikTok, comme d\'habitude, avec tes abonnés. Jibiat Marchand travaille à côté : il enregistre les commandes que tes clients envoient sur WhatsApp et les prépare pour la livraison.'],
         ['C\'est vraiment gratuit ?', $lives['paid']
-            ? 'Oui : commandes, stock, livraisons et boutique en ligne sont gratuits. Pour les lives, tes '.$lives['free_lives'].' premiers sont offerts, ensuite '.$f($lives['day_price']).' pour 24 h ou '.$f($lives['month_price']).' pour 30 jours.'
+            ? 'Oui : commandes, stock, livraisons et boutique en ligne sont gratuits. Pour les lives, tes '.$lives['free_orders'].' premières commandes en live sont offertes. Ensuite, tu ne paies que si tu vends : un live jusqu\'à '.$lives['free_upto'].' commandes est gratuit, au-delà le prix dépend du nombre de commandes (dès '.$f($lives['tier2_price']).'). Ou lives illimités : '.$f($lives['month_price']).' pour 30 jours.'
             : 'Oui : l\'application est gratuite, lives compris. Pas de carte bancaire à donner.'],
         ['Quel numéro WhatsApp utiliser ?', 'De préférence un numéro réservé à tes lives. Tu le relies dans l\'application en quelques minutes : c\'est sur ce numéro que tes clients envoient le code des articles.'],
         ['Faut-il un ordinateur ?', 'Non. Tout se fait depuis ton téléphone, en 5 minutes pour commencer.'],
@@ -176,8 +178,10 @@
                 <div class="mt-8 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white text-lg ring-1 ring-slate-200">
                     <p class="flex justify-between gap-4 p-4"><span>Commandes, stock, livraisons, boutique en ligne</span><b class="shrink-0 text-emerald-700">Gratuit</b></p>
                     @if ($lives['paid'])
-                        <p class="flex justify-between gap-4 p-4"><span>Commandes de tes {{ $lives['free_lives'] }} premiers lives TikTok</span><b class="shrink-0 text-emerald-700">Offertes</b></p>
-                        <p class="flex justify-between gap-4 p-4"><span>Lives pendant 24 h</span><b class="shrink-0">{{ $f($lives['day_price']) }}</b></p>
+                        <p class="flex justify-between gap-4 p-4"><span>Tes {{ $lives['free_orders'] }} premières commandes en live</span><b class="shrink-0 text-emerald-700">Offertes</b></p>
+                        @foreach ($liveTiers as $tier)
+                            <p class="flex justify-between gap-4 p-4"><span>Live de {{ $tier['to'] === null ? 'plus de '.($tier['from'] - 1) : $tier['from'].' à '.$tier['to'] }} commandes</span><b class="shrink-0 {{ $tier['price'] ? '' : 'text-emerald-700' }}">{{ $tier['price'] ? $f($tier['price']) : 'Gratuit' }}</b></p>
+                        @endforeach
                         <p class="flex justify-between gap-4 p-4"><span>Lives illimités 30 jours</span><b class="shrink-0">{{ $f($lives['month_price']) }}</b></p>
                     @else
                         <p class="flex justify-between gap-4 p-4"><span>Commandes de tes lives TikTok</span><b class="shrink-0 text-emerald-700">Gratuit</b></p>

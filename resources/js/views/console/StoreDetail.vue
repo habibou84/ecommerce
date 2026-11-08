@@ -10,7 +10,7 @@ const props = defineProps({ id: { type: String, required: true } })
 const store = ref(null)
 const error = ref('')
 const modal = ref(null) // suspend | trial | offer | support
-const form = reactive({ reason: '', days: 14, plan: 'pro', months: 1, minutes: 30 })
+const form = reactive({ reason: '', days: 14, plan: 'pro', months: 1, minutes: 30, liveOrders: 100, liveCredit: 2000 })
 const PLAN_NAMES = { starter: 'Starter', pro: 'Pro', business: 'Business' }
 const busy = ref(false)
 const ACTIONS = { suspend: 'Suspension', reactivate: 'Réactivation', extend_trial: 'Essai prolongé', offer: 'Mois offerts', support_session: 'Session de support', free_forever: 'Gratuit à vie', free_forever_removed: 'Gratuit à vie retiré', whatsapp_qr_on: 'WhatsApp par QR code autorisé', whatsapp_qr_off: 'WhatsApp par QR code coupé' }
@@ -46,19 +46,20 @@ async function load() {
 onMounted(load)
 
 function open(name) {
-  Object.assign(form, { reason: '', days: 14, plan: 'pro', months: 1, minutes: 30 })
+  Object.assign(form, { reason: '', days: 14, plan: 'pro', months: 1, minutes: 30, liveOrders: 100, liveCredit: 2000 })
   error.value = ''
   modal.value = name
 }
 
-// Lives payants : lives offerts en plus de ceux du départ, ou 30 jours de lives illimités
+// Lives payants : commandes en live offertes en plus de celles du départ, crédit live, ou 30 jours illimités
 const livesDone = ref('')
 async function offerLives(payload) {
   busy.value = true
   error.value = ''
   try {
     const { data } = await http.post(`/console/stores/${props.id}/lives`, payload)
-    livesDone.value = data.data.month_until ? `Lives illimités jusqu'au ${new Date(data.data.month_until).toLocaleDateString('fr-FR')}` : `${data.data.free_left} live(s) offert(s) restant(s)`
+    livesDone.value = payload.month ? `Lives illimités jusqu'au ${new Date(data.data.month_until).toLocaleDateString('fr-FR')}`
+      : payload.credit ? `Crédit live : ${data.data.credit} F` : `${data.data.free_left} commande(s) en live offerte(s) restante(s)`
     modal.value = null
   } catch (e) {
     error.value = errorMessage(e)
@@ -204,10 +205,14 @@ async function endSession(id) {
     <Modal v-if="modal === 'lives'" title="Offrir des lives" @close="modal = null">
       <div class="space-y-4">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-sm text-slate-600">En plus des lives offerts au départ. Ou 30 jours de lives illimités, ajoutés à ceux en cours.</p>
-        <form class="flex gap-2" @submit.prevent="offerLives({ lives: form.days })">
-          <input v-model.number="form.days" type="number" min="1" max="1000" class="input w-24" aria-label="Nombre de lives" />
-          <button class="btn-brand flex-1" :disabled="busy">Offrir {{ form.days }} live(s)</button>
+        <p class="text-sm text-slate-600">Des commandes en live en plus de celles du départ, du crédit live, ou 30 jours de lives illimités ajoutés à ceux en cours.</p>
+        <form class="flex gap-2" @submit.prevent="offerLives({ orders: form.liveOrders })">
+          <input v-model.number="form.liveOrders" type="number" min="1" max="100000" class="input w-24" aria-label="Nombre de commandes" />
+          <button class="btn-brand flex-1" :disabled="busy">Offrir {{ form.liveOrders }} commande(s)</button>
+        </form>
+        <form class="flex gap-2" @submit.prevent="offerLives({ credit: form.liveCredit })">
+          <input v-model.number="form.liveCredit" type="number" min="100" step="500" class="input w-24" aria-label="Crédit en francs" />
+          <button class="btn-secondary flex-1" :disabled="busy">Offrir {{ form.liveCredit }} F de crédit</button>
         </form>
         <button type="button" class="btn-secondary w-full" :disabled="busy" @click="offerLives({ month: true })">Offrir 30 jours de lives illimités</button>
       </div>
