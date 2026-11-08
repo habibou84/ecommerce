@@ -1147,6 +1147,49 @@ class LiveSales
     }
 
     /**
+     * Bilans de plusieurs lives (liste des lives) en quelques requêtes, quel que soit le nombre de lives : id => bilan,
+     * mêmes chiffres que summary().
+     *
+     * @param  Collection<int, LiveSession>  $sessions
+     * @return array<int, array<string, int>>
+     */
+    public function summaries(Collection $sessions): array
+    {
+        if ($sessions->isEmpty()) {
+            return [];
+        }
+        $storeId = $sessions->first()->store_id;
+        $ids = $sessions->pluck('id');
+        $rows = LiveReservation::forStore($storeId)->whereIn('live_session_id', $ids)
+            ->selectRaw('live_session_id, status, count(*) as n, count(distinct order_id) as orders, sum(unit_price) as amount')
+            ->groupBy('live_session_id', 'status')->get();
+        $items = LiveItem::forStore($storeId)->whereIn('live_session_id', $ids)->get();
+        // Pièce sans prix gardé : le prix de l'article du live
+        $unpriced = LiveReservation::forStore($storeId)->whereIn('live_session_id', $ids)->where('status', 'ordered')->whereNull('unit_price')
+            ->selectRaw('live_session_id, live_item_id, count(*) as n')->groupBy('live_session_id', 'live_item_id')->get();
+        $left = $this->remainingFor($items);
+
+        return $sessions->mapWithKeys(function (LiveSession $session) use ($rows, $items, $unpriced, $left) {
+            $mine = $rows->where('live_session_id', $session->id);
+            $count = fn (string $status) => (int) $mine->where('status', $status)->sum('n');
+            $ordered = $mine->firstWhere('status', 'ordered');
+            $extra = $unpriced->where('live_session_id', $session->id)
+                ->sum(fn ($r) => (int) $r->n * (int) ($items->firstWhere('id', $r->live_item_id)?->price ?? 0));
+
+            return [$session->id => [
+                'reservations' => (int) $mine->where('status', '!=', 'cancelled')->sum('n'),
+                'ordered' => $count('ordered'),
+                'orders' => (int) ($ordered->orders ?? 0),
+                'amount' => (int) ($ordered->amount ?? 0) + (int) $extra,
+                'pending' => $count('reserved'),
+                'waiting' => $count('waiting'),
+                'expired' => $count('expired'),
+                'sold_out' => $items->where('live_session_id', $session->id)->filter(fn (LiveItem $item) => ($left[$item->id] ?? 1) === 0)->count(),
+            ]];
+        })->all();
+    }
+
+    /**
      * Bilan : réservations, commandes créées et montant, articles vendus.
      *
      * @return array<string, int>
