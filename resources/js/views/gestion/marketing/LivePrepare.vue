@@ -261,7 +261,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <div :class="card(1)">
         <span :class="bubble(1)">{{ step > 1 ? '✓' : 1 }}</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">{{ whatsapp ? 'WhatsApp connecté' : step > 1 ? 'Sans WhatsApp' : 'Connecte ton WhatsApp' }}</b>
+          <b class="block text-[18px] leading-tight">{{ whatsapp ? 'WhatsApp connecté' : step > 1 ? 'Sans WhatsApp' : 'Connecte ton numéro WhatsApp sur Meta' }}</b>
           <span class="text-[13.5px] text-slate-500">{{ whatsapp ? 'Les commandes arrivent toutes seules' : 'Pour recevoir les commandes' }}</span>
           <template v-if="step === 1">
             <button type="button" class="mt-2 block w-full rounded-xl bg-[#25d366] py-3 text-[16px] font-black text-white" @click="connectWhatsapp">Connecter WhatsApp</button>
