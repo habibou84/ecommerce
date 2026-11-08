@@ -217,6 +217,30 @@ class SignupByWhatsAppTest extends TestCase
         $this->assertCount($count, $this->sent);
     }
 
+    public function test_a_whatsapp_still_on_the_old_8_digit_number_finds_the_existing_account(): void
+    {
+        // Compte Jibiat Marchand au 01 53 14 16 66 ; son WhatsApp écrit encore sous l'ancien numéro 53 14 16 66
+        $store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
+        $store->owner->forceFill(['phone' => '+2250153141666'])->save();
+        $this->say('Inscription', from: '22553141666');
+        $this->assertStringContainsString('déjà la boutique *Awa Mode*', $this->last()['text']);
+        $this->assertSame('22553141666', end($this->sent)['to']);
+        $this->say('Me connecter', 'su:login', '22553141666');
+        $this->assertStringContainsString('awa.localhost/auth/relais?jeton=', $this->last()['text']);
+        $this->assertSame(1, User::where('phone', 'like', '%53141666')->count());
+
+        // Numéro sans compte : la boutique est créée au numéro à 10 chiffres
+        $this->say('inscription', from: '22547123456');
+        $this->assertStringContainsString('07 47 12 34 56', $this->last()['text']);
+        $this->say('Oui', 'su:yes', '22547123456');
+        $this->say('Fatou Shop', from: '22547123456');
+        $this->say('Fatou', from: '22547123456');
+        $this->say('Pas encore', 'su:live-no', '22547123456');
+        $this->say('Créer', 'su:create', '22547123456');
+        $this->assertSame('+2250747123456', Store::where('slug', 'fatou-shop')->firstOrFail()->owner->phone);
+        $this->assertSame('22547123456', end($this->sent)['to']);
+    }
+
     public function test_reminder_once_and_live_keyword_and_first_live_summary(): void
     {
         // Arrêtée au nom de la boutique : une relance 3 h après, une seule (hors nuit)
