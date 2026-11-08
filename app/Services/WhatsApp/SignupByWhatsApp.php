@@ -57,6 +57,9 @@ class SignupByWhatsApp
 
     private const FORBIDDEN = ['jibiat', 'whatsapp', 'facebook', 'tiktok', 'instagram', 'meta'];
 
+    /** @var array<string, string> numéro du compte => numéro WhatsApp qui écrit (peut être l'ancien à 8 chiffres) */
+    private array $contacts = [];
+
     public function __construct(private readonly PlatformWhatsApp $whatsapp) {}
 
     public static function enabled(): bool
@@ -75,12 +78,22 @@ class SignupByWhatsApp
      */
     public function handle(string $from, string $text, ?string $payload = null, ?string $mediaId = null): bool
     {
-        $phone = PhoneNumber::normalize($from);
-        if ($phone === null || ! self::enabled() || ! $this->whatsapp->connected()) {
+        // Le compte WhatsApp peut encore porter l'ancien numéro ivoirien à 8 chiffres (+225 53 14 16 66) : le compte
+        // Jibiat Marchand est celui du numéro à 10 chiffres (+225 01 53 14 16 66) ; les réponses partent au numéro qui écrit
+        $phone = PhoneNumber::modernize($from);
+        $contact = PhoneNumber::normalize($from);
+        if ($phone === null || $contact === null || ! self::enabled() || ! $this->whatsapp->connected()) {
             return false;
         }
+        $this->contacts[$phone] = $contact;
         $words = self::words($text);
         $signup = WhatsappSignup::firstOrNew(['phone' => $phone]);
+        if (($signup->data['wa'] ?? null) !== $contact) {
+            $signup->forceFill(['data' => array_merge($signup->data ?? [], ['wa' => $contact])]);
+            if ($signup->exists) {
+                $signup->save();
+            }
+        }
         $trigger = self::trigger($words);
 
         // Pause : un humain s'occupe de la personne ; « Inscription » relance le robot
@@ -134,7 +147,7 @@ class SignupByWhatsApp
      */
     public function pause(string $contact): void
     {
-        $phone = PhoneNumber::normalize($contact);
+        $phone = PhoneNumber::modernize($contact);
         if ($phone !== null) {
             WhatsappSignup::updateOrCreate(['phone' => $phone], ['paused_until' => now()->addHours(self::PAUSE_HOURS)]);
         }
@@ -185,7 +198,7 @@ class SignupByWhatsApp
     private function start(WhatsappSignup $signup, array $trigger): bool
     {
         $phone = $signup->phone;
-        $data = ['code' => $trigger['code']];
+        $data = ['code' => $trigger['code'], 'wa' => $signup->data['wa'] ?? $phone];
         $user = User::where('phone', $phone)->first();
         $signup->fill(['step' => 'confirm', 'data' => $data, 'paused_until' => null, 'reminded_at' => null, 'completed_at' => null])->forceFill(['last_inbound_at' => now()]);
         $this->reach($signup, 'started');
@@ -450,7 +463,7 @@ class SignupByWhatsApp
     private function help(WhatsappSignup $signup): bool
     {
         $signup->forceFill(['paused_until' => now()->addHours(self::PAUSE_HOURS)])->save();
-        SupportConversation::where('contact', $signup->phone)->update(['help_requested_at' => now()]);
+        SupportConversation::whereIn('contact', array_unique([$signup->phone, $this->contact($signup->phone)]))->update(['help_requested_at' => now()]);
         $this->say($signup->phone, 'C\'est noté 🙏 Quelqu\'un de l\'équipe Jibiat Marchand te répond ici très vite.');
 
         return true;
@@ -495,7 +508,7 @@ class SignupByWhatsApp
     private function say(string $phone, string $text, bool $preview = true): void
     {
         try {
-            $this->whatsapp->sendAutomatic($phone, $text, $preview);
+            $this->whatsapp->sendAutomatic($this->contact($phone), $text, $preview);
         } catch (RuntimeException) {
             // Envoi impossible (numéro déconnecté, hors des 24 h) : l'équipe voit le message reçu dans la console
         }
@@ -507,10 +520,16 @@ class SignupByWhatsApp
         // Par QR code : la personne répond « 1 », « 2 »… ; on garde la correspondance
         $signup->forceFill(['data' => array_merge($signup->data ?? [], ['choices' => collect(array_keys($buttons))->mapWithKeys(fn ($id, $i) => [(string) ($i + 1) => $id])->all()])])->save();
         try {
-            $this->whatsapp->sendChoices($signup->phone, $text, $buttons);
+            $this->whatsapp->sendChoices($this->contact($signup->phone), $text, $buttons);
         } catch (RuntimeException) {
             // Comme say()
         }
+    }
+
+    /** Numéro WhatsApp auquel répondre pour ce compte (celui qui a écrit) */
+    private function contact(string $phone): string
+    {
+        return $this->contacts[$phone] ??= (WhatsappSignup::where('phone', $phone)->first()?->data['wa'] ?? $phone);
     }
 
     private function signupRow(string $phone): WhatsappSignup
