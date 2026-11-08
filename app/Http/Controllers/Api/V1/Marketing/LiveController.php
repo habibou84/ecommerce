@@ -38,13 +38,14 @@ class LiveController extends Controller
     {
         $store = $this->currentStore();
         $sessions = LiveSession::forStore($store->id)->withCount('items')->latest('id')->limit(30)->get();
+        $summaries = $this->live->summaries($sessions->where('status', '!=', 'draft')->values());
 
         return response()->json([
             'data' => $sessions->map(fn (LiveSession $s) => [
                 'id' => $s->id, 'title' => $s->title, 'status' => $s->status, 'items_count' => $s->items_count, 'pin_ready' => $s->pin_ready_at !== null,
                 'started_at' => $s->started_at?->toIso8601String(), 'ended_at' => $s->ended_at?->toIso8601String(),
                 'minutes' => $s->started_at ? (int) $s->started_at->diffInMinutes($s->ended_at ?? now()) : null,
-                'summary' => $s->status === 'draft' ? null : $this->live->summary($s),
+                'summary' => $summaries[$s->id] ?? null,
             ])->values(),
             'meta' => ['page_url' => $store->url('/live'), 'whatsapp' => LiveSales::whatsapp($store->id), ...$this->numberMeta($store->id)],
         ]);
