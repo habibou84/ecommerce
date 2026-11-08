@@ -151,6 +151,10 @@ const onPhoneChange = (e) => { isPhone.value = e.matches }
 phoneQuery.addEventListener?.('change', onPhoneChange)
 onBeforeUnmount(() => phoneQuery.removeEventListener?.('change', onPhoneChange))
 const swipeOn = computed(() => isPhone.value && auth.profile?.features?.swipe_nav === true)
+// L'accueil reste chargé derrière les fenêtres, mais seulement une fois affiché : un écran ouvert directement
+// (lien, notification) ne télécharge pas tout l'accueil derrière lui
+const homeSeen = ref(false)
+watch(() => route.path, (path) => { if (path === '/gestion') homeSeen.value = true }, { immediate: true })
 const sheetOpen = computed(() => swipeOn.value && route.path !== '/gestion')
 const swipeHome = computed(() => auth.profile?.features?.swipe_nav === true && (route.path === '/gestion' || sheetOpen.value))
 // Écrans ouverts l'un après l'autre dans la fenêtre : flèche retour tant qu'il y en a plus d'un
@@ -456,7 +460,7 @@ async function switchTo(store) {
       <main class="mx-auto max-w-6xl p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
         <!-- Changement de boutique : la page est recréée avec les données de la nouvelle boutique -->
         <!-- Glissement : l'accueil reste chargé derrière la fenêtre -->
-        <Dashboard v-if="swipeOn" :key="`home${auth.store?.id}`" />
+        <template v-if="swipeOn"><Dashboard v-if="homeSeen" :key="`home${auth.store?.id}`" /></template>
         <RouterView v-else v-slot="{ Component }">
           <component :is="Component" :key="auth.store?.id" />
         </RouterView>

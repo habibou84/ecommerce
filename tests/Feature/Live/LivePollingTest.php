@@ -4,6 +4,7 @@ namespace Tests\Feature\Live;
 
 use App\Models\LiveItem;
 use App\Models\LiveSession;
+use App\Models\Place;
 use App\Models\Store;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Live\LiveSales;
@@ -65,5 +66,23 @@ class LivePollingTest extends TestCase
         $this->assertSame([$items[0]->id => 3, $items[1]->id => 0], $sales->remainingFor($items));
         $this->assertSame([$sales->remaining($items[0]), $sales->remaining($items[1])], array_values($sales->remainingFor($items)));
         $this->assertSame(1, $sales->summary(LiveSession::findOrFail($this->live))['sold_out']);
+    }
+
+    public function test_the_list_of_lives_gives_the_same_summary_as_each_live(): void
+    {
+        $sales = app(LiveSales::class);
+        $items = LiveSession::findOrFail($this->live)->items()->orderBy('position')->get();
+        $place = Place::whereNull('store_id')->where('name', 'Yopougon')->firstOrFail();
+        $sales->reserve($items[0], ['name' => 'Fatou', 'phone' => '+2250506070809', 'place_id' => $place->id], 'page');
+        $sales->reserve($items[1], ['name' => 'Koffi', 'phone' => '+2250502223344'], 'whatsapp');
+        $sales->reserve($items[1], ['name' => 'Mariam', 'phone' => '+2250703334455'], 'whatsapp');
+        $sales->reserve($items[1], ['name' => 'Awa', 'phone' => '+2250505556677'], 'whatsapp');
+
+        $session = LiveSession::findOrFail($this->live);
+        $expected = $sales->summary($session);
+        $this->assertSame(1, $expected['orders']);
+        $this->assertSame(1, $expected['waiting']);
+        $this->assertSame([$session->id => $expected], $sales->summaries(collect([$session])));
+        $this->assertSame($expected, $this->storeApi($this->store, 'GET', 'lives')->assertOk()->json('data.0.summary'));
     }
 }

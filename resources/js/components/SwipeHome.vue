@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ColorIcon from './ColorIcon.vue'
 import Icon from './Icon.vue'
 import LivePrepare from '../views/gestion/marketing/LivePrepare.vue'
@@ -18,6 +18,7 @@ import { useAuthStore } from '../stores/auth'
  */
 const props = defineProps({ stats: { type: Object, default: null } })
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 function canOpen(path) {
@@ -249,8 +250,9 @@ function open(to) {
     <div ref="track" :class="{ 'swipe-peek': hint }" class="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none]" @scroll.passive="onScroll">
       <section v-for="p in pages" :key="p.key" class="h-full w-full shrink-0 snap-start overflow-y-auto px-4 pb-28 pt-1" :aria-label="p.name">
         <!-- LIVE : préparer, en direct (« Revenir au live »), lives passés -->
+        <!-- Chargée seulement une fois la page Live affichée, et pas en double quand « Préparer un live » est ouvert par-dessus -->
         <template v-if="p.key === 'live'">
-          <LivePrepare />
+          <LivePrepare v-if="seen.has('live') && route.path !== '/gestion/live'" />
         </template>
 
         <!-- COMMANDES (+ livraisons) -->
