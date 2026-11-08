@@ -45,6 +45,7 @@ class Store extends Model
         'default_fee_payer' => 'customer',
         'allow_backorder' => false,
         'low_stock_threshold' => 3,
+        'whatsapp_models' => true,
     ];
 
     protected function casts(): array
@@ -57,6 +58,7 @@ class Store extends Model
             'allow_backorder' => 'boolean',
             'storefront_enabled' => 'boolean',
             'whatsapp_qr_enabled' => 'boolean',
+            'whatsapp_models' => 'boolean',
             'closed_at' => 'datetime',
             'free_shipping_above' => 'integer',
             'expedition_fee' => 'integer',

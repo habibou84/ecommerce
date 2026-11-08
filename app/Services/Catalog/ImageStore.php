@@ -47,6 +47,24 @@ class ImageStore
     }
 
     /**
+     * Photo faite par l'application (montage d'un pack…) enregistrée comme une photo envoyée.
+     *
+     * @return array{path: string, width: int, height: int}
+     */
+    public function storeBytes(string $bytes, int $storeId, string $folder = 'products'): array
+    {
+        $image = (new ImageManager(new Driver))->read($bytes);
+        $path = "stores/{$storeId}/{$folder}/".Str::uuid();
+        foreach (self::SIZES as $name => $size) {
+            $copy = clone $image;
+            $copy->scaleDown(width: $size, height: $size);
+            $this->disk()->put("{$path}/{$name}.webp", (string) $copy->toWebp(80), 'public');
+        }
+
+        return ['path' => $path, 'width' => $image->width(), 'height' => $image->height()];
+    }
+
+    /**
      * @return array{thumb: string, medium: string, large: string}
      */
     public function urls(string $path): array

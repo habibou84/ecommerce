@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Discount;
 use App\Models\DiscountUsage;
 use App\Models\Order;
+use App\Models\PackOffer;
 use App\Models\ProductVariant;
 use App\Models\VolumePrice;
 use Illuminate\Support\Collection;
@@ -106,7 +107,86 @@ class Pricing
             }
         }
 
+        return $this->packs($storeId, $lines, $result, $context);
+    }
+
+    /**
+     * Packs au choix (« 3 articles au choix pour 25 000 F ») : les pièces les plus chères de la sélection forment les
+     * packs, appliqués seulement s'ils coûtent moins que le prix déjà calculé. Une pièce ne compte que dans un pack.
+     *
+     * @param  list<array{variant: ProductVariant, quantity: int}>  $lines
+     * @param  array<int, array{unit_price: int, total: int, compare_at: ?int, discount_id: ?int, volume: bool}>  $result
+     * @return array<int, array{unit_price: int, total: int, compare_at: ?int, discount_id: ?int, volume: bool}>
+     */
+    private function packs(int $storeId, array $lines, array $result, PricingContext $context): array
+    {
+        $offers = PackOffer::forStore($storeId)->where('is_active', true)->where('quantity', '>', 1)->with('products:id')->get();
+        if ($offers->isEmpty()) {
+            return $result;
+        }
+        $free = array_map(fn ($line) => (int) $line['quantity'], $lines); // pièces pas encore dans un pack
+        $packed = []; // ligne => [pièces dans un pack, montant de ces pièces]
+        // Le pack qui fait le plus économiser d'abord (prix d'une pièce dans le pack le plus bas)
+        foreach ($offers->sortBy(fn (PackOffer $o) => $o->price / $o->quantity) as $offer) {
+            $inOffer = $offer->collection_id !== null
+                ? fn (int $productId) => in_array($offer->collection_id, $context->collections[$productId] ?? [], true)
+                : fn (int $productId) => $offer->products->contains('id', $productId);
+            $units = [];
+            foreach ($lines as $i => $line) {
+                if ($free[$i] > 0 && $inOffer((int) $line['variant']->product_id)) {
+                    $unit = intdiv($result[$i]['total'], max(1, $line['quantity']));
+                    array_push($units, ...array_fill(0, $free[$i], ['line' => $i, 'price' => $unit]));
+                }
+            }
+            $groups = intdiv(count($units), $offer->quantity);
+            if ($groups === 0) {
+                continue;
+            }
+            usort($units, fn ($a, $b) => $b['price'] <=> $a['price']);
+            $chosen = array_slice($units, 0, $groups * $offer->quantity);
+            $current = array_sum(array_column($chosen, 'price'));
+            $packTotal = $groups * $offer->price;
+            if ($packTotal >= $current) {
+                continue;
+            }
+            // Le prix des packs est réparti sur les pièces au prorata de leur prix
+            $byLine = collect($chosen)->groupBy('line')->map(fn ($u) => ['count' => $u->count(), 'value' => $u->sum('price')]);
+            $shares = $this->allocate($packTotal, $byLine->pluck('value')->values()->all());
+            foreach ($byLine->keys()->values() as $n => $i) {
+                $free[$i] -= $byLine[$i]['count'];
+                $packed[$i] = [($packed[$i][0] ?? 0) + $byLine[$i]['count'], ($packed[$i][1] ?? 0) + $shares[$n]];
+            }
+        }
+        foreach ($packed as $i => [$count, $amount]) {
+            $quantity = (int) $lines[$i]['quantity'];
+            $unit = intdiv($result[$i]['total'], max(1, $quantity));
+            $total = $amount + ($quantity - $count) * $unit;
+            $result[$i] = [
+                'unit_price' => (int) round($total / max(1, $quantity)),
+                'total' => $total,
+                'compare_at' => $lines[$i]['variant']->price,
+                'discount_id' => null,
+                'volume' => true,
+            ];
+        }
+
         return $result;
+    }
+
+    /**
+     * Packs au choix qui concernent un produit (affichés sur sa fiche, sous la photo WhatsApp).
+     *
+     * @return list<array{title: string, quantity: int, price: int}>
+     */
+    public function packsFor(int $storeId, int $productId): array
+    {
+        $collections = $this->collectionsOf([$productId])[$productId] ?? [];
+
+        return PackOffer::forStore($storeId)->where('is_active', true)
+            ->where(fn ($q) => $q->whereIn('collection_id', $collections ?: [0])
+                ->orWhereHas('products', fn ($p) => $p->where('products.id', $productId)))
+            ->orderBy('quantity')->get()
+            ->map(fn (PackOffer $o) => ['title' => $o->title, 'quantity' => $o->quantity, 'price' => $o->price])->all();
     }
 
     /**

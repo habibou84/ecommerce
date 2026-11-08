@@ -7,6 +7,7 @@ use App\Models\LiveReservation;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\ProductImage;
+use App\Models\ProductVariant;
 use chillerlan\QRCode\Output\QROutputInterface;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
@@ -32,11 +33,19 @@ class LiveImages
      */
     public function item(LiveItem $item): ?string
     {
-        $image = $item->variant?->image ?? $item->variant?->product?->images()->orderBy('position')->first();
+        return $item->variant === null ? null : $this->variant($item->variant);
+    }
+
+    /**
+     * Photo d'un article en JPEG (adresse publique) pour WhatsApp, ou null s'il n'en a pas.
+     */
+    public function variant(ProductVariant $variant): ?string
+    {
+        $image = $variant->image ?? $variant->product?->images()->orderBy('position')->first();
         if (! $image instanceof ProductImage) {
             return null;
         }
-        $path = "live/{$item->store_id}/item-{$item->variant_id}-".substr(md5($image->path), 0, 10).'.jpg';
+        $path = "live/{$variant->store_id}/item-{$variant->id}-".substr(md5($image->path), 0, 10).'.jpg';
         if (! $this->disk()->exists($path)) {
             $photo = $this->load($image);
             if ($photo === null) {
@@ -405,6 +414,41 @@ class LiveImages
         $this->save($path, $c);
 
         return $path;
+    }
+
+    /**
+     * Photo d'un pack : les photos de ses articles côte à côte (2 à 4), en JPEG ; null sans aucune photo.
+     *
+     * @param  list<ProductImage>  $images
+     */
+    public function montage(array $images): ?string
+    {
+        $photos = array_values(array_filter(array_map(fn (ProductImage $i) => $this->load($i), array_slice($images, 0, 4))));
+        if ($photos === []) {
+            return null;
+        }
+        $size = 1080;
+        $c = imagecreatetruecolor($size, $size);
+        imagefill($c, 0, 0, imagecolorallocate($c, 255, 255, 255));
+        $gap = 12;
+        $count = count($photos);
+        // 1 : toute la place ; 2 : côte à côte ; 3 : une grande à gauche et deux à droite ; 4 : 2 × 2
+        $boxes = match ($count) {
+            1 => [[0, 0, $size, $size]],
+            2 => [[0, 0, intdiv($size - $gap, 2), $size], [intdiv($size + $gap, 2), 0, intdiv($size - $gap, 2), $size]],
+            3 => [[0, 0, intdiv($size - $gap, 2), $size], [intdiv($size + $gap, 2), 0, intdiv($size - $gap, 2), intdiv($size - $gap, 2)],
+                [intdiv($size + $gap, 2), intdiv($size + $gap, 2), intdiv($size - $gap, 2), intdiv($size - $gap, 2)]],
+            default => [[0, 0, intdiv($size - $gap, 2), intdiv($size - $gap, 2)], [intdiv($size + $gap, 2), 0, intdiv($size - $gap, 2), intdiv($size - $gap, 2)],
+                [0, intdiv($size + $gap, 2), intdiv($size - $gap, 2), intdiv($size - $gap, 2)], [intdiv($size + $gap, 2), intdiv($size + $gap, 2), intdiv($size - $gap, 2), intdiv($size - $gap, 2)]],
+        };
+        foreach ($photos as $i => $photo) {
+            [$x, $y, $w, $h] = $boxes[$i];
+            $this->whole($c, $photo, $x, $y, $w, $h);
+        }
+        ob_start();
+        imagejpeg($c, null, 88);
+
+        return (string) ob_get_clean();
     }
 
     public function url(string $path): string
