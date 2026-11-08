@@ -9,8 +9,9 @@ use App\Support\Tenancy;
  * être une autre application déjà validée, par exemple celle de Jibiat (META_WHATSAPP_APP_ID / _SECRET / _CONFIG_ID),
  * les réseaux sociaux restant sur l'application de la plateforme.
  *
- * Application partagée : son adresse de notifications est celle de l'autre site ; chaque compte WhatsApp connecté ici
- * demande donc à Meta d'envoyer ses notifications à notre adresse (override_callback_uri du compte).
+ * Chaque compte WhatsApp connecté ici demande à Meta d'envoyer ses notifications à l'adresse de CE serveur
+ * (override_callback_uri du compte) : l'application n'a qu'une adresse de notifications, alors que la préproduction et
+ * la production (ou Jibiat, pour une application partagée) s'en servent en même temps.
  */
 class WhatsAppMetaApp
 {
@@ -35,12 +36,16 @@ class WhatsAppMetaApp
         return filled(config('services.meta.whatsapp_app_id')) && config('services.meta.whatsapp_app_id') !== config('services.meta.app_id');
     }
 
-    /** Abonne l'application au compte WhatsApp (notifications), vers notre adresse si l'application est partagée */
+    /**
+     * Abonne l'application au compte WhatsApp, notifications vers l'adresse de ce serveur (Meta la vérifie avec le
+     * jeton META_WEBHOOK_VERIFY_TOKEN ; sans jeton, l'adresse de l'application est gardée).
+     */
     public static function subscribe(WhatsAppCloud $cloud, string $wabaId, string $token): void
     {
-        $cloud->graph('POST', $wabaId.'/subscribed_apps', $token, self::shared() ? [
+        $verify = (string) config('services.meta.webhook_verify_token');
+        $cloud->graph('POST', $wabaId.'/subscribed_apps', $token, $verify !== '' ? [
             'override_callback_uri' => Tenancy::apiUrl('/webhooks/whatsapp'),
-            'verify_token' => (string) config('services.meta.webhook_verify_token'),
+            'verify_token' => $verify,
         ] : []);
     }
 }

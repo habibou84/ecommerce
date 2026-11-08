@@ -47,7 +47,9 @@ de l'application). En attendant, le bouton fonctionne déjà pour les comptes aj
    - URL de rappel : `https://api.jibiat-marchand.com/webhooks/whatsapp`
      (préproduction : `https://api.preprod.jibiat-marchand.com/webhooks/whatsapp`) ;
    - jeton de vérification : une longue chaîne de votre choix (la même que `META_WEBHOOK_VERIFY_TOKEN`) ;
-   - abonnez les champs **`messages`** et **`message_template_status_update`**.
+   - abonnez les champs **`messages`** et **`message_template_status_update`** ;
+   - cette adresse ne sert que par défaut : à chaque connexion d'un numéro, le serveur (préproduction ou production)
+     demande à Meta d'envoyer les messages de ce compte à sa propre adresse (`META_WEBHOOK_VERIFY_TOKEN` rempli).
 
 ## 3. Variables du serveur
 
