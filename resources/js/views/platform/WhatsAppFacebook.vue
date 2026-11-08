@@ -116,9 +116,10 @@ async function copyLink() {
         <p>Menu ⋮ (ou ⋯) › « Ouvrir dans le navigateur », ou copiez le lien et collez-le dans Chrome.</p>
         <button type="button" class="btn-secondary w-full" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien' }}</button>
       </div>
-      <!-- Deux consignes, en grand : le numéro spécial live, la carte facultative ; le reste, Facebook le guide -->
+      <!-- Consignes en grand : le numéro gardé dans WhatsApp Business, le QR code éventuel, la carte facultative ; le reste, Facebook le guide -->
       <div class="space-y-3">
-        <p class="flex items-center gap-3 rounded-2xl bg-sky-50 p-4 text-[17px] font-bold leading-snug text-sky-950"><span class="text-3xl" aria-hidden="true">📱</span><span>Un numéro spécial live<small class="mt-0.5 block text-[14px] font-semibold">Il ne doit être connecté à aucun WhatsApp sur un téléphone (ni WhatsApp, ni WhatsApp Business).</small></span></p>
+        <p class="flex items-center gap-3 rounded-2xl bg-sky-50 p-4 text-[17px] font-bold leading-snug text-sky-950"><span class="text-3xl" aria-hidden="true">📱</span><span>Ton numéro dans WhatsApp Business<small class="mt-0.5 block text-[14px] font-semibold">Tu le gardes sur ton téléphone. Dans la fenêtre Facebook, choisis de connecter ton application WhatsApp Business existante. Encore sur WhatsApp classique ? Passe-le d'abord sur WhatsApp Business.</small></span></p>
+        <p class="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-[17px] font-bold leading-snug text-amber-950"><span class="text-3xl" aria-hidden="true">🔳</span><span>Un QR code à scanner, une seule fois<small class="mt-0.5 block text-[14px] font-semibold">Avec WhatsApp Business. Si tu es sur ce même téléphone, fais la connexion depuis un ordinateur ou un autre téléphone.</small></span></p>
         <p class="flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-[17px] font-bold leading-snug text-emerald-950"><span class="text-3xl" aria-hidden="true">💳</span><span>Tu peux continuer sans mettre de carte bancaire</span></p>
       </div>
       <Alert v-if="error" tone="error">{{ error }}</Alert>

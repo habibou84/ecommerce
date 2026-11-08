@@ -17,7 +17,8 @@ const STEPS = [
   { key: 'welcome_premium', label: 'Bienvenue · carte Membre Premium', when: 'à la place du message de bienvenue', stat: 'welcome' },
   { key: 'welcome_partner', label: 'Bienvenue · invité par une entreprise de livraison', when: 'à la place du message de bienvenue', stat: 'welcome' },
   { key: 'no_product', label: 'Premier produit', when: '3 h après, s\'il n\'a ajouté aucun produit' },
-  { key: 'first_products', label: 'Vente en live', when: '20 h après, s\'il a des produits' },
+  { key: 'first_products', label: 'Vente en live', when: '20 h après, s\'il a des produits (inscrits par WhatsApp : seulement s\'ils vendent en live)' },
+  { key: 'first_live', label: 'Bilan du premier live', when: 'après son premier live (dans les 24 h permises par Meta) ; variables {nb_commandes} et {lien_bilan}' },
   { key: 'trial_end', label: 'Fin de l\'essai', when: '3 jours avant la fin de l\'essai' },
 ]
 const VARIABLES = '{prenom} {boutique} {lien_boutique} {lien_produit} {lien_live} {lien_abonnement} {lien_video} {nb_produits} {essai} {offre_essai} {date_fin} {prix} {numero_carte} {offre} {entreprise}'

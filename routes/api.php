@@ -217,6 +217,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('whatsapp/onboarding', [ConsoleWhatsAppController::class, 'onboarding'])->name('whatsapp.onboarding');
             Route::put('whatsapp/onboarding', [ConsoleWhatsAppController::class, 'updateOnboarding'])->name('whatsapp.onboarding.update');
             Route::post('whatsapp/onboarding/template', [ConsoleWhatsAppController::class, 'onboardingTemplate'])->middleware('throttle:10,1')->name('whatsapp.onboarding.template');
+            Route::get('whatsapp/signups', [ConsoleWhatsAppController::class, 'signups'])->name('whatsapp.signups');
+            Route::put('whatsapp/signups', [ConsoleWhatsAppController::class, 'updateSignups'])->name('whatsapp.signups.update');
             Route::get('whatsapp/catchup', [ConsoleWhatsAppController::class, 'catchUp'])->name('whatsapp.catchup');
             Route::post('whatsapp/catchup/{action}', [ConsoleWhatsAppController::class, 'catchUpAction'])->whereIn('action', ['start', 'pause', 'templates'])->middleware('throttle:10,1')->name('whatsapp.catchup.action');
             Route::delete('whatsapp', [ConsoleWhatsAppController::class, 'disconnect'])->name('whatsapp.disconnect');

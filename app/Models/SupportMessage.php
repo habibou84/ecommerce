@@ -17,6 +17,11 @@ class SupportMessage extends Model
         return ['sent_at' => 'datetime'];
     }
 
+    public function conversation(): BelongsTo
+    {
+        return $this->belongsTo(SupportConversation::class, 'support_conversation_id');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

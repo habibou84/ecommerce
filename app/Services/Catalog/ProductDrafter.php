@@ -2,7 +2,9 @@
 
 namespace App\Services\Catalog;
 
+use App\Enums\ProductStatus;
 use App\Models\Collection;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Ai\Assistant;
@@ -33,14 +35,14 @@ class ProductDrafter
     public function __construct(private readonly Assistant $assistant) {}
 
     /**
-     * @param  list<UploadedFile>  $photos
+     * @param  list<UploadedFile|string>  $photos  fichiers envoyés, ou photos en octets (WhatsApp)
      * @return array<string, mixed>
      */
     public function draft(Store $store, User $user, array $photos, ?string $note = null): array
     {
         $collections = Collection::forStore($store->id)->orderBy('title')->limit(100)->get(['id', 'title']);
 
-        $content = array_map(fn (UploadedFile $photo) => $this->assistant->image($photo), $photos);
+        $content = array_map(fn (UploadedFile|string $photo) => is_string($photo) ? $this->assistant->imageFrom($photo) : $this->assistant->image($photo), $photos);
         $content[] = ['type' => 'text', 'text' => implode("\n", array_filter([
             'Boutique : '.$store->name,
             $collections->isEmpty() ? 'La boutique n\'a pas encore de collections.' : 'Collections de la boutique : '.$collections->pluck('title')->implode(' ; '),
@@ -66,6 +68,61 @@ class ProductDrafter
             'seo_description' => Str::limit(trim((string) ($draft['seo_description'] ?? '')), 160, ''),
             'to_check' => filled($draft['to_check'] ?? null) ? trim($draft['to_check']) : null,
         ];
+    }
+
+    /**
+     * Photo envoyée par WhatsApp à l'inscription : fiche proposée par l'IA, enregistrée en brouillon (sans prix, pas
+     * en ligne) avec la photo ; le commerçant complète le prix.
+     */
+    public function createFromPhoto(Store $store, User $user, string $bytes): Product
+    {
+        $draft = $this->draft($store, $user, [$bytes]);
+        $tmp = tempnam(sys_get_temp_dir(), 'wa-photo');
+        file_put_contents($tmp, $bytes);
+        try {
+            $stored = app(ImageStore::class)->store(new UploadedFile($tmp, 'photo.jpg', null, null, true), $store->id);
+        } finally {
+            @unlink($tmp);
+        }
+
+        $product = app(CatalogWriter::class)->save($store, null, [
+            'title' => $draft['title'] ?: 'Mon premier article',
+            'description' => $draft['description'],
+            'brand' => $draft['brand'],
+            'status' => ProductStatus::Draft->value,
+            'options' => $draft['options'],
+            'variants' => $draft['options'] === [] ? [['price' => 0]] : self::combinations($draft['options']),
+            'tags' => $draft['tags'],
+            'collection_ids' => $draft['collection_ids'],
+        ], $user);
+        $product->images()->create([
+            'store_id' => $store->id, 'path' => $stored['path'], 'width' => $stored['width'], 'height' => $stored['height'],
+            'alt' => $product->title, 'position' => 0,
+        ]);
+
+        return $product->fresh(['options.values', 'images']);
+    }
+
+    /**
+     * Toutes les variantes des options proposées (prix à compléter), 50 au plus.
+     *
+     * @param  list<array{name: string, values: list<string>}>  $options
+     * @return list<array{options: list<string>, price: int}>
+     */
+    private static function combinations(array $options): array
+    {
+        $rows = [[]];
+        foreach ($options as $option) {
+            $next = [];
+            foreach ($rows as $row) {
+                foreach ($option['values'] as $value) {
+                    $next[] = [...$row, $value];
+                }
+            }
+            $rows = array_slice($next, 0, 50);
+        }
+
+        return array_map(fn (array $combo) => ['options' => $combo, 'price' => 0], $rows);
     }
 
     /**
