@@ -17,7 +17,8 @@ class LiveSession extends Model
 
     protected function casts(): array
     {
-        return ['hold_minutes' => 'integer', 'featured_item_id' => 'integer', 'started_at' => 'datetime', 'ended_at' => 'datetime', 'pin_ready_at' => 'datetime'];
+        return ['hold_minutes' => 'integer', 'featured_item_id' => 'integer', 'started_at' => 'datetime', 'ended_at' => 'datetime', 'pin_ready_at' => 'datetime',
+            'billed_orders' => 'integer', 'billed_offered' => 'integer', 'billed_amount' => 'integer', 'billed_at' => 'datetime'];
     }
 
     public function items(): HasMany

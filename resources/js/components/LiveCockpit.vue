@@ -106,6 +106,15 @@ onUnmounted(() => clearInterval(liveTimer))
 // Une chaîne, pas une liste : une nouvelle liste à chaque rechargement du live relançait l'aperçu toutes les 3 s
 watch(() => `${props.live.display_mode}|${props.live.featured_item_id}`, loadDisplay)
 
+// Remplissage de la barre du palier : où en est le live entre le début et la fin du palier atteint
+const tierFill = computed(() => {
+  const b = props.live.billing
+  if (!b) return 0
+  const tier = b.tiers[b.tier - 1]
+  if (!tier || tier.to === null) return 100
+  return Math.min(100, Math.round(((b.billable - tier.from + 1) / (tier.to - tier.from + 1)) * 100))
+})
+
 // Étiquette : à refaire quand un article est fini ou ajouté depuis la dernière partagée
 const pinStale = computed(() => props.pinShared?.sig !== pinSignature(props.live.items))
 const changes = computed(() => pinChanges(props.live.items, props.pinShared))
@@ -366,6 +375,15 @@ const ago = (iso) => {
       <b class="ml-auto whitespace-nowrap text-[17px] font-black">{{ money(live.summary?.amount ?? 0) }}</b>
       <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg font-black text-white" aria-label="Plus" :aria-expanded="menu" @click="menu = !menu">⋯</button>
       <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white text-lg font-black text-slate-900" aria-label="Fermer (le live continue)" @click="emit('close')">✕</button>
+    </div>
+    <!-- Lives payés par palier : commandes comptées, prix atteint, combien avant le palier suivant -->
+    <div v-if="live.billing" class="rounded-xl bg-[#1e2638] px-3 py-2 text-white">
+      <div class="flex items-center justify-between text-[13.5px] font-extrabold">
+        <span>{{ live.billing.orders }} commande{{ live.billing.orders > 1 ? 's' : '' }}</span>
+        <span class="text-amber-300">{{ live.billing.billable === 0 && live.billing.offered ? 'Offertes 🎁' : (live.billing.price ? `Palier ${live.billing.tier} · ${money(live.billing.price)}` : 'Gratuit') }}</span>
+      </div>
+      <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-600"><i class="block h-full rounded-full bg-amber-400" :style="{ width: `${tierFill}%` }" /></div>
+      <small v-if="live.billing.next && !live.billing.billed" class="mt-1 block text-[12px] text-slate-300">Encore {{ live.billing.next.in }} commande{{ live.billing.next.in > 1 ? 's' : '' }} avant {{ money(live.billing.next.price) }}<template v-if="live.billing.offered"> · {{ live.billing.offered }} offerte{{ live.billing.offered > 1 ? 's' : '' }}</template></small>
     </div>
     <div v-if="menu" class="grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-2 text-sm font-extrabold text-slate-900">
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('share')">📤 Lien du live</button>

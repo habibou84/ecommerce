@@ -64,7 +64,7 @@ onMounted(async () => {
   try {
     const { data } = await http.post(`/lives/billing/${number}/confirm`)
     billing.value = data.data
-    if (data.data.status === 'paid' && draft.value && !current.value) await start()
+    if (data.data.status === 'paid' && draft.value && !current.value && data.data.next !== 'pay') await start()
     else if (data.data.status === 'pending') payNotice.value = 'Paiement en cours de vérification : touchez « J\'ouvre les commandes du live » dans un instant.'
     else if (data.data.status !== 'paid') payNotice.value = 'Le paiement n\'a pas abouti : rien n\'a été débité. Vous pouvez réessayer.'
   } catch (e) {
@@ -74,14 +74,14 @@ onMounted(async () => {
 const until = (iso) => new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
 const startLabel = computed(() => {
   const label = '● J\'ouvre les commandes du live'
-  return billing.value?.paid && billing.value.next === 'offered' ? `${label} · offert` : label
+  return label
 })
 const billingLine = computed(() => {
   const b = billing.value
   if (!b?.paid) return ''
-  if (b.next === 'covered') return `Lives illimités jusqu'au ${until(b.month_until && (!b.pass_until || b.month_until > b.pass_until) ? b.month_until : b.pass_until)}`
-  if (b.next === 'offered') return `🎁 Il vous reste ${b.free_left} live${b.free_left > 1 ? 's' : ''} offert${b.free_left > 1 ? 's' : ''} sur ${b.free_lives}`
-  return `${money(b.prices.day)} les 24 h, ou ${money(b.prices.month)} les 30 jours`
+  if (b.next === 'covered') return `Lives illimités jusqu'au ${until(b.month_until)}`
+  if (b.next === 'pay') return `Crédit live : ${money(b.credit)} · recharge pour ouvrir les commandes`
+  return 'Tu ne paies que si tu vends'
 })
 // Live lancé ou terminé ailleurs (fenêtre du live, autre copie de cette page) : la carte se met à jour
 watch(livesVersion, load)
@@ -200,7 +200,7 @@ async function start() {
   error.value = ''
   try {
     const id = draft.value.id
-    // Plus de lives offerts ni de pass en cours : choix 24 h ou 30 jours, payé par PayDunya
+    // Plus de commandes offertes et crédit insuffisant : recharge (ou 30 jours), payée par PayDunya
     if (billing.value?.paid && billing.value.next === 'pay') {
       paying.value = true
       busy.value = false
@@ -319,16 +319,25 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       </template>
 
       <!-- Combien ça coûte : seulement quand les lives sont payants -->
-      <section v-if="billing?.paid" class="rounded-[20px] bg-white p-4">
-        <h3 class="text-[18px] font-black">💰 Combien ça coûte</h3>
-        <div class="mt-1 divide-y divide-slate-100 text-[14.5px]">
-          <p class="flex justify-between py-2"><span>Vos {{ billing.free_lives }} premiers lives</span><b class="text-emerald-700">Offerts</b></p>
-          <p v-if="billing.free_ai" class="flex justify-between py-2"><span>+ {{ billing.free_ai }} actions IA (photos)</span><b class="text-emerald-700">Offertes</b></p>
-          <p class="flex justify-between py-2"><span>Lives pendant 24 h</span><b>{{ money(billing.prices.day) }}</b></p>
-          <p class="flex justify-between py-2"><span>Lives illimités 30 jours</span><b>{{ money(billing.prices.month) }}</b></p>
-          <p class="flex justify-between py-2"><span>Ajouter un article à la main</span><b class="text-emerald-700">Gratuit</b></p>
+      <section v-if="billing?.paid" class="space-y-2">
+        <div class="rounded-[20px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
+          <span class="text-[13px] font-bold opacity-90">Ton crédit live</span>
+          <b class="block text-[28px] font-black leading-tight">{{ money(billing.credit) }}</b>
+          <span v-if="billing.free_left" class="text-[13px] font-bold">🎁 Encore {{ billing.free_left }} commande{{ billing.free_left > 1 ? 's' : '' }} en live offerte{{ billing.free_left > 1 ? 's' : '' }}</span>
+          <button type="button" class="mt-2 block w-full rounded-xl bg-white py-2 text-[15px] font-black text-emerald-800" @click="paying = true">Recharger</button>
         </div>
-        <p class="mt-1 text-center text-[12.5px] text-slate-500">Paiement par Orange Money, MTN, Moov, Wave ou carte, au moment de démarrer.</p>
+        <div class="rounded-[20px] bg-white p-4">
+          <h3 class="text-[18px] font-black">💰 Combien coûte un live</h3>
+          <div class="mt-1 divide-y divide-slate-100 text-[14.5px]">
+            <p v-for="t in billing.tiers" :key="t.from" class="flex justify-between py-2">
+              <span>{{ t.to === null ? `Plus de ${t.from - 1}` : `${t.from} à ${t.to}` }} commandes</span>
+              <b :class="t.price ? '' : 'text-emerald-700'">{{ t.price ? money(t.price) : 'Gratuit' }}</b>
+            </p>
+            <p class="flex justify-between py-2"><span>Lives illimités 30 jours</span><b>{{ money(billing.month_price) }}</b></p>
+            <p v-if="billing.free_ai" class="flex justify-between py-2"><span>+ {{ billing.free_ai }} actions IA (photos) au 1er live</span><b class="text-emerald-700">Offertes</b></p>
+          </div>
+          <p class="mt-1 text-center text-[12.5px] text-slate-500">Payé à la fin du live, selon les commandes créées pendant le live.</p>
+        </div>
       </section>
 
       <RouterLink to="/gestion/live/passes" class="block pt-2 text-center text-sm font-semibold text-emerald-700">Voir les lives passés ▸</RouterLink>

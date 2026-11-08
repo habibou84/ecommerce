@@ -201,8 +201,10 @@ class LiveSales
     public function end(LiveSession $session): LiveSession
     {
         $session->update(['status' => 'ended', 'ended_at' => now()]);
+        // Lives payants : commandes comptées et prix du palier retiré du crédit
+        app(LiveBilling::class)->bill($session);
 
-        return $session;
+        return $session->refresh();
     }
 
     /**
@@ -1027,6 +1029,8 @@ class LiveSales
             'ended_at' => $session->ended_at?->toIso8601String(),
             // « Préparer un live » : photo à épingler publiée (étape 3)
             'pin_ready' => $session->pin_ready_at !== null,
+            // Lives payants par palier : commandes comptées, prix atteint, prochain palier (équipe seulement)
+            'billing' => $team ? app(LiveBilling::class)->progress($session) : null,
             'items' => $session->items->map(fn (LiveItem $item) => [
                 'id' => $item->id,
                 'code' => $item->code,
