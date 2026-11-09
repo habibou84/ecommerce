@@ -378,7 +378,7 @@ class LiveCheckout
         return match ($action) {
             'confirm' => $this->confirm($conversation, $order->id),
             'add' => $this->modelsInstead($conversation, Store::findOrFail($conversation->store_id))
-                || $this->text($conversation, "➕ *AJOUTER UN ARTICLE*\n\n✍️ Envoyez *le code de l'article + votre taille*\n_Exemple : A4 M_"),
+                || $this->text($conversation, "➕ *AJOUTER UN ARTICLE*\n\n✍️ Envoyez *le code de l'article*\n_Exemple : A4_"),
             'address' => Cache::put($addressKey, $order->id, now()->addHour())
                 && $this->text($conversation, "📍 *NOUVELLE ADRESSE*\n\n✍️ Écrivez *votre commune + votre quartier*\n_Exemple : Yopougon Siporex_"),
             'cancel' => Cache::pull($cancelKey) === $order->id

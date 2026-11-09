@@ -300,7 +300,7 @@ function cancelFromSheet(r) {
   openOrder.value = null
   emit('cancel', r)
 }
-const QUICK = ['Oui, c\'est disponible.', 'Non, désolée, pas pour ce modèle.', 'Écrivez le code de la pancarte et votre taille, je vous le garde.']
+const QUICK = ['Oui, c\'est disponible.', 'Non, désolée, pas pour ce modèle.', 'Écrivez le code de la pancarte, je vous le garde.']
 const replying = reactive({ id: null, body: '', busy: false, error: '' })
 function openReply(m) {
   Object.assign(replying, { id: m.id, body: '', busy: false, error: '' })

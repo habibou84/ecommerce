@@ -7,7 +7,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
  * Une seule carte (480 × 780), posée en haut à gauche, la vendeuse en dessous : la photo de l'article en grand avec
  * son code, puis « Envoie A1 » et le numéro dans le style choisi par la boutique (sinon « numéro dans la bio »).
  * Ni prix, ni QR code, ni adresse de site, ni le mot WhatsApp : TikTok coupe ou freine les lives qui en montrent.
- * Mode « Vitrine » : 10 articles et leur code ; mode « Commander » : « Envoie le code + ta taille ».
+ * Mode « Vitrine » : 10 articles et leur code ; mode « Commander » : « Envoie le code » (avec la taille si besoin).
  * (L'ancien lien 2 « commander » montre la même carte.)
  * Tout est en « em » calculé sur la taille de la source : nette si la source a la taille indiquée.
  */
@@ -70,7 +70,7 @@ const gridItems = computed(() => {
     <div v-if="live && mode === 'how'" class="lo-order">
       <p class="lo-order-title">Pour commander</p>
       <p class="lo-order-send">Envoie<br>le code</p>
-      <p class="lo-order-example">+ ta taille · ex. <b>{{ example }} M</b></p>
+      <p class="lo-order-example">ex. <b>{{ example }}</b><span class="lo-order-size"> · avec ta taille si besoin : <b>{{ example }} M</b></span></p>
       <p class="lo-order-bio">{{ phoneLine }}</p>
     </div>
 
@@ -140,6 +140,7 @@ const gridItems = computed(() => {
 .lo-order { justify-content: center; gap: .6em; }
 .lo-order-send { font-size: 2.3em; font-weight: 900; line-height: 1; }
 .lo-order-example { font-size: 1.4em; font-weight: 800; color: #dcfce7; }
+.lo-order-size { display: block; font-size: .7em; margin-top: .3em; }
 .lo-order-example b { background: #fff; color: #15803d; border-radius: .3em; padding: 0 .3em; }
 .lo-order-bio { width: 100%; margin-top: .4em; background: #fde047; color: #111827; border-radius: .4em; padding: .45em .3em; font-size: 1.35em; font-weight: 900; line-height: 1.1; }
 

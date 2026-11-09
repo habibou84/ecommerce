@@ -187,7 +187,7 @@ class LiveScreenController extends Controller
             /** @var LiveItem $model */
             $model = $models->get($item['id']);
             $card = [
-                'code' => $item['code'], 'title' => $item['title'], 'variant' => $item['variant'], 'price' => $item['price'],
+                'code' => $item['code'], 'title' => $item['title'], 'variant' => $item['variant'], 'choices' => $item['choices'] ?? false, 'price' => $item['price'],
                 'was' => $was ? $item['was'] : null, 'remaining' => $stock ? $item['remaining'] : null,
                 'image' => $model?->variant?->image ?? $model?->variant?->product?->images->first(),
                 'link' => $link,
