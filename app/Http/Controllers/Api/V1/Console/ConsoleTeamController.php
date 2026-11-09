@@ -8,6 +8,7 @@ use App\Models\AdminAction;
 use App\Models\User;
 use App\Notifications\ConsoleTeamChanged;
 use App\Services\Accounts\ConsoleTwoFactor;
+use App\Services\Accounts\Sessions;
 use App\Services\Billing\BillingSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -89,7 +90,7 @@ class ConsoleTeamController extends Controller
 
         $target->forceFill(['is_super_admin' => false])->save();
         // Ses sessions ouvertes se ferment tout de suite
-        DB::table('sessions')->where('user_id', $target->id)->delete();
+        Sessions::revoke($target);
         $this->record($request, 'console_admin_removed', ['admin' => $target->name]);
         $this->tell("{$request->user()->name} a retiré {$target->name} de l'équipe de la console.", $request);
 
@@ -109,7 +110,7 @@ class ConsoleTeamController extends Controller
             throw ValidationException::withMessages(['admin' => 'Pour votre propre compte : Mon compte › Changer de téléphone.']);
         }
         app(ConsoleTwoFactor::class)->disable($target);
-        DB::table('sessions')->where('user_id', $target->id)->delete();
+        Sessions::revoke($target);
         $this->record($request, 'console_2fa_reset', ['admin' => $target->name]);
         $this->tell("{$request->user()->name} a réinitialisé la validation en deux étapes de {$target->name}.", $request);
 
@@ -140,6 +141,10 @@ class ConsoleTeamController extends Controller
         $ids = DB::table('sessions')->where('user_id', $request->user()->id)->where('id', '!=', $current)->pluck('id')
             ->filter(fn (string $id) => $session === 'others' || hash_equals(hash('sha256', $id), $session));
         DB::table('sessions')->whereIn('id', $ids->all())->delete();
+        // Toutes les autres : aussi celles qui ne sont pas dans la base (Redis)
+        if ($session === 'others') {
+            Sessions::revoke($request->user(), $request->session());
+        }
         $this->record($request, 'console_sessions_closed', ['count' => $ids->count()]);
 
         return $this->sessions($request);

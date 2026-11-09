@@ -33,6 +33,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
 use Jibiat\Socle\PhoneNumber;
@@ -377,6 +378,9 @@ class LiveSales
             throw new BusinessRuleException('Ce live n\'est pas en cours.');
         }
         $phone = PhoneNumber::normalize($customer['phone'] ?? null);
+        if ($source === 'page' && $phone !== null) {
+            $this->pageLimits($session, collect([$item]), [$item->id => 1], $phone);
+        }
         $placeId = isset($customer['place_id']) ? $this->places->forStore($session->store)->firstWhere('id', (int) $customer['place_id'])?->id : null;
 
         $reservation = DB::transaction(function () use ($item, $session, $customer, $source, $phone, $placeId) {
@@ -415,6 +419,48 @@ class LiveSales
         return $reservation->fresh(['item', 'order']);
     }
 
+    /** Pièces de l'article déjà demandées par ce numéro (gardées, en attente, ou dans la commande pas encore partie) */
+    private function piecesAsked(LiveItem $item, string $phone): int
+    {
+        $mine = fn (array $statuses) => LiveReservation::forStore($item->store_id)->where('live_item_id', $item->id)
+            ->where('customer_phone', $phone)->whereIn('status', $statuses);
+
+        return $mine(['reserved', 'waiting'])->count()
+            + $mine(['ordered'])->whereHas('order', fn ($o) => $o->whereIn('status', [OrderStatus::PendingConfirmation->value, OrderStatus::Confirmed->value]))->count();
+    }
+
+    public const PAGE_MAX_PER_PHONE_HOUR = 5;
+
+    /**
+     * Page publique du live : un même numéro ne réserve pas plus que le maximum par article (comme sur WhatsApp), ni
+     * en série (fausses réservations qui bloquent le stock des vraies clientes pendant le direct).
+     *
+     * @param  Collection<int, LiveItem>  $items
+     * @param  array<int, int>  $lines
+     * @return array<int, int>
+     */
+    private function pageLimits(LiveSession $session, Collection $items, array $lines, string $phone): array
+    {
+        $key = "live-page:{$session->store_id}:{$phone}";
+        if (RateLimiter::tooManyAttempts($key, self::PAGE_MAX_PER_PHONE_HOUR)) {
+            throw new BusinessRuleException('Trop de réservations avec ce numéro en peu de temps. Écrivez à la boutique pour ajouter des articles.');
+        }
+        $allowed = [];
+        foreach ($items as $item) {
+            // Pièces en plus de ce que ce numéro a déjà demandé, sans dépasser le maximum par article
+            $missing = min($lines[$item->id], self::maxPieces($item) - $this->piecesAsked($item, $phone));
+            if ($missing > 0) {
+                $allowed[$item->id] = $missing;
+            }
+        }
+        if ($allowed === []) {
+            throw new BusinessRuleException('Vous avez déjà réservé ces articles : la boutique vous appelle pour confirmer.');
+        }
+        RateLimiter::hit($key, 3600);
+
+        return $allowed;
+    }
+
     /**
      * Réservation depuis la page du live : plusieurs articles, et plusieurs pièces d'un même article, en une fois.
      * Une seule commande pour tout ce qui est disponible ; le reste passe en liste d'attente.
@@ -433,6 +479,10 @@ class LiveSales
             throw new BusinessRuleException('Un des articles n\'est plus proposé dans ce live : rechargez la page.');
         }
         $phone = PhoneNumber::normalize($customer['phone'] ?? null);
+        if ($source === 'page' && $phone !== null) {
+            $lines = $this->pageLimits($session, $items, $lines, $phone);
+            $items = $items->filter(fn (LiveItem $item) => isset($lines[$item->id]))->values();
+        }
         $placeId = isset($customer['place_id']) ? $this->places->forStore($session->store)->firstWhere('id', (int) $customer['place_id'])?->id : null;
         $complete = $phone !== null && ($placeId !== null || filled($customer['address'] ?? null));
 
@@ -606,7 +656,13 @@ class LiveSales
             if ($session === null) {
                 return false;
             }
-            // Lecture de la photo (téléchargement, IA) hors de la notification de WhatsApp
+            // Lecture de la photo (téléchargement, IA) hors de la notification de WhatsApp. Trois par 10 minutes et par
+            // client : des dizaines d'images envoyées pendant le live ne vident pas les actions IA de la boutique
+            $key = 'live-capture:'.$conversation->id;
+            if (RateLimiter::tooManyAttempts($key, 3)) {
+                return true; // la photo reste dans la boîte Messages, l'équipe la voit
+            }
+            RateLimiter::hit($key, 600);
             ReadLiveCapture::dispatch($message->id)->afterCommit();
 
             return true;
@@ -1045,12 +1101,9 @@ class LiveSales
         $open = $this->openOrder($session, $phone);
         $mine = fn (LiveItem $item, array $statuses) => LiveReservation::forStore($session->store_id)->where('live_item_id', $item->id)
             ->where('customer_phone', $phone)->whereIn('status', $statuses);
-        // Pièces déjà demandées (gardées, en attente, ou dans la commande pas encore partie)
-        $asked = fn (LiveItem $item) => $mine($item, ['reserved', 'waiting'])->count()
-            + $mine($item, ['ordered'])->whereHas('order', fn ($o) => $o->whereIn('status', [OrderStatus::PendingConfirmation->value, OrderStatus::Confirmed->value]))->count();
         $lines = [];
         foreach ($items as $item) {
-            $missing = min(self::maxPieces($item), $quantities[$item->id] ?? 1) - $asked($item);
+            $missing = min(self::maxPieces($item), $quantities[$item->id] ?? 1) - $this->piecesAsked($item, $phone);
             if ($missing > 0) {
                 $lines[$item->id] = $missing;
             }

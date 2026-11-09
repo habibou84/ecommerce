@@ -2,6 +2,7 @@
 
 namespace App\Services\Live;
 
+use App\Enums\CancelReason;
 use App\Exceptions\BusinessRuleException;
 use App\Models\LiveReservation;
 use App\Models\LiveSession;
@@ -108,10 +109,16 @@ class LiveBilling
         return collect([$store->live_pass_until, $store->live_month_until])->filter(fn ($at) => $at !== null && $at->isFuture())->sortDesc()->first();
     }
 
-    /** Commandes créées pendant ce live (toutes, même annulées ensuite) */
+    /**
+     * Commandes créées pendant ce live (même annulées ensuite), sauf les fausses : annulées pour faux numéro, fraude
+     * ou doublon (des inconnus ne peuvent pas faire monter la facture du live avec de fausses réservations).
+     */
     public function ordersOf(LiveSession $session): int
     {
+        $fake = [CancelReason::WrongNumber->value, CancelReason::Fraud->value, CancelReason::Duplicate->value];
+
         return LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->whereNotNull('order_id')
+            ->whereHas('order', fn ($o) => $o->where(fn ($q) => $q->whereNull('cancel_reason')->orWhereNotIn('cancel_reason', $fake)))
             ->distinct()->count('order_id');
     }
 

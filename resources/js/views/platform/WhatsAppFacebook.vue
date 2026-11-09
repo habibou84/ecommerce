@@ -27,8 +27,30 @@ const returned = (() => {
 })()
 const source = returned ?? route.query
 // coexistence : '1' = numéro gardé dans l'application WhatsApp Business ; 'auto' = Meta le détecte lui-même
-const options = { appId: source.app, configId: source.config, version: source.v || 'v25.0', coexistence: ['1', 'auto'].includes(source.coexistence) }
+// Application Meta : toujours celle de la plateforme, donnée par le serveur (jamais celle d'une adresse reçue)
+const options = { appId: null, configId: null, version: 'v25.0', coexistence: ['1', 'auto'].includes(source.coexistence) }
 const sure = source.coexistence === '1'
+// Espace qui recevra la connexion (vérifié par le serveur, affiché en grand avant d'ouvrir Facebook)
+const destination = ref(null)
+const checking = ref(true)
+
+// Retour de Facebook : accepté seulement s'il a été lancé depuis cette page, dans ce navigateur (un lien Facebook
+// fabriqué par quelqu'un d'autre ne peut pas renvoyer le code vers son espace)
+const NONCE_KEY = 'wa-fb-nonce'
+function readNonce() {
+  try {
+    return window.localStorage.getItem(NONCE_KEY)
+  } catch {
+    return null
+  }
+}
+function writeNonce(value) {
+  try {
+    value ? window.localStorage.setItem(NONCE_KEY, value) : window.localStorage.removeItem(NONCE_KEY)
+  } catch {
+    // stockage indisponible : le retour de Facebook sera refusé, la fenêtre (ordinateur) reste possible
+  }
+}
 
 // Retour seulement vers une boutique de la plateforme (https://{boutique}.jibiat-marchand.com/…)
 const back = computed(() => {
@@ -56,8 +78,14 @@ const redirectUri = facebookReturnUrl(boot.platformUrl)
 const embeddedBrowser = inAppBrowser()
 const copied = ref(false)
 
-onMounted(() => {
+onMounted(async () => {
   if (returned && back.value) {
+    const expected = readNonce()
+    writeNonce(null)
+    if (!returned.n || returned.n !== expected) {
+      checking.value = false
+      return
+    }
     // Facebook a renvoyé le code (ou un refus) : on repart aussitôt vers la boutique
     if (route.query.code) {
       goBack({ code: String(route.query.code), redirect_uri: redirectUri, coexistence: sure ? '1' : '0' })
@@ -66,7 +94,18 @@ onMounted(() => {
     }
     return
   }
-  if (back.value && options.appId && !prefersRedirect()) prepareFacebook(options)
+  if (back.value) {
+    try {
+      const params = { retour: back.value, ...(appKey ? { cle: appKey } : {}) }
+      const data = (await http.get('/whatsapp/facebook/destination', { params })).data.data
+      destination.value = data
+      Object.assign(options, { appId: data.app_id, configId: data.config_id, version: data.graph_version || options.version })
+    } catch {
+      destination.value = null
+    }
+  }
+  checking.value = false
+  if (destination.value && options.appId && !prefersRedirect()) prepareFacebook(options)
 })
 
 // « Revenir » : la page d'où l'on vient, sans message d'erreur
@@ -92,7 +131,9 @@ async function goBack(params) {
 
 // Téléphone : la page entière chez Facebook
 function fullPage() {
-  const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value, depuis: from.value, cle: appKey }))
+  const nonce = [...window.crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('')
+  writeNonce(nonce)
+  const state = btoa(JSON.stringify({ n: nonce, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value, depuis: from.value, cle: appKey }))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   window.location.assign(facebookDialogUrl(options, redirectUri, state))
 }
@@ -126,8 +167,8 @@ async function copyLink() {
       <p class="text-lg font-extrabold">✅ C'est fait !</p>
       <p class="text-[15px] text-slate-700">Ferme cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
     </div>
-    <p v-else-if="returned && back" class="text-center text-sm text-slate-600">Connexion reçue de Facebook, retour vers votre espace…</p>
-    <Alert v-else-if="!back || !options.appId || !options.configId" tone="error">
+    <p v-else-if="checking" class="text-center text-sm text-slate-600">{{ returned ? 'Connexion reçue de Facebook, retour vers votre espace…' : 'Chargement…' }}</p>
+    <Alert v-else-if="!back || returned || !destination || !options.appId || !options.configId" tone="error">
       Ce lien n'est pas valable. Revenez dans votre espace marchand (Réglages › WhatsApp) et recommencez.
     </Alert>
     <div v-else class="space-y-4">
@@ -137,6 +178,12 @@ async function copyLink() {
         <p>Menu ⋮ (ou ⋯) › « Ouvrir dans le navigateur », ou copiez le lien et collez-le dans Chrome.</p>
         <button type="button" class="btn-secondary w-full" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien' }}</button>
       </div>
+      <div class="rounded-lg border-2 border-[var(--brand)] bg-brand-soft p-3 text-center">
+        <p class="text-sm text-slate-700">Ton numéro WhatsApp sera connecté à :</p>
+        <p class="text-lg font-black">{{ destination.name }}</p>
+        <p class="text-xs text-slate-600">{{ destination.host }}</p>
+      </div>
+      <p class="text-sm font-semibold text-red-700">Ce n'est pas ton espace ? Ferme cette page : quelqu'un essaie de récupérer ton WhatsApp.</p>
       <p class="text-[15px] text-slate-700">Facebook s'ouvre et te guide : suis ses étapes jusqu'au bout.</p>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
       <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>

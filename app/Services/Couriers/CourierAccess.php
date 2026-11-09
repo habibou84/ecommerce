@@ -7,11 +7,14 @@ use App\Enums\UserStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Courier;
 use App\Models\CourierAccessLink;
+use App\Models\DeviceToken;
+use App\Models\PushSubscription;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\StoreInvitation;
 use App\Models\User;
+use App\Services\Accounts\Sessions;
 use App\Services\Accounts\StoreRoles;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -100,17 +103,21 @@ class CourierAccess
 
     /**
      * Ouverture du lien : le compte du livreur (créé au besoin, sans mot de passe), ou la raison du refus
-     * (invalide, utilise, expire, retire, compte) que la page de connexion explique.
+     * (invalide, utilise, expire, retire, compte, connecte) que la page de connexion explique.
+     *
+     * Le lien passe par les mains du commerçant : il ne doit jamais ouvrir à lui seul un compte qui existe déjà
+     * (livreur d'un autre commerçant). Pour relier une nouvelle fiche à un compte existant, le lien doit être ouvert
+     * sur le téléphone où le livreur est déjà connecté ($viewer).
      *
      * @return array{0: ?User, 1: ?string}
      */
-    public function consume(string $token, Store $current): array
+    public function consume(string $token, Store $current, ?User $viewer = null): array
     {
         if ($token === '' || strlen($token) > 100) {
             return [null, 'invalide'];
         }
 
-        return DB::transaction(function () use ($token, $current) {
+        return DB::transaction(function () use ($token, $current, $viewer) {
             // Le lien peut venir d'une autre boutique que celle de l'adresse (son espace d'accueil réunit tout)
             $link = CourierAccessLink::withoutGlobalScope(StoreScope::class)->where('token_hash', CourierAccessLink::hashToken($token))->lockForUpdate()->first();
             if ($link === null || $link->revoked_at !== null) {
@@ -134,6 +141,10 @@ class CourierAccess
             $user = $courier->user_id ? User::find($courier->user_id) : User::where('phone', $courier->phone)->lockForUpdate()->first();
             if ($user !== null && (! $user->isActive() || ! $this->onlyCourier($user, $store))) {
                 return [null, 'compte'];
+            }
+            // Compte déjà existant, pas encore relié à cette fiche : seul le livreur connecté peut l'accepter
+            if ($user !== null && $courier->user_id === null && $viewer?->id !== $user->id) {
+                return [null, 'connecte'];
             }
             // Ouvert à l'adresse d'une autre boutique : seulement son espace d'accueil, où il est déjà livreur
             if ($current->id !== $store->id && ($user === null || CourierRoster::of($user, $current) === null)) {
@@ -170,10 +181,14 @@ class CourierAccess
         if ($user === null || ! $this->onlyCourier($user, $courier->store)) {
             return; // compte qui gère aussi une boutique : il garde sa session (il se connecte par mot de passe)
         }
-        $user->forceFill(['remember_token' => Str::random(60)])->save();
-        if (config('session.driver') === 'database') {
-            DB::table(config('session.table', 'sessions'))->where('user_id', $user->id)->delete();
+        // Il livre aussi pour d'autres boutiques : ses autres commerçants ne doivent pas le perdre
+        if (Courier::withoutGlobalScope(StoreScope::class)->where('user_id', $user->id)->where('store_id', '!=', $courier->store_id)->where('status', 'active')->exists()) {
+            return;
         }
+        Sessions::revoke($user);
+        // Le téléphone perdu ne reçoit plus les notifications
+        DeviceToken::where('user_id', $user->id)->delete();
+        PushSubscription::where('user_id', $user->id)->delete();
     }
 
     /**

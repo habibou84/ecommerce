@@ -85,6 +85,10 @@ class ConsoleTeamTest extends TestCase
         $this->assertNotContains($other, collect($list->json('data'))->pluck('id')->all());
         $this->console('DELETE', 'sessions/'.hash('sha256', $other))->assertOk();
         $this->assertFalse(DB::table('sessions')->where('id', $other)->exists());
+        // « Fermer les autres » : ma session reste ouverte
+        $this->console('DELETE', 'sessions/others')->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->console('GET', 'sessions')->assertOk();
 
         // Recherche : par numéro, avec les espaces marchands
         $this->console('GET', 'users?q='.urlencode($this->store->owner->phone))->assertOk()
