@@ -33,7 +33,7 @@ class CatalogOrders
      * @param  list<array{ref?: ?string, name?: ?string, quantity?: mixed, price?: mixed}>  $items
      * @return array{order: ?Order, body: string}
      */
-    public function place(Store $store, string $phone, ?string $name, array $items, ?int $total, ?string $text): array
+    public function place(Store $store, string $phone, ?string $name, array $items, ?int $total, ?string $text, bool $trustedPrices = true): array
     {
         $lines = $this->lines($store, $items);
         $summary = $lines->map(fn ($l) => "{$l['quantity']} × {$l['label']}".($l['price'] !== null ? ' — '.Money::format($l['price'] * $l['quantity']) : ''));
@@ -45,9 +45,11 @@ class CatalogOrders
             return ['order' => null, 'body' => $body."\nWhatsApp n'a pas transmis le détail du panier : ouvrez-le sur le téléphone, puis créez la commande depuis la conversation."];
         }
 
+        // Article inconnu de la boutique : prix du catalogue de Meta (notification signée) ; reçu par le WhatsApp relié par
+        // QR code, le prix vient du téléphone du client : il reste à 0, l'équipe le saisit en confirmant
         $lineData = $lines->map(fn ($l) => $l['variant_id']
             ? ['variant_id' => $l['variant_id'], 'quantity' => $l['quantity']]
-            : ['title' => $l['label'], 'quantity' => $l['quantity'], 'unit_price' => $l['price'] ?? 0])->values()->all();
+            : ['title' => $l['label'].($trustedPrices ? '' : ' (prix à saisir)'), 'quantity' => $l['quantity'], 'unit_price' => $trustedPrices ? ($l['price'] ?? 0) : 0])->values()->all();
         $open = $this->openOrder($store, $phone);
         if ($open !== null) {
             if ($this->sameCart($open, $lines)) {

@@ -118,7 +118,7 @@ class AppServiceProvider extends ServiceProvider
             // Compte visé : le numéro saisi, sinon la personne connectée ou l'invitation (jamais un compteur commun à
             // tout le monde, qu'un inconnu pourrait épuiser pour bloquer les autres)
             $phone = PhoneNumber::normalize((string) $request->input('phone'));
-            $target = $phone !== '' ? $phone
+            $target = filled($phone) ? $phone
                 : ($request->user() ? 'user:'.$request->user()->getAuthIdentifier()
                     : ($request->route('token') ? 'token:'.hash('sha256', (string) $request->route('token')) : 'ip:'.$request->ip()));
 
@@ -148,11 +148,13 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         // Par adresse : chaque transporteur, prestataire ou numéro WhatsApp connecté à la main a la sienne
-        RateLimiter::for('carrier-webhooks', fn (Request $request) => Limit::perMinute(600)->by('carrier-webhooks:'.($request->route('uuid') ?? $request->route()?->getName())));
+        // et par adresse IP d'envoi : un inconnu qui envoie des milliers de fausses notifications n'épuise que son compteur,
+        // jamais celui du vrai prestataire
+        RateLimiter::for('carrier-webhooks', fn (Request $request) => Limit::perMinute(600)->by('carrier-webhooks:'.($request->route('uuid') ?? $request->route()?->getName()).':'.$request->ip()));
         // Application Meta de la plateforme : une seule adresse pour WhatsApp, Messenger et Instagram de toutes les
         // boutiques (messages et accusés « envoyé, reçu, lu »), signée par Meta. Limite large : pendant les lives,
         // un refus ferait renvoyer les messages en retard, voire couper l'abonnement par Meta.
-        RateLimiter::for('meta-webhooks', fn () => Limit::perMinute(20000)->by('meta-webhooks'));
+        RateLimiter::for('meta-webhooks', fn (Request $request) => Limit::perMinute(20000)->by('meta-webhooks:'.$request->ip()));
 
         RateLimiter::for('verification-code', fn (Request $request) => Limit::perMinute(10)->by('verification-code:'.$request->ip()));
     }

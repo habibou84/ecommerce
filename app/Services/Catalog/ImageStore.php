@@ -22,11 +22,27 @@ class ImageStore
 
     public const MAX_UPLOAD_KB = 10240;
 
+    /** Au-delà, l'image est refusée avant d'être décodée (une petite image de 20 000 × 20 000 points occupe des Go) */
+    public const MAX_PIXELS = 40_000_000;
+
+    /**
+     * Image trop grande en points pour être ouverte sans danger (chemin d'un fichier ou contenu) ; dimensions
+     * illisibles : laissées à la lecture, qui refusera le fichier.
+     */
+    public static function ensureReasonable(string $source): void
+    {
+        $size = @is_file($source) ? @getimagesize($source) : @getimagesizefromstring($source);
+        if (is_array($size) && (int) $size[0] * (int) $size[1] > self::MAX_PIXELS) {
+            throw new BusinessRuleException('Cette image est trop grande. Envoyez une photo de taille normale (moins de 40 millions de points).', 'image');
+        }
+    }
+
     /**
      * @return array{path: string, width: int, height: int}
      */
     public function store(UploadedFile $file, int $storeId, string $folder = 'products'): array
     {
+        self::ensureReasonable((string) $file->getRealPath());
         try {
             $image = (new ImageManager(new Driver))->read($file->getRealPath());
         } catch (Throwable) {
@@ -53,6 +69,7 @@ class ImageStore
      */
     public function storeBytes(string $bytes, int $storeId, string $folder = 'products'): array
     {
+        self::ensureReasonable($bytes);
         $image = (new ImageManager(new Driver))->read($bytes);
         $path = "stores/{$storeId}/{$folder}/".Str::uuid();
         foreach (self::SIZES as $name => $size) {

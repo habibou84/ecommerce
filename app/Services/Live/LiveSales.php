@@ -656,7 +656,13 @@ class LiveSales
             if ($session === null) {
                 return false;
             }
-            // Lecture de la photo (téléchargement, IA) hors de la notification de WhatsApp
+            // Lecture de la photo (téléchargement, IA) hors de la notification de WhatsApp. Trois par 10 minutes et par
+            // client : des dizaines d'images envoyées pendant le live ne vident pas les actions IA de la boutique
+            $key = 'live-capture:'.$conversation->id;
+            if (RateLimiter::tooManyAttempts($key, 3)) {
+                return true; // la photo reste dans la boîte Messages, l'équipe la voit
+            }
+            RateLimiter::hit($key, 600);
             ReadLiveCapture::dispatch($message->id)->afterCommit();
 
             return true;

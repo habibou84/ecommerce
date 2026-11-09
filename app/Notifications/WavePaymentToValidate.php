@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\MailText;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -35,9 +36,9 @@ class WavePaymentToValidate extends Notification
             ->subject(($d['claimed'] ? 'Paiement Wave déclaré payé' : 'Paiement Wave en cours')." : {$d['amount']} · {$d['number']}")
             ->greeting($d['claimed'] ? 'L\'e-commerçant indique avoir payé.' : 'Un e-commerçant va payer par Wave.')
             ->line("Montant : {$d['amount']}")
-            ->line('Numéro Wave : '.($d['payer'] ?? 'non indiqué'))
-            ->line('Espace marchand : '.($d['store'] ?? '—'))
-            ->line("Objet : {$d['label']} ({$d['number']})")
+            ->line('Numéro Wave : '.MailText::plain($d['payer'] ?? 'non indiqué'))
+            ->line('Espace marchand : '.MailText::plain($d['store'] ?? '—'))
+            ->line('Objet : '.MailText::plain($d['label'])." ({$d['number']})")
             ->line('Vérifiez dans Wave que le montant est bien arrivé, puis confirmez.')
             ->action('Vérifier et confirmer', $d['validate_url'])
             ->line("Ou depuis la console : {$d['console_url']}");

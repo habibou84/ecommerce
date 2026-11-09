@@ -22,6 +22,7 @@ use App\Services\Accounts\TeamNotifier;
 use App\Services\Orders\Expeditions;
 use App\Services\Orders\MessageTexts;
 use App\Services\Orders\OrderDesk;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
 use Jibiat\Socle\PhoneNumber;
@@ -185,8 +186,26 @@ class CustomerMessenger
             return 'conversation';
         }
 
-        return filled($account->templates['order_confirmation'] ?? null) ? 'template' : null;
+        if (blank($account->templates['order_confirmation'] ?? null)) {
+            return null;
+        }
+        // Modèle payant envoyé tout seul : seulement vers un mobile du pays, et pas plus de 60 par heure et par boutique
+        // (des commandes avec des numéros inventés ne vident pas le compte WhatsApp du marchand ni sa réputation)
+        if ($automatic) {
+            if (! PhoneNumber::isLocalMobile($order->customer_phone)) {
+                return null;
+            }
+            $key = 'auto-confirmation:'.$order->store_id;
+            if (RateLimiter::tooManyAttempts($key, self::AUTO_TEMPLATES_PER_HOUR)) {
+                return null;
+            }
+            RateLimiter::hit($key, 3600);
+        }
+
+        return 'template';
     }
+
+    public const AUTO_TEMPLATES_PER_HOUR = 60;
 
     /**
      * Colis déposé à la gare : dans la conversation (gratuit, sans modèle) si le client a écrit depuis moins de 24 h,
@@ -409,6 +428,13 @@ class CustomerMessenger
         $order = Order::forStore($account->store_id)->find($orderId);
         // Seul le client de la commande peut répondre pour elle
         if ($order === null || ltrim((string) $order->customer_phone, '+') !== ltrim($from, '+') || $order->status !== OrderStatus::PendingConfirmation) {
+            return;
+        }
+        // Paiement exigé avant (boutique en paiement en ligne obligatoire, acompte) : « Confirmer » ne remplace pas
+        // le paiement ; la commande est confirmée quand il arrive
+        $mustPay = $order->upfrontDue() > 0
+            || ($order->source?->value === 'online_store' && $order->store?->online_payment === 'required' && $order->amountDue() > 0);
+        if ($choice === 'confirm' && $mustPay) {
             return;
         }
 

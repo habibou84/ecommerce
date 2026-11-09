@@ -212,7 +212,7 @@ class Inbox
         if ($store === null || ($providerId && ConversationMessage::forStore($storeId)->where('provider_message_id', $providerId)->exists())) {
             return null;
         }
-        ['order' => $order, 'body' => $body] = app(CatalogOrders::class)->place($store, $phone, $name, $items, $total, $text);
+        ['order' => $order, 'body' => $body] = app(CatalogOrders::class)->place($store, $phone, $name, $items, $total, $text, trustedPrices: ! $viaLink);
         $message = $this->land($storeId, $phone, $name, 'order', $body, $providerId, $sentAt, $viaLink);
         if ($order !== null) {
             $message->conversation->forceFill(['order_id' => $order->id])->save();
