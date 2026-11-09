@@ -169,8 +169,10 @@ class LiveBillingTest extends TestCase
 
         // Une commande annulée reste comptée : le prix est connu dès la fin du live
         LiveSession::find($live)->reservations()->whereNotNull('order_id')->first()->order->update(['status' => 'cancelled']);
+        // … mais pas une fausse commande (annulée pour faux numéro) : de fausses réservations ne gonflent pas la facture
+        LiveSession::find($live)->reservations()->whereNotNull('order_id')->latest('id')->first()->order->forceFill(['status' => 'cancelled', 'cancel_reason' => 'wrong_number'])->save();
         $this->storeApi($this->store, 'POST', "lives/{$live}/end")->assertOk()->assertJsonPath('data.billing.billed', true)->assertJsonPath('data.billing.price', 500);
-        $this->assertSame([23, 500], [LiveSession::find($live)->billed_orders, LiveSession::find($live)->billed_amount]);
+        $this->assertSame([22, 500], [LiveSession::find($live)->billed_orders, LiveSession::find($live)->billed_amount]);
         $this->assertSame(2500, $this->store->fresh()->live_credit);
 
         // Une seule fois par live

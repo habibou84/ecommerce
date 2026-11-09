@@ -294,6 +294,33 @@ class LiveSalesTest extends TestCase
         $this->assertSame(2, Order::count());
     }
 
+    public function test_fake_reservations_cannot_empty_the_live(): void
+    {
+        // Attaque : réserver tout le stock du live depuis la page publique, puis recommencer en boucle
+        $this->prepare(robes: 1);
+        [, $sac] = $this->page('GET', '/live/etat')->json('data.items');
+        $angre = $this->place('Angré');
+        $customer = ['phone' => '0506070809', 'place_id' => $angre->id];
+        $this->page('POST', '/live/reserver', $customer + ['items' => [['item_id' => $sac['id'], 'quantity' => 2]]])->assertOk();
+
+        // Un même numéro ne dépasse pas le maximum par article (comme sur WhatsApp)…
+        $max = 10;
+        $this->page('POST', '/live/reserver', $customer + ['items' => [['item_id' => $sac['id'], 'quantity' => 10]]])->assertOk();
+        $this->assertSame($max, LiveReservation::where('customer_phone', '+2250506070809')->count());
+        $this->page('POST', '/live/reserver', $customer + ['items' => [['item_id' => $sac['id'], 'quantity' => 1]]])
+            ->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'déjà réservé'));
+
+        // … ni ne réserve en série
+        $other = ['phone' => '0701020304', 'place_id' => $angre->id];
+        for ($i = 0; $i < LiveSales::PAGE_MAX_PER_PHONE_HOUR; $i++) {
+            $this->travel(61)->seconds(); // hors de la limite par adresse IP (5 par minute), pour tester celle du numéro
+            $this->page('POST', '/live/reserver', $other + ['items' => [['item_id' => $sac['id'], 'quantity' => 1]]])->assertOk();
+        }
+        $this->travel(61)->seconds();
+        $this->page('POST', '/live/reserver', $other + ['items' => [['item_id' => $sac['id'], 'quantity' => 1]]])
+            ->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'Trop de réservations'));
+    }
+
     public function test_items_are_added_during_the_live_without_changing_announced_codes(): void
     {
         $id = $this->prepare(robes: 1);
