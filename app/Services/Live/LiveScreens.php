@@ -197,6 +197,8 @@ class LiveScreens
                     'title' => $variant?->product?->title ?? 'Article',
                     // Produit sans tailles ni couleurs choisies à part : la variante sous le nom
                     'variant' => $group->count() === 1 && $variant && ! $variant->is_default ? $variant->title : null,
+                    // Plusieurs tailles ou couleurs à choisir : « Envoie A1 + ta taille », sinon « Envoie A1 »
+                    'choices' => $group->count() > 1,
                     'price' => $price,
                     'from' => $group->map(fn (LiveItem $i) => $i->currentPrice())->unique()->count() > 1,
                     // Ancien prix barré : prix habituel (ou prix barré du catalogue, ou prix du live pendant la vente
