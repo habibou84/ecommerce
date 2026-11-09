@@ -57,6 +57,17 @@ class SignupByWhatsApp
 
     private const FORBIDDEN = ['jibiat', 'whatsapp', 'facebook', 'tiktok', 'instagram', 'meta'];
 
+    /** Messages dont le texte sert de réponse (texte tapé, bouton touché) */
+    private const TYPED = ['text', 'button', 'interactive'];
+
+    /** Réponses qui ne sont pas un nom (salutations, oui/non, étiquettes des messages sans texte) */
+    private const NOT_A_NAME = ['ok', 'okay', 'oui', 'non', 'merci', 'bonjour', 'bonsoir', 'salut', 'slt', 'cc', 'coucou', 'hello', 'hi', 'yo',
+        'svp', 's il vous plait', 'd accord', 'test', 'autocollant', 'message vocal', 'photo', 'video', 'document', 'position', 'audio',
+        'vocal', 'sticker', 'emoji', 'rien', 'quoi', 'hein', 'ah', 'eh', 'oh', 'lol', 'mdr'];
+
+    /** Réponses incomprises de suite avant de passer la main à l'équipe */
+    public const MAX_MISSES = 3;
+
     /** @var array<string, string> numéro du compte => numéro WhatsApp qui écrit (peut être l'ancien à 8 chiffres) */
     private array $contacts = [];
 
@@ -75,9 +86,14 @@ class SignupByWhatsApp
     /**
      * Message reçu sur le numéro du support (déjà rangé dans la console). Répond s'il s'agit de l'inscription, du mot
      * « live » ou de « aide » ; sinon rien (l'équipe répond). $mediaId : photo reçue ('' par QR code, illisible ici).
+     * $kind : type du message (text, image, audio, sticker…) ; seul un texte tapé (ou un bouton) sert de réponse,
+     * jamais l'étiquette d'un vocal ou d'un autocollant (« 🎤 Message vocal », « Autocollant »).
      */
-    public function handle(string $from, string $text, ?string $payload = null, ?string $mediaId = null): bool
+    public function handle(string $from, string $text, ?string $payload = null, ?string $mediaId = null, string $kind = 'text'): bool
     {
+        if (! in_array($kind, self::TYPED, true)) {
+            $text = '';
+        }
         // Le compte WhatsApp peut encore porter l'ancien numéro ivoirien à 8 chiffres (+225 53 14 16 66) : le compte
         // Jibiat Marchand est celui du numéro à 10 chiffres (+225 01 53 14 16 66) ; les réponses partent au numéro qui écrit
         $phone = PhoneNumber::modernize($from);
@@ -129,6 +145,10 @@ class SignupByWhatsApp
         }
         if ($active) {
             $this->touch($signup);
+            // Vocal, autocollant, vidéo… (ou photo hors de l'étape photo) : pas une réponse, la question est reposée
+            if ($payload === null && ! in_array($kind, self::TYPED, true) && ! ($mediaId !== null && $signup->step === 'photo')) {
+                return $this->notUnderstood($signup, $kind);
+            }
 
             return $this->answer($signup, $text, $payload, $mediaId);
         }
@@ -229,7 +249,7 @@ class SignupByWhatsApp
                     return $this->sendLogin($signup);
                 }
 
-                return $this->ask($signup, 'existing');
+                return $this->missed($signup) ?: $this->ask($signup, 'existing');
 
             case 'confirm':
                 if ($payload === 'su:other' || self::words($value) === 'autre numero') {
@@ -239,7 +259,7 @@ class SignupByWhatsApp
                     return true;
                 }
                 if (! $yes) {
-                    return $this->ask($signup, 'confirm');
+                    return $this->missed($signup) ?: $this->ask($signup, 'confirm');
                 }
                 $this->reach($signup, 'confirmed');
 
@@ -248,9 +268,7 @@ class SignupByWhatsApp
             case 'name':
                 $error = self::nameError($value);
                 if ($error !== null) {
-                    $this->say($signup->phone, $error);
-
-                    return true;
+                    return $this->missed($signup) ?: $this->sayTrue($signup, $error);
                 }
                 $this->put($signup, ['store_name' => Str::limit(preg_replace('/\s+/', ' ', $value), 60, '')]);
                 $this->reach($signup, 'name');
@@ -260,10 +278,8 @@ class SignupByWhatsApp
 
             case 'first_name':
                 $name = Str::limit(preg_replace('/\s+/', ' ', $value), 40, '');
-                if (mb_strlen($name) < 2 || ! preg_match('/\p{L}/u', $name) || preg_match('/https?:|www\.|\d{4,}/i', $name)) {
-                    $this->say($signup->phone, 'Écris juste ton prénom, par exemple *Awa* 🙂');
-
-                    return true;
+                if (self::notAName($name) || preg_match('/https?:|www\.|\d{4,}/i', $name)) {
+                    return $this->missed($signup) ?: $this->sayTrue($signup, 'Écris juste ton prénom, par exemple *Awa* 🙂');
                 }
                 $this->put($signup, ['first_name' => mb_convert_case($name, MB_CASE_TITLE)]);
                 $this->reach($signup, 'first_name');
@@ -277,7 +293,7 @@ class SignupByWhatsApp
                     default => null,
                 };
                 if ($live === null) {
-                    return $this->ask($signup, 'live');
+                    return $this->missed($signup) ?: $this->ask($signup, 'live');
                 }
                 $this->put($signup, ['live' => $live]);
                 $this->reach($signup, 'live');
@@ -289,7 +305,7 @@ class SignupByWhatsApp
                     return $this->ask($signup, 'name');
                 }
                 if ($payload !== 'su:create' && ! $yes && self::words($value) !== 'creer') {
-                    return $this->ask($signup, 'recap');
+                    return $this->missed($signup) ?: $this->ask($signup, 'recap');
                 }
 
                 return $this->create($signup);
@@ -538,6 +554,9 @@ class SignupByWhatsApp
 
     private function reach(WhatsappSignup $signup, string $step): void
     {
+        if (($signup->data['misses'] ?? 0) > 0) {
+            $signup->forceFill(['data' => array_merge($signup->data, ['misses' => 0])]);
+        }
         $signup->forceFill(['reached' => array_merge($signup->reached ?? [], [$step => $signup->reached[$step] ?? now()->toIso8601String()])]);
         if ($signup->exists) {
             $signup->save();
@@ -596,10 +615,64 @@ class SignupByWhatsApp
         return preg_replace('#^https?://#', '', rtrim(Tenancy::storeUrl($slug), '/'));
     }
 
+    /**
+     * Pas un nom : moins de 2 lettres, surtout des emojis ou symboles, ou une réponse qui n'en est pas un (« ok »,
+     * « bonjour », « Autocollant »…).
+     */
+    private static function notAName(string $value): bool
+    {
+        $letters = preg_match_all('/\p{L}/u', $value);
+        $symbols = preg_match_all('/[\p{So}\p{Sk}\p{Cs}\p{Co}]/u', $value);
+
+        return $letters < 2 || $symbols > max(2, intdiv($letters, 2)) || in_array(self::words($value), self::NOT_A_NAME, true);
+    }
+
+    /**
+     * Vocal, autocollant, vidéo… pendant l'inscription : on le dit et on repose la question ; à la troisième réponse
+     * incomprise de suite, l'équipe prend la main (robot en pause, message dans la console).
+     */
+    private function notUnderstood(WhatsappSignup $signup, string $kind): bool
+    {
+        if ($this->missed($signup)) {
+            return true;
+        }
+        $what = match ($kind) {
+            'audio' => '🎤 Je ne peux pas écouter les vocaux.',
+            'image' => '📷 J\'ai bien reçu ta photo, mais j\'ai d\'abord besoin d\'une réponse écrite.',
+            default => 'Je n\'ai pas compris 🙂',
+        };
+        $this->say($signup->phone, $what.' Réponds par écrit, s\'il te plaît.');
+
+        return $this->ask($signup, $signup->step);
+    }
+
+    /** Réponse incomprise comptée ; true si l'équipe prend la main (le robot se met en pause) */
+    private function missed(WhatsappSignup $signup): bool
+    {
+        $misses = (int) ($signup->data['misses'] ?? 0) + 1;
+        if ($misses < self::MAX_MISSES) {
+            $this->put($signup, ['misses' => $misses]);
+
+            return false;
+        }
+        $this->put($signup, ['misses' => 0]);
+        $this->say($signup->phone, 'Je passe la main à un conseiller : il te répond ici très vite 🙂');
+        $signup->forceFill(['paused_until' => now()->addHours(self::PAUSE_HOURS)])->save();
+
+        return true;
+    }
+
+    private function sayTrue(WhatsappSignup $signup, string $text): bool
+    {
+        $this->say($signup->phone, $text);
+
+        return true;
+    }
+
     private static function nameError(string $name): ?string
     {
         $plain = self::words($name);
-        if (mb_strlen(trim($name)) < 2 || mb_strlen(trim($name)) > 60 || ! preg_match('/\p{L}/u', $name)) {
+        if (mb_strlen(trim($name)) > 60 || self::notAName($name)) {
             return 'Écris le nom de ta boutique (2 à 60 lettres), par exemple *Awa Mode*.';
         }
         if (preg_match('/https?:|www\.|@/i', $name)) {
