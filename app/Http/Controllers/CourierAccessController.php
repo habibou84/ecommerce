@@ -15,7 +15,7 @@ class CourierAccessController extends Controller
 {
     public function __invoke(Request $request, string $token, CourierAccess $access, Tenancy $tenancy): RedirectResponse
     {
-        [$user, $error] = $access->consume($token, $tenancy->store());
+        [$user, $error] = $access->consume($token, $tenancy->store(), Auth::guard('web')->user());
         if ($user === null) {
             return redirect('/livreur/connexion?lien='.$error);
         }
