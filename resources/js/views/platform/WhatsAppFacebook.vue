@@ -5,6 +5,7 @@ import AuthShell from '../../components/AuthShell.vue'
 import Alert from '../../components/Alert.vue'
 import WhatsAppHelp from '../../components/WhatsAppHelp.vue'
 import { boot } from '../../lib/boot'
+import http from '../../lib/http'
 import { connectWhatsApp, facebookDialogUrl, facebookReturnUrl, inAppBrowser, prefersRedirect, prepareFacebook } from '../../lib/facebook'
 
 // Fenêtre Facebook de la connexion WhatsApp, ouverte depuis la plateforme pour toutes les boutiques (Meta n'accepte
@@ -48,6 +49,9 @@ const from = computed(() => {
     return null
   }
 })
+// Ouverte depuis l'application installée : clé sous laquelle déposer le résultat (l'application attend dessous)
+const appKey = /^[A-Za-z0-9]{32,64}$/.test(String(source.cle ?? '')) ? String(source.cle) : null
+const handedBack = ref(false)
 const redirectUri = facebookReturnUrl(boot.platformUrl)
 const embeddedBrowser = inAppBrowser()
 const copied = ref(false)
@@ -70,13 +74,25 @@ function leave() {
   window.location.assign(from.value ?? back.value)
 }
 
-function goBack(params) {
-  window.location.assign(`${back.value}#${new URLSearchParams({ whatsapp: '1', ...params, ...(from.value ? { depuis: from.value } : {}) })}`)
+async function goBack(params) {
+  const result = { ...params, ...(from.value ? { depuis: from.value } : {}) }
+  if (appKey) {
+    try {
+      await http.post('/whatsapp/facebook/result', { key: appKey, result })
+      handedBack.value = true
+      // Fenêtre ouverte par l'application : on la ferme si le téléphone le permet
+      window.setTimeout(() => window.close(), 600)
+      return
+    } catch {
+      // Clé expirée : retour classique vers la boutique
+    }
+  }
+  window.location.assign(`${back.value}#${new URLSearchParams({ whatsapp: '1', ...result })}`)
 }
 
 // Téléphone : la page entière chez Facebook
 function fullPage() {
-  const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value, depuis: from.value }))
+  const state = btoa(JSON.stringify({ app: options.appId, config: options.configId, v: options.version, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value, depuis: from.value, cle: appKey }))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   window.location.assign(facebookDialogUrl(options, redirectUri, state))
 }
@@ -106,7 +122,11 @@ async function copyLink() {
 
 <template>
   <AuthShell title="Connecte ton numéro WhatsApp sur Meta" subtitle="Connexion officielle, avec ton compte Facebook.">
-    <p v-if="returned && back" class="text-center text-sm text-slate-600">Connexion reçue de Facebook, retour vers votre espace…</p>
+    <div v-if="handedBack" class="space-y-2 text-center">
+      <p class="text-lg font-extrabold">✅ C'est fait !</p>
+      <p class="text-[15px] text-slate-700">Ferme cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
+    </div>
+    <p v-else-if="returned && back" class="text-center text-sm text-slate-600">Connexion reçue de Facebook, retour vers votre espace…</p>
     <Alert v-else-if="!back || !options.appId || !options.configId" tone="error">
       Ce lien n'est pas valable. Revenez dans votre espace marchand (Réglages › WhatsApp) et recommencez.
     </Alert>

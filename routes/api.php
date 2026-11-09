@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\V1\Marketing\TrackingController;
 use App\Http\Controllers\Api\V1\MaterielController;
 use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\Messaging\ConversationController;
+use App\Http\Controllers\Api\V1\Messaging\WhatsAppConnectSessionController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppLinkController;
 use App\Http\Controllers\Api\V1\Messaging\WhatsAppSalesController;
@@ -102,6 +103,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
     // ── jibiat-marchand.com : création de boutique, retrouver ses boutiques ──
     Route::middleware('zone:platform')->group(function () {
         Route::get('signup/slug', [SignupController::class, 'checkSlug'])->middleware('throttle:60,1')->name('signup.slug');
+        // Fenêtre Facebook ouverte depuis l'application d'une boutique : résultat déposé pour l'application
+        Route::post('whatsapp/facebook/result', [WhatsAppConnectSessionController::class, 'deliver'])->middleware('throttle:20,1')->name('whatsapp.connect-session.deliver');
         Route::get('signup/partner', [SignupController::class, 'partner'])->middleware('throttle:60,1')->name('signup.partner');
         Route::post('signup', [SignupController::class, 'start'])->middleware('throttle:verification-start')->middleware('feature:signup')->name('signup');
         // Clé d'accès d'une carte à QR code (page jibiat-marchand.com/cle/CODE)
@@ -554,6 +557,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('whatsapp/sales', [WhatsAppSalesController::class, 'show'])->name('whatsapp.sales.show');
                 Route::put('whatsapp/sales', [WhatsAppSalesController::class, 'update'])->name('whatsapp.sales.update');
                 Route::put('whatsapp/models', [WhatsAppSalesController::class, 'models'])->name('whatsapp.models.update');
+                // Connexion WhatsApp depuis l'application installée : la fenêtre Facebook dépose son résultat ici
+                Route::post('whatsapp/connect-session', [WhatsAppConnectSessionController::class, 'register'])->middleware('throttle:20,1')->name('whatsapp.connect-session.register');
+                Route::get('whatsapp/connect-session/{key}', [WhatsAppConnectSessionController::class, 'show'])->where('key', '[A-Za-z0-9]{32,64}')->middleware('throttle:120,1')->name('whatsapp.connect-session.show');
             });
             Route::middleware('permission:'.Permission::OrdersManage->value)->group(function () {
                 Route::get('carts/abandoned', [WhatsAppController::class, 'abandonedCarts'])->name('carts.abandoned');

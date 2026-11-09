@@ -24,6 +24,7 @@ use App\Services\Orders\OrderDesk;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\Promotions\Pricing;
+use App\Services\WhatsApp\DeliveryFeesOnWhatsApp;
 use App\Services\WhatsApp\Inbox;
 use App\Services\WhatsApp\ModelsOnWhatsApp;
 use App\Services\WhatsApp\WhatsAppBridge;
@@ -592,6 +593,10 @@ class LiveSales
         if ($payload !== null && str_starts_with($payload, 'models:')) {
             return app(ModelsOnWhatsApp::class)->onReply($conversation, $payload);
         }
+        // Prix de livraison : liste des communes, une commune touchée (pour voir, sans changer l'adresse)
+        if ($payload !== null && str_starts_with($payload, 'fees:')) {
+            return app(DeliveryFeesOnWhatsApp::class)->onReply($conversation, $payload);
+        }
         // Capture du reçu de paiement d'une expédition payée avant l'envoi (lien Wave de la boutique)
         if (app(LiveCheckout::class)->receipt($conversation, $message)) {
             return true;
@@ -636,6 +641,10 @@ class LiveSales
         if ($order !== null) {
             app(LiveCheckout::class)->recap($conversation, $order);
 
+            return true;
+        }
+        // « livraison », « c'est combien la livraison à Yop ? » : les prix de livraison
+        if (app(DeliveryFeesOnWhatsApp::class)->fromText($conversation, (string) $message->body)) {
             return true;
         }
         // Code d'un live terminé (commandes arrêtées) : réponse polie avec le lien de la boutique
@@ -1584,13 +1593,25 @@ class LiveSales
         $howTo = "👉 Répondez avec *le code* de l'article (ex. *{$example}*).".($anySizes ? " S'il y a des tailles, on vous demande la vôtre." : '')
             .($several !== $example ? " Plusieurs articles : *{$example}, {$several}*." : '')."\n📷 Toutes les photos : ".$store->url('/live');
         if (app(LiveCheckout::class)->picture($conversation, $image, '🔴 Encore disponibles en ce moment')) {
-            $this->reply($conversation, $howTo);
+            $this->howTo($conversation, $howTo);
 
             return;
         }
         $text = $groups->take(30)->map(fn (array $g) => "*{$g['code']}* · {$g['title']}".($g['sizes'] !== '' ? " ({$g['sizes']})" : '').' · '.Money::format($g['price']));
         $this->reply($conversation, "🔴 *Encore disponibles en ce moment :*\n\n".$text->implode("\n\n")
             .($groups->count() > 30 ? "\n\n… et ".($groups->count() - 30).' autres sur la page du live.' : '')."\n\n".$howTo);
+    }
+
+    /**
+     * Comment commander, avec le bouton « 🛵 Prix de livraison » sur le WhatsApp officiel (sinon : écrire « livraison »).
+     */
+    private function howTo(Conversation $conversation, string $text): void
+    {
+        $sent = rescue(fn () => app(Inbox::class)->replyRich($conversation, $text, fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendButtons($account, $to, $text,
+            ['fees:menu' => '🛵 Prix de livraison'])), null, false);
+        if ($sent === null) {
+            $this->reply($conversation, $text."\n🛵 Prix de livraison : écrivez *livraison*.");
+        }
     }
 
     /** Articles sur l'image de la liste « LIVE » (au-delà : le nombre, et la page du live) */

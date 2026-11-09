@@ -45,6 +45,8 @@ Route::middleware('zone:store,custom_domain')->group(function () {
         Route::get('/live/etat', [LiveController::class, 'state'])->middleware('throttle:storefront');
         Route::post('/live/reserver', [LiveController::class, 'reserve'])->middleware('throttle:storefront-order');
         Route::get('/live/lieux', [LiveController::class, 'places'])->middleware('throttle:storefront');
+        Route::get('/live/livraison', [LiveController::class, 'fee'])->middleware('throttle:storefront');
+        Route::get('/live/tarifs', [LiveController::class, 'fees'])->middleware('throttle:storefront');
     });
 
     Route::get('/recu/{token}', ReceiptController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('receipt');
