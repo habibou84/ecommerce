@@ -80,11 +80,15 @@
             <dialog data-live-dialog class="m-auto w-[min(28rem,92vw)] rounded-2xl p-0 backdrop:bg-black/50">
                 <form method="dialog" data-live-form class="space-y-4 p-5">
                     <h2 class="text-lg font-bold" data-live-title>Réserver</h2>
-                    <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm" data-live-summary></ul>
-                    <div>
-                        <label for="live-name" class="field-label">Votre nom</label>
-                        <input id="live-name" name="name" class="field" autocomplete="name" required maxlength="120">
-                        <p data-error="name" class="mt-1 text-sm text-red-700" hidden></p>
+                    <div class="rounded-xl border border-slate-200 text-sm">
+                        <ul class="divide-y divide-slate-100" data-live-summary></ul>
+                        {{-- Livraison et total, dès que le quartier est choisi --}}
+                        <div class="flex justify-between gap-2 border-t border-slate-100 px-3 py-2 font-semibold text-emerald-800" data-live-fee-row hidden>
+                            <span data-live-fee-label>🛵 Livraison</span><span class="whitespace-nowrap" data-live-fee-value></span>
+                        </div>
+                        <div class="flex justify-between gap-2 rounded-b-xl border-t border-slate-100 bg-slate-50 px-3 py-2 text-base font-extrabold" data-live-total-row hidden>
+                            <span>Total à payer</span><span class="whitespace-nowrap" data-live-total></span>
+                        </div>
                     </div>
                     <div>
                         <label for="live-phone" class="field-label">Votre numéro (WhatsApp)</label>
@@ -99,6 +103,14 @@
                         <ul id="live-place-options" data-place-options role="listbox" hidden
                             class="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg"></ul>
                         <p data-error="place_id" class="mt-1 text-sm text-red-700" hidden></p>
+                        <p class="mt-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800" data-live-fee hidden></p>
+                        <button type="button" class="mt-1.5 text-sm font-semibold text-emerald-700 underline" data-live-fees-toggle>Voir les prix de livraison</button>
+                        <div class="mt-1.5 max-h-60 overflow-auto rounded-lg border border-slate-200 text-sm" data-live-fees hidden></div>
+                    </div>
+                    <div>
+                        <label for="live-name" class="field-label">Votre nom <span class="font-normal text-slate-400">(facultatif)</span></label>
+                        <input id="live-name" name="name" class="field" autocomplete="name" maxlength="120" placeholder="Ex. Fatou">
+                        <p data-error="name" class="mt-1 text-sm text-red-700" hidden></p>
                     </div>
                     <div>
                         <label for="live-address" class="field-label">Repère <span class="font-normal text-slate-400">(facultatif)</span></label>

@@ -141,7 +141,12 @@ class LiveSalesTest extends TestCase
 
         $angre = $this->place('Angré');
         $this->page('GET', '/live/lieux?q=angre')->assertOk()->assertJsonPath('data.0.id', $angre->id);
-        $this->page('POST', '/live/reserver', ['item_id' => $items[0]['id'], 'name' => 'Fatou', 'phone' => '05 06 07 08 09', 'place_id' => $angre->id, 'address' => 'Face pharmacie'])
+        // Prix de la livraison du quartier choisi, et toutes les communes avec leur prix
+        $this->page('GET', '/live/livraison?place_id='.$angre->id)->assertOk()->assertJsonPath('data.fee', 1500)->assertJsonPath('data.expedition', false);
+        $this->assertContains('Cocody', array_column($this->page('GET', '/live/tarifs')->assertOk()->json('data.communes'), 'name'));
+
+        // Le nom est facultatif : numéro et quartier suffisent
+        $this->page('POST', '/live/reserver', ['item_id' => $items[0]['id'], 'phone' => '05 06 07 08 09', 'place_id' => $angre->id, 'address' => 'Face pharmacie'])
             ->assertOk()->assertJsonPath('data.status', 'ordered');
         $order = Order::forStore($this->store->id)->with('items')->sole();
         $this->assertSame(['live', '+2250506070809', $angre->id, 12000], [$order->source->value, $order->customer_phone, $order->shipping_place_id, (int) $order->items->sum('total')]);
@@ -516,7 +521,8 @@ class LiveSalesTest extends TestCase
         $feed = $this->storeApi($this->store, 'GET', "lives/{$id}")->assertOk()->json('data.messages');
         $this->assertSame(['C\'est combien la livraison ?', 'A1', 'Je prends a1 et A2 svp'], array_column($feed, 'body'));
         $this->assertSame([[], ['A1'], ['A1', 'A2']], array_column($feed, 'codes'));
-        $this->assertFalse($feed[0]['answered']);
+        // « C'est combien la livraison ? » : les prix de livraison sont envoyés tout seuls
+        $this->assertTrue($feed[0]['answered']);
         $this->assertTrue($feed[2]['answered']);
         $this->assertSame('Fatou', $feed[0]['name']);
         $reservation = $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.reservations.0');
@@ -600,9 +606,10 @@ class LiveSalesTest extends TestCase
         $feed = $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.messages');
         $this->assertTrue(collect($feed)->firstWhere('body', 'près du grand marché')['place_check']);
         $this->assertFalse(collect($feed)->firstWhere('body', 'A1')['place_check']);
-        // Une question reste à l'équipe, sans réponse automatique
+        // Une question sur la livraison : le prix du lieu nommé, sans toucher à la pièce gardée
         $this->message('M4', 'vous livrez à Bingerville ?');
-        $this->assertCount($count, $this->whatsapp);
+        $this->assertCount($count + 1, $this->whatsapp);
+        $this->assertStringContainsString('Bingerville', end($this->whatsapp));
 
         // Faute de frappe : « Yopugon » est compris, la commande est créée
         $this->message('M5', 'Yopugon');

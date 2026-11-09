@@ -108,7 +108,8 @@ class ModelsOnWhatsAppTest extends TestCase
         [$menu] = $this->sent();
         $this->assertSame('list', $menu['interactive']['type']);
         $rows = collect($menu['interactive']['action']['sections'][0]['rows']);
-        $this->assertSame(['Bodies', 'Robes', '✨ Nouveautés'], $rows->pluck('title')->all());
+        $this->assertSame(['Bodies', 'Robes', '✨ Nouveautés', '🛵 Prix de livraison'], $rows->pluck('title')->all());
+        $this->assertSame('fees:menu', $rows->last()['id']);
         $robes = $rows->firstWhere('title', 'Robes');
         $this->assertStringContainsString('1 modèle · dès 15', $robes['description']);
 
@@ -149,6 +150,30 @@ class ModelsOnWhatsAppTest extends TestCase
         $this->tap('models:var:'.$this->robe->variants->firstWhere('title', 'S')->id, 'S');
         $this->assertSame(2, $order->fresh()->items()->count());
         $this->assertSame(1, Order::count());
+    }
+
+    public function test_the_customer_sees_delivery_prices(): void
+    {
+        // « livraison » : la liste des communes avec leur prix
+        $this->text('livraison');
+        [$list] = $this->sent();
+        $this->assertSame('list', $list['interactive']['type']);
+        $rows = collect($list['interactive']['action']['sections'][0]['rows']);
+        $cocody = $rows->firstWhere('title', 'Cocody');
+        $this->assertStringStartsWith('fees:commune:', $cocody['id']);
+        $this->assertStringContainsString('1 500', $cocody['description']);
+
+        // Commune touchée : son prix, sans rien commander
+        $this->tap($cocody['id'], 'Cocody', 'list_reply');
+        [$detail] = $this->sent();
+        $this->assertStringContainsString('*Cocody* : 1', $detail['text']['body']);
+        $this->assertSame(0, Order::count());
+
+        // Lieu nommé dans la question : son prix directement
+        $this->text("c'est combien la livraison à Yopougon ?");
+        [$price] = $this->sent();
+        $this->assertStringContainsString('Yopougon', $price['text']['body']);
+        $this->assertStringContainsString('🛵 Livraison à', $price['text']['body']);
     }
 
     public function test_wholesale_quantity_and_pause_after_a_human_reply(): void

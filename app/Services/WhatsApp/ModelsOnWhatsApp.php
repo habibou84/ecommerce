@@ -144,10 +144,14 @@ class ModelsOnWhatsApp
         if (count($rows) === 1) {
             return $this->items($conversation, $rows[0]['key'], 0);
         }
+        // Dernière ligne : les prix de livraison (pour voir, sans commander)
+        if (count($rows) < 10) {
+            $rows[] = ['key' => 'fees', 'title' => '🛵 Prix de livraison', 'description' => 'Le prix pour votre commune'];
+        }
         $intro = 'Bonjour 👋 Voici nos catégories. Touchez pour voir les photos :';
         $this->remember($conversation, ['step' => 'categories', 'options' => array_combine(range(1, count($rows)), array_column($rows, 'key'))]);
         $official = $this->rich($conversation, $intro.' (catégories)', fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendList($account, $to, $intro, 'Voir les catégories', 'Catégories',
-            array_map(fn (array $r) => ['id' => 'models:cat:'.$r['key'].':0', 'title' => $r['title'], 'description' => $r['description']], $rows)));
+            array_map(fn (array $r) => ['id' => $r['key'] === 'fees' ? 'fees:menu' : 'models:cat:'.$r['key'].':0', 'title' => $r['title'], 'description' => $r['description']], $rows)));
         if ($official) {
             return true;
         }
@@ -426,7 +430,9 @@ class ModelsOnWhatsApp
         $number = ctype_digit($clean) ? (int) $clean : null;
 
         return match ($state['step'] ?? null) {
-            'categories' => $number !== null && isset($state['options'][$number]) && $this->items($conversation, $state['options'][$number], 0),
+            'categories' => $number !== null && isset($state['options'][$number]) && ($state['options'][$number] === 'fees'
+                ? app(DeliveryFeesOnWhatsApp::class)->list($conversation)
+                : $this->items($conversation, $state['options'][$number], 0)),
             'items' => match (true) {
                 $clean === '+' || $clean === 'suite' => $state['more'] && $this->items($conversation, $state['key'], $state['page'] + 1),
                 $number === 0 => $this->categories($conversation),

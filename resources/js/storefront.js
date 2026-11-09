@@ -588,9 +588,63 @@ function livePage() {
     })
   })
 
+  // Livraison : prix du quartier choisi, puis le total à payer (articles gardés + livraison)
+  let subtotal = 0
+  let feeAsked = 0
+  async function showFee() {
+    const box = $('[data-live-fee]', form)
+    const row = $('[data-live-fee-row]', form)
+    const totalRow = $('[data-live-total-row]', form)
+    const submit = $('[data-live-submit]', form)
+    const placeIdValue = form.elements.place_id.value
+    box.hidden = row.hidden = totalRow.hidden = true
+    submit.textContent = 'Réserver'
+    if (!placeIdValue) return
+    const asked = ++feeAsked
+    try {
+      const { data } = await api('GET', `/live/livraison?place_id=${encodeURIComponent(placeIdValue)}`)
+      if (asked !== feeAsked) return
+      const kind = data.expedition ? '🚚 Expédition' : '🛵 Livraison'
+      const label = data.fee === null ? 'Prix à confirmer par la boutique' : data.fee === 0 ? 'Offerte' : money(data.fee)
+      box.textContent = `${kind} : ${label}${data.eta ? ` · ${data.eta.toLowerCase()}` : ''}`
+      box.hidden = false
+      $('[data-live-fee-label]', form).textContent = `${kind} ${data.label.split(',')[0]}`
+      $('[data-live-fee-value]', form).textContent = label
+      row.hidden = false
+      if (data.fee !== null) {
+        $('[data-live-total]', form).textContent = money(subtotal + data.fee)
+        totalRow.hidden = false
+        submit.textContent = `Réserver · ${money(subtotal + data.fee)}`
+      }
+    } catch {
+      // prix indisponible : la boutique le confirmera
+    }
+  }
+
+  // « Voir les prix de livraison » : toutes les communes livrées, chargées une fois
+  const feesBox = $('[data-live-fees]', form)
+  $('[data-live-fees-toggle]', form)?.addEventListener('click', async () => {
+    if (!feesBox.hidden) { feesBox.hidden = true; return }
+    if (!feesBox.dataset.loaded) {
+      try {
+        const { data } = await api('GET', '/live/tarifs')
+        const price = (c) => (c.fee === 0 ? 'Offerte' : `${c.from ? 'dès ' : ''}${money(c.fee)}`)
+        const rows = data.communes.map((c) => `<div class="flex justify-between gap-2 border-b border-slate-100 px-3 py-2"><span>${escapeHtml(c.name)}</span><b class="whitespace-nowrap text-emerald-800">${price(c)}</b></div>`)
+        if (data.cities !== null) rows.push(`<div class="flex justify-between gap-2 px-3 py-2"><span>🚚 Autres villes</span><b class="whitespace-nowrap text-emerald-800">dès ${money(data.cities)}</b></div>`)
+        feesBox.innerHTML = rows.join('') || '<p class="px-3 py-2 text-slate-500">La boutique vous confirme le prix de la livraison.</p>'
+        feesBox.dataset.loaded = '1'
+      } catch {
+        feesBox.innerHTML = '<p class="px-3 py-2 text-slate-500">Prix indisponibles pour le moment.</p>'
+      }
+    }
+    feesBox.hidden = false
+  })
+
   $('[data-live-open]', bar).addEventListener('click', () => {
     const lines = render()
     if (!lines.length) return
+    // Articles gardés seulement (une place sur la liste d'attente ne se paie pas)
+    subtotal = lines.reduce((sum, { item, qty }) => sum + (item.remaining > 0 ? qty * item.price : 0), 0)
     const count = lines.reduce((sum, line) => sum + line.qty, 0)
     $('[data-live-title]', form).textContent = `Réserver ${count} article${count > 1 ? 's' : ''}`
     $('[data-live-summary]', form).innerHTML = lines.map(({ item, qty }) => `<li class="flex gap-2 px-3 py-2">
@@ -603,12 +657,15 @@ function livePage() {
     placeInput.value = saved.place_label || ''
     form.elements.address.value = saved.address || ''
     $$('[data-error]', form).forEach((el) => (el.hidden = true))
+    feesBox.hidden = true
+    showFee()
     dialog.showModal()
   })
   $('[data-live-close]', form).addEventListener('click', () => dialog.close())
 
   placeInput.addEventListener('input', () => {
     form.elements.place_id.value = ''
+    showFee()
     clearTimeout(searchTimer)
     const q = placeInput.value.trim()
     if (q.length < 2) { options.hidden = true; return }
@@ -631,6 +688,7 @@ function livePage() {
     placeInput.value = li.textContent
     options.hidden = true
     showError('place_id', '')
+    showFee()
   })
 
   form.addEventListener('submit', async (event) => {
