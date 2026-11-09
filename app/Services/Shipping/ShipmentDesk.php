@@ -263,7 +263,8 @@ class ShipmentDesk
         }
         // Expédition payée d'avance : le livreur ne part à la gare qu'une fois les articles et la livraison payés
         if (($due = Expeditions::blockingDue($order)) > 0) {
-            throw new BusinessRuleException('Paiement avant expédition : le client doit encore payer '.Money::format($due).'. Envoyez-lui le lien de paiement.');
+            throw new BusinessRuleException(($order->isExpedition() && $order->expedition_prepay ? 'Paiement avant expédition' : 'Acompte attendu')
+                .' : le client doit encore payer '.Money::format($due).'. Envoyez-lui le lien de paiement.');
         }
     }
 

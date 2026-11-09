@@ -41,7 +41,13 @@ class Expeditions
      */
     public static function blockingDue(Order $order): int
     {
-        return $order->isExpedition() && $order->expedition_prepay && $order->expedition_dropped_at === null ? $order->expeditionPrepayDue() : 0;
+        if ($order->isExpedition() && $order->expedition_prepay) {
+            return $order->expedition_dropped_at === null ? $order->expeditionPrepayDue() : 0;
+        }
+        // Acompte attendu : la commande attend avant de partir chez le livreur (réglage de la boutique)
+        $blocks = $order->store?->deposit_blocks ?? true;
+
+        return $blocks ? $order->depositDue() : 0;
     }
 
     /**

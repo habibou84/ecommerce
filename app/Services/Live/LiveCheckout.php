@@ -146,7 +146,10 @@ class LiveCheckout
         $payment = $this->prepaid($order) ? "💳 *À payer avant l'envoi* : le colis part dès que vous avez payé" : '_Paiement à la livraison_';
         // Prix de gros, pack au choix, prix barré : ce que le client économise
         $saving = (int) $order->items->sum(fn ($i) => $i->compare_at_price && $i->compare_at_price * $i->quantity > $i->total ? $i->compare_at_price * $i->quantity - $i->total : 0);
-        $total = '💰 *Total à payer : '.Money::format((int) $order->total).'*'.($saving > 0 ? "\n🎁 Vous économisez ".Money::format($saving) : '');
+        $total = '💰 *Total à payer : '.Money::format((int) $order->total).'*'.($saving > 0 ? "\n🎁 Vous économisez ".Money::format($saving) : '')
+            // Acompte (hors expédition payée avant l'envoi, déjà annoncée) : à payer après « Je confirme »
+            .(! ($order->isExpedition() && $order->expedition_prepay) && $order->depositDue() > 0
+                ? "\n💳 *Acompte à payer : ".Money::format($order->depositDue()).'* (le reste à la livraison)' : '');
         $title = "🧾 *COMMANDE N° {$order->reference()}*";
 
         // WhatsApp relié par QR code : pas de boutons, le récapitulatif en texte et des réponses à taper
@@ -428,12 +431,17 @@ class LiveCheckout
         $name = trim(strtok((string) $order->customer_name, ' ') ?: '');
 
         $thanks = "🎉 *COMMANDE CONFIRMÉE !*\n\nMerci".($name !== '' ? " {$name}" : '')." 🙏\n🧾 N° {$order->reference()}\n";
-        $sent = $this->text($conversation, $this->prepaid($order)
+        $expedition = $order->isExpedition() && $order->expedition_prepay;
+        $sent = $this->text($conversation, match (true) {
             // Expédition payée avant l'envoi : le montant, comment payer, puis le colis part à la gare
-            ? $thanks.'💳 *'.Money::format($order->expeditionPrepayDue())." à payer maintenant, avant l'envoi*\n".$this->howToPay($order)
-                ."\n🚚 ".($place ? "{$place} : v" : 'V').'otre colis part à la gare dès que le paiement est reçu.'
-            : $thanks.'💰 *'.Money::format((int) $order->total)."* à payer à la livraison\n"
-                .'🛵 '.($place ? "{$place} : l" : 'L').'e livreur vous appelle avant de passer.');
+            $this->prepaid($order) && $expedition => $thanks.'💳 *'.Money::format($order->upfrontDue())." à payer maintenant, avant l'envoi*\n".$this->howToPay($order)
+                ."\n🚚 ".($place ? "{$place} : v" : 'V').'otre colis part à la gare dès que le paiement est reçu.',
+            // Acompte : à payer maintenant, le reste à la livraison
+            $this->prepaid($order) => $thanks.'💳 *Acompte à payer maintenant : '.Money::format($order->upfrontDue())."*\n".$this->howToPay($order)
+                ."\n💰 Le reste (".Money::format(max(0, $order->amountDue() - $order->upfrontDue())).') à la livraison.',
+            default => $thanks.'💰 *'.Money::format($order->amountDue())."* à payer à la livraison\n"
+                .'🛵 '.($place ? "{$place} : l" : 'L').'e livreur vous appelle avant de passer.',
+        });
         // Expédition payée avant l'envoi : les photos attendent la validation du paiement, pour que le message
         // « payez puis envoyez le reçu » reste le dernier et ne soit pas noyé sous les photos
         if ($first && ! $this->prepaid($order)) {
@@ -443,10 +451,12 @@ class LiveCheckout
         return $sent;
     }
 
-    /** Expédition vers une autre ville que la boutique fait payer avant l'envoi, avec encore quelque chose à payer */
+    /**
+     * Quelque chose à payer avant que la commande parte : expédition payée avant l'envoi, ou acompte.
+     */
     private function prepaid(Order $order): bool
     {
-        return $order->isExpedition() && $order->expedition_prepay && $order->expeditionPrepayDue() > 0;
+        return $order->upfrontDue() > 0;
     }
 
     /**
@@ -457,15 +467,44 @@ class LiveCheckout
     {
         $store = Store::findOrFail($order->store_id);
         try {
-            $link = app(PaymentDesk::class)->createLink($order, $order->expeditionPrepayDue(), 'Commande '.$order->reference().' (avant l\'envoi)', null);
+            $label = $order->isExpedition() && $order->expedition_prepay ? ' (avant l\'envoi)' : ' (acompte)';
+            $link = app(PaymentDesk::class)->createLink($order, $order->upfrontDue(), 'Commande '.$order->reference().$label, null);
 
             return '👉 Payez ici : '.$store->url('/payer/'.$link->token);
         } catch (Throwable) {
             // Pas de paiement en ligne : le lien Wave de la boutique, puis la capture du reçu à envoyer ici
             return filled($store->wave_link)
-                ? '👉 Payez avec Wave : '.self::waveLink($store->wave_link, $order->expeditionPrepayDue())."\n📸 Puis envoyez ici la *capture du reçu Wave*."
+                ? '👉 Payez avec Wave : '.self::waveLink($store->wave_link, $order->upfrontDue())."\n📸 Puis envoyez ici la *capture du reçu Wave*."
                 : '👉 La boutique vous envoie tout de suite son numéro Wave ou Orange Money pour payer.';
         }
+    }
+
+    /**
+     * Rappel d'acompte (une fois) aux clients dont l'acompte n'est pas payé 20 h après la commande, sur WhatsApp,
+     * quand la conversation permet encore d'écrire (24 h après leur dernier message). Nombre de rappels envoyés.
+     */
+    public function remindDeposits(): int
+    {
+        $sent = 0;
+        $orders = Order::withoutGlobalScopes()->whereNotNull('deposit_required')->whereNull('deposit_reminded_at')->whereNotNull('customer_phone')
+            ->whereIn('status', [OrderStatus::PendingConfirmation->value, OrderStatus::Confirmed->value])
+            ->where('created_at', '<=', now()->subHours(20))->where('created_at', '>=', now()->subDays(3))
+            ->whereColumn('amount_paid', '<', 'deposit_required')->limit(200)->get();
+        foreach ($orders as $order) {
+            $order->forceFill(['deposit_reminded_at' => now()])->save();
+            if ($order->depositDue() <= 0) {
+                continue;
+            }
+            $conversation = Conversation::withoutGlobalScopes()->where('store_id', $order->store_id)->where('channel', 'whatsapp')
+                ->where('contact', $order->customer_phone)->first();
+            if ($conversation === null || ! $conversation->canReply()) {
+                continue;
+            }
+            $sent += (int) $this->text($conversation, "⏳ *Votre acompte n'est pas encore arrivé*\nCommande n° {$order->reference()} : ".Money::format($order->depositDue())
+                ." d'acompte, le reste à la livraison.\n".$this->howToPay($order));
+        }
+
+        return $sent;
     }
 
     /**
@@ -490,16 +529,16 @@ class LiveCheckout
             return false;
         }
         $order = $this->liveOrder($conversation->store_id, PhoneNumber::normalize($conversation->contact));
-        if ($order === null || $order->status !== OrderStatus::Confirmed || ! $this->prepaid($order)) {
+        if ($order === null || ! in_array($order->status, [OrderStatus::PendingConfirmation, OrderStatus::Confirmed], true) || ! $this->prepaid($order)) {
             return false;
         }
         $order->forceFill(['payment_proof_at' => now(), 'payment_proof_message_id' => $message->id])->save();
         $this->desk->log($order, 'payment_proof', ['message_id' => $message->id], null);
-        $this->text($conversation, "🙏 *Merci, reçu bien reçu !*\nLa boutique vérifie le paiement de la commande n° {$order->reference()} et vous prévient dès que le colis part.");
+        $this->text($conversation, "🙏 *Merci, reçu bien reçu !*\nLa boutique vérifie le paiement de la commande n° {$order->reference()} et vous prévient dès que c'est validé.");
         // Le marchand est prévenu tout de suite sur son téléphone : un toucher ouvre la commande pour valider
         rescue(fn () => app(TeamNotifier::class)->notify(Store::findOrFail($order->store_id), Permission::OrdersManage->value, new OrderAlertNotice(
             $order->store_id, 'payment_proof', '💳 Reçu Wave à vérifier',
-            trim(($order->customer_name ?: 'Une cliente').' · N° '.$order->reference().' · '.Money::format($order->expeditionPrepayDue()).' à recevoir'),
+            trim(($order->customer_name ?: 'Une cliente').' · N° '.$order->reference().' · '.Money::format($order->upfrontDue()).' à recevoir'),
             '/gestion/commandes/'.$order->id,
         )), report: false);
 
@@ -519,7 +558,7 @@ class LiveCheckout
         }
         $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
         if ($conversation !== null) {
-            $this->text($conversation, "⚠️ *Nous ne voyons pas encore votre paiement* pour la commande n° {$order->reference()} (".Money::format($order->expeditionPrepayDue()).").\n👉 Vérifiez dans Wave puis renvoyez la capture ici.");
+            $this->text($conversation, "⚠️ *Nous ne voyons pas encore votre paiement* pour la commande n° {$order->reference()} (".Money::format($order->upfrontDue()).").\n👉 Vérifiez dans Wave puis renvoyez la capture ici.");
         }
     }
 
@@ -557,12 +596,19 @@ class LiveCheckout
      */
     public function paymentValidated(Order $order): void
     {
-        if (! $order->isExpedition() || ! $order->expedition_prepay || $order->expeditionPrepayDue() > 0 || blank($order->customer_phone)) {
+        if ($order->upfrontDue() > 0 || blank($order->customer_phone)) {
+            return;
+        }
+        $expedition = $order->isExpedition() && $order->expedition_prepay;
+        if (! $expedition && ! $order->deposit_required) {
             return;
         }
         $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
         if ($conversation !== null) {
-            $this->text($conversation, "✅ *Paiement reçu, merci !*\nVotre commande n° {$order->reference()} part à la gare. Nous vous envoyons le ticket dès le dépôt.");
+            $this->text($conversation, $expedition
+                ? "✅ *Paiement reçu, merci !*\nVotre commande n° {$order->reference()} part à la gare. Nous vous envoyons le ticket dès le dépôt."
+                : '✅ *Acompte reçu ('.Money::format((int) $order->deposit_required).'), merci !*'."\nVotre commande n° {$order->reference()} est confirmée."
+                    .($order->amountDue() > 0 ? ' Le reste ('.Money::format($order->amountDue()).') à la livraison.' : ''));
             $this->photos($conversation, $order);
         }
     }

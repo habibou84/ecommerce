@@ -34,6 +34,8 @@ class ProductResource extends JsonResource
             'preorder_enabled' => $this->preorder_enabled,
             'preorder_ship_date' => $this->preorder_ship_date?->toDateString(),
             'preorder_deposit_percent' => $this->preorder_deposit_percent,
+            'deposit_type' => $this->deposit_type,
+            'deposit_value' => $this->deposit_value,
             'requires_shipping' => $this->requires_shipping,
             'is_fragile' => $this->is_fragile,
             'low_stock_threshold' => $this->low_stock_threshold,

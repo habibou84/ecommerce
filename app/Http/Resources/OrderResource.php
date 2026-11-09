@@ -91,6 +91,15 @@ class OrderResource extends JsonResource
             'shipping_fee' => $this->shipping_fee,
             'cost_total' => $this->cost_total,
             'deposit_required' => $this->deposit_required,
+            // À payer avant que la commande parte : expédition payée avant l'envoi, ou acompte ; reçu WhatsApp à vérifier
+            'upfront' => [
+                'due' => $this->resource->upfrontDue(),
+                'deposit_due' => $this->resource->depositDue(),
+                'deposit_manual' => (bool) $this->deposit_manual,
+                'blocking' => Expeditions::blockingDue($this->resource) > 0,
+                'payment_proof_at' => $this->payment_proof_at?->toIso8601String(),
+                'payment_proof_conversation_id' => $this->payment_proof_message_id ? ConversationMessage::whereKey($this->payment_proof_message_id)->value('conversation_id') : null,
+            ],
             'expedition' => $this->isExpedition() ? [
                 'city' => $this->expeditionCity?->name,
                 'payer' => $this->expedition_payer,

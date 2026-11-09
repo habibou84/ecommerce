@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
@@ -122,6 +123,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
           <span><span class="block font-medium">{{ label }}</span><span class="text-slate-500">{{ help }}</span></span>
         </label>
       </div>
+      <p class="text-sm text-slate-600">Acompte selon l'article ou le montant de la commande (aussi en live et sur WhatsApp) : <RouterLink to="/gestion/acompte" class="font-medium text-emerald-700 underline">Acompte</RouterLink>.</p>
       <Field v-if="settings.online_payment === 'deposit'" id="deposit" label="Acompte (% du total)">
         <input id="deposit" v-model.number="settings.deposit_percent" type="number" min="5" max="90" class="input w-32" />
       </Field>

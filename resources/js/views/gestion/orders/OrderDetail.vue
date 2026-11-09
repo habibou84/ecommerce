@@ -58,8 +58,10 @@ const actions = computed(() => {
     if (!list.primary) list.primary = steps.shift() ?? null
     list.secondary.push(...steps)
     const unpaid = o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status)
-    if (unpaid) list.secondary.push({ key: 'payment', label: 'Paiement reçu', run: () => openModal('payment') })
-    if (unpaid) list.more.push({ key: 'link', label: 'Lien de paiement', run: openPayLink })
+    // Acompte attendu : « Acompte reçu » et « Lien d'acompte » en avant
+    const deposit = o.upfront?.deposit_due > 0 && !(o.expedition?.prepay)
+    if (unpaid) list.secondary.push({ key: 'payment', label: deposit ? 'Acompte reçu' : 'Paiement reçu', run: () => openModal('payment') })
+    if (unpaid) (deposit ? list.secondary : list.more).push({ key: 'link', label: deposit ? '📲 Lien d\'acompte' : 'Lien de paiement', run: openPayLink })
     if (edit) list.more.push(edit)
     if (canRefund.value) list.more.push({ key: 'refund', label: 'Rembourser', run: openRefund })
     if (nextStatuses.value.includes('returned')) list.more.push({ key: 'return', label: 'Retour', danger: true, run: () => openModal('return') })
@@ -95,7 +97,9 @@ async function askOnWhatsApp() {
 }
 
 function openModal(name) {
-  Object.assign(form, { reason: 'customer_refused', note: '', collect_payment: order.value.amount_due > 0, method: 'cash', restock: true, amount: order.value.amount_due, reference: '', callback_at: '' })
+  // Acompte attendu : le montant proposé (paiement reçu, lien de paiement) est celui de l'acompte
+  const amount = (name === 'payment' || name === 'link') && order.value.upfront?.due > 0 ? order.value.upfront.due : order.value.amount_due
+  Object.assign(form, { reason: 'customer_refused', note: '', collect_payment: order.value.amount_due > 0, method: 'cash', restock: true, amount, reference: '', callback_at: '' })
   formErrors.value = {}
   modal.value = name
 }
@@ -178,7 +182,7 @@ async function addNote() {
 
     <Alert v-if="error">{{ error }}</Alert>
     <!-- Reçu de paiement à vérifier : en haut, le colis attend pour partir -->
-    <PaymentProofCard v-if="order.expedition?.payment_proof_at && order.expedition.prepay_due > 0" :order="order" :can-manage="auth.can('orders.manage')" @changed="load" />
+    <PaymentProofCard v-if="order.upfront?.payment_proof_at && order.upfront.due > 0" :order="order" :can-manage="auth.can('orders.manage')" @changed="load" />
     <Alert v-if="order.duplicates.length" tone="warning">
       Autre(s) commande(s) en cours de ce client depuis 24 h :
       <RouterLink v-for="d in order.duplicates" :key="d.id" :to="`/gestion/commandes/${d.id}`" class="font-medium underline">{{ d.reference }}</RouterLink>. Doublon ?
@@ -236,6 +240,13 @@ async function addNote() {
             <div v-if="order.amount_paid" class="flex justify-between text-slate-600"><span>Payé</span><span>{{ money(order.amount_paid) }}</span></div>
             <div v-if="order.amount_refunded" class="flex justify-between text-slate-600"><span>Remboursé</span><span>− {{ money(order.amount_refunded) }}</span></div>
             <div v-if="order.amount_due && order.amount_paid" class="flex justify-between font-medium text-amber-800"><span>Reste à payer</span><span>{{ money(order.amount_due) }}</span></div>
+            <!-- Acompte : demandé, encore à payer, et le reste à la livraison -->
+            <template v-if="order.deposit_required">
+              <div class="flex justify-between" :class="order.upfront.deposit_due ? 'font-semibold text-amber-800' : 'text-emerald-700'">
+                <span>{{ order.upfront.deposit_due ? '⏳ Acompte à payer' : '✅ Acompte payé' }}</span><span>{{ money(order.upfront.deposit_due || order.deposit_required) }}</span>
+              </div>
+              <div v-if="order.upfront.deposit_due" class="flex justify-between text-slate-600"><span>Reste à la livraison</span><span>{{ money(Math.max(0, order.amount_due - order.upfront.deposit_due)) }}</span></div>
+            </template>
             <div v-if="order.cost_total !== null && auth.can('finance.view')" class="flex justify-between text-slate-500"><span>Marge</span><span>{{ money(order.subtotal - order.discount_total - order.cost_total) }}</span></div>
           </div>
         </section>

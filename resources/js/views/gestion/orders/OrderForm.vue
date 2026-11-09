@@ -400,6 +400,12 @@ const showPhone2 = ref(false)
 const showNotes = ref(false)
 const showDiscount = ref(false)
 const showDeposit = ref(false)
+// Acompte : vide = calculé tout seul (articles, réglage de la boutique) ; envoyé seulement s'il a été changé ici
+const depositTouched = ref(false)
+function setDeposit(percent) {
+  depositTouched.value = true
+  form.deposit_required = percent === null ? '' : Math.ceil((total.value * percent) / 100 / 100) * 100
+}
 // « Coller WhatsApp » depuis l'accueil (?coller=1) : la zone du message est ouverte d'emblée
 const pasteOpen = ref(route.query.coller === '1')
 
@@ -657,6 +663,7 @@ async function save() {
       ...form,
       shipping_place_id: form.delivery_method === 'delivery' ? place.value?.id ?? null : null,
       deposit_required: form.deposit_required === '' ? null : Number(form.deposit_required),
+      ...(depositTouched.value ? {} : { deposit_required: undefined }),
       scheduled_date: form.scheduled_date || null,
       shipping_landmark: null,
       discount_code: form.discount_code || null,
@@ -1061,9 +1068,17 @@ async function save() {
           </div>
 
           <button v-if="!showDeposit && !form.deposit_required" type="button" class="text-emerald-700 hover:underline" @click="showDeposit = true">+ Demander un acompte</button>
-          <div v-else class="flex items-center justify-between gap-2">
-            <label for="deposit" class="text-slate-600">Acompte exigé (F)</label>
-            <input id="deposit" v-model="form.deposit_required" type="number" min="0" class="input w-32 py-1 text-right" placeholder="—" />
+          <div v-else class="space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <label for="deposit" class="text-slate-600">Acompte exigé (F)</label>
+              <input id="deposit" v-model="form.deposit_required" type="number" min="0" class="input w-32 py-1 text-right" placeholder="auto" @input="depositTouched = true" />
+            </div>
+            <div class="flex flex-wrap justify-end gap-1.5 text-xs font-bold">
+              <button type="button" class="rounded-full border border-slate-300 px-2.5 py-1" @click="setDeposit(null)">Auto</button>
+              <button type="button" class="rounded-full border border-slate-300 px-2.5 py-1" @click="setDeposit(30)">30 %</button>
+              <button type="button" class="rounded-full border border-slate-300 px-2.5 py-1" @click="setDeposit(50)">50 %</button>
+            </div>
+            <p class="text-right text-xs text-slate-500">Auto : selon les articles et le réglage de la boutique.</p>
           </div>
           <label v-if="!editing" class="flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 p-3">
             <input v-model="form.confirmed" type="checkbox" class="peer sr-only" />
