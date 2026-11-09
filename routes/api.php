@@ -105,6 +105,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
     Route::middleware('zone:platform')->group(function () {
         Route::get('signup/slug', [SignupController::class, 'checkSlug'])->middleware('throttle:60,1')->name('signup.slug');
         // Fenêtre Facebook ouverte depuis l'application d'une boutique : résultat déposé pour l'application
+        Route::get('whatsapp/facebook/destination', [WhatsAppConnectSessionController::class, 'destination'])->middleware('throttle:60,1')->name('whatsapp.connect-session.destination');
         Route::post('whatsapp/facebook/result', [WhatsAppConnectSessionController::class, 'deliver'])->middleware('throttle:20,1')->name('whatsapp.connect-session.deliver');
         Route::get('signup/partner', [SignupController::class, 'partner'])->middleware('throttle:60,1')->name('signup.partner');
         // Un numéro qui a déjà un compte : mot de passe vérifié, donc mêmes limites que la connexion (par numéro)
