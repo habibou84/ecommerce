@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Api\V1\Messaging;
 
 use App\Http\Controllers\Controller;
+use App\Models\Store;
+use App\Services\WhatsApp\WhatsAppCloud;
+use App\Services\WhatsApp\WhatsAppMetaApp;
+use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -45,6 +49,44 @@ class WhatsAppConnectSessionController extends Controller
         }
 
         return response()->json(['data' => ['result' => $session['result']]]);
+    }
+
+    /**
+     * Page de la plateforme, avant d'ouvrir Facebook : à quel espace la connexion va (affiché en grand), avec
+     * l'application Meta de la plateforme (jamais celle d'une adresse reçue). Une clé d'application doit appartenir à
+     * cette même boutique : un lien fabriqué par un autre marchand avec sa propre clé est refusé.
+     */
+    public function destination(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'retour' => ['required', 'string', 'max:500'],
+            'cle' => ['nullable', 'string', 'regex:/^[A-Za-z0-9]{32,64}$/'],
+        ]);
+        $host = strtolower((string) parse_url($data['retour'], PHP_URL_HOST));
+        $suffix = '.'.Tenancy::domain();
+        abort_unless($host !== '' && str_ends_with($host, $suffix), 404);
+        $sub = substr($host, 0, -strlen($suffix));
+        $path = (string) parse_url($data['retour'], PHP_URL_PATH);
+
+        if ($sub === config('platform.admin_subdomain')) {
+            abort_if(filled($data['cle'] ?? null), 404);
+            $name = 'Console Jibiat Marchand';
+        } else {
+            // Retour seulement dans la gestion (jamais sur la boutique en ligne, où des scripts publicitaires tournent)
+            abort_unless(str_starts_with($path, '/gestion'), 404);
+            $store = Store::where('slug', $sub)->first();
+            abort_if($store === null, 404);
+            if (filled($data['cle'] ?? null)) {
+                $session = Cache::get(self::cacheKey($data['cle']));
+                abort_unless(is_array($session) && $session['store'] === $store->id && $session['result'] === null, 404);
+            }
+            $name = $store->name;
+        }
+
+        return response()->json(['data' => [
+            'name' => $name, 'host' => $host,
+            'app_id' => WhatsAppMetaApp::id(), 'config_id' => WhatsAppMetaApp::configId(), 'graph_version' => WhatsAppCloud::VERSION,
+        ]]);
     }
 
     /** Page de la plateforme (fenêtre Facebook) : dépose le résultat pour une clé connue */

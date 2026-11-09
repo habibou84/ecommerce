@@ -258,7 +258,7 @@ class EmbeddedSignupTest extends TestCase
         $billing = Request::create('/webhooks/billing', 'POST');
         $billingRoute = Route::getRoutes()->getByName('webhooks.billing')->bind($billing);
         $billing->setRouteResolver(fn () => $billingRoute);
-        $this->assertSame('carrier-webhooks:webhooks.billing', RateLimiter::limiter('carrier-webhooks')($billing)->key);
+        $this->assertSame('carrier-webhooks:webhooks.billing:127.0.0.1', RateLimiter::limiter('carrier-webhooks')($billing)->key);
 
         // Une rafale de notifications (live chargé) passe au-delà de l'ancienne limite de 600 par minute
         for ($i = 0; $i < 620; $i++) {

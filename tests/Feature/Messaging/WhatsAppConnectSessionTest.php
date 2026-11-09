@@ -34,4 +34,27 @@ class WhatsAppConnectSessionTest extends TestCase
         $this->storeApi($store, 'GET', "whatsapp/connect-session/{$key}")->assertOk()->assertExactJson(['data' => ['result' => ['code' => 'AQB-code', 'coexistence' => '0']]]);
         $this->storeApi($store, 'GET', "whatsapp/connect-session/{$key}")->assertNotFound();
     }
+
+    public function test_a_link_made_by_another_merchant_cannot_take_the_whatsapp_of_a_store(): void
+    {
+        $attacker = $this->createStore(['slug' => 'koffi', 'name' => 'Koffi Shop']);
+        $victim = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
+        config(['services.meta.whatsapp_app_id' => '111', 'services.meta.whatsapp_config_id' => '222']);
+        $key = str_repeat('b2', 24);
+        $this->actingAs($attacker->owner);
+        $this->storeApi($attacker, 'POST', 'whatsapp/connect-session', ['key' => $key])->assertCreated();
+        $this->logout();
+
+        // Le lien envoyé à la victime avec la clé de l'attaquant et l'adresse de la victime : refusé
+        $this->platformApi('GET', 'whatsapp/facebook/destination?'.http_build_query(['retour' => $this->storeUrl($victim, '/gestion/whatsapp'), 'cle' => $key]))->assertNotFound();
+        // Avec son adresse à lui : la page affiche en grand « Koffi Shop », pas la boutique de la victime
+        $this->platformApi('GET', 'whatsapp/facebook/destination?'.http_build_query(['retour' => $this->storeUrl($attacker, '/gestion/whatsapp'), 'cle' => $key]))
+            ->assertOk()->assertJsonPath('data.name', 'Koffi Shop')->assertJsonPath('data.app_id', '111')->assertJsonPath('data.config_id', '222');
+        // Retour vers la boutique en ligne (scripts publicitaires) ou un site extérieur : refusé
+        $this->platformApi('GET', 'whatsapp/facebook/destination?'.http_build_query(['retour' => $this->storeUrl($victim, '/')]))->assertNotFound();
+        $this->platformApi('GET', 'whatsapp/facebook/destination?'.http_build_query(['retour' => 'https://evil.example/gestion']))->assertNotFound();
+        // Sans clé (navigateur) : l'espace de la victime est affiché tel quel
+        $this->platformApi('GET', 'whatsapp/facebook/destination?'.http_build_query(['retour' => $this->storeUrl($victim, '/gestion/whatsapp')]))
+            ->assertOk()->assertJsonPath('data.name', 'Awa Mode');
+    }
 }

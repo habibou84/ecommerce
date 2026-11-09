@@ -8,6 +8,7 @@ use App\Models\AiUsage;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Billing\PlanLimits;
+use App\Services\Catalog\ImageStore;
 use App\Services\Platform\Features;
 use Illuminate\Http\UploadedFile;
 use Intervention\Image\Drivers\Gd\Driver;
@@ -108,6 +109,7 @@ class Assistant
      */
     public function imageFrom(string $source): array
     {
+        ImageStore::ensureReasonable($source);
         try {
             $image = (new ImageManager(new Driver))->read($source);
         } catch (Throwable) {

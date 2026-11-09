@@ -11,12 +11,12 @@ use App\Notifications\ConsoleLoginAlert;
 use App\Services\Accounts\ConsoleEmailCode;
 use App\Services\Accounts\ConsoleTwoFactor;
 use App\Services\Accounts\PhoneVerifier;
+use App\Services\Accounts\Sessions;
 use App\Services\Billing\BillingSettings;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -132,7 +132,7 @@ class ConsoleAuthController extends Controller
         }
         $request->session()->forget('console_2fa_draft');
         // Les autres sessions de cet administrateur se ferment
-        DB::table('sessions')->where('user_id', $user->id)->where('id', '!=', $request->session()->getId())->delete();
+        Sessions::revoke($user, $request->session());
         AdminAction::create(['admin_id' => $user->id, 'action' => 'console_2fa', 'data' => ['event' => $replaced ? 'replaced' : 'enabled'], 'ip' => $request->ip()]);
 
         return response()->json(['data' => ['recovery_codes' => $codes]]);

@@ -139,15 +139,20 @@ class ConsoleTwoFactor
         if ($pending === null) {
             return null;
         }
-        $user = User::find($pending['user_id']);
-        $how = $user ? $this->check($user, $code) : null;
-        if ($how === null) {
-            $attempts = $pending['attempts'] + 1;
-            $attempts >= self::MAX_ATTEMPTS ? Cache::forget($key) : Cache::put($key, ['attempts' => $attempts] + $pending, now()->addMinutes(self::TTL_MINUTES));
+        // Essai compté avant la vérification, de façon atomique : des essais envoyés en même temps comptent tous
+        Cache::add($key.':attempts', 0, now()->addMinutes(self::TTL_MINUTES));
+        if ((int) Cache::increment($key.':attempts') > self::MAX_ATTEMPTS) {
+            Cache::forget($key);
 
             return null;
         }
+        $user = User::find($pending['user_id']);
+        $how = $user ? $this->check($user, $code) : null;
+        if ($how === null) {
+            return null;
+        }
         Cache::forget($key);
+        Cache::forget($key.':attempts');
 
         return [$user->fresh(), $how];
     }

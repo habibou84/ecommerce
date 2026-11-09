@@ -79,6 +79,7 @@ const LINK_PROBLEMS = {
   expire: 'Ce lien a expiré : demandez-en un nouveau à la boutique.',
   retire: 'Votre accès livreur a été retiré par la boutique.',
   compte: 'Ce numéro a déjà un compte Jibiat Marchand : connectez-vous avec votre mot de passe ou par WhatsApp.',
+  connecte: 'Vous avez déjà un espace livreur. Ouvrez ce lien sur le téléphone où vous êtes connecté à votre espace livreur ; sinon, connectez-vous d\'abord avec un lien de votre autre boutique.',
 }
 const linkProblem = computed(() => LINK_PROBLEMS[route.query.lien] ?? '')
 </script>

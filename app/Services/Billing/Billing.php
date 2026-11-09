@@ -24,6 +24,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
 use Throwable;
@@ -269,6 +270,11 @@ class Billing
         if (blank($payerPhone)) {
             throw new BusinessRuleException('Indiquez le numéro Wave qui va payer.', 'payer_phone');
         }
+        // Pas de factures Wave en série (chacune prévient le validateur par e-mail, voire par SMS)
+        if (SubscriptionInvoice::where('store_id', $store->id)->where('provider', 'wave_link')->where('status', 'pending')
+            ->where('created_at', '>=', now()->subHour())->count() >= 5) {
+            throw new BusinessRuleException('Plusieurs paiements Wave attendent déjà. Payez l\'un d\'eux, ou réessayez dans une heure.');
+        }
 
         $invoice = $this->newInvoice($data + [
             'store_id' => $store->id,
@@ -285,7 +291,12 @@ class Billing
             default => $link.(str_contains($link, '?') ? '&' : '?').'amount='.$invoice->amount,
         };
         $invoice->update(['checkout_url' => $url, 'raw' => ['payer_phone' => $payerPhone, 'description' => $description, 'payer_name' => $user->name]]);
-        $this->alerts->alert($invoice, claimed: false);
+        // Trois alertes au plus par 10 minutes et par boutique (« J'ai payé » prévient de toute façon le validateur)
+        $key = 'wave-link-alert:'.$store->id;
+        if (! RateLimiter::tooManyAttempts($key, 3)) {
+            RateLimiter::hit($key, 600);
+            $this->alerts->alert($invoice, claimed: false);
+        }
 
         return $invoice->fresh();
     }
@@ -340,7 +351,13 @@ class Billing
             return $invoice;
         }
 
-        $result = $this->payments->gateway($invoice->provider)->verify($this->account($invoice->provider), $this->payment($invoice));
+        $account = $this->account($invoice->provider);
+        // Compte de la plateforme resté en mode test sur le serveur de production : un paiement de démonstration
+        // n'active jamais un vrai abonnement ni une recharge
+        if ($account->mode === 'test' && app()->isProduction()) {
+            return $invoice;
+        }
+        $result = $this->payments->gateway($invoice->provider)->verify($account, $this->payment($invoice));
         // Comme pour les commandes : sans montant confirmé par le prestataire (ou s'il manque), l'offre n'est pas activée
         if ($result->status === GatewayResult::SUCCEEDED && $result->amount !== null && $result->amount >= $invoice->amount) {
             return $this->activate($invoice, 'paid', $result->method, $result->raw);
@@ -531,7 +548,8 @@ class Billing
                 return $invoice;
             }
 
-            $store = Store::findOrFail($invoice->store_id);
+            // Sous verrou : une fin de live calculée au même moment (prélèvement du crédit) ne peut pas écraser la recharge
+            $store = Store::lockForUpdate()->findOrFail($invoice->store_id);
 
             if (in_array($invoice->kind, LiveBilling::KINDS, true)) {
                 $until = app(LiveBilling::class)->activate($store, $invoice);

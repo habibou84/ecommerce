@@ -170,7 +170,15 @@ class CourierAccessTest extends TestCase
         // Son lien de Koffi Shop ouvre son espace d'accueil (adresse d'Awa Mode)
         $link = $this->storeApi($koffi, 'POST', "couriers/{$courierId}/access-link")->assertOk()->json('data.link');
         $this->assertStringStartsWith($this->storeUrl($this->store, '/livreur/acces/'), $link);
+
+        // Attaque : Koffi ouvre lui-même le lien pour entrer dans le compte de Moussa → refusé
         $this->logout();
+        $this->get($link)->assertRedirect('/livreur/connexion?lien=connecte');
+        $this->assertGuest('web');
+        $this->assertNull(Courier::forStore($koffi->id)->findOrFail($courierId)->user_id);
+
+        // Moussa l'ouvre sur son téléphone, où il est connecté à son espace : les deux boutiques sont réunies
+        $this->actingAs(User::findOrFail($awa->fresh()->user_id));
         $this->get($link)->assertRedirect('/livreur');
         $this->assertSame('active', Courier::forStore($koffi->id)->findOrFail($courierId)->status);
 
@@ -195,6 +203,11 @@ class CourierAccessTest extends TestCase
         $this->logout();
         $this->actingAs($koffi->owner);
         $this->assertCount(1, $this->storeApi($koffi, 'GET', 'shipments')->assertOk()->json('data'));
+
+        // « Couper l'accès » chez Koffi Shop ne déconnecte pas Moussa de son espace chez Awa Mode
+        $token = User::findOrFail($awa->fresh()->user_id)->remember_token;
+        $this->storeApi($koffi, 'POST', "couriers/{$courierId}/cut-access")->assertOk();
+        $this->assertSame($token, User::findOrFail($awa->fresh()->user_id)->remember_token);
     }
 
     private function linkForQuietly(Courier $courier): string

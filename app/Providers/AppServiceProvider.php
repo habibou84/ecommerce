@@ -14,6 +14,8 @@ use App\Models\StockReceipt;
 use App\Models\StockTransfer;
 use App\Models\Store;
 use App\Models\StoreTransfer;
+use App\Models\User;
+use App\Services\Accounts\Sessions;
 use App\Services\Ai\AiClient;
 use App\Services\Ai\AnthropicAiClient;
 use App\Services\Billing\AccessKeys;
@@ -26,6 +28,7 @@ use App\Services\Platform\Features;
 use App\Services\Sms\OrangeSmsGateway;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\Tenancy;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Events\DiagnosingHealth;
@@ -90,6 +93,12 @@ class AppServiceProvider extends ServiceProvider
 
         // Sonde /up : la base de données doit répondre (supervision de la disponibilité)
         Event::listen(DiagnosingHealth::class, fn () => DB::select('select 1'));
+        // Chaque connexion marque la session avec la version du compte (fermeture à distance : Sessions::revoke)
+        Event::listen(Login::class, function (Login $event) {
+            if ($event->guard === 'web' && $event->user instanceof User && app()->bound('request') && request()->hasSession()) {
+                Sessions::stamp($event->user, request()->session());
+            }
+        });
 
         // Montant dans les gabarits : @money($order->total) → « 12 500 F »
         Blade::directive('money', fn (string $expression) => "<?php echo e(\\Jibiat\\Socle\\Money::format((int) ({$expression}))); ?>");
@@ -105,12 +114,21 @@ class AppServiceProvider extends ServiceProvider
             'customer' => Customer::class,
         ]);
 
-        RateLimiter::for('login', fn (Request $request) => [
-            Limit::perMinute(10)->by('login-ip:'.$request->ip()),
-            Limit::perMinute(5)->by('login-phone:'.PhoneNumber::normalize((string) $request->input('phone'))),
-            // Plafond par heure et par numéro : on ne teste pas des milliers de mots de passe sur un compte
-            Limit::perHour(30)->by('login-phone-hour:'.PhoneNumber::normalize((string) $request->input('phone'))),
-        ]);
+        RateLimiter::for('login', function (Request $request) {
+            // Compte visé : le numéro saisi, sinon la personne connectée ou l'invitation (jamais un compteur commun à
+            // tout le monde, qu'un inconnu pourrait épuiser pour bloquer les autres)
+            $phone = PhoneNumber::normalize((string) $request->input('phone'));
+            $target = filled($phone) ? $phone
+                : ($request->user() ? 'user:'.$request->user()->getAuthIdentifier()
+                    : ($request->route('token') ? 'token:'.hash('sha256', (string) $request->route('token')) : 'ip:'.$request->ip()));
+
+            return [
+                Limit::perMinute(10)->by('login-ip:'.$request->ip()),
+                Limit::perMinute(5)->by('login-phone:'.$target),
+                // Plafond par heure et par compte : on ne teste pas des milliers de mots de passe sur un compte
+                Limit::perHour(30)->by('login-phone-hour:'.$target),
+            ];
+        });
 
         // Ouverture d'une vérification par SMS (création de boutique, mot de passe oublié)
         RateLimiter::for('verification-start', fn (Request $request) => Limit::perHour(10)->by('verification-start:'.$request->ip()));
@@ -130,11 +148,13 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         // Par adresse : chaque transporteur, prestataire ou numéro WhatsApp connecté à la main a la sienne
-        RateLimiter::for('carrier-webhooks', fn (Request $request) => Limit::perMinute(600)->by('carrier-webhooks:'.($request->route('uuid') ?? $request->route()?->getName())));
+        // et par adresse IP d'envoi : un inconnu qui envoie des milliers de fausses notifications n'épuise que son compteur,
+        // jamais celui du vrai prestataire
+        RateLimiter::for('carrier-webhooks', fn (Request $request) => Limit::perMinute(600)->by('carrier-webhooks:'.($request->route('uuid') ?? $request->route()?->getName()).':'.$request->ip()));
         // Application Meta de la plateforme : une seule adresse pour WhatsApp, Messenger et Instagram de toutes les
         // boutiques (messages et accusés « envoyé, reçu, lu »), signée par Meta. Limite large : pendant les lives,
         // un refus ferait renvoyer les messages en retard, voire couper l'abonnement par Meta.
-        RateLimiter::for('meta-webhooks', fn () => Limit::perMinute(20000)->by('meta-webhooks'));
+        RateLimiter::for('meta-webhooks', fn (Request $request) => Limit::perMinute(20000)->by('meta-webhooks:'.$request->ip()));
 
         RateLimiter::for('verification-code', fn (Request $request) => Limit::perMinute(10)->by('verification-code:'.$request->ip()));
     }

@@ -3,6 +3,7 @@
 use App\Exceptions\BusinessRuleException;
 use App\Http\Middleware\EnsureCourier;
 use App\Http\Middleware\EnsurePlatformFeature;
+use App\Http\Middleware\EnsureSessionCurrent;
 use App\Http\Middleware\EnsureStorefrontOpen;
 use App\Http\Middleware\EnsureStoreMember;
 use App\Http\Middleware\EnsureSuperAdmin;
@@ -50,6 +51,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(SecurityHeaders::class);
         // Gestion (SPA) authentifiée par cookie de session, limité au nom d'hôte de la boutique
         $middleware->statefulApi();
+        // Sessions fermées à distance (voir Sessions::revoke) : déconnectées à leur prochaine requête
+        $middleware->web(append: [EnsureSessionCurrent::class]);
+        $middleware->api(append: [EnsureSessionCurrent::class]);
         // Cookies des pixels publicitaires (posés par leur script) : lus tels quels pour l'API Conversions
         $middleware->encryptCookies(except: ['_fbp', '_fbc', '_ttp', PreprodGate::COOKIE]);
         $middleware->alias([

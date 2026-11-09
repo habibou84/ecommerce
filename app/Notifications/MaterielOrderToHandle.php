@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\MailText;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -26,10 +27,10 @@ class MaterielOrderToHandle extends Notification
         $message = (new MailMessage)
             ->subject(($d['claimed'] ? 'Paiement Wave annoncé' : 'Commande de matériel')." : {$d['total']} · {$d['number']}")
             ->greeting($d['claimed'] ? 'L\'e-commerçant indique avoir payé par Wave.' : 'Nouvelle commande de matériel.')
-            ->line("Espace marchand : {$d['store']}")
-            ->line('Articles : '.implode(', ', $d['lines']))
-            ->line("Livraison : {$d['delivery']}")
-            ->line("Paiement : {$d['method']}".($d['payer'] ? " (numéro {$d['payer']})" : ''))
+            ->line('Espace marchand : '.MailText::plain($d['store']))
+            ->line('Articles : '.MailText::plain(implode(', ', $d['lines'])))
+            ->line('Livraison : '.MailText::plain($d['delivery']))
+            ->line("Paiement : {$d['method']}".($d['payer'] ? ' (numéro '.MailText::plain($d['payer']).')' : ''))
             ->line("Total : {$d['total']}")
             ->action('Ouvrir la console', $d['console_url']);
         if ($this->mailer !== null) {

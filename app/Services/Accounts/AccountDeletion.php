@@ -42,7 +42,7 @@ class AccountDeletion
             ScheduledReport::withoutGlobalScopes()->where('user_id', $user->id)->delete();
             DeviceToken::where('user_id', $user->id)->delete();
             PushSubscription::where('user_id', $user->id)->delete();
-            DB::table('sessions')->where('user_id', $user->id)->delete();
+            Sessions::revoke($user);
 
             $user->forceFill([
                 'name' => 'Compte supprimé',
