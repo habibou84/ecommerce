@@ -29,7 +29,7 @@ async function loadImage() {
     missing.value = true
   }
 }
-watch(() => props.order.expedition?.payment_proof_at, (at) => at && loadImage(), { immediate: true })
+watch(() => props.order.upfront?.payment_proof_at, (at) => at && loadImage(), { immediate: true })
 onBeforeUnmount(() => image.value && URL.revokeObjectURL(image.value))
 
 async function run(call) {
@@ -45,7 +45,7 @@ async function run(call) {
   }
 }
 // Reçu vérifié dans Wave : le paiement est enregistré, la cliente est prévenue et reçoit ses photos
-const accept = () => run(() => http.post(`/orders/${props.order.id}/payments`, { amount: props.order.expedition.prepay_due, method: 'wave', reference: 'Reçu WhatsApp' }))
+const accept = () => run(() => http.post(`/orders/${props.order.id}/payments`, { amount: props.order.upfront.due, method: 'wave', reference: 'Reçu WhatsApp' }))
 const reject = () => window.confirm('Le paiement n\'est pas dans votre Wave ? La cliente sera invitée à vérifier et à renvoyer son reçu.')
   && run(() => http.post(`/orders/${props.order.id}/payment-proof/reject`))
 </script>
@@ -59,10 +59,10 @@ const reject = () => window.confirm('Le paiement n\'est pas dans votre Wave ? La
     </button>
     <p v-else-if="missing" class="rounded-xl bg-white p-3 text-sm text-slate-600">
       La photo n'a pas pu être chargée.
-      <RouterLink v-if="order.expedition.payment_proof_conversation_id" :to="`/gestion/messages/${order.expedition.payment_proof_conversation_id}`" class="font-bold underline">Voir la conversation</RouterLink>
+      <RouterLink v-if="order.upfront.payment_proof_conversation_id" :to="`/gestion/messages/${order.upfront.payment_proof_conversation_id}`" class="font-bold underline">Voir la conversation</RouterLink>
     </p>
     <div class="grid grid-cols-2 gap-2 text-xs text-slate-600">
-      <div class="rounded-xl bg-white p-2.5">Attendu<b class="block text-xl text-slate-900">{{ money(order.expedition.prepay_due) }}</b></div>
+      <div class="rounded-xl bg-white p-2.5">Attendu<b class="block text-xl text-slate-900">{{ money(order.upfront.due) }}</b></div>
       <div class="rounded-xl bg-white p-2.5">À vérifier dans<b class="block text-xl text-slate-900">votre Wave</b></div>
     </div>
     <p v-if="error" class="text-sm font-bold text-red-700">{{ error }}</p>

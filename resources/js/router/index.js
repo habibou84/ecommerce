@@ -112,6 +112,7 @@ const storeRoutes = [
       { path: 'caisse/a-recevoir', component: () => import('../views/gestion/shipping/CarrierPayouts.vue'), meta: { title: 'À recevoir des entreprises', permission: 'carriers.manage' } },
       { path: 'statistiques', component: () => import('../views/gestion/Stats.vue'), meta: { title: 'Statistiques', permissionAny: ['finance.view', 'orders.view'] } },
       { path: 'paiements', component: () => import('../views/gestion/payments/Payments.vue'), meta: { platform: 'online_payment', title: 'Paiement en ligne', permission: 'payments.manage' } },
+      { path: 'acompte', component: () => import('../views/gestion/payments/DepositSettings.vue'), meta: { title: 'Acompte', permission: 'payments.manage' } },
       { path: 'whatsapp', component: () => import('../views/gestion/messaging/WhatsApp.vue'), meta: { title: 'WhatsApp', permission: 'store.manage' } },
       { path: 'textes-messages', component: () => import('../views/gestion/messaging/MessageTexts.vue'), meta: { title: 'Textes des messages', permission: 'store.manage' } },
       { path: 'abonnement', component: () => import('../views/gestion/Billing.vue'), meta: { title: 'Abonnement', permission: 'billing.manage' } },

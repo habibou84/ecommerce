@@ -22,6 +22,7 @@ use App\Services\Couriers\MissionResponses;
 use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
 use App\Services\Live\LiveBilling;
+use App\Services\Live\LiveCheckout;
 use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Orders\OrderDesk;
@@ -102,6 +103,16 @@ Artisan::command('orders:alerts', function (OrderAlerts $alerts) {
 })->purpose('Alertes sur les commandes qui attendent');
 
 Schedule::command('orders:alerts')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
+
+/*
+ * Acompte pas encore payé 20 h après la commande : un seul rappel au client sur WhatsApp (dans les 24 h où WhatsApp
+ * permet d'écrire sans modèle), avec comment payer.
+ */
+Artisan::command('orders:deposit-reminders', function (LiveCheckout $checkout) {
+    $this->line($checkout->remindDeposits().' rappel(s) d\'acompte envoyé(s)');
+})->purpose('Rappelle l\'acompte non payé aux clients');
+
+Schedule::command('orders:deposit-reminders')->hourly()->withoutOverlapping();
 
 /*
  * Publications programmées sur les réseaux sociaux, arrivées à l'heure.

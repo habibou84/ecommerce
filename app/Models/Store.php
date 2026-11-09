@@ -46,6 +46,8 @@ class Store extends Model
         'allow_backorder' => false,
         'low_stock_threshold' => 3,
         'whatsapp_models' => true,
+        'deposit_mode' => 'never',
+        'deposit_blocks' => true,
     ];
 
     protected function casts(): array
@@ -59,6 +61,9 @@ class Store extends Model
             'storefront_enabled' => 'boolean',
             'whatsapp_qr_enabled' => 'boolean',
             'whatsapp_models' => 'boolean',
+            'deposit_blocks' => 'boolean',
+            'deposit_min_total' => 'integer',
+            'deposit_rule_percent' => 'integer',
             'closed_at' => 'datetime',
             'free_shipping_above' => 'integer',
             'expedition_fee' => 'integer',

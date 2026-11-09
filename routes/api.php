@@ -63,6 +63,7 @@ use App\Http\Controllers\Api\V1\Orders\MessageTextController;
 use App\Http\Controllers\Api\V1\Orders\OrderController;
 use App\Http\Controllers\Api\V1\Orders\ReturnController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\Payments\DepositSettingsController;
 use App\Http\Controllers\Api\V1\Payments\OrderPaymentController;
 use App\Http\Controllers\Api\V1\Payments\PaymentSettingsController;
 use App\Http\Controllers\Api\V1\PlatformAccountController;
@@ -473,6 +474,12 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('shipping-rules/{rule}', [ShippingRuleController::class, 'update'])->whereNumber('rule')->name('shipping-rules.update');
                 Route::delete('shipping-rules/{rule}', [ShippingRuleController::class, 'destroy'])->whereNumber('rule')->name('shipping-rules.destroy');
                 Route::patch('shipping-rules', [ShippingRuleController::class, 'settings'])->name('shipping-rules.settings');
+            });
+
+            // ── Acompte automatique (avec ou sans paiement en ligne) ──
+            Route::middleware('permission:'.Permission::PaymentsManage->value)->group(function () {
+                Route::get('deposit-settings', [DepositSettingsController::class, 'show'])->name('deposit-settings.show');
+                Route::put('deposit-settings', [DepositSettingsController::class, 'update'])->name('deposit-settings.update');
             });
 
             // ── Paiements en ligne ──

@@ -109,7 +109,9 @@ class OrderDesk
 
             $this->replaceItems($order, $data['items'], $actor);
             $this->recalculate($order, $data['shipping_fee'] ?? null, true);
-            $this->preorder($order, array_key_exists('deposit_required', $data));
+            $order->deposit_manual = array_key_exists('deposit_required', $data) && $data['deposit_required'] !== null;
+            $this->preorder($order);
+            $this->deposit($order);
             $order->save();
             $this->pricing->recordUsages($order);
             $this->loyalty->commit($order, $actor);
@@ -188,6 +190,11 @@ class OrderDesk
             }
 
             $this->recalculate($order, $data['shipping_fee'] ?? null, $placeChanged || $itemsChanged || $codeChanged || array_key_exists('shipping_fee', $data));
+            // Acompte : fixé à la main (vide = calculé de nouveau), sinon recalculé avec les articles et le total
+            if (array_key_exists('deposit_required', $data)) {
+                $order->deposit_manual = $data['deposit_required'] !== null;
+            }
+            $this->deposit($order);
             $order->save();
             $this->pricing->recordUsages($order->setRelation('items', $order->items()->get()));
             $this->refreshPaymentStatus($order);
@@ -483,21 +490,38 @@ class OrderDesk
         $order->unsetRelation('items');
     }
 
-    /**
-     * Précommande : commande marquée, et acompte des articles en précommande (pourcentage du produit) si la
-     * commande n'en fixe pas déjà un.
-     */
-    private function preorder(Order $order, bool $depositGiven): void
+    /** Précommande : commande marquée */
+    private function preorder(Order $order): void
     {
-        $items = $order->items()->with('product')->get()->filter(fn ($i) => $i->product?->preorder_enabled);
-        if ($items->isEmpty()) {
+        if ($order->items()->whereHas('product', fn ($q) => $q->where('preorder_enabled', true))->exists()) {
+            $order->is_preorder = true;
+        }
+    }
+
+    /**
+     * Acompte calculé (sauf s'il a été fixé à la main) : somme des acomptes des articles, ou la règle de la boutique
+     * (toujours, ou au-dessus d'un montant : pourcentage du total) si elle donne plus. Arrondi aux 100 F, jamais plus
+     * que le total ; null sans acompte.
+     */
+    public function deposit(Order $order): void
+    {
+        if ($order->deposit_manual) {
             return;
         }
-        $order->is_preorder = true;
-        if (! $depositGiven && $order->deposit_required === null) {
-            $deposit = (int) $items->sum(fn ($i) => $i->product->preorder_deposit_percent ? (int) (ceil($i->total * $i->product->preorder_deposit_percent / 100 / 5) * 5) : 0);
-            $order->deposit_required = $deposit > 0 ? min($deposit, $order->total) : null;
-        }
+        $store = $order->store ?? Store::find($order->store_id);
+        $items = $order->items()->with('product')->get();
+        $fromItems = (int) $items->sum(fn ($i) => $i->product ? $i->product->depositFor((int) $i->total, (int) $i->quantity) : 0);
+        $total = (int) $order->total;
+        $percent = (int) ($store?->deposit_rule_percent ?? 0);
+        $ruleApplies = $percent > 0 && match ($store?->deposit_mode) {
+            'always' => true,
+            'above' => $store->deposit_min_total !== null && $total >= (int) $store->deposit_min_total,
+            default => false,
+        };
+        $fromRule = $ruleApplies ? (int) round($total * min(100, $percent) / 100) : 0;
+        $deposit = max($fromItems, $fromRule);
+        $deposit = $deposit > 0 ? min($total, (int) (ceil($deposit / 100) * 100)) : 0;
+        $order->deposit_required = $deposit > 0 ? $deposit : null;
     }
 
     private function releaseItems(Order $order, ?User $actor, string $note): Order

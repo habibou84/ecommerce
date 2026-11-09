@@ -264,14 +264,18 @@ class OrderController extends Controller
         ], [], ['amount' => 'montant', 'method' => 'moyen de paiement']);
 
         $model = Order::findOrFail($order);
-        $wasDue = $model->expeditionPrepayDue() > 0;
+        $wasDue = $model->upfrontDue() > 0;
         $this->desk->recordPayment($model, $data, $request->user());
         // Expédition payée avant l'envoi : la cliente est prévenue que c'est reçu (une seule fois, au paiement qui solde)
         if ($wasDue) {
             $fresh = Order::findOrFail($order);
             // Soldé : le reçu n'est plus à vérifier
-            if ($fresh->expeditionPrepayDue() === 0 && $fresh->payment_proof_at !== null) {
+            if ($fresh->upfrontDue() === 0 && $fresh->payment_proof_at !== null) {
                 $fresh->forceFill(['payment_proof_at' => null])->save();
+            }
+            // Acompte payé : la commande n'a plus besoin d'être confirmée par téléphone
+            if ($fresh->upfrontDue() === 0 && $fresh->deposit_required && $fresh->status === OrderStatus::PendingConfirmation) {
+                $fresh = $this->desk->transition($fresh, OrderStatus::Confirmed, $request->user(), ['note' => 'Acompte reçu']);
             }
             rescue(fn () => app(LiveCheckout::class)->paymentValidated($fresh), report: false);
         }
