@@ -23,7 +23,7 @@ class Product extends Model
         'store_id', 'title', 'slug', 'description', 'brand', 'status', 'is_visible_online', 'has_variants',
         'track_inventory', 'allow_backorder', 'requires_shipping', 'is_fragile', 'low_stock_threshold',
         'seo_title', 'seo_description', 'published_at', 'preorder_enabled', 'preorder_ship_date', 'preorder_deposit_percent',
-        'sale_lot', 'min_order_quantity',
+        'sale_lot', 'min_order_quantity', 'deposit_type', 'deposit_value',
     ];
 
     protected function casts(): array
@@ -42,6 +42,7 @@ class Product extends Model
             'published_at' => 'datetime',
             'sale_lot' => 'integer',
             'min_order_quantity' => 'integer',
+            'deposit_value' => 'integer',
         ];
     }
 
@@ -55,6 +56,25 @@ class Product extends Model
         $lot = (int) $this->sale_lot;
 
         return $lot > 1 ? (int) (ceil($quantity / $lot) * $lot) : $quantity;
+    }
+
+    /**
+     * Acompte demandé pour une ligne de cet article (total de la ligne, pièces) : pourcentage ou montant fixe par
+     * pièce ; ancien réglage « acompte de précommande » repris s'il n'y en a pas d'autre. 0 sans acompte.
+     */
+    public function depositFor(int $lineTotal, int $quantity): int
+    {
+        $type = $this->deposit_type;
+        $value = (int) $this->deposit_value;
+        if ($type === null && $this->preorder_enabled && $this->preorder_deposit_percent) {
+            [$type, $value] = ['percent', (int) $this->preorder_deposit_percent];
+        }
+
+        return match ($type) {
+            'percent' => (int) round($lineTotal * min(100, $value) / 100),
+            'fixed' => min($lineTotal, $value * max(1, $quantity)),
+            default => 0,
+        };
     }
 
     /** « par lot de 6 », « 6 pièces minimum », ou null si l'article se vend à la pièce */

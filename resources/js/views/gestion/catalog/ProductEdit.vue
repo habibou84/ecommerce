@@ -46,6 +46,8 @@ const form = reactive({
   preorder_enabled: false,
   preorder_ship_date: '',
   preorder_deposit_percent: null,
+  deposit_type: null,
+  deposit_value: null,
   requires_shipping: true,
   is_fragile: false,
   low_stock_threshold: null,
@@ -264,7 +266,9 @@ async function save() {
       ...form,
       low_stock_threshold: num(form.low_stock_threshold),
       preorder_ship_date: form.preorder_ship_date || null,
-      preorder_deposit_percent: num(form.preorder_deposit_percent),
+      preorder_deposit_percent: null,
+      deposit_type: form.deposit_type || null,
+      deposit_value: form.deposit_type ? num(form.deposit_value) : null,
       options: hasVariants.value ? activeOptions.value : [],
       variants: hasVariants.value ? variantRows.value.filter((r) => r.include).map(variantPayload) : [variantPayload(simple)],
       location_id: locationId.value,
@@ -808,9 +812,18 @@ const margin = computed(() => {
           </label>
           <div v-if="form.preorder_enabled" class="grid gap-3 sm:grid-cols-2">
             <Field id="po-ship" label="Expédition prévue vers le"><input id="po-ship" v-model="form.preorder_ship_date" type="date" class="input" /></Field>
-            <Field id="po-dep" label="Acompte demandé (%)" hint="Vide : pas d'acompte. Payé en ligne à la commande si vous avez un compte de paiement.">
-              <input id="po-dep" v-model="form.preorder_deposit_percent" type="number" min="1" max="100" class="input" />
-            </Field>
+          </div>
+          <!-- Acompte de l'article (précommande comprise) -->
+          <div class="space-y-2 rounded-xl border border-slate-200 p-3">
+            <p class="text-sm font-semibold">Acompte pour cet article</p>
+            <label class="flex items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" :value="null" /> Pas d'acompte <span class="text-slate-500">(paiement à la livraison)</span></label>
+            <label class="flex flex-wrap items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" value="percent" /> Un pourcentage
+              <input v-if="form.deposit_type === 'percent'" v-model="form.deposit_value" type="number" min="1" max="100" class="input w-20 py-1" aria-label="Pourcentage" /><span v-if="form.deposit_type === 'percent'">%</span>
+            </label>
+            <label class="flex flex-wrap items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" value="fixed" /> Un montant fixe par pièce
+              <input v-if="form.deposit_type === 'fixed'" v-model="form.deposit_value" type="number" min="1" class="input w-28 py-1" aria-label="Montant" /><span v-if="form.deposit_type === 'fixed'">F</span>
+            </label>
+            <p class="text-xs text-slate-500">Demandé en boutique en ligne, en live et sur WhatsApp. Pour toute la boutique : <RouterLink to="/gestion/acompte" class="font-medium text-emerald-700 underline">Acompte</RouterLink>.</p>
           </div>
         </div>
       </section>

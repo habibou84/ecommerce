@@ -20,13 +20,15 @@ class Order extends Model
         'store_id', 'customer_id', 'source', 'external_reference', 'customer_name', 'customer_phone', 'delivery_method',
         'shipping_name', 'shipping_phone', 'shipping_phone2', 'shipping_place_id', 'shipping_place_label', 'shipping_address',
         'shipping_landmark', 'shipping_latitude', 'shipping_longitude', 'delivery_zone_id', 'pickup_location_id', 'location_id',
-        'scheduled_date', 'time_slot', 'discount_total', 'shipping_fee', 'deposit_required', 'discount_code', 'customer_note',
+        'scheduled_date', 'time_slot', 'discount_total', 'shipping_fee', 'deposit_required', 'deposit_manual', 'discount_code', 'customer_note',
         'internal_note', 'utm',
     ];
 
     protected function casts(): array
     {
         return [
+            'deposit_manual' => 'boolean',
+            'deposit_reminded_at' => 'datetime',
             'source' => OrderSource::class,
             'status' => OrderStatus::class,
             'payment_status' => PaymentStatus::class,
@@ -132,6 +134,20 @@ class Order extends Model
     public function reference(): string
     {
         return ($this->store?->order_prefix ?? '#').$this->number;
+    }
+
+    /** Acompte encore à payer (0 sans acompte, ou une fois payé) */
+    public function depositDue(): int
+    {
+        return $this->deposit_required ? max(0, (int) $this->deposit_required - ((int) $this->amount_paid - (int) $this->amount_refunded)) : 0;
+    }
+
+    /**
+     * À payer avant que la commande parte : tout (expédition payée avant l'envoi), sinon l'acompte.
+     */
+    public function upfrontDue(): int
+    {
+        return $this->isExpedition() && $this->expedition_prepay ? $this->expeditionPrepayDue() : $this->depositDue();
     }
 
     public function amountDue(): int

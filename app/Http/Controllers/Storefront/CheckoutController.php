@@ -52,6 +52,8 @@ class CheckoutController extends Controller
             'cart' => $cart,
             'pickupPoints' => $this->checkout->pickupPoints($store),
             'payment' => $this->onlinePayment->options($store, $summary['subtotal']),
+            // Acompte des articles ou de la règle de la boutique : demandé en ligne au moment de commander
+            'cartDeposit' => $this->depositEstimate($store, $cart),
             'referral' => ($loyalty = app(Loyalty::class)->settings($store))['referral_enabled'] ? $loyalty['referral_discount'] : null,
             'meta' => ['title' => 'Commande · '.$store->name, 'description' => '', 'path' => '/commande', 'noindex' => true],
         ]);
@@ -120,13 +122,13 @@ class CheckoutController extends Controller
         // Paiement en ligne : au choix du client, ou exigé (total ou acompte) par la boutique
         $options = $this->onlinePayment->options($store);
         $online = $options['mode'] === 'required' || $options['mode'] === 'deposit' || ($options['mode'] === 'optional' && ($data['payment'] ?? 'cod') === 'online');
-        // Précommande avec acompte : payé en ligne dès que la boutique le permet
-        $preorderDeposit = $options['mode'] !== 'off' && $this->hasPreorderDeposit($store, $cart);
+        // Acompte (article, précommande ou règle de la boutique) : payé en ligne dès que la boutique le permet
+        $preorderDeposit = $options['mode'] !== 'off' && $this->depositEstimate($store, $cart) > 0;
         if ($preorderDeposit && ! $online) {
             $online = true;
         }
         if ($online && ! array_key_exists($data['payment_method'] ?? '', $options['methods'])) {
-            throw new BusinessRuleException($preorderDeposit ? 'Choisissez votre moyen de paiement pour l\'acompte de la précommande.' : 'Choisissez votre moyen de paiement.', 'payment_method');
+            throw new BusinessRuleException($preorderDeposit ? 'Choisissez votre moyen de paiement pour l\'acompte.' : 'Choisissez votre moyen de paiement.', 'payment_method');
         }
 
         $order = $this->checkout->place($store, $cart, $data);
@@ -160,12 +162,25 @@ class CheckoutController extends Controller
         return response()->json(['redirect' => $payment->checkout_url], 201);
     }
 
-    private function hasPreorderDeposit(Store $store, Cart $cart): bool
+    /**
+     * Acompte à prévoir pour le panier (articles avec un acompte, règle de la boutique sur le sous-total), arrondi aux
+     * 100 F ; le montant exact est calculé à l'enregistrement de la commande (livraison comprise).
+     */
+    private function depositEstimate(Store $store, Cart $cart): int
     {
-        $variantIds = array_column($this->carts->summary($store, $cart)['lines'], 'variant_id');
+        $lines = $this->carts->summary($store, $cart)['lines'];
+        if ($lines === []) {
+            return 0;
+        }
+        $products = Product::forStore($store->id)->whereIn('id', array_column($lines, 'product_id'))->get()->keyBy('id');
+        $fromItems = (int) collect($lines)->sum(fn (array $l) => $products->get($l['product_id'])?->depositFor((int) $l['total'], (int) $l['quantity']) ?? 0);
+        $subtotal = (int) array_sum(array_column($lines, 'total'));
+        $percent = (int) ($store->deposit_rule_percent ?? 0);
+        $rule = $percent > 0 && ($store->deposit_mode === 'always' || ($store->deposit_mode === 'above' && $store->deposit_min_total !== null && $subtotal >= $store->deposit_min_total))
+            ? (int) round($subtotal * min(100, $percent) / 100) : 0;
+        $deposit = max($fromItems, $rule);
 
-        return Product::forStore($store->id)->where('preorder_enabled', true)->whereNotNull('preorder_deposit_percent')
-            ->whereHas('variants', fn ($q) => $q->whereIn('id', $variantIds))->exists();
+        return $deposit > 0 ? (int) (ceil($deposit / 100) * 100) : 0;
     }
 
     public function thanks(Request $request, string $token): View

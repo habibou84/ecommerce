@@ -113,7 +113,10 @@
                 @else
                     <fieldset class="mt-4 space-y-3 text-sm" data-payment>
                         <legend class="mb-2 font-semibold">Paiement</legend>
-                        @if ($payment['mode'] === 'optional')
+                        @if (($cartDeposit ?? 0) > 0 && $payment['mode'] === 'optional')
+                            <input type="hidden" name="payment" value="online">
+                            <p class="rounded-lg bg-brand-soft p-3">Acompte d'environ {{ \Jibiat\Socle\Money::format($cartDeposit) }} à payer maintenant, le reste à la livraison.</p>
+                        @elseif ($payment['mode'] === 'optional')
                             <label class="flex items-center gap-2"><input type="radio" name="payment" value="cod" checked class="accent-[var(--brand)]"> À la livraison (espèces ou Mobile Money)</label>
                             <label class="flex items-center gap-2"><input type="radio" name="payment" value="online" class="accent-[var(--brand)]"> Maintenant en ligne</label>
                         @elseif ($payment['mode'] === 'deposit')
@@ -123,7 +126,7 @@
                             <input type="hidden" name="payment" value="online">
                             <p class="rounded-lg bg-brand-soft p-3">Paiement en ligne à la commande.</p>
                         @endif
-                        <div data-payment-methods @if ($payment['mode'] === 'optional') hidden @endif>
+                        <div data-payment-methods @if ($payment['mode'] === 'optional' && ($cartDeposit ?? 0) === 0) hidden @endif>
                             @include('storefront.partials.pay-methods', ['methods' => $payment['methods']])
                         </div>
                     </fieldset>

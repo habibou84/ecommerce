@@ -68,6 +68,7 @@ const groups = [
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/alertes', label: 'Alertes' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
+    { to: '/gestion/acompte', label: 'Acompte' },
     { to: '/gestion/whatsapp', label: 'WhatsApp' },
     { to: '/gestion/textes-messages', label: 'Textes des messages' },
     { to: '/gestion/materiel', label: 'Matériel (étiquettes, live…)' },

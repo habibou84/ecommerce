@@ -50,7 +50,7 @@ class OnlinePayment
         if ($deposit) {
             // Acompte déjà fixé (précommande), sinon celui de la boutique
             $amount = min($order->amountDue(), $order->deposit_required ?: self::deposit($order->total, (int) ($order->store->deposit_percent ?? 30)));
-            $order->forceFill(['deposit_required' => $amount])->save();
+            $order->forceFill(['deposit_required' => $amount, 'deposit_manual' => true])->save();
         }
 
         return $this->payments->startCheckout($order, $amount ?? $order->amountDue(), $method, $deposit ? PaymentKind::Deposit : PaymentKind::Online);

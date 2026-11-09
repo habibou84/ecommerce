@@ -51,7 +51,7 @@ async function confirmOrder() {
     working.value = false
   }
 }
-const proof = computed(() => order.value?.expedition?.payment_proof_at && order.value.expedition.prepay_due > 0)
+const proof = computed(() => order.value?.upfront?.payment_proof_at && order.value.upfront.due > 0)
 </script>
 
 <template>

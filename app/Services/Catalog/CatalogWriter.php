@@ -37,7 +37,7 @@ class CatalogWriter
 {
     private const PRODUCT_FIELDS = [
         'title', 'description', 'brand', 'status', 'is_visible_online', 'track_inventory', 'allow_backorder',
-        'preorder_enabled', 'preorder_ship_date', 'preorder_deposit_percent',
+        'preorder_enabled', 'preorder_ship_date', 'preorder_deposit_percent', 'deposit_type', 'deposit_value',
         'requires_shipping', 'is_fragile', 'low_stock_threshold', 'seo_title', 'seo_description',
     ];
 

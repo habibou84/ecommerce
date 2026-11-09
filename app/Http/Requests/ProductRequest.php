@@ -22,6 +22,9 @@ class ProductRequest extends FormRequest
             'preorder_enabled' => ['sometimes', 'boolean'],
             'preorder_ship_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'preorder_deposit_percent' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+            // Acompte de l'article : pourcentage du prix ou montant fixe par pièce
+            'deposit_type' => ['sometimes', 'nullable', 'in:percent,fixed'],
+            'deposit_value' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000000', 'required_with:deposit_type'],
             'requires_shipping' => ['sometimes', 'boolean'],
             'is_fragile' => ['sometimes', 'boolean'],
             'low_stock_threshold' => ['nullable', 'integer', 'min:0', 'max:100000'],
