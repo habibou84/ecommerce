@@ -107,7 +107,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
         // Fenêtre Facebook ouverte depuis l'application d'une boutique : résultat déposé pour l'application
         Route::post('whatsapp/facebook/result', [WhatsAppConnectSessionController::class, 'deliver'])->middleware('throttle:20,1')->name('whatsapp.connect-session.deliver');
         Route::get('signup/partner', [SignupController::class, 'partner'])->middleware('throttle:60,1')->name('signup.partner');
-        Route::post('signup', [SignupController::class, 'start'])->middleware('throttle:verification-start')->middleware('feature:signup')->name('signup');
+        // Un numéro qui a déjà un compte : mot de passe vérifié, donc mêmes limites que la connexion (par numéro)
+        Route::post('signup', [SignupController::class, 'start'])->middleware(['throttle:verification-start', 'throttle:login'])->middleware('feature:signup')->name('signup');
         // Clé d'accès d'une carte à QR code (page jibiat-marchand.com/cle/CODE)
         Route::get('access-keys/{code}', [AccessKeyController::class, 'show'])->where('code', '[A-Za-z0-9-]{1,20}')->middleware('throttle:20,1')->name('access-keys.show');
 

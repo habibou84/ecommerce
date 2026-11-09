@@ -20,6 +20,7 @@ use App\Services\Social\MetaSocial;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Jibiat\Socle\PhoneNumber;
 use RuntimeException;
 
 /**
@@ -96,6 +97,9 @@ class Inbox
     public function receive(WhatsappAccount $account, array $message, array $contacts = []): ?ConversationMessage
     {
         $from = (string) ($message['from'] ?? '');
+        if (self::isPlatform($from)) {
+            return null;
+        }
         if (($message['type'] ?? null) === 'order' && $from !== '') {
             $items = collect($message['order']['product_items'] ?? [])->map(fn ($i) => [
                 'ref' => $i['product_retailer_id'] ?? null, 'quantity' => $i['quantity'] ?? 0, 'price' => $i['item_price'] ?? null,
@@ -126,12 +130,31 @@ class Inbox
     }
 
     /**
+     * Numéro de Jibiat Marchand (support, inscription et connexion par WhatsApp) : ses messages au propriétaire
+     * (liens et codes de connexion) ne passent jamais par la boîte Messages, que toute l'équipe peut lire, et
+     * l'équipe ne peut pas lui écrire au nom du propriétaire.
+     */
+    public static function isPlatform(?string $phone): bool
+    {
+        $phone = PhoneNumber::normalize((string) $phone);
+        if ($phone === '') {
+            return false;
+        }
+        $platform = array_filter([PhoneNumber::normalize((string) config('platform.support_whatsapp')), app(PlatformWhatsApp::class)->phone()]);
+
+        return in_array($phone, $platform, true);
+    }
+
+    /**
      * Message d'un client reçu par le WhatsApp relié par QR code (service whatsapp-bridge).
      *
      * @param  array{id: string, from: string, name?: ?string, kind?: ?string, text?: ?string, lat?: mixed, lng?: mixed, at?: mixed, items?: mixed, total?: mixed}  $event
      */
     public function receiveLinked(WhatsappLink $link, array $event): ?ConversationMessage
     {
+        if (self::isPlatform((string) ($event['from'] ?? ''))) {
+            return null;
+        }
         $kind = (string) ($event['kind'] ?? 'text');
         $text = isset($event['text']) ? trim((string) $event['text']) : null;
         if ($kind === 'order') {
@@ -169,7 +192,7 @@ class Inbox
     public function fromPhone(WhatsappLink $link, string $to, string $text, string $id): ?ConversationMessage
     {
         $text = trim($text);
-        if ($text === '' || $id === '' || ConversationMessage::forStore($link->store_id)->where('provider_message_id', $id)->exists()) {
+        if ($text === '' || $id === '' || self::isPlatform($to) || ConversationMessage::forStore($link->store_id)->where('provider_message_id', $id)->exists()) {
             return null;
         }
         $conversation = Conversation::forStore($link->store_id)->where('channel', 'whatsapp')->where('contact', '+'.ltrim($to, '+'))->first();
@@ -249,6 +272,9 @@ class Inbox
      */
     public function reply(Conversation $conversation, string $text, User $user): ConversationMessage
     {
+        if (self::isPlatform($conversation->contact)) {
+            throw new BusinessRuleException('Les échanges avec le support Jibiat Marchand restent sur le téléphone du propriétaire.', 'body');
+        }
         // WhatsApp relié par QR code : la réponse part du téléphone de la boutique, sans limite de 24 h
         $link = $this->linkFor($conversation);
         if ($link !== null) {

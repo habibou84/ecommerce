@@ -7,11 +7,14 @@ use App\Enums\UserStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Courier;
 use App\Models\CourierAccessLink;
+use App\Models\DeviceToken;
+use App\Models\PushSubscription;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\StoreInvitation;
 use App\Models\User;
+use App\Services\Accounts\Sessions;
 use App\Services\Accounts\StoreRoles;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -182,10 +185,10 @@ class CourierAccess
         if (Courier::withoutGlobalScope(StoreScope::class)->where('user_id', $user->id)->where('store_id', '!=', $courier->store_id)->where('status', 'active')->exists()) {
             return;
         }
-        $user->forceFill(['remember_token' => Str::random(60)])->save();
-        if (config('session.driver') === 'database') {
-            DB::table(config('session.table', 'sessions'))->where('user_id', $user->id)->delete();
-        }
+        Sessions::revoke($user);
+        // Le téléphone perdu ne reçoit plus les notifications
+        DeviceToken::where('user_id', $user->id)->delete();
+        PushSubscription::where('user_id', $user->id)->delete();
     }
 
     /**
