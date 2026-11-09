@@ -429,9 +429,9 @@ class PlatformWhatsApp
         });
         if ($text !== null && ($keyword = app(MerchantOnboarding::class)->handleKeyword($from, $text)) !== null) {
             rescue(fn () => $this->sendAutomatic($from, $keyword), report: false);
-        } elseif ($text !== null || $kind === 'image') {
+        } else {
             // Par QR code, la photo n'est pas lisible ici : l'inscription le dit
-            rescue(fn () => app(SignupByWhatsApp::class)->handle($from, $text ?? '', null, $kind === 'image' ? '' : null));
+            rescue(fn () => app(SignupByWhatsApp::class)->handle($from, $text ?? '', null, $kind === 'image' ? '' : null, $kind));
         }
     }
 
@@ -516,7 +516,8 @@ class PlatformWhatsApp
             // Inscription par WhatsApp, mot « live », « aide » : réponses automatiques (sauf pendant une pause)
             $payload = $message['interactive']['button_reply']['id'] ?? $message['interactive']['list_reply']['id'] ?? $message['button']['payload'] ?? null;
             rescue(fn () => app(SignupByWhatsApp::class)->handle('+'.ltrim($from, '+'), ($message['type'] ?? null) === 'image' ? '' : $body,
-                is_string($payload) ? $payload : null, ($message['type'] ?? null) === 'image' ? ($message['image']['id'] ?? null) : null));
+                is_string($payload) ? $payload : null, ($message['type'] ?? null) === 'image' ? ($message['image']['id'] ?? null) : null,
+                (string) ($message['type'] ?? 'text')));
         }
 
         return $saved;
