@@ -105,6 +105,55 @@ class SignupByWhatsAppTest extends TestCase
         return collect($this->sent)->map(fn ($m) => $m['text']['body'] ?? $m['interactive']['body']['text'] ?? '')->implode("\n---\n");
     }
 
+    /** Message sans texte (vocal, autocollant…) tel que Meta l'envoie */
+    private function sendKind(string $type, string $from = '2250708091011'): TestResponse
+    {
+        static $n = 0;
+        $n++;
+        $message = ['from' => $from, 'id' => "wamid.kind{$n}", 'timestamp' => (string) now()->timestamp, 'type' => $type, $type => ['id' => "media{$n}"]];
+
+        return $this->webhook(['messages' => [$message], 'contacts' => [['wa_id' => $from, 'profile' => ['name' => 'Awa K.']]]]);
+    }
+
+    public function test_voice_notes_stickers_and_emojis_are_never_taken_as_answers(): void
+    {
+        $this->say('Inscription');
+        $this->say('Oui', 'su:yes');
+        $this->assertStringContainsString('nom de ta boutique', $this->last()['text']);
+        $signup = fn () => WhatsappSignup::where('phone', '+2250708091011')->sole();
+
+        // Autocollant : pas le nom « Autocollant », la question est reposée
+        $this->sendKind('sticker');
+        $this->assertArrayNotHasKey('store_name', $signup()->data);
+        $this->assertSame('name', $signup()->step);
+        $this->assertStringContainsString('nom de ta boutique', $this->last()['text']);
+        // Vocal : on dit qu'on ne peut pas l'écouter
+        $this->sendKind('audio');
+        $this->assertStringContainsString('Je ne peux pas écouter les vocaux', $this->texts());
+        $this->assertArrayNotHasKey('store_name', $signup()->data);
+
+        // Un vrai nom : l'étape avance (et le compte des réponses incomprises repart de zéro)
+        $this->say('Awa Mode');
+        $this->assertSame('Awa Mode', $signup()->data['store_name']);
+        $this->assertSame('first_name', $signup()->step);
+
+        // Prénom : emojis, « ok », vocal ne passent pas ; à la troisième réponse incomprise, un conseiller prend la main
+        $this->say('😂😂😂👍');
+        $this->say('ok');
+        $this->assertArrayNotHasKey('first_name', $signup()->data);
+        $this->assertFalse($signup()->paused());
+        $this->sendKind('audio');
+        $this->assertTrue($signup()->paused());
+        $this->assertStringContainsString('Je passe la main à un conseiller', $this->last()['text']);
+        $sent = count($this->sent);
+        $this->say('Fatou');
+        $this->assertCount($sent, $this->sent); // le robot se tait, l'équipe répond
+
+        // « Inscription » relance le robot, et un vrai prénom passe
+        $this->say('Inscription');
+        $this->assertSame('confirm', $signup()->step);
+    }
+
     public function test_a_shop_is_created_from_whatsapp_with_a_login_link_and_a_first_product_from_a_photo(): void
     {
         Queue::fake();
