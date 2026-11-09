@@ -552,7 +552,7 @@ class LiveSalesTest extends TestCase
         $list = end($this->whatsapp);
         $this->assertStringContainsString('*A1* · Robe wax · 12', $list);
         $this->assertStringContainsString('*A2* · Sac cabas · 8', $list);
-        $this->assertStringContainsString('le code + votre taille', $list);
+        $this->assertStringContainsString('Répondez avec *le code*', $list);
         $this->assertStringContainsString('/live', $list);
         $this->assertSame(0, LiveReservation::count());
 
@@ -666,7 +666,7 @@ class LiveSalesTest extends TestCase
         $this->travel(3)->minutes();
         $this->message('L1', 'live', '2250709090909');
         $this->assertSame('🔴 Encore disponibles en ce moment', end($this->images)['caption']);
-        $this->assertStringContainsString('le code + votre taille', end($this->whatsapp));
+        $this->assertStringContainsString('Répondez avec *le code*', end($this->whatsapp));
     }
 
     public function test_a_kept_piece_without_neighbourhood_goes_to_the_waiting_list(): void

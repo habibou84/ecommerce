@@ -1572,13 +1572,17 @@ class LiveSales
         }
         $shown = $groups->take(self::LIST_ON_IMAGE);
         $more = $groups->count() - $shown->count();
-        $example = $shown->first()['code'];
-        $several = $shown->count() > 1 ? $shown->get(1)['code'] : $example;
+        // Exemple pris sur un vrai article : « A2 » sans taille, « A1 M » avec des tailles
+        $sample = fn (array $g) => $g['code'].($g['sizes'] !== '' ? ' '.trim(explode(',', $g['sizes'])[0]) : '');
+        $example = $sample($shown->first());
+        $several = $shown->count() > 1 ? $sample($shown->get(1)) : $example;
+        $anySizes = $shown->contains(fn (array $g) => $g['sizes'] !== '');
         // Une seule image pour toute la liste (miniature, code, nom, tailles, prix), puis un court texte avec le lien
         $image = rescue(fn () => app(LiveImages::class)->board($store->id, 'Encore disponibles · '.$store->name, $shown->map(fn (array $g) => [
             'code' => $g['code'], 'title' => $g['title'], 'detail' => $g['sizes'] !== '' ? 'Tailles : '.$g['sizes'] : 'Taille unique', 'price' => $g['price'], 'image' => $g['image'],
-        ])->all(), 'Répondez : code + taille (ex. '.$example.' M)', $groups->count().' article'.($groups->count() > 1 ? 's' : '').($more > 0 ? " · + {$more} sur la page du live" : '')), report: false);
-        $howTo = "👉 Répondez avec *le code + votre taille* (ex. *{$example} M*). Plusieurs articles : *{$example} M, {$several}*.\n📷 Toutes les photos : ".$store->url('/live');
+        ])->all(), 'Répondez avec le code (ex. '.$example.')', $groups->count().' article'.($groups->count() > 1 ? 's' : '').($more > 0 ? " · + {$more} sur la page du live" : '')), report: false);
+        $howTo = "👉 Répondez avec *le code* de l'article (ex. *{$example}*).".($anySizes ? " S'il y a des tailles, on vous demande la vôtre." : '')
+            .($several !== $example ? " Plusieurs articles : *{$example}, {$several}*." : '')."\n📷 Toutes les photos : ".$store->url('/live');
         if (app(LiveCheckout::class)->picture($conversation, $image, '🔴 Encore disponibles en ce moment')) {
             $this->reply($conversation, $howTo);
 

@@ -146,7 +146,7 @@ class LiveImages
 
     /**
      * Carte d'un article pour le live (900 × 1200) : photo, code en très grand, prix (ancien prix barré), nom,
-     * pièces restantes et « Envoie A1 + ta taille » (sans le mot WhatsApp, pour la modération de TikTok) ; version
+     * pièces restantes et « Envoie A1 » (« + ta taille » s'il y a des tailles à choisir) (sans le mot WhatsApp, pour la modération de TikTok) ; version
      * « VENDU » quand l'article est épuisé.
      *
      * Renvoie le chemin du fichier sur le disque du catalogue (adresse publique : url()).
@@ -155,7 +155,7 @@ class LiveImages
      */
     public function card(int $storeId, array $card, bool $sold = false): string
     {
-        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $card['link'] ?? null, $sold, 9])), 0, 12);
+        $key = substr(md5(json_encode([$card['code'], $card['title'], $card['variant'], $card['price'], $card['was'], $card['remaining'], $card['image']?->path, $card['link'] ?? null, $sold, $card['choices'] ?? false, 10])), 0, 12);
         $path = "live/{$storeId}/card-{$card['code']}-{$key}.jpg";
         if ($this->disk()->exists($path)) {
             return $path;
@@ -206,7 +206,8 @@ class LiveImages
 
         // Pied : appel à commander
         imagefilledrectangle($c, 0, $h - 120, $w, $h, $night);
-        $call = $this->fit("Envoie {$card['code']} + ta taille", 40, 'ExtraBold', $w - 80);
+        // Taille seulement quand il y a plusieurs tailles ou couleurs à choisir
+        $call = $this->fit('Envoie '.$card['code'].(! empty($card['choices']) ? ' + ta taille' : ''), 40, 'ExtraBold', $w - 80);
         $box = imagettfbbox(40, 0, $this->font('ExtraBold'), $call);
         imagettftext($c, 40, 0, (int) (($w - ($box[2] - $box[0])) / 2), $h - 42, $white, $this->font('ExtraBold'), $call);
         // Pas de « Propulsé par … » ni d'adresse de site sur une carte filmée (TikTok)

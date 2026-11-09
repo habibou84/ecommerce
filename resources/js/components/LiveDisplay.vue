@@ -142,9 +142,9 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
           <h2>Comment commander ?</h2>
           <ol>
             <li><span>1</span>Note le code de l'article (A1, A2…)</li>
-            <li><span>2</span>Envoie le code + ta taille</li>
-            <li><span>3</span>Choisis ton quartier</li>
-            <li><span>4</span>On te livre ✅</li>
+            <li><span>2</span>Envoie le code de l'article</li>
+            <li><span>3</span>Ta taille t'est demandée s'il y en a</li>
+            <li><span>4</span>Choisis ton quartier · on te livre ✅</li>
           </ol>
         </div>
         <div class="ld-qr ld-bio">
@@ -163,7 +163,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
             <b>{{ i.code }}</b>
           </div>
         </div>
-        <p class="ld-grid-foot">Envoie le code + ta taille · {{ phoneLine }}</p>
+        <p class="ld-grid-foot">Envoie le code de l'article · {{ phoneLine }}</p>
       </div>
 
       <!-- Article montré : la photo en grand, puis le prix et le bloc WhatsApp (QR code et numéro) -->
@@ -203,7 +203,7 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
           <div class="ld-wa ld-send">
             <span class="ld-code ld-bigcode">{{ shown.code }}</span>
             <div class="ld-wa-text">
-              <b>Envoie {{ shown.code }}<template v-if="sizes"> + ta taille</template></b>
+              <b>Envoie {{ shown.code }}<template v-if="sizes && sizes.values.length > 1"> + ta taille</template></b>
               <span>{{ phoneLine }}</span>
             </div>
           </div>
