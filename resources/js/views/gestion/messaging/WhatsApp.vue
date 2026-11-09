@@ -11,7 +11,7 @@ import WhatsAppCatalog from '../../../components/WhatsAppCatalog.vue'
 import WhatsAppMetaHealth from '../../../components/WhatsAppMetaHealth.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { boot } from '../../../lib/boot'
-import { facebookRelayUrl, takeFacebookResult } from '../../../lib/facebook'
+import { facebookRelayUrl, openFacebookRelay, takeFacebookResult } from '../../../lib/facebook'
 import { formatDateTime } from '../../../lib/format'
 
 /**
@@ -116,7 +116,7 @@ function connect() {
   // Page d'avant (live, commandes…) : on y revient une fois connecté
   const before = window.history.state?.back
   const from = typeof before === 'string' && before.startsWith('/gestion') && !before.startsWith('/gestion/whatsapp') ? window.location.origin + before : null
-  window.location.assign(facebookRelayUrl(boot.platformUrl, { appId: e.app_id, configId: e.config_id, version: e.graph_version, coexistence: 'auto' }, window.location.origin + window.location.pathname, from))
+  openFacebookRelay(facebookRelayUrl(boot.platformUrl, { appId: e.app_id, configId: e.config_id, version: e.graph_version, coexistence: 'auto' }, window.location.origin + window.location.pathname, from), window.location.pathname)
 }
 async function disconnect() {
   const a = official.value?.account

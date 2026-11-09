@@ -1,3 +1,5 @@
+import http from './http'
+
 // Fenêtre Facebook de l'inscription intégrée WhatsApp (Embedded Signup). Meta n'accepte le SDK que sur des domaines
 // déclarés un par un : la fenêtre s'ouvre depuis la plateforme (page /whatsapp/facebook), qui renvoie le résultat
 // à la gestion de la boutique (#whatsapp&code=…).
@@ -125,6 +127,64 @@ export async function connectWhatsApp({ appId, configId, version, coexistence = 
       },
     )
   })
+}
+
+// Application installée sur l'écran d'accueil (PWA) : la page de la plateforme n'en fait pas partie, y aller fait
+// sortir de l'application.
+export function installedApp() {
+  return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
+}
+
+function randomKey() {
+  const bytes = new Uint8Array(24)
+  window.crypto.getRandomValues(bytes)
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Ouvre la fenêtre Facebook de la connexion WhatsApp (page de la plateforme `url`, retour prévu sur `back`).
+ * Navigateur : la page entière. Application installée : une fenêtre par-dessus l'application, qui reste ouverte
+ * dessous ; la page de la plateforme dépose le résultat sur le serveur et l'application le récupère, puis rouvre
+ * `back` avec le résultat (#whatsapp&code=…), sans jamais quitter l'application.
+ */
+export function openFacebookRelay(url, back) {
+  if (!installedApp()) {
+    window.location.assign(url)
+    return
+  }
+  const key = randomKey()
+  const win = window.open(`${url}&cle=${key}`, '_blank')
+  if (!win) {
+    window.location.assign(url)
+    return
+  }
+  http.post('/whatsapp/connect-session', { key }).catch(() => {})
+  const started = Date.now()
+  let busy = false
+  const check = async () => {
+    if (busy) return
+    busy = true
+    try {
+      const result = (await http.get(`/whatsapp/connect-session/${key}`)).data.data?.result
+      if (result) {
+        stop()
+        const target = new URL(back, window.location.origin)
+        window.history.replaceState(null, '', `${target.pathname}#${new URLSearchParams({ whatsapp: '1', ...result })}`)
+        window.location.reload()
+      }
+    } catch {
+      // pas encore de réponse : on réessaie
+    } finally {
+      busy = false
+    }
+  }
+  const timer = window.setInterval(() => (Date.now() - started > 30 * 60 * 1000 ? stop() : check()), 2500)
+  const onVisible = () => !document.hidden && check()
+  document.addEventListener('visibilitychange', onVisible)
+  function stop() {
+    window.clearInterval(timer)
+    document.removeEventListener('visibilitychange', onVisible)
+  }
 }
 
 // Gestion de la boutique → page de la plateforme qui ouvre la fenêtre Facebook, puis revient sur `back`.

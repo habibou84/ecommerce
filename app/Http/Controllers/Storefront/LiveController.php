@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
 use App\Models\LiveItem;
+use App\Models\Place;
+use App\Services\Live\LiveCheckout;
 use App\Services\Live\LiveSales;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
@@ -51,6 +53,26 @@ class LiveController extends Controller
     }
 
     /**
+     * Prix de la livraison pour le quartier choisi (montré avant de réserver, avec le total).
+     */
+    public function fee(Request $request, LiveCheckout $checkout): JsonResponse
+    {
+        $data = $request->validate(['place_id' => ['required', 'integer']]);
+        $store = $this->currentStore();
+        $place = Place::visibleTo($store->id)->with('parent.parent')->findOrFail($data['place_id']);
+
+        return response()->json(['data' => ['label' => $place->label()] + $checkout->quote($store, $place)]);
+    }
+
+    /**
+     * « Voir les prix de livraison » : toutes les communes livrées avec leur prix.
+     */
+    public function fees(LiveCheckout $checkout): JsonResponse
+    {
+        return response()->json(['data' => $checkout->feeTable($this->currentStore())]);
+    }
+
+    /**
      * Réservation : plusieurs articles et plusieurs pièces (items), ou un seul article (item_id, ancienne page).
      */
     public function reserve(Request $request): JsonResponse
@@ -60,7 +82,7 @@ class LiveController extends Controller
         }
         $data = $request->validate([
             'item_id' => ['required', 'integer'],
-            'name' => ['required', 'string', 'max:120'],
+            'name' => ['nullable', 'string', 'max:120'],
             'phone' => ['required', 'string', 'max:30', new PhoneNumber],
             'place_id' => ['required', 'integer'],
             'address' => ['nullable', 'string', 'max:255'],
@@ -86,7 +108,7 @@ class LiveController extends Controller
             'items' => ['required', 'array', 'min:1', 'max:20'],
             'items.*.item_id' => ['required', 'integer', 'distinct'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:10'],
-            'name' => ['required', 'string', 'max:120'],
+            'name' => ['nullable', 'string', 'max:120'],
             'phone' => ['required', 'string', 'max:30', new PhoneNumber],
             'place_id' => ['required', 'integer'],
             'address' => ['nullable', 'string', 'max:255'],

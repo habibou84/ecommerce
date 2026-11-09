@@ -11,7 +11,7 @@ import Modal from './Modal.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import http, { errorMessage, fieldErrors } from '../lib/http'
 import { boot } from '../lib/boot'
-import { facebookRelayUrl, takeFacebookResult } from '../lib/facebook'
+import { facebookRelayUrl, openFacebookRelay, takeFacebookResult } from '../lib/facebook'
 
 /**
  * Messages automatiques (numéro officiel, API Cloud de Meta) : connexion en un clic avec Facebook (ou avancée, avec
@@ -116,7 +116,7 @@ const warnings = ref([])
 function connectFacebook() {
   connecting.value = true
   const { app_id: appId, config_id: configId, graph_version: version } = props.data.embedded
-  window.location.assign(facebookRelayUrl(boot.platformUrl, { appId, configId, version, coexistence: 'auto' }, window.location.origin + window.location.pathname))
+  openFacebookRelay(facebookRelayUrl(boot.platformUrl, { appId, configId, version, coexistence: 'auto' }, window.location.origin + window.location.pathname), window.location.pathname)
 }
 async function finishFacebook(result) {
   connecting.value = true

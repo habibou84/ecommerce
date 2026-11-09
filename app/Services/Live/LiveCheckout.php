@@ -187,7 +187,7 @@ class LiveCheckout
      *
      * @return Collection<int, array{place: Place, fee: int, from: bool, eta: ?string}>
      */
-    public function communes(Store $store): Collection
+    public function communes(Store $store, ?int $limit = null): Collection
     {
         $home = app(DeliveryRates::class)->home($store);
         $zones = DeliveryZone::forStore($store->id)->where('is_active', true)->with('places.parent')->get();
@@ -222,7 +222,7 @@ class LiveCheckout
         $popular = $this->popularity($store->id, $communes->keys()->all(), true);
 
         return $communes->sortBy([fn ($a, $b) => ($popular[$b['place']->id] ?? 0) <=> ($popular[$a['place']->id] ?? 0), fn ($a, $b) => strcoll($a['place']->name, $b['place']->name)])
-            ->take($this->expeditions($store) ? self::ROWS - 1 : self::ROWS)->values();
+            ->take($limit ?? ($this->expeditions($store) ? self::ROWS - 1 : self::ROWS))->values();
     }
 
     /** Expéditions vers les autres villes proposées : un prix est réglé dans les tarifs */
@@ -261,14 +261,14 @@ class LiveCheckout
      *
      * @return Collection<int, array{place: Place, fee: ?int, eta: ?string}>
      */
-    public function quartiers(Store $store, Place $commune): Collection
+    public function quartiers(Store $store, Place $commune, ?int $limit = null): Collection
     {
         $children = Place::visibleTo($store->id)->with('parent.parent')->where('parent_id', $commune->id)->where('type', 'neighborhood')->get()
             ->map(fn (Place $p) => ['place' => $p, 'zone' => $this->places->zoneFor($store, $p)])->filter(fn ($q) => $q['zone'] !== null);
         $popular = $this->popularity(null, $children->pluck('place.id')->all(), false);
 
         return $children->sortBy([fn ($a, $b) => ($popular[$b['place']->id] ?? 0) <=> ($popular[$a['place']->id] ?? 0), fn ($a, $b) => strcoll($a['place']->name, $b['place']->name)])
-            ->take(self::ROWS)->map(fn ($q) => ['place' => $q['place'], 'fee' => (int) $q['zone']->fee, 'eta' => $q['zone']->eta_label])->values();
+            ->take($limit ?? self::ROWS)->map(fn ($q) => ['place' => $q['place'], 'fee' => (int) $q['zone']->fee, 'eta' => $q['zone']->eta_label])->values();
     }
 
     private function askQuartier(Conversation $conversation, Store $store, Place $commune): bool
@@ -643,7 +643,36 @@ class LiveCheckout
             ->groupBy('commune')->pluck('n', 'commune')->all();
     }
 
-    private function feeLabel(int $fee, bool $from, ?string $eta): string
+    /**
+     * Prix de la livraison pour un lieu : celui de sa zone, sinon le prix des expéditions pour une autre ville ;
+     * null quand la boutique doit le confirmer.
+     *
+     * @return array{fee: ?int, eta: ?string, expedition: bool}
+     */
+    public function quote(Store $store, Place $place): array
+    {
+        $zone = $this->places->zoneFor($store, $place);
+        $expedition = app(DeliveryRates::class)->isExpedition($store, $place);
+        $fee = $zone?->fee ?? ($expedition ? $store->expedition_fee : null);
+
+        return ['fee' => $fee === null ? null : (int) $fee, 'eta' => $zone?->eta_label, 'expedition' => $expedition];
+    }
+
+    /**
+     * Prix de livraison de toutes les communes livrées (et des autres villes), pour les montrer au client.
+     *
+     * @return array{communes: list<array{id: int, name: string, fee: int, from: bool, eta: ?string}>, cities: ?int}
+     */
+    public function feeTable(Store $store): array
+    {
+        return [
+            'communes' => $this->communes($store, 40)->map(fn (array $c) => ['id' => $c['place']->id, 'name' => $c['place']->name, 'fee' => $c['fee'], 'from' => $c['from'], 'eta' => $c['eta']])->all(),
+            // Autres villes : expédition dès ce prix (null si la boutique n'expédie pas)
+            'cities' => $this->expeditions($store) ? (int) ($this->cities($store)->min('fee') ?? $store->expedition_fee) : null,
+        ];
+    }
+
+    public function feeLabel(int $fee, bool $from, ?string $eta): string
     {
         $price = $fee > 0 ? ($from ? 'dès ' : '').Money::format($fee) : 'offerte';
 
