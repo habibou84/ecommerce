@@ -182,6 +182,16 @@ async function disconnect() {
   current.value = null
 }
 
+async function resumeRobot() {
+  busy.value = true
+  try {
+    current.value = (await http.post(`/console/whatsapp/conversations/${current.value.id}/robot`)).data.data
+    await loadConversations()
+  } finally {
+    busy.value = false
+  }
+}
+
 async function send() {
   if (!reply.value.trim()) return
   busy.value = true
@@ -364,6 +374,11 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
             <span class="font-semibold">{{ title }}</span>
             <a :href="`https://wa.me/${current.phone.replace('+', '')}`" target="_blank" rel="noopener" class="ml-auto text-emerald-800 underline">Ouvrir dans WhatsApp</a>
           </header>
+          <!-- Robot d'inscription en pause : il ne reprend pas tout seul au milieu de la discussion -->
+          <div v-if="current.robot_paused" class="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            <span>🤖 Le robot est en pause : c'est toi qui réponds.</span>
+            <button type="button" class="ml-auto font-semibold underline" :disabled="busy" @click="resumeRobot">Rendre la main au robot</button>
+          </div>
           <div ref="thread" class="flex-1 space-y-2 overflow-y-auto bg-slate-50 p-4 text-sm" style="max-height: 55vh">
             <div v-for="m in current.messages" :key="m.id" class="flex" :class="m.direction === 'out' ? 'justify-end' : ''">
               <div class="max-w-[80%] whitespace-pre-line rounded-xl px-3 py-2" :class="m.direction === 'out' ? 'bg-emerald-100' : 'bg-white ring-1 ring-slate-200'">

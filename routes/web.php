@@ -30,6 +30,8 @@ Route::middleware('zone:platform')->group(function () {
     Route::post('/facturation/valider/{invoice}', [BillingValidationController::class, 'decide'])->whereNumber('invoice')->middleware(['signed:relative', 'throttle:20,1']);
     // Les étapes essentielles pour commencer : une courte vidéo par étape
     Route::view('/bien-demarrer', 'platform.start', ['steps' => StartSteps::all()])->name('platform.start');
+    // Une vidéo envoyée par lien (WhatsApp) : page qui la lit tout de suite
+    Route::get('/video/{name}', [PageController::class, 'video'])->where('name', '(etapes/etape-\d{2}|live/[a-z0-9-]{3,40})')->name('platform.video');
     Route::get('/cgu', [LegalController::class, 'terms'])->name('legal.terms');
     Route::get('/confidentialite', [LegalController::class, 'privacy'])->name('legal.privacy');
     Route::get('/suppression-compte', [LegalController::class, 'accountDeletion'])->name('legal.account-deletion');

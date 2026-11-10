@@ -95,7 +95,7 @@ class MerchantOnboardingTest extends TestCase
         $this->assertSame(1, $this->runOnboarding()['welcome']);
         $this->assertSame('2250708091011', ltrim($this->sent[0]['to'], '+'));
         $this->assertStringStartsWith('Bienvenue sur Jibiat Marchand, Awa ! 🎉', $this->sent[0]['body']);
-        $this->assertStringContainsString('Vous avez *1 mois de l\'offre Pro offert*', $this->sent[0]['body']);
+        $this->assertStringContainsString('Tu as *1 mois de l\'offre Pro offert*', $this->sent[0]['body']);
         $this->assertStringContainsString($store->url('/gestion/catalogue/nouveau'), $this->sent[0]['body']);
         // Recopié dans la console comme message automatique ; jamais deux fois
         $this->assertSame('automatic', SupportMessage::sole()->type);
@@ -104,7 +104,7 @@ class MerchantOnboardingTest extends TestCase
         // 3 h après, toujours aucun produit
         $this->travel(3)->hours();
         $this->assertSame(1, $this->runOnboarding()['no_product']);
-        $this->assertStringStartsWith('Awa, votre boutique attend son premier produit', $this->sent[1]['body']);
+        $this->assertStringStartsWith('Awa, ta boutique attend son premier produit', $this->sent[1]['body']);
 
         // Des produits ajoutés ; 20 h après l'inscription il est 6 h : on attend 7 h
         app(CatalogWriter::class)->save($store, null, ['title' => 'Robe wax', 'variants' => [['price' => 15000, 'on_hand' => 3]]]);
@@ -113,7 +113,7 @@ class MerchantOnboardingTest extends TestCase
         $this->assertSame(0, $this->runOnboarding()['first_products'], 'heures calmes');
         $this->travel(65)->minutes();
         $this->assertSame(1, $this->runOnboarding()['first_products']);
-        $this->assertStringStartsWith('Bravo Awa, 2 produits déjà dans votre boutique 👏', $this->sent[2]['body']);
+        $this->assertStringStartsWith('Bravo Awa, 2 produits déjà dans ta boutique 👏', $this->sent[2]['body']);
         $this->assertSame(['welcome' => 'sent', 'no_product' => 'sent', 'first_products' => 'sent'], OnboardingMessage::orderBy('id')->pluck('status', 'step')->all());
     }
 
@@ -198,7 +198,7 @@ class MerchantOnboardingTest extends TestCase
         $this->assertStringContainsString('*n° 007*', $bodies['2250708091011']);
         $this->assertStringContainsString('offre *Pro à vie*', $bodies['2250708091011']);
         // Annuaire injoignable : nom générique de l'entreprise
-        $this->assertStringStartsWith('Bienvenue, Koffi ! *Votre entreprise de livraison* vous a invité', $bodies['2250102030405']);
+        $this->assertStringStartsWith('Bienvenue, Koffi ! *Ton entreprise de livraison* t\'a invité', $bodies['2250102030405']);
     }
 
     public function test_the_trial_end_template_is_created_at_meta_and_used_once_approved(): void

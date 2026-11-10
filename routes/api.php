@@ -235,6 +235,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::put('whatsapp/sms', [ConsoleWhatsAppController::class, 'sms'])->name('whatsapp.sms');
             Route::get('whatsapp/conversations', [ConsoleWhatsAppController::class, 'conversations'])->name('whatsapp.conversations');
             Route::get('whatsapp/conversations/{conversation}', [ConsoleWhatsAppController::class, 'messages'])->whereNumber('conversation')->name('whatsapp.messages');
+            Route::post('whatsapp/conversations/{conversation}/robot', [ConsoleWhatsAppController::class, 'resumeRobot'])->whereNumber('conversation')->name('whatsapp.robot');
             Route::post('whatsapp/conversations/{conversation}/reply', [ConsoleWhatsAppController::class, 'reply'])->whereNumber('conversation')->middleware('throttle:30,1')->name('whatsapp.reply');
         });
     });
