@@ -44,6 +44,11 @@ class TenancyTest extends TestCase
             ->assertSee('Tes 300 premières commandes en live')
             ->assertSee('Live de 11 à 30 commandes')
             ->assertSee("500\u{00A0}F", false)->assertSee("7\u{00A0}000\u{00A0}F", false);
+
+        // Plus de commandes gratuites par live (palier à 0) : pas de ligne « Live de 0 à 0 commandes »
+        app(LiveBilling::class)->update(['free_upto' => 0]);
+        $this->get($this->platformUrl())->assertOk()
+            ->assertDontSee('Live de 0 à 0')->assertSee('Live de 1 à 30 commandes')->assertDontSee('jusqu\'à 0 commandes', false);
     }
 
     public function test_the_trial_is_announced_in_days_when_it_is_not_whole_months(): void

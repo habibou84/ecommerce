@@ -9,13 +9,14 @@
     // Lives payants (console) : quand ils sont allumés, on montre les lives offerts et les prix
     $liveBilling = app(\App\Services\Live\LiveBilling::class);
     $lives = $liveBilling->settings();
-    $liveTiers = $liveBilling->tiers();
+    // Palier gratuit mis à 0 dans la console : pas de ligne « Live de 0 à 0 commandes : Gratuit »
+    $liveTiers = array_values(array_filter($liveBilling->tiers(), fn ($tier) => $tier['to'] === null || $tier['to'] >= max(1, $tier['from'])));
     $f = fn (int $amount) => number_format($amount, 0, ',', "\u{00A0}")."\u{00A0}F";
     $tagline = 'Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes.';
     $faq = [
         ['Mon live se fait sur Jibiat Marchand ?', 'Non. Ton live se fait sur TikTok, comme d\'habitude, avec tes abonnés. Jibiat Marchand travaille à côté : il enregistre les commandes que tes clients envoient sur WhatsApp et les prépare pour la livraison.'],
         ['C\'est vraiment gratuit ?', $lives['paid']
-            ? 'Oui : commandes, stock, livraisons et boutique en ligne sont gratuits. Pour les lives, tes '.$lives['free_orders'].' premières commandes en live sont offertes. Ensuite, tu ne paies que si tu vends : un live jusqu\'à '.$lives['free_upto'].' commandes est gratuit, au-delà le prix dépend du nombre de commandes (dès '.$f($lives['tier2_price']).'). Ou lives illimités : '.$f($lives['month_price']).' pour 30 jours.'
+            ? 'Oui : commandes, stock, livraisons et boutique en ligne sont gratuits. Pour les lives, tes '.$lives['free_orders'].' premières commandes en live sont offertes. Ensuite, tu ne paies que si tu vends : '.($lives['free_upto'] > 0 ? 'un live jusqu\'à '.$lives['free_upto'].' commandes est gratuit, au-delà ' : '').'le prix dépend du nombre de commandes (dès '.$f($lives['tier2_price']).'). Ou lives illimités : '.$f($lives['month_price']).' pour 30 jours.'
             : 'Oui : l\'application est gratuite, lives compris. Pas de carte bancaire à donner.'],
         ['Quel numéro WhatsApp utiliser ?', 'De préférence un numéro réservé à tes lives. Tu le relies dans l\'application en quelques minutes : c\'est sur ce numéro que tes clients envoient le code des articles.'],
         ['Faut-il un ordinateur ?', 'Non. Tout se fait depuis ton téléphone, en 5 minutes pour commencer.'],
