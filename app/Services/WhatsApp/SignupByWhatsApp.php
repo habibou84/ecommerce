@@ -19,6 +19,7 @@ use App\Services\Catalog\ProductDrafter;
 use App\Services\Shipping\CarrierDirectory;
 use App\Support\Tenancy;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -103,6 +104,17 @@ class SignupByWhatsApp
         }
         $this->contacts[$phone] = $contact;
         $words = self::words($text);
+        // Inscription réservée aux mobiles de Côte d'Ivoire : un numéro étranger reçoit une seule réponse, puis le robot
+        // le laisse à l'équipe (ses messages restent dans la console)
+        if (! PhoneNumber::isLocalMobile($phone)) {
+            if ((self::trigger($words) !== null || $payload === 'su:start') && Cache::add('signup-foreign:'.$phone, true, now()->addDays(30))) {
+                $this->say($phone, 'Désolé, Jibiat Marchand est pour l\'instant réservé aux numéros de Côte d\'Ivoire 🇨🇮.');
+
+                return true;
+            }
+
+            return false;
+        }
         $signup = WhatsappSignup::firstOrNew(['phone' => $phone]);
         if (($signup->data['wa'] ?? null) !== $contact) {
             $signup->forceFill(['data' => array_merge($signup->data ?? [], ['wa' => $contact])]);
@@ -320,9 +332,8 @@ class SignupByWhatsApp
 
                     return true;
                 }
-                $this->say($signup->phone, '📸 Envoie la *photo* d\'un article que tu vends, ou écris *plus tard*.');
 
-                return true;
+                return $this->missed($signup) ?: $this->photoReminder($signup, 'text');
         }
 
         return false;
@@ -646,6 +657,9 @@ class SignupByWhatsApp
         if ($this->missed($signup)) {
             return true;
         }
+        if ($signup->step === 'photo') {
+            return $this->photoReminder($signup, $kind);
+        }
         $what = match ($kind) {
             'audio' => '🎤 Je ne peux pas écouter les vocaux.',
             'image' => '📷 J\'ai bien reçu ta photo, mais j\'ai d\'abord besoin d\'une réponse écrite.',
@@ -654,6 +668,29 @@ class SignupByWhatsApp
         $this->say($signup->phone, $what.' Réponds par écrit, s\'il te plaît.');
 
         return $this->ask($signup, $signup->step);
+    }
+
+    /**
+     * Étape photo, autre chose qu'une photo reçu (vidéo, vocal, texte…) : on dit ce qui est arrivé et comment envoyer
+     * une photo, puis la deuxième fois on propose « plus tard » (jamais deux fois la même phrase ; la troisième fois,
+     * un conseiller prend la main, voir missed()).
+     */
+    private function photoReminder(WhatsappSignup $signup, string $kind): bool
+    {
+        if ((int) ($signup->data['misses'] ?? 1) <= 1) {
+            $got = match ($kind) {
+                'video' => '🎬 J\'ai reçu une vidéo',
+                'audio' => '🎤 J\'ai reçu un vocal',
+                'document' => '📄 J\'ai reçu un document',
+                'sticker' => 'J\'ai reçu un autocollant',
+                default => 'J\'ai bien reçu ton message',
+            };
+            $this->say($signup->phone, $got.', mais il me faut une *photo* de ton article 📸 : appareil photo › touche une fois (pas d\'appui long). Ou écris *plus tard*.');
+        } else {
+            $this->say($signup->phone, 'Pas de souci 🙂 Si c\'est compliqué, écris *plus tard* : tu ajouteras tes articles depuis ta boutique.');
+        }
+
+        return true;
     }
 
     /** Réponse incomprise comptée ; true si l'équipe prend la main (le robot se met en pause) */
