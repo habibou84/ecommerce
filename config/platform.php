@@ -90,7 +90,7 @@ return [
 
     // WhatsApp de l'équipe Jibiat Marchand : bouton du site et « Aide » de la gestion
     // (l'ancien SUPPORT_WHATSAPP n'est plus lu : il gardait un numéro provisoire sur les serveurs)
-    'support_whatsapp' => env('SUPPORT_WHATSAPP_NUMBER', '+2250507016739'),
+    'support_whatsapp' => env('SUPPORT_WHATSAPP_NUMBER', '+2250703686876'),
     'support_session_minutes' => (int) env('SUPPORT_SESSION_MINUTES', 60),
 
     // Dossier des sauvegardes (deploy/backup.sh, docs/SAUVEGARDES.md) : la console lit leur état (etat-*.json)
