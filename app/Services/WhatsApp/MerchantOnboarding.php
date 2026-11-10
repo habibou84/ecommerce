@@ -42,13 +42,13 @@ class MerchantOnboarding
     public const STEPS = ['welcome', 'no_product', 'first_products', 'first_live', 'trial_end'];
 
     public const TEXTS = [
-        'welcome' => "Bienvenue sur Jibiat Marchand, {prenom} ! 🎉\n\nVotre boutique *{boutique}* est prête : {lien_boutique}\n{essai}\n\nPour bien démarrer, ajoutez votre premier produit avec une photo : 2 minutes suffisent.\n👉 {lien_produit}\n\nUne question ? Répondez simplement à ce message, on vous aide ici.",
-        'welcome_premium' => "Bienvenue parmi les membres Premium, {prenom} ! 🏅\n\nVotre carte *n° {numero_carte}* est activée : offre *{offre}*. Votre boutique : {lien_boutique}\n\nPour bien démarrer, ajoutez votre premier produit : {lien_produit}",
-        'welcome_partner' => "Bienvenue, {prenom} ! *{entreprise}* vous a invité sur Jibiat Marchand 🚚\n\n{essai} Vos commandes partent directement chez {entreprise} en un clic.\n👉 Ajoutez votre premier produit : {lien_produit}",
-        'no_product' => "{prenom}, votre boutique attend son premier produit 🛍️\n\nPrenez une photo, donnez un prix : c'est en ligne tout de suite, et vos clients peuvent commander sur WhatsApp.\n👉 {lien_produit}\n\nPetite vidéo pour vous guider : {lien_video}",
-        'first_products' => "Bravo {prenom}, {nb_produits} déjà dans votre boutique 👏\n\nProchaine étape : *vendre en live*.\n« Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes. »\nVos clients écrivent le code de l'article (A1, A2…) sur WhatsApp, et la commande s'enregistre toute seule.\n👉 Préparez votre premier live : {lien_live}\n\nÉcrivez *live* ici pour savoir comment ça marche.",
-        'first_live' => "Bravo {prenom} pour votre premier live ! 🎉\n\n*{nb_commandes}* enregistrée(s) par Jibiat Marchand.\nLe bilan : {lien_bilan}\n\nUne question, un souci ? Écrivez *aide* : on vous répond ici.",
-        'trial_end' => "Bonjour {prenom}, votre essai {offre_essai} de *{boutique}* se termine le *{date_fin}*.\n\nPour garder toutes les fonctions, choisissez votre offre, à partir de {prix}, payable par Wave ou Orange Money.\n👉 {lien_abonnement}\n\nSinon, votre boutique passe à l'offre Gratuit, sans rien perdre.",
+        'welcome' => "Bienvenue sur Jibiat Marchand, {prenom} ! 🎉\n\nTa boutique *{boutique}* est prête : {lien_boutique}\n{essai}\n\nPour bien démarrer, ajoute ton premier produit avec une photo : 2 minutes suffisent.\n👉 {lien_produit}\n\nUne question ? Réponds simplement à ce message, on t'aide ici.",
+        'welcome_premium' => "Bienvenue parmi les membres Premium, {prenom} ! 🏅\n\nTa carte *n° {numero_carte}* est activée : offre *{offre}*. Ta boutique : {lien_boutique}\n\nPour bien démarrer, ajoute ton premier produit : {lien_produit}",
+        'welcome_partner' => "Bienvenue, {prenom} ! *{entreprise}* t'a invité sur Jibiat Marchand 🚚\n\n{essai} Tes commandes partent directement chez {entreprise} en un clic.\n👉 Ajoute ton premier produit : {lien_produit}",
+        'no_product' => "{prenom}, ta boutique attend son premier produit 🛍️\n\nPrends une photo, donne un prix : c'est en ligne tout de suite, et tes clients peuvent commander sur WhatsApp.\n👉 {lien_produit}\n\nPetite vidéo pour te guider : {lien_video}",
+        'first_products' => "Bravo {prenom}, {nb_produits} déjà dans ta boutique 👏\n\nProchaine étape : *vendre en live*.\n« Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes. »\nTes clients écrivent le code de l'article (A1, A2…) sur WhatsApp, et la commande s'enregistre toute seule.\n👉 Prépare ton premier live : {lien_live}\n\nÉcris *live* ici pour savoir comment ça marche.",
+        'first_live' => "Bravo {prenom} pour ton premier live ! 🎉\n\n*{nb_commandes}* enregistrée(s) par Jibiat Marchand.\nLe bilan : {lien_bilan}\n\nUne question, un souci ? Écris *aide* : on te répond ici.",
+        'trial_end' => "Bonjour {prenom}, ton essai {offre_essai} de *{boutique}* se termine le *{date_fin}*.\n\nPour garder toutes les fonctions, choisis ton offre, à partir de {prix}, payable par Wave ou Orange Money.\n👉 {lien_abonnement}\n\nSinon, ta boutique passe à l'offre Gratuit, sans rien perdre.",
     ];
 
     /**
@@ -62,7 +62,7 @@ class MerchantOnboarding
         'example' => ['Awa', 'Awa Mode', '15 novembre', '1 500 F par semaine', 'https://awa-mode.jibiat-marchand.com/gestion/abonnement'],
     ];
 
-    public const STOP_REPLY = 'C\'est noté : vous ne recevrez plus nos messages automatiques. Écrivez START pour les réactiver. Vous pouvez toujours nous écrire ici.';
+    public const STOP_REPLY = 'C\'est noté : tu ne recevras plus nos messages automatiques. Écris START pour les réactiver. Tu peux toujours nous écrire ici.';
 
     public const START_REPLY = 'C\'est noté : les messages automatiques de Jibiat Marchand sont réactivés.';
 
@@ -341,9 +341,9 @@ class MerchantOnboarding
             'lien_produit' => $store->url('/gestion/catalogue/nouveau'),
             'lien_live' => $store->url('/gestion/live'),
             'lien_abonnement' => $store->url('/gestion/abonnement'),
-            'lien_video' => Tenancy::platformUrl('/videos/etapes/etape-06.mp4'),
+            'lien_video' => Tenancy::platformUrl('/video/etapes/etape-06'),
             'nb_produits' => $products.' produit'.($products > 1 ? 's' : ''),
-            'essai' => $trialing ? 'Vous avez *'.TrialOffer::duration($trialDays).' de l\'offre '.$sub->plan->name.' offert*, sans carte bancaire.' : '',
+            'essai' => $trialing ? 'Tu as *'.TrialOffer::duration($trialDays).' de l\'offre '.$sub->plan->name.' offert*, sans carte bancaire.' : '',
             'offre_essai' => $trialing ? $sub->plan->name : '',
             'date_fin' => $trialing ? $sub->trial_ends_at->locale('fr')->isoFormat('D MMMM') : '',
             'prix' => $weekly ? $money((int) $weekly).' par semaine' : ($monthly ? $money((int) $monthly).' par mois' : 'quelques francs'),
@@ -359,7 +359,7 @@ class MerchantOnboarding
             return '';
         }
 
-        return rescue(fn () => app(CarrierDirectory::class)->find($slug)['name'] ?? null, null, false) ?? 'Votre entreprise de livraison';
+        return rescue(fn () => app(CarrierDirectory::class)->find($slug)['name'] ?? null, null, false) ?? 'Ton entreprise de livraison';
     }
 
     /**

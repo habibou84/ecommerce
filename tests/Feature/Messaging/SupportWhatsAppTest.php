@@ -85,6 +85,9 @@ class SupportWhatsAppTest extends TestCase
         Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/9001/messages') && $r['to'] === '2250708091011' && $r->hasHeader('Authorization', 'Bearer support-token'));
         $this->webhook(['statuses' => [['id' => 'wamid.reponse', 'status' => 'read']]])->assertOk();
         $this->console('GET', "whatsapp/conversations/{$id}")->assertJsonPath('data.messages.2.status', 'read');
+        // La réponse de l'équipe met le robot d'inscription en pause ; la console lui rend la main
+        $this->console('GET', "whatsapp/conversations/{$id}")->assertJsonPath('data.robot_paused', true);
+        $this->console('POST', "whatsapp/conversations/{$id}/robot")->assertOk()->assertJsonPath('data.robot_paused', false);
 
         // Plus de 24 h après le dernier message du client : réponse depuis le téléphone seulement
         SupportConversation::find($id)->update(['last_inbound_at' => now()->subDays(2)]);

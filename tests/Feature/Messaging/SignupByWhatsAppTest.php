@@ -11,12 +11,14 @@ use App\Models\Store;
 use App\Models\SupportConversation;
 use App\Models\User;
 use App\Models\WhatsappSignup;
+use App\Notifications\SupportHelpRequested;
 use App\Services\Ai\AiClient;
 use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\SignupByWhatsApp;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\FakeAiClient;
@@ -263,21 +265,30 @@ class SignupByWhatsAppTest extends TestCase
         $this->say('Me connecter', 'su:login', $phone);
         $this->assertStringContainsString('awa.localhost/auth/relais?jeton=', $this->last()['text']);
 
-        // « aide » : l'équipe prend la main, le robot se tait, la conversation passe en tête dans la console
+        // « aide » : l'équipe prend la main, le robot se tait, la conversation passe en tête dans la console et l'équipe
+        // est prévenue tout de suite (téléphone, e-mail)
+        $admin = User::factory()->create(['phone' => '+2250701010101', 'email' => 'equipe@jibiat.com']);
+        $admin->forceFill(['is_super_admin' => true])->save();
+        Notification::fake();
         $this->say('inscription');
         $count = count($this->sent);
         $this->say('aide');
         $this->assertStringContainsString('te répond ici très vite', $this->last()['text']);
         $this->assertNotNull(SupportConversation::where('contact', '+2250708091011')->value('help_requested_at'));
+        Notification::assertSentTo($admin, SupportHelpRequested::class, fn (SupportHelpRequested $n) => str_contains($n->toArray($admin)['body'], 'aide'));
         $this->say('oui');
         $this->assertCount($count + 1, $this->sent);
 
-        // Après la pause : la conversation reprend où elle était
+        // Le robot ne reprend pas tout seul, même des heures après…
         $this->travel(7)->hours();
+        $this->say('oui');
+        $this->assertCount($count + 1, $this->sent);
+        // … mais quand la console lui rend la main
+        app(SignupByWhatsApp::class)->resume('+2250708091011');
         $this->say('oui');
         $this->assertStringContainsString('nom de ta boutique', $this->last()['text']);
 
-        // Réponse faite depuis le téléphone (WhatsApp Business) : pause de 6 h
+        // Réponse faite depuis le téléphone (WhatsApp Business) : le robot se met en pause
         $this->webhook(['message_echoes' => [['from' => '2250507016739', 'to' => '2250708091011', 'id' => 'wamid.tel', 'timestamp' => (string) now()->timestamp, 'type' => 'text', 'text' => ['body' => 'Je t\'aide']]]]);
         $count = count($this->sent);
         $this->say('Awa Mode');
@@ -336,7 +347,9 @@ class SignupByWhatsAppTest extends TestCase
         $phone = ltrim($store->owner->phone, '+');
         $this->say('live', from: $phone);
         $this->assertStringContainsString('Toi, tu fais ton live sur TikTok', $this->sent[count($this->sent) - 2]['text']['body']);
-        $this->assertStringContainsString('comment-ca-marche-v.mp4', $this->sent[count($this->sent) - 2]['text']['body']);
+        $this->assertStringContainsString('/video/live/comment-ca-marche-v', $this->sent[count($this->sent) - 2]['text']['body']);
+        $this->get($this->platformUrl('/video/live/comment-ca-marche-v'))->assertOk()->assertSee('/videos/live/comment-ca-marche-v.mp4', false);
+        $this->get($this->platformUrl('/video/live/..%2F..%2Fenv'))->assertNotFound();
         $this->assertSame(['lv:link', 'lv:wa', 'su:help'], $this->last()['buttons']);
         $this->say('Connecter WhatsApp', 'lv:wa', $phone);
         $this->assertStringContainsString('WhatsApp Business', $this->last()['text']);
