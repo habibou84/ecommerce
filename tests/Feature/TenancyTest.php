@@ -30,7 +30,7 @@ class TenancyTest extends TestCase
             ->assertSee('/videos/live/probleme-solution-v.mp4', false)
             ->assertSee('/videos/live/comment-ca-marche-v.mp4', false)
             ->assertSee('/videos/og-marchand.jpg', false)
-            ->assertSee('https://wa.me/2250507016739?text=', false)
+            ->assertSee('https://wa.me/2250703686876?text=', false)
             ->assertSee('"@type":"FAQPage"', false)
             ->assertDontSee('Essai gratuit');
     }
