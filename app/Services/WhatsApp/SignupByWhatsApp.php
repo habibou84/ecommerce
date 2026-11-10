@@ -35,12 +35,14 @@ use Throwable;
  * mot de passe. Puis la photo d'un article devient sa première fiche produit (IA).
  *
  * Aussi : « live » (premier live expliqué), « aide » (l'équipe prend la main). Un humain qui répond (console ou
- * téléphone) met le robot en pause 6 heures pour cette personne ; « Inscription » le relance. Une relance si la
+ * téléphone) met le robot en pause pour cette personne, jusqu'à « Inscription » ou « Rendre la main au robot » dans la
+ * console. Une relance si la
  * personne s'arrête en route (3 h après, une fois).
  */
 class SignupByWhatsApp
 {
-    public const PAUSE_HOURS = 6;
+    /** Pause du robot quand un humain s'en occupe : levée par « Inscription » ou par la console */
+    public const PAUSE_DAYS = 30;
 
     public const REMIND_AFTER_HOURS = 3;
 
@@ -175,13 +177,14 @@ class SignupByWhatsApp
     }
 
     /**
-     * Un humain a répondu à cette personne (console ou téléphone) : le robot se tait pendant 6 heures.
+     * Un humain a répondu à cette personne (console ou téléphone) : le robot se tait (il ne reprend pas tout seul au
+     * milieu de la discussion), jusqu'à « Inscription » ou « Rendre la main au robot » dans la console.
      */
     public function pause(string $contact): void
     {
         $phone = PhoneNumber::modernize($contact);
         if ($phone !== null) {
-            WhatsappSignup::updateOrCreate(['phone' => $phone], ['paused_until' => now()->addHours(self::PAUSE_HOURS)]);
+            WhatsappSignup::updateOrCreate(['phone' => $phone], ['paused_until' => now()->addDays(self::PAUSE_DAYS)]);
         }
     }
 
@@ -349,8 +352,8 @@ class SignupByWhatsApp
         match ($step) {
             'existing' => $this->choices($signup, 'Touche *Me connecter* pour recevoir ton lien de connexion à ta boutique.', ['su:login' => 'Me connecter']),
             'confirm' => $this->choices($signup, 'Tu veux créer ta boutique avec ce numéro : *'.PhoneNumber::display($signup->phone).'* ?', ['su:yes' => '✅ Oui', 'su:other' => 'Autre numéro']),
-            'name' => $this->say($signup->phone, "Super ! Quel est le *nom de ta boutique* ?\n_Exemple : Awa Mode_"),
-            'first_name' => $this->say($signup->phone, 'Joli nom ! Et *ton prénom* ?'),
+            'name' => $this->say($signup->phone, (($signup->data['misses'] ?? 0) > 0 || isset($signup->data['store_name']) ? '' : 'Super ! ')."Quel est le *nom de ta boutique* ?\n_Exemple : Awa Mode_"),
+            'first_name' => $this->say($signup->phone, (($signup->data['misses'] ?? 0) > 0 ? 'Et ' : 'Joli nom ! Et ').'*ton prénom* ?'),
             'live' => $this->choices($signup, 'Dernière question : tu vends en *live sur TikTok* ?', ['su:live-yes' => 'Oui, en live', 'su:live-no' => 'Pas encore']),
             'recap' => $this->choices($signup, "Je vérifie avec toi :\n\n🏪 *{$data['store_name']}*\n🔗 ".self::host($this->slugFor($data['store_name'] ?? ''))."\n👤 "
                 .($data['first_name'] ?? self::firstName((string) User::where('phone', $signup->phone)->value('name'))).' · '.PhoneNumber::display($signup->phone)
@@ -493,9 +496,10 @@ class SignupByWhatsApp
 
     private function help(WhatsappSignup $signup): bool
     {
-        $signup->forceFill(['paused_until' => now()->addHours(self::PAUSE_HOURS)])->save();
+        $signup->forceFill(['paused_until' => now()->addDays(self::PAUSE_DAYS)])->save();
         SupportConversation::whereIn('contact', array_unique([$signup->phone, $this->contact($signup->phone)]))->update(['help_requested_at' => now()]);
         $this->say($signup->phone, 'C\'est noté 🙏 Quelqu\'un de l\'équipe Jibiat Marchand te répond ici très vite.');
+        app(SupportAlerts::class)->helpRequested($this->contact($signup->phone), 'A écrit « aide » (étape : '.$this->stepLabel($signup->step).').');
 
         return true;
     }
@@ -513,7 +517,7 @@ class SignupByWhatsApp
             return true;
         }
         $this->say($phone, self::KEY_PHRASE."\n\nTon premier live en 3 étapes :\n1️⃣ Connecte ton WhatsApp Business (une fois)\n2️⃣ Choisis tes articles : chacun reçoit un code (A1, A2…)\n3️⃣ Ouvre les commandes et lance ton live sur TikTok : tes clients écrivent le code, la commande est enregistrée\n\n🎬 La vidéo (1 min) : "
-            .Tenancy::platformUrl('/videos/live/comment-ca-marche-v.mp4'));
+            .Tenancy::platformUrl('/video/live/comment-ca-marche-v'));
         $this->choices($this->signupRow($phone), 'Je t\'envoie le lien pour préparer ton live ?', ['lv:link' => 'Préparer mon live', 'lv:wa' => 'Connecter WhatsApp', 'su:help' => 'Je veux de l\'aide']);
 
         return true;
@@ -704,9 +708,29 @@ class SignupByWhatsApp
         }
         $this->put($signup, ['misses' => 0]);
         $this->say($signup->phone, 'Je passe la main à un conseiller : il te répond ici très vite 🙂');
-        $signup->forceFill(['paused_until' => now()->addHours(self::PAUSE_HOURS)])->save();
+        app(SupportAlerts::class)->helpRequested($this->contact($signup->phone), 'Le robot n\'a pas compris 3 réponses de suite (étape : '.$this->stepLabel($signup->step).').');
+        $signup->forceFill(['paused_until' => now()->addDays(self::PAUSE_DAYS)])->save();
 
         return true;
+    }
+
+    /** Étape de l'inscription, en clair pour l'équipe */
+    private function stepLabel(?string $step): string
+    {
+        return match ($step) {
+            'confirm' => 'confirmation du numéro', 'name' => 'nom de la boutique', 'first_name' => 'prénom', 'live' => 'vend en live ?',
+            'recap' => 'récapitulatif', 'existing' => 'déjà inscrit', 'photo' => 'photo du premier article', 'done' => 'boutique créée',
+            default => 'hors inscription',
+        };
+    }
+
+    /** La console rend la main au robot pour cette personne */
+    public function resume(string $contact): void
+    {
+        $phone = PhoneNumber::modernize($contact);
+        if ($phone !== null) {
+            WhatsappSignup::where('phone', $phone)->update(['paused_until' => null]);
+        }
     }
 
     private function sayTrue(WhatsappSignup $signup, string $text): bool

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAction;
 use App\Models\SupportConversation;
 use App\Models\SupportMessage;
+use App\Models\WhatsappSignup;
 use App\Services\WhatsApp\MerchantCatchUp;
 use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\PlatformWhatsApp;
@@ -193,6 +194,16 @@ class ConsoleWhatsAppController extends Controller
         return response()->json(['data' => $this->message($message->load('user:id,name'))], 201);
     }
 
+    /** « Rendre la main au robot » : l'inscription par WhatsApp reprend pour cette personne */
+    public function resumeRobot(int $conversation, SignupByWhatsApp $signups): JsonResponse
+    {
+        $model = SupportConversation::findOrFail($conversation);
+        $signups->resume($model->contact);
+        $model->forceFill(['help_requested_at' => null])->save();
+
+        return $this->messages($conversation);
+    }
+
     private function conversation(SupportConversation $c): array
     {
         return [
@@ -202,6 +213,8 @@ class ConsoleWhatsAppController extends Controller
             'unread_count' => $c->unread_count, 'can_reply' => $this->whatsapp->isQr() || $c->canReply(),
             // « aide » tapé par la personne (inscription, live) : en attente d'un humain jusqu'à la réponse
             'help_requested' => $c->help_requested_at !== null,
+            // Robot d'inscription en pause pour cette personne (un humain s'en occupe)
+            'robot_paused' => WhatsappSignup::where('phone', PhoneNumber::modernize($c->contact))->where('paused_until', '>', now())->exists(),
         ];
     }
 
