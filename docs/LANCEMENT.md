@@ -29,7 +29,7 @@ Voir `.env.example`. Les indispensables en production :
 - Abonnements : `BILLING_PROVIDER` et les clés du compte **de la plateforme** chez Wave, CinetPay ou PayDunya (`BILLING_*`). Adresse de notification à déclarer chez le prestataire : `https://api.jibiat-marchand.com/webhooks/billing`.
 - Domaines personnalisés : `CUSTOM_DOMAIN_CNAME=domaines.jibiat-marchand.com` et `CUSTOM_DOMAIN_IPS` (adresse IP publique du serveur, pour les domaines nus).
 - Supervision : `SENTRY_LARAVEL_DSN`.
-- Support : `SUPPORT_WHATSAPP` (numéro de l'équipe pour le bouton « Aide »).
+- Support : `SUPPORT_WHATSAPP_NUMBER` (numéro de l'équipe pour le bouton « Aide »).
 - Pages légales : `LEGAL_COMPANY` (raison sociale, RCCM, adresse) et `LEGAL_PRIVACY_EMAIL`.
 
 ### DNS (Cloudflare conseillé)
