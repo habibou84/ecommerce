@@ -154,6 +154,34 @@ class SignupByWhatsAppTest extends TestCase
         $this->assertSame('confirm', $signup()->step);
     }
 
+    public function test_numbers_outside_ivory_coast_cannot_sign_up(): void
+    {
+        $this->say('Inscription', from: '33612345678');
+        $this->assertStringContainsString('réservé aux numéros de Côte d\'Ivoire', $this->last()['text']);
+        $this->assertSame(0, WhatsappSignup::count());
+        // Une seule réponse : ensuite le robot laisse la personne à l'équipe
+        $sent = count($this->sent);
+        $this->say('Inscription', from: '33612345678');
+        $this->say('Bonjour ?', from: '33612345678');
+        $this->assertCount($sent, $this->sent);
+        // Ses trois messages restent dans la console, pour l'équipe
+        $this->assertSame(3, SupportConversation::where('contact', '+33612345678')->sole()->messages()->where('direction', 'in')->count());
+    }
+
+    public function test_a_video_instead_of_the_photo_gets_a_clear_and_different_answer(): void
+    {
+        $store = $this->createStore(['slug' => 'awa']);
+        WhatsappSignup::create(['phone' => '+2250708091011', 'step' => 'photo', 'store_id' => $store->id]);
+
+        $this->sendKind('video');
+        $this->assertStringContainsString('J\'ai reçu une vidéo, mais il me faut une *photo*', $this->last()['text']);
+        $this->sendKind('video');
+        $this->assertStringContainsString('Si c\'est compliqué, écris *plus tard*', $this->last()['text']);
+        $this->sendKind('video');
+        $this->assertStringContainsString('Je passe la main à un conseiller', $this->last()['text']);
+        $this->assertTrue(WhatsappSignup::where('phone', '+2250708091011')->sole()->paused());
+    }
+
     public function test_a_shop_is_created_from_whatsapp_with_a_login_link_and_a_first_product_from_a_photo(): void
     {
         Queue::fake();
