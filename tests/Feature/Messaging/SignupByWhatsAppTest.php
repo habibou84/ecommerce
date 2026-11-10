@@ -211,7 +211,8 @@ class SignupByWhatsAppTest extends TestCase
         $store = $this->createStore(['slug' => 'awa']);
         $signup = WhatsappSignup::create(['phone' => $store->owner->phone, 'step' => 'done', 'store_id' => $store->id]);
 
-        app(SignupByWhatsApp::class)->draftProduct($signup->fresh(), 'media-1');
+        // Comme en production : par la tâche en file d'attente (elle plantait avant d'arriver à la fiche)
+        (new DraftSignupProduct($signup->id, 'media-1'))->handle(app(SignupByWhatsApp::class));
 
         $product = Product::forStore($store->id)->latest('id')->firstOrFail();
         $this->assertSame('Robe wax longue', $product->title);
