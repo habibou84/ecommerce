@@ -427,6 +427,15 @@ class SignupByWhatsApp
     /**
      * Fiche produit préparée par l'IA depuis la photo reçue (tâche en file : la photo est lue chez Meta).
      */
+    /** Photo illisible ou fiche impossible à préparer : lien pour ajouter l'article soi-même */
+    public function photoFailed(WhatsappSignup $signup): void
+    {
+        if ($signup->store === null) {
+            return;
+        }
+        $this->say($signup->phone, 'Je n\'ai pas pu préparer la fiche avec cette photo. Ajoute ton article ici : '.$signup->store->url('/gestion/catalogue/nouveau'));
+    }
+
     public function draftProduct(WhatsappSignup $signup, string $mediaId): void
     {
         $store = $signup->store;
@@ -434,8 +443,8 @@ class SignupByWhatsApp
         if ($store === null || $owner === null) {
             return;
         }
-        $bytes = $this->whatsapp->media($mediaId);
-        $fallback = fn () => $this->say($signup->phone, 'Je n\'ai pas pu lire la photo. Ajoute ton article ici : '.$store->url('/gestion/catalogue/nouveau'));
+        $bytes = rescue(fn () => $this->whatsapp->media($mediaId), report: true);
+        $fallback = fn () => $this->photoFailed($signup);
         if ($bytes === null) {
             $fallback();
 
@@ -444,7 +453,8 @@ class SignupByWhatsApp
 
         try {
             $product = app(ProductDrafter::class)->createFromPhoto($store, $owner, $bytes);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            report($e);
             $fallback();
 
             return;
