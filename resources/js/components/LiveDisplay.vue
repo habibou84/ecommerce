@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { play, setMusic, setMuted } from '../lib/liveSounds'
 
 /**
  * Affichage du live pour un écran filmé (télé, tablette), TikTok LIVE Studio ou le partage d'écran : l'article
@@ -35,6 +36,8 @@ onUnmounted(() => {
   clearInterval(tick)
   clearTimeout(partyTimer)
   clearInterval(second)
+  clearTimers()
+  setMusic(false)
 })
 
 // Trois mises en page : paysage (télé, ordinateur), carré (TikTok LIVE Studio, OBS, PRISM en 720 × 640) et
@@ -124,15 +127,149 @@ const others = computed(() => (shown.value?.options ?? []).slice(1))
 const sizeNote = (v) => (v.remaining === 0 ? 'épuisé' : v.remaining === 1 ? 'dernière' : `${v.remaining} pièces`)
 const stockWidth = (i) => `${Math.max(6, Math.min(100, Math.round((100 * i.remaining) / Math.max(1, i.quantity))))}%`
 
+
+// ═══ Show du live : sons, entrée des articles, enchaînements, urgence, moments lancés depuis le téléphone ═══
+// Tout est déduit de ce que l'écran reçoit déjà toutes les 2 secondes : rien de plus n'est demandé au serveur.
+const show = computed(() => live.value?.show ?? null)
+const settings = computed(() => show.value?.settings ?? { theme: 'fete', sound: true, music: false, light: false, goal: null })
+const lightMode = computed(() => !!settings.value.light)
+watch(() => [settings.value.sound, settings.value.music, props.effects], () => {
+  setMuted(!settings.value.sound || !props.effects)
+  setMusic(!!settings.value.music && !!settings.value.sound && props.effects)
+}, { immediate: true })
+
+// Article qui arrive : projecteur, souffle puis impact
+const spotKey = ref(0)
+watch(() => shown.value?.id, (id, before) => {
+  if (!props.effects || id === undefined || before === undefined || id === before) return
+  spotKey.value += 1
+  play('whoosh')
+  setTimeout(() => play('impact'), 380)
+})
+
+// Commandes à la suite : « 🔥 3 commandes d'affilée ! » (dans la minute)
+const combo = ref(0)
+let comboTimes = []
+let comboTimer
+watch(() => (live.value ? live.value.ticker?.[0]?.id ?? 0 : undefined), (id, before) => {
+  if (!props.effects || id === undefined || before === undefined || id <= before) return
+  play('ding')
+  const t = Date.now()
+  // Plusieurs pièces prises entre deux questions de l'écran : chacune compte
+  const fresh = Math.max(1, (live.value.ticker ?? []).filter((x) => x.id > before).length)
+  comboTimes = [...comboTimes.filter((x) => t - x < 60000), ...Array(fresh).fill(t)]
+  combo.value = comboTimes.length
+  if (combo.value >= 3) setTimeout(() => play('pop'), 300)
+  clearTimeout(comboTimer)
+  comboTimer = setTimeout(() => (combo.value = 0), 6000)
+})
+
+// Urgence : « Plus que 2 » (battement de cœur), puis épuisé (tampon)
+watch(() => [shown.value?.id, shown.value?.remaining], ([id, n], [beforeId, was]) => {
+  if (!props.effects || id !== beforeId || n === undefined || was === undefined || n >= was) return
+  if (n === 0) play('stamp')
+  else if (n <= 2) { play('beat'); setTimeout(() => play('beat'), 700) }
+})
+
+// Vente flash : fanfare au départ, tic-tac les 10 dernières secondes, sirène à la fin
+watch(flashLeft, (n, was) => {
+  if (!props.effects) return
+  if (was === 0 && n > 0) play('fanfare')
+  else if (n > 0 && n <= 10 && n < was) play('tick')
+  else if (n === 0 && was > 0) play('buzzer')
+})
+
+// Moments lancés depuis le téléphone : montrés une seule fois, dans les 20 secondes
+const moment = ref(null)
+const countN = ref(0)
+const wheelCanvas = ref(null)
+const wheelTurn = ref(0)
+const wheelDone = ref(false)
+const goalShown = ref(0)
+let seen = null
+let timers = []
+const later = (fn, ms) => timers.push(setTimeout(fn, ms))
+function clearTimers() { timers.forEach(clearTimeout); timers = [] }
+watch(() => show.value?.event?.id, (id) => {
+  if (!props.effects || !id) return
+  if (seen === null) { seen = id; if (Date.now() - id > 20000) return }
+  if (id < seen || (id === seen && moment.value)) return
+  seen = id
+  if (Date.now() - id > 20000) return
+  start(show.value.event)
+}, { immediate: true })
+function finish(ms) { later(() => (moment.value = null), ms) }
+function start(event) {
+  clearTimers()
+  moment.value = { ...event }
+  if (event.type === 'countdown') {
+    countN.value = 3
+    play('count')
+    later(() => { countN.value = 2; play('count') }, 900)
+    later(() => { countN.value = 1; play('count') }, 1800)
+    later(() => { play('go'); moment.value = null }, 2700)
+  } else if (event.type === 'party') {
+    play('fanfare')
+    party.value = { key: event.id, text: 'Merci pour vos commandes ! 🙏' }
+    clearTimeout(partyTimer)
+    partyTimer = setTimeout(() => (party.value = null), 4500)
+    finish(4500)
+  } else if (event.type === 'goal') {
+    goalShown.value = 0
+    play('whoosh')
+    later(() => (goalShown.value = Math.min(1, (live.value?.orders ?? 0) / Math.max(1, event.data.goal))), 300)
+    if ((live.value?.orders ?? 0) >= event.data.goal) later(() => play('fanfare'), 2200)
+    finish(8000)
+  } else if (event.type === 'match') {
+    play('whoosh')
+    later(() => play('pop'), 900)
+    finish(8000)
+  } else if (event.type === 'wheel') {
+    wheelTurn.value = 0
+    wheelDone.value = false
+    nextTick(drawWheel)
+    const slots = event.data.slots.length
+    later(() => (wheelTurn.value = 6 * 360 + (360 - (event.data.winner + 0.5) * (360 / slots))), 100)
+    let delay = 40
+    let total = 0
+    const clack = () => { play('wheel'); total += delay; delay *= 1.09; if (total < 5000) later(clack, delay) }
+    clack()
+    later(() => { wheelDone.value = true; play('fanfare') }, 5400)
+    finish(12000)
+  }
+}
+const WHEEL_COLORS = ['#facc15', '#f43f5e', '#22c55e', '#38bdf8', '#fb923c', '#a78bfa']
+function drawWheel() {
+  const c = wheelCanvas.value
+  if (!c || !moment.value?.data?.slots) return
+  const g = c.getContext('2d')
+  const slots = moment.value.data.slots
+  const seg = (Math.PI * 2) / slots.length
+  g.clearRect(0, 0, 600, 600)
+  slots.forEach((label, i) => {
+    g.beginPath(); g.moveTo(300, 300); g.arc(300, 300, 290, i * seg - Math.PI / 2, (i + 1) * seg - Math.PI / 2); g.closePath()
+    g.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length]; g.fill(); g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 4; g.stroke()
+    g.save(); g.translate(300, 300); g.rotate((i + 0.5) * seg - Math.PI / 2); g.textAlign = 'right'; g.fillStyle = '#0f172a'
+    g.font = `800 ${slots.length > 8 ? 22 : 28}px system-ui, sans-serif`; g.fillText(label, 270, 9); g.restore()
+  })
+}
+const wheelWinner = computed(() => (moment.value?.type === 'wheel' ? moment.value.data.slots[moment.value.data.winner] : ''))
+const quarterRows = computed(() => {
+  const rows = show.value?.quarters ?? []
+  const max = Math.max(1, ...rows.map((r) => r.orders))
+  return rows.map((r) => ({ ...r, width: `${Math.round((r.orders / max) * 100)}%` }))
+})
+const goal = computed(() => moment.value?.type === 'goal' ? moment.value.data.goal : settings.value.goal)
+
 const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.code}` : 'Épuisé') : i.remaining === 1 ? '🔥 Dernière pièce !' : i.remaining <= 3 ? `🔥 Plus que ${i.remaining} !` : `${i.remaining} pièces`)
 </script>
 
 <template>
-  <div ref="root" class="live-display" :class="[`is-${layout}`, { fx: effects }]" :style="{ fontSize: `${fontSize}px` }">
+  <div ref="root" class="live-display" :class="[`is-${layout}`, `th-${settings.theme}`, { fx: effects, 'is-light': lightMode }]" :style="{ fontSize: `${fontSize}px` }">
     <!-- Fond qui bouge doucement, avec quelques étincelles -->
     <template v-if="effects">
       <div class="ld-bg" aria-hidden="true" />
-      <i v-for="sp in sparks" :key="sp.i" class="ld-spark" :style="sp.style" aria-hidden="true" />
+      <template v-if="!lightMode"><i v-for="sp in sparks" :key="sp.i" class="ld-spark" :style="sp.style" aria-hidden="true" /></template>
     </template>
     <div class="ld-stage" :style="{ bottom: `${freeBottom * 100}%` }">
       <!-- Comment commander (entre deux articles, ou avant le live) : le QR code en très grand -->
@@ -219,9 +356,42 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
         <p v-if="!showHow && !showGrid" class="ld-mini-ticker">{{ ticker }}</p>
       </template>
 
+      <!-- Show : projecteur quand un article arrive, enchaînement de commandes, objectif en cours -->
+      <div v-if="effects && spotKey" :key="`s${spotKey}`" class="ld-spot" aria-hidden="true" />
+      <p v-if="effects && combo >= 2" :key="`k${combo}`" class="ld-combo">🔥 {{ combo }} commandes d'affilée !</p>
+      <p v-if="effects && settings.goal && !moment" class="ld-goal-mini">🎯 {{ live?.orders ?? 0 }} / {{ settings.goal }}</p>
+
+      <!-- Moments lancés depuis le téléphone -->
+      <div v-if="moment && moment.type !== 'party'" class="ld-moment">
+        <template v-if="moment.type === 'countdown'">
+          <p class="ld-kicker">Article vedette dans…</p>
+          <p :key="countN" class="ld-count-big">{{ countN }}</p>
+        </template>
+        <div v-else-if="moment.type === 'goal'" class="ld-goal">
+          <p class="ld-kicker">Objectif du live</p>
+          <h2>🎯 {{ goal }} commandes</h2>
+          <div class="ld-goal-bar"><b :style="{ transform: `scaleX(${goalShown})` }" /></div>
+          <p class="ld-goal-num">{{ live?.orders ?? 0 }} <small>/ {{ goal }}{{ (live?.orders ?? 0) >= goal ? ' · objectif atteint ! 🎉' : '' }}</small></p>
+        </div>
+        <div v-else-if="moment.type === 'match'" class="ld-match">
+          <p class="ld-kicker">Quel quartier va gagner ?</p>
+          <h2>🏆 Le match des quartiers</h2>
+          <p v-if="!quarterRows.length" class="ld-kicker">Envoie ton code pour faire gagner ton quartier !</p>
+          <div v-for="(r, i) in quarterRows" :key="r.name" class="ld-row" :style="{ animationDelay: `${i * 0.15}s` }">
+            <span>{{ r.name }}</span><div class="ld-track"><b :style="{ width: r.width, animationDelay: `${0.3 + i * 0.15}s` }" /></div><strong>{{ r.orders }}</strong>
+          </div>
+        </div>
+        <div v-else-if="moment.type === 'wheel'" class="ld-wheelbox">
+          <p class="ld-kicker">Parmi les acheteurs du live</p>
+          <h2>🎡 La roue de la chance</h2>
+          <div class="ld-wheel"><canvas ref="wheelCanvas" width="600" height="600" :style="{ transform: `rotate(${wheelTurn}deg)` }" /></div>
+          <p v-if="wheelDone" class="ld-winner">🎁 Gagné : l'acheteuse de {{ wheelWinner }} ! La boutique te contacte.</p>
+        </div>
+      </div>
+
       <!-- Pièce prise : confettis et carte qui glisse -->
       <template v-if="party">
-        <div :key="`c${party.key}`" class="ld-party" aria-hidden="true"><i v-for="c in confetti" :key="c.i" :style="c.style" /></div>
+        <div :key="`c${party.key}`" class="ld-party" aria-hidden="true"><i v-for="c in (lightMode ? confetti.slice(0, 12) : confetti)" :key="c.i" :style="c.style" /></div>
         <p :key="`t${party.key}`" class="ld-toast">🎉 {{ party.text }}</p>
       </template>
     </div>
@@ -229,6 +399,42 @@ const left = (i) => (i.remaining === 0 ? (i.waiting ? `Liste d'attente : ${i.cod
 </template>
 
 <style scoped>
+
+/* ── Show : thèmes, projecteur, enchaînements, moments ── */
+.th-wax .ld-bg { background: linear-gradient(120deg, #1c0a03 20%, #7c2d12 42%, #b45309 58%, #1c0a03 80%); }
+.th-neon .ld-bg { background: linear-gradient(120deg, #020617 20%, #0e7490 42%, #a21caf 58%, #020617 80%); }
+.th-luxe .ld-bg { background: linear-gradient(120deg, #0a0a0a 20%, #3f3420 45%, #6b5a2e 58%, #0a0a0a 80%); }
+.is-light .ld-bg { animation: none; }
+.ld-spot { position: absolute; inset: 0; z-index: 7; pointer-events: none; background: radial-gradient(circle 18em at 50% 45%, rgba(255, 255, 255, .35), transparent 65%); mix-blend-mode: screen; animation: ld-sweep 1.1s ease-in-out forwards; }
+@keyframes ld-sweep { 0% { transform: translateX(-70%); opacity: 0 } 20% { opacity: 1 } 100% { transform: translateX(70%); opacity: 0 } }
+.ld-combo { position: absolute; left: 50%; top: .6em; z-index: 8; transform: translateX(-50%); white-space: nowrap; font-size: 2.6em; font-weight: 900; color: #facc15; text-shadow: 0 .06em 0 rgba(0, 0, 0, .5); animation: ld-pop .5s cubic-bezier(.2, 1.6, .4, 1) both; }
+.is-square .ld-combo, .is-port .ld-combo { font-size: 1.8em; }
+.ld-goal-mini { position: absolute; left: 1em; bottom: 4.2em; z-index: 6; background: rgba(0, 0, 0, .55); color: #fff; font-weight: 900; font-size: 1.4em; padding: .25em .7em; border-radius: 1em; }
+.ld-moment { position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; align-content: center; gap: .6em; text-align: center; color: #fff; background: radial-gradient(ellipse at center, rgba(2, 6, 23, .7), rgba(2, 6, 23, .94)); padding: 1em; }
+.ld-moment h2 { margin: 0; font-size: 3.4em; font-weight: 900; letter-spacing: -.02em; }
+.ld-kicker { margin: 0; font-size: 1.5em; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: #fde68a; }
+.ld-count-big { margin: 0; font-size: 18em; line-height: 1; font-weight: 900; color: #facc15; animation: ld-countpop .9s ease-out both; }
+@keyframes ld-countpop { 0% { transform: scale(2.4); opacity: 0 } 25% { transform: scale(1); opacity: 1 } 100% { transform: scale(.75); opacity: 0 } }
+.ld-goal { width: min(90%, 50em); display: grid; gap: .8em; }
+.ld-goal-bar { height: 2.6em; border-radius: 2em; background: rgba(255, 255, 255, .15); overflow: hidden; border: .15em solid rgba(255, 255, 255, .25); }
+.ld-goal-bar b { display: block; height: 100%; background: linear-gradient(90deg, #f43f5e, #facc15); transform-origin: left; transition: transform 2.2s cubic-bezier(.3, .9, .3, 1); }
+.ld-goal-num { margin: 0; font-size: 4em; font-weight: 900; font-variant-numeric: tabular-nums; }
+.ld-goal-num small { font-size: .45em; color: #fde68a; }
+.ld-match { width: min(92%, 56em); display: grid; gap: .7em; }
+.ld-row { display: grid; grid-template-columns: 9em 1fr 2.5em; align-items: center; gap: .8em; font-size: 1.7em; font-weight: 900; text-align: left; animation: ld-up .5s both; }
+.ld-track { height: 1em; border-radius: 1em; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.ld-track b { display: block; height: 100%; border-radius: 1em; background: linear-gradient(90deg, #22c55e, #facc15); transform-origin: left; animation: ld-grow 1.4s cubic-bezier(.3, 1, .3, 1) both; }
+.ld-row:nth-child(4) .ld-track b { background: linear-gradient(90deg, #f43f5e, #fb923c); }
+.ld-row:nth-child(5) .ld-track b { background: linear-gradient(90deg, #38bdf8, #a78bfa); }
+@keyframes ld-grow { from { transform: scaleX(0) } }
+.ld-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+.ld-wheelbox { display: grid; gap: .6em; justify-items: center; }
+.ld-wheel { position: relative; width: 24em; height: 24em; }
+.is-land .ld-wheel { width: 20em; height: 20em; }
+.ld-wheel canvas { width: 100%; height: 100%; transition: transform 5.2s cubic-bezier(.12, .8, .12, 1); }
+.ld-wheel::after { content: ''; position: absolute; left: 50%; top: -1em; transform: translateX(-50%); border: 1em solid transparent; border-top: 2em solid #fff; }
+.ld-winner { margin: 0; font-size: 2em; font-weight: 900; color: #facc15; animation: ld-pop .6s cubic-bezier(.2, 1.6, .4, 1) both; }
+@media (prefers-reduced-motion: reduce) { .ld-spot, .ld-count-big, .ld-combo { animation: none; } }
 /* ── Effets (classe fx) : transform et opacity seulement ── */
 .ld-bg { position: absolute; inset: -40%; background: linear-gradient(120deg, #020617 20%, #3b0764 42%, #881337 58%, #020617 80%); opacity: .75; animation: ld-drift 22s ease-in-out infinite alternate; }
 @keyframes ld-drift { to { transform: translate(12%, 8%) rotate(10deg); } }
