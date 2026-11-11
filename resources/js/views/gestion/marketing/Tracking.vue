@@ -200,11 +200,12 @@ async function save(extra = {}) {
       <section class="card space-y-4 p-4">
         <h3 class="font-semibold">Meta (Facebook et Instagram)</h3>
         <Field id="meta-pixel" label="Identifiant du pixel (Gestionnaire d'événements › Sources de données)" :error="errors.meta_pixel_id">
-          <input id="meta-pixel" v-model="form.meta_pixel_id" class="input font-mono" inputmode="numeric" placeholder="123456789012345" />
+          <input id="meta-pixel" v-model="form.meta_pixel_id" name="meta-pixel-id" class="input font-mono" inputmode="numeric" autocomplete="off" data-1p-ignore data-lpignore="true" placeholder="123456789012345" />
         </Field>
         <Field id="meta-capi" label="Jeton d'accès de l'API Conversions (facultatif, recommandé)" :error="errors.meta_capi_token"
                :hint="data.has_capi_token ? 'Jeton enregistré. Laissez vide pour le garder.' : 'Les achats sont aussi envoyés par notre serveur : comptés même quand le navigateur bloque le pixel.'">
-          <PasswordInput id="meta-capi" v-model="form.meta_capi_token" class="input font-mono" autocomplete="off" />
+          <!-- « new-password » : le navigateur n'y met pas le mot de passe enregistré du compte (ni le numéro dans le pixel) -->
+          <PasswordInput id="meta-capi" v-model="form.meta_capi_token" name="meta-capi-token" class="input font-mono" autocomplete="new-password" data-1p-ignore data-lpignore="true" />
         </Field>
         <p v-if="data.has_capi_token" class="flex items-center gap-3 text-sm text-slate-600">
           <span>{{ data.conversions_sent }} achat(s) envoyé(s) par le serveur ces 30 derniers jours.</span>

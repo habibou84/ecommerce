@@ -111,7 +111,7 @@ async function endSession(id) {
       <button class="btn-secondary" @click="open('offer')">Offrir des mois</button>
       <button v-if="!store.free_forever" class="btn-secondary" @click="open('free')">Gratuit à vie</button>
       <button v-else class="btn-ghost" :disabled="busy" @click="removeFree">Retirer « gratuit à vie »</button>
-      <button class="btn-secondary" @click="open('lives')">🔴 Offrir des lives</button>
+      <button class="btn-secondary" @click="open('lives')">🔴 Offrir des commandes en live</button>
       <button v-if="store.status !== 'suspended'" class="btn-ghost text-red-600" @click="open('suspend')">Suspendre</button>
       <button v-else class="btn-secondary" :disabled="busy" @click="act('reactivate')">Réactiver</button>
     </div>
@@ -202,7 +202,7 @@ async function endSession(id) {
         <button class="btn-brand w-full" :disabled="busy">Offrir</button>
       </form>
     </Modal>
-    <Modal v-if="modal === 'lives'" title="Offrir des lives" @close="modal = null">
+    <Modal v-if="modal === 'lives'" title="Offrir des commandes en live" @close="modal = null">
       <div class="space-y-4">
         <Alert v-if="error">{{ error }}</Alert>
         <p class="text-sm text-slate-600">Des commandes en live en plus de celles du départ, du crédit live, ou 30 jours de lives illimités ajoutés à ceux en cours.</p>

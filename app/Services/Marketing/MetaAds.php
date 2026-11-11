@@ -75,9 +75,58 @@ class MetaAds
      */
     public function businesses(string $token): array
     {
-        $rows = $this->graph->graph('GET', 'me/businesses', $token, ['fields' => 'id,name', 'limit' => 50])['data'] ?? [];
+        try {
+            $rows = $this->graph->graph('GET', 'me/businesses', $token, ['fields' => 'id,name', 'limit' => 50])['data'] ?? [];
+        } catch (RuntimeException $e) {
+            // Jeton d'utilisateur système (configuration « Facebook Login for Business ») : me/businesses est refusé
+            // (#100 Missing Permission) ; les comptes Business choisis dans la fenêtre de Facebook sont dans le jeton
+            $rows = $this->grantedBusinesses($token);
+            if ($rows === []) {
+                throw new RuntimeException($e->getMessage().' : vérifiez que la configuration Meta demande business_management et que ce compte Business a été coché dans la fenêtre de Facebook.');
+            }
+        }
 
         return array_values(array_map(fn ($b) => ['id' => (string) $b['id'], 'name' => (string) ($b['name'] ?? '')], $rows));
+    }
+
+    /**
+     * Comptes Business autorisés dans le jeton : cibles de business_management (debug_token), sinon le compte Business
+     * du client pour un utilisateur système.
+     *
+     * @return list<array{id: string, name: string}>
+     */
+    private function grantedBusinesses(string $token): array
+    {
+        $ids = [];
+        try {
+            $app = config('services.meta.app_id').'|'.config('services.meta.app_secret');
+            $info = $this->graph->graph('GET', 'debug_token', $app, ['input_token' => $token])['data'] ?? [];
+            foreach ($info['granular_scopes'] ?? [] as $scope) {
+                if (($scope['scope'] ?? null) === 'business_management') {
+                    $ids = array_merge($ids, array_map('strval', $scope['target_ids'] ?? []));
+                }
+            }
+        } catch (RuntimeException) {
+            // essai suivant
+        }
+        if ($ids === []) {
+            try {
+                $client = (string) ($this->graph->graph('GET', 'me', $token, ['fields' => 'client_business_id'])['client_business_id'] ?? '');
+                $ids = $client !== '' ? [$client] : [];
+            } catch (RuntimeException) {
+                return [];
+            }
+        }
+
+        return array_values(array_map(function (string $id) use ($token) {
+            try {
+                $name = (string) ($this->graph->graph('GET', $id, $token, ['fields' => 'id,name'])['name'] ?? '');
+            } catch (RuntimeException) {
+                $name = '';
+            }
+
+            return ['id' => $id, 'name' => $name !== '' ? $name : 'Compte Business '.$id];
+        }, array_unique($ids)));
     }
 
     /**
