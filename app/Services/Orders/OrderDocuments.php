@@ -11,7 +11,7 @@ use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Documents PDF d'une commande : facture (bon de commande) et étiquette colis 10 × 15 cm avec QR code de suivi.
+ * Documents PDF d'une commande : facture (bon de commande) et étiquette colis 10 × 15 cm avec QR code vers la page du colis (sans code de livraison ni données du client).
  */
 class OrderDocuments
 {
@@ -27,7 +27,7 @@ class OrderDocuments
     {
         $order->loadMissing(['items', 'store']);
 
-        return Pdf::loadView('pdf.label', ['labels' => [['order' => $order, 'qr' => $this->qr($order->trackingUrl())]]])
+        return Pdf::loadView('pdf.label', ['labels' => [['order' => $order, 'qr' => $this->qr($order->labelUrl())]]])
             ->setPaper([0, 0, 283.46, 425.2]) // 10 × 15 cm en points
             ->download('etiquette-'.ltrim($order->reference(), '#').'.pdf');
     }
@@ -41,7 +41,7 @@ class OrderDocuments
     {
         $orders->loadMissing(['items', 'store']);
 
-        return Pdf::loadView('pdf.label', ['labels' => $orders->map(fn (Order $o) => ['order' => $o, 'qr' => $this->qr($o->trackingUrl())])->all()])
+        return Pdf::loadView('pdf.label', ['labels' => $orders->map(fn (Order $o) => ['order' => $o, 'qr' => $this->qr($o->labelUrl())])->all()])
             ->setPaper([0, 0, 283.46, 425.2])
             ->download('etiquettes-'.now()->format('Y-m-d').'.pdf');
     }
