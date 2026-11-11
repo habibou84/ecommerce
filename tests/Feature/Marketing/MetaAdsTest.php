@@ -82,9 +82,9 @@ class MetaAdsTest extends TestCase
         $this->storeApi($this->store, 'GET', "marketing/tracking/meta/{$key}")->assertStatus(422);
 
         // Enregistrer les autres pixels garde le catalogue ; un jeton collé à la main passe avant la connexion
-        $this->storeApi($this->store, 'PUT', 'marketing/tracking', ['meta_pixel_id' => '222222', 'ga4_id' => 'G-ABC123XYZ', 'meta_capi_token' => 'EAAB-main'])
+        $this->storeApi($this->store, 'PUT', 'marketing/tracking', ['meta_pixel_id' => '222222', 'ga4_id' => 'G-ABC123XYZ', 'meta_capi_token' => 'EAAB-main-0123456789abcdefghijklmnopqrstuvwxyz'])
             ->assertJsonPath('data.meta_connection.catalog_id', '333333');
-        $this->assertSame('EAAB-main', app(MetaAds::class)->conversionsToken($this->store->fresh()));
+        $this->assertSame('EAAB-main-0123456789abcdefghijklmnopqrstuvwxyz', app(MetaAds::class)->conversionsToken($this->store->fresh()));
         $this->storeApi($this->store, 'PUT', 'marketing/tracking', ['meta_pixel_id' => '222222', 'remove_capi_token' => true]);
 
         // Accès expiré : plus d'envoi par le serveur, l'écran demande de reconnecter
@@ -95,6 +95,43 @@ class MetaAdsTest extends TestCase
         $this->storeApi($this->store, 'DELETE', 'marketing/tracking/meta')->assertOk()
             ->assertJsonPath('data.meta_connection', null)->assertJsonPath('data.meta_pixel_id', '222222');
         $this->assertSame(0, SocialAccount::where('network', MetaAds::NETWORK)->count());
+    }
+
+    public function test_a_system_user_token_finds_its_business_in_the_token(): void
+    {
+        // Jeton d'utilisateur système (configuration Facebook Login for Business) : me/businesses refusé (#100)
+        Http::fake([
+            'graph.facebook.com/*/oauth/access_token*' => Http::sequence()->push(['access_token' => 'system-token'])->push(['error' => ['message' => 'Jeton déjà permanent']], 400),
+            'graph.facebook.com/*/debug_token*' => Http::response(['data' => ['expires_at' => 0, 'granular_scopes' => [
+                ['scope' => 'catalog_management', 'target_ids' => ['333333']],
+                ['scope' => 'business_management', 'target_ids' => ['111']],
+            ]]]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['error' => ['message' => '(#100) Missing Permission', 'code' => 100]], 400),
+            'graph.facebook.com/*/111?*' => Http::response(['id' => '111', 'name' => 'Awa SARL']),
+        ]);
+        $url = $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect')->assertOk()->json('url');
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+        $back = $this->get('http://localhost/reseaux/meta/retour?code=abc&state='.rawurlencode($query['state']))->assertRedirect()->headers->get('Location');
+        $this->assertStringStartsWith($this->storeUrl($this->store, '/gestion/marketing/suivi?meta='), $back);
+        $key = explode('meta=', $back)[1];
+        $this->storeApi($this->store, 'GET', "marketing/tracking/meta/{$key}")->assertOk()
+            ->assertJsonPath('data.businesses', [['id' => '111', 'name' => 'Awa SARL']]);
+    }
+
+    public function test_no_business_in_the_token_says_what_to_check(): void
+    {
+        // Aucun compte Business dans le jeton : l'erreur de Meta, avec ce qu'il faut vérifier
+        Http::fake([
+            'graph.facebook.com/*/oauth/access_token*' => Http::response(['access_token' => 'system-token']),
+            'graph.facebook.com/*/debug_token*' => Http::response(['data' => ['granular_scopes' => []]]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['error' => ['message' => '(#100) Missing Permission']], 400),
+            'graph.facebook.com/*/me?*' => Http::response(['id' => '9']),
+        ]);
+        $url = $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect')->assertOk()->json('url');
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+        $back = $this->get('http://localhost/reseaux/meta/retour?code=abc&state='.rawurlencode($query['state']))->headers->get('Location');
+        $this->assertStringContainsString('erreur=', $back);
+        $this->assertStringContainsString('business_management', urldecode($back));
     }
 
     public function test_a_pending_connection_belongs_to_the_store_and_person_who_started_it(): void

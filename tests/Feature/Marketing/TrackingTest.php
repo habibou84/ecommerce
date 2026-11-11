@@ -37,10 +37,13 @@ class TrackingTest extends TestCase
 
         $this->storeApi($this->store, 'PUT', 'marketing/tracking', ['meta_pixel_id' => 'abc', 'ga4_id' => 'UA-1'])
             ->assertStatus(422)->assertJsonValidationErrors(['meta_pixel_id', 'ga4_id']);
+        // Numéro et mot de passe remplis par le navigateur à la place du pixel et du jeton : refusés
+        $this->storeApi($this->store, 'PUT', 'marketing/tracking', ['meta_pixel_id' => '+2250709980885', 'meta_capi_token' => 'MonMotDePasse2024'])
+            ->assertStatus(422)->assertJsonValidationErrors(['meta_pixel_id', 'meta_capi_token']);
         $this->storeApi($this->store, 'PUT', 'marketing/tracking', [
-            'meta_pixel_id' => '123456789012345', 'tiktok_pixel_id' => 'C4ABCDEF123456789', 'ga4_id' => 'G-ABC123XYZ', 'meta_capi_token' => 'EAAB-secret',
+            'meta_pixel_id' => '123456789012345', 'tiktok_pixel_id' => 'C4ABCDEF123456789', 'ga4_id' => 'G-ABC123XYZ', 'meta_capi_token' => 'EAAB-secret-0123456789abcdefghijklmnopqrstuvwxyz',
         ])->assertOk()->assertJsonPath('data.has_capi_token', true)->assertJsonMissingPath('data.meta_capi_token');
-        $this->assertSame('EAAB-secret', $this->store->fresh()->meta_capi_token);
+        $this->assertSame('EAAB-secret-0123456789abcdefghijklmnopqrstuvwxyz', $this->store->fresh()->meta_capi_token);
 
         $page = $this->get($this->storeUrl($this->store, '/produits/'.$this->robe->slug))->assertOk();
         $page->assertSee('fbevents.js')->assertSee('"123456789012345"', false)->assertSee('analytics.tiktok.com')
@@ -53,7 +56,7 @@ class TrackingTest extends TestCase
 
     public function test_purchase_is_sent_to_the_conversions_api_with_the_pixel_event_id(): void
     {
-        $this->store->forceFill(['marketing' => ['meta_pixel_id' => '123456789012345'], 'meta_capi_token' => 'EAAB-secret'])->save();
+        $this->store->forceFill(['marketing' => ['meta_pixel_id' => '123456789012345'], 'meta_capi_token' => 'EAAB-secret-0123456789abcdefghijklmnopqrstuvwxyz'])->save();
         $sent = [];
         Http::fake(['graph.facebook.com/*' => function (HttpRequest $request) use (&$sent) {
             $sent[] = $request;
@@ -75,7 +78,7 @@ class TrackingTest extends TestCase
         $this->assertCount(1, $sent);
         // Jeton dans le corps, jamais dans l'adresse (qui peut finir dans les journaux)
         $this->assertStringEndsWith('/123456789012345/events', $sent[0]->url());
-        $this->assertSame('EAAB-secret', $sent[0]['access_token']);
+        $this->assertSame('EAAB-secret-0123456789abcdefghijklmnopqrstuvwxyz', $sent[0]['access_token']);
         $event = $sent[0]['data'][0];
         $this->assertSame(['Purchase', 'order-'.$order->id, $order->total], [$event['event_name'], $event['event_id'], $event['custom_data']['value']]);
         $this->assertSame([hash('sha256', '2250506070809')], $event['user_data']['ph']);
