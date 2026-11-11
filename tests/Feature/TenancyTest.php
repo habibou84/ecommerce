@@ -209,5 +209,15 @@ class TenancyTest extends TestCase
             $this->assertFileExists(public_path(strtok(ltrim($step['poster'], '/'), '?')));
         }
         $this->assertSame(11, substr_count($page->getContent(), '<video'));
+        // Lien envoyé sur WhatsApp : la page de la vidéo garde le titre de l'étape
+        $this->get($this->platformUrl('/video/etapes/etape-01'))->assertOk()->assertSee('<title>'.StartSteps::all()[0]['title'], false);
+    }
+
+    public function test_home_page_shows_the_everything_free_video(): void
+    {
+        $this->get($this->platformUrl())->assertOk()->assertSee('/videos/live/tout-gratuit-v.mp4', false);
+        $this->assertFileExists(public_path('videos/live/tout-gratuit-v.mp4'));
+        $this->assertFileExists(public_path('videos/live/tout-gratuit-v.jpg'));
+        $this->get($this->platformUrl('/video/live/tout-gratuit-v'))->assertOk()->assertSee('tout est gratuit');
     }
 }
