@@ -103,6 +103,30 @@ class LiveScreenController extends Controller
     }
 
     /**
+     * Show du live : réglages (thème, sons, musique, mode léger, objectif) choisis sur le téléphone.
+     */
+    public function showSettings(Request $request, int $session): JsonResponse
+    {
+        $data = $request->validate([
+            'theme' => ['sometimes', Rule::in(LiveScreens::SHOW_THEMES)],
+            'sound' => ['sometimes', 'boolean'], 'music' => ['sometimes', 'boolean'], 'light' => ['sometimes', 'boolean'],
+            'goal' => ['sometimes', 'nullable', 'integer', 'between:1,1000'],
+        ]);
+
+        return response()->json(['data' => $this->screens->updateShow(LiveSession::findOrFail($session), $data)]);
+    }
+
+    /**
+     * Moment lancé depuis le téléphone : 3-2-1, fête, objectif, match des quartiers, roue de la chance.
+     */
+    public function moment(Request $request, int $session): JsonResponse
+    {
+        $data = $request->validate(['type' => ['required', Rule::in(LiveScreens::SHOW_MOMENTS)], 'goal' => ['nullable', 'integer', 'between:1,1000']]);
+
+        return response()->json(['data' => $this->screens->moment(LiveSession::findOrFail($session), $data['type'], $data['goal'] ?? null)]);
+    }
+
+    /**
      * Comment le numéro apparaît sur les écrans filmés (télé, TikTok LIVE Studio) : dans la bio, espacé, en émojis,
      * coupé en deux. Réglage de la boutique, gardé d'un live à l'autre.
      */

@@ -37,6 +37,100 @@ class LiveScreens
     /** Numéro à l'écran : dans la bio (pas de numéro), chiffres espacés, en émojis, coupé en deux */
     public const PHONE_STYLES = ['bio', 'spaced', 'emoji', 'split'];
 
+    /** Show du live : moments lancés depuis le téléphone (compte à rebours, fête, objectif, quartiers, roue) */
+    public const SHOW_MOMENTS = ['countdown', 'party', 'goal', 'match', 'wheel'];
+
+    public const SHOW_THEMES = ['fete', 'wax', 'neon', 'luxe'];
+
+    /** Réglages du show d'un live : thème, sons, musique, mode léger (vieilles télés), objectif */
+    public function showSettings(LiveSession $session): array
+    {
+        return array_merge(['theme' => 'fete', 'sound' => true, 'music' => false, 'light' => false, 'goal' => null],
+            Cache::get('live-show-settings:'.$session->id, []));
+    }
+
+    /** @param array<string, mixed> $values */
+    public function updateShow(LiveSession $session, array $values): array
+    {
+        $settings = array_merge($this->showSettings($session), array_intersect_key($values, array_flip(['theme', 'sound', 'music', 'light', 'goal'])));
+        Cache::put('live-show-settings:'.$session->id, $settings, now()->addDay());
+        $session->touch(); // les écrans voient le changement à leur prochaine question (2 secondes)
+
+        return $settings;
+    }
+
+    /**
+     * Moment lancé depuis le téléphone : montré une fois par chaque écran (numéro croissant), oublié après 2 minutes.
+     * Roue de la chance : tirée ici parmi les commandes du live, même résultat sur tous les écrans ; l'écran ne
+     * montre que la commune et le code, la boutique voit le nom dans l'application.
+     *
+     * @return array<string, mixed>
+     */
+    public function moment(LiveSession $session, string $type, ?int $goal = null): array
+    {
+        if (! in_array($type, self::SHOW_MOMENTS, true)) {
+            throw new BusinessRuleException('Moment inconnu.');
+        }
+        $data = [];
+        $team = [];
+        if ($type === 'goal') {
+            $goal = max(1, min(1000, (int) ($goal ?: ($this->showSettings($session)['goal'] ?? 0) ?: 30)));
+            $this->updateShow($session, ['goal' => $goal]);
+            $data = ['goal' => $goal];
+        }
+        if ($type === 'wheel') {
+            $buyers = $this->buyers($session);
+            if ($buyers->isEmpty()) {
+                throw new BusinessRuleException('Pas encore de commande dans ce live : la roue tourne parmi les acheteurs.');
+            }
+            $index = random_int(0, $buyers->count() - 1);
+            $data = ['slots' => $buyers->pluck('label')->values()->all(), 'winner' => $index];
+            $team = ['winner' => $buyers[$index]['name'], 'phone' => $buyers[$index]['phone'], 'label' => $buyers[$index]['label']];
+        }
+        $event = ['id' => (int) round(microtime(true) * 1000), 'type' => $type, 'data' => $data];
+        Cache::put('live-show-event:'.$session->id, $event, now()->addMinutes(2));
+        $session->touch();
+
+        return ['event' => $event, 'team' => $team];
+    }
+
+    /**
+     * Acheteurs du live pour la roue (une case par commande, 12 au plus) : « Cocody · A3 » à l'écran.
+     *
+     * @return Collection<int, array{label: string, name: ?string, phone: ?string}>
+     */
+    private function buyers(LiveSession $session): Collection
+    {
+        $rows = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('status', 'ordered')
+            ->with('item:id,code', 'order:id,shipping_place_id,customer_name,customer_phone')->latest('id')->get()->unique('order_id')->take(12)->values();
+        $places = Place::with('parent')->whereIn('id', $rows->map(fn ($r) => $r->order?->shipping_place_id)->filter()->unique())->get()->keyBy('id');
+
+        return $rows->map(function (LiveReservation $r) use ($places) {
+            $place = $places->get($r->order?->shipping_place_id);
+            $commune = $place ? ($place->type === 'neighborhood' && $place->parent ? $place->parent->name : $place->name) : 'Abidjan';
+
+            return ['label' => $commune.' · '.$r->item?->code, 'name' => $r->order?->customer_name ?? $r->customer_name, 'phone' => $r->order?->customer_phone ?? $r->customer_phone];
+        });
+    }
+
+    /**
+     * Match des quartiers : commandes du live par commune (les 5 premières).
+     *
+     * @return list<array{name: string, orders: int}>
+     */
+    private function quarters(LiveSession $session): array
+    {
+        $rows = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('status', 'ordered')
+            ->with('order:id,shipping_place_id')->get()->unique('order_id');
+        $places = Place::with('parent')->whereIn('id', $rows->map(fn ($r) => $r->order?->shipping_place_id)->filter()->unique())->get()->keyBy('id');
+
+        return $rows->map(function (LiveReservation $r) use ($places) {
+            $place = $places->get($r->order?->shipping_place_id);
+
+            return $place ? ($place->type === 'neighborhood' && $place->parent ? $place->parent->name : $place->name) : null;
+        })->filter()->countBy()->sortDesc()->take(5)->map(fn ($n, $name) => ['name' => (string) $name, 'orders' => (int) $n])->values()->all();
+    }
+
     public function create(): LiveScreen
     {
         return LiveScreen::create(['token' => Str::random(48), 'code' => $this->freeCode()]);
@@ -216,6 +310,8 @@ class LiveScreens
             })->values()->all(),
             'orders' => LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('status', 'ordered')->distinct()->count('order_id'),
             'ticker' => $this->ticker($session),
+            // Show : réglages, dernier moment lancé depuis le téléphone, match des quartiers
+            'show' => ['settings' => $this->showSettings($session), 'event' => Cache::get('live-show-event:'.$session->id), 'quarters' => $this->quarters($session)],
         ];
     }
 

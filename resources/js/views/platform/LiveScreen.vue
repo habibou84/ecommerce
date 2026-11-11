@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import LiveDisplay from '../../components/LiveDisplay.vue'
 import LiveOverlay from '../../components/LiveOverlay.vue'
 import http from '../../lib/http'
+import { audioReady, unlockAudio } from '../../lib/liveSounds'
 
 /**
  * Écran du live (jibiat-marchand.com/ecran) : sur une télé, une tablette ou un ordinateur. Sans compte : l'écran
@@ -98,6 +99,19 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', keepAwake)
 })
 
+// Show du live : le navigateur ne joue un son qu'après un toucher ; TikTok LIVE Studio et OBS l'autorisent d'office
+const soundOn = ref(false)
+const needSound = computed(() => !transparent && !!data.value?.live && data.value.live.show?.settings?.sound !== false && !soundOn.value)
+function enableSound() {
+  unlockAudio()
+  setTimeout(() => (soundOn.value = audioReady()), 300)
+  fullscreen()
+}
+onMounted(() => {
+  unlockAudio()
+  setTimeout(() => (soundOn.value = audioReady()), 500)
+})
+
 const digits = computed(() => (code.value || '····').split(''))
 </script>
 
@@ -126,6 +140,7 @@ const digits = computed(() => (code.value || '····').split(''))
       <button type="button" class="rounded-full bg-white/10 px-5 py-2 text-[2vh] font-semibold" @click="fullscreen">Plein écran</button>
     </div>
 
+    <button v-if="needSound && !data?.test" type="button" class="fixed bottom-[9vh] left-1/2 z-20 -translate-x-1/2 rounded-full bg-amber-400 px-6 py-3 text-[2.4vh] font-black text-slate-900 shadow-2xl" @click.stop="enableSound">🔊 Activer le son du show</button>
     <p v-if="offline" class="fixed bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-4 py-1.5 text-sm font-bold text-slate-900">Connexion perdue · nouvel essai…</p>
   </div>
 </template>
