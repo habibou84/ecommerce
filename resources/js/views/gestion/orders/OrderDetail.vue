@@ -7,6 +7,7 @@ import Modal from '../../../components/Modal.vue'
 import ExpeditionPanel from '../../../components/ExpeditionPanel.vue'
 import PaymentProofCard from '../../../components/PaymentProofCard.vue'
 import OrderReturns from '../../../components/OrderReturns.vue'
+import ParcelLabelCard from '../../../components/ParcelLabelCard.vue'
 import ShipmentPanel from '../../../components/ShipmentPanel.vue'
 import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
@@ -330,6 +331,7 @@ async function addNote() {
              :class="auth.profile?.whatsapp_payment ? 'btn flex bg-green-600 font-black text-white hover:bg-green-700' : 'btn-secondary'"><Icon name="messages" :size="16" />{{ m.label }}</a>
         </section>
 
+        <ParcelLabelCard :order="order" :can-manage="canManage" />
         <section class="card space-y-2 p-4 text-sm">
           <h3 class="font-semibold">Documents</h3>
           <button class="btn-secondary w-full justify-start gap-2" @click="download(`/orders/${order.id}/invoice`, 'facture.pdf')"><Icon name="file" :size="16" />Facture</button>

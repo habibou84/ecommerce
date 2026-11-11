@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
+import QrScanner from '../../components/QrScanner.vue'
+import { rawCode } from '../../lib/parcelLabels'
 import http, { errorMessage } from '../../lib/http'
 import { newMissionAlert } from '../../lib/alertSound'
 import { cachedGet, loadMissions, offline, savedRoute, saveRoute, sendStep } from '../../lib/courierOffline'
@@ -42,6 +44,16 @@ onMounted(() => {
 })
 onUnmounted(() => clearInterval(timer))
 watch(() => offline.synced, () => !editing.value && load())
+
+// Colis scanné : sa course s'ouvre (cherchée dans les courses gardées sur le téléphone, donc aussi sans réseau)
+const scanning = ref(false)
+function scanned(input) {
+  scanning.value = false
+  const code = rawCode(input)
+  const found = code && (missions.value ?? []).find((m) => (m.labels ?? []).includes(code))
+  if (found) router.push(`/livreur/missions/${found.id}`)
+  else error.value = code ? 'Ce colis n\'est dans aucune de tes courses.' : 'Ce n\'est pas une étiquette de colis.'
+}
 
 const FINAL = ['delivered', 'returned', 'cancelled', 'lost']
 // À accepter : nouvelles missions pas encore acceptées (ni colis récupéré)
@@ -159,6 +171,9 @@ function saveOrder() {
         <p class="text-base font-bold">{{ money(me.cash_held) }}</p><p class="text-xs text-slate-500">à verser</p>
       </RouterLink>
     </div>
+
+    <button type="button" class="block w-full rounded-xl bg-white py-2.5 text-sm font-bold shadow-sm" @click="scanning = true">📷 Scanner un colis</button>
+    <QrScanner v-if="scanning" title="Vise le QR du colis" @result="scanned" @close="scanning = false" />
 
     <!-- Jour de livraison : la tournée d'aujourd'hui, puis ce qui est prévu demain et plus tard -->
     <div class="grid grid-cols-3 gap-1 rounded-xl bg-slate-200 p-1 text-sm font-semibold" role="tablist">

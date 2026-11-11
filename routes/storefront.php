@@ -38,6 +38,8 @@ Route::middleware('zone:store,custom_domain')->group(function () {
     Route::get('/suivi/{token}', TrackingController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('tracking');
     // QR de l'étiquette collée sur le colis : page du colis, sans code de livraison ni données du client
     Route::get('/colis/{token}', ParcelController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('parcel');
+    // QR d'une étiquette pré-imprimée : le colis si elle est reliée à une commande, sinon la boutique
+    Route::get('/e/{code}', [ParcelController::class, 'label'])->where('code', '[A-Za-z0-9]{8}')->middleware('throttle:storefront')->name('parcel.label');
     // Avis du client sur les produits reçus (lien envoyé après la livraison)
     Route::get('/avis/{token}', [ReviewController::class, 'show'])->where('token', '[A-Za-z0-9]{16,32}')->name('review');
     Route::post('/avis/{token}', [ReviewController::class, 'store'])->where('token', '[A-Za-z0-9]{16,32}')->middleware(['ajax', 'throttle:storefront-order']);

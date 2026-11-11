@@ -12,6 +12,7 @@ use App\Models\CourierEarning;
 use App\Models\CourierPayRule;
 use App\Models\DeliveryZone;
 use App\Models\Order;
+use App\Models\ParcelLabel;
 use App\Models\PaymentAccount;
 use App\Models\PaymentLink;
 use App\Models\Place;
@@ -26,6 +27,7 @@ use App\Models\WhatsappAccount;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
+use App\Services\Orders\ParcelLabels;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
@@ -387,7 +389,12 @@ class CourierTest extends TestCase
         $second->order->forceFill(['shipping_latitude' => 5.3954, 'shipping_longitude' => -3.9885])->save();
 
         $this->asCourier($user);
+        // Étiquette pré-imprimée collée sur le colis : le livreur la retrouve dans ses courses, même sans réseau
+        app(ParcelLabels::class)->createBatch($this->store, null, 'mini', 50);
+        $label = ParcelLabel::forStore($this->store->id)->first();
+        app(ParcelLabels::class)->attach($second->order, $label->code, null);
         $missions = $this->storeApi($this->store, 'GET', 'courier/missions?full=1')->assertOk()->json('data');
+        $this->assertSame([[], [$label->code]], array_column($missions, 'labels'));
         $this->assertSame(['Cocody', 'Cocody'], array_column($missions, 'commune'));
         $this->assertSame([null, 5.3954], array_column($missions, 'latitude'));
         $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.tracking', false);

@@ -83,6 +83,8 @@ export function eventLabel(event) {
   const d = event.data ?? {}
   switch (event.type) {
     case 'created': return 'Commande créée'
+    case 'parcel_label': return `Étiquette ${d.code} reliée au colis`
+    case 'parcel_label_removed': return `Étiquette ${d.code} détachée`
     case 'edited': return 'Commande modifiée'
     case 'items_added': return `Articles ajoutés par le client${d.note ? ` (${d.note})` : ''}`
     case 'status_changed': return `Statut : ${STATUS_LABELS[d.to] ?? d.to}${d.note ? ` (${d.note})` : ''}`
