@@ -205,8 +205,8 @@ class TenancyTest extends TestCase
             ->assertSee('Installer l\'application sur votre téléphone')
             ->assertSee('/videos/etapes/etape-11.mp4', false);
         foreach (StartSteps::all() as $step) {
-            $this->assertFileExists(public_path(ltrim($step['video'], '/')));
-            $this->assertFileExists(public_path(ltrim($step['poster'], '/')));
+            $this->assertFileExists(public_path(strtok(ltrim($step['video'], '/'), '?')));
+            $this->assertFileExists(public_path(strtok(ltrim($step['poster'], '/'), '?')));
         }
         $this->assertSame(11, substr_count($page->getContent(), '<video'));
     }
