@@ -29,6 +29,7 @@ const groups = [
     { to: '/gestion/commandes', label: 'Commandes' },
     { to: '/gestion/messages', label: 'Messages', badge: 'messages' },
     { to: '/gestion/confirmation', label: 'À confirmer' },
+    { to: '/gestion/etiquettes', label: 'Étiquettes' },
     { to: '/gestion/caisse/vente', label: 'Vente au comptoir' },
     { to: '/gestion/clients', label: 'Clients' },
     { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' },

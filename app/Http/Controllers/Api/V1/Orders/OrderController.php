@@ -24,6 +24,7 @@ use App\Services\Orders\OrderDrafter;
 use App\Services\Orders\OrderListing;
 use App\Services\Orders\OrderMessageParser;
 use App\Services\Orders\OrderMessages;
+use App\Services\Orders\ParcelLabels;
 use App\Services\WhatsApp\CustomerMessenger;
 use App\Support\SpreadsheetCell;
 use Illuminate\Http\JsonResponse;
@@ -166,6 +167,9 @@ class OrderController extends Controller
             'whatsapp_confirmation' => $channel = app(CustomerMessenger::class)->confirmationChannel($model),
             'messages' => array_values(array_filter($messages->suggestions($model), fn ($m) => ! ($channel && $m['key'] === 'confirm_request'))),
             'call_url' => $model->customer_phone ? 'tel:'.$model->customer_phone : null,
+            // Étiquettes pré-imprimées scannées sur le colis (affichées si la fonction est allumée ou déjà utilisées)
+            'parcel_labels' => app(ParcelLabels::class)->forOrder($model),
+            'parcel_labels_enabled' => app(ParcelLabels::class)->enabled($model->store),
         ]]);
     }
 

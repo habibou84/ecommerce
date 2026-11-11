@@ -61,6 +61,7 @@ const storeRoutes = [
       { path: 'paniers-abandonnes', component: () => import('../views/gestion/orders/AbandonedCarts.vue'), meta: { title: 'Paniers abandonnés', permission: 'orders.manage' } },
       { path: 'messages/:id(\\d+)?', component: () => import('../views/gestion/messages/Inbox.vue'), props: true, meta: { title: 'Messages', permissionAny: ['orders.manage', 'orders.confirm'] } },
       { path: 'confirmation', component: () => import('../views/gestion/orders/ConfirmationQueue.vue'), meta: { title: 'À confirmer', permission: 'orders.confirm' } },
+      { path: 'etiquettes', component: () => import('../views/gestion/orders/ParcelLabels.vue'), meta: { title: 'Étiquettes', permission: 'orders.view', platform: 'labels_mini|labels_large' } },
       { path: 'clients', component: () => import('../views/gestion/customers/CustomerList.vue'), meta: { title: 'Clients', permission: 'customers.view' } },
       { path: 'clients/:id(\\d+)', component: () => import('../views/gestion/customers/CustomerDetail.vue'), props: true, meta: { title: 'Client', permission: 'customers.view' } },
       { path: 'zones-de-livraison', redirect: '/gestion/livraisons/zones' },

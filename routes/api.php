@@ -61,6 +61,7 @@ use App\Http\Controllers\Api\V1\Orders\DeliveryRatesController;
 use App\Http\Controllers\Api\V1\Orders\ExpeditionController;
 use App\Http\Controllers\Api\V1\Orders\MessageTextController;
 use App\Http\Controllers\Api\V1\Orders\OrderController;
+use App\Http\Controllers\Api\V1\Orders\ParcelLabelController;
 use App\Http\Controllers\Api\V1\Orders\ReturnController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\Payments\DepositSettingsController;
@@ -363,6 +364,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('orders/{order}/label', [OrderController::class, 'label'])->whereNumber('order')->name('orders.label');
                 Route::get('orders/{order}/expedition/receipt', [ExpeditionController::class, 'receipt'])->whereNumber('order')->name('orders.expedition.receipt');
                 Route::get('orders/labels', [OrderController::class, 'labels'])->name('orders.labels');
+                // Étiquettes pré-imprimées : stock, lots et PDF à imprimer
+                Route::get('parcel-labels', [ParcelLabelController::class, 'index'])->name('parcel-labels.index');
+                Route::get('parcel-labels/lookup', [ParcelLabelController::class, 'lookup'])->middleware('throttle:60,1')->name('parcel-labels.lookup');
+                Route::get('parcel-labels/batches/{batch}/pdf', [ParcelLabelController::class, 'pdf'])->whereNumber('batch')->name('parcel-labels.pdf');
                 Route::get('orders/export', [OrderController::class, 'export'])->name('orders.export');
                 Route::post('orders/{order}/notes', [OrderController::class, 'note'])->whereNumber('order')->name('orders.notes');
                 Route::get('delivery-zones', [DeliveryController::class, 'zones'])->name('zones.index');
@@ -378,6 +383,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
                 // Liste : plusieurs commandes à la fois (livreur, statut, WhatsApp)
                 Route::post('orders/bulk', [OrderController::class, 'bulk'])->name('orders.bulk');
+                // Étiquette pré-imprimée scannée : reliée à la commande, ou détachée ; nouveau lot à imprimer
+                Route::post('orders/{order}/parcel-labels', [ParcelLabelController::class, 'attach'])->whereNumber('order')->middleware('throttle:60,1')->name('orders.parcel-labels.attach');
+                Route::delete('orders/{order}/parcel-labels/{label}', [ParcelLabelController::class, 'detach'])->whereNumber(['order', 'label'])->name('orders.parcel-labels.detach');
+                Route::post('parcel-labels/batches', [ParcelLabelController::class, 'batch'])->middleware('throttle:10,1')->name('parcel-labels.batches');
                 Route::post('orders/parse', [OrderController::class, 'parse'])->name('orders.parse');
                 Route::post('orders/draft', [OrderController::class, 'draft'])->middleware('throttle:30,1')->name('orders.draft');
                 // Saisie : qui peut livrer ce quartier et à quel prix, zones et tarifs d'une entreprise de livraison

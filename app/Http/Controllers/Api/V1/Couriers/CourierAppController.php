@@ -11,6 +11,7 @@ use App\Models\CourierEarning;
 use App\Models\CourierRemittance;
 use App\Models\CourierRemittanceDeclaration;
 use App\Models\OrderReturn;
+use App\Models\ParcelLabel;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
@@ -171,6 +172,8 @@ class CourierAppController extends Controller
             'pickup' => $model->origin ? ['name' => $model->origin->name, 'address' => $model->origin->address] : null,
             'items' => $order->items->map(fn ($i) => ['label' => $i->label(), 'quantity' => $i->quantity]),
             'requires_code' => $model->delivery_code !== null && ! $order->isExpedition(),
+            // Étiquettes pré-imprimées collées sur le colis : le livreur scanne le colis, même sans réseau
+            'labels' => ParcelLabel::forStore($order->store_id)->where('order_id', $order->id)->pluck('code')->values(),
             // Expédition : colis à déposer à la gare, compagnies proposées
             'expedition' => $order->isExpedition() ? [
                 'city' => $order->expeditionCity?->name,
