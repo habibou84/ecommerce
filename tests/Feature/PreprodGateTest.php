@@ -18,8 +18,8 @@ class PreprodGateTest extends TestCase
     {
         $store = $this->createStore();
 
-        $this->get($this->platformUrl('/connexion'))->assertUnauthorized()->assertSee("Saisissez le code d'accès", false)->assertHeader('Cache-Control');
-        $this->get($this->storeUrl($store, '/gestion'))->assertUnauthorized()->assertSee('Préproduction');
+        $this->get($this->platformUrl('/connexion'))->assertUnauthorized()->assertSee('Code d\'accès', false)->assertSee('Afficher le code')->assertDontSee('Préproduction')->assertHeader('Cache-Control');
+        $this->get($this->storeUrl($store, '/gestion'))->assertUnauthorized()->assertSee('name="code"', false);
         $this->getJson($this->storeUrl($store, '/api/v1/store'))->assertForbidden()->assertJson(['message' => 'Préproduction : saisissez le code d\'accès.']);
     }
 
