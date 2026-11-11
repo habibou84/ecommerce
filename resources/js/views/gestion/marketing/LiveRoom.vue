@@ -133,6 +133,11 @@ const pageUrl = computed(() => `${window.location.origin}/live`)
 async function load() {
   try {
     live.value = (await http.get(`/lives/${props.id}`)).data.data
+    // Commandes WhatsApp sans live : leur propre écran (pas de TikTok ni d'écran du live)
+    if (live.value?.channel === 'whatsapp') {
+      router.replace(`/gestion/live/commandes-whatsapp/${props.id}`)
+      return
+    }
   } catch (e) {
     // Application en arrière-plan : pas de message, la prochaine lecture rattrape
     if (!document.hidden) error.value = errorMessage(e)

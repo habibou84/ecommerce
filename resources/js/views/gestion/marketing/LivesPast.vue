@@ -74,7 +74,7 @@ async function redo(live) {
       <div v-for="l in past" :key="l.id" class="card flex min-w-0 items-center gap-3 p-4">
         <ColorIcon name="live" :size="42" />
         <RouterLink :to="`/gestion/live/${l.id}`" class="min-w-0 flex-1">
-          <b class="block first-letter:uppercase">{{ day(l.started_at ?? l.ended_at) }}</b>
+          <b class="block first-letter:uppercase">{{ l.channel === 'whatsapp' ? '💬 Commandes WhatsApp · ' : '' }}{{ day(l.started_at ?? l.ended_at) }}</b>
           <span class="block truncate text-sm text-slate-500">{{ l.summary?.orders ?? 0 }} commande(s)<template v-if="l.minutes != null"> · {{ length(l.minutes) }}</template></span>
         </RouterLink>
         <span class="shrink-0 text-right">

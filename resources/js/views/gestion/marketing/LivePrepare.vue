@@ -38,7 +38,9 @@ const billing = ref(null)
 const paying = ref(false)
 const payNotice = ref('')
 
-const current = computed(() => lives.value?.find((l) => l.status === 'live'))
+const current = computed(() => lives.value?.find((l) => l.status === 'live' && l.channel !== 'whatsapp'))
+// Commandes WhatsApp sans live ouvertes en ce moment
+const whatsappOpen = computed(() => lives.value?.find((l) => l.status === 'live' && l.channel === 'whatsapp'))
 const past = computed(() => (lives.value ?? []).filter((l) => l.status === 'ended'))
 
 async function load() {
@@ -48,7 +50,7 @@ async function load() {
     lives.value = data.data
     whatsapp.value = data.meta.whatsapp
     number.value = { phone: data.meta.whatsapp_phone, noCard: !!data.meta.whatsapp_no_card }
-    const latest = data.data.find((l) => l.status === 'draft')
+    const latest = data.data.find((l) => l.status === 'draft' && l.channel !== 'whatsapp')
     draft.value = latest ? (await http.get(`/lives/${latest.id}`)).data.data : null
     billing.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? null
     if (auth.can('store.manage')) fees.value = (await http.get('/delivery-rates').catch(() => null))?.data.data ?? null
@@ -251,6 +253,16 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     </section>
 
     <template v-else-if="lives">
+      <!-- Commandes WhatsApp sans live : les clients commandent avec les codes, même sans live -->
+      <RouterLink v-if="whatsappOpen" :to="`/gestion/live/commandes-whatsapp/${whatsappOpen.id}`" class="flex items-center gap-3 rounded-[20px] border-2 border-emerald-500 bg-emerald-50 p-4">
+        <span class="min-w-0 flex-1"><b class="block text-[16px] text-emerald-900">💬 Commandes WhatsApp ouvertes</b><span class="text-[13.5px] text-emerald-800">{{ money(whatsappOpen.summary?.amount ?? 0) }} · voir les commandes</span></span>
+        <span class="shrink-0 font-black text-emerald-700">▸</span>
+      </RouterLink>
+      <section v-else class="rounded-[20px] border-2 border-emerald-500 bg-white p-4">
+        <b class="block text-[17px]">💬 Commandes WhatsApp</b>
+        <p class="mt-1 text-[13.5px] text-slate-600">Sans live : tes clients envoient le code (A1, A2…) ou « LISTE » sur WhatsApp, et la commande s'enregistre toute seule. Lancer un live les ferme.</p>
+        <RouterLink to="/gestion/live/commandes-whatsapp" class="btn-brand mt-3 w-full">Ouvrir les commandes WhatsApp</RouterLink>
+      </section>
       <div class="rounded-[24px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 px-4 py-5 text-center text-white">
         <h2 class="text-[26px] font-black leading-tight">Ton live en 5 étapes</h2>
         <p class="mt-1 text-[16px] font-bold text-orange-50">Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes.</p>
