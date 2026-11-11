@@ -189,6 +189,11 @@
                     @endif
                 </div>
                 <p class="mt-3 text-center text-slate-600">Sans carte bancaire.</p>
+                <div class="mt-8 flex justify-center">
+                    <video class="w-full max-w-[17rem] rounded-[2rem] shadow-2xl ring-1 ring-slate-200" poster="/videos/live/tout-gratuit-v.jpg?v=1" width="720" height="1280" controls playsinline preload="none" aria-label="Vidéo : tout est gratuit">
+                        <source src="/videos/live/tout-gratuit-v.mp4?v=1" type="video/mp4">
+                    </video>
+                </div>
             </div>
         </section>
 

@@ -38,8 +38,8 @@ class PageController extends Controller
     public function video(string $name): View
     {
         abort_unless(is_file(public_path("videos/{$name}.mp4")), 404);
-        $titles = ['live/comment-ca-marche-v' => 'Vendre en live : comment ça marche', 'live/probleme-solution-v' => 'Toi, tu fais ton live. Jibiat Marchand enregistre les commandes.'];
-        $step = collect(StartSteps::all())->firstWhere('video', "/videos/{$name}.mp4");
+        $titles = ['live/comment-ca-marche-v' => 'Vendre en live : comment ça marche', 'live/probleme-solution-v' => 'Toi, tu fais ton live. Jibiat Marchand enregistre les commandes.', 'live/tout-gratuit-v' => 'Commandes, stock, livraisons, boutique en ligne, caisse : tout est gratuit'];
+        $step = collect(StartSteps::all())->first(fn (array $s) => strtok($s['video'], '?') === "/videos/{$name}.mp4");
 
         return view('platform.video', [
             'title' => $titles[$name] ?? ($step['title'] ?? 'Vidéo Jibiat Marchand'),
