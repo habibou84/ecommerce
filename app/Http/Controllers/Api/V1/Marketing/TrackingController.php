@@ -66,10 +66,12 @@ class TrackingController extends Controller
             'meta_pixel_id' => ['nullable', 'regex:/^\d{6,20}$/'],
             'tiktok_pixel_id' => ['nullable', 'regex:/^[A-Z0-9]{10,30}$/'],
             'ga4_id' => ['nullable', 'regex:/^G-[A-Z0-9]{4,20}$/'],
-            'meta_capi_token' => ['nullable', 'string', 'max:500'],
+            // Un vrai jeton est long et sans espace : un mot de passe rempli par le navigateur est refusé
+            'meta_capi_token' => ['nullable', 'string', 'regex:/^\S{40,500}$/'],
             'remove_capi_token' => ['sometimes', 'boolean'],
         ], [
             'meta_pixel_id.regex' => 'L\'identifiant du pixel Meta ne contient que des chiffres.',
+            'meta_capi_token.regex' => 'Ce n\'est pas un jeton de l\'API Conversions (une longue suite de lettres et de chiffres, souvent commençant par EAA).',
             'tiktok_pixel_id.regex' => 'Identifiant de pixel TikTok invalide (lettres majuscules et chiffres).',
             'ga4_id.regex' => 'L\'identifiant Google Analytics commence par G-.',
         ]);
