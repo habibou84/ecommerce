@@ -11,6 +11,7 @@ use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Order extends Model
 {
@@ -158,6 +159,20 @@ class Order extends Model
     public function trackingUrl(): string
     {
         return $this->store->url('/suivi/'.$this->tracking_token);
+    }
+
+    /**
+     * QR de l'étiquette collée sur le colis : page publique du colis (boutique, numéro, statut), sans le code de
+     * livraison ni les données du client, que le livreur ou un inconnu qui tient le colis ne doit pas voir. Le lien
+     * de suivi du client (trackingUrl) n'est jamais imprimé sur le colis.
+     */
+    public function labelUrl(): string
+    {
+        if ($this->label_token === null) {
+            $this->forceFill(['label_token' => Str::random(24)])->saveQuietly();
+        }
+
+        return $this->store->url('/colis/'.$this->label_token);
     }
 
     /**
