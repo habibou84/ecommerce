@@ -25,6 +25,7 @@ use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
+use App\Services\Orders\OrderDocuments;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
@@ -253,6 +254,20 @@ class CourierTest extends TestCase
 
         // Le client voit le code sur sa page de suivi
         $this->get($this->storeUrl($this->store, '/suivi/'.$order->tracking_token))->assertSee($shipment->delivery_code)->assertSee('livreur Koffi');
+
+        // Le QR de l'étiquette collée sur le colis ne mène pas au lien de suivi : pas de code, ni téléphone, ni montant
+        $label = app(OrderDocuments::class)->label($order->fresh());
+        $this->assertStringStartsWith('%PDF', $label->getContent());
+        $order->refresh();
+        $this->assertNotNull($order->label_token);
+        $this->assertNotSame($order->tracking_token, $order->label_token);
+        $this->assertSame($this->storeUrl($this->store, '/colis/'.$order->label_token), $order->labelUrl());
+        $parcel = $this->get($this->storeUrl($this->store, '/colis/'.$order->label_token))->assertOk()
+            ->assertSee('Colis de la commande '.$order->reference())->assertSee('livreur Koffi')
+            ->assertDontSee($shipment->delivery_code)->assertDontSee('Code à donner')->assertDontSee($order->tracking_token);
+        $this->assertStringNotContainsString(substr((string) $order->customer_phone, -8), $parcel->getContent());
+        $this->assertStringNotContainsString((string) $order->customer_name, $parcel->getContent());
+        $this->get($this->storeUrl($this->store, '/colis/'.str_repeat('x', 24)))->assertNotFound();
 
         // Un autre livreur ne voit pas la mission
         $this->asCourier($otherUser);

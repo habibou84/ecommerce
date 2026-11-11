@@ -98,7 +98,7 @@ class CourierAppController extends Controller
         $missions = $this->shipments()->with(['order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'order.store', 'order.place.parent'])->whereIn('courier_id', $this->couriers($request)->pluck('id'))
             ->where(fn ($q) => $q->whereIn('status', self::ACTIVE)->orWhereDate('updated_at', today()))
             ->orderByRaw("CASE status WHEN 'out_for_delivery' THEN 0 WHEN 'in_transit' THEN 1 WHEN 'awaiting_pickup' THEN 2 WHEN 'rescheduled' THEN 3 WHEN 'failed' THEN 4 WHEN 'returning' THEN 5 ELSE 6 END")
-            ->orderBy('requested_at')->get();
+            ->orderBy('requested_at')->orderBy('id')->get();
 
         $several = $this->couriers($request)->count() > 1;
         $this->responses->markSeen($missions);

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CaddyAskController;
+use App\Http\Controllers\ParcelController;
 use App\Http\Controllers\ReceiptController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CatalogFeedController;
@@ -35,6 +36,8 @@ Route::get('/_caddy/ask', CaddyAskController::class);
 Route::middleware('zone:store,custom_domain')->group(function () {
     // Suivi d'une commande par le client (lien envoyé par WhatsApp), même boutique en ligne fermée
     Route::get('/suivi/{token}', TrackingController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('tracking');
+    // QR de l'étiquette collée sur le colis : page du colis, sans code de livraison ni données du client
+    Route::get('/colis/{token}', ParcelController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('parcel');
     // Avis du client sur les produits reçus (lien envoyé après la livraison)
     Route::get('/avis/{token}', [ReviewController::class, 'show'])->where('token', '[A-Za-z0-9]{16,32}')->name('review');
     Route::post('/avis/{token}', [ReviewController::class, 'store'])->where('token', '[A-Za-z0-9]{16,32}')->middleware(['ajax', 'throttle:storefront-order']);
