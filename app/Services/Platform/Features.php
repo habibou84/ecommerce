@@ -32,6 +32,9 @@ class Features
         'live' => ['group' => 'Ventes', 'label' => 'Vente en live', 'description' => 'Préparer et animer un live, réservations par code.', 'default' => 'on'],
         'live_screens' => ['group' => 'Ventes', 'label' => 'Affichage des articles dans le live', 'description' => 'Écran du live (télé, LIVE Studio, PRISM), mode présentation et cartes.', 'default' => 'on'],
         'online_payment' => ['group' => 'Ventes', 'label' => 'Paiement en ligne', 'description' => 'Comptes Wave, CinetPay, PayDunya des boutiques et liens de paiement.', 'default' => 'on'],
+        // Étiquettes pré-imprimées à scanner : chaque format s'allume à part ; les étiquettes déjà collées restent lisibles
+        'labels_mini' => ['group' => 'Ventes', 'label' => 'Mini étiquettes QR (40 × 30)', 'description' => 'Étiquettes pré-imprimées à coller sur le colis et à scanner pour les relier à la commande (rouleau ou planche A4).', 'default' => 'hidden', 'default_preprod' => 'on'],
+        'labels_large' => ['group' => 'Ventes', 'label' => 'Grandes étiquettes QR (10 × 15)', 'description' => 'Même chose en grand format, avec de la place pour écrire le client.', 'default' => 'hidden', 'default_preprod' => 'on'],
         'custom_domain' => ['group' => 'Ventes', 'label' => 'Nom de domaine personnalisé', 'description' => 'La boutique en ligne à l\'adresse de la boutique.', 'default' => 'on'],
         // Outils
         'ai' => ['group' => 'Outils', 'label' => 'Assistant IA', 'description' => 'Fiche depuis une photo, commande depuis une conversation, réponses, questions sur les chiffres.', 'default' => 'on'],
