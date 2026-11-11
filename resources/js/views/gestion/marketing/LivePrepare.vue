@@ -82,7 +82,7 @@ const billingLine = computed(() => {
   if (!b?.paid) return ''
   if (b.next === 'covered') return `Lives illimités jusqu'au ${until(b.month_until)}`
   if (b.next === 'pay') return `Crédit live : ${money(b.credit)} · recharge pour ouvrir les commandes`
-  return 'Tu ne paies que si tu vends'
+  return 'Pas de commande, pas de frais'
 })
 // Live lancé ou terminé ailleurs (fenêtre du live, autre copie de cette page) : la carte se met à jour
 watch(livesVersion, load)
