@@ -6,6 +6,7 @@ import LiveDisplay from './LiveDisplay.vue'
 import LiveOverlay from './LiveOverlay.vue'
 import LivePin from './LivePin.vue'
 import LiveScreenTabs from './LiveScreenTabs.vue'
+import LiveShowRemote from './LiveShowRemote.vue'
 import Modal from './Modal.vue'
 import LiveChatSheet from './live/LiveChatSheet.vue'
 import LiveOrderSheet from './live/LiveOrderSheet.vue'
@@ -80,8 +81,13 @@ const studioOnline = computed(() => !!screens.value?.some((s) => s.is_link && s.
 // Fenêtre « Connecter la télé / TikTok Studio » qui monte du bas : elle attend l'écran, affiche ✓ puis se ferme
 const connecting = ref(null) // 'tv' | 'studio'
 const connected = ref(false)
+const managing = ref(false) // ouvert depuis « Gérer » : écran déjà relié, à déconnecter ou à remplacer (pas de fermeture automatique)
+function openConnect(key, manage = false) {
+  managing.value = manage
+  connecting.value = key
+}
 watch([tvOnline, studioOnline], ([tv, studio]) => {
-  if (!connecting.value || connected.value || !(connecting.value === 'tv' ? tv : studio)) return
+  if (!connecting.value || managing.value || connected.value || !(connecting.value === 'tv' ? tv : studio)) return
   connected.value = true
   setTimeout(() => {
     connecting.value = null
@@ -89,8 +95,8 @@ watch([tvOnline, studioOnline], ([tv, studio]) => {
   }, 2000)
 })
 const CONNECT = {
-  tv: { title: '📺 Connecter la télé', why: 'Vos articles s\'affichent en grand derrière vous, en temps réel.', video: '/videos/supports/tv.mp4?v=1', poster: '/videos/supports/tv.jpg?v=1', done: 'Télé connectée' },
-  studio: { title: '📱 Connecter TikTok Studio', why: 'La carte de l\'article montré apparaît en haut de votre live.', video: '/videos/supports/studio.mp4?v=1', poster: '/videos/supports/studio.jpg?v=1', done: 'TikTok Studio connecté' },
+  tv: { title: '📺 Connecter la télé', why: 'Vos articles s\'affichent en grand derrière vous, en temps réel.', video: '/videos/supports/tv.mp4?v=1', poster: '/videos/supports/tv.jpg?v=1', done: 'Télé connectée', manage: '📺 Écrans reliés', manageWhy: 'Déconnectez un écran, ou reliez-en un autre : il remplace ou complète le premier.' },
+  studio: { title: '📱 Connecter TikTok Studio', why: 'La carte de l\'article montré apparaît en haut de votre live.', video: '/videos/supports/studio.mp4?v=1', poster: '/videos/supports/studio.jpg?v=1', done: 'TikTok Studio connecté', manage: '📱 TikTok Studio', manageWhy: 'Le lien de LIVE Studio : vous pouvez le changer si besoin.' },
 }
 let liveTimer
 onMounted(() => {
@@ -415,14 +421,15 @@ const ago = (iso) => {
       <!-- Télé ou TikTok Studio : connecté, ou bandeau à déplier pour connecter -->
       <template v-if="shownView !== 'pin'">
         <p v-if="shownView === 'tv' ? tvOnline : studioOnline" class="flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-[13px] font-extrabold text-emerald-300">
-          ✓ {{ shownView === 'tv' ? 'Télé connectée : les clientes voient vos articles en temps réel' : 'TikTok Studio connecté : la carte de l\'article est sur votre live' }}
+          <span class="min-w-0 flex-1">✓ {{ shownView === 'tv' ? 'Télé connectée : les clientes voient vos articles en temps réel' : 'TikTok Studio connecté : la carte de l\'article est sur votre live' }}</span>
+          <button type="button" class="shrink-0 rounded-lg bg-white/15 px-2.5 py-1.5 text-[12.5px] font-black text-white" @click="openConnect(shownView, true)">Gérer</button>
         </p>
         <div v-else class="flex items-center gap-2 rounded-xl bg-red-500/15 px-3 py-2.5 ring-1 ring-red-400/50">
           <span class="min-w-0 flex-1">
             <b class="block text-[14px]">{{ shownView === 'tv' ? '📺 Télé pas connectée' : '📱 TikTok Studio pas connecté' }}</b>
             <span class="block text-[12.5px] text-red-100">{{ shownView === 'tv' ? 'Vos articles en grand derrière vous' : 'La carte de l\'article en haut de votre live' }}</span>
           </span>
-          <button type="button" class="shrink-0 rounded-lg bg-white px-3 py-2 text-[13px] font-black text-slate-900" @click="connecting = shownView">Connecter</button>
+          <button type="button" class="shrink-0 rounded-lg bg-white px-3 py-2 text-[13px] font-black text-slate-900" @click="openConnect(shownView)">Connecter</button>
         </div>
 
         <!-- Ce que voient les clientes -->
@@ -438,6 +445,9 @@ const ago = (iso) => {
           <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
                   class="rounded-lg px-1 py-2 text-[11.5px] font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>
         </div>
+
+        <!-- Le show sur la télé : moments, objectif, thème, sons -->
+        <LiveShowRemote v-if="shownView === 'tv'" :id="live.id" :settings="display?.live?.show?.settings" @changed="loadDisplay" />
       </template>
 
       <!-- Étiquette à épingler : à jour, ou ce qui a changé et la nouvelle -->
@@ -580,13 +590,14 @@ const ago = (iso) => {
         </div>
         <template v-else>
           <div class="flex items-center gap-2">
-            <b class="min-w-0 flex-1 text-[18px]">{{ CONNECT[connecting].title }}</b>
+            <b class="min-w-0 flex-1 text-[18px]">{{ managing ? CONNECT[connecting].manage : CONNECT[connecting].title }}</b>
             <button type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100" aria-label="Fermer" @click="connecting = null">✕</button>
           </div>
-          <p class="mt-1 text-[14px] text-slate-600">{{ CONNECT[connecting].why }}</p>
-          <video :key="connecting" :src="CONNECT[connecting].video" :poster="CONNECT[connecting].poster" class="mt-2 aspect-video w-full rounded-2xl bg-slate-900" controls playsinline preload="metadata" />
+          <p v-if="managing" class="mt-1 text-[14px] text-slate-600">{{ CONNECT[connecting].manageWhy }}</p>
+          <p v-if="!managing" class="mt-1 text-[14px] text-slate-600">{{ CONNECT[connecting].why }}</p>
+          <video v-if="!managing" :key="connecting" :src="CONNECT[connecting].video" :poster="CONNECT[connecting].poster" class="mt-2 aspect-video w-full rounded-2xl bg-slate-900" controls playsinline preload="metadata" />
           <div class="mt-2"><LiveScreenTabs :id="live.id" screen-only :part="connecting" :no-phone="connecting === 'studio'" @add="connecting = null" /></div>
-          <p class="mt-2 flex items-center justify-center gap-2 text-[13px] font-bold text-slate-500"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-200 border-t-sky-700" />En attente {{ connecting === 'tv' ? 'de la télé' : 'de LIVE Studio' }}…</p>
+          <p v-if="!managing" class="mt-2 flex items-center justify-center gap-2 text-[13px] font-bold text-slate-500"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-200 border-t-sky-700" />En attente {{ connecting === 'tv' ? 'de la télé' : 'de LIVE Studio' }}…</p>
         </template>
       </div>
     </div>
