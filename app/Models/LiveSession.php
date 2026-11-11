@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
+use App\Services\Live\LiveBilling;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -13,7 +14,15 @@ class LiveSession extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'display_mode', 'started_at', 'ended_at', 'created_by', 'pin_ready_at', 'orders_until'];
+    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'display_mode', 'started_at', 'ended_at', 'created_by', 'pin_ready_at', 'orders_until', 'channel'];
+
+    /** Commandes WhatsApp sans live : ouvertes jusqu'à une heure choisie (ou jusqu'à « Fermer ») */
+    public const CHANNEL_WHATSAPP = 'whatsapp';
+
+    /** Durées proposées (heures) ; null = jusqu'à ce que la boutique ferme */
+    public const WHATSAPP_HOURS = [24, 72, 168];
+
+    protected $attributes = ['channel' => 'live'];
 
     protected function casts(): array
     {
@@ -26,6 +35,11 @@ class LiveSession extends Model
         return $this->hasMany(LiveItem::class)->orderBy('position')->orderBy('id');
     }
 
+    public function bills(): HasMany
+    {
+        return $this->hasMany(LiveSessionBill::class)->orderBy('day');
+    }
+
     public function reservations(): HasMany
     {
         return $this->hasMany(LiveReservation::class);
@@ -36,12 +50,22 @@ class LiveSession extends Model
      */
     public function takesOrders(): bool
     {
+        if ($this->isWhatsApp()) {
+            return $this->status === 'live' && ($this->orders_until === null || $this->orders_until->isFuture()) && ! app(LiveBilling::class)->paused($this);
+        }
+
         return $this->status === 'live' || ($this->status === 'ended' && $this->orders_until !== null && $this->orders_until->isFuture());
+    }
+
+    /** Commandes WhatsApp sans live (pas de TikTok, pas d'écran du live) */
+    public function isWhatsApp(): bool
+    {
+        return $this->channel === self::CHANNEL_WHATSAPP;
     }
 
     /** Live terminé, commandes encore actives */
     public function extended(): bool
     {
-        return $this->status === 'ended' && $this->orders_until !== null && $this->orders_until->isFuture();
+        return ! $this->isWhatsApp() && $this->status === 'ended' && $this->orders_until !== null && $this->orders_until->isFuture();
     }
 }

@@ -70,7 +70,8 @@ class LiveSales
         $variants = ProductVariant::forStore($store->id)->with('product')->whereIn('id', collect($data['items'])->pluck('variant_id'))->get()->keyBy('id');
 
         return DB::transaction(function () use ($store, $session, $data, $user, $variants) {
-            $session ??= new LiveSession(['store_id' => $store->id, 'status' => 'draft', 'created_by' => $user?->id]);
+            $session ??= new LiveSession(['store_id' => $store->id, 'status' => 'draft', 'created_by' => $user?->id,
+                'channel' => ($data['channel'] ?? null) === LiveSession::CHANNEL_WHATSAPP ? LiveSession::CHANNEL_WHATSAPP : 'live']);
             // Articles changés : la photo à épingler est à refaire (étape 3 de « Préparer un live »)
             $session->pin_ready_at = null;
             $session->fill([
@@ -185,16 +186,25 @@ class LiveSales
         return $touched;
     }
 
-    public function start(LiveSession $session): LiveSession
+    public function start(LiveSession $session, ?int $openHours = null): LiveSession
     {
+        $whatsapp = $session->isWhatsApp();
         if ($session->status === 'ended') {
-            throw new BusinessRuleException('Ce live est terminé.');
+            throw new BusinessRuleException($whatsapp ? 'Ces commandes WhatsApp sont fermées : rouvre-les avec ces articles.' : 'Ce live est terminé.');
         }
         if ($session->items()->doesntExist()) {
-            throw new BusinessRuleException('Ajoutez au moins un article avant de lancer le live.');
+            throw new BusinessRuleException($whatsapp ? 'Ajoute au moins un article avant d\'ouvrir les commandes.' : 'Ajoutez au moins un article avant de lancer le live.');
         }
-        if (LiveSession::forStore($session->store_id)->where('status', 'live')->whereKeyNot($session->id)->exists()) {
-            throw new BusinessRuleException('Un autre live est en cours : terminez-le d\'abord.');
+        $running = LiveSession::forStore($session->store_id)->where('status', 'live')->whereKeyNot($session->id)->get();
+        // Un seul code A1 à la fois : lancer un live ferme les commandes WhatsApp ; l'inverse attend la fin du live
+        foreach ($running as $other) {
+            if ($other->isWhatsApp() && ! $whatsapp) {
+                $this->end($other);
+
+                continue;
+            }
+            throw new BusinessRuleException($other->isWhatsApp() ? 'Les commandes WhatsApp sont déjà ouvertes : ferme-les d\'abord.'
+                : ($whatsapp ? 'Un live est en cours : ouvre les commandes WhatsApp après le live.' : 'Un autre live est en cours : terminez-le d\'abord.'));
         }
         // Un seul live à la fois : les commandes encore actives d'un live terminé s'arrêtent (et il est compté)
         LiveSession::forStore($session->store_id)->where('status', 'ended')->where('orders_until', '>', now())->whereKeyNot($session->id)
@@ -205,9 +215,11 @@ class LiveSales
             ->unique(fn (LiveItem $item) => $item->variant->product_id)
             ->map(fn (LiveItem $item) => "{$item->code} {$item->variant->product->title}");
         if ($missing->isNotEmpty()) {
-            throw new BusinessRuleException('Ajoute une photo avant le live : '.$missing->implode(', ').'.');
+            throw new BusinessRuleException('Ajoute une photo avant '.($whatsapp ? 'd\'ouvrir les commandes' : 'le live').' : '.$missing->implode(', ').'.');
         }
-        $session->update(['status' => 'live', 'started_at' => $session->started_at ?? now()]);
+        $session->update(['status' => 'live', 'started_at' => $session->started_at ?? now()]
+            // Commandes WhatsApp : ouvertes 24 h, 3 jours, 7 jours, ou jusqu'à « Fermer »
+            + ($whatsapp ? ['orders_until' => in_array($openHours, LiveSession::WHATSAPP_HOURS, true) ? now()->addHours($openHours) : null] : []));
 
         return $session;
     }
@@ -217,7 +229,7 @@ class LiveSales
      */
     public function end(LiveSession $session, ?int $keepHours = null): LiveSession
     {
-        $keep = in_array($keepHours, self::KEEP_HOURS, true) && $session->status === 'live';
+        $keep = ! $session->isWhatsApp() && in_array($keepHours, self::KEEP_HOURS, true) && $session->status === 'live';
         $session->update(['status' => 'ended', 'ended_at' => $session->ended_at ?? now(), 'orders_until' => $keep ? now()->addHours($keepHours) : null]);
         if ($keep) {
             // Commandes encore actives : le live sera compté quand elles s'arrêtent (une seule fois, même palier)
@@ -257,8 +269,13 @@ class LiveSales
      */
     public static function ordering(int $storeId): ?LiveSession
     {
-        return self::current($storeId)
-            ?? LiveSession::forStore($storeId)->where('status', 'ended')->where('orders_until', '>', now())->latest('ended_at')->first();
+        $current = self::current($storeId);
+        // Commandes WhatsApp en pause (crédit vide) ou arrivées à leur heure de fermeture : plus de nouvelles commandes
+        if ($current !== null && $current->takesOrders()) {
+            return $current;
+        }
+
+        return LiveSession::forStore($storeId)->where('status', 'ended')->where('channel', 'live')->where('orders_until', '>', now())->latest('ended_at')->first();
     }
 
     /**
@@ -297,8 +314,8 @@ class LiveSales
         $store = Store::findOrFail($session->store_id);
 
         return $this->save($store, null, [
-            'title' => 'Live du '.now()->locale('fr')->isoFormat('dddd D MMM'), 'hold_minutes' => $session->hold_minutes,
-            'stream_url' => $session->stream_url, 'items' => $lines,
+            'title' => ($session->isWhatsApp() ? 'Commandes WhatsApp du ' : 'Live du ').now()->locale('fr')->isoFormat('dddd D MMM'), 'hold_minutes' => $session->hold_minutes,
+            'stream_url' => $session->stream_url, 'items' => $lines, 'channel' => $session->channel,
         ], $user);
     }
 
@@ -375,7 +392,7 @@ class LiveSales
     {
         $session = $item->session;
         if (! $session->takesOrders()) {
-            throw new BusinessRuleException('Ce live n\'est pas en cours.');
+            throw new BusinessRuleException($session->isWhatsApp() ? 'Les commandes WhatsApp ne sont pas ouvertes.' : 'Ce live n\'est pas en cours.');
         }
         $phone = PhoneNumber::normalize($customer['phone'] ?? null);
         if ($source === 'page' && $phone !== null) {
@@ -472,7 +489,7 @@ class LiveSales
     public function reserveLines(LiveSession $session, array $lines, array $customer, string $source): Collection
     {
         if (! $session->takesOrders()) {
-            throw new BusinessRuleException('Ce live n\'est pas en cours.');
+            throw new BusinessRuleException($session->isWhatsApp() ? 'Les commandes WhatsApp ne sont pas ouvertes.' : 'Ce live n\'est pas en cours.');
         }
         $items = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->whereIn('id', array_keys($lines))->orderBy('position')->get();
         if ($items->count() !== count($lines)) {
@@ -721,12 +738,15 @@ class LiveSales
         if ($codes === [] || str_word_count(Str::ascii($text)) > 6) {
             return false;
         }
-        $last = LiveSession::forStore($conversation->store_id)->where('status', 'ended')->where('ended_at', '>=', now()->subDays(7))->latest('ended_at')->first();
+        // Live terminé, ou commandes WhatsApp fermées ou en pause
+        $last = self::current($conversation->store_id)
+            ?? LiveSession::forStore($conversation->store_id)->where('status', 'ended')->where('ended_at', '>=', now()->subDays(7))->latest('ended_at')->first();
         if ($last === null || $last->items()->whereIn('code', $codes)->doesntExist()) {
             return false;
         }
         if (Cache::add('live-ended-code:'.$conversation->id, 1, 3600)) {
-            $this->reply($conversation, 'Ce live est terminé 🙏 Tu peux commander sur notre boutique : '.rtrim($conversation->store->url('/'), '/')."\nOu écris-nous ici, on te répond.");
+            $this->reply($conversation, ($last->isWhatsApp() ? 'Les commandes sont fermées pour le moment 🙏' : 'Ce live est terminé 🙏')
+                .' Tu peux commander sur notre boutique : '.rtrim($conversation->store->url('/'), '/')."\nOu écris-nous ici, on te répond.");
         }
 
         return true;
@@ -1285,6 +1305,10 @@ class LiveSales
             'ended_at' => $session->ended_at?->toIso8601String(),
             // « Terminer le live » en gardant les commandes actives : jusqu'à quand, et combien de commandes depuis la fin
             'orders_until' => $session->extended() ? $session->orders_until->toIso8601String() : null,
+            // Commandes WhatsApp sans live : heure de fermeture (null : jusqu'à « Fermer »), en pause si crédit vide
+            'channel' => $session->channel,
+            'closes_at' => $session->isWhatsApp() && $session->status === 'live' ? $session->orders_until?->toIso8601String() : null,
+            'paused' => $session->isWhatsApp() && $session->status === 'live' && app(LiveBilling::class)->paused($session),
             'orders_after' => $team && $session->status === 'ended' && $session->orders_until !== null ? $this->ordersAfter($session) : null,
             // « Préparer un live » : photo à épingler publiée (étape 3)
             'pin_ready' => $session->pin_ready_at !== null,
@@ -1628,7 +1652,7 @@ class LiveSales
                     'price' => (int) $left->min(fn (LiveItem $i) => $i->currentPrice()), 'image' => $first->variant?->image ?? $first->variant?->product?->images->first()];
             })->filter()->values();
         if ($groups->isEmpty()) {
-            $this->reply($conversation, "Tout est parti pour l'instant ! De nouveaux articles arrivent pendant le live. Nos autres articles : ".$store->url('/'));
+            $this->reply($conversation, "Tout est parti pour l'instant !".($session->isWhatsApp() ? '' : ' De nouveaux articles arrivent pendant le live.').' Nos autres articles : '.$store->url('/'));
 
             return;
         }
@@ -1642,7 +1666,7 @@ class LiveSales
         // Une seule image pour toute la liste (miniature, code, nom, tailles, prix), puis un court texte avec le lien
         $image = rescue(fn () => app(LiveImages::class)->board($store->id, 'Encore disponibles · '.$store->name, $shown->map(fn (array $g) => [
             'code' => $g['code'], 'title' => $g['title'], 'detail' => $g['sizes'] !== '' ? 'Tailles : '.$g['sizes'] : 'Taille unique', 'price' => $g['price'], 'image' => $g['image'],
-        ])->all(), 'Répondez avec le code (ex. '.$example.')', $groups->count().' article'.($groups->count() > 1 ? 's' : '').($more > 0 ? " · + {$more} sur la page du live" : '')), report: false);
+        ])->all(), 'Répondez avec le code (ex. '.$example.')', $groups->count().' article'.($groups->count() > 1 ? 's' : '').($more > 0 ? " · + {$more} sur la page des articles" : '')), report: false);
         $howTo = "👉 Répondez avec *le code* de l'article (ex. *{$example}*).".($anySizes ? " S'il y a des tailles, on vous demande la vôtre." : '')
             .($several !== $example ? " Plusieurs articles : *{$example}, {$several}*." : '')."\n📷 Toutes les photos : ".$store->url('/live');
         if (app(LiveCheckout::class)->picture($conversation, $image, '🔴 Encore disponibles en ce moment')) {
@@ -1652,7 +1676,7 @@ class LiveSales
         }
         $text = $groups->take(30)->map(fn (array $g) => "*{$g['code']}* · {$g['title']}".($g['sizes'] !== '' ? " ({$g['sizes']})" : '').' · '.Money::format($g['price']));
         $this->reply($conversation, "🔴 *Encore disponibles en ce moment :*\n\n".$text->implode("\n\n")
-            .($groups->count() > 30 ? "\n\n… et ".($groups->count() - 30).' autres sur la page du live.' : '')."\n\n".$howTo);
+            .($groups->count() > 30 ? "\n\n… et ".($groups->count() - 30).' autres sur la page des articles.' : '')."\n\n".$howTo);
     }
 
     /**

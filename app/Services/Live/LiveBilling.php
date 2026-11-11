@@ -6,6 +6,7 @@ use App\Enums\CancelReason;
 use App\Exceptions\BusinessRuleException;
 use App\Models\LiveReservation;
 use App\Models\LiveSession;
+use App\Models\LiveSessionBill;
 use App\Models\PlatformSetting;
 use App\Models\Store;
 use App\Models\SubscriptionInvoice;
@@ -113,12 +114,14 @@ class LiveBilling
      * Commandes créées pendant ce live (même annulées ensuite), sauf les fausses : annulées pour faux numéro, fraude
      * ou doublon (des inconnus ne peuvent pas faire monter la facture du live avec de fausses réservations).
      */
-    public function ordersOf(LiveSession $session): int
+    public function ordersOf(LiveSession $session, ?CarbonInterface $day = null): int
     {
         $fake = [CancelReason::WrongNumber->value, CancelReason::Fraud->value, CancelReason::Duplicate->value];
 
         return LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->whereNotNull('order_id')
-            ->whereHas('order', fn ($o) => $o->where(fn ($q) => $q->whereNull('cancel_reason')->orWhereNotIn('cancel_reason', $fake)))
+            ->whereHas('order', fn ($o) => $o->where(fn ($q) => $q->whereNull('cancel_reason')->orWhereNotIn('cancel_reason', $fake))
+                // Commandes WhatsApp : seulement celles créées ce jour-là (heure de la boutique)
+                ->when($day !== null, fn ($q) => $q->whereBetween('created_at', [$day->copy()->startOfDay()->utc(), $day->copy()->endOfDay()->utc()])))
             ->distinct()->count('order_id');
     }
 
@@ -135,6 +138,9 @@ class LiveBilling
         }
         $store = Store::findOrFail($session->store_id);
         $billed = $session->billed_at !== null;
+        if ($session->isWhatsApp() && ! $billed) {
+            return $this->dayProgress($session, $store);
+        }
         $orders = $billed ? (int) $session->billed_orders : $this->ordersOf($session);
         $offered = $billed ? (int) $session->billed_offered : min($orders, $this->freeLeft($store));
         $billable = max(0, $orders - $offered);
@@ -158,6 +164,9 @@ class LiveBilling
             'next' => $next ? ['in' => $next['from'] - $billable, 'price' => $next['price']] : null,
             'tiers' => $tiers,
             'billed' => $billed,
+            // Commandes WhatsApp : jours comptés
+            'per_day' => $session->isWhatsApp(),
+            'days' => $session->isWhatsApp() ? $session->bills()->get()->map(fn (LiveSessionBill $b) => ['day' => $b->day->toDateString(), 'orders' => $b->orders, 'offered' => $b->offered, 'amount' => $b->amount])->values()->all() : [],
         ];
     }
 
@@ -244,6 +253,11 @@ class LiveBilling
      */
     public function bill(LiveSession $session): void
     {
+        if ($session->isWhatsApp()) {
+            $this->billWhatsApp($session, true);
+
+            return;
+        }
         DB::transaction(function () use ($session) {
             $session = LiveSession::whereKey($session->id)->lockForUpdate()->firstOrFail();
             if ($session->billed_at !== null) {
@@ -266,13 +280,124 @@ class LiveBilling
     }
 
     /**
+     * Commandes WhatsApp : chaque jour d'ouverture compté comme un live (commandes du jour, commandes offertes d'abord,
+     * palier retiré du crédit live). Les jours passés sont comptés le soir venu ; à la fermeture ($closing), aussi le
+     * jour en cours, puis les totaux sont gardés sur la session.
+     */
+    public function billWhatsApp(LiveSession $session, bool $closing): void
+    {
+        if ($session->started_at === null || $session->billed_at !== null) {
+            return;
+        }
+        $tz = Store::find($session->store_id)?->timezone ?: config('app.timezone');
+        $today = now($tz)->startOfDay();
+        $last = $closing ? ($session->ended_at ?? now())->copy()->setTimezone($tz)->startOfDay() : $today->copy()->subDay();
+        $done = LiveSessionBill::forStore($session->store_id)->where('live_session_id', $session->id)->pluck('day')
+            ->map(fn ($d) => $d->toDateString())->all();
+        for ($day = $session->started_at->copy()->setTimezone($tz)->startOfDay(); $day->lte($last); $day->addDay()) {
+            if (! in_array($day->toDateString(), $done, true)) {
+                $this->billDay($session, $day->copy());
+            }
+        }
+        if ($closing) {
+            DB::transaction(function () use ($session) {
+                $session = LiveSession::whereKey($session->id)->lockForUpdate()->firstOrFail();
+                if ($session->billed_at !== null) {
+                    return;
+                }
+                $bills = LiveSessionBill::forStore($session->store_id)->where('live_session_id', $session->id);
+                $session->forceFill(['billed_orders' => (int) (clone $bills)->sum('orders'), 'billed_offered' => (int) (clone $bills)->sum('offered'),
+                    'billed_amount' => (int) (clone $bills)->sum('amount'), 'billed_at' => now()])->save();
+            });
+        }
+    }
+
+    private function billDay(LiveSession $session, CarbonInterface $day): void
+    {
+        DB::transaction(function () use ($session, $day) {
+            $store = Store::whereKey($session->store_id)->lockForUpdate()->firstOrFail();
+            if (LiveSessionBill::forStore($store->id)->where('live_session_id', $session->id)->whereDate('day', $day->toDateString())->exists()) {
+                return;
+            }
+            $orders = $this->ordersOf($session, $day);
+            $offered = 0;
+            $price = 0;
+            // Ouvertes pendant des lives illimités : comptées comme d'habitude une fois les 30 jours finis
+            if ($session->billing === 'tier' || ($session->billing === 'month' && $this->coveredUntil($store) === null)) {
+                $offered = min($orders, $this->freeLeft($store));
+                $price = $this->priceFor($orders - $offered);
+                $store->forceFill([
+                    'live_orders_used' => (int) $store->live_orders_used + $offered,
+                    'live_credit' => (int) $store->live_credit - $price,
+                ])->save();
+            }
+            LiveSessionBill::create(['store_id' => $store->id, 'live_session_id' => $session->id, 'day' => $day->toDateString(),
+                'orders' => $orders, 'offered' => $offered, 'amount' => $price]);
+        });
+    }
+
+    /**
+     * Commandes WhatsApp en pause : lives payants, ni illimité, ni commande offerte, et crédit sous le minimum après
+     * les jours déjà comptés. Les nouveaux codes ne sont plus pris ; les commandes enregistrées restent. Recharger
+     * relance les commandes.
+     */
+    public function paused(LiveSession $session): bool
+    {
+        if (! $session->isWhatsApp() || $session->billing === 'free_mode' || ! $this->settings()['paid']) {
+            return false;
+        }
+        $store = Store::find($session->store_id);
+
+        return $store !== null && $this->coveredUntil($store) === null && $this->freeLeft($store) <= 0 && (int) $store->live_credit < $this->settings()['min_credit'];
+    }
+
+    /**
+     * Commandes WhatsApp ouvertes : le jour en cours (comme un live) et les jours déjà comptés.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function dayProgress(LiveSession $session, Store $store): ?array
+    {
+        $tz = $store->timezone ?: config('app.timezone');
+        $orders = $this->ordersOf($session, now($tz));
+        $offered = min($orders, $this->freeLeft($store));
+        $billable = max(0, $orders - $offered);
+        $tiers = $this->tiers();
+        $index = collect($tiers)->search(fn ($t) => $t['to'] === null || $billable <= $t['to']);
+        $next = $tiers[$index + 1] ?? null;
+        $price = $tiers[$index]['price'];
+        $credit = (int) $store->live_credit;
+
+        return [
+            'orders' => $orders,
+            'offered' => $offered,
+            'billable' => $billable,
+            'tier' => $index + 1,
+            'price' => $price,
+            'credit' => $credit,
+            'shortfall' => max(0, $price - $credit),
+            'recharge' => 0,
+            'next' => $next ? ['in' => $next['from'] - $billable, 'price' => $next['price']] : null,
+            'tiers' => $tiers,
+            'billed' => false,
+            'per_day' => true,
+            'days' => $session->bills()->get()->map(fn (LiveSessionBill $b) => ['day' => $b->day->toDateString(), 'orders' => $b->orders, 'offered' => $b->offered, 'amount' => $b->amount])->values()->all(),
+        ];
+    }
+
+    /**
      * Lives restés ouverts plus de MAX_HOURS heures : fermés et comptés (une vendeuse qui oublie de fermer, ou qui
      * voudrait ne jamais payer).
      */
     public function closeStale(): int
     {
-        $stale = LiveSession::withoutGlobalScopes()->where('status', 'live')->where('started_at', '<', now()->subHours(self::MAX_HOURS))->get();
+        $stale = LiveSession::withoutGlobalScopes()->where('status', 'live')->where('channel', 'live')->where('started_at', '<', now()->subHours(self::MAX_HOURS))->get();
+        // Commandes WhatsApp : fermées à l'heure choisie, et chaque jour passé compté (le soir, comme un live)
+        $stale = $stale->merge(LiveSession::withoutGlobalScopes()->where('status', 'live')->where('channel', LiveSession::CHANNEL_WHATSAPP)
+            ->whereNotNull('orders_until')->where('orders_until', '<=', now())->get());
         $stale->each(fn (LiveSession $session) => app(LiveSales::class)->end($session));
+        LiveSession::withoutGlobalScopes()->where('status', 'live')->where('channel', LiveSession::CHANNEL_WHATSAPP)->get()
+            ->each(fn (LiveSession $session) => $this->billWhatsApp($session, false));
         // Commandes gardées actives après le live : à l'heure dite, elles s'arrêtent et le live est compté
         $expired = LiveSession::withoutGlobalScopes()->where('status', 'ended')->whereNull('billed_at')
             ->whereNotNull('orders_until')->where('orders_until', '<=', now())->get();

@@ -42,7 +42,7 @@ class LiveController extends Controller
 
         return response()->json([
             'data' => $sessions->map(fn (LiveSession $s) => [
-                'id' => $s->id, 'title' => $s->title, 'status' => $s->status, 'items_count' => $s->items_count, 'pin_ready' => $s->pin_ready_at !== null,
+                'id' => $s->id, 'title' => $s->title, 'status' => $s->status, 'channel' => $s->channel, 'items_count' => $s->items_count, 'pin_ready' => $s->pin_ready_at !== null,
                 'started_at' => $s->started_at?->toIso8601String(), 'ended_at' => $s->ended_at?->toIso8601String(),
                 'minutes' => $s->started_at ? (int) $s->started_at->diffInMinutes($s->ended_at ?? now()) : null,
                 'summary' => $summaries[$s->id] ?? null,
@@ -274,18 +274,19 @@ class LiveController extends Controller
         return $this->state($this->live->duplicate($this->session($session), $request->user()), 201);
     }
 
-    public function start(int $session): JsonResponse
+    public function start(Request $request, int $session): JsonResponse
     {
+        $hours = $request->validate(['open_hours' => ['nullable', 'integer', 'in:'.implode(',', LiveSession::WHATSAPP_HOURS)]])['open_hours'] ?? null;
         $live = $this->session($session);
         if ($live->status !== 'draft') {
-            return $this->state($this->live->start($live));
+            return $this->state($this->live->start($live, $hours));
         }
 
         // Lives payants : pass ou forfait en cours, sinon un live offert, sinon le paiement est demandé
-        return $this->state(DB::transaction(function () use ($live) {
+        return $this->state(DB::transaction(function () use ($live, $hours) {
             app(LiveBilling::class)->authorize($this->currentStore(), $live);
 
-            return $this->live->start($live);
+            return $this->live->start($live, $hours !== null ? (int) $hours : null);
         }));
     }
 
@@ -362,6 +363,7 @@ class LiveController extends Controller
     {
         return $request->validate([
             'title' => ['required', 'string', 'max:120'],
+            'channel' => ['nullable', 'in:live,whatsapp'],
             'hold_minutes' => ['nullable', 'integer', 'between:10,1440'],
             'stream_url' => ['nullable', 'url:https', 'max:500'],
             'items' => ['required', 'array', 'min:1', 'max:60'],

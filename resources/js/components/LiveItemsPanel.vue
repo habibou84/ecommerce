@@ -16,6 +16,7 @@ import { money } from '../lib/format'
 const props = defineProps({
   draft: { type: Object, default: null }, // état du live en préparation (GET lives/{id}) ou null
   past: { type: Array, default: () => [] }, // lives terminés (liste de GET lives)
+  channel: { type: String, default: 'live' }, // « whatsapp » : commandes WhatsApp sans live
 })
 const emit = defineEmits(['saved', 'close'])
 
@@ -171,7 +172,8 @@ async function save() {
   errors.value = {}
   const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' })
   const payload = {
-    title: props.draft?.title ?? `Live du ${date}`,
+    title: props.draft?.title ?? (props.channel === 'whatsapp' ? `Commandes WhatsApp du ${date}` : `Live du ${date}`),
+    channel: props.channel,
     hold_minutes: props.draft?.hold_minutes ?? 120,
     stream_url: props.draft?.stream_url ?? null,
     items: items.value.map((i) => ({ variant_id: i.variant_id, price: Number(i.price), quantity: Number(i.quantity), code: signs[productKey(i)] ? codes.value[productKey(i)] : null })),

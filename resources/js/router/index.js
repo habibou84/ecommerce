@@ -103,6 +103,7 @@ const storeRoutes = [
       { path: 'marketing/fidelite', component: () => import('../views/gestion/marketing/Loyalty.vue'), meta: { platform: 'loyalty', title: 'Fidélité', permission: 'store.manage' } },
       { path: 'marketing/avis', component: () => import('../views/gestion/marketing/Reviews.vue'), meta: { platform: 'reviews', title: 'Avis clients', permission: 'store.manage' } },
       { path: 'live', component: () => import('../views/gestion/marketing/LivePrepare.vue'), meta: { platform: 'live', title: 'Préparer un live', permission: 'orders.manage' } },
+      { path: 'live/commandes-whatsapp/:id(\\d+)?', component: () => import('../views/gestion/marketing/WhatsAppOrders.vue'), props: true, meta: { platform: 'live', title: 'Commandes WhatsApp', permission: 'orders.manage' } },
       { path: 'live/passes', component: () => import('../views/gestion/marketing/LivesPast.vue'), meta: { platform: 'live', title: 'Lives passés', permission: 'orders.manage' } },
       { path: 'marketing/live/:id?', redirect: (to) => `/gestion/live${to.params.id ? `/${to.params.id}` : ''}` },
       { path: 'live/:id(\\d+)', component: () => import('../views/gestion/marketing/LiveRoom.vue'), props: true, meta: { platform: 'live', title: 'Live', permission: 'orders.manage' } },
