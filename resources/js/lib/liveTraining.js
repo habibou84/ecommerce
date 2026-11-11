@@ -13,9 +13,9 @@ export const LIVE_TRAINING = [
       action: { label: 'Préparer un live', prepare: true },
     },
     {
-      n: 3, title: 'Préparer votre live dans Jibiat Marchand', seconds: 61,
-      points: ['Ventes › Vendre en live › « Préparer un live »', 'Ajoutez vos articles dans l\'ordre : chacun reçoit son code (A1, A2…)', 'Prix du live et pièces proposées : épuisé, la liste d\'attente prend le relais'],
-      checklist: ['Mon live a un nom', 'Mes articles sont dans l\'ordre de présentation', 'Chaque article a son prix du live et ses pièces'],
+      n: 3, title: 'Préparer votre live dans Jibiat Marchand', seconds: 53,
+      points: ['Sur l\'accueil, « Ton live en 5 étapes » : WhatsApp, prix de livraison, articles, carte, lancement', 'Choisissez vos articles dans l\'ordre : chacun reçoit son code (A1, A2…)', 'Épinglez la carte sur fond vert, lancez votre live sur TikTok puis touchez « J\'ouvre les commandes du live »'],
+      checklist: ['Mon WhatsApp est connecté et mon prix de livraison réglé', 'Mes articles sont dans l\'ordre de présentation', 'Ma carte est prête sur le fond vert'],
       action: { label: 'Préparer un live', prepare: true },
     },
     {
@@ -62,7 +62,7 @@ export const LIVE_TRAINING = [
   { part: 'Après le live', modules: [
     {
       n: 11, title: 'Transformer les réservations en livraisons', seconds: 61,
-      points: ['Regardez le bilan du live : réservations, commandes, quartiers encore attendus', 'Confirmez dans Ventes › À confirmer (adresse et moment) ; un client = une seule commande', 'Confiez les livraisons, livrez dès le lendemain et suivez jusqu\'à la Caisse'],
+      points: ['Regardez le bilan du live et écrivez aux clientes en liste d\'attente', 'Confirmez dans Ventes › À confirmer (adresse et moment) ; un client = une seule commande', 'Livraison ajoutée au prix, acompte pour les grosses commandes (Réglages › Acompte) ; faites livrer dès le lendemain'],
       checklist: ['J\'ai regardé le bilan de mon live', 'J\'ai confirmé les commandes du live', 'Les livraisons sont confiées pour le lendemain'],
     },
     {
@@ -73,8 +73,8 @@ export const LIVE_TRAINING = [
   ] },
 ]
 
-export const trainingVideo = (n) => `/videos/live/formation-${String(n).padStart(2, '0')}.mp4`
-export const trainingPoster = (n) => `/videos/live/formation-${String(n).padStart(2, '0')}.jpg`
+export const trainingVideo = (n) => `/videos/live/formation-${String(n).padStart(2, '0')}.mp4?v=2`
+export const trainingPoster = (n) => `/videos/live/formation-${String(n).padStart(2, '0')}.jpg?v=2`
 
 // Avant de lancer le live (écran d'un live en préparation)
 export const BEFORE_LIVE = [
