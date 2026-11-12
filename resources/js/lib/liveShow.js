@@ -33,42 +33,59 @@ function writeStore(key, value) {
 }
 
 /**
- * Plan du live : les articles dans l'ordre, avec des moments placés pour garder le rythme (défi après le 2e article,
- * l'article mystère annoncé puis lancé au milieu, les 3 premiers, la carte, la dernière chance à la fin).
+ * Plan du live : il guide l'affichage des articles, pas à pas. Vitrine puis « Comment commander » pour ouvrir,
+ * les articles un par un (rappel « Comment commander » tous les 3 articles, vitrine tous les 6), puis le défilement
+ * de ce qui reste et la vitrine finale. Les articles épuisés sont sautés, l'article mystère n'y est qu'une fois
+ * révélé. Les moments (défi, mystère, roue…) restent dans les conseils du copilote.
+ * Étapes faites gardées sur ce téléphone ; montrer un article à la main recale le plan.
  *
- * @param liveRef   ref du live (id, items, started_at)
- * @param productsRef  produits du live (un par code, avec mystery / revealed)
+ * @param liveRef      ref du live (id, started_at)
+ * @param productsRef  produits du live (un par code : code, title, remaining, mystery, revealed)
  */
 export function useLivePlan(liveRef, productsRef) {
   const key = (name) => `jm.live-${name}.${liveRef.value.id}`
-  const index = ref(readStore(key('plan'), 0))
+  const done = ref(new Set(readStore(key('plan-done'), [])))
   const minutes = ref(readStore(key('minutes'), 60))
-  watch(index, (v) => writeStore(key('plan'), v))
   watch(minutes, (v) => writeStore(key('minutes'), v))
+  const save = () => writeStore(key('plan-done'), [...done.value])
 
   const steps = computed(() => {
-    const products = productsRef.value
-    const shown = products.filter((p) => !p.mystery || p.revealed)
-    const mystery = products.find((p) => p.mystery && !p.revealed) ?? products.find((p) => p.mystery)
-    const middle = Math.max(1, Math.floor(shown.length / 2))
-    const list = []
-    shown.forEach((p, k) => {
-      list.push({ kind: 'article', code: p.code, id: p.id, label: `Montrer ${p.code} · ${p.title}` })
-      if (k === 0 && mystery) list.push({ kind: 'moment', type: 'announce', label: '📣 Annoncer l\'article mystère' })
-      if (k === 1) list.push({ kind: 'moment', type: 'defi', label: '🎯 Lancer le défi' })
-      if (k === middle && mystery) list.push({ kind: 'moment', type: 'mystery', label: `🎁 Article mystère (${mystery.code})` })
-      if (k === 2) list.push({ kind: 'moment', type: 'podium', label: '🥇 Les 3 premiers' })
+    const articles = productsRef.value.filter((p) => !p.mystery || p.revealed)
+    const list = [
+      { key: 'grid-open', kind: 'mode', mode: 'grid', label: '🧩 Vitrine : tous les articles', say: 'Bonsoir à tous ! Voici tout ce que j\'ai pour vous ce soir.', time: '1 min' },
+      { key: 'how-open', kind: 'mode', mode: 'how', label: '🛒 Comment commander', say: 'Pour commander, c\'est simple : regardez le code de l\'article et envoyez-le-moi au numéro de la bio.', time: '30 s' },
+    ]
+    articles.forEach((p, k) => {
+      list.push({ key: `art-${p.code}`, kind: 'article', code: p.code, label: `📦 ${p.code} en grand · ${p.title}`, say: `Regardez la ${p.code} : la matière, les tailles, comment la porter.`, time: '3 min', skip: p.remaining === 0 })
+      const n = k + 1
+      if (n % 6 === 0 && n < articles.length) list.push({ key: `grid-${n}`, kind: 'mode', mode: 'grid', label: '🧩 Vitrine : ce qui reste', say: 'On fait le point : voici ce qu\'il reste !', time: '30 s' })
+      else if (n % 3 === 0 && n < articles.length) list.push({ key: `how-${n}`, kind: 'mode', mode: 'how', label: '🛒 Rappel : comment commander', say: 'Pour ceux qui viennent d\'arriver : envoyez le code de l\'article au numéro de la bio.', time: '30 s' })
     })
-    if (shown.length < 2 && mystery) list.push({ kind: 'moment', type: 'mystery', label: `🎁 Article mystère (${mystery.code})` })
-    list.push({ kind: 'moment', type: 'map', label: '🗺️ Carte du live' })
-    list.push({ kind: 'moment', type: 'last', label: '⏳ Dernière chance' })
-    return list
+    list.push({ key: 'scroll-end', kind: 'mode', mode: 'scroll', label: '🔁 Défilement : dernier tour', say: 'Dernier tour : voici tout ce qu\'il reste, c\'est le moment !', time: '2 min' })
+    list.push({ key: 'grid-end', kind: 'mode', mode: 'grid', label: '🧩 Vitrine finale', say: 'Merci à tous ! Voici ce qu\'il reste, envoyez vite votre code.', time: '1 min' })
+    return list.map((step) => ({ ...step, done: done.value.has(step.key) })).filter((step) => step.done || !step.skip)
   })
-  const next = computed(() => steps.value[index.value] ?? null)
-  const advance = () => (index.value = Math.min(steps.value.length, index.value + 1))
+  const position = computed(() => {
+    const at = steps.value.findIndex((step) => !step.done)
+    return at < 0 ? steps.value.length : at
+  })
+  const next = computed(() => steps.value[position.value] ?? null)
+  const following = computed(() => steps.value[position.value + 1] ?? null)
+  function mark(keys) {
+    const set = new Set(done.value)
+    keys.forEach((k) => set.add(k))
+    done.value = set
+    save()
+  }
+  const advance = () => next.value && mark([next.value.key])
+  // Article montré à la main : son étape et celles d'avant sont faites
+  function reached(code) {
+    const at = steps.value.findIndex((step) => step.key === `art-${code}`)
+    if (at >= 0 && !steps.value[at].done) mark(steps.value.slice(0, at + 1).map((step) => step.key))
+  }
   const plannedEnd = computed(() => (liveRef.value.started_at ? new Date(liveRef.value.started_at).getTime() + minutes.value * 60000 : null))
 
-  return { steps, index, next, advance, minutes, plannedEnd }
+  return { steps, position, next, following, advance, reached, minutes, plannedEnd }
 }
 
 /** Journal des moments lancés depuis ce téléphone (pour ne pas reproposer le même moment trop tôt) */
