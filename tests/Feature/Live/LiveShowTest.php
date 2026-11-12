@@ -51,6 +51,7 @@ class LiveShowTest extends TestCase
         $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['ambiance' => 'lagune'])->assertOk()->assertJsonPath('data.ambiance', 'lagune');
         $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['ambiance' => 'noon'])->assertOk()->assertJsonPath('data.ambiance', 'noon')->assertJsonPath('data.theme', 'neon');
         $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['ambiance' => 'disco'])->assertStatus(422);
+        $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['camera' => true])->assertOk()->assertJsonPath('data.camera', true)->assertJsonPath('data.ambiance', 'noon');
         $goal = $this->storeApi($this->store, 'POST', "lives/{$live}/show/moment", ['type' => 'goal', 'goal' => 30])->assertOk()->json('data.event');
         $this->assertSame(['goal' => 30], $goal['data']);
         $this->storeApi($this->store, 'GET', "lives/{$live}/display")->assertJsonPath('data.live.show.settings.theme', 'neon')->assertJsonPath('data.live.show.settings.goal', 30)

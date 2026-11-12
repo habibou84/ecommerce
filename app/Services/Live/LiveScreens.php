@@ -48,17 +48,17 @@ class LiveScreens
      */
     public const SHOW_AMBIANCES = ['aqui', 'style', 'lagune', 'gravity', 'noon', 'techno', 'coupe', 'zouglou', 'afro', 'douce'];
 
-    /** Réglages du show d'un live : thème, ambiance, sons, musique, mode léger (vieilles télés), objectif */
+    /** Réglages du show d'un live : thème, ambiance, sons, musique, mode léger (vieilles télés), mode caméra, objectif */
     public function showSettings(LiveSession $session): array
     {
-        return array_merge(['theme' => 'fete', 'ambiance' => 'aqui', 'sound' => true, 'music' => false, 'light' => false, 'goal' => null],
+        return array_merge(['theme' => 'fete', 'ambiance' => 'aqui', 'sound' => true, 'music' => false, 'light' => false, 'camera' => false, 'goal' => null],
             Cache::get('live-show-settings:'.$session->id, []));
     }
 
     /** @param array<string, mixed> $values */
     public function updateShow(LiveSession $session, array $values): array
     {
-        $settings = array_merge($this->showSettings($session), array_intersect_key($values, array_flip(['theme', 'ambiance', 'sound', 'music', 'light', 'goal'])));
+        $settings = array_merge($this->showSettings($session), array_intersect_key($values, array_flip(['theme', 'ambiance', 'sound', 'music', 'light', 'camera', 'goal'])));
         Cache::put('live-show-settings:'.$session->id, $settings, now()->addDay());
         $session->touch(); // les écrans voient le changement à leur prochaine question (2 secondes)
 
