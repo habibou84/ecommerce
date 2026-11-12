@@ -40,6 +40,38 @@ const current = computed(() => lives.value?.find((l) => l.status === 'live' && l
 const whatsappOpen = computed(() => lives.value?.find((l) => l.status === 'live' && l.channel === 'whatsapp'))
 const past = computed(() => (lives.value ?? []).filter((l) => l.status === 'ended'))
 
+// « Que veux-tu faire ? » : faire un live, ou des commandes WhatsApp sans live (choix gardé pour la visite)
+const mode = ref((() => {
+  try {
+    return sessionStorage.getItem('jm.live-mode') === 'whatsapp' ? 'whatsapp' : 'live'
+  } catch {
+    return 'live'
+  }
+})())
+watch(mode, (v) => {
+  try {
+    sessionStorage.setItem('jm.live-mode', v)
+  } catch {
+    // sans stockage : « Faire un live » à la prochaine visite
+  }
+})
+// Commandes WhatsApp ouvertes : les étapes du live seulement si on choisit de préparer un live
+const preparing = ref(false)
+const showSteps = computed(() => (whatsappOpen.value ? preparing.value : mode.value === 'live'))
+async function closeWhatsapp() {
+  if (!window.confirm('Fermer les commandes WhatsApp ? Les clients ne pourront plus commander avec les codes ; les commandes déjà enregistrées restent.')) return
+  busy.value = true
+  try {
+    await http.post(`/lives/${whatsappOpen.value.id}/end`)
+    livesChanged()
+    await load()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function load() {
   error.value = ''
   try {
@@ -234,20 +266,57 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     </section>
 
     <template v-else-if="lives">
-      <!-- Commandes WhatsApp sans live : les clients commandent avec les codes, même sans live -->
-      <RouterLink v-if="whatsappOpen" :to="`/gestion/live/commandes-whatsapp/${whatsappOpen.id}`" class="flex items-center gap-3 rounded-[20px] border-2 border-emerald-500 bg-emerald-50 p-4">
-        <span class="min-w-0 flex-1"><b class="block text-[16px] text-emerald-900">💬 Commandes WhatsApp ouvertes</b><span class="text-[13.5px] text-emerald-800">{{ money(whatsappOpen.summary?.amount ?? 0) }} · voir les commandes</span></span>
-        <span class="shrink-0 font-black text-emerald-700">▸</span>
-      </RouterLink>
-      <section v-else class="rounded-[20px] border-2 border-emerald-500 bg-white p-4">
-        <b class="block text-[17px]">💬 Commandes WhatsApp</b>
-        <p class="mt-1 text-[13.5px] text-slate-600">Sans live : tes clients envoient le code (A1, A2…) ou « LISTE » sur WhatsApp, et la commande s'enregistre toute seule. Lancer un live les ferme.</p>
-        <RouterLink to="/gestion/live/commandes-whatsapp" class="btn-brand mt-3 w-full">Ouvrir les commandes WhatsApp</RouterLink>
-      </section>
-      <div class="rounded-[24px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 px-4 py-5 text-center text-white">
-        <h2 class="text-[26px] font-black leading-tight">Ton live en 5 étapes</h2>
-        <p class="mt-1 text-[16px] font-bold text-orange-50">Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes.</p>
-        <button type="button" class="mt-3 rounded-full bg-white/20 px-4 py-1.5 text-sm font-bold" @click="video = true">🎬 Voir la vidéo (1 min 30)</button>
+      <!-- Commandes WhatsApp ouvertes : le montant, voir les commandes, fermer ; un live peut encore être préparé -->
+      <template v-if="whatsappOpen">
+        <section class="space-y-1.5 rounded-[20px] bg-emerald-700 p-4 text-white">
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-xs font-extrabold text-emerald-700"><span class="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />COMMANDES WHATSAPP OUVERTES</span>
+          <b class="block font-display text-[28px] font-extrabold leading-tight tabular-nums">{{ money(whatsappOpen.summary?.amount ?? 0) }}</b>
+          <span class="block text-sm opacity-90">{{ whatsappOpen.summary?.orders ?? 0 }} commande{{ (whatsappOpen.summary?.orders ?? 0) > 1 ? 's' : '' }}{{ whatsappOpen.closes_at ? ` · jusqu'au ${new Date(whatsappOpen.closes_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : '' }}</span>
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <RouterLink :to="`/gestion/live/commandes-whatsapp/${whatsappOpen.id}`" class="rounded-xl bg-white py-2.5 text-center text-sm font-extrabold text-emerald-700">Voir les commandes</RouterLink>
+            <button type="button" class="rounded-xl bg-white/20 py-2.5 text-sm font-extrabold" :disabled="busy" @click="closeWhatsapp">Fermer</button>
+          </div>
+        </section>
+        <template v-if="!preparing">
+          <p class="px-0.5 pt-1 font-display text-base font-extrabold">Ou lancer un live</p>
+          <button type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-white p-3 text-left" @click="preparing = true">
+            <span class="text-2xl" aria-hidden="true">🔴</span>
+            <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Faire un live</b><span class="text-xs text-slate-500">Ferme les commandes WhatsApp</span></span>
+            <span class="text-sm font-extrabold text-emerald-700">Préparer ▸</span>
+          </button>
+        </template>
+      </template>
+
+      <!-- Que veux-tu faire ? : faire un live, ou des commandes WhatsApp sans live -->
+      <template v-else>
+        <p class="px-0.5 font-display text-base font-extrabold">Que veux-tu faire ?</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class="grid min-h-[118px] content-start gap-1 rounded-[18px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 p-3 text-left text-white" :class="mode === 'live' ? 'ring-[3px] ring-slate-900 ring-offset-2' : ''" :aria-pressed="mode === 'live'" @click="mode = 'live'">
+            <span class="text-[28px] leading-none" aria-hidden="true">🔴</span>
+            <b class="font-display text-base font-extrabold leading-tight">Faire un live</b>
+            <span class="text-[13px] leading-snug">Sur TikTok, tu montres tes articles</span>
+          </button>
+          <button type="button" class="grid min-h-[118px] content-start gap-1 rounded-[18px] border-2 border-emerald-200 bg-white p-3 text-left" :class="mode === 'whatsapp' ? 'ring-[3px] ring-slate-900 ring-offset-2' : ''" :aria-pressed="mode === 'whatsapp'" @click="mode = 'whatsapp'">
+            <span class="text-[28px] leading-none" aria-hidden="true">💬</span>
+            <b class="font-display text-base font-extrabold leading-tight">Commandes WhatsApp</b>
+            <span class="text-[13px] leading-snug text-slate-500">Sans live, avec les codes</span>
+          </button>
+        </div>
+
+        <!-- Commandes WhatsApp sans live : court, en grand -->
+        <section v-if="mode === 'whatsapp'" class="space-y-2 rounded-[18px] border-2 border-emerald-200 bg-white p-4">
+          <h3 class="font-display text-base font-extrabold">💬 Commandes WhatsApp</h3>
+          <p class="text-base leading-snug">Tes clients envoient le code <span class="rounded-md bg-red-600 px-1.5 text-sm font-extrabold text-white">A1</span> sur WhatsApp.</p>
+          <p class="text-base leading-snug">La commande s'enregistre toute seule.</p>
+          <RouterLink to="/gestion/live/commandes-whatsapp" class="btn-brand w-full justify-center py-3 text-base font-extrabold">Ouvrir les commandes WhatsApp</RouterLink>
+          <p class="text-[13px] text-slate-500">Lancer un live les ferme.</p>
+        </section>
+      </template>
+
+      <template v-if="showSteps">
+      <div class="flex items-center gap-3 rounded-[18px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 p-3.5 text-white">
+        <span class="min-w-0 flex-1"><b class="block font-display text-lg font-extrabold leading-tight">Ton live en 5 étapes</b><span class="text-sm opacity-95">Jibiat Marchand enregistre les commandes.</span></span>
+        <button type="button" class="shrink-0 rounded-full bg-white/20 px-3 py-2 text-[13px] font-extrabold" @click="video = true">🎬 1 min 30</button>
       </div>
 
       <!-- 1 · WhatsApp -->
@@ -315,17 +384,17 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         <RouterLink :to="`/gestion/live/${draft.id}?onglet=support&support=tv`" class="block text-center text-[13px] font-bold text-slate-500 underline">📺 Afficher sur une télé ou TikTok LIVE Studio</RouterLink>
       </template>
 
-      <!-- Solde : seulement quand les commandes sont comptées -->
-      <section v-if="billing?.paid" class="rounded-[20px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
-        <span class="text-sm font-bold opacity-90">Mon solde</span>
-        <b class="block font-display text-[28px] font-extrabold leading-tight tabular-nums">{{ billing.month_until ? 'Illimité' : `${billing.orders} commandes` }}</b>
-        <span class="text-sm font-bold">✨ {{ billing.ai }} actions IA</span>
-        <p class="mt-1 text-sm opacity-90">Chaque commande prise pendant le live compte pour 1.</p>
-        <div class="mt-2 grid grid-cols-2 gap-2">
-          <button type="button" class="rounded-xl bg-white py-2 text-[15px] font-black text-emerald-800" @click="openRecharge()">Recharger</button>
-          <RouterLink to="/gestion/solde" class="rounded-xl bg-white/15 py-2 text-center text-[15px] font-black">Mon solde</RouterLink>
-        </div>
-      </section>
+      </template>
+
+      <!-- Solde sur une ligne : seulement quand les commandes sont comptées -->
+      <div v-if="billing?.paid" class="flex items-center gap-3 rounded-2xl bg-white p-3">
+        <span aria-hidden="true">🧾</span>
+        <RouterLink to="/gestion/solde" class="min-w-0 flex-1">
+          <b class="block font-display text-base font-extrabold tabular-nums">{{ billing.month_until ? 'Illimité' : `${billing.orders} commandes` }} · ✨ {{ billing.ai }} IA</b>
+          <span class="text-[13px] text-slate-500">1 commande {{ mode === 'whatsapp' || whatsappOpen ? 'WhatsApp' : 'du live' }} = 1 du solde</span>
+        </RouterLink>
+        <button type="button" class="shrink-0 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-extrabold text-emerald-700" @click="openRecharge()">Recharger</button>
+      </div>
 
       <RouterLink to="/gestion/live/passes" class="block pt-2 text-center text-sm font-semibold text-emerald-700">Voir les lives passés ▸</RouterLink>
     </template>

@@ -46,6 +46,8 @@ class LiveController extends Controller
                 'started_at' => $s->started_at?->toIso8601String(), 'ended_at' => $s->ended_at?->toIso8601String(),
                 'minutes' => $s->started_at ? (int) $s->started_at->diffInMinutes($s->ended_at ?? now()) : null,
                 'summary' => $summaries[$s->id] ?? null,
+                // Commandes WhatsApp : fermeture prévue
+                'closes_at' => $s->isWhatsApp() ? $s->orders_until?->toIso8601String() : null,
             ])->values(),
             'meta' => ['page_url' => $store->url('/live'), 'whatsapp' => LiveSales::whatsapp($store->id), ...$this->numberMeta($store->id)],
         ]);
