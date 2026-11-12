@@ -2,14 +2,17 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import http, { errorMessage } from '../lib/http'
 import { money, phoneDisplay } from '../lib/format'
-import LiveDisplay from './LiveDisplay.vue'
 import LiveOverlay from './LiveOverlay.vue'
+import LiveShowStage from './LiveShowStage.vue'
 import LivePin from './LivePin.vue'
 import LiveScreenTabs from './LiveScreenTabs.vue'
 import LiveShowRemote from './LiveShowRemote.vue'
 import Modal from './Modal.vue'
 import LiveChatSheet from './live/LiveChatSheet.vue'
 import LiveOrderSheet from './live/LiveOrderSheet.vue'
+import LiveCopilot from './live/LiveCopilot.vue'
+import LiveMysteryEditor from './live/LiveMysteryEditor.vue'
+import { launch, useLivePlan, useMomentLog } from '../lib/liveShow'
 import { pinChanges, pinCodes, pinSignature } from '../lib/livePin'
 import { useAuthStore } from '../stores/auth'
 
@@ -28,7 +31,7 @@ const props = defineProps({
   // Dernière étiquette partagée : { sig (codes), at }
   pinShared: { type: Object, default: null },
 })
-const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode', 'pin-shared', 'close'])
+const emit = defineEmits(['feature', 'reload', 'add', 'quick', 'end', 'share', 'flash', 'stop-flash', 'big', 'cancel', 'mode', 'pin-shared', 'close', 'updated'])
 // Ce que montrent les écrans du live (télé, OBS, LIVE Studio) : un article, défilement, comment commander
 const MODES = [['product', '📦 Un article'], ['scroll', '🔁 Défilement'], ['grid', '🧩 Vitrine'], ['how', '🛒 Commander']]
 const screenMode = computed(() => props.live.display_mode || 'product')
@@ -135,7 +138,7 @@ const menu = ref(false)
 const products = computed(() => {
   const groups = new Map()
   for (const i of props.live.items) {
-    const g = groups.get(i.code) ?? { code: i.code, title: i.product ?? i.title, image: i.image, items: [], quantity: 0, remaining: 0, waiting: 0 }
+    const g = groups.get(i.code) ?? { code: i.code, title: i.product ?? i.title, image: i.image, items: [], quantity: 0, remaining: 0, waiting: 0, mystery: !!i.mystery, revealed: !!i.revealed }
     g.items.push(i)
     g.quantity += i.quantity
     g.remaining += i.remaining
@@ -154,13 +157,98 @@ const products = computed(() => {
 const byCode = computed(() => Object.fromEntries(products.value.map((p) => [p.code, p])))
 const currentIndex = computed(() => products.value.findIndex((p) => p.items.some((i) => i.id === props.live.featured_item_id)))
 const current = computed(() => products.value[currentIndex.value] ?? null)
+// Articles qu'on peut montrer : l'article mystère seulement une fois révélé
+const showable = computed(() => products.value.filter((p) => !p.mystery || p.revealed))
 // Suivante : la prochaine pancarte dans l'ordre qui a encore des pièces (sinon la suivante tout court)
 const next = computed(() => {
-  const after = products.value.slice(currentIndex.value + 1)
+  const list = showable.value
+  const at = list.findIndex((p) => p.code === current.value?.code)
+  const after = [...list.slice(at + 1), ...list.slice(0, Math.max(0, at))]
   return after.find((p) => p.remaining > 0) ?? after[0] ?? null
 })
-const previous = computed(() => (currentIndex.value > 0 ? products.value[currentIndex.value - 1] : null))
+const previous = computed(() => {
+  const list = showable.value
+  const at = list.findIndex((p) => p.code === current.value?.code)
+  return at > 0 ? list[at - 1] : null
+})
 const show = (p) => p && current.value?.code !== p.code && emit('feature', p.id)
+
+// ── Show interactif : écran en haut, Copilote / Moments / Articles / Plan, barre du bas ──
+const liveRef = computed(() => props.live)
+const plan = useLivePlan(liveRef, products)
+const moments = useMomentLog(liveRef)
+const showState = computed(() => display.value?.live?.show?.state ?? null)
+const screenOrders = computed(() => display.value?.live?.orders ?? props.live.summary?.orders ?? 0)
+const hasMystery = computed(() => products.value.some((p) => p.mystery && !p.revealed))
+const subKey = `jm.live-sub.${props.live.id}`
+const sub = ref((() => {
+  try {
+    return sessionStorage.getItem(subKey) || 'copilot'
+  } catch {
+    return 'copilot'
+  }
+})())
+watch(sub, (v) => {
+  try {
+    sessionStorage.setItem(subKey, v)
+  } catch {
+    // sans stockage : onglet Copilote à la prochaine visite
+  }
+})
+const SUBS = [['copilot', '🧭 Copilote'], ['moments', '🎬 Moments'], ['articles', '📦 Articles'], ['plan', '📋 Plan']]
+// Article montré : depuis quand, combien vendus à ce moment-là, articles déjà montrés (gardé sur ce téléphone)
+const trackKey = `jm.live-track.${props.live.id}`
+const track = reactive((() => {
+  try {
+    return JSON.parse(sessionStorage.getItem(trackKey)) || { code: null, since: Date.now(), sold: 0, shown: [] }
+  } catch {
+    return { code: null, since: Date.now(), sold: 0, shown: [] }
+  }
+})())
+watch(() => current.value?.code, (code) => {
+  if (!code || code === track.code) return
+  Object.assign(track, { code, since: Date.now(), sold: current.value.sold, shown: [...new Set([...track.shown, code])] })
+  try {
+    sessionStorage.setItem(trackKey, JSON.stringify(track))
+  } catch {
+    // sans stockage
+  }
+}, { immediate: true })
+const showError = ref('')
+async function moment(type, body = {}) {
+  showError.value = ''
+  try {
+    await launch(props.live.id, type, body)
+    moments.add(type)
+    loadDisplay()
+    if (type === 'reveal') emit('reload')
+  } catch (e) {
+    showError.value = errorMessage(e)
+  }
+}
+// Ce que propose le copilote ou le plan
+async function act(a) {
+  if (a.kind === 'moment') return moment(a.type, a.body)
+  if (a.kind === 'feature') return show(a.product)
+  if (a.kind === 'flash') return emit('flash', a.item)
+  if (a.kind === 'tab') return a.tab === 'moments' ? (sub.value = 'moments') : (tab.value = a.tab)
+  if (a.kind === 'question') return moment('question', { message_id: a.message.id })
+  if (a.kind === 'plan') {
+    const step = plan.next.value
+    if (!step) return
+    if (step.kind === 'article') {
+      const p = products.value.find((x) => x.code === step.code)
+      if (p && current.value?.code !== p.code) show(p)
+    } else {
+      await moment(step.type, step.type === 'last' ? { seconds: 120 } : step.type === 'announce' ? { minutes: 5 } : step.type === 'defi' ? { goal: 5 } : {})
+    }
+    plan.advance()
+  }
+}
+const sinceFeature = computed(() => {
+  const s = Math.max(0, Math.round((props.now - track.since) / 1000))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+})
 
 function chrono(item) {
   const s = Math.max(0, Math.round((new Date(item.flash.ends_at).getTime() - props.now) / 1000))
@@ -420,34 +508,100 @@ const ago = (iso) => {
 
       <!-- Télé ou TikTok Studio : connecté, ou bandeau à déplier pour connecter -->
       <template v-if="shownView !== 'pin'">
-        <p v-if="shownView === 'tv' ? tvOnline : studioOnline" class="flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 text-[13px] font-extrabold text-emerald-300">
-          <span class="min-w-0 flex-1">✓ {{ shownView === 'tv' ? 'Télé connectée : les clientes voient vos articles en temps réel' : 'TikTok Studio connecté : la carte de l\'article est sur votre live' }}</span>
-          <button type="button" class="shrink-0 rounded-lg bg-white/15 px-2.5 py-1.5 text-[12.5px] font-black text-white" @click="openConnect(shownView, true)">Gérer</button>
+        <p v-if="shownView === 'tv' ? tvOnline : studioOnline" class="flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-1.5 text-[12.5px] font-extrabold text-emerald-300">
+          <span class="min-w-0 flex-1">✓ {{ shownView === 'tv' ? 'Télé connectée' : 'TikTok Studio connecté' }}</span>
+          <button type="button" class="shrink-0 rounded-lg bg-white/15 px-2.5 py-1 text-[12px] font-black text-white" @click="openConnect(shownView, true)">Gérer</button>
         </p>
-        <div v-else class="flex items-center gap-2 rounded-xl bg-red-500/15 px-3 py-2.5 ring-1 ring-red-400/50">
-          <span class="min-w-0 flex-1">
-            <b class="block text-[14px]">{{ shownView === 'tv' ? '📺 Télé pas connectée' : '📱 TikTok Studio pas connecté' }}</b>
-            <span class="block text-[12.5px] text-red-100">{{ shownView === 'tv' ? 'Vos articles en grand derrière vous' : 'La carte de l\'article en haut de votre live' }}</span>
-          </span>
-          <button type="button" class="shrink-0 rounded-lg bg-white px-3 py-2 text-[13px] font-black text-slate-900" @click="openConnect(shownView)">Connecter</button>
+        <div v-else class="flex items-center gap-2 rounded-xl bg-red-500/15 px-3 py-2 ring-1 ring-red-400/50">
+          <b class="min-w-0 flex-1 text-[13px]">{{ shownView === 'tv' ? '📺 Télé pas connectée' : '📱 TikTok Studio pas connecté' }}</b>
+          <button type="button" class="shrink-0 rounded-lg bg-white px-3 py-1.5 text-[13px] font-black text-slate-900" @click="openConnect(shownView)">Connecter</button>
         </div>
 
-        <!-- Ce que voient les clientes -->
-        <div v-if="shownView === 'tv'" class="aspect-video overflow-hidden rounded-xl bg-black"><LiveDisplay v-if="display" :data="display" /></div>
-        <div v-else class="flex justify-center">
-          <div class="relative h-[min(46vh,340px)] overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16">
-            <span class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[72px] leading-none" aria-hidden="true">🧕🏾</span>
-            <div class="absolute top-[3%] left-[3%] w-[55%]" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
+        <!-- Ce que voient les clientes : toujours visible en haut pendant qu'on utilise la console -->
+        <div class="sticky top-[50px] z-10 -mx-1 bg-[#0b1120] px-1 pb-2">
+          <div v-if="shownView === 'tv'" class="relative aspect-video overflow-hidden rounded-xl bg-black ring-2 ring-red-600/70">
+            <LiveShowStage v-if="display" :data="display" />
+            <span class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[10px] font-black">📺 À L'ÉCRAN</span>
+          </div>
+          <div v-else class="flex justify-center">
+            <div class="relative h-[min(34vh,260px)] overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16">
+              <span class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[56px] leading-none" aria-hidden="true">🧕🏾</span>
+              <div class="absolute top-[3%] left-[3%] w-[55%]" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
+            </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Que montrer à l'écran ?">
-          <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
-                  class="rounded-lg px-1 py-2 text-[11.5px] font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>
+        <!-- Copilote, Moments, Articles, Plan -->
+        <div class="grid grid-cols-4 gap-1 rounded-xl bg-white/10 p-1" role="tablist" aria-label="Console du live">
+          <button v-for="[key, label] in SUBS" :key="key" type="button" role="tab" :aria-selected="sub === key" class="rounded-lg py-2 text-[11.5px] font-extrabold" :class="sub === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="sub = key">
+            {{ label }}<span v-if="key === 'copilot' && questions.length" class="ml-0.5 rounded-full bg-red-600 px-1 text-[9px] text-white">{{ questions.length }}</span>
+          </button>
         </div>
+        <p v-if="showError" class="rounded-xl bg-red-500/15 px-3 py-2 text-sm font-bold text-red-200">{{ showError }}</p>
 
-        <!-- Le show sur la télé : moments, objectif, thème, sons -->
-        <LiveShowRemote v-if="shownView === 'tv'" :id="live.id" :settings="display?.live?.show?.settings" @changed="loadDisplay" />
+        <LiveCopilot v-if="sub === 'copilot'" :live="live" :products="products" :current="current" :next="next" :state="showState" :orders="screenOrders"
+                     :questions="questions.filter(isQuestion)" :now="now" :plan="plan" :last-at="moments.lastAt" :featured-since="track.since" :sold-at-feature="track.sold" :shown-codes="track.shown" @act="act" />
+
+        <LiveShowRemote v-else-if="sub === 'moments'" :id="live.id" dark :settings="display?.live?.show?.settings" :state="showState" :has-mystery="hasMystery" @changed="loadDisplay" @launched="(t) => { moments.add(t); if (t === 'reveal') emit('reload') }" />
+
+        <template v-else-if="sub === 'articles'">
+          <div class="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Que montrer à l'écran ?">
+            <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
+                    class="rounded-lg px-1 py-2 text-[11.5px] font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>
+          </div>
+          <p class="pt-1 text-[11px] font-extrabold tracking-wider text-slate-400 uppercase">Touchez un article pour le montrer · {{ soldPieces }} pièce{{ soldPieces > 1 ? 's' : '' }} vendue{{ soldPieces > 1 ? 's' : '' }}</p>
+          <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <button v-for="p in products" :key="p.code" type="button" :disabled="busy || (p.mystery && !p.revealed)"
+                    class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="current?.code === p.code ? 'border-red-600' : 'border-transparent'" @click="current?.code === p.code ? (screenMode !== 'product' && emit('mode', 'product')) : show(p)">
+              <span class="block h-16 bg-slate-100" :class="{ 'opacity-40 grayscale': !p.remaining, 'blur-[3px]': p.mystery && !p.revealed }"><img v-if="p.image" :src="p.image" alt="" class="h-full w-full object-cover" loading="lazy" /></span>
+              <span class="absolute top-1 left-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
+              <span v-if="p.mystery && !p.revealed" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-xs font-black text-violet-700">🎁 MYSTÈRE</span>
+              <span v-else-if="!p.remaining" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-sm font-black text-red-600">VENDU</span>
+              <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[9px] font-black text-white">BIENTÔT</span>
+              <span class="block truncate px-1.5 pt-0.5 text-[11px] font-bold">{{ p.title }}</span>
+              <span class="block px-1.5 pb-1 text-[10.5px] text-slate-500"><b class="text-slate-900">{{ p.remaining }}</b> / {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} att.</template></span>
+            </button>
+            <button type="button" class="grid min-h-24 place-items-center rounded-xl border-2 border-dashed border-white/30 text-xs font-extrabold text-slate-300" @click="emit('add')">＋ Ajouter</button>
+          </div>
+          <div v-if="current && current.remaining">
+            <button v-if="current.flash" type="button" class="w-full rounded-xl bg-red-600 py-2.5 text-sm font-extrabold" :disabled="busy" @click="emit('stop-flash', current.flash)">⚡ {{ money(current.price) }} · {{ chrono(current.flash) }} · Arrêter</button>
+            <button v-else type="button" class="w-full rounded-xl bg-amber-400 py-2.5 text-sm font-extrabold text-slate-900" @click="emit('flash', current.items[0])">⚡ Prix live sur {{ current.code }}</button>
+          </div>
+          <button type="button" class="w-full rounded-xl border border-white/25 bg-white/10 py-3 text-base font-extrabold" :disabled="busy || !previous" @click="show(previous)">◀ Précédent</button>
+        </template>
+
+        <template v-else>
+          <!-- Plan du live : étapes proposées, avancement, durée prévue, article mystère -->
+          <div class="flex items-center gap-2 text-[13px] font-bold">
+            <span class="min-w-0 flex-1">⏱ Durée prévue du live</span>
+            <select v-model.number="plan.minutes.value" class="input w-auto py-1 text-slate-900" aria-label="Durée prévue">
+              <option v-for="m in [30, 45, 60, 90, 120]" :key="m" :value="m">{{ m }} min</option>
+            </select>
+          </div>
+          <ol class="space-y-1">
+            <li v-for="(step, k) in plan.steps.value" :key="k" class="flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-bold"
+                :class="k < plan.index.value ? 'bg-white/5 text-slate-500 line-through' : k === plan.index.value ? 'bg-violet-500/25 ring-1 ring-amber-300' : 'bg-white/5 text-slate-300'">
+              <span class="w-5 text-center">{{ k < plan.index.value ? '✓' : k === plan.index.value ? '▶' : k + 1 }}</span>{{ step.label }}
+            </li>
+          </ol>
+          <button type="button" class="w-full rounded-xl bg-amber-400 py-3 text-base font-extrabold text-slate-900 disabled:opacity-50" :disabled="!plan.next.value" @click="act({ kind: 'plan' })">{{ plan.next.value ? 'Étape suivante ▶' : 'Plan terminé ✓' }}</button>
+          <details class="rounded-xl bg-white/5 p-3" :open="!hasMystery && !products.some((p) => p.mystery)">
+            <summary class="cursor-pointer text-[13px] font-extrabold">🎁 Article mystère</summary>
+            <div class="mt-2"><LiveMysteryEditor :live="live" dark @saved="(state) => { emit('updated', state); loadDisplay() }" /></div>
+          </details>
+        </template>
+
+        <!-- Sous le pouce : l'article à l'écran, Suivant, les réactions -->
+        <div class="sticky bottom-0 z-10 -mx-1 space-y-1.5 border-t border-white/10 bg-[#0b1120] px-1 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))]">
+          <div class="flex items-center gap-2 rounded-xl bg-white/10 px-2.5 py-1.5">
+            <b class="text-xl font-black text-amber-300">{{ current?.code ?? '—' }}</b>
+            <span class="min-w-0 flex-1 truncate text-[12px] text-slate-300">{{ current ? `${sinceFeature} · ${current.sold - track.sold} vente${current.sold - track.sold > 1 ? 's' : ''} · ${current.remaining} pièce${current.remaining > 1 ? 's' : ''}` : 'Aucun article à l\'écran' }}</span>
+            <button type="button" class="shrink-0 rounded-xl bg-red-600 px-4 py-2 text-sm font-extrabold disabled:opacity-50" :disabled="busy || !(current ? next : showable[0])" @click="show(current ? next : showable[0])">{{ current ? 'Suivant' : 'Commencer' }} ▶</button>
+          </div>
+          <div class="grid grid-cols-5 gap-1.5">
+            <button v-for="e in ['❤️', '🔥', '😂', '👏', '🎁']" :key="e" type="button" class="rounded-xl bg-white/10 py-1.5 text-xl" :aria-label="`Réaction ${e}`" @click="moment('react', { emoji: e })">{{ e }}</button>
+          </div>
+        </div>
       </template>
 
       <!-- Étiquette à épingler : à jour, ou ce qui a changé et la nouvelle -->
@@ -462,31 +616,16 @@ const ago = (iso) => {
         </div>
         <p v-else class="rounded-xl bg-emerald-500/15 px-3 py-2 text-[13px] font-extrabold text-emerald-300">✓ Étiquette à jour · {{ pinCount }} article{{ pinCount > 1 ? 's' : '' }}<template v-if="pinTime"> · faite à {{ pinTime }}</template></p>
         <div class="rounded-xl bg-white p-3 text-slate-900"><LivePin :live="live" bare @shared="(sig) => emit('pin-shared', sig)" /></div>
-      </template>
-
-      <!-- Les articles à toucher pour les montrer (Télé et Studio, ou sans écrans) -->
-      <template v-if="shownView !== 'pin' || !cardsOn">
-        <p class="pt-1 text-[11px] font-extrabold tracking-wider text-slate-400 uppercase">Touchez un article pour le montrer · {{ soldPieces }} pièce{{ soldPieces > 1 ? 's' : '' }} vendue{{ soldPieces > 1 ? 's' : '' }}</p>
-        <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          <button v-for="p in products" :key="p.code" type="button" :disabled="busy"
-                  class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="current?.code === p.code ? 'border-red-600' : 'border-transparent'" @click="current?.code === p.code ? (screenMode !== 'product' && emit('mode', 'product')) : show(p)">
-            <span class="block h-16 bg-slate-100" :class="{ 'opacity-40 grayscale': !p.remaining }"><img v-if="p.image" :src="p.image" alt="" class="h-full w-full object-cover" loading="lazy" /></span>
-            <span class="absolute top-1 left-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
-            <span v-if="!p.remaining" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-sm font-black text-red-600">VENDU</span>
-            <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[9px] font-black text-white">BIENTÔT</span>
-            <span class="block truncate px-1.5 pt-0.5 text-[11px] font-bold">{{ p.title }}</span>
-            <span class="block px-1.5 pb-1 text-[10.5px] text-slate-500"><b class="text-slate-900">{{ p.remaining }}</b> / {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} att.</template></span>
-          </button>
-          <button type="button" class="grid min-h-24 place-items-center rounded-xl border-2 border-dashed border-white/30 text-xs font-extrabold text-slate-300" @click="emit('add')">＋ Ajouter</button>
-        </div>
-        <div v-if="current && current.remaining">
-          <button v-if="current.flash" type="button" class="w-full rounded-xl bg-red-600 py-2.5 text-sm font-extrabold" :disabled="busy" @click="emit('stop-flash', current.flash)">⚡ {{ money(current.price) }} · {{ chrono(current.flash) }} · Arrêter</button>
-          <button v-else type="button" class="w-full rounded-xl bg-amber-400 py-2.5 text-sm font-extrabold text-slate-900" @click="emit('flash', current.items[0])">⚡ Prix live sur {{ current.code }}</button>
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-          <button type="button" class="rounded-xl border border-white/25 bg-white/10 py-3.5 text-base font-extrabold" :disabled="busy || !previous" @click="show(previous)">◀ Précédent</button>
-          <button type="button" class="rounded-xl bg-red-600 py-3.5 text-base font-extrabold disabled:opacity-50" :disabled="busy || !(current ? next : products[0])" @click="show(current ? next : products[0])">{{ current ? 'Suivant' : 'Commencer' }} ▶</button>
-        </div>
+        <!-- Sans écrans : les articles à toucher -->
+        <template v-if="!cardsOn">
+          <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <button v-for="p in showable" :key="p.code" type="button" :disabled="busy" class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="current?.code === p.code ? 'border-red-600' : 'border-transparent'" @click="show(p)">
+              <span class="block h-16 bg-slate-100"><img v-if="p.image" :src="p.image" alt="" class="h-full w-full object-cover" loading="lazy" /></span>
+              <span class="absolute top-1 left-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
+              <span class="block truncate px-1.5 py-0.5 text-[11px] font-bold">{{ p.title }}</span>
+            </button>
+          </div>
+        </template>
       </template>
     </section>
 
@@ -519,7 +658,10 @@ const ago = (iso) => {
           <button type="button" class="rounded-lg bg-slate-900 px-3 py-1 text-xs font-extrabold text-white" @click="openPlace(m.reservation_id, m.name, m.body)">Choisir le quartier</button>
         </div>
         <div v-if="isQuestion(m)" class="mt-1.5 pl-12" @click.stop>
-          <button v-if="replying.id !== m.id" type="button" class="rounded-lg bg-slate-900 px-3 py-1 text-xs font-extrabold text-white" @click="openReply(m)">Répondre</button>
+          <span v-if="replying.id !== m.id" class="flex flex-wrap gap-1.5">
+            <button type="button" class="rounded-lg bg-slate-900 px-3 py-1 text-xs font-extrabold text-white" @click="openReply(m)">Répondre</button>
+            <button v-if="cardsOn" type="button" class="rounded-lg bg-violet-600 px-3 py-1 text-xs font-extrabold text-white" @click="moment('question', { message_id: m.id })">📺 Montrer à l'écran</button>
+          </span>
           <form v-else class="space-y-1.5" @submit.prevent="sendReply(m)">
             <div class="flex flex-wrap gap-1">
               <button v-for="q in QUICK" :key="q" type="button" class="rounded-lg border-[1.5px] border-slate-300 bg-white px-2 py-1 text-left text-[11px] font-bold" :disabled="replying.busy" @click="sendReply(m, q)">{{ q }}</button>

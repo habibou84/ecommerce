@@ -9,6 +9,8 @@ import LiveCockpit from '../../../components/LiveCockpit.vue'
 import LiveScreenTabs from '../../../components/LiveScreenTabs.vue'
 import LivePin from '../../../components/LivePin.vue'
 import LiveWhatsApp from '../../../components/LiveWhatsApp.vue'
+import LiveBilan from '../../../components/live/LiveBilan.vue'
+import LiveMysteryEditor from '../../../components/live/LiveMysteryEditor.vue'
 import EndLiveSheet from '../../../components/EndLiveSheet.vue'
 import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
@@ -467,7 +469,7 @@ async function redo() {
       <!-- Pendant le live : la pancarte montrée et les onglets Articles, Messages, Commandes -->
       <LiveCockpit v-if="live.status === 'live'" :live="live" :now="now" :busy="busy" :duration="duration" :pin-shared="pinShared" @pin-shared="onPinShared" @close="closeLive"
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
-                   @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" />
+                   @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" @updated="live = $event" />
 
       <section v-else-if="live.status === 'draft' && pane === 'live'" class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
         <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
@@ -529,6 +531,7 @@ async function redo() {
             </button>
           </div>
         </section>
+        <LiveBilan :id="live.id" />
         <section class="card p-4">
           <h3 class="font-extrabold">Ce qui s'est vendu</h3>
           <p v-if="!best.length" class="mt-2 text-sm text-slate-500">Aucune pièce vendue pendant ce live.</p>
@@ -554,7 +557,7 @@ async function redo() {
           <div v-for="i in live.items" :key="i.id" class="card flex min-w-0 items-center gap-3 p-3" :class="live.featured_item_id === i.id ? 'border-2 border-ocre-600 ring-4 ring-ocre-100' : ''">
             <button type="button" class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-xl font-black text-white" :class="i.remaining ? 'bg-red-600' : 'bg-slate-300'" :aria-label="`Afficher ${i.code} en grand`" @click="big = i">{{ i.code }}</button>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-semibold" :title="i.title">{{ i.title }}</p>
+              <p class="truncate text-sm font-semibold" :title="i.title"><span v-if="i.mystery && !i.revealed" class="mr-1 rounded bg-violet-100 px-1 text-xs font-bold text-violet-700">🎁 Mystère</span>{{ i.title }}</p>
               <p v-if="i.flash" class="text-xs font-bold text-red-600">⚡ {{ money(i.price) }} <s class="font-normal text-slate-400">{{ money(i.flash.was) }}</s> · {{ chrono(i) }}</p>
               <p v-else class="text-xs text-slate-500">{{ money(i.price) }}</p>
               <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full" :class="i.remaining ? 'bg-emerald-500' : 'bg-red-400'" :style="{ width: `${(sold(i) / i.quantity) * 100}%` }" /></div>
@@ -570,6 +573,11 @@ async function redo() {
           </div>
         </div>
         <p v-if="live.status === 'live'" class="px-0.5 text-sm text-slate-500">Touchez un code pour l'afficher en grand.</p>
+        <!-- Article mystère : caché des clientes jusqu'à sa révélation pendant le live -->
+        <details class="card p-4" :open="live.items.some((i) => i.mystery)">
+          <summary class="cursor-pointer font-extrabold">🎁 Article mystère <span class="font-normal text-slate-500">· optionnel</span></summary>
+          <div class="mt-2"><LiveMysteryEditor :live="live" @saved="live = $event" /></div>
+        </details>
       </section>
 
 

@@ -284,7 +284,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       <p class="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-900">{{ hint }}</p>
 
       <!-- Show du live : moments à lancer sur l'écran, et ses réglages -->
-      <LiveShowRemote :id="id" :settings="display?.live?.show?.settings" @changed="loadDisplay" />
+      <LiveShowRemote :id="id" :settings="display?.live?.show?.settings" :state="display?.live?.show?.state" @changed="loadDisplay" />
 
       <!-- Un seul produit : les produits en miniatures à glisser, juste au-dessus de l'aperçu -->
       <template v-if="mode === 'product' && items.length">
