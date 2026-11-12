@@ -399,6 +399,25 @@ class LiveSales
     }
 
     /**
+     * Encore une pièce en stock dans la boutique pour faire la commande : stock disponible de la variante, moins les
+     * pièces déjà gardées sans commande. Sinon la cliente passe en liste d'attente, comme pour un article épuisé
+     * dans le live (vente en rupture, précommande ou stock non suivi : toujours en stock).
+     */
+    private function inStock(LiveItem $item): bool
+    {
+        $variant = ProductVariant::with('product', 'levels')->find($item->variant_id);
+        $product = $variant?->product;
+        if ($variant === null || $product === null || $product->allow_backorder || $product->preorder_enabled || ! $product->track_inventory) {
+            return true;
+        }
+        $available = (int) $variant->levels->sum(fn ($level) => $level->available());
+        $held = LiveReservation::forStore($item->store_id)->where('status', 'reserved')->whereNull('order_id')
+            ->whereHas('item', fn ($q) => $q->where('variant_id', $item->variant_id))->count();
+
+        return $available - $held > 0;
+    }
+
+    /**
      * Pièces restantes de plusieurs articles en une seule requête (écran du live, affichage, bilans) : id => restantes.
      *
      * @param  Collection<int, LiveItem>  $items
@@ -451,7 +470,7 @@ class LiveSales
                 // Prix du moment (prix flash pendant le chrono) : gardé même si le chrono finit avant la commande
                 'unit_price' => $item->currentPrice(),
                 'source' => $source,
-                'status' => $this->remaining($item) > 0 ? 'reserved' : 'waiting',
+                'status' => $this->remaining($item) > 0 && $this->inStock($item) ? 'reserved' : 'waiting',
                 'customer_name' => filled($customer['name'] ?? null) ? mb_substr(trim($customer['name']), 0, 120) : null,
                 'customer_phone' => $phone,
                 'shipping_place_id' => $placeId,
@@ -551,7 +570,7 @@ class LiveSales
                         'live_item_id' => $item->id,
                         'unit_price' => $item->currentPrice(),
                         'source' => $source,
-                        'status' => $this->remaining($item) > 0 ? 'reserved' : 'waiting',
+                        'status' => $this->remaining($item) > 0 && $this->inStock($item) ? 'reserved' : 'waiting',
                         'customer_name' => filled($customer['name'] ?? null) ? mb_substr(trim($customer['name']), 0, 120) : null,
                         'customer_phone' => $phone,
                         'shipping_place_id' => $placeId,
