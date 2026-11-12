@@ -19,7 +19,7 @@ const store = computed(() => props.data?.store ?? null)
 const items = computed(() => live.value?.items ?? [])
 const available = computed(() => items.value.filter((i) => i.remaining > 0))
 const show = computed(() => live.value?.show ?? null)
-const settings = computed(() => show.value?.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, goal: null })
+const settings = computed(() => show.value?.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, camera: false, goal: null })
 const light = computed(() => !!settings.value.light)
 
 // Taille : tout en « em ». Large (télé) : 1em = 1/128 de la largeur ; carré (TikTok LIVE Studio) : 1/84 ;
@@ -297,7 +297,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="root" class="show" :class="[`th-${settings.theme}`, { 'is-square': square, 'is-tall': layout === 'tall', 'is-light': light }]" :style="{ '--u': `${unit}px` }">
+  <div ref="root" class="show" :class="[`th-${settings.theme}`, { 'is-square': square, 'is-tall': layout === 'tall', 'is-light': light, 'is-camera': !!settings.camera }]" :style="{ '--u': `${unit}px` }">
     <div class="orb" aria-hidden="true" /><div class="orb b" aria-hidden="true" />
     <div class="beam l" aria-hidden="true" /><div class="beam r" aria-hidden="true" /><div class="flood" aria-hidden="true" />
     <div class="brand"><span class="live-dot"><i />LIVE</span><b>{{ store?.name }}</b><span v-if="settings.goal && !moment" class="goal-mini">🎯 {{ live?.orders ?? 0 }} / {{ settings.goal }}</span></div>
@@ -431,6 +431,18 @@ onUnmounted(() => {
 .beat .flood { animation: flood .35s ease-out; }
 @keyframes flood { from { opacity: 1 } to { opacity: 0 } }
 .is-light .beam, .is-light .flood { display: none; }
+/* Mode caméra : écran plus doux à filmer (le téléphone règle l'image sur le visage, l'écran derrière ressort trop fort) :
+   blancs cassés, photos baissées, plus de lueurs, de reflet ni de lumières qui balaient */
+.is-camera { --ink: #d2cbc2; --dim: #a294b1; --sun: #d18f12; --mint: #1f9e6b; }
+.is-camera .beam, .is-camera .flood, .is-camera .shine, .is-camera .orb { display: none; }
+.is-camera .pic { filter: brightness(.7) contrast(.92) saturate(1.05); }
+.is-camera .photo-bg { filter: blur(2.6em) saturate(1.2) brightness(.45); }
+.is-camera .code, .is-camera .combo { text-shadow: none; }
+.is-camera .toast { background: #b9b1a7; box-shadow: none; }
+.is-camera .live-dot { background: #c2142f; }
+.is-camera .how b { background: color-mix(in srgb, var(--hot) 30%, transparent); }
+.is-camera .cell { background: #b9b1a7; }
+.is-camera.beat .photo, .is-camera.beat .code { animation: none; }
 /* Mode léger (vieilles télés) : pas de flou ni de reflet */
 .is-light .photo-bg, .is-light .shine { display: none; }
 .is-light .pic { filter: none; transition: opacity .8s; }

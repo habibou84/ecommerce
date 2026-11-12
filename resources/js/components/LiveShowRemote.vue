@@ -24,7 +24,7 @@ const error = ref('')
 const goalInput = ref(null)
 const winner = ref(null)
 const local = ref(null) // réglages juste enregistrés, en attendant la prochaine lecture
-const showSettings = computed(() => local.value ?? props.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, goal: null })
+const showSettings = computed(() => local.value ?? props.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, camera: false, goal: null })
 
 async function run(request) {
   busy.value = true
@@ -74,6 +74,7 @@ const saveShow = (patch) => run(async () => {
       <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.sound ? 'bg-violet-700 text-white' : 'bg-white'" :disabled="busy" @click="saveShow({ sound: !showSettings.sound })">🔊 Sons</button>
       <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.music ? 'bg-violet-700 text-white' : 'bg-white'" :disabled="busy" @click="saveShow({ music: !showSettings.music })">🎵 Musique</button>
       <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.light ? 'bg-violet-700 text-white' : 'bg-white'" :disabled="busy" @click="saveShow({ light: !showSettings.light })">🪶 Mode léger</button>
+      <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.camera ? 'bg-violet-700 text-white' : 'bg-white'" :disabled="busy" @click="saveShow({ camera: !showSettings.camera })">🎥 Mode caméra</button>
     </div>
     <p v-if="error" class="mt-2 text-sm font-bold text-red-600">{{ error }}</p>
     <p class="mt-2 text-[11px] text-violet-700">Sur la télé, touchez une fois « 🔊 Activer le son du show » pour entendre les sons.</p>
