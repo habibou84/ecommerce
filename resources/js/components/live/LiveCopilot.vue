@@ -115,7 +115,20 @@ const cards = computed(() => {
   if (toConfirm >= 3) add(55, { title: `✅ ${toConfirm} commandes à confirmer`, say: '', acts: [['Voir les commandes', { kind: 'tab', tab: 'commandes' }]] })
   // Plan du live
   const step = props.plan.next.value
-  if (props.withPlan && step && !state.mystery) add(45, { title: `📋 Prochaine étape : ${step.label}`, say: '', acts: [['Faire ▶', { kind: 'plan' }]] })
+  if (props.withPlan && step && !state.mystery) add(45, { title: `📋 Prochaine étape : ${step.label}`, say: step.say ?? '', acts: [['Faire ▶', { kind: 'plan' }]] })
+  // Les moments ne sont plus dans le plan : le copilote les propose au bon moment
+  if (!state.defi && cool('defi', 20) && minutes > 10 && rush < 3 && now - lastOrder < 4 * MIN && recent.length >= 3) {
+    add(42, { title: '🎯 Lance un défi pour faire monter les commandes', say: 'Encore 5 commandes et c\'est la livraison offerte pour tout le monde !', acts: [['🎯 Défi : 5 commandes', { kind: 'moment', type: 'defi', body: { goal: 5, reward: 'delivery' } }, true]] })
+  }
+  if (cool('podium', 20) && current && current.remaining >= 3 && now - props.featuredSince > 2 * MIN && now - props.featuredSince < 4 * MIN) {
+    add(38, { title: `🥇 Les 3 premiers sur la ${current.code}`, say: `Les 3 premiers à commander la ${current.code} ont un cadeau !`, acts: [['🥇 Lancer', { kind: 'moment', type: 'podium' }, true]] })
+  }
+  if (minutes > 25 && cool('wheel', 25) && recent.filter((r) => r.status === 'ordered').length >= 3) {
+    add(36, { title: '🎡 Fais tourner la roue parmi les acheteurs', say: 'Une personne qui a commandé ce soir va gagner sa livraison !', acts: [['🎡 Roue', { kind: 'moment', type: 'wheel' }, true]] })
+  }
+  if (minutes > 20 && cool('map', 25)) {
+    add(33, { title: '🗺️ Montre d\'où viennent les commandes', say: 'Regardez, ça commande de partout ! Quel quartier va gagner ?', acts: [['🗺️ Carte', { kind: 'moment', type: 'map' }]] })
+  }
   // Rappels
   if (minutes > 3 && cool('how', 5)) add(35, { title: '💬 Pense aux nouveaux arrivés', say: 'Pour commander : regardez le code de l\'article et envoyez-le au numéro de la bio.', acts: [['💬 Comment commander', { kind: 'moment', type: 'how' }]] })
   if (minutes > 8 && Math.floor(minutes / 10) % 2 === 1) add(30, { title: '🚚 Rappelle la livraison et le paiement', say: 'On vous livre partout, et vous payez à la livraison ou par Mobile Money.', acts: [] })

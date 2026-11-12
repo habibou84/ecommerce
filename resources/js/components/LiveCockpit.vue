@@ -225,6 +225,9 @@ const track = reactive((() => {
     return { code: null, since: Date.now(), sold: 0, shown: [] }
   }
 })())
+// Article montré pendant le live (à la main ou par le plan) : le plan se recale ; pas au chargement, pour que
+// l'ouverture (vitrine, comment commander) reste proposée
+watch(() => current.value?.code, (code) => code && plan.reached(code))
 watch(() => current.value?.code, (code) => {
   if (!code || code === track.code) return
   Object.assign(track, { code, since: Date.now(), sold: current.value.sold, shown: [...new Set([...track.shown, code])] })
@@ -254,13 +257,15 @@ async function act(a) {
   if (a.kind === 'tab') return a.tab === 'moments' ? (sub.value = 'moments') : (tab.value = a.tab)
   if (a.kind === 'question') return moment('question', { message_id: a.message.id })
   if (a.kind === 'plan') {
+    // Étape du plan : l'écran change (vitrine, comment commander, défilement, ou l'article en grand)
     const step = plan.next.value
     if (!step) return
     if (step.kind === 'article') {
       const p = products.value.find((x) => x.code === step.code)
       if (p && current.value?.code !== p.code) show(p)
+      else if (screenMode.value !== 'product') emit('mode', 'product')
     } else {
-      await moment(step.type, step.type === 'last' ? { seconds: 120 } : step.type === 'announce' ? { minutes: 5 } : step.type === 'defi' ? { goal: 5 } : {})
+      emit('mode', step.mode)
     }
     plan.advance()
   }
@@ -576,26 +581,29 @@ const ago = (iso) => {
         <p v-if="showError" class="rounded-xl bg-red-500/15 px-3 py-2 text-sm font-bold text-red-200">{{ showError }}</p>
 
         <template v-if="sub === 'copilot'">
-          <!-- 1. Le déroulement du plan : l'étape en cours, la suivante, tout le plan à déplier -->
+          <!-- 1. Le déroulement du plan : l'affichage des articles, étape par étape -->
           <div class="rounded-2xl bg-violet-500/15 p-2.5 ring-1 ring-violet-400/30">
             <div class="flex items-center gap-2 text-[11px] font-black tracking-wider text-violet-200 uppercase">
-              <span>📋 Plan · {{ Math.min(plan.index.value + 1, plan.steps.value.length) }}/{{ plan.steps.value.length }}</span>
+              <span>📋 Plan · {{ Math.min(plan.position.value + 1, plan.steps.value.length) }}/{{ plan.steps.value.length }}</span>
               <span class="ml-auto font-bold tracking-normal normal-case text-slate-400">{{ planLeft }}</span>
             </div>
             <div class="mt-1.5 flex gap-0.5" aria-hidden="true">
-              <i v-for="(step, k) in plan.steps.value" :key="k" class="h-1.5 flex-1 rounded-full" :class="k < plan.index.value ? 'bg-amber-400' : k === plan.index.value ? 'bg-white' : 'bg-white/15'" />
+              <i v-for="step in plan.steps.value" :key="step.key" class="h-1.5 flex-1 rounded-full" :class="step.done ? 'bg-amber-400' : step === plan.next.value ? 'bg-white' : 'bg-white/15'" />
             </div>
-            <div v-if="plan.next.value" class="mt-2 flex items-center gap-2">
-              <b class="min-w-0 flex-1 text-[14px] leading-snug">▶ {{ plan.next.value.label }}</b>
-              <button type="button" class="shrink-0 rounded-xl bg-amber-400 px-3 py-2 text-[13px] font-extrabold text-slate-900" @click="act({ kind: 'plan' })">Faire ▶</button>
-            </div>
+            <template v-if="plan.next.value">
+              <div class="mt-2 flex items-center gap-2">
+                <b class="min-w-0 flex-1 text-[14px] leading-snug">▶ {{ plan.next.value.label }} <span class="font-normal text-slate-400">· ≈ {{ plan.next.value.time }}</span></b>
+                <button type="button" class="shrink-0 rounded-xl bg-amber-400 px-3 py-2 text-[13px] font-extrabold text-slate-900" @click="act({ kind: 'plan' })">Faire ▶</button>
+              </div>
+              <p class="mt-1 text-[12.5px] leading-snug text-amber-200">« {{ plan.next.value.say }} »</p>
+            </template>
             <p v-else class="mt-2 text-[13px] font-bold text-emerald-300">✓ Plan terminé</p>
-            <p v-if="plan.steps.value[plan.index.value + 1]" class="mt-1 text-[12px] text-slate-400">Ensuite : {{ plan.steps.value[plan.index.value + 1].label }}</p>
+            <p v-if="plan.following.value" class="mt-1 text-[12px] text-slate-400">Ensuite : {{ plan.following.value.label }}</p>
             <details class="mt-1">
               <summary class="cursor-pointer text-[12px] font-bold text-violet-200">Voir tout le plan</summary>
               <ol class="mt-1 space-y-0.5">
-                <li v-for="(step, k) in plan.steps.value" :key="k" class="flex items-center gap-2 rounded-lg px-2 py-1 text-[12.5px]" :class="k < plan.index.value ? 'text-slate-500 line-through' : k === plan.index.value ? 'bg-white/10 font-bold' : 'text-slate-300'">
-                  <span class="w-4 text-center">{{ k < plan.index.value ? '✓' : k === plan.index.value ? '▶' : k + 1 }}</span>{{ step.label }}
+                <li v-for="(step, k) in plan.steps.value" :key="step.key" class="flex items-center gap-2 rounded-lg px-2 py-1 text-[12.5px]" :class="step.done ? 'text-slate-500 line-through' : step === plan.next.value ? 'bg-white/10 font-bold' : 'text-slate-300'">
+                  <span class="w-4 text-center">{{ step.done ? '✓' : step === plan.next.value ? '▶' : k + 1 }}</span>{{ step.label }}
                 </li>
               </ol>
             </details>
