@@ -16,8 +16,8 @@ use App\Models\Subscription;
 use App\Models\SupportConversation;
 use App\Models\User;
 use App\Services\Billing\AccessKeys;
+use App\Services\Billing\Credits;
 use App\Services\Billing\FreeAccess;
-use App\Services\Live\LiveBilling;
 use App\Services\Shipping\CarrierDirectory;
 use App\Support\Tenancy;
 use App\Support\TrialOffer;
@@ -255,7 +255,7 @@ class MerchantOnboarding
 
         $vars = $this->variables($store, $owner, $sub);
         if ($live !== null) {
-            $orders = app(LiveBilling::class)->ordersOf($live);
+            $orders = app(Credits::class)->ordersOf($live);
             $vars += ['nb_commandes' => $orders.' commande'.($orders > 1 ? 's' : ''), 'lien_bilan' => $store->url('/gestion/live/'.$live->id)];
         }
         $texts = $this->settings()['texts'];

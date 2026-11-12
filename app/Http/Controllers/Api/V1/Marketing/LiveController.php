@@ -7,8 +7,8 @@ use App\Models\LiveItem;
 use App\Models\LiveReservation;
 use App\Models\LiveSession;
 use App\Models\ProductVariant;
+use App\Services\Billing\Credits;
 use App\Services\Catalog\ImageStore;
-use App\Services\Live\LiveBilling;
 use App\Services\Live\LiveImages;
 use App\Services\Live\LiveSales;
 use App\Services\Places\Places;
@@ -297,9 +297,9 @@ class LiveController extends Controller
             return $this->state($this->live->start($live, $hours));
         }
 
-        // Lives payants : pass ou forfait en cours, sinon un live offert, sinon le paiement est demandé
+        // Commandes payantes : illimité en cours, sinon assez de commandes dans le solde, sinon la recharge est demandée
         return $this->state(DB::transaction(function () use ($live, $hours) {
-            app(LiveBilling::class)->authorize($this->currentStore(), $live);
+            app(Credits::class)->authorize($this->currentStore(), $live);
 
             return $this->live->start($live, $hours !== null ? (int) $hours : null);
         }));

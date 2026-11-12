@@ -1,12 +1,13 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import AiRechargeModal from '../components/AiRechargeModal.vue'
+import RechargeSheet from '../components/credits/RechargeSheet.vue'
+import CreditsMeter from '../components/credits/CreditsMeter.vue'
 import ColorIcon from '../components/ColorIcon.vue'
 import Icon from '../components/Icon.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 import Dashboard from '../views/gestion/Dashboard.vue'
-import { aiRecharge } from '../lib/aiQuota'
+import { credits } from '../lib/credits'
 import { fullscreenOn } from '../lib/fullscreen'
 import { inApp } from '../lib/app'
 import { platformOn } from '../router'
@@ -405,6 +406,7 @@ async function switchTo(store) {
       <div class="relative mt-auto border-t border-slate-100 p-3">
         <div v-if="profileMenu" class="absolute inset-x-3 bottom-full mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
           <RouterLink to="/gestion/compte" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">Mon compte</RouterLink>
+          <RouterLink to="/gestion/solde" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">Mon solde<span class="block text-xs text-slate-500">Commandes et IA</span></RouterLink>
           <RouterLink v-if="auth.can('billing.manage')" to="/gestion/abonnement" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">
             Abonnement<span v-if="auth.store?.free || auth.store?.subscription" class="block text-xs text-slate-500">Offre {{ auth.store.free?.plan ?? auth.store.subscription.plan }}<template v-if="auth.store.free"> · offerte</template><template v-else-if="auth.store.subscription.status === 'trialing'"> · essai</template></span>
           </RouterLink>
@@ -436,6 +438,7 @@ async function switchTo(store) {
         </div>
         <div class="relative ml-auto flex shrink-0 items-center gap-2" :class="swipeHome ? 'before:pointer-events-none before:absolute before:-left-8 before:inset-y-0 before:w-8 before:bg-gradient-to-r before:from-transparent before:to-slate-50 max-lg:-mr-4 max-lg:bg-slate-50 max-lg:pr-4' : ''">
           <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" :class="swipeHome ? 'max-lg:!hidden' : ''" class="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-2.5 text-sm font-semibold text-slate-700 shadow-soft sm:px-3.5" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide"><ColorIcon name="aide" :size="24" :tile="false" /><span class="hidden sm:inline">Aide</span></a>
+          <CreditsMeter :class="swipeHome ? 'max-lg:!hidden' : ''" />
           <span class="rounded-full bg-white shadow-soft"><NotificationBell /></span>
         </div>
       </header>
@@ -545,7 +548,7 @@ async function switchTo(store) {
     <div v-if="switchNotice" class="fixed inset-x-4 bottom-20 lg:bottom-4 z-50 mx-auto max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-center text-sm font-medium text-white shadow-lg" role="status">
       {{ switchNotice }}
     </div>
-    <!-- Plus d'actions de l'assistant IA : fenêtre de recharge, de n'importe quel écran -->
-    <AiRechargeModal v-if="aiRecharge.open" />
+    <!-- Recharger le solde (commandes et IA), de n'importe quel écran -->
+    <RechargeSheet v-if="credits.open" />
   </div>
 </template>

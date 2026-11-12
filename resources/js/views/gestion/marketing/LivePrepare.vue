@@ -1,11 +1,11 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import LiveDeliveryFees from '../../../components/LiveDeliveryFees.vue'
 import LiveItemsPanel from '../../../components/LiveItemsPanel.vue'
 import LivePin from '../../../components/LivePin.vue'
-import LivePaySheet from '../../../components/live/LivePaySheet.vue'
+import { credits, loadCredits, openRecharge } from '../../../lib/credits'
 import EndLiveSheet from '../../../components/EndLiveSheet.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage } from '../../../lib/http'
@@ -20,7 +20,6 @@ import { livesChanged, livesVersion } from '../../../lib/fullscreen'
  * Le live en préparation est repris tel quel (étapes déjà faites cochées) ; un live en cours passe devant.
  */
 const router = useRouter()
-const route = useRoute()
 const auth = useAuthStore()
 const VIDEO = '/videos/live/comment-ca-marche-v'
 
@@ -33,10 +32,8 @@ const error = ref('')
 const busy = ref(false)
 const panel = ref(null) // 'fees' | 'items' | 'pin'
 const video = ref(false)
-// Lives payants : prix, lives offerts restants, pass ou forfait en cours (GET lives/billing)
-const billing = ref(null)
-const paying = ref(false)
-const payNotice = ref('')
+// Solde (commandes et IA) : peut-on ouvrir les commandes du live ?
+const billing = computed(() => credits.data)
 
 const current = computed(() => lives.value?.find((l) => l.status === 'live' && l.channel !== 'whatsapp'))
 // Commandes WhatsApp sans live ouvertes en ce moment
@@ -52,28 +49,13 @@ async function load() {
     number.value = { phone: data.meta.whatsapp_phone, noCard: !!data.meta.whatsapp_no_card }
     const latest = data.data.find((l) => l.status === 'draft' && l.channel !== 'whatsapp')
     draft.value = latest ? (await http.get(`/lives/${latest.id}`)).data.data : null
-    billing.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? null
+    await loadCredits()
     if (auth.can('store.manage')) fees.value = (await http.get('/delivery-rates').catch(() => null))?.data.data ?? null
   } catch (e) {
     error.value = errorMessage(e)
   }
 }
-onMounted(async () => {
-  await load()
-  // Retour de PayDunya : paiement relu, puis le live démarre tout de suite
-  const number = route.query.paiement
-  if (!number) return
-  router.replace({ query: { ...route.query, paiement: undefined } })
-  try {
-    const { data } = await http.post(`/lives/billing/${number}/confirm`)
-    billing.value = data.data
-    if (data.data.status === 'paid' && draft.value && !current.value && data.data.next !== 'pay') await start()
-    else if (data.data.status === 'pending') payNotice.value = 'Paiement en cours de vérification : touchez « J\'ouvre les commandes du live » dans un instant.'
-    else if (data.data.status !== 'paid') payNotice.value = 'Le paiement n\'a pas abouti : rien n\'a été débité. Vous pouvez réessayer.'
-  } catch (e) {
-    error.value = errorMessage(e)
-  }
-})
+onMounted(load)
 const until = (iso) => new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
 const startLabel = computed(() => {
   const label = '● J\'ouvre les commandes du live'
@@ -82,9 +64,9 @@ const startLabel = computed(() => {
 const billingLine = computed(() => {
   const b = billing.value
   if (!b?.paid) return ''
-  if (b.next === 'covered') return `Lives illimités jusqu'au ${until(b.month_until)}`
-  if (b.next === 'pay') return `Crédit live : ${money(b.credit)} · recharge pour ouvrir les commandes`
-  return 'Pas de commande, pas de frais'
+  if (b.next === 'covered') return `Illimité jusqu'au ${until(b.month_until)}`
+  if (b.next === 'pay') return `Solde : ${b.orders} commandes · recharge pour ouvrir les commandes`
+  return `Solde : ${b.orders} commandes`
 })
 // Live lancé ou terminé ailleurs (fenêtre du live, autre copie de cette page) : la carte se met à jour
 watch(livesVersion, load)
@@ -207,9 +189,9 @@ async function start() {
   error.value = ''
   try {
     const id = draft.value.id
-    // Plus de commandes offertes et crédit insuffisant : recharge (ou 30 jours), payée par PayDunya
+    // Solde trop bas : recharge (pack ou illimité), payée par PayDunya
     if (billing.value?.paid && billing.value.next === 'pay') {
-      paying.value = true
+      openRecharge(`Il te faut au moins ${billing.value.min_orders} commandes dans ton solde pour ouvrir les commandes du live.`)
       busy.value = false
       return
     }
@@ -220,8 +202,7 @@ async function start() {
     busy.value = false
   } catch (e) {
     if (e.response?.data?.errors?.payment) {
-      billing.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? billing.value
-      paying.value = !!billing.value
+      openRecharge(e.response.data.errors.payment[0])
     } else {
       error.value = errorMessage(e)
     }
@@ -329,31 +310,20 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         </div>
       </div>
       <template v-if="step === 5">
-        <p v-if="payNotice" class="rounded-2xl bg-amber-50 p-3 text-[14px] font-bold text-amber-900 ring-1 ring-amber-200">{{ payNotice }}</p>
         <p v-if="billingLine" class="text-center text-[14.5px] font-extrabold" :class="billing.next === 'pay' ? 'text-slate-700' : 'text-emerald-700'">{{ billingLine }}</p>
         <button type="button" class="block w-full rounded-2xl bg-rose-600 py-4 text-[18px] font-black text-white" :disabled="busy" @click="start">{{ startLabel }}</button>
         <RouterLink :to="`/gestion/live/${draft.id}?onglet=support&support=tv`" class="block text-center text-[13px] font-bold text-slate-500 underline">📺 Afficher sur une télé ou TikTok LIVE Studio</RouterLink>
       </template>
 
-      <!-- Combien ça coûte : seulement quand les lives sont payants -->
-      <section v-if="billing?.paid" class="space-y-2">
-        <div class="rounded-[20px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
-          <span class="text-[13px] font-bold opacity-90">Ton crédit live</span>
-          <b class="block text-[28px] font-black leading-tight">{{ money(billing.credit) }}</b>
-          <span v-if="billing.free_left" class="text-[13px] font-bold">🎁 Encore {{ billing.free_left }} commande{{ billing.free_left > 1 ? 's' : '' }} en live offerte{{ billing.free_left > 1 ? 's' : '' }}</span>
-          <button type="button" class="mt-2 block w-full rounded-xl bg-white py-2 text-[15px] font-black text-emerald-800" @click="paying = true">Recharger</button>
-        </div>
-        <div class="rounded-[20px] bg-white p-4">
-          <h3 class="text-[18px] font-black">💰 Combien coûte un live</h3>
-          <div class="mt-1 divide-y divide-slate-100 text-[14.5px]">
-            <p v-for="t in billing.tiers" :key="t.from" class="flex justify-between py-2">
-              <span>{{ t.to === null ? `Plus de ${t.from - 1}` : `${t.from} à ${t.to}` }} commandes</span>
-              <b :class="t.price ? '' : 'text-emerald-700'">{{ t.price ? money(t.price) : 'Gratuit' }}</b>
-            </p>
-            <p class="flex justify-between py-2"><span>Lives illimités 30 jours</span><b>{{ money(billing.month_price) }}</b></p>
-            <p v-if="billing.free_ai" class="flex justify-between py-2"><span>+ {{ billing.free_ai }} actions IA (photos) au 1er live</span><b class="text-emerald-700">Offertes</b></p>
-          </div>
-          <p class="mt-1 text-center text-[12.5px] text-slate-500">Payé à la fin du live, selon les commandes créées pendant le live.</p>
+      <!-- Solde : seulement quand les commandes sont comptées -->
+      <section v-if="billing?.paid" class="rounded-[20px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
+        <span class="text-sm font-bold opacity-90">Mon solde</span>
+        <b class="block font-display text-[28px] font-extrabold leading-tight tabular-nums">{{ billing.month_until ? 'Illimité' : `${billing.orders} commandes` }}</b>
+        <span class="text-sm font-bold">✨ {{ billing.ai }} actions IA</span>
+        <p class="mt-1 text-sm opacity-90">Chaque commande prise pendant le live compte pour 1.</p>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <button type="button" class="rounded-xl bg-white py-2 text-[15px] font-black text-emerald-800" @click="openRecharge()">Recharger</button>
+          <RouterLink to="/gestion/solde" class="rounded-xl bg-white/15 py-2 text-center text-[15px] font-black">Mon solde</RouterLink>
         </div>
       </section>
 
@@ -364,7 +334,6 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     <LiveDeliveryFees v-if="panel === 'fees'" @done="feesDone" @close="panel = null" />
 
     <!-- Étape 3 : fenêtre des articles -->
-    <LivePaySheet v-if="paying && billing" :billing="billing" @close="paying = false" />
     <LiveItemsPanel v-if="panel === 'items'" :draft="draft" :past="past" @saved="saved" @close="panel = null" />
 
     <!-- Étape 4 : la photo et les consignes -->

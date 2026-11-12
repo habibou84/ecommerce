@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Partners\PremiumCardController;
 use App\Http\Controllers\Api\V1\AccessKeyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\Billing\BillingController;
+use App\Http\Controllers\Api\V1\Billing\CreditsController;
 use App\Http\Controllers\Api\V1\Catalog\BundleController;
 use App\Http\Controllers\Api\V1\Catalog\CatalogTransferController;
 use App\Http\Controllers\Api\V1\Catalog\CollectionController;
@@ -15,9 +16,9 @@ use App\Http\Controllers\Api\V1\Catalog\TagController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAccessKeyController;
 use App\Http\Controllers\Api\V1\Console\ConsoleAuthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleController;
+use App\Http\Controllers\Api\V1\Console\ConsoleCreditsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleFeaturesController;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
-use App\Http\Controllers\Api\V1\Console\ConsoleLiveBillingController;
 use App\Http\Controllers\Api\V1\Console\ConsoleMaterielController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
@@ -37,7 +38,6 @@ use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\BoostAdsController;
 use App\Http\Controllers\Api\V1\Marketing\BoostController;
 use App\Http\Controllers\Api\V1\Marketing\CampaignController;
-use App\Http\Controllers\Api\V1\Marketing\LiveBillingController;
 use App\Http\Controllers\Api\V1\Marketing\LiveController;
 use App\Http\Controllers\Api\V1\Marketing\LiveScreenController;
 use App\Http\Controllers\Api\V1\Marketing\LoyaltyController;
@@ -185,10 +185,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('free', [ConsoleController::class, 'free'])->name('free');
             Route::put('free', [ConsoleController::class, 'updateFree'])->name('free.update');
             Route::get('plans', [ConsoleController::class, 'plans'])->name('plans');
-            // Lives payants : réglages, ventes du mois, lives offerts à une boutique
-            Route::get('lives', [ConsoleLiveBillingController::class, 'show'])->name('lives');
-            Route::put('lives', [ConsoleLiveBillingController::class, 'update'])->name('lives.update');
-            Route::post('stores/{store}/lives', [ConsoleLiveBillingController::class, 'offer'])->whereNumber('store')->name('stores.lives');
+            // Tarifs : packs de commandes (IA incluse), illimité 30 jours, cadeaux de départ ; recharge offerte à une boutique
+            Route::get('tarifs', [ConsoleCreditsController::class, 'show'])->name('tarifs');
+            Route::put('tarifs', [ConsoleCreditsController::class, 'update'])->name('tarifs.update');
+            Route::post('stores/{store}/credits', [ConsoleCreditsController::class, 'offer'])->whereNumber('store')->name('stores.credits');
             // Clés d'accès (cartes à QR code) : lots, cartes à imprimer, annulation
             Route::get('access-keys', [ConsoleAccessKeyController::class, 'index'])->name('access-keys');
             Route::post('access-keys', [ConsoleAccessKeyController::class, 'store'])->name('access-keys.store');
@@ -314,13 +314,16 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::middleware('permission:'.Permission::BillingManage->value)->prefix('billing')->name('billing.')->group(function () {
                 Route::get('/', [BillingController::class, 'show'])->name('show');
                 Route::post('checkout', [BillingController::class, 'checkout'])->middleware('throttle:10,1')->name('checkout');
-                Route::post('ai-pack', [BillingController::class, 'aiPack'])->middleware('throttle:10,1')->name('ai-pack');
                 Route::post('access-key', [AccessKeyController::class, 'redeem'])->middleware('throttle:10,1')->name('access-key');
                 Route::post('invoices/{number}/check', [BillingController::class, 'check'])->where('number', 'JM-\\d{4}-\\d{6}')->name('check');
                 Route::post('invoices/{number}/paid', [BillingController::class, 'claimPaid'])->middleware('throttle:10,1')->where('number', 'JM-\\d{4}-\\d{6}')->name('paid');
                 Route::get('invoices/{invoice}/receipt', [BillingController::class, 'receipt'])->whereNumber('invoice')->name('receipt');
                 Route::post('cancel', [BillingController::class, 'cancel'])->name('cancel');
             });
+            // ── Solde de la boutique : commandes (live, WhatsApp, boost) et actions IA, packs ou illimité 30 jours ──
+            Route::get('credits', [CreditsController::class, 'show'])->name('credits.show');
+            Route::post('credits/checkout', [CreditsController::class, 'checkout'])->middleware('throttle:10,1')->name('credits.checkout');
+            Route::post('credits/{number}/confirm', [CreditsController::class, 'confirm'])->where('number', 'JM-\\d{4}-\\d{6}')->middleware('throttle:30,1')->name('credits.confirm');
             // ── Matériel de la plateforme (étiquettes, imprimantes, accessoires de live) ──
             Route::get('materiel/suggest', [MaterielController::class, 'suggest'])->name('materiel.suggest');
             Route::middleware('permission:'.Permission::BillingManage->value)->prefix('materiel')->name('materiel.')->group(function () {
@@ -524,6 +527,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 // Assistant Boost : la pub créée et suivie depuis l'application
                 Route::middleware(['feature:boost', 'feature:boost_ads'])->group(function () {
                     Route::get('marketing/boost/setup', [BoostAdsController::class, 'setup'])->name('boost.setup');
+                    Route::post('marketing/boost/texts', [BoostController::class, 'texts'])->middleware('throttle:20,1')->name('boost.texts');
                     Route::post('marketing/boost/audience', [BoostAdsController::class, 'audience'])->middleware('throttle:30,1')->name('boost.audience');
                     Route::get('marketing/boosts', [BoostAdsController::class, 'index'])->name('boosts.index');
                     Route::post('marketing/boosts', [BoostAdsController::class, 'store'])->middleware('throttle:10,1')->name('boosts.store');
@@ -604,10 +608,6 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('lives/{session}', [LiveController::class, 'show'])->whereNumber('session')->middleware('feature:live')->middleware('cache.headers:private;no_cache;etag')->name('lives.show');
                 Route::put('lives/{session}', [LiveController::class, 'update'])->whereNumber('session')->middleware('feature:live')->name('lives.update');
                 Route::post('lives/{session}/items', [LiveController::class, 'addItems'])->whereNumber('session')->middleware('feature:live')->name('lives.items');
-                // Lives payants : prix et droits, achat 24 h ou 30 jours (PayDunya), retour du paiement
-                Route::get('lives/billing', [LiveBillingController::class, 'show'])->middleware('feature:live')->name('lives.billing');
-                Route::post('lives/billing/checkout', [LiveBillingController::class, 'checkout'])->middleware(['feature:live', 'throttle:10,1'])->name('lives.billing.checkout');
-                Route::post('lives/billing/{number}/confirm', [LiveBillingController::class, 'confirm'])->middleware(['feature:live', 'throttle:30,1'])->name('lives.billing.confirm');
                 Route::post('lives/{session}/start', [LiveController::class, 'start'])->whereNumber('session')->middleware('feature:live')->name('lives.start');
                 // Live en images : écrans reliés, mode d'affichage, affichage (mode présentation), cartes à enregistrer
                 Route::get('lives/screens', [LiveScreenController::class, 'index'])->middleware('feature:live,live_screens')->middleware('cache.headers:private;no_cache;etag')->name('lives.screens');

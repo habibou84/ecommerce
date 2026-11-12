@@ -38,7 +38,7 @@ onMounted(async () => {
     if (route.query.facture) {
       const { data: res } = await http.post(`/billing/invoices/${route.query.facture}/check`)
       notice.value = res.data.status === 'paid'
-        ? { tone: 'success', text: res.data.kind === 'ai_pack' ? `Paiement reçu : ${res.data.plan.toLowerCase()} ajoutée. Merci !` : `Paiement reçu : offre ${res.data.plan} active. Merci !` }
+        ? { tone: 'success', text: `Paiement reçu : offre ${res.data.plan} active. Merci !` }
         : { tone: 'warning', text: 'Paiement pas encore confirmé. S\'il a bien été fait, l\'offre s\'activera dans quelques minutes.' }
       router.replace('/gestion/abonnement')
     }
@@ -77,9 +77,8 @@ const yearlySaving = (p) => (p.yearly_price ? Math.max(0, p.monthly_price * 12 -
 const bestSaving = computed(() => Math.max(0, ...paidPlans.value.map(yearlySaving)))
 const percent = (u) => (u.limit ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0)
 // Utilisation affichée : le nombre de boutiques seulement pour une offre qui en couvre plusieurs ; l'assistant IA
-// seulement si l'offre en comprend (sinon il marche avec les recharges)
+// seulement si l'offre en comprend (sinon il marche avec les actions IA du solde)
 const usage = computed(() => Object.fromEntries(Object.entries(data.value?.usage ?? {}).filter(([key, u]) => (key !== 'stores' || (u.limit !== 1 && !data.value.covered_by)) && (key !== 'ai_actions_per_month' || u.limit !== 0))))
-const aiInPlan = computed(() => data.value?.usage?.ai_actions_per_month?.limit !== 0)
 const changing = computed(() => !!selected.value && (selected.value.code !== data.value?.plan.code))
 // Jours payés non utilisés : convertis en jours de la nouvelle offre
 const creditDays = computed(() => {
@@ -107,7 +106,7 @@ async function claimPaid() {
   error.value = ''
   try {
     const { data: res } = await http.post(`/billing/invoices/${wave.value.invoice.number}/paid`)
-    notice.value = { tone: 'info', text: `Merci ! Nous vérifions votre paiement de ${money(res.data.amount)}. Dès qu'il est confirmé, votre ${res.data.kind === 'ai_pack' ? 'recharge est ajoutée' : 'offre est activée'} et vous êtes prévenu.` }
+    notice.value = { tone: 'info', text: `Merci ! Nous vérifions votre paiement de ${money(res.data.amount)}. Dès qu'il est confirmé, votre offre est activée et vous êtes prévenu.` }
     wave.value = null
     await load()
   } catch (e) {
@@ -126,22 +125,6 @@ async function pay() {
   error.value = ''
   try {
     const { data: res } = await http.post('/billing/checkout', choice)
-    await go(res)
-  } catch (e) {
-    error.value = errorMessage(e)
-    busy.value = false
-  }
-}
-
-async function buyAiPack() {
-  if (data.value.manual_payment && !choice.payer_phone.trim()) {
-    error.value = 'Indiquez le numéro Wave qui va payer.'
-    return
-  }
-  busy.value = true
-  error.value = ''
-  try {
-    const { data: res } = await http.post('/billing/ai-pack', { method: choice.method, payer_phone: choice.payer_phone })
     await go(res)
   } catch (e) {
     error.value = errorMessage(e)
@@ -275,24 +258,12 @@ async function cancel(value) {
       </div>
     </section>
 
-    <section v-if="data.ai_pack" class="card space-y-3 p-4 text-sm">
-      <h3 class="font-semibold">{{ aiInPlan ? 'Recharger l\'assistant' : 'Assistant IA' }}</h3>
-      <p class="text-slate-600">
-        <template v-if="aiInPlan">{{ data.ai_pack.actions }} actions de plus pour {{ money(data.ai_pack.price) }}, utilisées quand celles de votre offre sont épuisées.</template>
-        <template v-else>L'assistant IA se paie à part, quelle que soit votre offre : {{ data.ai_pack.actions }} actions pour {{ money(data.ai_pack.price) }}. Une action, c'est une commande remplie, une fiche produit écrite ou une réponse préparée.</template>
-        Elles ne périment pas.
-        <template v-if="data.ai_credits"> En réserve : <strong>{{ data.ai_credits }} actions</strong>.</template>
-      </p>
-      <label v-if="data.manual_payment" class="block max-w-xs text-sm">Numéro Wave qui va payer
-        <input v-model="choice.payer_phone" type="tel" class="input mt-1" placeholder="07 00 00 00 00" />
-      </label>
-      <div class="flex flex-wrap items-center gap-3">
-        <select v-model="choice.method" class="input w-auto" aria-label="Moyen de paiement de la recharge">
-          <option v-for="(label, key) in data.methods" :key="key" :value="key">{{ label }}</option>
-        </select>
-        <button class="btn-brand" :disabled="busy" @click="buyAiPack">{{ busy ? 'Un instant…' : `Recharger pour ${money(data.ai_pack.price)}` }}</button>
-      </div>
-    </section>
+    <!-- Commandes (live, WhatsApp, boost) et actions IA : sur « Mon solde », à part de l'abonnement -->
+    <RouterLink to="/gestion/solde" class="card flex items-center gap-3 p-4 text-sm">
+      <span class="text-2xl" aria-hidden="true">💳</span>
+      <span class="min-w-0 flex-1"><b class="block">Mon solde : commandes et IA</b><span class="text-slate-600">Packs de commandes avec IA incluse, ou illimité 30 jours.</span></span>
+      <span class="font-bold text-emerald-700">Voir ▸</span>
+    </RouterLink>
 
     <section v-if="data.invoices.length" class="card p-4 text-sm">
       <h3 class="mb-2 font-semibold">Factures</h3>

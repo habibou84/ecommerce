@@ -10,10 +10,12 @@ import { money } from '../../lib/format'
  *
  * @prop products  meilleures ventes (id, title, image, price, sold)
  * @prop from      boost à relancer (mêmes réglages), ou null
+ * @prop productId produit conseillé à booster tout de suite, ou null
  */
 const props = defineProps({
   products: { type: Array, default: () => [] },
   from: { type: Object, default: null },
+  productId: { type: Number, default: null },
 })
 const emit = defineEmits(['close', 'launched'])
 
@@ -24,7 +26,7 @@ const step = ref(0)
 const STEPS = ['Produit', 'Budget', 'Public', 'Lancer']
 
 const kind = ref(props.from?.kind ?? 'product')
-const one = ref(props.from?.kind === 'product' ? props.from.product_ids[0] : props.products[0]?.id ?? null)
+const one = ref(props.from?.kind === 'product' ? props.from.product_ids[0] : props.productId ?? props.products[0]?.id ?? null)
 const many = ref(props.from?.kind === 'products' ? [...props.from.product_ids] : props.products.slice(0, 3).map((p) => p.id))
 const collection = ref(props.from?.collection_id ?? null)
 const budget = ref(props.from?.daily_budget ?? 2500)
@@ -106,6 +108,25 @@ function proposeText() {
   return '🛍️ Découvre nos nouveautés et nos meilleures ventes. Livraison rapide chez toi 👇'
 }
 const edited = ref(!!props.from)
+// Textes écrits par l'IA : 3 versions pour 1 action (le solde d'actions IA)
+const versions = ref([])
+const writing = ref(false)
+async function writeWithAi() {
+  writing.value = true
+  error.value = ''
+  try {
+    const body = kind.value === 'catalog' ? { kind: 'catalog', collection_id: collection.value } : { kind: kind.value, product_ids: kind.value === 'product' ? [one.value] : many.value }
+    versions.value = (await http.post('/marketing/boost/texts', body)).data.data
+    if (versions.value[0]) {
+      message.value = versions.value[0]
+      edited.value = true
+    }
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    writing.value = false
+  }
+}
 watch([kind, one], () => !edited.value && (message.value = proposeText()), { immediate: !props.from })
 
 // Taille du public estimée par Meta
@@ -256,8 +277,15 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
           </div>
           <p v-else class="bg-slate-50 p-3 text-xs text-slate-500">Chacun voit des produits différents de ton catalogue.</p>
         </div>
-        <label class="block text-sm font-bold" for="boost-text">Texte de la pub</label>
+        <div class="flex items-center justify-between gap-2">
+          <label class="text-sm font-bold" for="boost-text">Texte de la pub</label>
+          <button type="button" class="rounded-lg bg-[#e7f0fe] px-2.5 py-1.5 text-xs font-extrabold text-[#1877f2]" :disabled="writing" @click="writeWithAi">{{ writing ? 'L\'IA écrit…' : '✨ Écrire avec l\'IA' }}</button>
+        </div>
+        <div v-if="versions.length" class="flex gap-1.5">
+          <button v-for="(v, k) in versions" :key="k" type="button" class="flex-1 rounded-lg border-2 py-1.5 text-xs font-bold" :class="message === v ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="message = v; edited = true">Version {{ k + 1 }}</button>
+        </div>
         <textarea id="boost-text" v-model="message" rows="3" maxlength="600" class="input" @input="edited = true" />
+        <p v-if="versions.length" class="text-xs text-slate-500">3 versions pour 1 action IA. Touche une version, puis corrige si besoin.</p>
 
         <div v-if="setup.ad_accounts.filter((a) => a.usable).length > 1 || setup.pages.length > 1" class="grid gap-2 sm:grid-cols-2">
           <label class="text-sm font-bold">Compte publicitaire
@@ -273,7 +301,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Budget</dt><dd class="text-right font-bold">{{ money(budget) }} / jour · {{ days }} jours</dd></div>
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Public</dt><dd class="text-right font-bold">{{ zones.length ? setup.zones.filter((z) => zones.includes(z.key)).map((z) => z.name.replace(' (toutes communes)', '')).join(', ') : 'Côte d\'Ivoire' }} · {{ age[0] }} – {{ age[1] }} ans</dd></div>
           <div class="flex justify-between gap-3 border-t border-slate-200 pt-1.5"><dt class="text-slate-500">Payé à Meta (ta carte)</dt><dd class="font-display text-base font-extrabold">{{ money(total) }} max</dd></div>
-          <div class="flex justify-between gap-3"><dt class="text-slate-500">Assistant</dt><dd class="text-right font-bold">{{ setup.fee.paid ? `${money(setup.fee.price)} par commande venue du boost` : 'gratuit pour l\'instant' }}</dd></div>
+          <div class="flex justify-between gap-3"><dt class="text-slate-500">Mon solde</dt><dd class="text-right font-bold">{{ setup.fee.counted ? `${setup.fee.weight} commande${setup.fee.weight > 1 ? 's' : ''} retirée${setup.fee.weight > 1 ? 's' : ''} par commande venue du boost` : 'rien de retiré' }}</dd></div>
         </dl>
       </section>
 

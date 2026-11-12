@@ -64,7 +64,7 @@ const signupUrl = (k) => `/creer-ma-boutique?cle=${k.code}${k.offered_by ? `&par
           <li>✓ Toutes les fonctions de l'offre {{ key.plan }}, sans rien payer{{ key.founder ? '' : ` pendant ${key.months} mois` }}</li>
           <li v-if="key.founder">✓ Votre carte reste active tant que votre boutique vit : une commande au moins tous les 2 mois</li>
           <li v-if="key.offered_by">✓ Ensuite, −{{ percent(key.discount_rate) }} sur votre abonnement tant que vous livrez avec {{ key.offered_by.name }}</li>
-          <li>✓ L'assistant IA se recharge à part, si vous le voulez</li>
+          <li>✓ Actions IA en plus avec votre solde (packs de commandes), si vous le voulez</li>
           <li>✓ Une seule boutique par carte</li>
         </ul>
         <a :href="signupUrl(key)" class="btn-brand w-full">Créer ma boutique avec cette clé</a>

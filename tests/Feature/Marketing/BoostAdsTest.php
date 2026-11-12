@@ -9,8 +9,9 @@ use App\Models\Place;
 use App\Models\Product;
 use App\Models\SocialAccount;
 use App\Models\Store;
+use App\Services\Ai\Assistant;
+use App\Services\Billing\Credits;
 use App\Services\Catalog\CatalogWriter;
-use App\Services\Live\LiveBilling;
 use App\Services\Marketing\BoostAds;
 use App\Services\Marketing\MetaAds;
 use App\Services\Orders\OrderDesk;
@@ -24,7 +25,7 @@ use Tests\TestCase;
 
 /**
  * Assistant Boost : la pub créée chez Meta depuis l'application (un produit, un carrousel, le catalogue), suivie,
- * mise en pause ou prolongée ; commandes venues de la pub comptées et prix de l'assistant retiré du crédit.
+ * mise en pause ou prolongée ; commandes venues de la pub comptées et retirées du solde ; conseils et textes IA.
  */
 class BoostAdsTest extends TestCase
 {
@@ -103,15 +104,15 @@ class BoostAdsTest extends TestCase
     public function test_one_product_boost_is_created_at_meta_and_followed_with_its_orders(): void
     {
         $this->fakeMeta();
-        app(LiveBilling::class)->update(['boost_paid' => true, 'boost_price' => 300]);
-        $this->store->forceFill(['live_credit' => 5000])->save();
+        app(Credits::class)->update(['paid' => true, 'boost_weight' => 2]);
+        $this->store->forceFill(['order_credits' => 50, 'credits_welcomed_at' => now()])->save();
 
         // Ce qu'il faut : compte utilisable (actif, devise prise en charge) d'abord, page, public estimé
         $setup = $this->storeApi($this->store, 'GET', 'marketing/boost/setup')->assertOk()->json('data');
         $this->assertSame(['act_5', 'act_9'], array_column($setup['ad_accounts'], 'id'));
         $this->assertTrue($setup['ad_accounts'][0]['usable'] && $setup['ad_accounts'][0]['card']);
         $this->assertSame('444', $setup['pages'][0]['id']);
-        $this->assertSame(['paid' => true, 'price' => 300, 'credit' => 5000], $setup['fee']);
+        $this->assertSame(['counted' => true, 'weight' => 2, 'orders' => 50], $setup['fee']);
         $this->storeApi($this->store, 'POST', 'marketing/boost/audience', ['ad_account_id' => 'act_5', 'zones' => ['cocody'], 'age_min' => 18, 'age_max' => 45, 'gender' => 'all'])
             ->assertOk()->assertJsonPath('data', ['lower' => 120000, 'upper' => 150000]);
 
@@ -131,16 +132,19 @@ class BoostAdsTest extends TestCase
         $this->assertStringContainsString('utm_content=b'.$boost['id'], $link['link']);
         $this->assertSame('ACTIVE', $this->sent('/camp1')['status']);
 
-        // Une commande venue de la pub (et une autre sans) : comptée, prix de l'assistant retiré du crédit
+        // Une commande venue de la pub (et une autre sans) : comptée et retirée du solde (2 commandes chacune ici)
         $this->order(['utm_source' => 'facebook', 'utm_content' => 'b'.$boost['id']]);
         $this->order(['utm_source' => 'facebook']);
         $this->artisan('boosts:sync')->assertSuccessful();
         $row = $this->storeApi($this->store, 'GET', 'marketing/boosts')->assertOk()->json('data.0');
-        $this->assertSame(['active', 8199, 312, 1, 300], [$row['status'], $row['spend'], $row['clicks'], $row['orders'], $row['fee']]);
-        $this->assertSame(4700, $this->store->fresh()->live_credit);
+        $this->assertSame(['active', 8199, 312, 1, 2], [$row['status'], $row['spend'], $row['clicks'], $row['orders'], $row['credits_used']]);
+        $this->assertSame(48, $this->store->fresh()->order_credits);
+        // 8 199 F de pub pour 1 commande, sans prix d'achat saisi : le conseil demande le prix d'achat
+        $this->assertSame(['kind' => 'cost', 'margin' => null], $row['advice']);
         // Relu sans nouvelle commande : rien de plus retiré
         app(BoostAds::class)->sync(Boost::find($boost['id']));
-        $this->assertSame(4700, $this->store->fresh()->live_credit);
+        $this->assertSame(48, $this->store->fresh()->order_credits);
+        $this->storeApi($this->store, 'GET', 'credits')->assertJsonPath('data.usage.boosts.0.orders', -2);
 
         // Pause, prolongation de 3 jours, arrêt
         $this->storeApi($this->store, 'POST', "marketing/boosts/{$boost['id']}/action", ['action' => 'pause'])->assertOk();
@@ -181,10 +185,11 @@ class BoostAdsTest extends TestCase
         $this->assertSame(['failed', 'Meta : Page non autorisée'], [Boost::sole()->status, Boost::sole()->error]);
         $this->assertSame('DELETED', $this->sent('/camp1')['status']);
 
-        // Compte publicitaire inactif ou crédit trop bas : refusé avant Meta
+        // Compte publicitaire inactif ou solde vide : refusé avant Meta
         $this->launch(['ad_account_id' => 'act_9'])->assertStatus(422);
-        app(LiveBilling::class)->update(['boost_paid' => true, 'boost_price' => 300]);
-        $this->launch()->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'crédit'));
+        app(Credits::class)->update(['paid' => true]);
+        $this->store->forceFill(['order_credits' => 0, 'credits_welcomed_at' => now()])->save();
+        $this->launch()->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'solde'));
     }
 
     public function test_the_assistant_can_be_turned_off_from_the_console(): void
@@ -203,5 +208,43 @@ class BoostAdsTest extends TestCase
         $order->forceFill(['utm' => $utm])->save();
 
         return $order;
+    }
+
+    public function test_advice_follows_the_margin_and_the_best_product_is_suggested(): void
+    {
+        $this->fakeMeta();
+        $this->robe->variants()->update(['cost_price' => 9000]); // marge 6 000 F
+        $boost = $this->launch()->assertCreated()->json('data');
+        $b = Boost::find($boost['id']);
+        $ads = app(BoostAds::class);
+
+        // Pas encore assez de recul : pas de conseil
+        $b->forceFill(['status' => 'active', 'spend' => 1000, 'orders' => 0])->save();
+        $this->assertNull($ads->advice($b));
+        // Deux jours de budget sans commande : pause
+        $b->forceFill(['spend' => 5000])->save();
+        $this->assertSame('stop', $ads->advice($b)['kind']);
+        // 3 500 F de pub par commande pour 6 000 F de marge : prolonger
+        $b->forceFill(['spend' => 7000, 'orders' => 2])->save();
+        $this->assertSame(['kind' => 'go', 'margin' => 6000], $ads->advice($b));
+        // 7 000 F par commande : plus cher que la marge, pause
+        $b->forceFill(['spend' => 14000])->save();
+        $this->assertSame('stop', $ads->advice($b)['kind']);
+
+        // Produit à booster : il se vend, il a du stock
+        $this->order(['utm_source' => 'whatsapp']);
+        $this->storeApi($this->store, 'GET', 'marketing/boost')->assertOk()->assertJsonPath('data.suggested_id', $this->robe->id)
+            ->assertJsonPath('data.products.0.margin', 6000);
+    }
+
+    public function test_three_ad_texts_written_by_the_assistant(): void
+    {
+        config(['services.anthropic.key' => 'test-key']);
+        $this->mock(Assistant::class, function ($mock) {
+            $mock->shouldReceive('run')->once()->withArgs(fn ($store, $user, $feature) => $feature === 'boost_text')
+                ->andReturn(['texts' => ['Texte 1', 'Texte 2', 'Texte 3', 'Texte 4']]);
+        });
+        $this->storeApi($this->store, 'POST', 'marketing/boost/texts', ['kind' => 'products', 'product_ids' => [$this->robe->id, $this->sac->id]])
+            ->assertOk()->assertJsonPath('data', ['Texte 1', 'Texte 2', 'Texte 3']);
     }
 }

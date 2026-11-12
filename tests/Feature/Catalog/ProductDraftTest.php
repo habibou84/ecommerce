@@ -61,7 +61,7 @@ class ProductDraftTest extends TestCase
 
         // Action comptée, consommation notée ; rien n'est créé
         $this->assertSame([1, 1200, 300], [AiUsage::forStore($this->store->id)->count(), AiUsage::forStore($this->store->id)->value('input_tokens'), AiUsage::forStore($this->store->id)->value('output_tokens')]);
-        $this->storeApi($this->store, 'GET', 'auth/me')->assertJsonPath('data.ai', ['enabled' => true, 'used' => 1, 'limit' => 300, 'credits' => 100, 'pack' => ['actions' => 100, 'price' => 1000]]);
+        $this->storeApi($this->store, 'GET', 'auth/me')->assertJsonPath('data.ai', ['enabled' => true, 'used' => 1, 'limit' => 300, 'credits' => 100]);
         $this->storeApi($this->store, 'GET', 'products')->assertJsonPath('meta.total', 0);
     }
 
@@ -78,9 +78,9 @@ class ProductDraftTest extends TestCase
         // Plus rien : message rouge et état de l'assistant pour ouvrir la fenêtre de recharge
         $this->draft()->assertOk();
         $this->draft()->assertStatus(422)
-            ->assertJsonPath('message', "Vos 1 actions de l'assistant IA du mois (offre Pro) sont utilisées. Rechargez 100 actions pour 1 000 F pour continuer.")
+            ->assertJsonPath('message', "Plus d'actions IA. Recharge ton solde : commandes et IA ensemble.")
             ->assertJsonPath('code', 'ai_quota')
-            ->assertJsonPath('ai', ['enabled' => true, 'used' => 1, 'limit' => 1, 'credits' => 0, 'pack' => ['actions' => 100, 'price' => 1000]]);
+            ->assertJsonPath('ai', ['enabled' => true, 'used' => 1, 'limit' => 1, 'credits' => 0]);
         $this->assertCount(1, $this->ai->calls);
 
         // Actions achetées : utilisées une à une après le quota de l'offre
@@ -94,9 +94,9 @@ class ProductDraftTest extends TestCase
         $this->assertSame(0, $this->store->fresh()->ai_credits);
         $this->assertCount(3, $this->ai->calls);
 
-        // Offre sans actions comprises (réglée à 0 dans la console) : l'assistant marche avec les recharges
+        // Offre sans actions comprises (réglée à 0 dans la console) : l'assistant marche avec les actions IA du solde
         $plan->update(['limits' => ['ai_actions_per_month' => 0] + $plan->limits]);
-        $this->draft()->assertStatus(422)->assertJsonPath('message', "L'assistant IA de l'offre Pro marche avec des recharges. Rechargez 100 actions pour 1 000 F pour continuer.");
+        $this->draft()->assertStatus(422)->assertJsonPath('message', "Plus d'actions IA. Recharge ton solde : commandes et IA ensemble.");
     }
 
     public function test_failures_are_explained_and_not_counted(): void

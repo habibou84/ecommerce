@@ -10,7 +10,7 @@ const props = defineProps({ id: { type: String, required: true } })
 const store = ref(null)
 const error = ref('')
 const modal = ref(null) // suspend | trial | offer | support
-const form = reactive({ reason: '', days: 14, plan: 'pro', months: 1, minutes: 30, liveOrders: 100, liveCredit: 2000 })
+const form = reactive({ reason: '', days: 14, plan: 'pro', months: 1, minutes: 30, creditOrders: 100, creditAi: 100 })
 const PLAN_NAMES = { starter: 'Starter', pro: 'Pro', business: 'Business' }
 const busy = ref(false)
 const ACTIONS = { suspend: 'Suspension', reactivate: 'Réactivation', extend_trial: 'Essai prolongé', offer: 'Mois offerts', support_session: 'Session de support', free_forever: 'Gratuit à vie', free_forever_removed: 'Gratuit à vie retiré', whatsapp_qr_on: 'WhatsApp par QR code autorisé', whatsapp_qr_off: 'WhatsApp par QR code coupé' }
@@ -46,20 +46,20 @@ async function load() {
 onMounted(load)
 
 function open(name) {
-  Object.assign(form, { reason: '', days: 14, plan: 'pro', months: 1, minutes: 30, liveOrders: 100, liveCredit: 2000 })
+  Object.assign(form, { reason: '', days: 14, plan: 'pro', months: 1, minutes: 30, creditOrders: 100, creditAi: 100 })
   error.value = ''
   modal.value = name
 }
 
-// Lives payants : commandes en live offertes en plus de celles du départ, crédit live, ou 30 jours illimités
-const livesDone = ref('')
-async function offerLives(payload) {
+// Solde offert : des commandes, des actions IA, ou 30 jours d'illimité
+const creditsDone = ref('')
+async function offerCredits(payload) {
   busy.value = true
   error.value = ''
   try {
-    const { data } = await http.post(`/console/stores/${props.id}/lives`, payload)
-    livesDone.value = payload.month ? `Lives illimités jusqu'au ${new Date(data.data.month_until).toLocaleDateString('fr-FR')}`
-      : payload.credit ? `Crédit live : ${data.data.credit} F` : `${data.data.free_left} commande(s) en live offerte(s) restante(s)`
+    const { data } = await http.post(`/console/stores/${props.id}/credits`, payload)
+    creditsDone.value = payload.month ? `Illimité jusqu'au ${new Date(data.data.month_until).toLocaleDateString('fr-FR')}` : `Solde : ${data.data.orders} commandes · ${data.data.ai} IA`
+    store.value.credits = { orders: data.data.orders, ai: data.data.ai, month_until: data.data.month_until }
     modal.value = null
   } catch (e) {
     error.value = errorMessage(e)
@@ -103,7 +103,7 @@ async function endSession(id) {
     </div>
     <Alert v-if="store.suspended_reason" tone="warning">Suspendue : {{ store.suspended_reason }}</Alert>
     <Alert v-if="error && !modal">{{ error }}</Alert>
-    <Alert v-if="livesDone" tone="success">🔴 {{ livesDone }}</Alert>
+    <Alert v-if="creditsDone" tone="success">🎁 {{ creditsDone }}</Alert>
 
     <div class="flex flex-wrap gap-2">
       <button class="btn-brand" @click="open('support')">🛟 Session de support</button>
@@ -111,7 +111,7 @@ async function endSession(id) {
       <button class="btn-secondary" @click="open('offer')">Offrir des mois</button>
       <button v-if="!store.free_forever" class="btn-secondary" @click="open('free')">Gratuit à vie</button>
       <button v-else class="btn-ghost" :disabled="busy" @click="removeFree">Retirer « gratuit à vie »</button>
-      <button class="btn-secondary" @click="open('lives')">🔴 Offrir des commandes en live</button>
+      <button class="btn-secondary" @click="open('credits')">🎁 Offrir des commandes ou de l'IA</button>
       <button v-if="store.status !== 'suspended'" class="btn-ghost text-red-600" @click="open('suspend')">Suspendre</button>
       <button v-else class="btn-secondary" :disabled="busy" @click="act('reactivate')">Réactiver</button>
     </div>
@@ -135,6 +135,12 @@ async function endSession(id) {
           <p v-if="store.subscription.cancel_at_period_end" class="text-amber-800">Fin demandée à l'échéance</p>
         </template>
         <p v-else class="text-slate-500">Offre gratuite</p>
+      </section>
+      <section v-if="store.credits" class="card space-y-1 p-4 text-sm">
+        <h3 class="mb-1 font-semibold">🧾 Solde</h3>
+        <p class="flex justify-between"><span>Commandes (live, WhatsApp, boost)</span><b :class="store.credits.orders < 0 ? 'text-red-700' : ''">{{ store.credits.orders }}</b></p>
+        <p class="flex justify-between"><span>Actions IA</span><b>{{ store.credits.ai }}</b></p>
+        <p v-if="store.credits.month_until" class="text-emerald-700">Illimité jusqu'au {{ formatDateTime(store.credits.month_until) }}</p>
       </section>
       <section class="card space-y-2 p-4 text-sm">
         <h3 class="font-semibold">📱 WhatsApp par QR code</h3>
@@ -202,19 +208,16 @@ async function endSession(id) {
         <button class="btn-brand w-full" :disabled="busy">Offrir</button>
       </form>
     </Modal>
-    <Modal v-if="modal === 'lives'" title="Offrir des commandes en live" @close="modal = null">
+    <Modal v-if="modal === 'credits'" title="Offrir au solde" @close="modal = null">
       <div class="space-y-4">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-sm text-slate-600">Des commandes en live en plus de celles du départ, du crédit live, ou 30 jours de lives illimités ajoutés à ceux en cours.</p>
-        <form class="flex gap-2" @submit.prevent="offerLives({ orders: form.liveOrders })">
-          <input v-model.number="form.liveOrders" type="number" min="1" max="100000" class="input w-24" aria-label="Nombre de commandes" />
-          <button class="btn-brand flex-1" :disabled="busy">Offrir {{ form.liveOrders }} commande(s)</button>
+        <p class="text-sm text-slate-600">Ajouté au solde de la boutique : des commandes (live, WhatsApp, boost), des actions IA, ou 30 jours d'illimité.</p>
+        <form class="grid grid-cols-2 gap-2" @submit.prevent="offerCredits({ orders: form.creditOrders || null, ai: form.creditAi || null })">
+          <label class="text-sm font-semibold">Commandes<input v-model.number="form.creditOrders" type="number" min="0" max="100000" class="input mt-1" /></label>
+          <label class="text-sm font-semibold">Actions IA<input v-model.number="form.creditAi" type="number" min="0" max="100000" class="input mt-1" /></label>
+          <button class="btn-brand col-span-2" :disabled="busy">Offrir</button>
         </form>
-        <form class="flex gap-2" @submit.prevent="offerLives({ credit: form.liveCredit })">
-          <input v-model.number="form.liveCredit" type="number" min="100" step="500" class="input w-24" aria-label="Crédit en francs" />
-          <button class="btn-secondary flex-1" :disabled="busy">Offrir {{ form.liveCredit }} F de crédit</button>
-        </form>
-        <button type="button" class="btn-secondary w-full" :disabled="busy" @click="offerLives({ month: true })">Offrir 30 jours de lives illimités</button>
+        <button type="button" class="btn-secondary w-full" :disabled="busy" @click="offerCredits({ month: true })">Offrir 30 jours d'illimité</button>
       </div>
     </Modal>
     <Modal v-if="modal === 'free'" title="Gratuit à vie" @close="modal = null">
