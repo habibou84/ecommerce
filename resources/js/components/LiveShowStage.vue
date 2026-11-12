@@ -555,10 +555,14 @@ onUnmounted(() => {
     <!-- Vente flash -->
     <div v-if="flashItem && !moment" class="overlay">
       <div class="flash">
-        <h2>⚡ VENTE FLASH</h2>
-        <p class="kicker">sur la {{ flashItem.code }}, pendant</p>
-        <div class="clock" :class="{ end: flashLeft <= 3 }">{{ flashClock }}</div>
-        <p class="kicker">Envoie {{ flashItem.code }} maintenant !</p>
+        <!-- La photo de l'article en vente flash, à côté du chrono (au-dessus en carré et en vertical) -->
+        <div v-if="flashItem.image" class="flash-photo"><img :src="flashItem.image" alt=""><b>{{ flashItem.code }}</b></div>
+        <div class="flash-text">
+          <h2>⚡ VENTE FLASH</h2>
+          <p class="kicker">sur la {{ flashItem.code }}, pendant</p>
+          <div class="clock" :class="{ end: flashLeft <= 3 }">{{ flashClock }}</div>
+          <p class="kicker">Envoie {{ flashItem.code }} maintenant !</p>
+        </div>
       </div>
     </div>
 
@@ -883,7 +887,18 @@ onUnmounted(() => {
 .flash .clock { font-weight: 900; font-size: 16em; line-height: 1; font-variant-numeric: tabular-nums; }
 .flash .clock.end { color: var(--hot); }
 .is-tall .flash h2 { font-size: 7.2em; line-height: 1; }
-.is-tall .flash .clock { font-size: 24em; }
+.is-tall .flash .clock { font-size: 20em; }
+.flash { display: flex; align-items: center; justify-content: center; gap: 4em; }
+.flash-text { display: grid; justify-items: center; }
+.flash-photo { position: relative; flex: none; width: 36em; height: 36em; border-radius: 2em; overflow: hidden; background: #fff; border: .3em solid var(--sun); box-shadow: 0 0 4em color-mix(in srgb, var(--hot) 60%, transparent); animation: photoIn .8s cubic-bezier(.2, 1.3, .4, 1); }
+.flash-photo img { width: 100%; height: 100%; object-fit: contain; }
+.flash-photo b { position: absolute; left: .4em; top: .3em; font-weight: 900; font-size: 5em; color: var(--sun); text-shadow: 0 .05em .2em rgba(0, 0, 0, .6); }
+.is-square .flash { flex-direction: column; gap: 1.2em; }
+.is-square:not(.is-tall) .flash-photo { width: 28em; height: 28em; }
+.is-square:not(.is-tall) .flash h2 { font-size: 6em; }
+.is-square:not(.is-tall) .flash .clock { font-size: 12em; }
+.is-tall .flash-photo { width: 54em; height: 54em; }
+.is-camera .flash-photo img { filter: brightness(.75); }
 .is-tall .goal { width: 88%; }
 .is-tall .goal h2, .is-tall .match h2, .is-tall .wheelbox h2 { font-size: 5.6em; line-height: 1.05; }
 .is-tall .num { font-size: 8em; }

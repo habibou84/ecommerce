@@ -438,6 +438,22 @@ async function choosePlace(place) {
     placing.busy = false
   }
 }
+// Quartier reçu mais commande pas créée (stock, quota…) : on réessaie avec le même quartier, et on dit pourquoi si ça échoue encore
+const retrying = ref(false)
+const retryError = ref('')
+async function retryOrder(r) {
+  retrying.value = true
+  retryError.value = ''
+  try {
+    await http.post(`/lives/${props.live.id}/reservations/${r.id}/place`, { place_id: r.shipping_place_id, address: r.shipping_address })
+    openOrder.value = null
+    emit('reload')
+  } catch (e) {
+    retryError.value = errorMessage(e)
+  } finally {
+    retrying.value = false
+  }
+}
 const ago = (iso) => {
   const min = Math.max(0, Math.round((props.now - new Date(iso).getTime()) / 60000))
   return min < 1 ? 'maint.' : min < 60 ? `${min} min` : `${Math.floor(min / 60)} h`
@@ -684,6 +700,7 @@ const ago = (iso) => {
         <span><b class="block text-lg font-black">{{ keptCount }}</b><span class="text-[10px] font-bold text-slate-500">quartier{{ keptCount > 1 ? 's' : '' }} attendu{{ keptCount > 1 ? 's' : '' }}</span></span>
       </div>
       <button type="button" class="w-full rounded-xl border-[1.5px] border-slate-900 bg-white py-2 text-sm font-extrabold" @click="emit('quick')">+ Réservation vue dans les commentaires</button>
+      <p v-if="retryError" class="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{{ retryError }}</p>
       <p v-if="!orders.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">Les commandes s'afficheront ici dès les premières.</p>
       <article v-for="r in orders" :key="r.id" role="button" tabindex="0" class="flex cursor-pointer items-center gap-2.5 rounded-xl bg-white p-2 active:bg-slate-100" @click="openOrder = r.id" @keydown.enter="openOrder = r.id" :class="{ 'opacity-55': r.status === 'waiting' || r.order?.status === 'cancelled', 'ring-[3px] ring-emerald-400': r.order?.proof }">
         <span class="relative h-10 w-10 shrink-0">
@@ -695,19 +712,22 @@ const ago = (iso) => {
           <p class="truncate text-[13px] font-extrabold">
             {{ r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente' }}
             <template v-if="r.order"> · {{ money(r.unit_price) }} · {{ ORDER_STATE[r.order.status] ?? 'commande créée' }}</template>
+            <template v-else-if="r.status === 'reserved' && r.shipping_place_id"> · <span class="text-red-600">commande pas créée ⚠️</span></template>
             <template v-else-if="r.status === 'reserved'"> · gardée{{ minutesLeft(r) ? ` ${minutesLeft(r)} min` : '' }} ⏳</template>
             <template v-else> · liste d'attente</template>
           </p>
           <p class="truncate text-xs text-slate-600">
             <template v-if="itemOf(r)?.variant">Taille {{ itemOf(r).variant }} · </template>
             <template v-if="r.order">{{ r.shipping_address || 'commande créée' }}</template>
+            <template v-else-if="r.status === 'reserved' && r.shipping_place_id">{{ r.order_error || 'Quartier reçu : commande à créer' }}</template>
             <template v-else-if="r.status === 'reserved'">quartier attendu</template>
             <template v-else>{{ r.code }} épuisé · servie si une pièce se libère</template>
           </p>
         </div>
         <span class="flex shrink-0 flex-col items-end gap-0.5 self-start">
           <span class="text-[10px] text-slate-400">{{ ago(r.created_at) }}</span>
-          <button v-if="r.status === 'reserved'" type="button" class="text-[11px] font-bold underline" @click.stop="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
+          <button v-if="r.status === 'reserved' && r.shipping_place_id" type="button" class="text-[11px] font-bold text-red-700 underline" :disabled="retrying" @click.stop="retryOrder(r)">🔁 Créer la commande</button>
+          <button v-else-if="r.status === 'reserved'" type="button" class="text-[11px] font-bold underline" @click.stop="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
           <RouterLink v-if="r.order?.proof" @click.stop :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-[10.5px] font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
           <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-[11px] font-bold underline" @click.stop>{{ r.order.reference }}</RouterLink>
           <button v-else type="button" class="text-[11px] font-bold text-slate-500 underline" :disabled="busy" @click.stop="emit('cancel', r)">Annuler</button>
@@ -717,8 +737,8 @@ const ago = (iso) => {
     </section>
 
     <!-- Commande ou conversation touchée -->
-    <LiveOrderSheet v-if="openedReservation" :key="openedReservation.id" :reservation="openedReservation" :busy="busy"
-                    @close="openOrder = null" @place="placeFromSheet" @cancel="cancelFromSheet" @changed="emit('reload')" />
+    <LiveOrderSheet v-if="openedReservation" :key="openedReservation.id" :reservation="openedReservation" :busy="busy || retrying" :failure="retryError"
+                    @close="openOrder = null" @place="placeFromSheet" @retry="retryOrder" @cancel="cancelFromSheet" @changed="emit('reload')" />
     <LiveChatSheet v-if="openChat" :key="openChat.id" :message="openChat" :quick="QUICK" :order-id="chatOrderId(openChat)" @close="openChat = null" @sent="emit('reload')" />
 
     <!-- Connecter la télé ou TikTok Studio : fenêtre qui monte du bas -->
