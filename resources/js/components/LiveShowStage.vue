@@ -19,7 +19,7 @@ const store = computed(() => props.data?.store ?? null)
 const items = computed(() => live.value?.items ?? [])
 const available = computed(() => items.value.filter((i) => i.remaining > 0))
 const show = computed(() => live.value?.show ?? null)
-const settings = computed(() => show.value?.settings ?? { theme: 'fete', ambiance: 'techno', sound: true, music: false, light: false, goal: null })
+const settings = computed(() => show.value?.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, goal: null })
 const light = computed(() => !!settings.value.light)
 
 // Taille : tout en « em ». Large (télé) : 1em = 1/128 de la largeur ; carré (TikTok LIVE Studio) : 1/84 ;
@@ -87,7 +87,7 @@ watch(() => shown.value?.id, () => (viewAt.value = 0))
 const view = computed(() => (views.value.length ? views.value[viewAt.value % views.value.length] : null))
 
 // ── Sons ──
-watch(() => [settings.value.sound, settings.value.music, settings.value.ambiance], () => {
+watch([() => settings.value.sound, () => settings.value.music, () => settings.value.ambiance], () => {
   setMuted(!settings.value.sound)
   setAmbiance(settings.value.ambiance)
   setMusic(!!settings.value.music && !!settings.value.sound)
