@@ -167,15 +167,16 @@ class MetaAds
     public function setup(Store $store, int $userId, array $access, array $business, string $pixel, string $catalog): array
     {
         $token = $access['token'];
-        try {
-            if ($pixel === 'new') {
-                $pixel = (string) ($this->graph->graph('POST', $business['id'].'/adspixels', $token, ['name' => $store->name])['id'] ?? '');
-            }
-            if ($catalog === 'new') {
+        // Le catalogue d'abord : s'il est refusé, aucun pixel n'a été créé pour rien
+        if ($catalog === 'new') {
+            try {
                 $catalog = (string) ($this->graph->graph('POST', $business['id'].'/owned_product_catalogs', $token, ['name' => $store->name.' (Jibiat Marchand)'])['id'] ?? '');
+            } catch (RuntimeException $e) {
+                throw new BusinessRuleException('Meta refuse de créer le catalogue pour ce compte Business ('.$e->getMessage().'). Choisissez un catalogue existant, ou créez-le dans le Gestionnaire de commerce de Meta, puis revenez ici le choisir.');
             }
-        } catch (RuntimeException $e) {
-            throw new BusinessRuleException($e->getMessage());
+        }
+        if ($pixel === 'new') {
+            $pixel = $this->createPixel($store, $token, $business['id']);
         }
         if ($pixel === '' || $catalog === '') {
             throw new BusinessRuleException('Meta n\'a pas créé le pixel ou le catalogue : réessayez.');
@@ -203,6 +204,42 @@ class MetaAds
         ])->save();
 
         return $warnings;
+    }
+
+    /**
+     * Nouveau pixel : au nom du compte Business, sinon sur un de ses comptes publicitaires (certains comptes Business,
+     * reliés par « Facebook Login for Business », refusent la création directe : « Unsupported post request »).
+     */
+    private function createPixel(Store $store, string $token, string $businessId): string
+    {
+        try {
+            return (string) ($this->graph->graph('POST', $businessId.'/adspixels', $token, ['name' => $store->name])['id'] ?? '');
+        } catch (RuntimeException $e) {
+            $first = $e;
+        }
+        $accounts = [];
+        foreach ([$businessId.'/owned_ad_accounts', $businessId.'/client_ad_accounts', 'me/adaccounts'] as $edge) {
+            try {
+                $rows = $this->graph->graph('GET', $edge, $token, ['fields' => 'id,account_status', 'limit' => 50])['data'] ?? [];
+            } catch (RuntimeException) {
+                continue;
+            }
+            // Comptes actifs d'abord (account_status 1)
+            usort($rows, fn ($a, $b) => (int) (($b['account_status'] ?? 0) === 1) <=> (int) (($a['account_status'] ?? 0) === 1));
+            $accounts = array_merge($accounts, array_column($rows, 'id'));
+        }
+        foreach (array_unique($accounts) as $account) {
+            try {
+                $id = (string) ($this->graph->graph('POST', $account.'/adspixels', $token, ['name' => $store->name])['id'] ?? '');
+                if ($id !== '') {
+                    return $id;
+                }
+            } catch (RuntimeException) {
+                // compte suivant
+            }
+        }
+
+        throw new BusinessRuleException('Meta refuse de créer le pixel pour ce compte Business ('.$first->getMessage().'). Choisissez un pixel existant, ou créez-le dans le Gestionnaire d\'événements de Meta (Sources de données › Ajouter › Web), puis revenez ici le choisir.');
     }
 
     /**
