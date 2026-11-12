@@ -14,6 +14,7 @@ const props = defineProps({
   state: { type: Object, default: null }, // display.live.show.state : défi, dernière chance, mystère
   hasMystery: { type: Boolean, default: false }, // un article mystère attend d'être révélé
   dark: { type: Boolean, default: false },
+  noReactions: { type: Boolean, default: false }, // le cockpit les a déjà en bas
 })
 const emit = defineEmits(['changed', 'launched'])
 
@@ -69,7 +70,7 @@ const chip = (on) => (on ? 'bg-violet-700 text-white' : props.dark ? 'bg-white/1
 <template>
   <div class="space-y-3 rounded-2xl p-3" :class="dark ? 'bg-white/5 text-white' : 'border border-violet-200 bg-violet-50 text-violet-900'">
     <!-- Réactions : une pluie d'émojis sur l'écran -->
-    <div>
+    <div v-if="!noReactions">
       <p class="text-xs font-black">❤️ Réactions sur l'écran</p>
       <div class="mt-1 grid grid-cols-5 gap-1.5">
         <button v-for="e in REACTIONS" :key="e" type="button" class="rounded-xl py-2 text-2xl disabled:opacity-60" :class="dark ? 'bg-white/10' : 'bg-white shadow-sm'" :disabled="busy" :aria-label="`Réaction ${e}`" @click="moment('react', { emoji: e })">{{ e }}</button>
@@ -124,8 +125,8 @@ const chip = (on) => (on ? 'bg-violet-700 text-white' : props.dark ? 'bg-white/1
     <p v-if="error" class="text-sm font-bold text-red-500">{{ error }}</p>
 
     <!-- Réglages -->
-    <details class="rounded-xl p-2" :class="dark ? 'bg-white/5' : 'bg-white'">
-      <summary class="cursor-pointer text-xs font-black">⚙️ Musique, thème, modes</summary>
+    <details class="rounded-xl p-2" :class="dark ? 'bg-white/5' : 'bg-white'" open>
+      <summary class="cursor-pointer text-xs font-black">🎵 Musique, thème, modes</summary>
       <p class="mt-2 text-xs font-bold">🎵 Ambiance (musique et sons) :</p>
       <div class="mt-1 flex flex-wrap gap-1.5">
         <button v-for="[value, label] in AMBIANCES" :key="value" type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="chip(showSettings.ambiance === value)" :disabled="busy" @click="saveShow({ ambiance: value, music: true, sound: true })">{{ label }}</button>

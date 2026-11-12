@@ -20,6 +20,7 @@ const props = defineProps({
   featuredSince: { type: Number, default: 0 },
   soldAtFeature: { type: Number, default: 0 },
   shownCodes: { type: Array, default: () => [] },
+  withPlan: { type: Boolean, default: true }, // le plan est déjà affiché au-dessus : pas de conseil « prochaine étape »
 })
 const emit = defineEmits(['act'])
 
@@ -114,12 +115,12 @@ const cards = computed(() => {
   if (toConfirm >= 3) add(55, { title: `✅ ${toConfirm} commandes à confirmer`, say: '', acts: [['Voir les commandes', { kind: 'tab', tab: 'commandes' }]] })
   // Plan du live
   const step = props.plan.next.value
-  if (step && !state.mystery) add(45, { title: `📋 Prochaine étape : ${step.label}`, say: '', acts: [['Faire ▶', { kind: 'plan' }]] })
+  if (props.withPlan && step && !state.mystery) add(45, { title: `📋 Prochaine étape : ${step.label}`, say: '', acts: [['Faire ▶', { kind: 'plan' }]] })
   // Rappels
   if (minutes > 3 && cool('how', 5)) add(35, { title: '💬 Pense aux nouveaux arrivés', say: 'Pour commander : regardez le code de l\'article et envoyez-le au numéro de la bio.', acts: [['💬 Comment commander', { kind: 'moment', type: 'how' }]] })
   if (minutes > 8 && Math.floor(minutes / 10) % 2 === 1) add(30, { title: '🚚 Rappelle la livraison et le paiement', say: 'On vous livre partout, et vous payez à la livraison ou par Mobile Money.', acts: [] })
   if (!C.length) add(1, { cls: 'ok', title: '👍 Tout va bien', say: current ? `Présente bien la ${current.code} : la matière, les tailles, comment la porter.` : 'Montre ton premier article pour commencer.', acts: current ? [['❤️ Cœurs', { kind: 'moment', type: 'react', body: { emoji: '❤️' } }]] : [] })
-  return C.sort((a, b) => b.pr - a.pr).slice(0, 4)
+  return C.sort((a, b) => b.pr - a.pr).slice(0, 3)
 })
 </script>
 
