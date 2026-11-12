@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Field from '../Field.vue'
 import Modal from '../Modal.vue'
 import http, { errorMessage } from '../../lib/http'
@@ -26,13 +26,25 @@ onMounted(async () => {
   }
 })
 
+// Pourquoi la liste est vide : ce que Facebook a (ou n'a pas) donné
+const NAMES = { business_management: 'compte Business', catalog_management: 'catalogues', ads_management: 'publicité et pixels' }
+const noAccess = computed(() => {
+  const p = setup.value?.permissions
+  if (!p?.known || setup.value?.assets?.catalogs.length) return null
+  if (p.missing.length) return { kind: 'missing', names: p.missing.map((m) => NAMES[m] ?? m) }
+  if (!p.catalogs_chosen) return { kind: 'none' }
+  return null
+})
+
 async function chooseBusiness(id) {
   busy.value = true
   error.value = ''
   setup.value.business = id
   setup.value.assets = null
   try {
-    const assets = (await http.get(`/marketing/tracking/meta/${props.metaKey}`, { params: { business: id } })).data.data.assets
+    const res = (await http.get(`/marketing/tracking/meta/${props.metaKey}`, { params: { business: id } })).data.data
+    setup.value.permissions = res.permissions
+    const assets = res.assets
     // Le pixel déjà saisi, sinon le seul existant, sinon un nouveau ; idem pour le catalogue
     const pick = (list, current) => list.find((x) => x.id === current)?.id ?? (list.length === 1 ? list[0].id : 'new')
     Object.assign(setup.value, { assets, pixel: pick(assets.pixels, props.currentPixel), catalog: pick(assets.catalogs, null) })
@@ -69,6 +81,15 @@ async function finish() {
           </select>
         </Field>
         <template v-if="setup.assets">
+          <!-- Liste vide : on dit pourquoi, et quoi faire -->
+          <div v-if="noAccess?.kind === 'missing'" class="space-y-1 rounded-xl bg-amber-50 p-3 text-amber-900">
+            <p class="font-bold">Facebook ne nous a pas donné accès à tes {{ noAccess.names.join(', ') }}.</p>
+            <p>Il manque une autorisation dans la configuration de la connexion Facebook (chez Meta). Quand c'est ajouté, reconnecte-toi et coche-les dans la fenêtre de Facebook.</p>
+          </div>
+          <div v-else-if="noAccess?.kind === 'none'" class="space-y-1 rounded-xl bg-amber-50 p-3 text-amber-900">
+            <p class="font-bold">Aucun catalogue n'a été coché dans la fenêtre de Facebook.</p>
+            <p>Reconnecte-toi et coche ton catalogue (et ton compte publicitaire), ou crée-en un nouveau ci-dessous.</p>
+          </div>
           <Field id="meta-pixel-choice" label="Pixel">
             <select id="meta-pixel-choice" v-model="setup.pixel" class="input">
               <option value="new">Créer un nouveau pixel</option>
