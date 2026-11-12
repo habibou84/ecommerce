@@ -37,43 +37,50 @@ class SocialConnections
      * Connexion Facebook pour la publicité (pixel et catalogue) : même fenêtre et même adresse de retour que la page,
      * autres autorisations ; le « state » dit à quoi elle sert.
      */
-    public function adsAuthorizeUrl(Store $store, User $user): string
+    /**
+     * @param  string  $back  page où revenir : 'boost' (menu Boost) ou 'suivi' (Suivi publicitaire)
+     * @param  ?string  $relay  application installée : clé sous laquelle déposer le résultat (Facebook ouvert par-dessus
+     *                          l'application, qui le récupère sans être quittée)
+     */
+    public function adsAuthorizeUrl(Store $store, User $user, string $back = 'suivi', ?string $relay = null): string
     {
         if (! MetaSocial::enabled()) {
             throw new BusinessRuleException('La connexion à Facebook n\'est pas encore activée sur la plateforme.');
         }
-        $state = Crypt::encryptString(json_encode(['store' => $store->id, 'user' => $user->id, 'provider' => 'meta', 'purpose' => 'ads', 'exp' => now()->addMinutes(30)->timestamp]));
+        $state = Crypt::encryptString(json_encode(['store' => $store->id, 'user' => $user->id, 'provider' => 'meta', 'purpose' => 'ads',
+            'back' => $back, 'relay' => $relay, 'exp' => now()->addMinutes(30)->timestamp]));
 
         return $this->ads->authorizeUrl($state);
     }
 
+    /** Pages de retour d'une connexion pour la pub */
+    public const ADS_BACK = ['boost' => '/gestion/boost', 'suivi' => '/gestion/marketing/suivi'];
+
     /**
-     * Retour de la fenêtre de connexion : adresse de la gestion où revenir.
+     * Retour de la fenêtre de connexion : adresse de la gestion où revenir. Connexion pour la pub ouverte depuis
+     * l'application installée : le résultat (« meta=… » ou « erreur=… ») est déposé sous la clé du relais, et null est
+     * renvoyé (la fenêtre affiche « retourne dans l'application »).
      */
-    public function callback(string $provider, string $state, ?string $code, ?string $error): string
+    public function callback(string $provider, string $state, ?string $code, ?string $error): ?string
     {
         $data = $this->state($state, $provider);
         $store = Store::findOrFail($data['store']);
         $ads = ($data['purpose'] ?? null) === 'ads';
-        $back = $store->url($ads ? '/gestion/marketing/suivi' : '/gestion/marketing/reseaux');
+        if ($ads && ! empty($data['relay'])) {
+            $url = $this->adsCallback($store, $data, $code, $error, '');
+            Cache::put('meta-relay:'.$data['relay'], ['store' => $store->id, 'result' => ltrim($url, '?')], now()->addMinutes(30));
+
+            return null;
+        }
+        if ($ads) {
+            return $this->adsCallback($store, $data, $code, $error, $store->url(self::ADS_BACK[$data['back'] ?? 'suivi'] ?? self::ADS_BACK['suivi']));
+        }
+        $back = $store->url('/gestion/marketing/reseaux');
         if ($code === null || $code === '') {
             return $back.'?erreur='.rawurlencode($error ?: 'Connexion annulée.');
         }
 
         try {
-            // Le compte n'est enregistré qu'une fois confirmé dans la gestion, par la personne qui a lancé la connexion :
-            // un lien de connexion envoyé à quelqu'un d'autre ne relie pas son compte à cette boutique
-            if ($ads) {
-                $access = $this->ads->token($code);
-                $businesses = $this->ads->businesses($access['token']);
-                if ($businesses === []) {
-                    return $back.'?erreur='.rawurlencode('Aucun compte Business trouvé : créez-en un sur business.facebook.com, ou cochez-le dans la fenêtre de Facebook.');
-                }
-                $key = Str::random(40);
-                Cache::put('meta-ads:'.$key, ['store' => $store->id, 'user' => $data['user'], 'access' => $access, 'businesses' => $businesses], now()->addMinutes(30));
-
-                return $back.'?meta='.$key;
-            }
             if ($provider === 'tiktok') {
                 $account = $this->tiktok->connect($code);
                 $key = Str::random(40);
@@ -93,6 +100,46 @@ class SocialConnections
         } catch (RuntimeException $e) {
             return $back.'?erreur='.rawurlencode($e->getMessage());
         }
+    }
+
+    /**
+     * Connexion pour la pub : le compte n'est enregistré qu'une fois confirmé dans la gestion, par la personne qui a
+     * lancé la connexion (un lien envoyé à quelqu'un d'autre ne relie pas son compte à cette boutique).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function adsCallback(Store $store, array $data, ?string $code, ?string $error, string $back): string
+    {
+        if ($code === null || $code === '') {
+            return $back.'?erreur='.rawurlencode($error ?: 'Connexion annulée.');
+        }
+        try {
+            $access = $this->ads->token($code);
+            $businesses = $this->ads->businesses($access['token']);
+            if ($businesses === []) {
+                return $back.'?erreur='.rawurlencode('Aucun compte Business trouvé : créez-en un sur business.facebook.com, ou cochez-le dans la fenêtre de Facebook.');
+            }
+            $key = Str::random(40);
+            Cache::put('meta-ads:'.$key, ['store' => $store->id, 'user' => $data['user'], 'access' => $access, 'businesses' => $businesses], now()->addMinutes(30));
+
+            return $back.'?meta='.$key;
+        } catch (RuntimeException $e) {
+            return $back.'?erreur='.rawurlencode($e->getMessage());
+        }
+    }
+
+    /**
+     * Résultat d'une connexion ouverte depuis l'application installée (« meta=… » ou « erreur=… »), lu une fois.
+     */
+    public function relayed(Store $store, string $relay): ?string
+    {
+        $data = Cache::get('meta-relay:'.$relay);
+        if (! is_array($data) || $data['store'] !== $store->id) {
+            return null;
+        }
+        Cache::forget('meta-relay:'.$relay);
+
+        return $data['result'];
     }
 
     /**

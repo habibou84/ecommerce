@@ -75,7 +75,7 @@ class BoostAds
     {
         $account = $this->meta->account($store);
         if (! $account || $account->status !== 'active' || $account->token_expires_at?->isPast()) {
-            throw new BusinessRuleException('Connecte d\'abord ton compte Facebook (Suivi publicitaire › Brancher le pixel et le catalogue).');
+            throw new BusinessRuleException('Connecte d\'abord ton compte Facebook (menu Boost › Connecter mon Facebook).');
         }
 
         return (string) $account->access_token;
@@ -275,7 +275,7 @@ class BoostAds
         $pixel = $store->marketingId('meta_pixel_id');
         $catalog = $store->marketingId('meta_catalog_id');
         if ($data['kind'] === 'catalog' && (! $catalog || ! $pixel)) {
-            throw new BusinessRuleException('Pour booster le catalogue, branche d\'abord le pixel et le catalogue (Suivi publicitaire).');
+            throw new BusinessRuleException('Pour booster le catalogue, branche d\'abord le pixel et le catalogue (menu Boost › Connecter mon Facebook).');
         }
 
         $products = collect();

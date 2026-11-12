@@ -1,11 +1,14 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import http, { errorMessage } from '../../lib/http'
 import { money } from '../../lib/format'
 import { useAuthStore } from '../../stores/auth'
 import Modal from '../Modal.vue'
 import BoostWizard from './BoostWizard.vue'
 import BoostList from './BoostList.vue'
+import MetaSetupSheet from './MetaSetupSheet.vue'
+import { connectFacebookAds } from '../../lib/metaConnect'
 
 /**
  * Menu Boost (étape 1) : la connexion Facebook et ce qu'il manque, la vérification du pixel, les meilleures ventes à
@@ -27,13 +30,42 @@ function launched(boost) {
   listRef.value?.add(boost)
 }
 
-onMounted(async () => {
+// Connexion Facebook lancée d'ici : retour sur le menu Boost (?meta=… pour choisir le compte, le pixel, le catalogue)
+const route = useRoute()
+const router = useRouter()
+const metaKey = ref('')
+const connecting = ref(false)
+const connected = ref(false)
+async function load() {
   try {
     data.value = (await http.get('/marketing/boost')).data.data
   } catch (e) {
     error.value = errorMessage(e)
   }
+}
+onMounted(async () => {
+  const { meta, erreur } = route.query
+  if (erreur) error.value = String(erreur)
+  if (meta) metaKey.value = String(meta)
+  if (meta || erreur) router.replace({ query: {} })
+  await load()
 })
+async function connectFacebook() {
+  connecting.value = true
+  error.value = ''
+  try {
+    await connectFacebookAds('boost')
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    connecting.value = false
+  }
+}
+function metaDone() {
+  metaKey.value = ''
+  connected.value = true
+  load()
+}
 
 const c = computed(() => data.value?.connection ?? {})
 // Voyants de la connexion : ce qui est prêt, ce qui manque (et comment le régler)
@@ -64,9 +96,10 @@ async function copy(text, key) {
 <template>
   <div class="space-y-3">
     <p v-if="error" class="rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700">{{ error }}</p>
-    <p v-else-if="!data" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
+    <p v-if="connected" class="rounded-2xl bg-emerald-50 p-3 text-sm font-bold text-emerald-800">✓ Facebook relié : pixel et catalogue branchés.</p>
+    <p v-if="!data && !error" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
 
-    <template v-else>
+    <template v-if="data">
       <!-- En tête : ce que fait le Boost -->
       <section class="rounded-[22px] bg-gradient-to-br from-[#1877f2] to-[#7b3fe4] p-4 text-white">
         <p class="text-lg font-black leading-snug">🚀 Booste tes ventes sur Facebook et Instagram</p>
@@ -86,7 +119,8 @@ async function copy(text, key) {
           </li>
         </ul>
         <p v-if="c.error" class="mt-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">⚠️ {{ c.error }}</p>
-        <RouterLink v-if="!ready" to="/gestion/marketing/suivi" class="btn-brand mt-3 w-full justify-center py-3 text-base font-black">{{ data.available ? '🔗 Connecter mon Facebook' : 'Régler le pixel' }}</RouterLink>
+        <button v-if="!ready && data.available" type="button" class="mt-3 w-full rounded-xl bg-[#1877f2] py-3 text-base font-black text-white disabled:opacity-60" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Ouverture de Facebook…' : c.connected ? '🔄 Reconnecter Facebook' : '🔗 Connecter mon Facebook' }}</button>
+        <RouterLink v-else-if="!ready" to="/gestion/marketing/suivi" class="btn-brand mt-3 w-full justify-center py-3 text-base font-black">Régler le pixel</RouterLink>
         <p class="mt-2 text-xs text-slate-500">La pub est payée à Meta, par la carte de ton compte publicitaire.</p>
       </section>
 
@@ -190,6 +224,7 @@ async function copy(text, key) {
       </section>
     </template>
 
+    <MetaSetupSheet v-if="metaKey" :meta-key="metaKey" :current-pixel="data?.connection?.pixel_id ?? null" @done="metaDone" @close="metaKey = ''" />
     <Modal v-if="wizard" :title="wizard.from ? 'Relancer le boost' : 'Nouveau boost'" @close="wizard = null">
       <BoostWizard :products="data?.products ?? []" :from="wizard.from" :product-id="wizard.productId ?? null" @launched="launched" />
     </Modal>

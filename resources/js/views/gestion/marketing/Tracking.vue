@@ -5,8 +5,9 @@ import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import MarketingTabs from '../../../components/MarketingTabs.vue'
-import Modal from '../../../components/Modal.vue'
+import MetaSetupSheet from '../../../components/marketing/MetaSetupSheet.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
+import { connectFacebookAds } from '../../../lib/metaConnect'
 
 const data = ref(null)
 const form = reactive({ meta_pixel_id: '', tiktok_pixel_id: '', ga4_id: '', meta_capi_token: '' })
@@ -32,20 +33,11 @@ onMounted(async () => {
     error.value = errorMessage(e)
   }
   // Retour de Facebook : choix du compte Business, du pixel et du catalogue
-  if (key) {
-    metaKey.value = String(key)
-    try {
-      setup.value = { businesses: (await http.get(`/marketing/tracking/meta/${key}`)).data.data.businesses, business: '', assets: null, pixel: 'new', catalog: 'new' }
-      if (setup.value.businesses.length === 1) await chooseBusiness(setup.value.businesses[0].id)
-    } catch (e) {
-      error.value = errorMessage(e)
-    }
-  }
+  if (key) metaKey.value = String(key)
 })
 
 // Pixel et catalogue Meta branchés en un clic
 const metaKey = ref('')
-const setup = ref(null)
 const busy = ref(false)
 const warnings = ref([])
 const connected = ref(false)
@@ -54,22 +46,7 @@ async function connectMeta() {
   busy.value = true
   error.value = ''
   try {
-    window.location.assign((await http.post('/marketing/tracking/meta/connect')).data.url)
-  } catch (e) {
-    error.value = errorMessage(e)
-    busy.value = false
-  }
-}
-
-async function chooseBusiness(id) {
-  busy.value = true
-  setup.value.business = id
-  setup.value.assets = null
-  try {
-    const assets = (await http.get(`/marketing/tracking/meta/${metaKey.value}`, { params: { business: id } })).data.data.assets
-    // Le pixel déjà saisi, sinon le seul existant, sinon un nouveau ; idem pour le catalogue
-    const pick = (list, current) => list.find((x) => x.id === current)?.id ?? (list.length === 1 ? list[0].id : 'new')
-    Object.assign(setup.value, { assets, pixel: pick(assets.pixels, data.value?.meta_pixel_id), catalog: pick(assets.catalogs, null) })
+    await connectFacebookAds('suivi')
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -77,20 +54,12 @@ async function chooseBusiness(id) {
   }
 }
 
-async function finishMeta() {
-  busy.value = true
-  error.value = ''
-  try {
-    const res = (await http.post(`/marketing/tracking/meta/${metaKey.value}`, { business_id: setup.value.business, pixel_id: setup.value.pixel, catalog_id: setup.value.catalog })).data
-    fill(res.data)
-    warnings.value = res.warnings
-    connected.value = true
-    setup.value = null
-  } catch (e) {
-    error.value = errorMessage(e)
-  } finally {
-    busy.value = false
-  }
+// Branché : pixel et catalogue enregistrés, avertissements éventuels
+function metaDone(res) {
+  fill(res.data)
+  warnings.value = res.warnings
+  connected.value = true
+  metaKey.value = ''
 }
 
 async function disconnectMeta() {
@@ -168,33 +137,7 @@ async function save(extra = {}) {
       </template>
     </section>
 
-    <Modal v-if="setup" title="Brancher le pixel et le catalogue" @close="setup = null">
-      <div class="space-y-4 text-sm">
-        <Field id="meta-business" label="Compte Business">
-          <select id="meta-business" class="input" :value="setup.business" :disabled="busy" @change="chooseBusiness($event.target.value)">
-            <option value="" disabled>Choisissez…</option>
-            <option v-for="b in setup.businesses" :key="b.id" :value="b.id">{{ b.name }}</option>
-          </select>
-        </Field>
-        <template v-if="setup.assets">
-          <Field id="meta-pixel-choice" label="Pixel">
-            <select id="meta-pixel-choice" v-model="setup.pixel" class="input">
-              <option value="new">Créer un nouveau pixel</option>
-              <option v-for="p in setup.assets.pixels" :key="p.id" :value="p.id">{{ p.name }} ({{ p.id }})</option>
-            </select>
-          </Field>
-          <Field id="meta-catalog-choice" label="Catalogue">
-            <select id="meta-catalog-choice" v-model="setup.catalog" class="input">
-              <option value="new">Créer un nouveau catalogue</option>
-              <option v-for="c in setup.assets.catalogs" :key="c.id" :value="c.id">{{ c.name }}{{ c.products !== null ? ` (${c.products} article(s))` : '' }}</option>
-            </select>
-          </Field>
-          <p class="text-slate-500">Vos produits seront ajoutés à ce catalogue et relus toutes les heures ; le pixel sera relié au catalogue.</p>
-          <button type="button" class="btn-brand w-full" :disabled="busy" @click="finishMeta">{{ busy ? 'Branchement…' : 'Brancher' }}</button>
-        </template>
-        <p v-else-if="busy" class="text-slate-500">Chargement des pixels et catalogues…</p>
-      </div>
-    </Modal>
+    <MetaSetupSheet v-if="metaKey" :meta-key="metaKey" :current-pixel="data?.meta_pixel_id ?? null" @done="metaDone" @close="metaKey = ''" />
 
     <form v-if="data" class="space-y-5" @submit.prevent="save()">
       <section class="card space-y-4 p-4">

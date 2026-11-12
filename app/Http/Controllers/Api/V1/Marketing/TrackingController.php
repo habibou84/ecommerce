@@ -13,6 +13,7 @@ use App\Services\Social\SocialConnections;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\Rule;
 use RuntimeException;
 
 /**
@@ -95,7 +96,17 @@ class TrackingController extends Controller
 
     public function metaConnect(Request $request, SocialConnections $connections): JsonResponse
     {
-        return response()->json(['url' => $connections->adsAuthorizeUrl($this->currentStore(), $request->user())]);
+        $data = $request->validate(['back' => ['nullable', Rule::in(array_keys(SocialConnections::ADS_BACK))], 'relay' => ['nullable', 'string', 'regex:/^[a-f0-9]{48}$/']]);
+
+        return response()->json(['url' => $connections->adsAuthorizeUrl($this->currentStore(), $request->user(), $data['back'] ?? 'suivi', $data['relay'] ?? null)]);
+    }
+
+    /**
+     * Application installée : résultat de la connexion Facebook ouverte par-dessus (null tant qu'elle n'est pas finie).
+     */
+    public function metaRelay(string $relay, SocialConnections $connections): JsonResponse
+    {
+        return response()->json(['data' => ['result' => $connections->relayed($this->currentStore(), $relay)]]);
     }
 
     /**
