@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import Alert from './Alert.vue'
 import LiveDisplay from './LiveDisplay.vue'
+import LiveShowRemote from './LiveShowRemote.vue'
 import http, { errorMessage, fieldErrors } from '../lib/http'
 import { boot } from '../lib/boot'
 import { money } from '../lib/format'
@@ -102,21 +103,6 @@ async function run(request) {
   }
 }
 const setMode = (value) => run(() => http.post(`/lives/${props.id}/display`, { mode: value }))
-// ── Show du live : moments lancés d'ici (vus par les écrans dans les 2 secondes) et réglages ──
-const showSettings = computed(() => display.value?.live?.show?.settings ?? { theme: 'fete', sound: true, music: false, light: false, goal: null })
-const goalInput = ref(null)
-const winner = ref(null)
-const THEMES = [['fete', 'Fête'], ['wax', 'Wax'], ['neon', 'Néon'], ['luxe', 'Luxe']]
-const MOMENTS = [['countdown', '⏱', '3-2-1'], ['party', '🎉', 'Fête'], ['goal', '🎯', 'Objectif'], ['match', '🏆', 'Quartiers'], ['wheel', '🎡', 'Roue']]
-async function moment(type) {
-  winner.value = null
-  await run(async () => {
-    const body = type === 'goal' ? { type, goal: Number(goalInput.value) || showSettings.value.goal || 30 } : { type }
-    const res = (await http.post(`/lives/${props.id}/show/moment`, body)).data.data
-    if (type === 'wheel') winner.value = res.team
-  })
-}
-const saveShow = (patch) => run(() => http.put(`/lives/${props.id}/show`, patch))
 // Toucher un produit l'affiche (et repasse en « un seul produit »)
 const showItem = (item) => run(() => http.post(`/lives/${props.id}/feature`, { item_id: item.id }))
 // Produit suivant ou précédent (les produits épuisés sont sautés)
@@ -298,23 +284,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       <p class="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-900">{{ hint }}</p>
 
       <!-- Show du live : moments à lancer sur l'écran, et ses réglages -->
-      <div class="rounded-2xl border border-violet-200 bg-violet-50 p-3">
-        <p class="text-sm font-black text-violet-900">🎬 Le show sur l'écran</p>
-        <div class="mt-2 grid grid-cols-5 gap-1.5">
-          <button v-for="[type, icon, label] in MOMENTS" :key="type" type="button" class="rounded-xl bg-white px-1 py-2 text-center text-[11px] font-extrabold leading-tight text-violet-900 shadow-sm disabled:opacity-60" :disabled="busy" @click="moment(type)">
-            <span class="block text-xl" aria-hidden="true">{{ icon }}</span>{{ label }}
-          </button>
-        </div>
-        <label class="mt-2 flex items-center gap-2 text-xs font-bold text-violet-900">🎯 Objectif du live :
-          <input v-model.number="goalInput" type="number" min="1" max="1000" class="input w-20 py-1" :placeholder="String(showSettings.goal ?? 30)" aria-label="Objectif en commandes"> commandes</label>
-        <p v-if="winner" class="mt-2 rounded-xl bg-white px-3 py-2 text-sm text-violet-900">🎁 Gagnante : <b>{{ winner.winner || 'Client' }}</b><template v-if="winner.phone"> · {{ winner.phone }}</template> ({{ winner.label }}). L'écran ne montre que la commune et le code : contacte-la pour son cadeau.</p>
-        <div class="mt-2 flex flex-wrap gap-1.5">
-          <button v-for="[value, label] in THEMES" :key="value" type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.theme === value ? 'bg-violet-700 text-white' : 'bg-white text-violet-900'" :disabled="busy" @click="saveShow({ theme: value })">{{ label }}</button>
-          <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.sound ? 'bg-violet-700 text-white' : 'bg-white text-violet-900'" :disabled="busy" @click="saveShow({ sound: !showSettings.sound })">🔊 Sons</button>
-          <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.music ? 'bg-violet-700 text-white' : 'bg-white text-violet-900'" :disabled="busy" @click="saveShow({ music: !showSettings.music })">🎵 Musique</button>
-          <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.light ? 'bg-violet-700 text-white' : 'bg-white text-violet-900'" :disabled="busy" @click="saveShow({ light: !showSettings.light })">🪶 Mode léger</button>
-        </div>
-      </div>
+      <LiveShowRemote :id="id" :settings="display?.live?.show?.settings" @changed="loadDisplay" />
 
       <!-- Un seul produit : les produits en miniatures à glisser, juste au-dessus de l'aperçu -->
       <template v-if="mode === 'product' && items.length">
