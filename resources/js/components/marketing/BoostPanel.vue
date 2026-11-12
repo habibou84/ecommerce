@@ -21,6 +21,7 @@ const auth = useAuthStore()
 const assistant = computed(() => auth.profile?.features?.boost_ads === true)
 const wizard = ref(null) // { from } quand l'assistant est ouvert
 const listRef = ref(null)
+const suggested = computed(() => data.value?.products.find((p) => p.id === data.value.suggested_id) ?? null)
 function launched(boost) {
   wizard.value = null
   listRef.value?.add(boost)
@@ -109,6 +110,21 @@ async function copy(text, key) {
         <button type="button" class="mt-3 w-full rounded-xl bg-[#1877f2] py-3 text-base font-black text-white" @click="wizard = { from: null }">Créer un boost</button>
       </section>
 
+      <!-- Le produit à booster : il se vend, il a du stock, il a une bonne marge -->
+      <section v-if="assistant && suggested" class="rounded-2xl bg-white p-4 shadow-soft">
+        <h3 class="font-display text-base font-extrabold">💡 Le produit à booster</h3>
+        <div class="mt-2 flex items-center gap-3">
+          <img v-if="suggested.image" :src="suggested.image" alt="" class="h-14 w-14 shrink-0 rounded-xl object-cover">
+          <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ suggested.title }}</b><span class="text-xs text-slate-500">{{ money(suggested.price) }}{{ suggested.margin ? ` · marge ${money(suggested.margin)}` : '' }}</span></span>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-1.5 text-xs font-bold">
+          <span class="rounded-full bg-[#e7f0fe] px-2.5 py-1 text-[#1877f2]">⭐ {{ suggested.sold }} vendu{{ suggested.sold > 1 ? 's' : '' }} ce mois</span>
+          <span v-if="suggested.stock !== null" class="rounded-full bg-[#e7f0fe] px-2.5 py-1 text-[#1877f2]">📦 {{ suggested.stock }} en stock</span>
+          <span v-if="suggested.margin" class="rounded-full bg-[#e7f0fe] px-2.5 py-1 text-[#1877f2]">💰 bonne marge</span>
+        </div>
+        <button type="button" class="mt-3 w-full rounded-xl bg-[#1877f2] py-3 text-base font-black text-white" @click="wizard = { from: null, productId: suggested.id }">🚀 Booster ce produit</button>
+      </section>
+
       <!-- Booster un produit (à la main, chez Meta) -->
       <section class="rounded-2xl bg-white p-4 shadow-soft">
         <h3 class="text-base font-black">✨ {{ assistant ? 'Ou le faire moi-même chez Meta' : 'Booster un produit' }}</h3>
@@ -170,12 +186,12 @@ async function copy(text, key) {
       <!-- Prix -->
       <section class="rounded-2xl bg-white p-4 shadow-soft">
         <h3 class="text-base font-black">💳 Prix</h3>
-        <p class="mt-1 text-sm text-slate-600">Connexion, pixel et liens suivis : <b>gratuits</b>. La pub : payée à Meta. {{ assistant ? 'L\'assistant' : 'L\'assistant (bientôt)' }} : payé <b>à la commande</b> venue d'un boost.</p>
+        <p class="mt-1 text-sm text-slate-600">Connexion, pixel et liens suivis : <b>gratuits</b>. La pub : payée à Meta. Chaque commande venue d'un boost compte dans <RouterLink to="/gestion/solde" class="font-bold text-emerald-700 underline">ton solde</RouterLink>, comme une commande en live.</p>
       </section>
     </template>
 
     <Modal v-if="wizard" :title="wizard.from ? 'Relancer le boost' : 'Nouveau boost'" @close="wizard = null">
-      <BoostWizard :products="data?.products ?? []" :from="wizard.from" @launched="launched" />
+      <BoostWizard :products="data?.products ?? []" :from="wizard.from" :product-id="wizard.productId ?? null" @launched="launched" />
     </Modal>
   </div>
 </template>

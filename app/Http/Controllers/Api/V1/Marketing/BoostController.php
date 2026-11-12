@@ -4,14 +4,19 @@ namespace App\Http\Controllers\Api\V1\Marketing;
 
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
+use App\Models\Collection;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Services\Marketing\BoostTextWriter;
 use App\Services\Marketing\CatalogFeed;
 use App\Services\Marketing\MetaAds;
 use App\Services\Platform\Features;
 use App\Services\Social\MetaSocial;
+use App\Services\Storefront\StorefrontCatalog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Jibiat\Socle\Money;
 
 /**
@@ -25,7 +30,7 @@ class BoostController extends Controller
     /** Événements du pixel montrés à la boutique, dans l'ordre du parcours d'achat */
     private const EVENTS = ['PageView' => 'Visites', 'ViewContent' => 'Vues d\'un produit', 'AddToCart' => 'Ajouts au panier', 'InitiateCheckout' => 'Commandes commencées', 'Purchase' => 'Commandes', 'Contact' => 'Contacts WhatsApp'];
 
-    public function show(MetaAds $ads, CatalogFeed $feed, Features $features): JsonResponse
+    public function show(MetaAds $ads, CatalogFeed $feed, Features $features, StorefrontCatalog $catalog): JsonResponse
     {
         $store = $this->currentStore();
         $account = $ads->account($store);
@@ -42,6 +47,22 @@ class BoostController extends Controller
             $products = $products->concat(Product::with('images', 'variants')->where('status', 'active')->whereNotIn('id', $products->pluck('id'))
                 ->latest('id')->limit(6 - $products->count())->get());
         }
+
+        // Stock vendable et marge (prix moins prix d'achat) : le produit à booster se vend, a du stock et une marge
+        $availability = $catalog->availability($store, $products->flatMap->variants->pluck('id')->all());
+        $info = $products->mapWithKeys(function (Product $p) use ($catalog, $availability) {
+            $stock = 0;
+            foreach ($p->variants->where('is_active', true) as $v) {
+                $v->setRelation('product', $p);
+                $sellable = $catalog->sellable($v, $availability);
+                $stock = $stock === null || $sellable === null ? null : $stock + $sellable;
+            }
+            $cost = $p->variants->filter(fn ($v) => (int) $v->cost_price > 0)->sortBy('price')->first();
+
+            return [$p->id => ['stock' => $stock, 'margin' => $cost ? (int) $cost->price - (int) $cost->cost_price : null]];
+        });
+        $suggested = $products->filter(fn (Product $p) => ($info[$p->id]['stock'] ?? 0) !== 0 && ($sold[$p->id] ?? 0) > 0)
+            ->sortByDesc(fn (Product $p) => ($sold[$p->id] ?? 0) * max(1, $info[$p->id]['margin'] ?? 1))->first()?->id;
 
         // Commandes venues d'un lien « Booster » (30 derniers jours)
         $boosted = Order::query()->where('created_at', '>=', $since)->whereNotIn('status', [OrderStatus::Cancelled->value, OrderStatus::Returned->value])
@@ -65,7 +86,8 @@ class BoostController extends Controller
             ],
             // Vérification du pixel : null si Meta n'a pas pu être interrogé
             'pixel' => $stats === null ? null : collect(self::EVENTS)->map(fn ($label, $event) => ['event' => $event, 'label' => $label, 'count' => (int) ($stats[$event] ?? 0)])->values()->all(),
-            'products' => $products->values()->map(function (Product $p) use ($store, $sold) {
+            'suggested_id' => $suggested,
+            'products' => $products->values()->map(function (Product $p) use ($store, $sold, $info) {
                 $price = (int) $p->variants->min('price');
                 $link = $store->url('/produits/'.$p->slug).'?'.http_build_query(['utm_source' => 'facebook', 'utm_medium' => 'boost', 'utm_campaign' => 'boost-'.$p->id]);
 
@@ -76,6 +98,8 @@ class BoostController extends Controller
                     'image_large' => $p->images->first()?->urls()['large'] ?? null,
                     'price' => $price,
                     'sold' => (int) ($sold[$p->id] ?? 0),
+                    'stock' => $info[$p->id]['stock'],
+                    'margin' => $info[$p->id]['margin'],
                     'link' => $link,
                     'text' => "✨ {$p->title} est disponible ! ".($price > 0 ? Money::format($price).'. ' : '')."Livraison rapide chez toi. Commande ici 👇\n{$link}",
                 ];
@@ -87,5 +111,27 @@ class BoostController extends Controller
                     ->sortByDesc('orders')->values()->all(),
             ],
         ]]);
+    }
+
+    /**
+     * Trois textes de pub écrits par l'IA (une action) pour un produit, une sélection ou le catalogue.
+     */
+    public function texts(Request $request, BoostTextWriter $writer): JsonResponse
+    {
+        $data = $request->validate([
+            'kind' => ['required', Rule::in(['product', 'products', 'catalog'])],
+            'product_ids' => ['exclude_if:kind,catalog', 'required', 'array', 'min:1', 'max:10'],
+            'product_ids.*' => ['integer'],
+            'collection_id' => ['nullable', 'integer'],
+        ]);
+        $collection = $data['kind'] === 'catalog' && ! empty($data['collection_id']) ? Collection::findOrFail($data['collection_id']) : null;
+        $products = match (true) {
+            $data['kind'] !== 'catalog' => Product::whereIn('id', $data['product_ids'])->where('status', 'active')->get(),
+            $collection !== null => $collection->products()->where('status', 'active')->limit(15)->get(),
+            default => Product::where('status', 'active')->latest('id')->limit(15)->get(),
+        };
+        abort_if($products->isEmpty(), 422, 'Aucun produit en ligne à présenter.');
+
+        return response()->json(['data' => $writer->propose($this->currentStore(), $request->user(), $data['kind'], $products, $collection?->title)]);
     }
 }

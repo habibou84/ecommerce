@@ -16,12 +16,12 @@ use App\Models\WhatsappAccount;
 use App\Services\Accounts\ConsoleTwoFactor;
 use App\Services\Accounts\StoreDataExport;
 use App\Services\Billing\Billing;
+use App\Services\Billing\Credits;
 use App\Services\Console\SupportSessions;
 use App\Services\Couriers\CourierMorning;
 use App\Services\Couriers\MissionResponses;
 use App\Services\Domains\CustomDomains;
 use App\Services\Finance\RecurringExpenses;
-use App\Services\Live\LiveBilling;
 use App\Services\Live\LiveCheckout;
 use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
@@ -213,7 +213,7 @@ Schedule::command('billing:run')->dailyAt('07:10')->withoutOverlapping();
 
 Artisan::command('live:expire', function (LiveSales $live) {
     $this->line($live->expire().' réservation(s) de live libérée(s)');
-    $this->line(app(LiveBilling::class)->closeStale().' live(s) resté(s) ouvert(s) trop longtemps fermé(s)');
+    $this->line(app(Credits::class)->closeStale().' live(s) resté(s) ouvert(s) trop longtemps fermé(s)');
 })->purpose('Vente en live : pièces gardées sans quartier à temps rendues à la liste d\'attente');
 
 Schedule::command('live:expire')->everyMinute()->withoutOverlapping();

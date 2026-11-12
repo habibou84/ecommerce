@@ -20,6 +20,7 @@ use App\Models\VolumePrice;
 use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Services\Ai\Assistant;
+use App\Services\Billing\Credits;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
@@ -232,11 +233,11 @@ class LiveSales
         $keep = ! $session->isWhatsApp() && in_array($keepHours, self::KEEP_HOURS, true) && $session->status === 'live';
         $session->update(['status' => 'ended', 'ended_at' => $session->ended_at ?? now(), 'orders_until' => $keep ? now()->addHours($keepHours) : null]);
         if ($keep) {
-            // Commandes encore actives : le live sera compté quand elles s'arrêtent (une seule fois, même palier)
+            // Commandes encore actives : le live sera compté quand elles s'arrêtent (une seule fois)
             return $session->refresh();
         }
-        // Lives payants : commandes comptées et prix du palier retiré du crédit
-        app(LiveBilling::class)->bill($session);
+        // Commandes payantes : les commandes du live retirées du solde
+        app(Credits::class)->bill($session);
 
         return $session->refresh();
     }
@@ -252,7 +253,7 @@ class LiveSales
         if ($session->orders_until !== null && $session->orders_until->isFuture()) {
             $session->update(['orders_until' => now()]);
         }
-        app(LiveBilling::class)->bill($session);
+        app(Credits::class)->bill($session);
 
         return $session->refresh();
     }
@@ -1370,12 +1371,12 @@ class LiveSales
             // Commandes WhatsApp sans live : heure de fermeture (null : jusqu'à « Fermer »), en pause si crédit vide
             'channel' => $session->channel,
             'closes_at' => $session->isWhatsApp() && $session->status === 'live' ? $session->orders_until?->toIso8601String() : null,
-            'paused' => $session->isWhatsApp() && $session->status === 'live' && app(LiveBilling::class)->paused($session),
+            'paused' => $session->isWhatsApp() && $session->status === 'live' && app(Credits::class)->paused($session),
             'orders_after' => $team && $session->status === 'ended' && $session->orders_until !== null ? $this->ordersAfter($session) : null,
             // « Préparer un live » : photo à épingler publiée (étape 3)
             'pin_ready' => $session->pin_ready_at !== null,
-            // Lives payants par palier : commandes comptées, prix atteint, prochain palier (équipe seulement)
-            'billing' => $team ? app(LiveBilling::class)->progress($session) : null,
+            // Solde : commandes prises, solde après le live (équipe seulement)
+            'billing' => $team ? app(Credits::class)->progress($session) : null,
             // Page publique du live : l'article mystère n'apparaît qu'une fois révélé
             'items' => $session->items->reject(fn (LiveItem $item) => ! $team && $item->hidden())->map(fn (LiveItem $item) => [
                 'id' => $item->id,

@@ -15,7 +15,6 @@ use App\Models\SubscriptionInvoice;
 use App\Models\User;
 use App\Notifications\BillingNotice;
 use App\Services\Accounts\TeamNotifier;
-use App\Services\Live\LiveBilling;
 use App\Services\Partners\PartnerReferrals;
 use App\Services\Payments\Gateways\GatewayResult;
 use App\Services\Payments\PaymentDesk;
@@ -116,11 +115,8 @@ class Billing
             // Lien marchand Wave : le numéro qui paie est demandé, la confirmation se fait à la main
             'manual_payment' => $this->manual(),
             'wave_qr_url' => $this->manual() ? $this->settings->qrUrl() : null,
-            // Recharges de l'assistant : actions achetées restantes et prix d'une recharge
-            'ai_credits' => (int) $store->ai_credits,
-            'ai_pack' => config('platform.ai_pack'),
-            // Les lives se paient à part (page du live) : pas dans les factures de l'abonnement
-            'invoices' => SubscriptionInvoice::forStore($store->id)->with('plan')->whereNotIn('kind', LiveBilling::KINDS)->whereIn('status', ['paid', 'offered', 'pending'])->latest('id')->limit(12)->get()
+            // Les recharges du solde (commandes et IA) sont sur la page « Mon solde », pas dans les factures de l'abonnement
+            'invoices' => SubscriptionInvoice::forStore($store->id)->with('plan')->whereNotIn('kind', Credits::KINDS)->whereIn('status', ['paid', 'offered', 'pending'])->latest('id')->limit(12)->get()
                 ->map(fn (SubscriptionInvoice $i) => $this->presentInvoice($i)),
         ];
     }
@@ -159,28 +155,16 @@ class Billing
     /**
      * Recharge de l'assistant : des actions en plus, utilisées après celles de l'offre et sans date de fin.
      */
-    public function buyAiPack(Store $store, string $method, User $user, ?string $payerPhone = null): SubscriptionInvoice
-    {
-        ['actions' => $actions, 'price' => $price] = config('platform.ai_pack');
-
-        return $this->pay($store, $user, $method, [
-            'kind' => 'ai_pack',
-            'ai_actions' => $actions,
-            'billing_cycle' => 'pack',
-            'amount' => $price,
-        ], "Recharge de l'assistant ({$actions} actions) · {$store->name}", $payerPhone);
-    }
-
     /**
-     * Lives payants : facture et page de paiement du prestataire choisi pour les lives (PayDunya), quel que soit
-     * celui des abonnements. Retour sur la page du live, qui démarre le live dès le paiement reçu.
+     * Recharge du solde (commandes et IA) : facture et page de paiement du prestataire choisi dans la console
+     * (PayDunya), quel que soit celui des abonnements. Retour sur la page « Mon solde ».
      *
      * @param  array<string, mixed>  $data
      */
-    public function payLive(Store $store, User $user, string $provider, array $data, string $description): SubscriptionInvoice
+    public function payCredits(Store $store, User $user, string $provider, array $data, string $description): SubscriptionInvoice
     {
         if (! ($this->settings->available()[$provider] ?? false) || $provider === 'wave_link') {
-            throw new BusinessRuleException('Le paiement des lives est indisponible pour le moment. Réessayez dans quelques minutes.', 'payment');
+            throw new BusinessRuleException('La recharge est indisponible pour le moment. Réessayez dans quelques minutes.', 'payment');
         }
         $invoice = $this->newInvoice($data + [
             'store_id' => $store->id,
@@ -190,7 +174,7 @@ class Billing
             'idempotency_key' => (string) Str::uuid(),
             'created_by' => $user->id,
         ]);
-        $return = $store->url('/gestion/live?paiement='.$invoice->number);
+        $return = $store->url('/gestion/solde?paiement='.$invoice->number);
         try {
             $checkout = $this->payments->gateway($provider)->createCheckout($this->account($provider), $this->payment($invoice), [
                 'return_url' => $return,
@@ -203,7 +187,7 @@ class Billing
             ]);
         } catch (Throwable $e) {
             $invoice->update(['status' => 'failed', 'raw' => ['error' => mb_substr($e->getMessage(), 0, 300)]]);
-            Log::warning('Paiement de live impossible', ['invoice' => $invoice->number, 'error' => $e->getMessage()]);
+            Log::warning('Recharge du solde impossible', ['invoice' => $invoice->number, 'error' => $e->getMessage()]);
 
             throw new BusinessRuleException('Le paiement en ligne est indisponible pour le moment. Réessayez dans quelques minutes.', 'payment');
         }
@@ -514,8 +498,7 @@ class Billing
             'id' => $i->id,
             'number' => $i->number,
             'plan' => match (true) {
-                $i->kind === 'ai_pack' => "Recharge de l'assistant ({$i->ai_actions} actions)",
-                in_array($i->kind, LiveBilling::KINDS, true) => LiveBilling::label($i->kind),
+                in_array($i->kind, Credits::KINDS, true) => Credits::label($i),
                 default => $i->plan?->name,
             },
             'kind' => $i->kind,
@@ -551,25 +534,15 @@ class Billing
             // Sous verrou : une fin de live calculée au même moment (prélèvement du crédit) ne peut pas écraser la recharge
             $store = Store::lockForUpdate()->findOrFail($invoice->store_id);
 
-            if (in_array($invoice->kind, LiveBilling::KINDS, true)) {
-                $until = app(LiveBilling::class)->activate($store, $invoice);
+            if (in_array($invoice->kind, Credits::KINDS, true)) {
+                $until = app(Credits::class)->activate($store, $invoice);
                 $invoice->update(['status' => $status, 'method' => $method ?? $invoice->method, 'raw' => $raw, 'paid_at' => now(),
                     'period_start' => now(), 'period_end' => match ($invoice->kind) {
-                        'live_month' => $store->live_month_until,
+                        'credits_month', 'live_month' => $store->live_month_until,
                         'live_day' => $store->live_pass_until,
                         default => null,
                     }]);
-                DB::afterCommit(fn () => $this->notify($store, $status === 'offered' ? 'Lives offerts' : 'Paiement des lives reçu', $until.'.'));
-
-                return $invoice->fresh();
-            }
-
-            if ($invoice->kind === 'ai_pack') {
-                $store->increment('ai_credits', (int) $invoice->ai_actions);
-                $invoice->update(['status' => $status, 'method' => $method ?? $invoice->method, 'raw' => $raw, 'paid_at' => now()]);
-                $credits = $store->fresh()->ai_credits;
-                DB::afterCommit(fn () => $this->notify($store, 'Recharge de l\'assistant reçue',
-                    "{$invoice->ai_actions} actions de l'assistant ajoutées ({$credits} en réserve, ".Money::format($invoice->amount).' reçus). Merci !'));
+                DB::afterCommit(fn () => $this->notify($store, $status === 'offered' ? 'Recharge offerte' : 'Recharge reçue', $until.'.'));
 
                 return $invoice->fresh();
             }

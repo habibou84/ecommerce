@@ -7,7 +7,7 @@ use Illuminate\Database\Seeder;
 
 /**
  * Offres d'abonnement (docs/PLAN.md §9). Chaque offre comprend des actions de l'assistant IA par mois ; au-delà,
- * les recharges (config platform.ai_pack) prennent le relais.
+ * les actions IA du solde (achetées avec les packs de commandes) prennent le relais.
  */
 class PlanSeeder extends Seeder
 {

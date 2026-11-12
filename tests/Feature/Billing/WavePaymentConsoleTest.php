@@ -129,10 +129,10 @@ class WavePaymentConsoleTest extends TestCase
         config(['mail.default' => 'smtp', 'mail.mailers.smtp.host' => '127.0.0.1', 'mail.mailers.smtp.port' => 1]);
         $this->asMerchant();
 
-        $number = $this->storeApi($this->store, 'POST', 'billing/ai-pack', ['method' => 'wave', 'payer_phone' => '0708091011'])->assertCreated()->json('data.number');
+        $number = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'starter', 'cycle' => 'monthly', 'method' => 'wave', 'payer_phone' => '0708091011'])->assertCreated()->json('data.number');
         $sms = collect($this->sentSms())->firstWhere('to', '+2250507016739');
         $this->assertNotNull($sms);
-        $this->assertStringContainsString('1 000 F', $sms['text']);
+        $this->assertStringContainsString('3 500 F', $sms['text']);
         // Pilote « log » des tests : le SMS est écrit dans le journal, pas vraiment envoyé, et c'est dit
         $this->assertSame('journal', SubscriptionInvoice::where('number', $number)->sole()->raw['alerts'][0]['channel']);
 
@@ -140,7 +140,7 @@ class WavePaymentConsoleTest extends TestCase
         preg_match('#(http\S+/facturation/valider/\S+)#', $sms['text'], $m);
         $this->assertStringNotContainsString('2468', (string) PlatformSetting::find('billing.validator_pin')->value);
         $this->post($m[1], ['code' => '2468', 'decision' => 'received'])->assertOk()->assertSee('Paiement confirmé');
-        $this->assertSame(100, $this->store->fresh()->ai_credits);
+        $this->assertSame('paid', SubscriptionInvoice::where('number', $number)->sole()->status);
     }
 
     public function test_gmail_is_connected_with_google_and_sends_the_emails(): void

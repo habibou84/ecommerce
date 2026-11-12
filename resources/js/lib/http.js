@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { openAiRecharge } from './aiQuota'
+import { openRecharge } from './credits'
 import { chosenStore } from './boutique'
 
 // Session par cookie, limitée au nom d'hôte (Sanctum) : jeton CSRF lu dans le cookie XSRF-TOKEN
@@ -63,8 +63,8 @@ http.interceptors.response.use(
       await ensureCsrf()
       return http({ ...config, _retried: true })
     }
-    // Plus d'actions de l'assistant IA : la fenêtre de recharge s'ouvre directement
-    if (response?.data?.code === 'ai_quota') openAiRecharge(response.data.message)
+    // Plus d'actions IA : la fenêtre « Recharger mon solde » s'ouvre directement
+    if (response?.data?.code === 'ai_quota') openRecharge(response.data.message)
     return Promise.reject(error)
   },
 )

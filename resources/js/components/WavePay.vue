@@ -3,7 +3,7 @@ import { money } from '../lib/format'
 
 /**
  * Paiement par le lien marchand Wave : montant, bouton vers Wave (téléphone) ou QR code (ordinateur), puis
- * « J'ai payé » (le validateur est prévenu). Même panneau pour l'abonnement et les recharges de l'assistant.
+ * « J'ai payé » (le validateur est prévenu). Panneau de l'abonnement.
  */
 defineProps({
   invoice: { type: Object, required: true },
@@ -20,7 +20,7 @@ const emit = defineEmits(['claim'])
     <div class="rounded-xl bg-slate-50 p-4 text-center ring-1 ring-slate-200">
       <p class="text-2xl font-bold">{{ money(invoice.amount) }} à payer</p>
       <p v-if="phone" class="mt-1 text-slate-600">Depuis le numéro Wave {{ phone }}</p>
-      <p class="mt-1 text-xs text-slate-500">{{ invoice.plan }}<template v-if="invoice.kind !== 'ai_pack'"> ({{ invoice.cycle_label }})</template> · facture {{ invoice.number }}</p>
+      <p class="mt-1 text-xs text-slate-500">{{ invoice.plan }} ({{ invoice.cycle_label }}) · facture {{ invoice.number }}</p>
     </div>
 
     <section class="space-y-3">
@@ -39,7 +39,7 @@ const emit = defineEmits(['claim'])
       <h3 class="flex items-center gap-2 font-semibold"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-xs text-white">2</span>Confirmez votre paiement</h3>
       <p class="text-slate-600">Une fois le paiement fait dans Wave :</p>
       <button class="w-full rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white hover:bg-emerald-800 disabled:opacity-60" :disabled="claiming" @click="emit('claim')">{{ claiming ? 'Envoi…' : 'Cliquez ici pour confirmer votre paiement' }}</button>
-      <p class="text-xs text-slate-500">Nous vérifions la réception, puis votre {{ invoice.kind === 'ai_pack' ? 'recharge est ajoutée' : 'offre est activée' }}.</p>
+      <p class="text-xs text-slate-500">Nous vérifions la réception, puis votre offre est activée.</p>
     </section>
   </div>
 </template>

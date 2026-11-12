@@ -15,7 +15,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Notifications\BoostNotice;
 use App\Services\Accounts\TeamNotifier;
-use App\Services\Live\LiveBilling;
+use App\Services\Billing\Credits;
 use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +28,8 @@ use RuntimeException;
  * (payée à Meta par sa carte). Un produit (une photo), plusieurs (carrousel de 2 à 10) ou le catalogue (tout ou une
  * collection : Meta choisit les produits pour chacun). Public : communes ou villes livrées (cercle autour de chacune)
  * ou tout le pays, âge, femmes ou hommes. Chaque lien porte utm_content « b{id} » : les commandes venues de la pub sont
- * comptées, et l'assistant se paie par commande sur le crédit de la boutique (réglage de la console).
+ * comptées et retirées du solde de la boutique (1 commande chacune, réglable dans la console). Conseils : pause si
+ * la pub coûte plus que la marge, prolonger si elle rapporte.
  */
 class BoostAds
 {
@@ -66,7 +67,7 @@ class BoostAds
     public function __construct(
         private readonly WhatsAppCloud $graph,
         private readonly MetaAds $meta,
-        private readonly LiveBilling $billing,
+        private readonly Credits $credits,
         private readonly TeamNotifier $notifier,
     ) {}
 
@@ -100,7 +101,7 @@ class BoostAds
                 $error = $e->getMessage();
             }
         }
-        $fees = $this->billing->settings();
+        $s = $this->credits->settings();
 
         return [
             'connected' => $connected,
@@ -115,7 +116,8 @@ class BoostAds
             'catalog_products' => Product::where('status', 'active')->count(),
             'budgets' => self::BUDGETS,
             'days' => self::DAYS,
-            'fee' => ['paid' => $fees['boost_paid'], 'price' => $fees['boost_price'], 'credit' => (int) $store->live_credit],
+            // Solde : commandes venues des boosts retirées du solde (sauf illimité ou commandes gratuites)
+            'fee' => ['counted' => $this->credits->counting($store), 'weight' => $s['boost_weight'], 'orders' => (int) $store->order_credits],
         ];
     }
 
@@ -257,9 +259,11 @@ class BoostAds
     public function launch(Store $store, User $user, array $data): Boost
     {
         $token = $this->token($store);
-        $fees = $this->billing->settings();
-        if ($fees['boost_paid'] && (int) $store->live_credit < $fees['boost_price']) {
-            throw new BusinessRuleException('Ton crédit est trop bas pour l\'assistant ('.Money::format($fees['boost_price']).' par commande venue d\'un boost) : recharge-le dans Live › Crédit.');
+        if ($this->credits->counting($store)) {
+            $this->credits->welcome($store);
+            if ((int) $store->order_credits <= 0) {
+                throw new BusinessRuleException('Ton solde de commandes est vide : recharge-le pour lancer un boost.', 'payment');
+            }
         }
         $account = collect($this->adAccounts($store))->firstWhere('id', $data['ad_account_id']);
         if (! $account || ! $account['usable']) {
@@ -462,21 +466,18 @@ class BoostAds
             }
         }
 
-        // Commandes venues de la pub (sans les annulées), et prix de l'assistant pour les nouvelles
+        // Commandes venues de la pub (sans les annulées) ; les nouvelles sont retirées du solde
         $orders = Order::forStore($store->id)->where('utm->utm_content', $boost->tag())
             ->whereNotIn('status', [OrderStatus::Cancelled->value, OrderStatus::Returned->value]);
         $boost->orders = (clone $orders)->count();
         $boost->sales = (int) (clone $orders)->sum('total');
-        $fees = $this->billing->settings();
         $new = max(0, $boost->orders - $boost->billed_orders);
-        DB::transaction(function () use ($boost, $store, $fees, $new) {
+        DB::transaction(function () use ($boost, $store, $new) {
             if ($new > 0) {
-                $amount = $fees['boost_paid'] ? $new * $fees['boost_price'] : 0;
-                if ($amount > 0) {
-                    Store::whereKey($store->id)->decrement('live_credit', $amount);
-                }
+                $used = $this->credits->counting($store) ? $new * $this->credits->settings()['boost_weight'] : 0;
+                $this->credits->debit($store, $used);
                 $boost->billed_orders += $new;
-                $boost->fee += $amount;
+                $boost->credits_used += $used;
             }
             $boost->synced_at = now();
             $boost->save();
@@ -499,6 +500,51 @@ class BoostAds
         $this->notifier->notify($store, Permission::StoreManage->value, new BoostNotice($store->id, $title, $body));
     }
 
+    /**
+     * Marge par commande des produits boostés (prix moins prix d'achat), ou null si le prix d'achat n'est pas saisi.
+     * Catalogue : la marge moyenne des produits en ligne.
+     */
+    public function margin(Boost $boost): ?int
+    {
+        $products = Product::with('variants')->where('status', 'active')
+            ->when($boost->kind !== 'catalog', fn ($q) => $q->whereIn('id', $boost->product_ids ?? []))->limit(200)->get();
+        $margins = $products->map(function (Product $p) {
+            $v = $p->variants->filter(fn ($v) => $v->is_active && (int) $v->cost_price > 0)->sortBy('price')->first();
+
+            return $v ? (int) $v->price - (int) $v->cost_price : null;
+        })->filter(fn ($m) => $m !== null);
+
+        return $margins->isEmpty() ? null : (int) round($margins->avg());
+    }
+
+    /**
+     * Conseil sur un boost en cours : pause si la pub coûte plus que la marge par commande (ou aucune commande après
+     * deux jours de budget), prolonger si elle coûte moins de 60 % de la marge. Sans prix d'achat : demander de le
+     * saisir. Rien tant que la pub n'a pas assez tourné.
+     *
+     * @return array{kind: string, margin: ?int}|null
+     */
+    public function advice(Boost $boost): ?array
+    {
+        if (! in_array($boost->status, ['active', 'paused'], true) || ($boost->orders < 2 && $boost->spend < 2 * $boost->daily_budget)) {
+            return null;
+        }
+        $margin = $this->margin($boost);
+        if ($boost->orders === 0) {
+            return ['kind' => 'stop', 'margin' => $margin];
+        }
+        if ($margin === null) {
+            return ['kind' => 'cost', 'margin' => null];
+        }
+        $cost = $boost->spend / $boost->orders;
+
+        return match (true) {
+            $cost > $margin => ['kind' => 'stop', 'margin' => $margin],
+            $cost <= 0.6 * $margin && $boost->status === 'active' => ['kind' => 'go', 'margin' => $margin],
+            default => null,
+        };
+    }
+
     /** @return array<string, mixed> */
     public function present(Boost $boost): array
     {
@@ -513,8 +559,9 @@ class BoostAds
             'age_max' => $boost->age_max, 'gender' => $boost->gender, 'message' => $boost->message,
             'ad_account_id' => $boost->ad_account_id, 'page_id' => $boost->page_id,
             'budget_total' => $boost->daily_budget * $boost->days, 'spend' => $boost->spend, 'clicks' => $boost->clicks,
-            'impressions' => $boost->impressions, 'orders' => $boost->orders, 'sales' => $boost->sales, 'fee' => $boost->fee,
+            'impressions' => $boost->impressions, 'orders' => $boost->orders, 'sales' => $boost->sales, 'credits_used' => $boost->credits_used,
             'cost_per_order' => $boost->orders > 0 ? (int) round($boost->spend / $boost->orders) : null,
+            'advice' => $this->advice($boost),
             'day' => min($boost->days, (int) floor($boost->created_at->diffInDays(now())) + 1),
             'ends_at' => $boost->ends_at->toIso8601String(), 'created_at' => $boost->created_at->toIso8601String(),
         ];

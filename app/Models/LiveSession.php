@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
-use App\Services\Live\LiveBilling;
+use App\Services\Billing\Credits;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -51,7 +51,7 @@ class LiveSession extends Model
     public function takesOrders(): bool
     {
         if ($this->isWhatsApp()) {
-            return $this->status === 'live' && ($this->orders_until === null || $this->orders_until->isFuture()) && ! app(LiveBilling::class)->paused($this);
+            return $this->status === 'live' && ($this->orders_until === null || $this->orders_until->isFuture()) && ! app(Credits::class)->paused($this);
         }
 
         return $this->status === 'live' || ($this->status === 'ended' && $this->orders_until !== null && $this->orders_until->isFuture());
