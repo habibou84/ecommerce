@@ -8,6 +8,7 @@ use App\Models\LiveSession;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\Product;
+use App\Models\StockLevel;
 use App\Models\Store;
 use App\Models\WhatsappAccount;
 use App\Services\Ai\AiClient;
@@ -169,6 +170,44 @@ class LiveSalesTest extends TestCase
         // Fin du live : la page ne propose plus rien, le bilan reste
         $this->storeApi($this->store, 'POST', "lives/{$id}/end")->assertOk()->assertJsonPath('data.summary.orders', 2);
         $this->page('POST', '/live/reserver', ['item_id' => $items[1]['id'], 'name' => 'Fatou', 'phone' => '0506070809', 'place_id' => $angre->id])->assertNotFound();
+    }
+
+    public function test_an_item_out_of_stock_in_the_shop_goes_to_the_waiting_list(): void
+    {
+        $id = $this->prepare(robes: 1);
+        $items = $this->page('GET', '/live/etat')->json('data.items');
+        $angre = $this->place('Angré');
+        // Quartier gardé d'une ancienne visite, pas livré par la boutique : la cliente doit le choisir à nouveau
+        $this->page('POST', '/live/reserver', ['items' => [['item_id' => $items[1]['id'], 'quantity' => 1]], 'phone' => '0506070809', 'place_id' => 999999])
+            ->assertStatus(422)->assertJsonValidationErrors('place_id');
+
+        // Plus de stock pour le sac dans la boutique (même s'il reste des pièces dans le live) : liste d'attente
+        StockLevel::whereIn('variant_id', $this->sac->variants()->pluck('id'))->update(['on_hand' => 0]);
+        $this->page('POST', '/live/reserver', ['items' => [['item_id' => $items[1]['id'], 'quantity' => 1]], 'phone' => '0506070809', 'place_id' => $angre->id])
+            ->assertOk()->assertJsonPath('data.status', 'waiting');
+        $this->assertSame(0, Order::count());
+    }
+
+    public function test_an_order_that_cannot_be_created_shows_why_and_can_be_retried(): void
+    {
+        $id = $this->prepare(robes: 1);
+        $angre = $this->place('Angré');
+        // Pièce gardée sans quartier, puis le stock part ailleurs : le quartier arrive, la commande ne peut pas être créée
+        $this->storeApi($this->store, 'POST', "lives/{$id}/reservations", ['code' => 'A2', 'name' => 'Fatou', 'phone' => '0506070809'])->assertOk();
+        StockLevel::whereIn('variant_id', $this->sac->variants()->pluck('id'))->update(['on_hand' => 0]);
+        $reservation = $this->storeApi($this->store, 'GET', "lives/{$id}")->json('data.reservations.0');
+        $failed = $this->storeApi($this->store, 'POST', "lives/{$id}/reservations/{$reservation['id']}/place", ['place_id' => $angre->id])->assertStatus(422)->json('message');
+        $this->assertStringStartsWith('Commande pas créée : Stock insuffisant', $failed);
+        // L'équipe voit pourquoi, et le quartier est gardé
+        $reservation = $this->storeApi($this->store, 'GET', "lives/{$id}")->assertJsonPath('data.reservations.0.status', 'reserved')
+            ->assertJsonPath('data.reservations.0.shipping_place_id', $angre->id)->json('data.reservations.0');
+        $this->assertStringStartsWith('Stock insuffisant', $reservation['order_error']);
+
+        // Stock remis : « Créer la commande » réussit, la raison disparaît
+        StockLevel::whereIn('variant_id', $this->sac->variants()->pluck('id'))->update(['on_hand' => 10]);
+        $this->storeApi($this->store, 'POST', "lives/{$id}/reservations/{$reservation['id']}/place", ['place_id' => $angre->id])
+            ->assertOk()->assertJsonPath('data.reservations.0.status', 'ordered')->assertJsonPath('data.reservations.0.order_error', null);
+        $this->assertSame(1, Order::count());
     }
 
     public function test_flash_price_for_a_few_minutes_is_kept_by_the_reservation(): void

@@ -159,8 +159,8 @@ class LiveController extends Controller
         $model = LiveSession::with('items.variant.product.images', 'items.variant.image')->findOrFail($session);
         $store = $this->currentStore();
         // Un produit = un code (ses tailles et couleurs le partagent) : la photo du produit, comme sur l'écran du live.
-        // Les articles finis n'y sont plus (sauf si tout est fini)
-        $groups = $model->items->groupBy('code');
+        // Les articles finis n'y sont plus (sauf si tout est fini), l'article mystère seulement une fois révélé
+        $groups = $model->items->reject(fn (LiveItem $item) => $item->hidden())->groupBy('code');
         $left = $groups->filter(fn ($group) => $group->sum(fn (LiveItem $item) => $this->live->remaining($item)) > 0);
         $tiles = ($left->isEmpty() ? $groups : $left)->map(function ($group, $code) {
             $variant = $group->first()->variant;
@@ -241,6 +241,21 @@ class LiveController extends Controller
             'best_product' => $best ? ['title' => $best->first()->item?->variant?->product?->title, 'orders' => $best->count()] : null,
             'best_hour' => $hour,
         ]]);
+    }
+
+    /**
+     * Article mystère : cocher ou décocher un article (tout son code), avec jusqu'à 3 indices.
+     */
+    public function mystery(Request $request, int $session): JsonResponse
+    {
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:10'],
+            'mystery' => ['required', 'boolean'],
+            'hints' => ['nullable', 'array', 'max:3'],
+            'hints.*' => ['nullable', 'string', 'max:80'],
+        ], [], ['hints.*' => 'indice']);
+
+        return $this->state($this->live->mystery($this->session($session), $data['code'], (bool) $data['mystery'], $data['hints'] ?? []));
     }
 
     public function feature(Request $request, int $session): JsonResponse

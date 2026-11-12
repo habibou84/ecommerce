@@ -603,6 +603,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('lives/screens/link', [LiveScreenController::class, 'link'])->middleware('throttle:20,1')->middleware('feature:live,live_screens')->name('lives.screens.link');
                 Route::post('lives/screens/{screen}/test', [LiveScreenController::class, 'test'])->whereNumber('screen')->middleware('feature:live,live_screens')->name('lives.screens.test');
                 Route::delete('lives/screens/{screen}', [LiveScreenController::class, 'destroy'])->whereNumber('screen')->middleware('feature:live,live_screens')->name('lives.screens.destroy');
+                Route::put('lives/{session}/show', [LiveScreenController::class, 'showSettings'])->whereNumber('session')->middleware('throttle:60,1')->middleware('feature:live,live_screens')->name('lives.show.settings');
+                Route::post('lives/{session}/show/moment', [LiveScreenController::class, 'moment'])->whereNumber('session')->middleware('throttle:30,1')->middleware('feature:live,live_screens')->name('lives.show.moment');
                 Route::post('lives/{session}/display', [LiveScreenController::class, 'mode'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live,live_screens')->name('lives.display');
                 Route::post('lives/phone-style', [LiveScreenController::class, 'phoneStyle'])->middleware('feature:live,live_screens')->name('lives.phone-style');
                 Route::get('lives/{session}/display', [LiveScreenController::class, 'display'])->whereNumber('session')->middleware('feature:live,live_screens')->middleware('cache.headers:private;no_cache;etag')->name('lives.display.show');
@@ -614,6 +616,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('lives/{session}/pin-ready', [LiveController::class, 'pinReady'])->whereNumber('session')->middleware('feature:live')->name('lives.pin-ready');
                 Route::get('lives/stats', [LiveController::class, 'stats'])->middleware('feature:live')->name('lives.stats');
                 Route::post('lives/intro-seen', [LiveController::class, 'introSeen'])->middleware('throttle:30,1')->middleware('feature:live')->name('lives.intro-seen');
+                Route::put('lives/{session}/mystery', [LiveController::class, 'mystery'])->whereNumber('session')->middleware('throttle:60,1')->middleware('feature:live')->name('lives.mystery');
+                Route::get('lives/{session}/bilan', [LiveScreenController::class, 'bilan'])->whereNumber('session')->middleware('feature:live')->name('lives.bilan');
                 Route::post('lives/{session}/feature', [LiveController::class, 'feature'])->whereNumber('session')->middleware('throttle:120,1')->middleware('feature:live')->name('lives.feature');
                 Route::post('lives/{session}/items/{item}/code', [LiveController::class, 'code'])->whereNumber(['session', 'item'])->middleware('throttle:120,1')->middleware('feature:live')->name('lives.code');
                 Route::post('lives/{session}/items/{item}/flash', [LiveController::class, 'flash'])->whereNumber(['session', 'item'])->middleware('throttle:60,1')->middleware('feature:live')->name('lives.flash');

@@ -286,13 +286,46 @@ class LiveSales
         if ($session->status === 'ended') {
             throw new BusinessRuleException('Ce live est terminé.');
         }
-        if ($itemId !== null && LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->whereKey($itemId)->doesntExist()) {
+        $item = $itemId !== null ? LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->find($itemId) : null;
+        if ($itemId !== null && $item === null) {
             throw new BusinessRuleException('Cet article n\'est pas dans le live.', 'item_id');
+        }
+        if ($item?->hidden()) {
+            throw new BusinessRuleException('C\'est l\'article mystère : révèle-le avec « Article mystère » pour le montrer.', 'item_id');
         }
         // Article choisi : les écrans du live le montrent (fin du défilement ou de « Comment commander »)
         $session->update(['featured_item_id' => $itemId] + ($itemId !== null ? ['display_mode' => 'product'] : []));
 
         return $session;
+    }
+
+    /**
+     * Article mystère : caché des clientes (écrans, liste envoyée, étiquette) jusqu'à sa révélation pendant le live,
+     * avec jusqu'à 3 indices donnés un par un. Toutes les tailles et couleurs du même code suivent.
+     *
+     * @param  list<string>  $hints
+     */
+    public function mystery(LiveSession $session, string $code, bool $mystery, array $hints = []): LiveSession
+    {
+        if ($session->status === 'ended') {
+            throw new BusinessRuleException('Ce live est terminé.');
+        }
+        $items = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->where('code', $code)->get();
+        if ($items->isEmpty()) {
+            throw new BusinessRuleException('Cet article n\'est pas dans le live.', 'code');
+        }
+        if ($mystery && $items->contains(fn (LiveItem $i) => $i->revealed_at !== null)) {
+            throw new BusinessRuleException('Cet article a déjà été révélé.', 'code');
+        }
+        $hints = array_values(array_slice(array_filter(array_map(fn ($h) => trim((string) $h), $hints)), 0, 3));
+        LiveItem::forStore($session->store_id)->whereIn('id', $items->pluck('id'))->update(['mystery' => $mystery, 'mystery_hints' => $mystery && $hints ? json_encode($hints, JSON_UNESCAPED_UNICODE) : null]);
+        // Article montré devenu mystère : l'écran ne doit plus le montrer
+        if ($mystery && $items->contains('id', $session->featured_item_id)) {
+            $session->update(['featured_item_id' => null]);
+        }
+        $session->touch();
+
+        return $session->fresh();
     }
 
     /**
@@ -366,6 +399,25 @@ class LiveSales
     }
 
     /**
+     * Encore une pièce en stock dans la boutique pour faire la commande : stock disponible de la variante, moins les
+     * pièces déjà gardées sans commande. Sinon la cliente passe en liste d'attente, comme pour un article épuisé
+     * dans le live (vente en rupture, précommande ou stock non suivi : toujours en stock).
+     */
+    private function inStock(LiveItem $item): bool
+    {
+        $variant = ProductVariant::with('product', 'levels')->find($item->variant_id);
+        $product = $variant?->product;
+        if ($variant === null || $product === null || $product->allow_backorder || $product->preorder_enabled || ! $product->track_inventory) {
+            return true;
+        }
+        $available = (int) $variant->levels->sum(fn ($level) => $level->available());
+        $held = LiveReservation::forStore($item->store_id)->where('status', 'reserved')->whereNull('order_id')
+            ->whereHas('item', fn ($q) => $q->where('variant_id', $item->variant_id))->count();
+
+        return $available - $held > 0;
+    }
+
+    /**
      * Pièces restantes de plusieurs articles en une seule requête (écran du live, affichage, bilans) : id => restantes.
      *
      * @param  Collection<int, LiveItem>  $items
@@ -418,7 +470,7 @@ class LiveSales
                 // Prix du moment (prix flash pendant le chrono) : gardé même si le chrono finit avant la commande
                 'unit_price' => $item->currentPrice(),
                 'source' => $source,
-                'status' => $this->remaining($item) > 0 ? 'reserved' : 'waiting',
+                'status' => $this->remaining($item) > 0 && $this->inStock($item) ? 'reserved' : 'waiting',
                 'customer_name' => filled($customer['name'] ?? null) ? mb_substr(trim($customer['name']), 0, 120) : null,
                 'customer_phone' => $phone,
                 'shipping_place_id' => $placeId,
@@ -501,6 +553,10 @@ class LiveSales
             $items = $items->filter(fn (LiveItem $item) => isset($lines[$item->id]))->values();
         }
         $placeId = isset($customer['place_id']) ? $this->places->forStore($session->store)->firstWhere('id', (int) $customer['place_id'])?->id : null;
+        // Page du live : un quartier choisi mais pas livré (gardé d'une ancienne visite) ne doit pas passer inaperçu
+        if ($source === 'page' && isset($customer['place_id']) && $placeId === null && blank($customer['address'] ?? null)) {
+            throw new BusinessRuleException('Ce quartier n\'est pas livré par la boutique : choisissez-le dans la liste.', 'place_id');
+        }
         $complete = $phone !== null && ($placeId !== null || filled($customer['address'] ?? null));
 
         $created = DB::transaction(function () use ($session, $items, $lines, $customer, $source, $phone, $placeId, $complete) {
@@ -514,7 +570,7 @@ class LiveSales
                         'live_item_id' => $item->id,
                         'unit_price' => $item->currentPrice(),
                         'source' => $source,
-                        'status' => $this->remaining($item) > 0 ? 'reserved' : 'waiting',
+                        'status' => $this->remaining($item) > 0 && $this->inStock($item) ? 'reserved' : 'waiting',
                         'customer_name' => filled($customer['name'] ?? null) ? mb_substr(trim($customer['name']), 0, 120) : null,
                         'customer_phone' => $phone,
                         'shipping_place_id' => $placeId,
@@ -790,7 +846,12 @@ class LiveSales
             throw new BusinessRuleException('Cette cliente n\'a plus de pièce gardée dans ce live.');
         }
 
-        return $this->deliverTo($pending, $place, $address);
+        $order = $this->deliverTo($pending, $place, $address);
+        if ($order === null) {
+            throw new BusinessRuleException('Commande pas créée : '.(Cache::get('live-order-error:'.$pending->first()->id) ?? 'réessayez dans un instant.'));
+        }
+
+        return $order;
     }
 
     /**
@@ -812,7 +873,7 @@ class LiveSales
         if ($code !== null && $this->takeCodes($conversation, $session, $code.' '.$caption, true)) {
             return;
         }
-        $codes = $session->items->pluck('code')->unique()->take(3)->implode(', ');
+        $codes = $session->items->reject(fn (LiveItem $i) => $i->hidden())->pluck('code')->unique()->take(3)->implode(', ');
         $this->reply($conversation, "Nous n'avons pas trouvé le code de l'article sur votre capture. Écrivez-nous le code affiché pendant le live (par exemple {$codes}).");
     }
 
@@ -1292,6 +1353,7 @@ class LiveSales
         $counts = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)
             ->selectRaw('live_item_id, status, count(*) as n')->groupBy('live_item_id', 'status')->get();
         $left = $this->remainingFor($session->items);
+        $errors = $team ? Cache::many($reservations->where('status', 'reserved')->whereNull('order_id')->map(fn (LiveReservation $r) => 'live-order-error:'.$r->id)->values()->all()) : [];
 
         return [
             'id' => $session->id,
@@ -1314,7 +1376,8 @@ class LiveSales
             'pin_ready' => $session->pin_ready_at !== null,
             // Lives payants par palier : commandes comptées, prix atteint, prochain palier (équipe seulement)
             'billing' => $team ? app(LiveBilling::class)->progress($session) : null,
-            'items' => $session->items->map(fn (LiveItem $item) => [
+            // Page publique du live : l'article mystère n'apparaît qu'une fois révélé
+            'items' => $session->items->reject(fn (LiveItem $item) => ! $team && $item->hidden())->map(fn (LiveItem $item) => [
                 'id' => $item->id,
                 'code' => $item->code,
                 'variant_id' => $item->variant_id,
@@ -1332,6 +1395,10 @@ class LiveSales
                 'quantity' => $item->quantity,
                 'remaining' => $left[$item->id],
                 'waiting' => (int) $counts->where('live_item_id', $item->id)->where('status', 'waiting')->sum('n'),
+                // Article mystère : caché des clientes jusqu'à sa révélation (indices pour l'équipe)
+                'mystery' => $item->mystery,
+                'revealed' => $item->revealed_at !== null,
+                'hints' => $team ? array_values((array) $item->mystery_hints) : [],
             ])->values()->all(),
             'reservations' => $reservations->map(fn (LiveReservation $r) => [
                 'id' => $r->id,
@@ -1343,6 +1410,9 @@ class LiveSales
                 'customer_name' => $r->customer_name,
                 'customer_phone' => $r->customer_phone,
                 'shipping_address' => $r->shipping_address,
+                // Quartier connu mais commande pas créée (stock, quota…) : la raison, pour réessayer
+                'shipping_place_id' => $r->shipping_place_id,
+                'order_error' => $r->status === 'reserved' && $r->order_id === null ? ($errors['live-order-error:'.$r->id] ?? null) : null,
                 'order' => $r->order ? ['id' => $r->order->id, 'reference' => $r->order->reference(), 'status' => $r->order->status->value,
                     // Reçu de paiement envoyé par la cliente, à vérifier par la boutique
                     'proof' => $r->order->payment_proof_at !== null] : null,
@@ -1540,11 +1610,14 @@ class LiveSales
                     'items' => $lines,
                 ], null, 'customer');
         } catch (BusinessRuleException|QuotaExceededException $e) {
-            // Commande impossible (stock, quota) : la réservation reste, l'équipe la traite à la main
+            // Commande impossible (stock, quota…) : la réservation reste avec son quartier ; l'équipe voit pourquoi
+            // dans l'application et peut réessayer
             Log::info('Live : commande non créée', ['reservations' => $reservations->pluck('id')->all(), 'error' => $e->getMessage()]);
+            Cache::putMany($reservations->mapWithKeys(fn (LiveReservation $r) => ['live-order-error:'.$r->id => $e->getMessage()])->all(), now()->addDays(3));
 
             return null;
         }
+        Cache::deleteMultiple($reservations->map(fn (LiveReservation $r) => 'live-order-error:'.$r->id)->all());
         LiveReservation::whereIn('id', $reservations->pluck('id'))->update(['status' => 'ordered', 'order_id' => $order->id, 'expires_at' => null]);
 
         return $order->load('items');
@@ -1639,7 +1712,7 @@ class LiveSales
 
             return;
         }
-        $groups = $session->items()->with([...self::VARIANT_RELATIONS, 'variant.image', 'variant.product.images'])->orderBy('position')->get()->groupBy('code')
+        $groups = $session->items()->shown()->with([...self::VARIANT_RELATIONS, 'variant.image', 'variant.product.images'])->orderBy('position')->get()->groupBy('code')
             ->map(function (Collection $group, string $code) {
                 $left = $group->filter(fn (LiveItem $i) => $this->remaining($i) > 0);
                 if ($left->isEmpty()) {

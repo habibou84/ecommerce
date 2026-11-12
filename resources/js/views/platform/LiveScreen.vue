@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import LiveDisplay from '../../components/LiveDisplay.vue'
+import LiveShowStage from '../../components/LiveShowStage.vue'
 import LiveOverlay from '../../components/LiveOverlay.vue'
 import http from '../../lib/http'
+import { audioReady, unlockAudio } from '../../lib/liveSounds'
 
 /**
  * Écran du live (jibiat-marchand.com/ecran) : sur une télé, une tablette ou un ordinateur. Sans compte : l'écran
@@ -98,13 +99,26 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', keepAwake)
 })
 
+// Show du live : le navigateur ne joue un son qu'après un toucher ; TikTok LIVE Studio et OBS l'autorisent d'office
+const soundOn = ref(false)
+const needSound = computed(() => !transparent && !!data.value?.live && data.value.live.show?.settings?.sound !== false && !soundOn.value)
+function enableSound() {
+  unlockAudio()
+  setTimeout(() => (soundOn.value = audioReady()), 300)
+  fullscreen()
+}
+onMounted(() => {
+  unlockAudio()
+  setTimeout(() => (soundOn.value = audioReady()), 500)
+})
+
 const digits = computed(() => (code.value || '····').split(''))
 </script>
 
 <template>
   <div class="fixed inset-0 text-white" :class="transparent ? 'bg-transparent' : 'bg-slate-950'" @dblclick="fullscreen">
     <LiveOverlay v-if="data && format" :data="data" :format="format" />
-    <LiveDisplay v-else-if="data" :data="data" />
+    <LiveShowStage v-else-if="data" :data="data" />
     <!-- « Tester » dans l'application : l'écran se signale -->
     <div v-if="data?.test" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-[3vh] bg-emerald-700 text-center">
       <span class="text-[22vh] leading-none">✅</span>
@@ -126,6 +140,7 @@ const digits = computed(() => (code.value || '····').split(''))
       <button type="button" class="rounded-full bg-white/10 px-5 py-2 text-[2vh] font-semibold" @click="fullscreen">Plein écran</button>
     </div>
 
+    <button v-if="needSound && !data?.test" type="button" class="fixed right-[2vh] top-[9vh] z-40 rounded-full bg-amber-400 px-5 py-2.5 text-[2.2vh] font-black text-slate-900 shadow-2xl" @click.stop="enableSound">🔊 Activer le son du show</button>
     <p v-if="offline" class="fixed bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-4 py-1.5 text-sm font-bold text-slate-900">Connexion perdue · nouvel essai…</p>
   </div>
 </template>

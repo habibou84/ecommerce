@@ -11,8 +11,9 @@ import { useAuthStore } from '../../stores/auth'
 const props = defineProps({
   reservation: { type: Object, required: true },
   busy: { type: Boolean, default: false },
+  failure: { type: String, default: '' }, // commande pas créée : pourquoi, au dernier essai
 })
-const emit = defineEmits(['close', 'place', 'cancel', 'changed'])
+const emit = defineEmits(['close', 'place', 'cancel', 'changed', 'retry'])
 const auth = useAuthStore()
 
 const order = ref(null)
@@ -91,10 +92,12 @@ const proof = computed(() => order.value?.upfront?.payment_proof_at && order.val
       <template v-else>
         <p class="mt-2 text-[14px] text-slate-700">
           <b>{{ r.code }}</b> · {{ money(r.unit_price) }} ·
-          {{ r.status === 'reserved' ? 'gardée : on attend son quartier' : 'liste d\'attente : servie si une pièce se libère' }}
+          {{ r.status === 'reserved' ? (r.shipping_place_id ? 'quartier reçu, mais la commande n\'a pas pu être créée' : 'gardée : on attend son quartier') : 'liste d\'attente : servie si une pièce se libère' }}
         </p>
+        <p v-if="r.status === 'reserved' && r.shipping_place_id" class="mt-2 rounded-xl bg-red-50 p-2.5 text-[13px] font-bold text-red-700">⚠️ {{ failure || r.order_error || 'Raison inconnue : réessayez.' }}<span v-if="r.shipping_address" class="block font-normal text-slate-600">📍 {{ r.shipping_address }}</span></p>
         <div class="mt-3 grid grid-cols-2 gap-2">
-          <button v-if="r.status === 'reserved'" type="button" class="col-span-2 rounded-xl bg-slate-900 py-3 text-[15px] font-black text-white" @click="emit('place', r)">📍 Choisir le quartier</button>
+          <button v-if="r.status === 'reserved' && r.shipping_place_id" type="button" class="col-span-2 rounded-xl bg-emerald-700 py-3 text-[15px] font-black text-white disabled:opacity-60" :disabled="busy" @click="emit('retry', r)">🔁 Créer la commande</button>
+          <button v-if="r.status === 'reserved'" type="button" class="col-span-2 rounded-xl py-3 text-[15px] font-black" :class="r.shipping_place_id ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-white'" @click="emit('place', r)">📍 {{ r.shipping_place_id ? 'Changer le quartier' : 'Choisir le quartier' }}</button>
           <a v-if="phone" :href="`tel:${phone}`" class="rounded-xl bg-slate-100 py-2.5 text-center text-sm font-black">📞 Appeler</a>
           <a v-if="waLink" :href="waLink" target="_blank" rel="noopener" class="rounded-xl bg-[#25d366] py-2.5 text-center text-sm font-black text-white">WhatsApp</a>
           <button type="button" class="col-span-2 rounded-xl border-2 border-red-200 py-2.5 text-sm font-black text-red-700 disabled:opacity-60" :disabled="busy" @click="emit('cancel', r)">Annuler la réservation</button>
