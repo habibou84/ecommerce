@@ -38,6 +38,9 @@ class LiveBilling
         'min_credit' => 500,
         'free_ai' => 20,
         'provider' => 'paydunya',
+        // Assistant Boost : prix par commande venue d'une pub créée par l'assistant, retiré du même crédit
+        'boost_paid' => false,
+        'boost_price' => 300,
     ];
 
     /** Paiements des lives : recharges du crédit, 30 jours ; live_day = ancien pass 24 h (historique) */
@@ -56,7 +59,7 @@ class LiveBilling
         $s = [...self::DEFAULTS, ...array_intersect_key($saved, self::DEFAULTS)];
 
         return collect($s)->map(fn ($v, $k) => match ($k) {
-            'paid' => (bool) $v,
+            'paid', 'boost_paid' => (bool) $v,
             'provider' => (string) $v,
             default => (int) $v,
         })->all();
