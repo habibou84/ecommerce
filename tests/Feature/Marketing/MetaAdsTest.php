@@ -225,6 +225,14 @@ class MetaAdsTest extends TestCase
         $this->storeApi($this->store, 'GET', 'marketing/tracking/meta/'.substr($result, 5))->assertOk()->assertJsonPath('data.businesses.0.name', 'Awa SARL');
         $this->storeApi($this->store, 'GET', "marketing/tracking/meta/relay/{$relay}")->assertJsonPath('data.result', null);
 
+        // Le même retour reçu deux fois (Chrome puis l'application) : le code n'est pas réutilisé chez Meta, même résultat
+        $url = $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect', ['back' => 'boost'])->json('url');
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+        $first = $this->get('http://localhost/reseaux/meta/retour?code=same&state='.rawurlencode($query['state']))->headers->get('Location');
+        $second = $this->get('http://localhost/reseaux/meta/retour?code=same&state='.rawurlencode($query['state']))->headers->get('Location');
+        $this->assertSame($first, $second);
+        $this->assertStringContainsString('?meta=', $second);
+
         // Lancée depuis l'application Android : la page de fin propose d'y retourner
         $connect(['back' => 'boost', 'relay' => str_repeat('cd34', 12), 'app' => true])->assertOk()->assertSee("Retourner dans l'application", false)
             ->assertSee('package=com.jibiat.marchand', false);

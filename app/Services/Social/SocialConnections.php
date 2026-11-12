@@ -118,6 +118,12 @@ class SocialConnections
         if ($code === null || $code === '') {
             return $back.'?erreur='.rawurlencode($error ?: 'Connexion annulée.');
         }
+        // Le même retour peut arriver deux fois (application Facebook, Chrome puis l'application, rechargement) : Meta
+        // n'accepte un code qu'une fois, le résultat du premier passage est donc repris (« code déjà utilisé » sinon)
+        $done = 'meta-code:'.hash('sha256', $code);
+        if (is_string($previous = Cache::get($done))) {
+            return $back.$previous;
+        }
         try {
             $access = $this->ads->token($code);
             $businesses = $this->ads->businesses($access['token']);
@@ -126,6 +132,7 @@ class SocialConnections
             }
             $key = Str::random(40);
             Cache::put('meta-ads:'.$key, ['store' => $store->id, 'user' => $data['user'], 'access' => $access, 'businesses' => $businesses], now()->addMinutes(30));
+            Cache::put($done, '?meta='.$key, now()->addMinutes(30));
 
             return $back.'?meta='.$key;
         } catch (RuntimeException $e) {
