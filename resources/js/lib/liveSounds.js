@@ -1,5 +1,5 @@
-// Sons et musiques du show du live, fabriqués par le navigateur (Web Audio) : aucun fichier, aucun morceau existant
-// (rien que TikTok puisse couper pour droits d'auteur). Cinq ambiances : chacune a sa musique et ses sons des moments.
+// Sons et musiques du show du live. Cinq morceaux de Jibiat Marchand (fichiers de public/audio/live, qui
+// s'enchaînent) et cinq musiques fabriquées par le navigateur (Web Audio). Chaque ambiance a ses sons des moments.
 // Le navigateur ne joue un son qu'après un geste (« Activer le son ») ; TikTok LIVE Studio et OBS l'autorisent d'office.
 let ac = null
 let master = null
@@ -8,10 +8,19 @@ let sfxBus = null
 let noiseBuffer = null
 let shaperCurve = null
 let muted = false
-let ambiance = 'techno'
+let ambiance = 'aqui'
 const VOLUME = 0.9
 
-export const AMBIANCES = ['techno', 'coupe', 'zouglou', 'afro', 'douce']
+// Chansons : fichier, et jeu de sons des moments qui va avec
+const TRACKS = {
+  aqui: '/audio/live/c-est-a-qui-est-a.mp3?v=1',
+  style: '/audio/live/le-style-au-rendez-vous.mp3?v=1',
+  lagune: '/audio/live/soleil-sur-la-lagune.mp3?v=1',
+  gravity: '/audio/live/concrete-gravity.mp3?v=1',
+  noon: '/audio/live/high-noon-in-plateau.mp3?v=1',
+}
+const TRACK_ORDER = Object.keys(TRACKS)
+export const AMBIANCES = [...TRACK_ORDER, 'techno', 'coupe', 'zouglou', 'afro', 'douce']
 
 export function audioReady() {
   return !!ac && ac.state === 'running'
@@ -52,7 +61,7 @@ export function setMuted(value) {
 }
 
 export function setAmbiance(name) {
-  const next = AMBIANCES.includes(name) ? name : 'techno'
+  const next = AMBIANCES.includes(name) ? name : 'aqui'
   if (next === ambiance) return
   ambiance = next
   restartMusic()
@@ -304,7 +313,8 @@ const PACKS = {
 export function play(name) {
   if (!ok()) return
   try {
-    const fn = PACKS[ambiance]?.[name] ?? BASE[name]
+    // Avec une chanson : les sons « fête » (sifflet, cloche, roulements)
+    const fn = PACKS[TRACKS[ambiance] ? 'coupe' : ambiance]?.[name] ?? BASE[name]
     fn?.()
   } catch {
     // un son raté ne gêne pas le live
@@ -401,6 +411,7 @@ const STYLES = {
 function schedule() {
   if (!ac || ac.state !== 'running') return
   const style = STYLES[ambiance]
+  if (!style) return
   const sixteenth = 60 / style.bpm / 4
   // Onglet resté en pause : on repart du présent au lieu de rattraper les notes perdues
   if (nextAt < ac.currentTime - 0.2) nextAt = ac.currentTime + 0.05
@@ -418,16 +429,76 @@ function schedule() {
     step += 1
   }
 }
+// ── Chansons : lues par un lecteur audio branché sur la même sortie ; les temps forts sont repérés dans les basses ──
+let player = null
+let analyser = null
+let trackAt = 0
+let trackTimer = null
+function stopTrack() {
+  clearInterval(trackTimer)
+  trackTimer = null
+  player?.pause()
+}
+function playTrack(key) {
+  if (!player) {
+    player = new Audio()
+    player.preload = 'auto'
+    const source = ac.createMediaElementSource(player)
+    const gain = ac.createGain()
+    gain.gain.value = 0.75
+    analyser = ac.createAnalyser()
+    analyser.fftSize = 512
+    source.connect(analyser)
+    analyser.connect(gain)
+    gain.connect(musicBus)
+    // Fin d'une chanson : la suivante
+    player.addEventListener('ended', () => {
+      if (!musicOn || !TRACKS[ambiance]) return
+      trackAt = (trackAt + 1) % TRACK_ORDER.length
+      player.src = TRACKS[TRACK_ORDER[trackAt]]
+      player.play().catch(() => {})
+    })
+  }
+  trackAt = TRACK_ORDER.indexOf(key)
+  player.src = TRACKS[key]
+  player.play().catch(() => {})
+  const bins = new Uint8Array(analyser.frequencyBinCount)
+  // Temps fort = montée brusque de l'énergie des basses (par rapport à ses montées habituelles)
+  let previous = 0
+  let rise = 4
+  let last = 0
+  trackTimer = setInterval(() => {
+    if (player.paused) return
+    analyser.getByteFrequencyData(bins)
+    const energy = (bins[1] + bins[2] + bins[3] + bins[4] + bins[5]) / 5
+    const jump = Math.max(0, energy - previous)
+    const t = performance.now()
+    if (jump > rise * 1.8 && jump > 6 && t - last > 280) {
+      last = t
+      beatListener?.()
+    }
+    rise = rise * 0.9 + jump * 0.1
+    previous = energy
+  }, 30)
+}
+
 function restartMusic() {
   clearInterval(musicTimer)
   musicTimer = null
+  stopTrack()
   if (!musicOn || !ac) return
+  if (TRACKS[ambiance]) {
+    playTrack(ambiance)
+    return
+  }
   step = 0
   nextAt = ac.currentTime + 0.08
   musicTimer = setInterval(schedule, 25)
 }
 
 export function setMusic(on) {
+  const playing = !!musicTimer || (!!player && !player.paused)
+  if (musicOn === !!on && (playing || !on)) return // déjà dans cet état : on ne recommence pas la chanson
   musicOn = !!on
   restartMusic()
 }

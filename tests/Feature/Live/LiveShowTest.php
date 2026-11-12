@@ -37,7 +37,7 @@ class LiveShowTest extends TestCase
         $this->storeApi($this->store, 'POST', "lives/{$live}/start")->assertOk();
 
         $this->storeApi($this->store, 'GET', "lives/{$live}/display")->assertOk()
-            ->assertJsonPath('data.live.show.settings.theme', 'fete')->assertJsonPath('data.live.show.settings.ambiance', 'techno')->assertJsonPath('data.live.show.settings.sound', true)->assertJsonCount(1, 'data.live.items.0.photos')->assertJsonPath('data.live.show.event', null);
+            ->assertJsonPath('data.live.show.settings.theme', 'fete')->assertJsonPath('data.live.show.settings.ambiance', 'aqui')->assertJsonPath('data.live.show.settings.sound', true)->assertJsonCount(1, 'data.live.items.0.photos')->assertJsonPath('data.live.show.event', null);
         // La roue attend des commandes
         $this->storeApi($this->store, 'POST', "lives/{$live}/show/moment", ['type' => 'wheel'])->assertStatus(422);
 
@@ -48,7 +48,8 @@ class LiveShowTest extends TestCase
 
         $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['theme' => 'neon', 'music' => true, 'light' => true])->assertOk()->assertJsonPath('data.theme', 'neon');
         $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['theme' => 'disco'])->assertStatus(422);
-        $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['ambiance' => 'zouglou'])->assertOk()->assertJsonPath('data.ambiance', 'zouglou')->assertJsonPath('data.theme', 'neon');
+        $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['ambiance' => 'lagune'])->assertOk()->assertJsonPath('data.ambiance', 'lagune');
+        $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['ambiance' => 'noon'])->assertOk()->assertJsonPath('data.ambiance', 'noon')->assertJsonPath('data.theme', 'neon');
         $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['ambiance' => 'disco'])->assertStatus(422);
         $goal = $this->storeApi($this->store, 'POST', "lives/{$live}/show/moment", ['type' => 'goal', 'goal' => 30])->assertOk()->json('data.event');
         $this->assertSame(['goal' => 30], $goal['data']);

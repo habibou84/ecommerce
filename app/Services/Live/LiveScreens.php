@@ -42,13 +42,16 @@ class LiveScreens
 
     public const SHOW_THEMES = ['fete', 'wax', 'neon', 'luxe'];
 
-    /** Ambiances musicales du show (musique et sons des moments, composés par l'écran) */
-    public const SHOW_AMBIANCES = ['techno', 'coupe', 'zouglou', 'afro', 'douce'];
+    /**
+     * Ambiances musicales du show : cinq morceaux de Jibiat Marchand (fichiers dans public/audio/live), puis les
+     * musiques composées par l'écran. Chacune a aussi ses sons des moments.
+     */
+    public const SHOW_AMBIANCES = ['aqui', 'style', 'lagune', 'gravity', 'noon', 'techno', 'coupe', 'zouglou', 'afro', 'douce'];
 
     /** Réglages du show d'un live : thème, ambiance, sons, musique, mode léger (vieilles télés), objectif */
     public function showSettings(LiveSession $session): array
     {
-        return array_merge(['theme' => 'fete', 'ambiance' => 'techno', 'sound' => true, 'music' => false, 'light' => false, 'goal' => null],
+        return array_merge(['theme' => 'fete', 'ambiance' => 'aqui', 'sound' => true, 'music' => false, 'light' => false, 'goal' => null],
             Cache::get('live-show-settings:'.$session->id, []));
     }
 

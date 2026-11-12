@@ -14,9 +14,9 @@ const props = defineProps({
 const emit = defineEmits(['changed'])
 
 const THEMES = [['fete', 'Fête'], ['wax', 'Wax'], ['neon', 'Néon'], ['luxe', 'Luxe']]
-// Ambiances : musique et sons des moments composés par l'écran (aucun morceau existant). Les noms ne promettent pas
-// un genre musical précis (des sons de synthèse ne sonnent pas comme du vrai coupé-décalé ou zouglou) ; les clés restent.
-const AMBIANCES = [['techno', '⚡ Électro'], ['coupe', '🎉 Fête'], ['zouglou', '🥁 Percussions'], ['afro', '🌴 Afro'], ['douce', '🌙 Douce']]
+// Ambiances : d'abord les cinq morceaux de Jibiat Marchand (elles s'enchaînent), puis les musiques composées par
+// l'écran, dont les noms ne promettent pas un genre musical précis. Chacune a ses sons des moments.
+const AMBIANCES = [['aqui', '🎶 C\'est à qui est à'], ['style', '🎶 Le style au rendez-vous'], ['lagune', '🎶 Soleil sur la lagune'], ['gravity', '🎶 Concrete Gravity'], ['noon', '🎶 High Noon in Plateau'], ['techno', '⚡ Électro'], ['coupe', '🎉 Fête'], ['zouglou', '🥁 Percussions'], ['afro', '🌴 Afro'], ['douce', '🌙 Douce']]
 const MOMENTS = [['countdown', '⏱', '3-2-1'], ['party', '🎉', 'Fête'], ['goal', '🎯', 'Objectif'], ['match', '🏆', 'Quartiers'], ['wheel', '🎡', 'Roue']]
 
 const busy = ref(false)
@@ -24,7 +24,7 @@ const error = ref('')
 const goalInput = ref(null)
 const winner = ref(null)
 const local = ref(null) // réglages juste enregistrés, en attendant la prochaine lecture
-const showSettings = computed(() => local.value ?? props.settings ?? { theme: 'fete', ambiance: 'techno', sound: true, music: false, light: false, goal: null })
+const showSettings = computed(() => local.value ?? props.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, goal: null })
 
 async function run(request) {
   busy.value = true
