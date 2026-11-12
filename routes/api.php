@@ -538,6 +538,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('marketing/catalog-feed/renew', [TrackingController::class, 'renewFeed'])->middleware('feature:meta_catalog')->name('catalog-feed.renew');
                 // Pixel et catalogue Meta branchés en un clic (connexion Facebook)
                 Route::post('marketing/tracking/meta/connect', [TrackingController::class, 'metaConnect'])->middleware('feature:meta_connect')->name('tracking.meta.connect');
+                Route::get('marketing/tracking/meta/relay/{relay}', [TrackingController::class, 'metaRelay'])->where('relay', '[a-f0-9]{48}')->middleware(['feature:meta_connect', 'throttle:60,1'])->name('tracking.meta.relay');
                 Route::get('marketing/tracking/meta/{key}', [TrackingController::class, 'metaPending'])->where('key', '[A-Za-z0-9]{40}')->middleware('feature:meta_connect')->name('tracking.meta.pending');
                 Route::post('marketing/tracking/meta/{key}', [TrackingController::class, 'metaSetup'])->where('key', '[A-Za-z0-9]{40}')->middleware('throttle:10,1')->middleware('feature:meta_connect')->name('tracking.meta.setup');
                 Route::delete('marketing/tracking/meta', [TrackingController::class, 'metaDisconnect'])->middleware('feature:meta_connect')->name('tracking.meta.disconnect');

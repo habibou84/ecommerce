@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import http, { errorMessage } from '../../lib/http'
 import { money } from '../../lib/format'
+import { connectFacebookAds } from '../../lib/metaConnect'
 
 /**
  * Assistant Boost : la pub Facebook et Instagram créée depuis l'application en 4 écrans. 1. Que booster (un produit,
@@ -39,6 +40,15 @@ const adAccount = ref(props.from?.ad_account_id ?? '')
 const page = ref(props.from?.page_id ?? '')
 const message = ref(props.from?.message ?? '')
 const audience = ref(null)
+// Connexion Facebook directement d'ici (retour sur le menu Boost)
+async function connectFacebook() {
+  error.value = ''
+  try {
+    await connectFacebookAds('boost')
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
 
 // Produits proposés : meilleures ventes, plus ceux trouvés par la recherche
 const extra = ref([])
@@ -87,7 +97,7 @@ const catalogReady = computed(() => !!setup.value?.catalog_id && !!setup.value?.
 const blocker = computed(() => {
   const s = setup.value
   if (!s) return null
-  if (!s.connected) return { text: 'Connecte d\'abord ton compte Facebook.', to: '/gestion/marketing/suivi', label: 'Connecter Facebook' }
+  if (!s.connected) return { text: 'Connecte d\'abord ton compte Facebook.', connect: true, label: '🔗 Connecter mon Facebook' }
   if (!s.ad_accounts.some((a) => a.usable)) return { text: 'Aucun compte publicitaire actif en FCFA, euros ou dollars.', href: 'https://business.facebook.com/settings/ad-accounts', label: 'Créer un compte publicitaire ↗' }
   if (account.value && !account.value.card) return { text: 'Ajoute une carte à ton compte publicitaire : la pub est payée à Meta.', href: 'https://business.facebook.com/billing_hub/payment_settings', label: 'Ajouter une carte ↗' }
   if (!s.pages.length) return { text: 'Il faut une page Facebook pour publier la pub.', href: 'https://www.facebook.com/pages/create', label: 'Créer une page ↗' }
@@ -182,7 +192,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
     <template v-if="setup">
       <div v-if="blocker" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
         <p class="font-bold">{{ blocker.text }}</p>
-        <RouterLink v-if="blocker.to" :to="blocker.to" class="btn-brand mt-2 w-full justify-center">{{ blocker.label }}</RouterLink>
+        <button v-if="blocker.connect" type="button" class="mt-2 block w-full rounded-xl bg-[#1877f2] py-2.5 text-center text-sm font-black text-white" @click="connectFacebook">{{ blocker.label }}</button>
         <a v-else :href="blocker.href" target="_blank" rel="noopener" class="mt-2 block rounded-xl bg-[#1877f2] py-2.5 text-center text-sm font-black text-white">{{ blocker.label }}</a>
       </div>
 
@@ -222,7 +232,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
             <button v-for="c in setup.collections" :key="c.id" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="collection === c.id ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="collection = c.id">{{ c.name }} · {{ c.products }}</button>
           </div>
           <p v-if="catalogReady" class="text-xs text-emerald-700">✓ Catalogue et pixel reliés. Meta montre à chacun les produits en stock qui lui plaisent.</p>
-          <p v-else class="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-900">Branche d'abord le pixel et le catalogue. <RouterLink to="/gestion/marketing/suivi" class="font-bold underline">Les brancher</RouterLink></p>
+          <p v-else class="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-900">Branche d'abord le pixel et le catalogue. <button type="button" class="font-bold underline" @click="connectFacebook">Connecter mon Facebook</button></p>
         </template>
       </section>
 
