@@ -42,17 +42,20 @@ class LiveScreens
 
     public const SHOW_THEMES = ['fete', 'wax', 'neon', 'luxe'];
 
-    /** Réglages du show d'un live : thème, sons, musique, mode léger (vieilles télés), objectif */
+    /** Ambiances musicales du show (musique et sons des moments, composés par l'écran) */
+    public const SHOW_AMBIANCES = ['techno', 'coupe', 'zouglou', 'afro', 'douce'];
+
+    /** Réglages du show d'un live : thème, ambiance, sons, musique, mode léger (vieilles télés), objectif */
     public function showSettings(LiveSession $session): array
     {
-        return array_merge(['theme' => 'fete', 'sound' => true, 'music' => false, 'light' => false, 'goal' => null],
+        return array_merge(['theme' => 'fete', 'ambiance' => 'techno', 'sound' => true, 'music' => false, 'light' => false, 'goal' => null],
             Cache::get('live-show-settings:'.$session->id, []));
     }
 
     /** @param array<string, mixed> $values */
     public function updateShow(LiveSession $session, array $values): array
     {
-        $settings = array_merge($this->showSettings($session), array_intersect_key($values, array_flip(['theme', 'sound', 'music', 'light', 'goal'])));
+        $settings = array_merge($this->showSettings($session), array_intersect_key($values, array_flip(['theme', 'ambiance', 'sound', 'music', 'light', 'goal'])));
         Cache::put('live-show-settings:'.$session->id, $settings, now()->addDay());
         $session->touch(); // les écrans voient le changement à leur prochaine question (2 secondes)
 
@@ -304,6 +307,9 @@ class LiveScreens
                     'remaining' => (int) $remaining->sum(),
                     'waiting' => (int) $group->sum(fn (LiveItem $i) => $waiting[$i->id] ?? 0),
                     'image' => $image ? ($image->urls()['large'] ?? $image->urls()['medium'] ?? null) : null,
+                    // Écran du show : jusqu'à 3 photos de l'article qui se succèdent (la principale d'abord)
+                    'photos' => collect([$image])->merge($variant?->product?->images ?? [])->filter()->unique('id')->take(3)
+                        ->map(fn ($img) => $img->urls()['large'] ?? $img->urls()['medium'] ?? null)->filter()->values()->all(),
                     // Tailles, couleurs… et ce qui reste de chacune (écran : pastilles)
                     'options' => $group->count() > 1 ? $this->options($group, $remaining->all()) : [],
                 ];
