@@ -240,4 +240,38 @@ class MetaAdsTest extends TestCase
         // Une page de retour inconnue est refusée
         $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect', ['back' => 'ailleurs'])->assertStatus(422);
     }
+
+    public function test_catalogs_and_pixels_chosen_in_the_facebook_window_are_listed_when_the_business_cannot_be_read(): void
+    {
+        // Connexion « Facebook Login for Business » : le compte Business est refusé, mais le jeton garde les choix faits
+        Http::fake([
+            'graph.facebook.com/*/oauth/access_token*' => Http::response(['access_token' => 'system-token']),
+            'graph.facebook.com/*/debug_token*' => Http::response(['data' => ['expires_at' => 0, 'granular_scopes' => [
+                ['scope' => 'business_management', 'target_ids' => ['111']],
+                ['scope' => 'catalog_management', 'target_ids' => ['333333']],
+                ['scope' => 'ads_management', 'target_ids' => ['555']],
+            ]]]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['error' => ['message' => '(#100) Missing Permission', 'code' => 100]], 400),
+            'graph.facebook.com/*/111?*' => Http::response(['id' => '111', 'name' => 'Joli maison']),
+            'graph.facebook.com/*/111/*' => Http::response(['error' => ['message' => '(#100) Missing Permission', 'code' => 100]], 400),
+            'graph.facebook.com/*/333333?*' => Http::response(['id' => '333333', 'name' => 'Catalogue Joli maison', 'product_count' => 38]),
+            'graph.facebook.com/*/act_555/adspixels*' => Http::response(['data' => [['id' => '222222', 'name' => 'Pixel Joli maison']]]),
+            'graph.facebook.com/*/333333/product_feeds*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/333333/product_feeds' => Http::response(['id' => '444']),
+            'graph.facebook.com/*/333333/external_event_sources' => Http::response(['success' => true]),
+        ]);
+        $url = $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect')->json('url');
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+        $back = $this->get('http://localhost/reseaux/meta/retour?code=abc&state='.rawurlencode($query['state']))->headers->get('Location');
+        $key = explode('meta=', $back)[1];
+
+        // La liste montre le catalogue et le pixel choisis dans la fenêtre de Facebook
+        $this->storeApi($this->store, 'GET', "marketing/tracking/meta/{$key}?business=111")->assertOk()
+            ->assertJsonPath('data.assets.catalogs.0', ['id' => '333333', 'name' => 'Catalogue Joli maison', 'products' => 38])
+            ->assertJsonPath('data.assets.pixels.0.id', '222222');
+
+        // Et ce choix est accepté (même validation que pour un catalogue du compte Business)
+        $this->storeApi($this->store, 'POST', "marketing/tracking/meta/{$key}", ['business_id' => '111', 'pixel_id' => '222222', 'catalog_id' => '333333'])->assertOk()
+            ->assertJsonPath('data.meta_pixel_id', '222222')->assertJsonPath('data.meta_connection.catalog_id', '333333');
+    }
 }

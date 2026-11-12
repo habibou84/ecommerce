@@ -131,7 +131,9 @@ class MetaAds
     }
 
     /**
-     * Pixels et catalogues du compte Business (les siens et ceux qu'on lui a partagés).
+     * Pixels et catalogues du compte Business (les siens et ceux qu'on lui a partagés), plus ceux choisis dans la
+     * fenêtre de Facebook : avec la connexion « Facebook Login for Business », le jeton ne peut pas lister le compte
+     * Business, mais les catalogues et comptes publicitaires autorisés sont dans le jeton (debug_token).
      *
      * @return array{pixels: list<array{id: string, name: string}>, catalogs: list<array{id: string, name: string, products: ?int}>}
      */
@@ -147,14 +149,50 @@ class MetaAds
                 }
             }
 
-            return collect($rows)->unique('id')->values()->all();
+            return $rows;
         };
+        $catalogs = $list(['owned_product_catalogs', 'client_product_catalogs'], 'id,name,product_count');
+        $pixels = $list(['owned_pixels', 'client_pixels'], 'id,name');
+
+        // Catalogues autorisés dans la fenêtre de Facebook
+        foreach ($this->granted($token, 'catalog_management') as $id) {
+            try {
+                $catalogs[] = $this->graph->graph('GET', $id, $token, ['fields' => 'id,name,product_count']);
+            } catch (RuntimeException) {
+                // catalogue illisible avec ce jeton : ignoré
+            }
+        }
+        // Pixels des comptes publicitaires autorisés (le pixel d'un compte publicitaire est utilisable pour la boutique)
+        foreach ($this->granted($token, 'ads_management') as $id) {
+            $account = str_starts_with($id, 'act_') ? $id : 'act_'.$id;
+            try {
+                $pixels = array_merge($pixels, $this->graph->graph('GET', $account.'/adspixels', $token, ['fields' => 'id,name', 'limit' => 100])['data'] ?? []);
+            } catch (RuntimeException) {
+                // compte publicitaire illisible : ignoré
+            }
+        }
 
         return [
-            'pixels' => array_map(fn ($p) => ['id' => (string) $p['id'], 'name' => (string) ($p['name'] ?? '')], $list(['owned_pixels', 'client_pixels'], 'id,name')),
-            'catalogs' => array_map(fn ($c) => ['id' => (string) $c['id'], 'name' => (string) ($c['name'] ?? ''), 'products' => isset($c['product_count']) ? (int) $c['product_count'] : null],
-                $list(['owned_product_catalogs', 'client_product_catalogs'], 'id,name,product_count')),
+            'pixels' => collect($pixels)->unique('id')->map(fn ($p) => ['id' => (string) $p['id'], 'name' => (string) ($p['name'] ?? '')])->values()->all(),
+            'catalogs' => collect($catalogs)->unique('id')->map(fn ($c) => ['id' => (string) $c['id'], 'name' => (string) ($c['name'] ?? ''), 'products' => isset($c['product_count']) ? (int) $c['product_count'] : null])->values()->all(),
         ];
+    }
+
+    /**
+     * Identifiants choisis dans la fenêtre de Facebook pour une autorisation (cibles de l'autorisation dans le jeton).
+     *
+     * @return list<string>
+     */
+    private function granted(string $token, string $scope): array
+    {
+        try {
+            $app = config('services.meta.app_id').'|'.config('services.meta.app_secret');
+            $info = $this->graph->graph('GET', 'debug_token', $app, ['input_token' => $token])['data'] ?? [];
+        } catch (RuntimeException) {
+            return [];
+        }
+
+        return collect($info['granular_scopes'] ?? [])->where('scope', $scope)->flatMap(fn ($g) => $g['target_ids'] ?? [])->map(fn ($id) => (string) $id)->unique()->values()->all();
     }
 
     /**
