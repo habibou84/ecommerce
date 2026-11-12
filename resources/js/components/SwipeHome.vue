@@ -57,15 +57,15 @@ const badge = (items) => (items.length ? { n: items.length, level: items.some((i
 const PAGES = [
   { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
     settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/whatsapp', label: 'WhatsApp' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+  // Boost : la pub Facebook et Instagram au même endroit (connexion, pixel, produits à booster, commandes venues des boosts)
+  { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
+    settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
     settings: [{ to: '/gestion/livraisons', label: 'Livraisons en cours' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
     settings: [{ to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' }, { to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' }, { to: '/gestion/statistiques', label: 'Statistiques' }, { to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
   { key: 'shop', name: 'Boutique', icon: '🏪', show: () => canOpen('/gestion/boutique-en-ligne'), badge: () => (s.value.shop?.abandoned ? { n: s.value.shop.abandoned, level: 'orange' } : null),
     settings: [{ to: '/gestion/boutique-en-ligne', label: 'Apparence' }, { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus' }, { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' }] },
-  // Boost : la pub Facebook et Instagram au même endroit (connexion, pixel, produits à booster, commandes venues des boosts)
-  { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
-    settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'items', name: 'Articles', icon: '👗', show: () => canOpen('/gestion/catalogue'), badge: () => (s.value.stock && s.value.stock.out + s.value.stock.low ? { n: s.value.stock.out + s.value.stock.low, level: s.value.stock.out ? 'red' : 'orange' } : null),
     settings: [{ to: '/gestion/collections', label: 'Collections' }, { to: '/gestion/packs', label: 'Packs et prix de gros' }, { to: '/gestion/stock', label: 'Stock détaillé et mouvements' }, { to: '/gestion/stock/commandes', label: 'Fournisseurs et bons de commande' }, { to: '/gestion/catalogue/import', label: 'Importer des produits' }] },
   { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (s.value.unread_messages ? { n: s.value.unread_messages, level: 'orange' } : null), settings: [{ to: '/gestion/parametres', label: 'Informations de l\'espace marchand' }, { to: '/gestion/equipe', label: 'Équipe' }] },
