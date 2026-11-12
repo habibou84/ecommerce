@@ -155,4 +155,46 @@ class MetaAdsTest extends TestCase
         $back = $this->get('http://localhost/reseaux/meta/retour?error=access_denied&state='.rawurlencode($query['state']))->headers->get('Location');
         $this->assertStringStartsWith($this->storeUrl($this->store, '/gestion/marketing/suivi?erreur='), $back);
     }
+
+    public function test_a_refused_pixel_creation_falls_back_on_an_ad_account_and_a_refused_catalog_says_what_to_do(): void
+    {
+        $refused = Http::response(['error' => ['message' => 'Unsupported post request. Object with ID \'111\' does not exist', 'code' => 100]], 400);
+        Http::fake([
+            'graph.facebook.com/*/oauth/access_token*' => Http::sequence()->push(['access_token' => 'short'])->push(['access_token' => 'long-token']),
+            'graph.facebook.com/*/debug_token*' => Http::response(['data' => ['expires_at' => now()->addDays(60)->timestamp]]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['data' => [['id' => '111', 'name' => 'Joli maison']]]),
+            'graph.facebook.com/*/111/owned_pixels*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/111/client_pixels*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/111/owned_product_catalogs?*' => Http::response(['data' => [['id' => '333333', 'name' => 'Catalogue']]]),
+            'graph.facebook.com/*/111/client_product_catalogs*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/111/owned_product_catalogs' => $refused,
+            'graph.facebook.com/*/111/adspixels' => $refused,
+            'graph.facebook.com/*/111/owned_ad_accounts*' => Http::response(['data' => [['id' => 'act_9', 'account_status' => 2], ['id' => 'act_5', 'account_status' => 1]]]),
+            'graph.facebook.com/*/111/client_ad_accounts*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/me/adaccounts*' => Http::response(['data' => [['id' => 'act_5', 'account_status' => 1]]]),
+            'graph.facebook.com/*/act_5/adspixels' => Http::response(['id' => '555555']),
+            'graph.facebook.com/*/333333/product_feeds*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/333333/product_feeds' => Http::response(['id' => '444']),
+            'graph.facebook.com/*/333333/external_event_sources' => Http::response(['success' => true]),
+        ]);
+        $connect = function () {
+            $url = $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect')->json('url');
+            parse_str(parse_url($url, PHP_URL_QUERY), $query);
+            $back = $this->get('http://localhost/reseaux/meta/retour?code=abc&state='.rawurlencode($query['state']))->headers->get('Location');
+
+            return explode('meta=', $back)[1];
+        };
+
+        // Nouveau catalogue refusé : on dit quoi faire, et aucun pixel n'est créé pour rien
+        $key = $connect();
+        $this->storeApi($this->store, 'GET', "marketing/tracking/meta/{$key}?business=111")->assertOk();
+        $this->storeApi($this->store, 'POST', "marketing/tracking/meta/{$key}", ['business_id' => '111', 'pixel_id' => 'new', 'catalog_id' => 'new'])
+            ->assertStatus(422)->assertSeeText('Choisissez un catalogue existant');
+        Http::assertNotSent(fn (Request $r) => $r->method() === 'POST' && str_contains($r->url(), 'adspixels'));
+
+        // Catalogue existant, nouveau pixel refusé pour le compte Business : créé sur le compte publicitaire actif
+        $this->storeApi($this->store, 'POST', "marketing/tracking/meta/{$key}", ['business_id' => '111', 'pixel_id' => 'new', 'catalog_id' => '333333'])->assertOk()
+            ->assertJsonPath('data.meta_pixel_id', '555555')->assertJsonPath('data.meta_connection.catalog_id', '333333');
+        Http::assertNotSent(fn (Request $r) => $r->method() === 'POST' && str_contains($r->url(), 'act_9/adspixels'));
+    }
 }

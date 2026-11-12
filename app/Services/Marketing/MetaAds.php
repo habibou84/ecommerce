@@ -8,6 +8,7 @@ use App\Models\Store;
 use App\Services\WhatsApp\WhatsAppCloud;
 use App\Support\Tenancy;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 
 /**
@@ -20,7 +21,7 @@ class MetaAds
 {
     public const NETWORK = 'meta_ads';
 
-    public const SCOPES = ['business_management', 'catalog_management', 'ads_management'];
+    public const SCOPES = ['business_management', 'catalog_management', 'ads_management', 'pages_show_list', 'pages_read_engagement', 'pages_manage_ads'];
 
     public const FEED_NAME = 'Jibiat Marchand';
 
@@ -166,15 +167,16 @@ class MetaAds
     public function setup(Store $store, int $userId, array $access, array $business, string $pixel, string $catalog): array
     {
         $token = $access['token'];
-        try {
-            if ($pixel === 'new') {
-                $pixel = (string) ($this->graph->graph('POST', $business['id'].'/adspixels', $token, ['name' => $store->name])['id'] ?? '');
-            }
-            if ($catalog === 'new') {
+        // Le catalogue d'abord : s'il est refusé, aucun pixel n'a été créé pour rien
+        if ($catalog === 'new') {
+            try {
                 $catalog = (string) ($this->graph->graph('POST', $business['id'].'/owned_product_catalogs', $token, ['name' => $store->name.' (Jibiat Marchand)'])['id'] ?? '');
+            } catch (RuntimeException $e) {
+                throw new BusinessRuleException('Meta refuse de créer le catalogue pour ce compte Business ('.$e->getMessage().'). Choisissez un catalogue existant, ou créez-le dans le Gestionnaire de commerce de Meta, puis revenez ici le choisir.');
             }
-        } catch (RuntimeException $e) {
-            throw new BusinessRuleException($e->getMessage());
+        }
+        if ($pixel === 'new') {
+            $pixel = $this->createPixel($store, $token, $business['id']);
         }
         if ($pixel === '' || $catalog === '') {
             throw new BusinessRuleException('Meta n\'a pas créé le pixel ou le catalogue : réessayez.');
@@ -202,6 +204,42 @@ class MetaAds
         ])->save();
 
         return $warnings;
+    }
+
+    /**
+     * Nouveau pixel : au nom du compte Business, sinon sur un de ses comptes publicitaires (certains comptes Business,
+     * reliés par « Facebook Login for Business », refusent la création directe : « Unsupported post request »).
+     */
+    private function createPixel(Store $store, string $token, string $businessId): string
+    {
+        try {
+            return (string) ($this->graph->graph('POST', $businessId.'/adspixels', $token, ['name' => $store->name])['id'] ?? '');
+        } catch (RuntimeException $e) {
+            $first = $e;
+        }
+        $accounts = [];
+        foreach ([$businessId.'/owned_ad_accounts', $businessId.'/client_ad_accounts', 'me/adaccounts'] as $edge) {
+            try {
+                $rows = $this->graph->graph('GET', $edge, $token, ['fields' => 'id,account_status', 'limit' => 50])['data'] ?? [];
+            } catch (RuntimeException) {
+                continue;
+            }
+            // Comptes actifs d'abord (account_status 1)
+            usort($rows, fn ($a, $b) => (int) (($b['account_status'] ?? 0) === 1) <=> (int) (($a['account_status'] ?? 0) === 1));
+            $accounts = array_merge($accounts, array_column($rows, 'id'));
+        }
+        foreach (array_unique($accounts) as $account) {
+            try {
+                $id = (string) ($this->graph->graph('POST', $account.'/adspixels', $token, ['name' => $store->name])['id'] ?? '');
+                if ($id !== '') {
+                    return $id;
+                }
+            } catch (RuntimeException) {
+                // compte suivant
+            }
+        }
+
+        throw new BusinessRuleException('Meta refuse de créer le pixel pour ce compte Business ('.$first->getMessage().'). Choisissez un pixel existant, ou créez-le dans le Gestionnaire d\'événements de Meta (Sources de données › Ajouter › Web), puis revenez ici le choisir.');
     }
 
     /**
@@ -236,6 +274,40 @@ class MetaAds
 
         return $account && $account->status === 'active' && ($account->token_expires_at === null || $account->token_expires_at->isFuture())
             ? $account->access_token : null;
+    }
+
+    /**
+     * Vérification du pixel : événements reçus par Meta ces 7 derniers jours (vues, paniers, achats…), relus au plus
+     * une fois par heure. Null si Meta ne répond pas ou si la boutique n'est pas reliée.
+     *
+     * @return array<string, int>|null
+     */
+    public function pixelStats(Store $store): ?array
+    {
+        $pixel = $store->marketingId('meta_pixel_id');
+        $account = $this->account($store);
+        if ($pixel === null || $account === null || $account->status !== 'active') {
+            return null;
+        }
+
+        return Cache::remember('meta-pixel-stats:'.$store->id.':'.$pixel, now()->addHour(), function () use ($pixel, $account) {
+            try {
+                $rows = $this->graph->graph('GET', $pixel.'/stats', $account->access_token, ['aggregation' => 'event', 'start_time' => now()->subDays(7)->timestamp])['data'] ?? [];
+            } catch (RuntimeException) {
+                return null;
+            }
+            $counts = [];
+            foreach ($rows as $row) {
+                foreach ($row['data'] ?? [] as $point) {
+                    $event = (string) ($point['value'] ?? '');
+                    if ($event !== '') {
+                        $counts[$event] = ($counts[$event] ?? 0) + (int) ($point['count'] ?? 0);
+                    }
+                }
+            }
+
+            return $counts;
+        });
     }
 
     public function disconnect(Store $store): void

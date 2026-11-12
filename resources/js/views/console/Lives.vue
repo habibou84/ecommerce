@@ -6,7 +6,7 @@ import { money } from '../../lib/format'
 
 // Lives payants (à part des abonnements) : paliers par nombre de commandes, forfait 30 jours, commandes offertes,
 // crédit minimum, actions IA offertes, interrupteur ; ventes du mois
-const KEYS = ['paid', 'free_upto', 'tier2_upto', 'tier2_price', 'tier3_upto', 'tier3_price', 'top_price', 'month_price', 'free_orders', 'min_credit', 'free_ai']
+const KEYS = ['paid', 'free_upto', 'tier2_upto', 'tier2_price', 'tier3_upto', 'tier3_price', 'top_price', 'month_price', 'free_orders', 'min_credit', 'free_ai', 'boost_paid', 'boost_price']
 const data = ref(null)
 const form = reactive(Object.fromEntries(KEYS.map((k) => [k, 0])))
 const error = ref('')
@@ -69,6 +69,11 @@ async function save() {
           <label class="text-sm font-semibold">Crédit minimum pour ouvrir un live (F)<input v-model.number="form.min_credit" type="number" min="0" class="input mt-1" /></label>
           <label class="text-sm font-semibold">Lives illimités 30 jours (F)<input v-model.number="form.month_price" type="number" min="100" class="input mt-1" /></label>
           <label class="text-sm font-semibold">Actions IA offertes au 1er live<input v-model.number="form.free_ai" type="number" min="0" class="input mt-1" /></label>
+        </div>
+        <h3 class="pt-1 font-bold">Assistant Boost (pubs Facebook et Instagram)</h3>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="flex items-center gap-2 text-sm font-semibold"><input v-model="form.boost_paid" type="checkbox" class="h-5 w-5" />Assistant Boost payant</label>
+          <label class="text-sm font-semibold">Prix par commande venue d'un boost (F)<input v-model.number="form.boost_price" type="number" min="0" class="input mt-1" /></label>
         </div>
         <p class="text-sm text-slate-500">Le prix du palier est retiré du crédit live à la fin de chaque live ; une commande annulée ensuite reste comptée. Recharge par PayDunya (Orange Money, MTN, Moov, Wave, carte). Commandes, crédit ou 30 jours offerts à une boutique : sur sa fiche.</p>
         <button type="button" class="btn-brand" :disabled="busy" @click="save">{{ saved ? '✓ Enregistré' : 'Enregistrer' }}</button>

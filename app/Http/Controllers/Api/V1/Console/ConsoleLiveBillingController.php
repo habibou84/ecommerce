@@ -59,8 +59,10 @@ class ConsoleLiveBillingController extends Controller
             'free_orders' => ['sometimes', 'integer', 'min:0', 'max:100000'],
             'min_credit' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
             'free_ai' => ['sometimes', 'integer', 'min:0', 'max:10000'],
+            'boost_paid' => ['sometimes', 'boolean'],
+            'boost_price' => $money,
         ], [], ['free_upto' => 'gratuit jusqu\'à', 'tier2_upto' => 'palier 2', 'tier3_upto' => 'palier 3', 'month_price' => 'prix des 30 jours',
-            'free_orders' => 'commandes offertes', 'min_credit' => 'crédit minimum', 'free_ai' => 'actions IA offertes']);
+            'free_orders' => 'commandes offertes', 'min_credit' => 'crédit minimum', 'free_ai' => 'actions IA offertes', 'boost_price' => 'prix par commande Boost']);
         $next = [...$this->billing->settings(), ...$data];
         if (! ($next['free_upto'] < $next['tier2_upto'] && $next['tier2_upto'] < $next['tier3_upto'])) {
             throw ValidationException::withMessages(['tier2_upto' => 'Les paliers doivent se suivre : gratuit < palier 2 < palier 3.']);

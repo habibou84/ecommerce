@@ -34,6 +34,8 @@ use App\Http\Controllers\Api\V1\Finance\CashOverviewController;
 use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
 use App\Http\Controllers\Api\V1\InvitationController;
+use App\Http\Controllers\Api\V1\Marketing\BoostAdsController;
+use App\Http\Controllers\Api\V1\Marketing\BoostController;
 use App\Http\Controllers\Api\V1\Marketing\CampaignController;
 use App\Http\Controllers\Api\V1\Marketing\LiveBillingController;
 use App\Http\Controllers\Api\V1\Marketing\LiveController;
@@ -517,6 +519,16 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('promotions/{discount}', [PromotionController::class, 'update'])->whereNumber('discount')->name('promotions.update');
                 Route::delete('promotions/{discount}', [PromotionController::class, 'destroy'])->whereNumber('discount')->name('promotions.destroy');
                 Route::patch('promotions/settings', [PromotionController::class, 'settings'])->name('promotions.settings');
+                // Menu Boost : connexion Facebook, pixel vérifié, produits à booster, commandes venues des boosts
+                Route::get('marketing/boost', [BoostController::class, 'show'])->middleware('feature:boost')->name('boost.show');
+                // Assistant Boost : la pub créée et suivie depuis l'application
+                Route::middleware(['feature:boost', 'feature:boost_ads'])->group(function () {
+                    Route::get('marketing/boost/setup', [BoostAdsController::class, 'setup'])->name('boost.setup');
+                    Route::post('marketing/boost/audience', [BoostAdsController::class, 'audience'])->middleware('throttle:30,1')->name('boost.audience');
+                    Route::get('marketing/boosts', [BoostAdsController::class, 'index'])->name('boosts.index');
+                    Route::post('marketing/boosts', [BoostAdsController::class, 'store'])->middleware('throttle:10,1')->name('boosts.store');
+                    Route::post('marketing/boosts/{boost}/action', [BoostAdsController::class, 'action'])->whereNumber('boost')->middleware('throttle:20,1')->name('boosts.action');
+                });
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
                 Route::post('marketing/catalog-feed/renew', [TrackingController::class, 'renewFeed'])->middleware('feature:meta_catalog')->name('catalog-feed.renew');

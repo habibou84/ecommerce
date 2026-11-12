@@ -22,6 +22,8 @@ class Features
         'meta_messages' => ['group' => 'Meta et réseaux sociaux', 'label' => 'Messenger et Instagram dans Messages', 'description' => 'Les messages Facebook et Instagram des clients dans la boîte Messages.', 'default' => 'hidden'],
         'meta_catalog' => ['group' => 'Meta et réseaux sociaux', 'label' => 'Catalogue Meta', 'description' => 'Flux du catalogue pour Facebook et Instagram.', 'default' => 'hidden'],
         'meta_connect' => ['group' => 'Meta et réseaux sociaux', 'label' => 'Pixel et catalogue Meta en un clic', 'description' => 'Branchement automatique par la connexion Facebook (la saisie manuelle du pixel reste possible).', 'default' => 'hidden'],
+        'boost' => ['group' => 'Meta et réseaux sociaux', 'label' => 'Menu Boost', 'description' => 'Onglet « Boost » : connexion Facebook, pixels vérifiés, booster un produit avec un lien suivi, commandes venues des boosts.', 'default' => 'hidden', 'default_preprod' => 'on'],
+        'boost_ads' => ['group' => 'Meta et réseaux sociaux', 'label' => 'Assistant Boost', 'description' => 'Créer et suivre la pub Facebook et Instagram depuis le menu Boost (un produit, plusieurs ou le catalogue). Demande l\'accès « ads_management » validé par Meta.', 'default' => 'hidden', 'default_preprod' => 'on'],
         'whatsapp_catalog' => ['group' => 'Meta et réseaux sociaux', 'label' => 'Catalogue WhatsApp', 'description' => 'Catalogue relié à Meta et paniers WhatsApp reçus comme commandes.', 'default' => 'hidden'],
         'social_tiktok' => ['group' => 'Meta et réseaux sociaux', 'label' => 'TikTok', 'description' => 'Connexion du compte TikTok et publication des produits.', 'default' => 'hidden'],
         // WhatsApp

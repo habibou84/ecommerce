@@ -45,6 +45,9 @@ function writeStore(key, value) {
 export function useLivePlan(liveRef, productsRef) {
   const key = (name) => `jm.live-${name}.${liveRef.value.id}`
   const done = ref(new Set(readStore(key('plan-done'), [])))
+  // Étape en cours (à l'écran maintenant) et depuis quand : gardée pour reprendre le plan après une coupure
+  const now = ref(readStore(key('plan-now'), null)) // { key, at }
+  watch(now, (v) => writeStore(key('plan-now'), v))
   const minutes = ref(readStore(key('minutes'), 60))
   watch(minutes, (v) => writeStore(key('minutes'), v))
   const save = () => writeStore(key('plan-done'), [...done.value])
@@ -52,17 +55,17 @@ export function useLivePlan(liveRef, productsRef) {
   const steps = computed(() => {
     const articles = productsRef.value.filter((p) => !p.mystery || p.revealed)
     const list = [
-      { key: 'grid-open', kind: 'mode', mode: 'grid', label: '🧩 Vitrine : tous les articles', say: 'Bonsoir à tous ! Voici tout ce que j\'ai pour vous ce soir.', time: '1 min' },
-      { key: 'how-open', kind: 'mode', mode: 'how', label: '🛒 Comment commander', say: 'Pour commander, c\'est simple : regardez le code de l\'article et envoyez-le-moi au numéro de la bio.', time: '30 s' },
+      { key: 'grid-open', kind: 'mode', mode: 'grid', label: '🧩 Vitrine : tous les articles', say: 'Bonsoir à tous ! Voici tout ce que j\'ai pour vous ce soir.', time: '1 min', secs: 60 },
+      { key: 'how-open', kind: 'mode', mode: 'how', label: '🛒 Comment commander', say: 'Pour commander, c\'est simple : regardez le code de l\'article et envoyez-le-moi au numéro de la bio.', time: '30 s', secs: 30 },
     ]
     articles.forEach((p, k) => {
-      list.push({ key: `art-${p.code}`, kind: 'article', code: p.code, label: `📦 ${p.code} en grand · ${p.title}`, say: `Regardez la ${p.code} : la matière, les tailles, comment la porter.`, time: '3 min', skip: p.remaining === 0 })
+      list.push({ key: `art-${p.code}`, kind: 'article', code: p.code, label: `📦 ${p.code} en grand · ${p.title}`, say: `Regardez la ${p.code} : la matière, les tailles, comment la porter.`, time: '3 min', secs: 180, skip: p.remaining === 0 })
       const n = k + 1
-      if (n % 6 === 0 && n < articles.length) list.push({ key: `grid-${n}`, kind: 'mode', mode: 'grid', label: '🧩 Vitrine : ce qui reste', say: 'On fait le point : voici ce qu\'il reste !', time: '30 s' })
-      else if (n % 3 === 0 && n < articles.length) list.push({ key: `how-${n}`, kind: 'mode', mode: 'how', label: '🛒 Rappel : comment commander', say: 'Pour ceux qui viennent d\'arriver : envoyez le code de l\'article au numéro de la bio.', time: '30 s' })
+      if (n % 6 === 0 && n < articles.length) list.push({ key: `grid-${n}`, kind: 'mode', mode: 'grid', label: '🧩 Vitrine : ce qui reste', say: 'On fait le point : voici ce qu\'il reste !', time: '30 s', secs: 30 })
+      else if (n % 3 === 0 && n < articles.length) list.push({ key: `how-${n}`, kind: 'mode', mode: 'how', label: '🛒 Rappel : comment commander', say: 'Pour ceux qui viennent d\'arriver : envoyez le code de l\'article au numéro de la bio.', time: '30 s', secs: 30 })
     })
-    list.push({ key: 'scroll-end', kind: 'mode', mode: 'scroll', label: '🔁 Défilement : dernier tour', say: 'Dernier tour : voici tout ce qu\'il reste, c\'est le moment !', time: '2 min' })
-    list.push({ key: 'grid-end', kind: 'mode', mode: 'grid', label: '🧩 Vitrine finale', say: 'Merci à tous ! Voici ce qu\'il reste, envoyez vite votre code.', time: '1 min' })
+    list.push({ key: 'scroll-end', kind: 'mode', mode: 'scroll', label: '🔁 Défilement : dernier tour', say: 'Dernier tour : voici tout ce qu\'il reste, c\'est le moment !', time: '2 min', secs: 120 })
+    list.push({ key: 'grid-end', kind: 'mode', mode: 'grid', label: '🧩 Vitrine finale', say: 'Merci à tous ! Voici ce qu\'il reste, envoyez vite votre code.', time: '1 min', secs: 60 })
     return list.map((step) => ({ ...step, done: done.value.has(step.key) })).filter((step) => step.done || !step.skip)
   })
   const position = computed(() => {
@@ -77,15 +80,50 @@ export function useLivePlan(liveRef, productsRef) {
     done.value = set
     save()
   }
-  const advance = () => next.value && mark([next.value.key])
-  // Article montré à la main : son étape et celles d'avant sont faites
+  // L'étape à l'écran maintenant (la dernière lancée par le plan)
+  const current = computed(() => (now.value ? steps.value.find((step) => step.key === now.value.key) ?? null : null))
+  const currentIndex = computed(() => (current.value ? steps.value.indexOf(current.value) : -1))
+  // Lancer une étape : elle devient « maintenant », les étapes d'avant sont faites
+  function start(step) {
+    const at = steps.value.findIndex((x) => x.key === step.key)
+    mark(steps.value.slice(0, at + 1).map((x) => x.key))
+    now.value = { key: step.key, at: Date.now() }
+  }
+  const advance = () => next.value && start(next.value)
+  // Étape précédente : l'étape en cours redevient à faire, la précédente revient à l'écran
+  function back() {
+    const at = currentIndex.value
+    if (at < 0) return null
+    const set = new Set(done.value)
+    set.delete(steps.value[at].key)
+    done.value = set
+    save()
+    const prev = steps.value[at - 1] ?? null
+    now.value = prev ? { key: prev.key, at: Date.now() } : null
+    return prev
+  }
+  function restart() {
+    done.value = new Set()
+    save()
+    now.value = null
+  }
+  // Article montré à la main : si c'est l'étape suivante du plan, on avance ; sinon on dit qu'on est sorti du plan
   function reached(code) {
-    const at = steps.value.findIndex((step) => step.key === `art-${code}`)
-    if (at >= 0 && !steps.value[at].done) mark(steps.value.slice(0, at + 1).map((step) => step.key))
+    if (next.value?.kind === 'article' && next.value.code === code) {
+      start(next.value)
+      return true
+    }
+    return false
+  }
+  // « Continuer d'ici » : le plan se recale sur l'article montré
+  function adopt(code) {
+    const step = steps.value.find((x) => x.key === `art-${code}`)
+    if (step) start(step)
+    return !!step
   }
   const plannedEnd = computed(() => (liveRef.value.started_at ? new Date(liveRef.value.started_at).getTime() + minutes.value * 60000 : null))
 
-  return { steps, position, next, following, advance, reached, minutes, plannedEnd }
+  return { steps, position, next, following, current, currentIndex, now, start, advance, back, restart, reached, adopt, minutes, plannedEnd }
 }
 
 /** Journal des moments lancés depuis ce téléphone (pour ne pas reproposer le même moment trop tôt) */

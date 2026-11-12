@@ -235,7 +235,7 @@ class CartService
      */
     public function utmFromQuery(Request $request): array
     {
-        return collect($request->only(['utm_source', 'utm_medium', 'utm_campaign', 'fbclid', 'ttclid']))
+        return collect($request->only(['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'fbclid', 'ttclid']))
             ->filter(fn ($v) => is_string($v) && $v !== '')->map(fn ($v) => mb_substr($v, 0, 100))->all();
     }
 }

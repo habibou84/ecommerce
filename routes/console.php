@@ -162,6 +162,8 @@ Artisan::command('carts:recover', function (CustomerMessenger $messenger) {
     $this->line("{$sent} relance(s) envoyée(s)");
 })->purpose('Relance par WhatsApp des paniers abandonnés');
 
+// Boosts (pubs créées par l'assistant) : état chez Meta, dépense, commandes venues de la pub
+Schedule::command('boosts:sync')->everyFifteenMinutes()->withoutOverlapping()->runInBackground();
 Schedule::command('carts:recover')->hourly()->withoutOverlapping()->runInBackground();
 
 /*
