@@ -3,6 +3,7 @@
 namespace App\Services\Live;
 
 use App\Exceptions\BusinessRuleException;
+use App\Models\ConversationMessage;
 use App\Models\LiveItem;
 use App\Models\LiveReservation;
 use App\Models\LiveScreen;
@@ -16,6 +17,7 @@ use chillerlan\QRCode\Output\QROutputInterface;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -37,8 +39,22 @@ class LiveScreens
     /** Numéro à l'écran : dans la bio (pas de numéro), chiffres espacés, en émojis, coupé en deux */
     public const PHONE_STYLES = ['bio', 'spaced', 'emoji', 'split'];
 
-    /** Show du live : moments lancés depuis le téléphone (compte à rebours, fête, objectif, quartiers, roue) */
-    public const SHOW_MOMENTS = ['countdown', 'party', 'goal', 'match', 'wheel'];
+    /**
+     * Show du live : moments lancés depuis le téléphone. Une fois : compte à rebours, fête, objectif, quartiers, roue,
+     * réaction, question du public, les 3 premiers, carte, comment commander. Qui durent : défi, dernière chance,
+     * annonce de l'article mystère, article mystère (indice, révélation).
+     */
+    public const SHOW_MOMENTS = ['countdown', 'party', 'goal', 'match', 'wheel', 'react', 'question', 'podium', 'map', 'how',
+        'defi', 'defi_stop', 'last', 'announce', 'mystery', 'hint', 'reveal'];
+
+    /** Réactions envoyées sur l'écran (pluie d'émojis) */
+    public const REACTIONS = ['❤️', '🔥', '😂', '👏', '🎁'];
+
+    /** Récompenses du défi du live, écrites à l'écran */
+    public const DEFI_REWARDS = ['delivery' => 'Livraison offerte pour tous', 'gift' => 'Cadeau surprise pour tous', 'draw' => 'Un cadeau tiré au sort'];
+
+    /** Comment faire deviner l'article mystère : boîte cadeau, gros plan qui recule, photo floue qui se précise */
+    public const MYSTERY_MODES = ['box', 'zoom', 'blur'];
 
     public const SHOW_THEMES = ['fete', 'wax', 'neon', 'luxe'];
 
@@ -51,14 +67,14 @@ class LiveScreens
     /** Réglages du show d'un live : thème, ambiance, sons, musique, mode léger (vieilles télés), mode caméra, objectif */
     public function showSettings(LiveSession $session): array
     {
-        return array_merge(['theme' => 'fete', 'ambiance' => 'aqui', 'sound' => true, 'music' => false, 'light' => false, 'camera' => false, 'goal' => null],
+        return array_merge(['theme' => 'fete', 'ambiance' => 'aqui', 'sound' => true, 'music' => false, 'light' => false, 'camera' => false, 'goal' => null, 'mystery_mode' => 'zoom'],
             Cache::get('live-show-settings:'.$session->id, []));
     }
 
     /** @param array<string, mixed> $values */
     public function updateShow(LiveSession $session, array $values): array
     {
-        $settings = array_merge($this->showSettings($session), array_intersect_key($values, array_flip(['theme', 'ambiance', 'sound', 'music', 'light', 'camera', 'goal'])));
+        $settings = array_merge($this->showSettings($session), array_intersect_key($values, array_flip(['theme', 'ambiance', 'sound', 'music', 'light', 'camera', 'goal', 'mystery_mode'])));
         Cache::put('live-show-settings:'.$session->id, $settings, now()->addDay());
         $session->touch(); // les écrans voient le changement à leur prochaine question (2 secondes)
 
@@ -67,37 +83,189 @@ class LiveScreens
 
     /**
      * Moment lancé depuis le téléphone : montré une fois par chaque écran (numéro croissant), oublié après 2 minutes.
-     * Roue de la chance : tirée ici parmi les commandes du live, même résultat sur tous les écrans ; l'écran ne
-     * montre que la commune et le code, la boutique voit le nom dans l'application.
+     * Les moments qui durent (défi, dernière chance, annonce, article mystère) sont gardés dans l'état du show, que
+     * les écrans relisent à chaque question. Roue de la chance : tirée ici parmi les commandes du live ; l'écran ne
+     * montre que la commune et le code, la boutique voit le nom dans l'application. Chaque moment est noté dans le
+     * journal du live (bilan).
      *
+     * @param  array<string, mixed>  $input
      * @return array<string, mixed>
      */
-    public function moment(LiveSession $session, string $type, ?int $goal = null): array
+    public function moment(LiveSession $session, string $type, array $input = []): array
     {
         if (! in_array($type, self::SHOW_MOMENTS, true)) {
             throw new BusinessRuleException('Moment inconnu.');
         }
+        if ($session->status === 'ended') {
+            throw new BusinessRuleException('Ce live est terminé.');
+        }
+        // L'article mystère, le défi et la fin du live se jouent pendant le live (les autres moments s'essaient avant)
+        if ($session->status !== 'live' && in_array($type, ['defi', 'last', 'announce', 'mystery', 'hint', 'reveal'], true)) {
+            throw new BusinessRuleException('Lance d\'abord le live.');
+        }
         $data = [];
         $team = [];
-        if ($type === 'goal') {
-            $goal = max(1, min(1000, (int) ($goal ?: ($this->showSettings($session)['goal'] ?? 0) ?: 30)));
-            $this->updateShow($session, ['goal' => $goal]);
-            $data = ['goal' => $goal];
+        $state = $this->showState($session);
+        $id = (int) round(microtime(true) * 1000);
+        switch ($type) {
+            case 'goal':
+                $goal = max(1, min(1000, (int) (($input['goal'] ?? null) ?: ($this->showSettings($session)['goal'] ?? 0) ?: 30)));
+                $this->updateShow($session, ['goal' => $goal]);
+                $data = ['goal' => $goal];
+                break;
+            case 'wheel':
+                $buyers = $this->buyers($session);
+                if ($buyers->isEmpty()) {
+                    throw new BusinessRuleException('Pas encore de commande dans ce live : la roue tourne parmi les acheteurs.');
+                }
+                $index = random_int(0, $buyers->count() - 1);
+                $data = ['slots' => $buyers->pluck('label')->values()->all(), 'winner' => $index];
+                $team = ['winner' => $buyers[$index]['name'], 'phone' => $buyers[$index]['phone'], 'label' => $buyers[$index]['label']];
+                break;
+            case 'react':
+                $data = ['emoji' => in_array($input['emoji'] ?? null, self::REACTIONS, true) ? $input['emoji'] : self::REACTIONS[0]];
+                break;
+            case 'question':
+                $data = $this->question($session, (int) ($input['message_id'] ?? 0));
+                break;
+            case 'podium':
+                // Les 3 premiers à commander l'article montré : l'écran compte les commandes arrivées après ce moment
+                $code = $session->featured_item_id !== null ? $session->items->firstWhere('id', $session->featured_item_id)?->code : null;
+                if ($code === null) {
+                    throw new BusinessRuleException('Montre d\'abord un article à l\'écran.');
+                }
+                $after = (int) LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->max('id');
+                $data = ['code' => $code, 'after' => $after];
+                break;
+            case 'defi':
+                $from = $this->orderCount($session);
+                $state['defi'] = ['id' => $id, 'from' => $from, 'target' => $from + max(1, min(100, (int) ($input['goal'] ?? 5))),
+                    'reward' => self::DEFI_REWARDS[$input['reward'] ?? 'delivery'] ?? self::DEFI_REWARDS['delivery']];
+                break;
+            case 'defi_stop':
+                $state['defi'] = null;
+                break;
+            case 'last':
+                $state['last_until'] = now()->addSeconds(max(30, min(600, (int) ($input['seconds'] ?? 120))))->toIso8601String();
+                break;
+            case 'announce':
+                if ($this->mysteryCode($session) === null) {
+                    throw new BusinessRuleException('Aucun article mystère : coche « Mystère » sur un article du live.');
+                }
+                $state['announce_at'] = now()->addMinutes(max(1, min(60, (int) ($input['minutes'] ?? 5))))->toIso8601String();
+                break;
+            case 'mystery':
+                $code = $this->mysteryCode($session);
+                if ($code === null) {
+                    throw new BusinessRuleException('Aucun article mystère à révéler : coche « Mystère » sur un article du live.');
+                }
+                $state['mystery'] = ['code' => $code, 'level' => 0];
+                $state['announce_at'] = null;
+                break;
+            case 'hint':
+                if (! $state['mystery']) {
+                    throw new BusinessRuleException('Lance d\'abord l\'article mystère.');
+                }
+                $state['mystery']['level'] = min(3, (int) $state['mystery']['level'] + 1);
+                break;
+            case 'reveal':
+                if (! $state['mystery']) {
+                    throw new BusinessRuleException('Lance d\'abord l\'article mystère.');
+                }
+                $code = $state['mystery']['code'];
+                LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->where('code', $code)->update(['revealed_at' => now()]);
+                $first = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->where('code', $code)->orderBy('position')->orderBy('id')->first();
+                $session->update(['featured_item_id' => $first?->id, 'display_mode' => 'product']);
+                $state['mystery'] = null;
+                $data = ['code' => $code];
+                break;
         }
-        if ($type === 'wheel') {
-            $buyers = $this->buyers($session);
-            if ($buyers->isEmpty()) {
-                throw new BusinessRuleException('Pas encore de commande dans ce live : la roue tourne parmi les acheteurs.');
-            }
-            $index = random_int(0, $buyers->count() - 1);
-            $data = ['slots' => $buyers->pluck('label')->values()->all(), 'winner' => $index];
-            $team = ['winner' => $buyers[$index]['name'], 'phone' => $buyers[$index]['phone'], 'label' => $buyers[$index]['label']];
-        }
-        $event = ['id' => (int) round(microtime(true) * 1000), 'type' => $type, 'data' => $data];
+        Cache::put('live-show-state:'.$session->id, $state, now()->addDay());
+        $event = ['id' => $id, 'type' => $type, 'data' => $data];
         Cache::put('live-show-event:'.$session->id, $event, now()->addMinutes(2));
-        $session->touch();
+        if (! in_array($type, ['hint', 'defi_stop', 'announce'], true)) {
+            $log = $session->show_log ?? [];
+            $log[] = ['type' => $type, 'at' => now()->toIso8601String()];
+            $session->show_log = array_slice($log, -500);
+        }
+        $session->touch(); // enregistre le journal ; les écrans voient le moment à leur prochaine question
 
-        return ['event' => $event, 'team' => $team];
+        return ['event' => $event, 'team' => $team, 'state' => $state];
+    }
+
+    /**
+     * État du show qui dure : défi en cours, fin du live annoncée, article mystère annoncé ou en cours.
+     *
+     * @return array{defi: ?array<string, mixed>, last_until: ?string, announce_at: ?string, mystery: ?array<string, mixed>}
+     */
+    public function showState(LiveSession $session): array
+    {
+        return array_merge(['defi' => null, 'last_until' => null, 'announce_at' => null, 'mystery' => null],
+            Cache::get('live-show-state:'.$session->id, []));
+    }
+
+    /** Prochain article mystère pas encore révélé (dans l'ordre du live) */
+    private function mysteryCode(LiveSession $session): ?string
+    {
+        return LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->where('mystery', true)->whereNull('revealed_at')
+            ->orderBy('position')->orderBy('id')->value('code');
+    }
+
+    private function orderCount(LiveSession $session): int
+    {
+        return LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('status', 'ordered')->distinct()->count('order_id');
+    }
+
+    /**
+     * Question d'une cliente montrée à l'écran : son texte et sa commune si on la connaît (jamais son nom ni son
+     * numéro).
+     *
+     * @return array{text: string, place: ?string}
+     */
+    private function question(LiveSession $session, int $messageId): array
+    {
+        $message = ConversationMessage::forStore($session->store_id)->where('direction', 'in')->with('conversation:id,contact')->find($messageId);
+        $text = trim(preg_replace('/\s+/u', ' ', (string) $message?->body));
+        if ($message === null || $text === '') {
+            throw new BusinessRuleException('Ce message ne peut pas être montré à l\'écran.');
+        }
+        // Commune : celle de sa commande (ou de sa réservation) dans ce live
+        $reservation = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('customer_phone', $message->conversation?->contact)
+            ->with('order:id,shipping_place_id')->latest('id')->get()->first(fn (LiveReservation $r) => ($r->order?->shipping_place_id ?? $r->shipping_place_id) !== null);
+        $placeId = $reservation ? ($reservation->order?->shipping_place_id ?? $reservation->shipping_place_id) : null;
+        $place = $placeId ? Place::with('parent')->find($placeId) : null;
+
+        return ['text' => Str::limit($text, 140), 'place' => $place ? ($place->type === 'neighborhood' && $place->parent ? $place->parent->name : $place->name) : null];
+    }
+
+    /**
+     * Bilan du show d'un live : moments lancés, heure de chaque commande, ventes par article (le téléphone calcule
+     * ce qui a fait vendre : commandes reçues dans les 2 minutes qui suivent chaque moment).
+     *
+     * @return array<string, mixed>
+     */
+    public function bilan(LiveSession $session): array
+    {
+        $orders = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('status', 'ordered')
+            ->whereNotNull('order_id')->selectRaw('order_id, min(created_at) as at')->groupBy('order_id')->orderBy('at')->pluck('at')
+            ->map(fn ($at) => Carbon::parse($at)->toIso8601String())->values()->all();
+        $sold = LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('status', 'ordered')
+            ->selectRaw('live_item_id, count(*) as n')->groupBy('live_item_id')->pluck('n', 'live_item_id');
+        $session->loadMissing('items.variant.product');
+
+        return [
+            'started_at' => $session->started_at?->toIso8601String(),
+            'ended_at' => $session->ended_at?->toIso8601String(),
+            'moments' => $session->show_log ?? [],
+            'orders' => $orders,
+            'items' => $session->items->groupBy('code')->map(fn ($group, $code) => [
+                'code' => (string) $code,
+                'title' => $group->first()->variant?->product?->title ?? 'Article',
+                'sold' => (int) $group->sum(fn (LiveItem $i) => $sold[$i->id] ?? 0),
+                'mystery' => (bool) $group->first()->mystery,
+            ])->values()->all(),
+            'quarters' => $this->quarters($session),
+        ];
     }
 
     /**
@@ -120,7 +288,7 @@ class LiveScreens
     }
 
     /**
-     * Match des quartiers : commandes du live par commune (les 5 premières).
+     * Match des quartiers et carte du live : commandes du live par commune (les 12 premières).
      *
      * @return list<array{name: string, orders: int}>
      */
@@ -134,7 +302,7 @@ class LiveScreens
             $place = $places->get($r->order?->shipping_place_id);
 
             return $place ? ($place->type === 'neighborhood' && $place->parent ? $place->parent->name : $place->name) : null;
-        })->filter()->countBy()->sortDesc()->take(5)->map(fn ($n, $name) => ['name' => (string) $name, 'orders' => (int) $n])->values()->all();
+        })->filter()->countBy()->sortDesc()->take(12)->map(fn ($n, $name) => ['name' => (string) $name, 'orders' => (int) $n])->values()->all();
     }
 
     public function create(): LiveScreen
@@ -273,6 +441,10 @@ class LiveScreens
         // Un produit = un code : ses variantes (tailles, couleurs) sont regroupées sur une seule carte
         $groups = $session->items->sortBy('position')->groupBy('code');
         $left = $sales->remainingFor($session->items);
+        $state = $this->showState($session);
+        // Article mystère : caché de l'écran (vitrine, défilement, article montré) jusqu'à sa révélation
+        $mystery = $state['mystery'] ? $groups->get($state['mystery']['code']) : null;
+        $groups = $groups->reject(fn ($group) => $group->first()->hidden());
         $featured = $session->featured_item_id !== null ? $session->items->firstWhere('id', $session->featured_item_id)?->code : null;
 
         return [
@@ -320,8 +492,26 @@ class LiveScreens
             'orders' => LiveReservation::forStore($session->store_id)->where('live_session_id', $session->id)->where('status', 'ordered')->distinct()->count('order_id'),
             'ticker' => $this->ticker($session),
             // Show : réglages, dernier moment lancé depuis le téléphone, match des quartiers
-            'show' => ['settings' => $this->showSettings($session), 'event' => Cache::get('live-show-event:'.$session->id), 'quarters' => $this->quarters($session)],
+            'show' => ['settings' => $this->showSettings($session), 'event' => Cache::get('live-show-event:'.$session->id), 'quarters' => $this->quarters($session),
+                'state' => ['defi' => $state['defi'], 'last_until' => $state['last_until'], 'announce_at' => $state['announce_at'],
+                    // Mystère en cours : la photo et les indices déjà donnés, sans le nom ni le code de l'article
+                    'mystery' => $mystery ? $this->mysteryView($mystery, (int) $state['mystery']['level']) : null]],
         ];
+    }
+
+    /**
+     * Article mystère tel que le voit l'écran : sa photo (floutée, zoomée ou cachée par l'écran) et les indices donnés.
+     *
+     * @param  Collection<int, LiveItem>  $group
+     * @return array{level: int, hints: list<string>, photo: ?string, focus: array{0: int, 1: int}}
+     */
+    private function mysteryView(Collection $group, int $level): array
+    {
+        $item = $group->first();
+        $image = $item->variant?->product?->images->first() ?? $item->variant?->image;
+
+        return ['level' => $level, 'hints' => array_slice(array_values(array_filter((array) $item->mystery_hints)), 0, $level),
+            'photo' => $image ? ($image->urls()['large'] ?? $image->urls()['medium'] ?? null) : null, 'focus' => [50, 60]];
     }
 
     /**
@@ -365,7 +555,7 @@ class LiveScreens
             $variant = $r->item?->variant;
             $detail = $variant && ! $variant->is_default ? ' ('.str_replace(' / ', ', ', (string) $variant->title).')' : '';
 
-            return ['id' => $r->id, 'text' => ($commune ?? 'Une cliente').' vient de prendre '.$r->item?->code.$detail];
+            return ['id' => $r->id, 'code' => $r->item?->code, 'commune' => $commune, 'text' => ($commune ?? 'Une cliente').' vient de prendre '.$r->item?->code.$detail];
         })->values()->all();
     }
 

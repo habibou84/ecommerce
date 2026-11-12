@@ -14,7 +14,7 @@ class LiveSession extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'display_mode', 'started_at', 'ended_at', 'created_by', 'pin_ready_at', 'orders_until', 'channel'];
+    protected $fillable = ['store_id', 'title', 'status', 'hold_minutes', 'stream_url', 'featured_item_id', 'display_mode', 'started_at', 'ended_at', 'created_by', 'pin_ready_at', 'orders_until', 'channel', 'show_log'];
 
     /** Commandes WhatsApp sans live : ouvertes jusqu'à une heure choisie (ou jusqu'à « Fermer ») */
     public const CHANNEL_WHATSAPP = 'whatsapp';
@@ -27,7 +27,7 @@ class LiveSession extends Model
     protected function casts(): array
     {
         return ['hold_minutes' => 'integer', 'featured_item_id' => 'integer', 'started_at' => 'datetime', 'ended_at' => 'datetime', 'pin_ready_at' => 'datetime',
-            'billed_orders' => 'integer', 'billed_offered' => 'integer', 'billed_amount' => 'integer', 'billed_at' => 'datetime', 'orders_until' => 'datetime'];
+            'billed_orders' => 'integer', 'billed_offered' => 'integer', 'billed_amount' => 'integer', 'billed_at' => 'datetime', 'orders_until' => 'datetime', 'show_log' => 'array'];
     }
 
     public function items(): HasMany

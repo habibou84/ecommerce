@@ -286,13 +286,46 @@ class LiveSales
         if ($session->status === 'ended') {
             throw new BusinessRuleException('Ce live est terminé.');
         }
-        if ($itemId !== null && LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->whereKey($itemId)->doesntExist()) {
+        $item = $itemId !== null ? LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->find($itemId) : null;
+        if ($itemId !== null && $item === null) {
             throw new BusinessRuleException('Cet article n\'est pas dans le live.', 'item_id');
+        }
+        if ($item?->hidden()) {
+            throw new BusinessRuleException('C\'est l\'article mystère : révèle-le avec « Article mystère » pour le montrer.', 'item_id');
         }
         // Article choisi : les écrans du live le montrent (fin du défilement ou de « Comment commander »)
         $session->update(['featured_item_id' => $itemId] + ($itemId !== null ? ['display_mode' => 'product'] : []));
 
         return $session;
+    }
+
+    /**
+     * Article mystère : caché des clientes (écrans, liste envoyée, étiquette) jusqu'à sa révélation pendant le live,
+     * avec jusqu'à 3 indices donnés un par un. Toutes les tailles et couleurs du même code suivent.
+     *
+     * @param  list<string>  $hints
+     */
+    public function mystery(LiveSession $session, string $code, bool $mystery, array $hints = []): LiveSession
+    {
+        if ($session->status === 'ended') {
+            throw new BusinessRuleException('Ce live est terminé.');
+        }
+        $items = LiveItem::forStore($session->store_id)->where('live_session_id', $session->id)->where('code', $code)->get();
+        if ($items->isEmpty()) {
+            throw new BusinessRuleException('Cet article n\'est pas dans le live.', 'code');
+        }
+        if ($mystery && $items->contains(fn (LiveItem $i) => $i->revealed_at !== null)) {
+            throw new BusinessRuleException('Cet article a déjà été révélé.', 'code');
+        }
+        $hints = array_values(array_slice(array_filter(array_map(fn ($h) => trim((string) $h), $hints)), 0, 3));
+        LiveItem::forStore($session->store_id)->whereIn('id', $items->pluck('id'))->update(['mystery' => $mystery, 'mystery_hints' => $mystery && $hints ? json_encode($hints, JSON_UNESCAPED_UNICODE) : null]);
+        // Article montré devenu mystère : l'écran ne doit plus le montrer
+        if ($mystery && $items->contains('id', $session->featured_item_id)) {
+            $session->update(['featured_item_id' => null]);
+        }
+        $session->touch();
+
+        return $session->fresh();
     }
 
     /**
@@ -812,7 +845,7 @@ class LiveSales
         if ($code !== null && $this->takeCodes($conversation, $session, $code.' '.$caption, true)) {
             return;
         }
-        $codes = $session->items->pluck('code')->unique()->take(3)->implode(', ');
+        $codes = $session->items->reject(fn (LiveItem $i) => $i->hidden())->pluck('code')->unique()->take(3)->implode(', ');
         $this->reply($conversation, "Nous n'avons pas trouvé le code de l'article sur votre capture. Écrivez-nous le code affiché pendant le live (par exemple {$codes}).");
     }
 
@@ -1314,7 +1347,8 @@ class LiveSales
             'pin_ready' => $session->pin_ready_at !== null,
             // Lives payants par palier : commandes comptées, prix atteint, prochain palier (équipe seulement)
             'billing' => $team ? app(LiveBilling::class)->progress($session) : null,
-            'items' => $session->items->map(fn (LiveItem $item) => [
+            // Page publique du live : l'article mystère n'apparaît qu'une fois révélé
+            'items' => $session->items->reject(fn (LiveItem $item) => ! $team && $item->hidden())->map(fn (LiveItem $item) => [
                 'id' => $item->id,
                 'code' => $item->code,
                 'variant_id' => $item->variant_id,
@@ -1332,6 +1366,10 @@ class LiveSales
                 'quantity' => $item->quantity,
                 'remaining' => $left[$item->id],
                 'waiting' => (int) $counts->where('live_item_id', $item->id)->where('status', 'waiting')->sum('n'),
+                // Article mystère : caché des clientes jusqu'à sa révélation (indices pour l'équipe)
+                'mystery' => $item->mystery,
+                'revealed' => $item->revealed_at !== null,
+                'hints' => $team ? array_values((array) $item->mystery_hints) : [],
             ])->values()->all(),
             'reservations' => $reservations->map(fn (LiveReservation $r) => [
                 'id' => $r->id,
@@ -1639,7 +1677,7 @@ class LiveSales
 
             return;
         }
-        $groups = $session->items()->with([...self::VARIANT_RELATIONS, 'variant.image', 'variant.product.images'])->orderBy('position')->get()->groupBy('code')
+        $groups = $session->items()->shown()->with([...self::VARIANT_RELATIONS, 'variant.image', 'variant.product.images'])->orderBy('position')->get()->groupBy('code')
             ->map(function (Collection $group, string $code) {
                 $left = $group->filter(fn (LiveItem $i) => $this->remaining($i) > 0);
                 if ($left->isEmpty()) {

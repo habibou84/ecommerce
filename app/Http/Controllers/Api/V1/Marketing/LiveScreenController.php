@@ -110,7 +110,7 @@ class LiveScreenController extends Controller
         $data = $request->validate([
             'theme' => ['sometimes', Rule::in(LiveScreens::SHOW_THEMES)],
             'ambiance' => ['sometimes', Rule::in(LiveScreens::SHOW_AMBIANCES)],
-            'sound' => ['sometimes', 'boolean'], 'music' => ['sometimes', 'boolean'], 'light' => ['sometimes', 'boolean'], 'camera' => ['sometimes', 'boolean'],
+            'sound' => ['sometimes', 'boolean'], 'music' => ['sometimes', 'boolean'], 'light' => ['sometimes', 'boolean'], 'camera' => ['sometimes', 'boolean'], 'mystery_mode' => ['sometimes', Rule::in(LiveScreens::MYSTERY_MODES)],
             'goal' => ['sometimes', 'nullable', 'integer', 'between:1,1000'],
         ]);
 
@@ -118,13 +118,30 @@ class LiveScreenController extends Controller
     }
 
     /**
-     * Moment lancé depuis le téléphone : 3-2-1, fête, objectif, match des quartiers, roue de la chance.
+     * Moment lancé depuis le téléphone : 3-2-1, fête, objectif, quartiers, roue, réaction, question du public, les 3
+     * premiers, carte, comment commander, défi, dernière chance, article mystère (annonce, indice, révélation).
      */
     public function moment(Request $request, int $session): JsonResponse
     {
-        $data = $request->validate(['type' => ['required', Rule::in(LiveScreens::SHOW_MOMENTS)], 'goal' => ['nullable', 'integer', 'between:1,1000']]);
+        $data = $request->validate([
+            'type' => ['required', Rule::in(LiveScreens::SHOW_MOMENTS)],
+            'goal' => ['nullable', 'integer', 'between:1,1000'],
+            'emoji' => ['nullable', Rule::in(LiveScreens::REACTIONS)],
+            'message_id' => ['required_if:type,question', 'nullable', 'integer'],
+            'reward' => ['nullable', Rule::in(array_keys(LiveScreens::DEFI_REWARDS))],
+            'seconds' => ['nullable', 'integer', 'between:30,600'],
+            'minutes' => ['nullable', 'integer', 'between:1,60'],
+        ]);
 
-        return response()->json(['data' => $this->screens->moment(LiveSession::findOrFail($session), $data['type'], $data['goal'] ?? null)]);
+        return response()->json(['data' => $this->screens->moment(LiveSession::findOrFail($session), $data['type'], $data)]);
+    }
+
+    /**
+     * Bilan du show d'un live : moments lancés, heure des commandes, ventes par article.
+     */
+    public function bilan(int $session): JsonResponse
+    {
+        return response()->json(['data' => $this->screens->bilan(LiveSession::findOrFail($session))]);
     }
 
     /**

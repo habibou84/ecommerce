@@ -3,8 +3,10 @@
  * qui a changé depuis la dernière étiquette partagée.
  */
 export function pinCodes(items = []) {
-  const all = [...new Set(items.map((i) => i.code))]
-  const left = all.filter((code) => items.some((i) => i.code === code && i.remaining > 0))
+  // L'article mystère n'y est qu'une fois révélé
+  const shown = items.filter((i) => !i.mystery || i.revealed)
+  const all = [...new Set(shown.map((i) => i.code))]
+  const left = all.filter((code) => shown.some((i) => i.code === code && i.remaining > 0))
   return left.length ? left : all
 }
 

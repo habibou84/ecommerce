@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToStore;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,11 +15,24 @@ class LiveItem extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'live_session_id', 'variant_id', 'code', 'price', 'flash_price', 'flash_ends_at', 'quantity', 'position'];
+    protected $fillable = ['store_id', 'live_session_id', 'variant_id', 'code', 'price', 'flash_price', 'flash_ends_at', 'quantity', 'position', 'mystery', 'mystery_hints', 'revealed_at'];
 
     protected function casts(): array
     {
-        return ['price' => 'integer', 'flash_price' => 'integer', 'flash_ends_at' => 'datetime', 'quantity' => 'integer', 'position' => 'integer'];
+        return ['price' => 'integer', 'flash_price' => 'integer', 'flash_ends_at' => 'datetime', 'quantity' => 'integer', 'position' => 'integer',
+            'mystery' => 'boolean', 'mystery_hints' => 'array', 'revealed_at' => 'datetime'];
+    }
+
+    /** Article mystère pas encore révélé : caché des écrans, de la liste envoyée aux clients et de l'étiquette */
+    public function hidden(): bool
+    {
+        return $this->mystery && $this->revealed_at === null;
+    }
+
+    /** Articles visibles des clients (les articles mystère seulement une fois révélés) */
+    public function scopeShown(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->where('mystery', false)->orWhereNotNull('revealed_at'));
     }
 
     /** Vente flash en cours : prix live jusqu'à la fin du chrono */

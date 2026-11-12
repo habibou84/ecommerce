@@ -124,7 +124,7 @@ watch(() => (live.value ? live.value.ticker?.[0]?.id ?? 0 : undefined), (id, bef
 })
 const tickerText = computed(() => {
   const list = (live.value?.ticker ?? []).map((t) => `🎉 ${t.text}`)
-  const quarters = (show.value?.quarters ?? []).map((q) => `📍 ${q.name} : ${q.orders} commande${q.orders > 1 ? 's' : ''}`)
+  const quarters = (show.value?.quarters ?? []).slice(0, 5).map((q) => `📍 ${q.name} : ${q.orders} commande${q.orders > 1 ? 's' : ''}`)
   return [`🔴 ${live.value?.orders ?? 0} commande${(live.value?.orders ?? 0) > 1 ? 's' : ''} pendant ce live`, ...list, ...quarters, '✨ Nouveaux articles toute la soirée', phoneLine.value]
 })
 
@@ -158,15 +158,27 @@ let seen = null
 let timers = []
 const later = (fn, ms) => timers.push(setTimeout(fn, ms))
 const clearTimers = () => { timers.forEach(clearTimeout); timers = [] }
-watch(() => show.value?.event?.id, (id) => {
-  if (!id) return
-  if (seen === null) { seen = id; if (Date.now() - id > 20000) return } else if (id <= seen) return
-  seen = id
-  if (Date.now() - id > 20000) return
-  start(show.value.event)
-}, { immediate: true })
 function finish(ms) { later(() => (moment.value = null), ms) }
 function start(event) {
+  // Moments qui ne prennent pas tout l'écran, ou qui suivent l'état du show (défi, mystère, fin du live…)
+  const quick = {
+    react: () => react(event.data.emoji),
+    question: () => ask(event.data),
+    podium: () => startPodium(event.data),
+    map: startMap,
+    how: () => { interlude.value = true; lastInterlude = Date.now(); play('whoosh'); setTimeout(() => (interlude.value = false), 7000) },
+    defi: () => play('whoosh'),
+    defi_stop: () => {},
+    last: () => { play('buzzer'); boost(30) },
+    announce: () => play('whoosh'),
+    mystery: () => { play('show'); boost(30) },
+    hint: () => { play('pop'); setTimeout(() => play('ding'), 150) },
+    reveal: () => { whiteKey.value += 1; play('goal'); boost(10); burst('confetti', 0.5, 0.45) },
+  }
+  if (quick[event.type]) {
+    quick[event.type]()
+    return
+  }
   clearTimers()
   moment.value = { ...event }
   if (event.type === 'countdown') {
@@ -243,8 +255,148 @@ const interTimer = setInterval(() => {
   play('whoosh')
   setTimeout(() => (interlude.value = false), 7000)
 }, 5000)
+// ═══ Live interactif ═══
+const state = computed(() => show.value?.state ?? {})
+
+// Réactions : pluie d'émojis depuis le bas (calculée par l'écran)
+const rain = ref([])
+let rainId = 0
+function react(e) {
+  const drops = Array.from({ length: light.value ? 8 : 22 }, () => ({ id: ++rainId, e, left: 5 + Math.random() * 90, s: 3 + Math.random() * 4, d: 2.2 + Math.random() * 1.8, dx: Math.random() * 16 - 8, r: Math.random() * 40 - 20, delay: Math.random() * 0.8 }))
+  rain.value = [...rain.value, ...drops].slice(-60)
+  const ids = new Set(drops.map((d) => d.id))
+  setTimeout(() => (rain.value = rain.value.filter((d) => !ids.has(d.id))), 5200)
+  play('pop')
+}
+
+// Question du public : le texte et la commune, jamais le nom ni le numéro
+const bubble = ref(null)
+let bubbleTimer
+function ask(data) {
+  bubble.value = { ...data, key: Date.now() }
+  play('whoosh')
+  setTimeout(() => play('ding'), 300)
+  clearTimeout(bubbleTimer)
+  bubbleTimer = setTimeout(() => (bubble.value = null), 9000)
+}
+
+// Les 3 premiers à commander l'article : podium rempli avec les communes des commandes qui arrivent
+const podium = ref(null)
+let podiumTimer
+function startPodium(data) {
+  podium.value = { ...data, who: [] }
+  play('fanfare')
+  boost(20)
+  clearTimeout(podiumTimer)
+  podiumTimer = setTimeout(() => (podium.value = null), 90000)
+}
+// Carte du live : les communes des commandes, une onde à chaque nouvelle commande
+const mapOn = ref(false)
+const ripples = ref([])
+let mapTimer
+function startMap() {
+  mapOn.value = true
+  play('whoosh')
+  clearTimeout(mapTimer)
+  mapTimer = setTimeout(() => (mapOn.value = false), 14000)
+}
+// Carte simplifiée d'Abidjan : position des communes (en % du cadre)
+const MAP = { Anyama: [50, 6], Abobo: [52, 17], Adjamé: [46, 33], Attécoubé: [35, 38], Plateau: [51, 48], Cocody: [68, 37], Bingerville: [88, 34], Yopougon: [19, 40], Songon: [5, 45], Treichville: [48, 66], Marcory: [62, 70], Koumassi: [77, 72], 'Port-Bouët': [64, 88] }
+const pins = computed(() => {
+  const rows = show.value?.quarters ?? []
+  const max = Math.max(1, ...rows.map((r) => r.orders))
+  return Object.entries(MAP).map(([name, [x, y]]) => {
+    const n = rows.find((r) => r.name === name)?.orders ?? 0
+    return { name, x, y, n, r: 1.4 + Math.sqrt(n) * 1.6, top: n > 0 && n === max }
+  })
+})
+const otherPlaces = computed(() => (show.value?.quarters ?? []).filter((r) => !MAP[r.name]))
+// Nouvelles commandes : podium et carte
+watch(() => live.value?.ticker?.[0]?.id ?? 0, () => {
+  const ticker = live.value?.ticker ?? []
+  const p = podium.value
+  if (p && p.who.length < 3) {
+    const fresh = ticker.filter((t) => t.id > p.after && t.code === p.code && !p.who.some((w) => w.id === t.id)).sort((a, b) => a.id - b.id)
+    for (const t of fresh.slice(0, 3 - p.who.length)) p.who.push({ id: t.id, place: t.commune || 'Une cliente' })
+    if (p.who.length === 3) {
+      setTimeout(() => { play('goal'); burst('firework', 0.5, 0.3) }, 500)
+      clearTimeout(podiumTimer)
+      podiumTimer = setTimeout(() => (podium.value = null), 5000)
+    }
+  }
+  if (mapOn.value) {
+    for (const t of ticker.slice(0, 3)) {
+      const pos = MAP[t.commune]
+      if (pos && !ripples.value.some((r) => r.id === t.id)) {
+        ripples.value.push({ id: t.id, x: pos[0], y: pos[1] })
+        setTimeout(() => (ripples.value = ripples.value.filter((r) => r.id !== t.id)), 1300)
+      }
+    }
+  }
+})
+
+// Défi du live : barre en haut, puis « Défi réussi ! » une fois (gardé si l'écran se recharge)
+const defi = computed(() => state.value.defi ?? null)
+const celebrated = ref((() => {
+  try {
+    return Number(sessionStorage.getItem('jm.defi-done')) || 0
+  } catch {
+    return 0
+  }
+})())
+const unlock = ref(false)
+const defiOn = computed(() => !!defi.value && celebrated.value !== defi.value.id)
+const defiLeft = computed(() => (defi.value ? Math.max(0, defi.value.target - (live.value?.orders ?? 0)) : 0))
+const defiFill = computed(() => (defi.value ? Math.min(100, (((live.value?.orders ?? 0) - defi.value.from) / Math.max(1, defi.value.target - defi.value.from)) * 100) : 0))
+watch(() => [defi.value?.id, live.value?.orders], () => {
+  if (!defiOn.value || defiLeft.value > 0) return
+  celebrated.value = defi.value.id
+  try {
+    sessionStorage.setItem('jm.defi-done', String(defi.value.id))
+  } catch {
+    // sans stockage : la fête ne revient qu'au rechargement
+  }
+  setTimeout(() => {
+    unlock.value = true
+    play('goal')
+    boost(10)
+    burst('firework', 0.3, 0.3)
+    setTimeout(() => burst('firework', 0.7, 0.35), 300)
+    setTimeout(() => burst('confetti', 0.5, 0.5), 600)
+    setTimeout(() => (unlock.value = false), 5500)
+  }, 700)
+})
+
+// Dernière chance : bord rouge qui bat et compte à rebours, puis « Merci ! »
+const lastLeft = computed(() => (state.value.last_until ? Math.max(0, Math.round((new Date(state.value.last_until).getTime() - nowMs.value) / 1000)) : 0))
+const bye = ref(false)
+watch(lastLeft, (n, was) => {
+  if (n > 0 && n % 4 === 0) play('beat')
+  if (n === 0 && was > 0) {
+    bye.value = true
+    play('fanfare')
+    burst('confetti', 0.5, 0.4)
+    setTimeout(() => (bye.value = false), 10000)
+  }
+})
+const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+
+// Article mystère : annoncé à l'avance, puis deviné indice par indice (boîte, gros plan qui recule, flou qui se précise)
+const mystery = computed(() => state.value.mystery ?? null)
+const annLeft = computed(() => (state.value.announce_at && !mystery.value ? Math.max(0, Math.round((new Date(state.value.announce_at).getTime() - nowMs.value) / 1000)) : 0))
+const mysteryMode = computed(() => settings.value.mystery_mode || 'zoom')
+const mysteryStyle = computed(() => {
+  const m = mystery.value
+  if (!m) return {}
+  const level = Math.min(3, m.level)
+  if (mysteryMode.value === 'zoom') return { transformOrigin: `${m.focus?.[0] ?? 50}% ${m.focus?.[1] ?? 60}%`, transform: `scale(${[5, 3.4, 2.2, 1.5][level]})` }
+  return { transform: 'scale(1.1)', filter: `blur(calc(var(--u) * ${[3.2, 2, 1.1, 0.5][level]})) saturate(1.3)` }
+})
+watch(nowMs, () => mystery.value && play('wheel'))
+const whiteKey = ref(0)
+
 // Grand moment ou vente flash : l'écran entier, sans l'article derrière
-const fullscreen = computed(() => (!!moment.value && moment.value.type !== 'party') || !!flashItem.value)
+const fullscreen = computed(() => (!!moment.value && moment.value.type !== 'party') || !!flashItem.value || !!podium.value || mapOn.value || !!mystery.value || unlock.value || bye.value)
 const showHow = computed(() => !live.value || mode.value === 'how' || interlude.value || !shown.value)
 
 // ── Confettis et feux d'artifice (canvas, seulement pendant l'effet) ──
@@ -282,6 +434,15 @@ function draw() {
   raf = parts.length ? requestAnimationFrame(draw) : (cx.clearRect(0, 0, cv.width, cv.height), null)
 }
 
+// Placé après tout le reste : un moment déjà en cours au chargement utilise des valeurs déclarées plus haut
+watch(() => show.value?.event?.id, (id) => {
+  if (!id) return
+  if (seen === null) { seen = id; if (Date.now() - id > 20000) return } else if (id <= seen) return
+  seen = id
+  if (Date.now() - id > 20000) return
+  start(show.value.event)
+}, { immediate: true })
+
 onUnmounted(() => {
   observer?.disconnect()
   clearInterval(rotate)
@@ -290,6 +451,9 @@ onUnmounted(() => {
   clearInterval(viewTimer)
   onBeat(null)
   clearTimeout(comboTimer)
+  clearTimeout(bubbleTimer)
+  clearTimeout(podiumTimer)
+  clearTimeout(mapTimer)
   clearTimers()
   cancelAnimationFrame(raf)
   setMusic(false)
@@ -362,8 +526,29 @@ onUnmounted(() => {
 
     <div v-if="spotKey" :key="`spot${spotKey}`" class="spot" aria-hidden="true" />
     <div v-if="combo >= 2 && !fullscreen" :key="`c${combo}`" class="combo">🔥 {{ combo }} commandes d'affilée !</div>
-    <div class="toasts">
+    <div class="toasts" :class="{ low: fullscreen }">
       <div v-for="t in toasts" :key="t.id" class="toast">🎉 {{ t.text }}</div>
+    </div>
+
+    <!-- Défi en cours, article mystère annoncé, dernière chance -->
+    <div v-if="defiOn && !unlock" class="defi">
+      <p>🎯 Défi : encore {{ defiLeft }} commande{{ defiLeft > 1 ? 's' : '' }} → 🎁 {{ defi.reward }}</p>
+      <div class="dbar"><i :style="{ width: `${defiFill}%` }" /></div>
+    </div>
+    <div v-if="annLeft > 0" class="ann">🎁 Article mystère dans {{ clock(annLeft) }}</div>
+    <template v-if="lastLeft > 0">
+      <div class="lastv" aria-hidden="true" />
+      <div class="lastb">⏳ Dernière chance · {{ clock(lastLeft) }}</div>
+    </template>
+    <!-- Question du public -->
+    <div v-if="bubble" :key="bubble.key" class="bubble">
+      <small>💬 {{ bubble.place ? `QUESTION DE ${bubble.place.toUpperCase()}` : 'QUESTION D\'UNE CLIENTE' }}</small>
+      <p>« {{ bubble.text }} »</p>
+      <span class="mic">🎙️ Je réponds en direct</span>
+    </div>
+    <!-- Réactions -->
+    <div class="rain" aria-hidden="true">
+      <span v-for="d in rain" :key="d.id" class="drop" :style="{ left: `${d.left}%`, '--s': `${d.s}em`, '--d': `${d.d}s`, '--dx': `${d.dx}em`, '--r': `${d.r}deg`, animationDelay: `${d.delay}s` }">{{ d.e }}</span>
     </div>
     <div class="ticker"><div :key="tickerText.join()"><span v-for="(t, i) in tickerText" :key="i">{{ t }}</span></div></div>
 
@@ -403,6 +588,58 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- Article mystère -->
+    <div v-if="mystery" class="overlay">
+      <div class="mystery">
+        <p class="kicker">Devine dans les commentaires !</p>
+        <h2>ARTICLE MYSTÈRE</h2>
+        <div class="mbox">
+          <div v-if="mysteryMode === 'box' || !mystery.photo" class="gbox">🎁</div>
+          <img v-else :src="mystery.photo" alt="" :style="mysteryStyle">
+        </div>
+        <div class="mhint">
+          <template v-if="mystery.hints.length"><span v-for="h in mystery.hints" :key="h">💡 {{ h }}</span></template>
+          <template v-else>Premier indice dans un instant…</template>
+        </div>
+      </div>
+    </div>
+    <!-- Les 3 premiers -->
+    <div v-else-if="podium" class="overlay">
+      <div class="podium">
+        <p class="kicker">Les 3 premiers à commander la {{ podium.code }} gagnent un cadeau</p>
+        <h2>🥇 Qui sera le premier ?</h2>
+        <div class="steps3">
+          <div v-for="rank in [2, 1, 3]" :key="rank" class="step3">
+            <div :key="podium.who[rank - 1]?.id ?? `e${rank}`" class="who" :class="{ in: podium.who[rank - 1] }">{{ podium.who[rank - 1] ? `${['🥇', '🥈', '🥉'][rank - 1]} ${podium.who[rank - 1].place}` : '…' }}</div>
+            <div class="block">{{ rank }}</div>
+          </div>
+        </div>
+        <p class="kicker">Envoie {{ podium.code }} maintenant !</p>
+      </div>
+    </div>
+    <!-- Carte du live -->
+    <div v-else-if="mapOn" class="overlay">
+      <div class="mapwrap">
+        <h2 class="maptitle">🗺️ D'où viennent les commandes ?</h2>
+        <div class="map">
+          <div class="lagoon" />
+          <div v-for="p in pins" :key="p.name" class="pin" :class="{ top: p.top }" :style="{ left: `${p.x}%`, top: `${p.y}%`, '--r': `${p.r}em` }"><i /><b>{{ p.name }}{{ p.n ? ` · ${p.n}` : '' }}</b></div>
+          <div v-for="r in ripples" :key="r.id" class="ripple" :style="{ left: `${r.x}%`, top: `${r.y}%` }" />
+        </div>
+        <p class="kicker">Carte simplifiée d'Abidjan<template v-if="otherPlaces.length"> · {{ otherPlaces.map((o) => `${o.name} : ${o.orders}`).join(' · ') }}</template></p>
+      </div>
+    </div>
+    <!-- Défi réussi -->
+    <div v-else-if="unlock" class="overlay">
+      <div class="rays2" aria-hidden="true" />
+      <div class="unlock"><div class="gift">🎁</div><h2>DÉFI RÉUSSI !</h2><p>{{ defi?.reward }}</p></div>
+    </div>
+    <!-- Fin du live -->
+    <div v-else-if="bye" class="overlay">
+      <div class="bye"><h2>Merci ! 🙏</h2><p>Le live est terminé · à très vite</p></div>
+    </div>
+    <div v-if="whiteKey" :key="`w${whiteKey}`" class="whiteout" aria-hidden="true" />
+
     <canvas ref="fx" class="fx" aria-hidden="true" />
   </div>
 </template>
@@ -431,6 +668,97 @@ onUnmounted(() => {
 .beat .flood { animation: flood .35s ease-out; }
 @keyframes flood { from { opacity: 1 } to { opacity: 0 } }
 .is-light .beam, .is-light .flood { display: none; }
+/* ═══ Live interactif ═══ */
+.overlay { overflow: hidden; isolation: isolate; }
+.toasts.low { top: auto; bottom: 7em; }
+.toasts.low .toast { font-size: 1.8em; }
+.show:has(.overlay) .combo { display: none; }
+/* Réactions */
+.rain { position: absolute; inset: 0; pointer-events: none; z-index: 26; overflow: hidden; }
+.drop { position: absolute; bottom: -2em; font-size: var(--s, 4em); opacity: 0; animation: rise var(--d, 3s) cubic-bezier(.3, .6, .4, 1) forwards; filter: drop-shadow(0 .1em .2em rgba(0, 0, 0, .4)); }
+@keyframes rise { 0% { transform: translate(0, 0) scale(.4); opacity: 0 } 10% { opacity: 1; transform: translate(0, -8em) scale(1) } 100% { transform: translate(var(--dx, 2em), -80em) scale(1.1) rotate(var(--r, 10deg)); opacity: 0 } }
+/* Question du public */
+.bubble { position: absolute; left: 3em; bottom: 8em; z-index: 24; max-width: 58em; background: var(--ink); color: #1a0d24; border-radius: 2em 2em 2em .4em; padding: 1.4em 1.8em; box-shadow: 0 1em 3em rgba(0, 0, 0, .5); animation: bubIn .5s cubic-bezier(.2, 1.5, .4, 1); }
+.bubble small { display: block; font-weight: 800; font-size: 1.7em; color: #8a3a6a; letter-spacing: .04em; }
+.bubble p { margin: .2em 0 0; font-weight: 900; font-size: 3em; line-height: 1.15; }
+.bubble .mic { display: inline-block; margin-top: .5em; font-weight: 800; font-size: 1.7em; background: #e8173d; color: #fff; border-radius: 2em; padding: .25em .8em; }
+.is-square .bubble { left: 3em; right: 3em; max-width: none; bottom: 9em; }
+.is-tall .bubble p { font-size: 3.6em; }
+.is-tall .bubble small, .is-tall .bubble .mic { font-size: 2.4em; }
+@keyframes bubIn { from { transform: translateY(3em) scale(.8); opacity: 0 } }
+/* Défi, annonce, dernière chance */
+.defi { position: absolute; left: 50%; top: 2.2em; transform: translateX(-50%); z-index: 7; width: 44em; background: rgba(0, 0, 0, .55); border: .15em solid var(--sun); border-radius: 1.4em; padding: .7em 1.2em; display: grid; gap: .5em; animation: bubIn .5s; }
+.defi p { margin: 0; font-weight: 800; font-size: 1.7em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dbar { height: 1.1em; border-radius: 1em; background: rgba(255, 255, 255, .15); overflow: hidden; }
+.dbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--hot), var(--sun)); transition: width .6s; }
+.is-tall .defi { top: 9.2em; width: 66em; }
+.is-tall .defi p { font-size: 2.5em; }
+.is-square:not(.is-tall) .defi { top: 7em; width: 72em; }
+.ann { position: absolute; right: 3em; top: 5.6em; z-index: 7; background: linear-gradient(90deg, var(--hot), var(--sun)); color: #1a0d24; font-weight: 800; font-size: 1.8em; padding: .35em .9em; border-radius: 2em; box-shadow: 0 .3em 1em rgba(0, 0, 0, .35); animation: pulseS 1.6s infinite; }
+.is-square .ann { top: 2.6em; }
+.is-tall .ann { top: 15.5em; font-size: 2.4em; }
+@keyframes pulseS { 50% { scale: 1.08 } }
+.lastv { position: absolute; inset: 0; pointer-events: none; z-index: 17; animation: vig 1.1s ease-in-out infinite; }
+@keyframes vig { 50% { box-shadow: inset 0 0 8em 1.5em rgba(232, 23, 61, .75) } }
+.lastb { position: absolute; left: 50%; top: 2.2em; transform: translateX(-50%); z-index: 27; background: #e8173d; color: #fff; font-weight: 800; font-size: 2.6em; padding: .35em 1.2em; border-radius: 2em; white-space: nowrap; box-shadow: 0 .4em 1.2em rgba(0, 0, 0, .4); animation: pulseS 1.1s infinite; }
+.is-tall .lastb { top: 9.5em; font-size: 3.2em; }
+.is-camera .lastv { animation: none; box-shadow: inset 0 0 6em 1em rgba(232, 23, 61, .5); }
+/* Article mystère */
+.mystery { display: grid; gap: 1.2em; justify-items: center; }
+.mystery h2 { font-weight: 900; font-size: 6.4em; letter-spacing: -.02em; background: linear-gradient(90deg, var(--sun), var(--hot), var(--sun)); -webkit-background-clip: text; background-clip: text; color: transparent; background-size: 200% 100%; animation: shimmer 1.5s linear infinite; }
+@keyframes shimmer { to { background-position: -200% 0 } }
+.mbox { width: 40em; height: 40em; border-radius: 2em; overflow: hidden; display: grid; place-items: center; background: rgba(255, 255, 255, .06); border: .25em solid var(--sun); box-shadow: 0 0 4em color-mix(in srgb, var(--hot) 55%, transparent); }
+.mbox img { width: 100%; height: 100%; object-fit: cover; transition: transform 1.4s cubic-bezier(.4, 0, .2, 1), filter 1.4s; }
+.gbox { font-size: 22em; line-height: 1; animation: shake .45s ease-in-out infinite; }
+@keyframes shake { 25% { transform: rotate(-7deg) scale(1.03) } 75% { transform: rotate(7deg) } }
+.mhint { font-weight: 800; font-size: 3em; min-height: 1.3em; text-align: center; }
+.mhint span { display: inline-block; background: color-mix(in srgb, var(--hot) 45%, transparent); border-radius: .4em; padding: 0 .4em; margin: .1em; animation: slam .5s cubic-bezier(.2, 1.6, .4, 1); }
+.is-tall .mbox { width: 60em; height: 60em; }
+.is-tall .mhint { font-size: 3.6em; }
+.is-square:not(.is-tall) .mbox { width: 42em; height: 36em; }
+.whiteout { position: absolute; inset: 0; background: #fff; z-index: 29; animation: wo .7s ease-out forwards; pointer-events: none; }
+@keyframes wo { from { opacity: 1 } to { opacity: 0 } }
+/* Les 3 premiers */
+.podium { display: grid; gap: 2em; justify-items: center; width: 90%; }
+.podium h2 { font-weight: 900; font-size: 5.6em; }
+.steps3 { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 1.6em; width: min(70em, 100%); }
+.step3 { display: grid; justify-items: center; gap: .8em; }
+.step3 .who { font-weight: 800; font-size: 2.6em; min-height: 1.3em; }
+.step3 .who.in { animation: slam .55s cubic-bezier(.2, 1.6, .4, 1); }
+.step3 .block { width: 100%; border-radius: 1em 1em 0 0; display: grid; place-items: center; font-weight: 900; font-size: 7em; color: #1a0d24; box-shadow: inset 0 .1em 0 rgba(255, 255, 255, .5); }
+.step3:nth-child(1) .block { height: calc(var(--u) * 13); background: linear-gradient(#e6e6e6, #a9a9a9); }
+.step3:nth-child(2) .block { height: calc(var(--u) * 18); background: linear-gradient(#ffe27a, #d39a1a); }
+.step3:nth-child(3) .block { height: calc(var(--u) * 9); background: linear-gradient(#f0b27a, #a8642b); }
+.is-tall .podium h2 { font-size: 5em; }
+.is-tall .steps3 { width: 100%; }
+.is-tall .step3:nth-child(1) .block { height: calc(var(--u) * 22); }
+.is-tall .step3:nth-child(2) .block { height: calc(var(--u) * 30); }
+.is-tall .step3:nth-child(3) .block { height: calc(var(--u) * 15); }
+/* Carte du live */
+.mapwrap { display: grid; gap: 1.2em; justify-items: center; width: 100%; }
+.maptitle { font-weight: 900; font-size: 3.4em; white-space: nowrap; }
+.is-tall .maptitle { font-size: 3.6em; white-space: normal; text-align: center; }
+.map { position: relative; width: min(92em, 92%); height: calc(var(--u) * 46); border-radius: 2em; background: radial-gradient(ellipse at 50% 40%, rgba(255, 255, 255, .06), transparent 70%); border: .15em solid rgba(255, 255, 255, .15); }
+.is-tall .map { height: calc(var(--u) * 90); width: 90%; }
+.is-square:not(.is-tall) .map { height: calc(var(--u) * 56); width: 90%; }
+.lagoon { position: absolute; left: 0; right: 0; top: 55%; height: 9%; background: linear-gradient(90deg, transparent, rgba(56, 189, 248, .35) 15%, rgba(56, 189, 248, .35) 85%, transparent); border-radius: 50%; transform: rotate(-4deg); }
+.pin { position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: .3em; }
+.pin i { display: block; width: var(--r, 2em); height: var(--r, 2em); border-radius: 50%; background: var(--hot); box-shadow: 0 0 0 .3em color-mix(in srgb, var(--hot) 35%, transparent), 0 0 2em var(--hot); transition: width .6s, height .6s; }
+.pin b { font-weight: 800; font-size: 1.8em; white-space: nowrap; text-shadow: 0 .1em .3em #000; }
+.is-tall .pin b { font-size: 2.4em; }
+.pin.top i { background: var(--sun); box-shadow: 0 0 0 .3em color-mix(in srgb, var(--sun) 35%, transparent), 0 0 2.4em var(--sun); }
+.ripple { position: absolute; width: 2em; height: 2em; border-radius: 50%; border: .3em solid var(--sun); transform: translate(-50%, -50%); animation: rip 1.2s ease-out forwards; pointer-events: none; }
+@keyframes rip { to { width: 16em; height: 16em; opacity: 0 } }
+/* Défi réussi, fin du live */
+.unlock { display: grid; gap: 1.4em; justify-items: center; }
+.gift { font-size: 20em; line-height: 1; animation: giftPop 1s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes giftPop { 0% { transform: scale(0) rotate(-30deg) } 60% { transform: scale(1.2) rotate(8deg) } 100% { transform: scale(1) } }
+.unlock h2 { font-weight: 900; font-size: 7em; color: var(--sun); }
+.unlock p, .bye p { margin: 0; font-weight: 800; font-size: 3.4em; }
+.rays2 { position: absolute; inset: -50%; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--sun) 22%, transparent) 0 10deg, transparent 10deg 22deg); animation: spin2 12s linear infinite; z-index: -1; }
+@keyframes spin2 { to { transform: rotate(360deg) } }
+.bye h2 { font-weight: 900; font-size: 8em; color: var(--sun); }
+.is-light .rays2, .is-camera .rays2 { display: none; }
 /* Mode caméra : écran plus doux à filmer (le téléphone règle l'image sur le visage, l'écran derrière ressort trop fort) :
    blancs cassés, photos baissées, plus de lueurs, de reflet ni de lumières qui balaient */
 .is-camera { --ink: #d2cbc2; --dim: #a294b1; --sun: #d18f12; --mint: #1f9e6b; }
