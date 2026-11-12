@@ -42,13 +42,13 @@ class SocialConnections
      * @param  ?string  $relay  application installée : clé sous laquelle déposer le résultat (Facebook ouvert par-dessus
      *                          l'application, qui le récupère sans être quittée)
      */
-    public function adsAuthorizeUrl(Store $store, User $user, string $back = 'suivi', ?string $relay = null): string
+    public function adsAuthorizeUrl(Store $store, User $user, string $back = 'suivi', ?string $relay = null, bool $app = false): string
     {
         if (! MetaSocial::enabled()) {
             throw new BusinessRuleException('La connexion à Facebook n\'est pas encore activée sur la plateforme.');
         }
         $state = Crypt::encryptString(json_encode(['store' => $store->id, 'user' => $user->id, 'provider' => 'meta', 'purpose' => 'ads',
-            'back' => $back, 'relay' => $relay, 'exp' => now()->addMinutes(30)->timestamp]));
+            'back' => $back, 'relay' => $relay, 'app' => $app, 'exp' => now()->addMinutes(30)->timestamp]));
 
         return $this->ads->authorizeUrl($state);
     }
@@ -61,14 +61,19 @@ class SocialConnections
      * l'application installée : le résultat (« meta=… » ou « erreur=… ») est déposé sous la clé du relais, et null est
      * renvoyé (la fenêtre affiche « retourne dans l'application »).
      */
+    /** Dernier retour relayé : lancé depuis l'application Android (la page de fin propose d'y retourner) */
+    public bool $relayApp = false;
+
     public function callback(string $provider, string $state, ?string $code, ?string $error): ?string
     {
+        $this->relayApp = false;
         $data = $this->state($state, $provider);
         $store = Store::findOrFail($data['store']);
         $ads = ($data['purpose'] ?? null) === 'ads';
         if ($ads && ! empty($data['relay'])) {
             $url = $this->adsCallback($store, $data, $code, $error, '');
             Cache::put('meta-relay:'.$data['relay'], ['store' => $store->id, 'result' => ltrim($url, '?')], now()->addMinutes(30));
+            $this->relayApp = (bool) ($data['app'] ?? false);
 
             return null;
         }
@@ -113,6 +118,12 @@ class SocialConnections
         if ($code === null || $code === '') {
             return $back.'?erreur='.rawurlencode($error ?: 'Connexion annulée.');
         }
+        // Le même retour peut arriver deux fois (application Facebook, Chrome puis l'application, rechargement) : Meta
+        // n'accepte un code qu'une fois, le résultat du premier passage est donc repris (« code déjà utilisé » sinon)
+        $done = 'meta-code:'.hash('sha256', $code);
+        if (is_string($previous = Cache::get($done))) {
+            return $back.$previous;
+        }
         try {
             $access = $this->ads->token($code);
             $businesses = $this->ads->businesses($access['token']);
@@ -121,6 +132,7 @@ class SocialConnections
             }
             $key = Str::random(40);
             Cache::put('meta-ads:'.$key, ['store' => $store->id, 'user' => $data['user'], 'access' => $access, 'businesses' => $businesses], now()->addMinutes(30));
+            Cache::put($done, '?meta='.$key, now()->addMinutes(30));
 
             return $back.'?meta='.$key;
         } catch (RuntimeException $e) {
