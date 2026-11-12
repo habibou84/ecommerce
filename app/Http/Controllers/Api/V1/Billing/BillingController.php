@@ -40,18 +40,6 @@ class BillingController extends Controller
         return response()->json(['data' => $this->billing->presentInvoice($invoice), 'redirect' => $invoice->checkout_url], 201);
     }
 
-    public function aiPack(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'method' => ['required', 'string'],
-            'payer_phone' => [Rule::requiredIf($this->billing->manual()), 'nullable', new PhoneRule],
-        ], [], ['method' => 'moyen de paiement', 'payer_phone' => 'numéro Wave']);
-
-        $invoice = $this->billing->buyAiPack($this->currentStore(), $data['method'], $request->user(), $this->payer($data));
-
-        return response()->json(['data' => $this->billing->presentInvoice($invoice), 'redirect' => $invoice->checkout_url], 201);
-    }
-
     /**
      * Numéro Wave qui paie (lien marchand), au format lisible du pays.
      */

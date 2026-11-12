@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import LiveItemsPanel from '../../../components/LiveItemsPanel.vue'
-import LivePaySheet from '../../../components/live/LivePaySheet.vue'
+import { credits, loadCredits, openRecharge } from '../../../lib/credits'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
 import { livesChanged } from '../../../lib/fullscreen'
@@ -11,17 +11,16 @@ import { livesChanged } from '../../../lib/fullscreen'
 /**
  * Commandes WhatsApp sans live : les clients envoient le code (A1, A2…) ou « LISTE » sur WhatsApp et la commande
  * s'enregistre, comme pendant un live, sans TikTok. Préparer (articles, durée), ouvert (pièces, commandes, fermer),
- * bilan. Chaque jour d'ouverture est compté comme un live (lives payants).
+ * bilan. Les commandes de chaque jour sont retirées du solde le soir.
  */
 const props = defineProps({ id: { type: [String, Number], default: null } })
 const router = useRouter()
 const session = ref(null)
 const past = ref([])
-const billing = ref(null)
+const billing = computed(() => credits.data)
 const error = ref('')
 const busy = ref(false)
 const panel = ref(false)
-const paying = ref(false)
 const hours = ref(168)
 const copied = ref(false)
 const DURATIONS = [[24, '24 h'], [72, '3 jours'], [168, '7 jours'], [null, 'Jusqu\'à fermer']]
@@ -36,7 +35,7 @@ async function load() {
     // Sans numéro : les commandes WhatsApp ouvertes, sinon en préparation
     if (!id) id = (list.find((l) => l.channel === 'whatsapp' && l.status === 'live') ?? list.find((l) => l.channel === 'whatsapp' && l.status === 'draft'))?.id
     session.value = id ? (await http.get(`/lives/${id}`)).data.data : null
-    billing.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? null
+    await loadCredits()
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -64,7 +63,7 @@ function saved(state) {
 
 async function open() {
   if (billing.value?.paid && billing.value.next === 'pay') {
-    paying.value = true
+    openRecharge(`Il te faut au moins ${billing.value.min_orders} commandes dans ton solde pour ouvrir les commandes WhatsApp.`)
     return
   }
   busy.value = true
@@ -74,8 +73,7 @@ async function open() {
     livesChanged()
   } catch (e) {
     if (e.response?.data?.errors?.payment) {
-      billing.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? billing.value
-      paying.value = !!billing.value
+      openRecharge(e.response.data.errors.payment[0])
     } else {
       error.value = errorMessage(e)
     }
@@ -121,13 +119,10 @@ const products = computed(() => {
   }
   return Object.values(groups)
 })
-// Commandes du jour (lives payants : comptées chaque soir), sinon toutes celles de ces commandes WhatsApp
+// Commandes du jour (retirées du solde chaque soir), sinon toutes celles de ces commandes WhatsApp
 const todayOrders = computed(() => session.value?.billing?.orders ?? session.value?.summary?.orders ?? 0)
 const recent = computed(() => (session.value?.reservations ?? []).filter((r) => r.status !== 'cancelled').slice(0, 8))
 const pieces = computed(() => products.value.reduce((s, p) => s + p.quantity - p.remaining, 0))
-const freeLeft = computed(() => billing.value?.free_left ?? 0)
-const tiersLine = computed(() => (billing.value?.tiers ?? []).filter((t) => t.to === null || t.to >= t.from)
-  .map((t) => `${t.to === null ? `plus de ${t.from - 1}` : `${t.from} à ${t.to}`} = ${t.price ? money(t.price) : 'gratuit'}`).join(' · '))
 const dayLabel = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric' })
 
 // Liste à partager (statut, groupe) : les codes, les prix, et comment commander
@@ -178,11 +173,10 @@ async function share() {
         </div>
       </section>
       <section v-if="billing?.paid" class="card bg-slate-50 p-4 text-sm text-slate-600">
-        <h3 class="font-extrabold text-slate-900">3 · Prix</h3>
-        <p class="mt-1">Comme un live, compté chaque soir selon les commandes du jour<template v-if="tiersLine"> : {{ tiersLine }}</template>.</p>
-        <p v-if="billing.month_until" class="mt-1 font-semibold text-emerald-800">Lives illimités en cours : rien à compter.</p>
-        <p v-else-if="freeLeft" class="mt-1">Il te reste <b>{{ freeLeft }} commande{{ freeLeft > 1 ? 's' : '' }} offerte{{ freeLeft > 1 ? 's' : '' }}</b>.</p>
-        <p v-else class="mt-1">Crédit live : <b>{{ money(billing.credit) }}</b></p>
+        <h3 class="font-extrabold text-slate-900">3 · Mon solde</h3>
+        <p class="mt-1">Chaque commande prise par WhatsApp compte pour 1, retirée du solde chaque soir.</p>
+        <p v-if="billing.month_until" class="mt-1 font-semibold text-emerald-800">Illimité en cours : rien à compter.</p>
+        <p v-else class="mt-1">Solde : <b>{{ billing.orders }} commandes</b> · <RouterLink to="/gestion/solde" class="font-bold text-emerald-700 underline">Recharger</RouterLink></p>
       </section>
       <button type="button" class="btn-brand w-full py-3 text-base" :disabled="busy || !session || !products.length" @click="open">💬 Ouvrir les commandes</button>
     </template>
@@ -198,9 +192,9 @@ async function share() {
         </p>
       </section>
       <section v-if="session.paused" class="card space-y-2 border-orange-300 bg-orange-50 p-4 text-sm text-orange-900">
-        <b class="block">Crédit live vide : les nouveaux codes ne sont plus pris.</b>
+        <b class="block">Solde vide : les nouveaux codes ne sont plus pris.</b>
         <p>Les commandes déjà enregistrées restent. Recharge pour reprendre.</p>
-        <button type="button" class="btn-brand w-full" @click="paying = true">Recharger</button>
+        <button type="button" class="btn-brand w-full" @click="openRecharge()">Recharger</button>
       </section>
       <section class="card p-4">
         <h3 class="font-extrabold">Articles</h3>
@@ -228,8 +222,8 @@ async function share() {
         </ul>
       </section>
       <section v-if="session.billing?.per_day && session.billing.days?.length" class="card p-4 text-sm">
-        <h3 class="font-extrabold">🧾 Compté chaque soir</h3>
-        <p v-for="d in session.billing.days" :key="d.day" class="mt-1">{{ dayLabel(d.day) }} : {{ d.orders }} commande{{ d.orders > 1 ? 's' : '' }} → {{ d.amount ? money(d.amount) : 'gratuit' }}</p>
+        <h3 class="font-extrabold">🧾 Retiré du solde chaque soir</h3>
+        <p v-for="d in session.billing.days" :key="d.day" class="mt-1">{{ dayLabel(d.day) }} : {{ d.orders }} commande{{ d.orders > 1 ? 's' : '' }}{{ d.used ? ` · −${d.used} au solde` : '' }}</p>
       </section>
       <p v-if="copied" class="text-center text-sm font-bold text-emerald-700">Liste copiée : colle-la dans ton statut ou tes groupes.</p>
       <div class="grid grid-cols-2 gap-2">
@@ -252,7 +246,7 @@ async function share() {
       </section>
       <section v-if="session.billing?.days?.length" class="card p-4 text-sm">
         <h3 class="font-extrabold">🧾 Jours comptés</h3>
-        <p v-for="d in session.billing.days" :key="d.day" class="mt-1">{{ dayLabel(d.day) }} : {{ d.orders }} commande{{ d.orders > 1 ? 's' : '' }} → {{ d.amount ? money(d.amount) : 'gratuit' }}</p>
+        <p v-for="d in session.billing.days" :key="d.day" class="mt-1">{{ dayLabel(d.day) }} : {{ d.orders }} commande{{ d.orders > 1 ? 's' : '' }}{{ d.used ? ` · −${d.used} au solde` : '' }}</p>
       </section>
       <section class="card p-4">
         <h3 class="font-extrabold">Et maintenant ?</h3>
@@ -262,6 +256,5 @@ async function share() {
     </template>
 
     <LiveItemsPanel v-if="panel" :draft="session?.status === 'draft' ? session : null" :past="past" channel="whatsapp" @saved="saved" @close="panel = false" />
-    <LivePaySheet v-if="paying && billing" :billing="billing" @close="paying = false" />
   </div>
 </template>

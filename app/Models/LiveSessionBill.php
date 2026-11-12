@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 
-/** Jour compté des commandes WhatsApp : commandes du jour, offertes, prix du palier retiré du crédit live */
+/** Jour compté des commandes WhatsApp : commandes du jour, et combien ont été retirées du solde (amount) */
 class LiveSessionBill extends Model
 {
     use BelongsToStore;

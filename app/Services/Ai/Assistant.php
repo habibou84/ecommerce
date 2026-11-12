@@ -35,16 +35,16 @@ class Assistant
     }
 
     /**
-     * Actions utilisées ce mois-ci, quota de l'offre (null : illimité), actions achetées en réserve et recharge
-     * proposée.
+     * Actions utilisées ce mois-ci, quota de l'offre (null : illimité) et actions IA du solde (achetées avec les
+     * commandes).
      *
-     * @return array{enabled: bool, used: int, limit: ?int, credits: int, pack: array{actions: int, price: int}}
+     * @return array{enabled: bool, used: int, limit: ?int, credits: int}
      */
     public function status(Store $store): array
     {
         return [
             'enabled' => $this->enabled($store), 'used' => $this->limits->used($store, 'ai_actions_per_month'), 'limit' => $this->limit($store),
-            'credits' => (int) $store->fresh()->ai_credits, 'pack' => config('platform.ai_pack'),
+            'credits' => (int) $store->fresh()->ai_credits,
         ];
     }
 
@@ -126,15 +126,9 @@ class Assistant
             throw new BusinessRuleException('L\'assistant IA n\'est pas encore activé sur la plateforme.');
         }
         $limit = $this->limit($store);
-        // Quota de l'offre épuisé : les actions achetées (recharges) prennent le relais
+        // Quota de l'offre épuisé : les actions IA du solde prennent le relais
         if ($this->overQuota($store, $limit) && (int) $store->fresh()->ai_credits <= 0) {
-            $plan = $this->limits->plan($store)?->name;
-            ['actions' => $actions, 'price' => $price] = config('platform.ai_pack');
-            $recharge = "Rechargez {$actions} actions pour ".number_format($price, 0, ',', ' ').' F pour continuer.';
-
-            throw new AiQuotaExceededException($limit === 0
-                ? "L'assistant IA de l'offre {$plan} marche avec des recharges. {$recharge}"
-                : "Vos {$limit} actions de l'assistant IA du mois (offre {$plan}) sont utilisées. {$recharge}", $this->status($store));
+            throw new AiQuotaExceededException('Plus d\'actions IA. Recharge ton solde : commandes et IA ensemble.', $this->status($store));
         }
     }
 

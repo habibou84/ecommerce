@@ -70,6 +70,17 @@ const ICON = { product: '🎯', products: '🎠', catalog: '🗂️' }
         <p v-if="b.cost_per_order" class="text-xs text-slate-500">{{ money(b.cost_per_order) }} de pub par commande · {{ money(b.sales) }} de ventes</p>
       </template>
 
+      <!-- Conseil : la pub coûte-t-elle plus que la marge ? -->
+      <div v-if="b.advice?.kind === 'go'" class="space-y-2 rounded-lg bg-emerald-50 p-2.5 text-sm">
+        <p>✅ <b>Ça rapporte</b> : {{ money(b.cost_per_order) }} de pub par commande pour {{ money(b.advice.margin) }} de marge.</p>
+        <button type="button" class="w-full rounded-lg bg-emerald-700 py-2 text-sm font-bold text-white" :disabled="busy === b.id" @click="act(b, 'extend', { days: 7 })">➕ Prolonger 7 jours</button>
+      </div>
+      <div v-else-if="b.advice?.kind === 'stop'" class="space-y-2 rounded-lg bg-red-50 p-2.5 text-sm">
+        <p>🛑 <b>Pas rentable</b> : {{ b.orders ? `${money(b.cost_per_order)} de pub par commande` : `aucune commande pour ${money(b.spend)} de pub` }}{{ b.advice.margin ? `, ta marge est de ${money(b.advice.margin)}` : '' }}.</p>
+        <button v-if="b.status === 'active'" type="button" class="w-full rounded-lg bg-red-600 py-2 text-sm font-bold text-white" :disabled="busy === b.id" @click="act(b, 'pause')">⏸ Mettre en pause</button>
+      </div>
+      <p v-else-if="b.advice?.kind === 'cost'" class="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600">💡 Ajoute le prix d'achat de tes produits (fiche produit) pour savoir si ce boost est rentable.</p>
+
       <div v-if="['active', 'paused', 'review'].includes(b.status)" class="flex gap-1.5">
         <button v-if="b.status === 'paused'" type="button" class="flex-1 rounded-lg bg-slate-100 py-2 text-sm font-bold" :disabled="busy === b.id" @click="act(b, 'resume')">▶ Reprendre</button>
         <button v-else type="button" class="flex-1 rounded-lg bg-slate-100 py-2 text-sm font-bold" :disabled="busy === b.id" @click="act(b, 'pause')">⏸ Pause</button>

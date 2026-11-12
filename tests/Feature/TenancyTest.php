@@ -7,7 +7,7 @@ use App\Enums\StoreStatus;
 use App\Models\SlugHistory;
 use App\Models\StoreDomain;
 use App\Models\StoreInvitation;
-use App\Services\Live\LiveBilling;
+use App\Services\Billing\Credits;
 use App\Support\StartSteps;
 use App\Support\Tenancy;
 use App\Support\TrialOffer;
@@ -35,20 +35,16 @@ class TenancyTest extends TestCase
             ->assertDontSee('Essai gratuit');
     }
 
-    public function test_live_prices_show_only_when_paid_lives_are_on(): void
+    public function test_prices_show_only_when_paid_orders_are_on(): void
     {
-        $this->get($this->platformUrl())->assertOk()->assertSee('application est gratuite')->assertDontSee('Live de 11 à 30 commandes');
+        $this->get($this->platformUrl())->assertOk()->assertSee('application est gratuite')->assertDontSee('IA incluse');
 
-        app(LiveBilling::class)->update(['paid' => true]);
+        app(Credits::class)->update(['paid' => true]);
         $this->get($this->platformUrl())->assertOk()
-            ->assertSee('Tes 300 premières commandes en live')
-            ->assertSee('Live de 11 à 30 commandes')
-            ->assertSee("500\u{00A0}F", false)->assertSee("7\u{00A0}000\u{00A0}F", false);
-
-        // Plus de commandes gratuites par live (palier à 0) : pas de ligne « Live de 0 à 0 commandes »
-        app(LiveBilling::class)->update(['free_upto' => 0]);
-        $this->get($this->platformUrl())->assertOk()
-            ->assertDontSee('Live de 0 à 0')->assertSee('Live de 1 à 30 commandes')->assertDontSee('jusqu\'à 0 commandes', false);
+            ->assertSee('Commandes saisies à la main')
+            ->assertSee('Tes 50 premières commandes en live, WhatsApp ou pub Facebook')
+            ->assertSee('Pack de 100 commandes, IA incluse')->assertSee("2\u{00A0}500\u{00A0}F", false)
+            ->assertSee("7\u{00A0}000\u{00A0}F", false);
     }
 
     public function test_the_trial_is_announced_in_days_when_it_is_not_whole_months(): void

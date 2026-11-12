@@ -114,7 +114,7 @@ const kindLabel = (b) => ({ founder: '🏅 Membre Premium à vie', partner: `�
     <section class="card space-y-3 p-4 text-sm">
       <p class="text-slate-600">
         Des cartes à QR code à distribuer : la personne scanne, crée sa boutique (ou se connecte) et la clé s'active. Une clé sert une seule fois.
-        L'assistant IA n'est dans aucune offre : il reste à la recharge. Une carte Membre Premium à vie se met en pause après {{ data.idle_days }} jours sans commande, et se rallume à la commande suivante.
+        L'assistant IA n'est dans aucune offre : ses actions viennent du solde (packs). Une carte Membre Premium à vie se met en pause après {{ data.idle_days }} jours sans commande, et se rallume à la commande suivante.
       </p>
       <div class="flex flex-wrap gap-2">
         <button class="btn-brand" @click="startBatch('founder')">🏅 Nouvelles cartes Membre Premium</button>

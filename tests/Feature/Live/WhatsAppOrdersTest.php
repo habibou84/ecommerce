@@ -7,8 +7,8 @@ use App\Models\LiveSession;
 use App\Models\LiveSessionBill;
 use App\Models\Place;
 use App\Models\Store;
+use App\Services\Billing\Credits;
 use App\Services\Catalog\CatalogWriter;
-use App\Services\Live\LiveBilling;
 use App\Services\Live\LiveSales;
 use Illuminate\Support\Facades\Http;
 use Tests\Concerns\LiveProductsHavePhotos;
@@ -59,9 +59,9 @@ class WhatsAppOrdersTest extends TestCase
 
     public function test_open_for_seven_days_counted_each_day_then_closed_on_time(): void
     {
-        $billing = app(LiveBilling::class);
-        $billing->update(['paid' => true, 'free_orders' => 0]);
-        $this->store->forceFill(['live_credit' => 3000])->save();
+        $credits = app(Credits::class);
+        $credits->update(['paid' => true, 'welcome_orders' => 0, 'welcome_ai' => 0]);
+        $this->store->forceFill(['order_credits' => 100])->save();
         $this->travelTo(now('Africa/Abidjan')->setTime(10, 0));
         $id = $this->open(168);
         $session = LiveSession::find($id);
@@ -70,52 +70,53 @@ class WhatsAppOrdersTest extends TestCase
         $this->storeApi($this->store, 'GET', "lives/{$id}")->assertJsonPath('data.channel', 'whatsapp')->assertJsonPath('data.paused', false)
             ->assertJsonPath('data.closes_at', $session->orders_until->toIso8601String());
 
-        // Jour 1 : 14 commandes (palier 2) ; pas fermé au bout de 12 h comme un live
+        // Jour 1 : 14 commandes ; pas fermé au bout de 12 h comme un live ; retirées du solde le soir
         $this->orders($id, 14);
-        $this->storeApi($this->store, 'GET', "lives/{$id}")->assertJsonPath('data.billing.orders', 14)->assertJsonPath('data.billing.per_day', true);
+        $this->storeApi($this->store, 'GET', "lives/{$id}")->assertJsonPath('data.billing.orders', 14)->assertJsonPath('data.billing.per_day', true)
+            ->assertJsonPath('data.billing.after', 86);
         $this->travel(15)->hours();
-        $billing->closeStale();
+        $credits->closeStale();
         $this->assertSame('live', LiveSession::find($id)->status);
-        $this->assertSame([[14, 500]], LiveSessionBill::where('live_session_id', $id)->get()->map(fn ($b) => [$b->orders, $b->amount])->all());
-        $this->assertSame(2500, $this->store->fresh()->live_credit);
+        $this->assertSame([[14, 14]], LiveSessionBill::where('live_session_id', $id)->get()->map(fn ($b) => [$b->orders, $b->amount])->all());
+        $this->assertSame(86, $this->store->fresh()->order_credits);
 
-        // Jour 2 : 6 commandes (gratuit) ; compté une seule fois
+        // Jour 2 : 6 commandes ; comptées une seule fois
         $this->orders($id, 6);
         $this->travel(1)->days();
-        $billing->closeStale();
-        $billing->closeStale();
-        $this->assertSame([[14, 500], [6, 0]], LiveSessionBill::where('live_session_id', $id)->orderBy('day')->get()->map(fn ($b) => [$b->orders, $b->amount])->all());
+        $credits->closeStale();
+        $credits->closeStale();
+        $this->assertSame([[14, 14], [6, 6]], LiveSessionBill::where('live_session_id', $id)->orderBy('day')->get()->map(fn ($b) => [$b->orders, $b->amount])->all());
 
         // Au bout de 7 jours : fermées et totalisées
         $this->travel(6)->days();
-        $billing->closeStale();
+        $credits->closeStale();
         $session = LiveSession::find($id);
         $this->assertSame('ended', $session->status);
-        $this->assertSame([20, 500], [$session->billed_orders, $session->billed_amount]);
+        $this->assertSame([20, 20], [$session->billed_orders, $session->billed_amount]);
         $this->assertFalse($session->takesOrders());
-        $this->assertSame(2500, $this->store->fresh()->live_credit);
+        $this->assertSame(80, $this->store->fresh()->order_credits);
     }
 
-    public function test_paused_when_credit_runs_out_and_a_live_closes_whatsapp_orders(): void
+    public function test_paused_when_the_balance_runs_out_and_a_live_closes_whatsapp_orders(): void
     {
-        $billing = app(LiveBilling::class);
-        $billing->update(['paid' => true, 'free_orders' => 0]);
-        $this->store->forceFill(['live_credit' => 500])->save();
+        $credits = app(Credits::class);
+        $credits->update(['paid' => true, 'welcome_orders' => 0, 'welcome_ai' => 0]);
+        $this->store->forceFill(['order_credits' => 12])->save();
         $this->travelTo(now('Africa/Abidjan')->setTime(9, 0));
         $id = $this->open(null);
         $this->assertNull(LiveSession::find($id)->orders_until);
         $this->orders($id, 12);
         $this->travel(1)->days();
-        $billing->closeStale();
-        // Crédit à 0 : plus de nouveaux codes, les commandes enregistrées restent
-        $this->assertSame(0, $this->store->fresh()->live_credit);
+        $credits->closeStale();
+        // Solde à 0 : plus de nouveaux codes, les commandes enregistrées restent
+        $this->assertSame(0, $this->store->fresh()->order_credits);
         $session = LiveSession::find($id);
-        $this->assertTrue($billing->paused($session));
+        $this->assertTrue($credits->paused($session));
         $this->assertFalse($session->takesOrders());
         $this->assertNull(LiveSales::ordering($this->store->id));
         $this->storeApi($this->store, 'GET', "lives/{$id}")->assertJsonPath('data.paused', true);
         // Recharge : les commandes reprennent
-        $this->store->forceFill(['live_credit' => 2000])->save();
+        $this->store->forceFill(['order_credits' => 100])->save();
         $this->assertTrue(LiveSession::find($id)->takesOrders());
 
         // Un live ne s'ouvre pas pendant… si : il ferme les commandes WhatsApp (un seul code A1 à la fois)

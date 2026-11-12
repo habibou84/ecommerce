@@ -17,6 +17,7 @@ use App\Models\WhatsappAccount;
 use App\Models\WhatsappLink;
 use App\Services\Ai\AiCosts;
 use App\Services\Billing\Billing;
+use App\Services\Billing\Credits;
 use App\Services\Billing\FreeAccess;
 use App\Services\Billing\PlanLimits;
 use App\Services\Console\SupportSessions;
@@ -138,6 +139,8 @@ class ConsoleController extends Controller
                 'current_period_end' => $sub->current_period_end?->toIso8601String(), 'cancel_at_period_end' => $sub->cancel_at_period_end,
             ] : null,
             'usage' => $this->limits->usage($model),
+            // Solde : commandes, actions IA, illimité en cours
+            'credits' => ['orders' => (int) $model->order_credits, 'ai' => (int) $model->ai_credits, 'month_until' => app(Credits::class)->coveredUntil($model)?->toIso8601String()],
             'revenue_30d' => (int) Order::forStore($model->id)->where('created_at', '>=', $since)->where('status', 'completed')->sum('total'),
             'invoices' => SubscriptionInvoice::forStore($model->id)->with('plan')->latest('id')->limit(20)->get()->map(fn ($i) => $this->billing->presentInvoice($i)),
             'domains' => StoreDomain::where('store_id', $model->id)->get(['hostname', 'is_primary', 'verified_at']),

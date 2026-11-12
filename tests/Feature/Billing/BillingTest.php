@@ -113,26 +113,6 @@ class BillingTest extends TestCase
         $this->assertTrue($sub->fresh()->current_period_end->between(now()->addWeeks(2)->subMinute(), now()->addWeeks(2)->addMinute()));
     }
 
-    public function test_buying_assistant_actions(): void
-    {
-        $number = $this->storeApi($this->store, 'POST', 'billing/ai-pack', ['method' => 'wave'])
-            ->assertCreated()->assertJsonPath('data.plan', "Recharge de l'assistant (100 actions)")->json('data.number');
-        Http::assertSent(fn ($r) => $r->method() === 'POST' && $r['amount'] === '1000');
-
-        $this->waveStatus = 'succeeded';
-        $this->storeApi($this->store, 'POST', "billing/invoices/{$number}/check")->assertJsonPath('data.status', 'paid')->assertJsonPath('data.kind', 'ai_pack');
-        // Deuxième relecture : rien n'est ajouté deux fois
-        $this->storeApi($this->store, 'POST', "billing/invoices/{$number}/check")->assertJsonPath('data.status', 'paid');
-
-        $this->assertSame(100, $this->store->fresh()->ai_credits);
-        // L'abonnement (essai Pro) n'est pas touché
-        $this->assertSame(SubscriptionStatus::Trialing, $this->store->currentSubscription()->first()->status);
-        $this->storeApi($this->store, 'GET', 'billing')->assertJsonPath('data.ai_credits', 100)->assertJsonPath('data.ai_pack', ['actions' => 100, 'price' => 1000]);
-
-        $invoice = SubscriptionInvoice::where('number', $number)->sole();
-        $this->withCredentials()->get($this->storeUrl($this->store, "/api/v1/billing/invoices/{$invoice->id}/receipt"))->assertOk();
-    }
-
     public function test_paying_with_the_wave_merchant_link_and_validating_by_sms(): void
     {
         config(['platform.billing.provider' => 'wave_link', 'platform.billing.wave_link' => 'https://pay.wave.com/m/M_ci_test/c/ci/?amount={montant}',
@@ -178,12 +158,12 @@ class BillingTest extends TestCase
         $this->assertEquals($end, $sub->fresh()->current_period_end);
 
         // Paiement non reçu : la facture est refusée, l'espace marchand reste comme avant
-        $pack = $this->storeApi($this->store, 'POST', 'billing/ai-pack', ['method' => 'wave', 'payer_phone' => '0708091011'])
-            ->assertCreated()->assertJsonPath('redirect', 'https://pay.wave.com/m/M_ci_test/c/ci/?amount=1000');
+        $next = $this->storeApi($this->store, 'POST', 'billing/checkout', ['plan' => 'starter', 'cycle' => 'monthly', 'method' => 'wave', 'payer_phone' => '0708091011'])
+            ->assertCreated()->assertJsonPath('redirect', 'https://pay.wave.com/m/M_ci_test/c/ci/?amount=3500');
         preg_match('#(http\S+/facturation/valider/\S+)#', collect($this->sentSms())->last()['text'], $m);
         $this->post($m[1], ['code' => '4321', 'decision' => 'missing'])->assertOk()->assertSee('non reçu');
-        $this->assertSame('failed', SubscriptionInvoice::where('number', $pack->json('data.number'))->value('status'));
-        $this->assertSame(0, $this->store->fresh()->ai_credits);
+        $this->assertSame('failed', SubscriptionInvoice::where('number', $next->json('data.number'))->value('status'));
+        $this->assertSame('pro', $this->store->currentSubscription()->first()->plan->code);
     }
 
     public function test_trial_end_renewal_and_grace_period(): void

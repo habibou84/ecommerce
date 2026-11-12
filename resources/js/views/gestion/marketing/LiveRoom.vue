@@ -16,7 +16,7 @@ import Modal from '../../../components/Modal.vue'
 import { BEFORE_LIVE, loadChecks, saveChecks } from '../../../lib/liveTraining'
 import { pinSignature, readPin } from '../../../lib/livePin'
 import { fullscreenOn, livesChanged } from '../../../lib/fullscreen'
-import LivePaySheet from '../../../components/live/LivePaySheet.vue'
+import { openRecharge } from '../../../lib/credits'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money, phoneDisplay } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
@@ -183,12 +183,6 @@ const duration = computed(() => {
   return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}` : `${m} min`
 })
 
-// Lives payants : crédit insuffisant (et plus de commandes offertes) → recharge ou 30 jours (PayDunya)
-const payBilling = ref(null)
-// Bilan : crédit insuffisant pour le prochain live, la recharge s'ouvre ici
-async function openRecharge() {
-  payBilling.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? null
-}
 async function act(path, body) {
   busy.value = true
   error.value = ''
@@ -197,9 +191,10 @@ async function act(path, body) {
     if (path === 'start' || path === 'end') livesChanged()
     return true
   } catch (e) {
+    // Solde trop bas pour ouvrir les commandes : la recharge s'ouvre (pack ou illimité)
     if (path === 'start' && e.response?.data?.errors?.payment) {
-      payBilling.value = (await http.get('/lives/billing').catch(() => null))?.data.data ?? null
-      if (payBilling.value) return false
+      openRecharge(e.response.data.errors.payment[0])
+      return false
     }
     error.value = errorMessage(e)
     return false
@@ -485,8 +480,8 @@ async function redo() {
         <section v-if="live.orders_until" class="rounded-[20px] border-2 border-amber-300 bg-amber-50 p-4">
           <p class="text-[13px] font-extrabold uppercase tracking-wide text-amber-800">● Live terminé · commandes actives</p>
           <h3 class="mt-1 text-[17px] font-black">⏳ Commandes actives jusqu'à {{ ordersUntil }}</h3>
-          <p class="mt-1 text-[14px] text-slate-700">Les clients peuvent encore écrire A1, A2… sur WhatsApp. Ces commandes comptent dans ce live<template v-if="live.billing"> : prix calculé quand les commandes s'arrêtent</template>.</p>
-          <p class="mt-2 text-[14px]"><b>{{ live.orders_after ?? 0 }}</b> commande{{ (live.orders_after ?? 0) > 1 ? 's' : '' }} depuis la fin du live<template v-if="live.billing"> · palier actuel : <b>{{ live.billing.price ? money(live.billing.price) : 'gratuit' }}</b> ({{ live.billing.orders }} commandes)</template></p>
+          <p class="mt-1 text-[14px] text-slate-700">Les clients peuvent encore écrire A1, A2… sur WhatsApp. Ces commandes comptent dans ce live<template v-if="live.billing"> : retirées du solde quand les commandes s'arrêtent</template>.</p>
+          <p class="mt-2 text-[14px]"><b>{{ live.orders_after ?? 0 }}</b> commande{{ (live.orders_after ?? 0) > 1 ? 's' : '' }} depuis la fin du live<template v-if="live.billing"> · <b>{{ live.billing.orders }}</b> en tout dans ce live</template></p>
           <button type="button" class="mt-3 block w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-2.5 font-extrabold text-orange-800 disabled:opacity-60" :disabled="busy" @click="stopOrders">Arrêter les commandes maintenant</button>
         </section>
         <section class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
@@ -500,15 +495,14 @@ async function redo() {
             <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ live.summary.sold_out }} / {{ live.items.length }}</b>épuisé{{ live.summary.sold_out > 1 ? 's' : '' }}</span>
           </div>
         </section>
-        <!-- Lives payés par palier : prix de ce live, retiré du crédit à la fermeture -->
+        <!-- Solde : commandes de ce live retirées à la fermeture -->
         <section v-if="live.billing?.billed" class="rounded-[20px] border-2 border-amber-400 bg-amber-50 p-4">
-          <h3 class="text-[17px] font-black">🧾 Prix de ce live : {{ live.billing.price ? money(live.billing.price) : 'gratuit' }}</h3>
-          <p class="mt-1 text-[14px] text-slate-700">{{ live.billing.orders }} commande{{ live.billing.orders > 1 ? 's' : '' }} créée{{ live.billing.orders > 1 ? 's' : '' }} pendant le live<template v-if="live.billing.offered"> dont {{ live.billing.offered }} offerte{{ live.billing.offered > 1 ? 's' : '' }}</template>.</p>
-          <p class="mt-1 text-[12.5px] text-slate-500">Retiré de ton crédit live. Une commande annulée ensuite reste comptée.</p>
-          <p class="mt-2 flex justify-between border-t border-amber-200 pt-2 text-[14.5px]"><span>Crédit après ce live</span><b :class="live.billing.credit < 0 ? 'text-red-700' : ''">{{ money(live.billing.credit) }}</b></p>
+          <h3 class="font-display text-base font-extrabold">🧾 {{ live.billing.used }} commande{{ live.billing.used > 1 ? 's' : '' }} retirée{{ live.billing.used > 1 ? 's' : '' }} de ton solde</h3>
+          <p class="mt-1 text-xs text-slate-600">Une commande annulée ensuite reste comptée.</p>
+          <p class="mt-2 flex justify-between border-t border-amber-200 pt-2 text-sm"><span>Solde après ce live</span><b :class="live.billing.balance < 0 ? 'text-red-700' : ''">{{ live.billing.balance }} commandes</b></p>
           <template v-if="live.billing.recharge">
-            <p class="mt-1 text-[14px] font-bold text-orange-900">Recharge au moins {{ money(live.billing.recharge) }} pour ouvrir ton prochain live.</p>
-            <button type="button" class="mt-2 block w-full rounded-xl bg-slate-900 py-2.5 text-[15px] font-black text-white" @click="openRecharge">Recharger</button>
+            <p class="mt-1 text-sm font-bold text-orange-900">Il faut au moins {{ live.billing.min_orders }} commandes pour ouvrir ton prochain live.</p>
+            <button type="button" class="mt-2 block w-full rounded-xl bg-slate-900 py-2.5 text-[15px] font-black text-white" @click="openRecharge()">Recharger</button>
           </template>
         </section>
         <section v-if="waitingClients.length" class="card flex flex-wrap items-center gap-3 p-4">
@@ -728,6 +722,5 @@ async function redo() {
     </button>
   </div>
   </div>
-  <LivePaySheet v-if="payBilling" :billing="payBilling" @close="payBilling = null" />
   </Teleport>
 </template>
