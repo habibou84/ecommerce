@@ -19,6 +19,6 @@ class SocialCallbackController extends Controller
         $back = $connections->callback($provider, (string) $request->query('state'), $request->query('code'),
             $request->query('error_description') ?? $request->query('error_reason') ?? $request->query('error'));
 
-        return $back === null ? response()->view('platform.facebook-done') : redirect()->away($back);
+        return $back === null ? response()->view('platform.facebook-done', ['app' => $connections->relayApp]) : redirect()->away($back);
     }
 }

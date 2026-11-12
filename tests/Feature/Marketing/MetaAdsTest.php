@@ -225,6 +225,10 @@ class MetaAdsTest extends TestCase
         $this->storeApi($this->store, 'GET', 'marketing/tracking/meta/'.substr($result, 5))->assertOk()->assertJsonPath('data.businesses.0.name', 'Awa SARL');
         $this->storeApi($this->store, 'GET', "marketing/tracking/meta/relay/{$relay}")->assertJsonPath('data.result', null);
 
+        // Lancée depuis l'application Android : la page de fin propose d'y retourner
+        $connect(['back' => 'boost', 'relay' => str_repeat('cd34', 12), 'app' => true])->assertOk()->assertSee("Retourner dans l'application", false)
+            ->assertSee('package=com.jibiat.marchand', false);
+
         // Une page de retour inconnue est refusée
         $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect', ['back' => 'ailleurs'])->assertStatus(422);
     }
