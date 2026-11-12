@@ -96,9 +96,9 @@ class TrackingController extends Controller
 
     public function metaConnect(Request $request, SocialConnections $connections): JsonResponse
     {
-        $data = $request->validate(['back' => ['nullable', Rule::in(array_keys(SocialConnections::ADS_BACK))], 'relay' => ['nullable', 'string', 'regex:/^[a-f0-9]{48}$/']]);
+        $data = $request->validate(['back' => ['nullable', Rule::in(array_keys(SocialConnections::ADS_BACK))], 'relay' => ['nullable', 'string', 'regex:/^[a-f0-9]{48}$/'], 'app' => ['nullable', 'boolean']]);
 
-        return response()->json(['url' => $connections->adsAuthorizeUrl($this->currentStore(), $request->user(), $data['back'] ?? 'suivi', $data['relay'] ?? null)]);
+        return response()->json(['url' => $connections->adsAuthorizeUrl($this->currentStore(), $request->user(), $data['back'] ?? 'suivi', $data['relay'] ?? null, (bool) ($data['app'] ?? false))]);
     }
 
     /**
