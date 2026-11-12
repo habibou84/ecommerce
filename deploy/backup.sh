@@ -99,11 +99,16 @@ rclone_env() {
 }
 
 # Envoie un fichier chiffré : distant:<espace>/<installation>/<dossier>/<nom>.enc
+# Chiffré d'abord dans un fichier à côté, puis envoyé d'un bloc : Cloudflare R2 refuse l'envoi en continu
+# (« NotImplemented »). Jusqu'à 4,5 Go, un seul envoi ; au-delà, en morceaux de taille connue.
 send() {
-    local file="$1" folder="$2"
+    local file="$1" folder="$2" enc="$1.enc"
     BACKUP_PASS="$(env_get BACKUP_ENCRYPTION_KEY)" openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
-        -pass env:BACKUP_PASS -in "$file" \
-        | rclone rcat "$REMOTE/$folder/$(basename "$file").enc"
+        -pass env:BACKUP_PASS -in "$file" -out "$enc" || { rm -f "$enc"; return 1; }
+    rclone copyto --s3-upload-cutoff 4500M --s3-chunk-size 64M "$enc" "$REMOTE/$folder/$(basename "$enc")"
+    local status=$?
+    rm -f "$enc"
+    return $status
 }
 
 # Supprime les copies distantes plus anciennes que l'âge donné (dossier encore absent : rien à faire)
