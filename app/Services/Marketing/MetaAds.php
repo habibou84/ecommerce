@@ -8,6 +8,7 @@ use App\Models\Store;
 use App\Services\WhatsApp\WhatsAppCloud;
 use App\Support\Tenancy;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 
 /**
@@ -236,6 +237,40 @@ class MetaAds
 
         return $account && $account->status === 'active' && ($account->token_expires_at === null || $account->token_expires_at->isFuture())
             ? $account->access_token : null;
+    }
+
+    /**
+     * Vérification du pixel : événements reçus par Meta ces 7 derniers jours (vues, paniers, achats…), relus au plus
+     * une fois par heure. Null si Meta ne répond pas ou si la boutique n'est pas reliée.
+     *
+     * @return array<string, int>|null
+     */
+    public function pixelStats(Store $store): ?array
+    {
+        $pixel = $store->marketingId('meta_pixel_id');
+        $account = $this->account($store);
+        if ($pixel === null || $account === null || $account->status !== 'active') {
+            return null;
+        }
+
+        return Cache::remember('meta-pixel-stats:'.$store->id.':'.$pixel, now()->addHour(), function () use ($pixel, $account) {
+            try {
+                $rows = $this->graph->graph('GET', $pixel.'/stats', $account->access_token, ['aggregation' => 'event', 'start_time' => now()->subDays(7)->timestamp])['data'] ?? [];
+            } catch (RuntimeException) {
+                return null;
+            }
+            $counts = [];
+            foreach ($rows as $row) {
+                foreach ($row['data'] ?? [] as $point) {
+                    $event = (string) ($point['value'] ?? '');
+                    if ($event !== '') {
+                        $counts[$event] = ($counts[$event] ?? 0) + (int) ($point['count'] ?? 0);
+                    }
+                }
+            }
+
+            return $counts;
+        });
     }
 
     public function disconnect(Store $store): void

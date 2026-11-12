@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import ColorIcon from './ColorIcon.vue'
 import Icon from './Icon.vue'
 import LivePrepare from '../views/gestion/marketing/LivePrepare.vue'
+import BoostPanel from './marketing/BoostPanel.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
 import { platformOn } from '../router'
@@ -62,6 +63,9 @@ const PAGES = [
     settings: [{ to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' }, { to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' }, { to: '/gestion/statistiques', label: 'Statistiques' }, { to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
   { key: 'shop', name: 'Boutique', icon: '🏪', show: () => canOpen('/gestion/boutique-en-ligne'), badge: () => (s.value.shop?.abandoned ? { n: s.value.shop.abandoned, level: 'orange' } : null),
     settings: [{ to: '/gestion/boutique-en-ligne', label: 'Apparence' }, { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus' }, { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' }] },
+  // Boost : la pub Facebook et Instagram au même endroit (connexion, pixel, produits à booster, commandes venues des boosts)
+  { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
+    settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'items', name: 'Articles', icon: '👗', show: () => canOpen('/gestion/catalogue'), badge: () => (s.value.stock && s.value.stock.out + s.value.stock.low ? { n: s.value.stock.out + s.value.stock.low, level: s.value.stock.out ? 'red' : 'orange' } : null),
     settings: [{ to: '/gestion/collections', label: 'Collections' }, { to: '/gestion/packs', label: 'Packs et prix de gros' }, { to: '/gestion/stock', label: 'Stock détaillé et mouvements' }, { to: '/gestion/stock/commandes', label: 'Fournisseurs et bons de commande' }, { to: '/gestion/catalogue/import', label: 'Importer des produits' }] },
   { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (s.value.unread_messages ? { n: s.value.unread_messages, level: 'orange' } : null), settings: [{ to: '/gestion/parametres', label: 'Informations de l\'espace marchand' }, { to: '/gestion/equipe', label: 'Équipe' }] },
@@ -331,6 +335,12 @@ function open(to) {
               <span class="text-xl text-slate-400" aria-hidden="true">›</span>
             </RouterLink>
           </div>
+        </template>
+
+        <!-- BOOST : la pub Facebook et Instagram -->
+        <!-- Chargée seulement une fois la page Boost affichée -->
+        <template v-else-if="p.key === 'boost'">
+          <BoostPanel v-if="seen.has('boost')" />
         </template>
 
         <!-- ARTICLES : catalogue et stock réunis -->
