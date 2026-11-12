@@ -173,8 +173,9 @@ class DashboardController extends Controller
     {
         $other = [OrderSource::Manual->value, OrderSource::Import->value, OrderSource::Api->value];
 
+        // À montant égal, le canal de la première commande du jour d'abord (ordre stable, quelle que soit la base)
         return Order::where('created_at', '>=', now()->startOfDay())->where('status', '!=', OrderStatus::Cancelled->value)
-            ->get(['source', 'total'])
+            ->orderBy('id')->get(['source', 'total'])
             ->groupBy(fn (Order $o) => in_array($o->source?->value, $other, true) || $o->source === null ? 'other' : $o->source->value)
             ->map(fn ($orders, string $source) => [
                 'source' => $source,
