@@ -1,19 +1,19 @@
 import http from './http'
-import { installedApp, randomKey } from './facebook'
+import { randomKey } from './facebook'
 import { inApp } from './app'
 
 /**
  * Connexion Facebook (pixel, catalogue, pub) lancée depuis le menu Boost ou « Suivi publicitaire », avec retour sur
  * la même page (`back` : 'boost' ou 'suivi').
- * Navigateur : la page entière part chez Facebook et revient. Application installée (écran d'accueil) ou application
- * Android : Facebook s'ouvre à côté (Facebook refuse la connexion dans l'application elle-même), l'application reste
- * ouverte dessous ; une fois la connexion faite, la page de fin ramène dans l'application (bouton « Retourner dans
- * l'application ») et l'application reprend toute seule avec le résultat.
+ * Navigateur et application installée sur l'écran d'accueil (PWA) : la même fenêtre part chez Facebook et revient
+ * toute seule sur la page (une nouvelle fenêtre partirait dans Chrome sur Android, hors de l'application).
+ * Application Android (coquille Capacitor) : Facebook refuse la connexion dans l'application, il s'ouvre dans Chrome ;
+ * l'application reste sur sa page, attend le résultat, et la page de fin y ramène.
  */
 const PATHS = { boost: '/gestion/boost', suivi: '/gestion/marketing/suivi' }
 
 export async function connectFacebookAds(back) {
-  const relay = installedApp() || inApp ? randomKey() : null
+  const relay = inApp ? randomKey() : null
   const { url } = (await http.post('/marketing/tracking/meta/connect', { back, relay, app: inApp })).data
   if (!relay) {
     window.location.assign(url)
@@ -21,10 +21,7 @@ export async function connectFacebookAds(back) {
   }
   // Application Android : le lien part dans Chrome et l'application reste sur sa page, qui attend le résultat
   const win = window.open(url, '_blank')
-  if (!win) {
-    window.location.assign(url)
-    if (!inApp) return
-  }
+  if (!win) window.location.assign(url)
   const started = Date.now()
   let busy = false
   const check = async () => {
