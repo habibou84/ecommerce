@@ -185,14 +185,42 @@ class MetaAds
      */
     private function granted(string $token, string $scope): array
     {
+        return collect($this->tokenInfo($token)['granular_scopes'] ?? [])->where('scope', $scope)->flatMap(fn ($g) => $g['target_ids'] ?? [])->map(fn ($id) => (string) $id)->unique()->values()->all();
+    }
+
+    /** Ce que Meta dit du jeton (autorisations reçues et éléments choisis dans la fenêtre de Facebook) */
+    private function tokenInfo(string $token): array
+    {
         try {
             $app = config('services.meta.app_id').'|'.config('services.meta.app_secret');
-            $info = $this->graph->graph('GET', 'debug_token', $app, ['input_token' => $token])['data'] ?? [];
+
+            return $this->graph->graph('GET', 'debug_token', $app, ['input_token' => $token])['data'] ?? [];
         } catch (RuntimeException) {
             return [];
         }
+    }
 
-        return collect($info['granular_scopes'] ?? [])->where('scope', $scope)->flatMap(fn ($g) => $g['target_ids'] ?? [])->map(fn ($id) => (string) $id)->unique()->values()->all();
+    /**
+     * Autorisations que Facebook a vraiment données (sans le jeton), pour dire pourquoi la liste des catalogues et des
+     * pixels est vide : autorisation absente de la configuration Facebook, ou rien coché dans la fenêtre.
+     *
+     * @return array{known: bool, scopes: list<string>, missing: list<string>, catalogs_chosen: int, ad_accounts_chosen: int}
+     */
+    public function permissions(string $token): array
+    {
+        $info = $this->tokenInfo($token);
+        $scopes = array_values(array_map('strval', $info['scopes'] ?? []));
+        $granular = collect($info['granular_scopes'] ?? []);
+        // Autorisations granulaires (choisies pour des éléments précis) : comptées comme reçues
+        $have = array_unique([...$scopes, ...$granular->pluck('scope')->map(fn ($x) => (string) $x)->all()]);
+
+        return [
+            'known' => $info !== [],
+            'scopes' => array_values($have),
+            'missing' => array_values(array_diff(['business_management', 'catalog_management', 'ads_management'], $have)),
+            'catalogs_chosen' => count($this->granted($token, 'catalog_management')),
+            'ad_accounts_chosen' => count($this->granted($token, 'ads_management')),
+        ];
     }
 
     /**

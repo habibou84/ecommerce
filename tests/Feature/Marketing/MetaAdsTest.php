@@ -268,10 +268,30 @@ class MetaAdsTest extends TestCase
         // La liste montre le catalogue et le pixel choisis dans la fenêtre de Facebook
         $this->storeApi($this->store, 'GET', "marketing/tracking/meta/{$key}?business=111")->assertOk()
             ->assertJsonPath('data.assets.catalogs.0', ['id' => '333333', 'name' => 'Catalogue Joli maison', 'products' => 38])
-            ->assertJsonPath('data.assets.pixels.0.id', '222222');
+            ->assertJsonPath('data.assets.pixels.0.id', '222222')
+            ->assertJsonPath('data.permissions', ['known' => true, 'scopes' => ['business_management', 'catalog_management', 'ads_management'], 'missing' => [], 'catalogs_chosen' => 1, 'ad_accounts_chosen' => 1]);
 
         // Et ce choix est accepté (même validation que pour un catalogue du compte Business)
         $this->storeApi($this->store, 'POST', "marketing/tracking/meta/{$key}", ['business_id' => '111', 'pixel_id' => '222222', 'catalog_id' => '333333'])->assertOk()
             ->assertJsonPath('data.meta_pixel_id', '222222')->assertJsonPath('data.meta_connection.catalog_id', '333333');
+    }
+
+    public function test_the_list_says_why_it_is_empty_when_facebook_gave_no_access(): void
+    {
+        // La configuration Facebook n'a pas demandé catalogues ni publicité : le jeton n'a que le compte Business
+        Http::fake([
+            'graph.facebook.com/*/oauth/access_token*' => Http::response(['access_token' => 'long-token']),
+            'graph.facebook.com/*/debug_token*' => Http::response(['data' => ['expires_at' => 0, 'scopes' => ['public_profile', 'business_management']]]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['data' => [['id' => '111', 'name' => 'Joli maison']]]),
+            'graph.facebook.com/*/111/*' => Http::response(['data' => []]),
+        ]);
+        $url = $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect')->json('url');
+        parse_str(parse_url($url, PHP_URL_QUERY), $query);
+        $key = explode('meta=', $this->get('http://localhost/reseaux/meta/retour?code=abc&state='.rawurlencode($query['state']))->headers->get('Location'))[1];
+
+        $this->storeApi($this->store, 'GET', "marketing/tracking/meta/{$key}?business=111")->assertOk()
+            ->assertJsonPath('data.assets', ['pixels' => [], 'catalogs' => []])
+            ->assertJsonPath('data.permissions.missing', ['catalog_management', 'ads_management'])
+            ->assertJsonPath('data.permissions.catalogs_chosen', 0);
     }
 }
