@@ -109,6 +109,7 @@ class LiveScreenController extends Controller
     {
         $data = $request->validate([
             'theme' => ['sometimes', Rule::in(LiveScreens::SHOW_THEMES)],
+            'ambiance' => ['sometimes', Rule::in(LiveScreens::SHOW_AMBIANCES)],
             'sound' => ['sometimes', 'boolean'], 'music' => ['sometimes', 'boolean'], 'light' => ['sometimes', 'boolean'],
             'goal' => ['sometimes', 'nullable', 'integer', 'between:1,1000'],
         ]);

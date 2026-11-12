@@ -14,6 +14,8 @@ const props = defineProps({
 const emit = defineEmits(['changed'])
 
 const THEMES = [['fete', 'Fête'], ['wax', 'Wax'], ['neon', 'Néon'], ['luxe', 'Luxe']]
+// Ambiances : musique et sons des moments composés par l'écran (aucun morceau existant)
+const AMBIANCES = [['techno', '⚡ Techno show'], ['coupe', '🥁 Coupé-décalé'], ['zouglou', '👏 Zouglou'], ['afro', '🌴 Afro'], ['douce', '🌙 Douce']]
 const MOMENTS = [['countdown', '⏱', '3-2-1'], ['party', '🎉', 'Fête'], ['goal', '🎯', 'Objectif'], ['match', '🏆', 'Quartiers'], ['wheel', '🎡', 'Roue']]
 
 const busy = ref(false)
@@ -21,7 +23,7 @@ const error = ref('')
 const goalInput = ref(null)
 const winner = ref(null)
 const local = ref(null) // réglages juste enregistrés, en attendant la prochaine lecture
-const showSettings = computed(() => local.value ?? props.settings ?? { theme: 'fete', sound: true, music: false, light: false, goal: null })
+const showSettings = computed(() => local.value ?? props.settings ?? { theme: 'fete', ambiance: 'techno', sound: true, music: false, light: false, goal: null })
 
 async function run(request) {
   busy.value = true
@@ -62,6 +64,10 @@ const saveShow = (patch) => run(async () => {
     <label class="mt-2 flex items-center gap-2 text-xs font-bold">🎯 Objectif du live :
       <input v-model.number="goalInput" type="number" min="1" max="1000" class="input w-20 py-1 text-slate-900" :placeholder="String(showSettings.goal ?? 30)" aria-label="Objectif en commandes"> commandes</label>
     <p v-if="winner" class="mt-2 rounded-xl bg-white px-3 py-2 text-sm">🎁 Gagnante : <b>{{ winner.winner || 'Client' }}</b><template v-if="winner.phone"> · {{ winner.phone }}</template> ({{ winner.label }}). L'écran ne montre que la commune et le code : contacte-la pour son cadeau.</p>
+    <p class="mt-2 text-xs font-bold">🎵 Ambiance (musique et sons) :</p>
+    <div class="mt-1 flex flex-wrap gap-1.5">
+      <button v-for="[value, label] in AMBIANCES" :key="value" type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.ambiance === value ? 'bg-violet-700 text-white' : 'bg-white'" :disabled="busy" @click="saveShow({ ambiance: value, music: true, sound: true })">{{ label }}</button>
+    </div>
     <div class="mt-2 flex flex-wrap gap-1.5">
       <button v-for="[value, label] in THEMES" :key="value" type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.theme === value ? 'bg-violet-700 text-white' : 'bg-white'" :disabled="busy" @click="saveShow({ theme: value })">{{ label }}</button>
       <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="showSettings.sound ? 'bg-violet-700 text-white' : 'bg-white'" :disabled="busy" @click="saveShow({ sound: !showSettings.sound })">🔊 Sons</button>
