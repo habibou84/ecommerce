@@ -257,18 +257,47 @@ async function act(a) {
   if (a.kind === 'tab') return a.tab === 'moments' ? (sub.value = 'moments') : (tab.value = a.tab)
   if (a.kind === 'question') return moment('question', { message_id: a.message.id })
   if (a.kind === 'plan') {
-    // Étape du plan : l'écran change (vitrine, comment commander, défilement, ou l'article en grand)
     const step = plan.next.value
     if (!step) return
-    if (step.kind === 'article') {
-      const p = products.value.find((x) => x.code === step.code)
-      if (p && current.value?.code !== p.code) show(p)
-      else if (screenMode.value !== 'product') emit('mode', 'product')
-    } else {
-      emit('mode', step.mode)
-    }
-    plan.advance()
+    applyStep(step)
+    plan.start(step)
   }
+}
+// Étape du plan à l'écran : la vitrine, comment commander, le défilement, ou l'article en grand
+function applyStep(step) {
+  if (step.kind === 'article') {
+    const p = products.value.find((x) => x.code === step.code)
+    if (p && current.value?.code !== p.code) show(p)
+    else if (screenMode.value !== 'product') emit('mode', 'product')
+  } else if (screenMode.value !== step.mode) {
+    emit('mode', step.mode)
+  }
+}
+// ── Plan : « Maintenant », « Ensuite », sorti du plan, temps passé sur l'étape ──
+const tick = ref(Date.now())
+const ticker = setInterval(() => (tick.value = Date.now()), 1000)
+onUnmounted(() => clearInterval(ticker))
+const stepSecs = computed(() => (plan.now.value ? Math.max(0, Math.round((tick.value - plan.now.value.at) / 1000)) : 0))
+const stepClock = computed(() => `${Math.floor(stepSecs.value / 60)}:${String(stepSecs.value % 60).padStart(2, '0')}`)
+const overtime = computed(() => !!plan.current.value && stepSecs.value > (plan.current.value.secs ?? 180))
+// L'écran ne montre plus l'étape en cours (article montré à la main, autre affichage) : depuis plus de 5 secondes
+const planOff = computed(() => {
+  const step = plan.current.value
+  if (!step) return false
+  return step.kind === 'article' ? current.value?.code !== step.code || screenMode.value !== 'product' : screenMode.value !== step.mode
+})
+const offSince = ref(0)
+watch(planOff, (off) => (offSince.value = off ? Date.now() : 0), { immediate: true })
+const showOff = computed(() => planOff.value && offSince.value > 0 && tick.value - offSince.value > 5000)
+// « Continuer d'ici » : seulement si l'article à l'écran fait partie du plan
+const adoptable = computed(() => screenMode.value === 'product' && current.value && plan.steps.value.some((x) => x.key === `art-${current.value.code}`))
+function backStep() {
+  const prev = plan.back()
+  if (prev) applyStep(prev)
+}
+function restartPlan() {
+  if (!window.confirm('Recommencer le plan depuis le début (vitrine, puis comment commander) ?')) return
+  plan.restart()
 }
 const sinceFeature = computed(() => {
   const s = Math.max(0, Math.round((props.now - track.since) / 1000))
@@ -581,32 +610,56 @@ const ago = (iso) => {
         <p v-if="showError" class="rounded-xl bg-red-500/15 px-3 py-2 text-sm font-bold text-red-200">{{ showError }}</p>
 
         <template v-if="sub === 'copilot'">
-          <!-- 1. Le déroulement du plan : l'affichage des articles, étape par étape -->
+          <!-- 1. Le plan : ce qui est à l'écran maintenant, ce qui vient ensuite, et le bouton pour y passer -->
           <div class="rounded-2xl bg-violet-500/15 p-2.5 ring-1 ring-violet-400/30">
             <div class="flex items-center gap-2 text-[11px] font-black tracking-wider text-violet-200 uppercase">
-              <span>📋 Plan · {{ Math.min(plan.position.value + 1, plan.steps.value.length) }}/{{ plan.steps.value.length }}</span>
+              <span>📋 Plan du live<template v-if="plan.current.value"> · étape {{ plan.currentIndex.value + 1 }} sur {{ plan.steps.value.length }}</template></span>
               <span class="ml-auto font-bold tracking-normal normal-case text-slate-400">{{ planLeft }}</span>
             </div>
             <div class="mt-1.5 flex gap-0.5" aria-hidden="true">
-              <i v-for="step in plan.steps.value" :key="step.key" class="h-1.5 flex-1 rounded-full" :class="step.done ? 'bg-amber-400' : step === plan.next.value ? 'bg-white' : 'bg-white/15'" />
+              <i v-for="step in plan.steps.value" :key="step.key" class="h-1.5 flex-1 rounded-full" :class="step === plan.current.value ? 'bg-emerald-400' : step.done ? 'bg-amber-400' : 'bg-white/15'" />
             </div>
-            <template v-if="plan.next.value">
-              <div class="mt-2 flex items-center gap-2">
-                <b class="min-w-0 flex-1 text-[14px] leading-snug">▶ {{ plan.next.value.label }} <span class="font-normal text-slate-400">· ≈ {{ plan.next.value.time }}</span></b>
-                <button type="button" class="shrink-0 rounded-xl bg-amber-400 px-3 py-2 text-[13px] font-extrabold text-slate-900" @click="act({ kind: 'plan' })">Faire ▶</button>
+
+            <!-- Maintenant à l'écran -->
+            <div v-if="plan.current.value" class="mt-2 rounded-xl bg-emerald-500/15 p-2 ring-1 ring-emerald-400/40">
+              <p class="text-[10.5px] font-black tracking-wider text-emerald-300 uppercase">🟢 Maintenant à l'écran</p>
+              <p class="text-[14px] leading-snug font-extrabold">{{ plan.current.value.label }}</p>
+              <p class="text-[12px]" :class="overtime ? 'font-bold text-amber-300' : 'text-slate-400'">depuis {{ stepClock }} · ≈ {{ plan.current.value.time }} conseillé{{ overtime ? ' : passe à la suite' : '' }}</p>
+              <p class="mt-1 text-[12.5px] leading-snug text-amber-200">« {{ plan.current.value.say }} »</p>
+            </div>
+            <p v-else class="mt-2 text-[13px] text-slate-300">Le plan n'a pas encore commencé.</p>
+
+            <!-- Sorti du plan -->
+            <div v-if="showOff" class="mt-2 rounded-xl bg-amber-500/15 p-2 ring-1 ring-amber-400/50">
+              <p class="text-[12.5px] font-bold text-amber-200">↪ Tu es sorti du plan : l'écran ne montre plus « {{ plan.current.value.label }} ».</p>
+              <div class="mt-1.5 flex flex-wrap gap-1.5">
+                <button type="button" class="rounded-lg bg-amber-400 px-3 py-1.5 text-[12.5px] font-extrabold text-slate-900" @click="applyStep(plan.current.value)">↩ Reprendre le plan</button>
+                <button v-if="adoptable" type="button" class="rounded-lg bg-white/15 px-3 py-1.5 text-[12.5px] font-extrabold" @click="plan.adopt(current.code)">Continuer depuis {{ current.code }}</button>
               </div>
-              <p class="mt-1 text-[12.5px] leading-snug text-amber-200">« {{ plan.next.value.say }} »</p>
+            </div>
+
+            <!-- Ensuite, et le bouton pour y passer -->
+            <template v-if="plan.next.value">
+              <p class="mt-2 text-[10.5px] font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
+              <p class="text-[13.5px] font-bold">{{ plan.next.value.label }}</p>
+              <button type="button" class="mt-1.5 w-full rounded-xl bg-amber-400 px-3 py-3 text-[14px] font-extrabold text-slate-900" :class="{ 'animate-pulse': overtime }" @click="act({ kind: 'plan' })">
+                {{ plan.current.value ? 'Passer à' : 'Commencer' }} : {{ plan.next.value.label.replace(/^\S+\s/, '') }} ▶
+              </button>
             </template>
-            <p v-else class="mt-2 text-[13px] font-bold text-emerald-300">✓ Plan terminé</p>
-            <p v-if="plan.following.value" class="mt-1 text-[12px] text-slate-400">Ensuite : {{ plan.following.value.label }}</p>
-            <details class="mt-1">
-              <summary class="cursor-pointer text-[12px] font-bold text-violet-200">Voir tout le plan</summary>
-              <ol class="mt-1 space-y-0.5">
-                <li v-for="(step, k) in plan.steps.value" :key="step.key" class="flex items-center gap-2 rounded-lg px-2 py-1 text-[12.5px]" :class="step.done ? 'text-slate-500 line-through' : step === plan.next.value ? 'bg-white/10 font-bold' : 'text-slate-300'">
-                  <span class="w-4 text-center">{{ step.done ? '✓' : step === plan.next.value ? '▶' : k + 1 }}</span>{{ step.label }}
-                </li>
-              </ol>
-            </details>
+            <p v-else class="mt-2 text-[13px] font-bold text-emerald-300">✓ Plan terminé : bravo !</p>
+
+            <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-bold text-violet-200">
+              <button v-if="plan.current.value" type="button" class="underline" @click="backStep">◀ Étape précédente</button>
+              <button v-if="plan.current.value || plan.steps.value.some((x) => x.done)" type="button" class="underline" @click="restartPlan">↺ Recommencer le plan</button>
+              <details class="w-full">
+                <summary class="cursor-pointer">Voir tout le plan</summary>
+                <ol class="mt-1 space-y-0.5 font-normal">
+                  <li v-for="(step, k) in plan.steps.value" :key="step.key" class="flex items-center gap-2 rounded-lg px-2 py-1 text-[12.5px]" :class="step === plan.current.value ? 'bg-emerald-500/15 font-bold text-white' : step.done ? 'text-slate-500 line-through' : step === plan.next.value ? 'bg-white/10 font-bold text-white' : 'text-slate-300'">
+                    <span class="w-4 text-center">{{ step === plan.current.value ? '🟢' : step.done ? '✓' : step === plan.next.value ? '⏭' : k + 1 }}</span>{{ step.label }}
+                  </li>
+                </ol>
+              </details>
+            </div>
           </div>
           <!-- 2. Les conseils du moment -->
           <LiveCopilot :live="live" :products="products" :current="current" :next="next" :state="showState" :orders="screenOrders" :with-plan="false"
