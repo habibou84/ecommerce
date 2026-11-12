@@ -195,7 +195,27 @@ watch(sub, (v) => {
     // sans stockage : onglet Copilote à la prochaine visite
   }
 })
-const SUBS = [['copilot', '🧭 Copilote'], ['moments', '🎬 Moments'], ['articles', '📦 Articles'], ['plan', '📋 Plan']]
+// Copilote (plan du live puis conseils), Articles, Plus (tous les moments, musique, thème, article mystère, durée)
+const SUBS = [['copilot', '🧭 Copilote'], ['articles', '📦 Articles'], ['more', '⚙️ Plus']]
+if (!SUBS.some(([k]) => k === sub.value)) sub.value = 'copilot'
+// Sons et musique de l'écran : à portée de pouce, en bas
+const showSettings = computed(() => display.value?.live?.show?.settings ?? {})
+async function toggleShow(key) {
+  const value = !(showSettings.value[key] ?? (key === 'sound'))
+  if (display.value?.live?.show?.settings) display.value.live.show.settings[key] = value
+  try {
+    await http.put(`/lives/${props.live.id}/show`, { [key]: value })
+  } catch (e) {
+    showError.value = errorMessage(e)
+  }
+  loadDisplay()
+}
+const planLeft = computed(() => {
+  const end = plan.plannedEnd.value
+  if (!end) return ''
+  const min = Math.round((end - props.now) / 60000)
+  return min > 0 ? `fin prévue dans ${min} min` : 'durée prévue dépassée'
+})
 // Article montré : depuis quand, combien vendus à ce moment-là, articles déjà montrés (gardé sur ce téléphone)
 const trackKey = `jm.live-track.${props.live.id}`
 const track = reactive((() => {
@@ -547,18 +567,43 @@ const ago = (iso) => {
           </div>
         </div>
 
-        <!-- Copilote, Moments, Articles, Plan -->
-        <div class="grid grid-cols-4 gap-1 rounded-xl bg-white/10 p-1" role="tablist" aria-label="Console du live">
-          <button v-for="[key, label] in SUBS" :key="key" type="button" role="tab" :aria-selected="sub === key" class="rounded-lg py-2 text-[11.5px] font-extrabold" :class="sub === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="sub = key">
+        <!-- Copilote, Articles, Plus -->
+        <div class="grid grid-cols-3 gap-1 rounded-xl bg-white/10 p-1" role="tablist" aria-label="Console du live">
+          <button v-for="[key, label] in SUBS" :key="key" type="button" role="tab" :aria-selected="sub === key" class="rounded-lg py-2 text-[12px] font-extrabold" :class="sub === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="sub = key">
             {{ label }}<span v-if="key === 'copilot' && questions.length" class="ml-0.5 rounded-full bg-red-600 px-1 text-[9px] text-white">{{ questions.length }}</span>
           </button>
         </div>
         <p v-if="showError" class="rounded-xl bg-red-500/15 px-3 py-2 text-sm font-bold text-red-200">{{ showError }}</p>
 
-        <LiveCopilot v-if="sub === 'copilot'" :live="live" :products="products" :current="current" :next="next" :state="showState" :orders="screenOrders"
-                     :questions="questions.filter(isQuestion)" :now="now" :plan="plan" :last-at="moments.lastAt" :featured-since="track.since" :sold-at-feature="track.sold" :shown-codes="track.shown" @act="act" />
-
-        <LiveShowRemote v-else-if="sub === 'moments'" :id="live.id" dark :settings="display?.live?.show?.settings" :state="showState" :has-mystery="hasMystery" @changed="loadDisplay" @launched="(t) => { moments.add(t); if (t === 'reveal') emit('reload') }" />
+        <template v-if="sub === 'copilot'">
+          <!-- 1. Le déroulement du plan : l'étape en cours, la suivante, tout le plan à déplier -->
+          <div class="rounded-2xl bg-violet-500/15 p-2.5 ring-1 ring-violet-400/30">
+            <div class="flex items-center gap-2 text-[11px] font-black tracking-wider text-violet-200 uppercase">
+              <span>📋 Plan · {{ Math.min(plan.index.value + 1, plan.steps.value.length) }}/{{ plan.steps.value.length }}</span>
+              <span class="ml-auto font-bold tracking-normal normal-case text-slate-400">{{ planLeft }}</span>
+            </div>
+            <div class="mt-1.5 flex gap-0.5" aria-hidden="true">
+              <i v-for="(step, k) in plan.steps.value" :key="k" class="h-1.5 flex-1 rounded-full" :class="k < plan.index.value ? 'bg-amber-400' : k === plan.index.value ? 'bg-white' : 'bg-white/15'" />
+            </div>
+            <div v-if="plan.next.value" class="mt-2 flex items-center gap-2">
+              <b class="min-w-0 flex-1 text-[14px] leading-snug">▶ {{ plan.next.value.label }}</b>
+              <button type="button" class="shrink-0 rounded-xl bg-amber-400 px-3 py-2 text-[13px] font-extrabold text-slate-900" @click="act({ kind: 'plan' })">Faire ▶</button>
+            </div>
+            <p v-else class="mt-2 text-[13px] font-bold text-emerald-300">✓ Plan terminé</p>
+            <p v-if="plan.steps.value[plan.index.value + 1]" class="mt-1 text-[12px] text-slate-400">Ensuite : {{ plan.steps.value[plan.index.value + 1].label }}</p>
+            <details class="mt-1">
+              <summary class="cursor-pointer text-[12px] font-bold text-violet-200">Voir tout le plan</summary>
+              <ol class="mt-1 space-y-0.5">
+                <li v-for="(step, k) in plan.steps.value" :key="k" class="flex items-center gap-2 rounded-lg px-2 py-1 text-[12.5px]" :class="k < plan.index.value ? 'text-slate-500 line-through' : k === plan.index.value ? 'bg-white/10 font-bold' : 'text-slate-300'">
+                  <span class="w-4 text-center">{{ k < plan.index.value ? '✓' : k === plan.index.value ? '▶' : k + 1 }}</span>{{ step.label }}
+                </li>
+              </ol>
+            </details>
+          </div>
+          <!-- 2. Les conseils du moment -->
+          <LiveCopilot :live="live" :products="products" :current="current" :next="next" :state="showState" :orders="screenOrders" :with-plan="false"
+                       :questions="questions.filter(isQuestion)" :now="now" :plan="plan" :last-at="moments.lastAt" :featured-since="track.since" :sold-at-feature="track.sold" :shown-codes="track.shown" @act="act" />
+        </template>
 
         <template v-else-if="sub === 'articles'">
           <div class="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Que montrer à l'écran ?">
@@ -587,35 +632,31 @@ const ago = (iso) => {
         </template>
 
         <template v-else>
-          <!-- Plan du live : étapes proposées, avancement, durée prévue, article mystère -->
-          <div class="flex items-center gap-2 text-[13px] font-bold">
-            <span class="min-w-0 flex-1">⏱ Durée prévue du live</span>
+          <!-- Plus : tous les moments, musique, thème, modes ; article mystère ; durée prévue -->
+          <LiveShowRemote :id="live.id" dark no-reactions :settings="display?.live?.show?.settings" :state="showState" :has-mystery="hasMystery" @changed="loadDisplay" @launched="(t) => { moments.add(t); if (t === 'reveal') emit('reload') }" />
+          <details class="rounded-xl bg-white/5 p-3" :open="!products.some((p) => p.mystery)">
+            <summary class="cursor-pointer text-[13px] font-extrabold">🎁 Choisir l'article mystère et ses indices</summary>
+            <div class="mt-2"><LiveMysteryEditor :live="live" dark @saved="(state) => { emit('updated', state); loadDisplay() }" /></div>
+          </details>
+          <div class="flex items-center gap-2 rounded-xl bg-white/5 p-3 text-[13px] font-bold">
+            <span class="min-w-0 flex-1">⏱ Durée prévue du live <span class="block text-[11.5px] font-normal text-slate-400">le copilote propose la dernière chance avant la fin</span></span>
             <select v-model.number="plan.minutes.value" class="input w-auto py-1 text-slate-900" aria-label="Durée prévue">
               <option v-for="m in [30, 45, 60, 90, 120]" :key="m" :value="m">{{ m }} min</option>
             </select>
           </div>
-          <ol class="space-y-1">
-            <li v-for="(step, k) in plan.steps.value" :key="k" class="flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-bold"
-                :class="k < plan.index.value ? 'bg-white/5 text-slate-500 line-through' : k === plan.index.value ? 'bg-violet-500/25 ring-1 ring-amber-300' : 'bg-white/5 text-slate-300'">
-              <span class="w-5 text-center">{{ k < plan.index.value ? '✓' : k === plan.index.value ? '▶' : k + 1 }}</span>{{ step.label }}
-            </li>
-          </ol>
-          <button type="button" class="w-full rounded-xl bg-amber-400 py-3 text-base font-extrabold text-slate-900 disabled:opacity-50" :disabled="!plan.next.value" @click="act({ kind: 'plan' })">{{ plan.next.value ? 'Étape suivante ▶' : 'Plan terminé ✓' }}</button>
-          <details class="rounded-xl bg-white/5 p-3" :open="!hasMystery && !products.some((p) => p.mystery)">
-            <summary class="cursor-pointer text-[13px] font-extrabold">🎁 Article mystère</summary>
-            <div class="mt-2"><LiveMysteryEditor :live="live" dark @saved="(state) => { emit('updated', state); loadDisplay() }" /></div>
-          </details>
         </template>
 
-        <!-- Sous le pouce : l'article à l'écran, Suivant, les réactions -->
+        <!-- En bas, sous le pouce : l'article à l'écran et Suivant ; les réactions ; les sons et la musique de l'écran -->
         <div class="sticky bottom-0 z-10 -mx-1 space-y-1.5 border-t border-white/10 bg-[#0b1120] px-1 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))]">
           <div class="flex items-center gap-2 rounded-xl bg-white/10 px-2.5 py-1.5">
             <b class="text-xl font-black text-amber-300">{{ current?.code ?? '—' }}</b>
             <span class="min-w-0 flex-1 truncate text-[12px] text-slate-300">{{ current ? `${sinceFeature} · ${current.sold - track.sold} vente${current.sold - track.sold > 1 ? 's' : ''} · ${current.remaining} pièce${current.remaining > 1 ? 's' : ''}` : 'Aucun article à l\'écran' }}</span>
             <button type="button" class="shrink-0 rounded-xl bg-red-600 px-4 py-2 text-sm font-extrabold disabled:opacity-50" :disabled="busy || !(current ? next : showable[0])" @click="show(current ? next : showable[0])">{{ current ? 'Suivant' : 'Commencer' }} ▶</button>
           </div>
-          <div class="grid grid-cols-5 gap-1.5">
+          <div class="grid grid-cols-7 gap-1">
             <button v-for="e in ['❤️', '🔥', '😂', '👏', '🎁']" :key="e" type="button" class="rounded-xl bg-white/10 py-1.5 text-xl" :aria-label="`Réaction ${e}`" @click="moment('react', { emoji: e })">{{ e }}</button>
+            <button type="button" class="rounded-xl py-1.5 text-xl" :class="showSettings.sound !== false ? 'bg-emerald-500/25' : 'bg-red-500/25'" :aria-pressed="showSettings.sound !== false" :aria-label="showSettings.sound !== false ? 'Couper les sons de l\'écran' : 'Remettre les sons de l\'écran'" @click="toggleShow('sound')">{{ showSettings.sound !== false ? '🔊' : '🔇' }}</button>
+            <button type="button" class="relative rounded-xl py-1.5 text-xl" :class="showSettings.music ? 'bg-emerald-500/25' : 'bg-white/10 opacity-60'" :aria-pressed="!!showSettings.music" :aria-label="showSettings.music ? 'Arrêter la musique' : 'Lancer la musique'" @click="toggleShow('music')">🎵<span v-if="!showSettings.music" class="absolute inset-0 grid place-items-center text-2xl text-red-400" aria-hidden="true">／</span></button>
           </div>
         </div>
       </template>
