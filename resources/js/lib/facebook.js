@@ -135,7 +135,7 @@ export function installedApp() {
   return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
 }
 
-function randomKey() {
+export function randomKey() {
   const bytes = new Uint8Array(24)
   window.crypto.getRandomValues(bytes)
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')

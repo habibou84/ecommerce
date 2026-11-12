@@ -197,4 +197,35 @@ class MetaAdsTest extends TestCase
             ->assertJsonPath('data.meta_pixel_id', '555555')->assertJsonPath('data.meta_connection.catalog_id', '333333');
         Http::assertNotSent(fn (Request $r) => $r->method() === 'POST' && str_contains($r->url(), 'act_9/adspixels'));
     }
+
+    public function test_connecting_from_boost_comes_back_to_boost_and_the_installed_app_gets_the_result_without_leaving(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*/oauth/access_token*' => Http::response(['access_token' => 'long-token']),
+            'graph.facebook.com/*/debug_token*' => Http::response(['data' => ['expires_at' => now()->addDays(60)->timestamp]]),
+            'graph.facebook.com/*/me/businesses*' => Http::response(['data' => [['id' => '111', 'name' => 'Awa SARL']]]),
+        ]);
+        $connect = function (array $body) {
+            $url = $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect', $body)->assertOk()->json('url');
+            parse_str(parse_url($url, PHP_URL_QUERY), $query);
+
+            return $this->get('http://localhost/reseaux/meta/retour?code=abc&state='.rawurlencode($query['state']));
+        };
+
+        // Navigateur : retour sur le menu Boost avec la connexion en attente
+        $back = $connect(['back' => 'boost'])->assertRedirect()->headers->get('Location');
+        $this->assertStringStartsWith($this->storeUrl($this->store, '/gestion/boost?meta='), $back);
+
+        // Application installée : Facebook ouvert par-dessus ; la fenêtre dit « c'est fait », l'application lit le résultat une fois
+        $relay = str_repeat('ab12', 12);
+        $this->storeApi($this->store, 'GET', "marketing/tracking/meta/relay/{$relay}")->assertOk()->assertJsonPath('data.result', null);
+        $connect(['back' => 'boost', 'relay' => $relay])->assertOk()->assertSee('Retourne dans Jibiat Marchand');
+        $result = $this->storeApi($this->store, 'GET', "marketing/tracking/meta/relay/{$relay}")->assertOk()->json('data.result');
+        $this->assertMatchesRegularExpression('/^meta=[A-Za-z0-9]{40}$/', $result);
+        $this->storeApi($this->store, 'GET', 'marketing/tracking/meta/'.substr($result, 5))->assertOk()->assertJsonPath('data.businesses.0.name', 'Awa SARL');
+        $this->storeApi($this->store, 'GET', "marketing/tracking/meta/relay/{$relay}")->assertJsonPath('data.result', null);
+
+        // Une page de retour inconnue est refusée
+        $this->storeApi($this->store, 'POST', 'marketing/tracking/meta/connect', ['back' => 'ailleurs'])->assertStatus(422);
+    }
 }

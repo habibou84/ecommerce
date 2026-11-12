@@ -250,6 +250,8 @@ class StockKeeper
             $variants = ProductVariant::forStore($location->store_id)
                 ->whereHas('product', fn ($q) => $q->where('track_inventory', true))
                 ->leftJoin('stock_levels', fn ($j) => $j->on('stock_levels.variant_id', '=', 'product_variants.id')->where('stock_levels.location_id', $location->id))
+                // Lignes de l'inventaire dans l'ordre des articles (stable, quelle que soit la base)
+                ->orderBy('product_variants.id')
                 ->get(['product_variants.id', DB::raw('COALESCE(stock_levels.on_hand, 0) AS on_hand')]);
 
             foreach ($variants as $variant) {
