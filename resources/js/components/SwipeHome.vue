@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import ColorIcon from './ColorIcon.vue'
 import Icon from './Icon.vue'
 import LivePrepare from '../views/gestion/marketing/LivePrepare.vue'
+import BoostPanel from './marketing/BoostPanel.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
 import { platformOn } from '../router'
@@ -56,6 +57,9 @@ const badge = (items) => (items.length ? { n: items.length, level: items.some((i
 const PAGES = [
   { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
     settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/whatsapp', label: 'WhatsApp' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+  // Boost : la pub Facebook et Instagram au même endroit (connexion, pixel, produits à booster, commandes venues des boosts)
+  { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
+    settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
     settings: [{ to: '/gestion/livraisons', label: 'Livraisons en cours' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
@@ -331,6 +335,12 @@ function open(to) {
               <span class="text-xl text-slate-400" aria-hidden="true">›</span>
             </RouterLink>
           </div>
+        </template>
+
+        <!-- BOOST : la pub Facebook et Instagram -->
+        <!-- Chargée seulement une fois la page Boost affichée -->
+        <template v-else-if="p.key === 'boost'">
+          <BoostPanel v-if="seen.has('boost')" />
         </template>
 
         <!-- ARTICLES : catalogue et stock réunis -->

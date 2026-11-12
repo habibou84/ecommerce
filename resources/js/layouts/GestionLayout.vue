@@ -62,6 +62,7 @@ const groups = [
     { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus', also: ['/gestion/boutique-en-ligne/menus'] },
     { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' },
     { to: '/gestion/marketing', label: 'Promotions' },
+    { to: '/gestion/boost', label: '🚀 Boost Facebook' },
   ] },
   { label: 'Réglages', color: 'reglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
     { to: '/gestion/demarrage', label: 'Bien démarrer' },
@@ -236,6 +237,7 @@ const PLUS_TILES = [
   { to: '/gestion/live', label: 'Live', color: 'live' },
   { to: '/gestion/boutique-en-ligne', label: 'Boutique en ligne', color: 'boutique' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
+  { to: '/gestion/boost', label: 'Boost Facebook', color: 'partage' },
   { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
   { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés', color: 'panier' },
   { to: '/gestion/confirmation', label: 'À confirmer', color: 'telephone' },

@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\Finance\CashOverviewController;
 use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
 use App\Http\Controllers\Api\V1\InvitationController;
+use App\Http\Controllers\Api\V1\Marketing\BoostController;
 use App\Http\Controllers\Api\V1\Marketing\CampaignController;
 use App\Http\Controllers\Api\V1\Marketing\LiveBillingController;
 use App\Http\Controllers\Api\V1\Marketing\LiveController;
@@ -517,6 +518,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('promotions/{discount}', [PromotionController::class, 'update'])->whereNumber('discount')->name('promotions.update');
                 Route::delete('promotions/{discount}', [PromotionController::class, 'destroy'])->whereNumber('discount')->name('promotions.destroy');
                 Route::patch('promotions/settings', [PromotionController::class, 'settings'])->name('promotions.settings');
+                // Menu Boost : connexion Facebook, pixel vérifié, produits à booster, commandes venues des boosts
+                Route::get('marketing/boost', [BoostController::class, 'show'])->middleware('feature:boost')->name('boost.show');
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
                 Route::post('marketing/catalog-feed/renew', [TrackingController::class, 'renewFeed'])->middleware('feature:meta_catalog')->name('catalog-feed.renew');
