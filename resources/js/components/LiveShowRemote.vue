@@ -14,8 +14,9 @@ const props = defineProps({
 const emit = defineEmits(['changed'])
 
 const THEMES = [['fete', 'Fête'], ['wax', 'Wax'], ['neon', 'Néon'], ['luxe', 'Luxe']]
-// Ambiances : musique et sons des moments composés par l'écran (aucun morceau existant)
-const AMBIANCES = [['techno', '⚡ Techno show'], ['coupe', '🥁 Coupé-décalé'], ['zouglou', '👏 Zouglou'], ['afro', '🌴 Afro'], ['douce', '🌙 Douce']]
+// Ambiances : musique et sons des moments composés par l'écran (aucun morceau existant). Les noms ne promettent pas
+// un genre musical précis (des sons de synthèse ne sonnent pas comme du vrai coupé-décalé ou zouglou) ; les clés restent.
+const AMBIANCES = [['techno', '⚡ Électro'], ['coupe', '🎉 Fête'], ['zouglou', '🥁 Percussions'], ['afro', '🌴 Afro'], ['douce', '🌙 Douce']]
 const MOMENTS = [['countdown', '⏱', '3-2-1'], ['party', '🎉', 'Fête'], ['goal', '🎯', 'Objectif'], ['match', '🏆', 'Quartiers'], ['wheel', '🎡', 'Roue']]
 
 const busy = ref(false)
