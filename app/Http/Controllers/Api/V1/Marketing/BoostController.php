@@ -46,7 +46,8 @@ class BoostController extends Controller
         // Commandes venues d'un lien « Booster » (30 derniers jours)
         $boosted = Order::query()->where('created_at', '>=', $since)->whereNotIn('status', [OrderStatus::Cancelled->value, OrderStatus::Returned->value])
             ->where('utm->utm_campaign', 'like', 'boost-%')->get(['id', 'total', 'utm']);
-        $byProduct = $boosted->groupBy(fn (Order $o) => (int) substr((string) ($o->utm['utm_campaign'] ?? ''), 6));
+        // Par produit : seulement les liens d'un produit (« boost-12 »), pas ceux du catalogue ou d'un carrousel
+        $byProduct = $boosted->groupBy(fn (Order $o) => (int) substr((string) ($o->utm['utm_campaign'] ?? ''), 6))->forget(0);
         $titles = Product::whereIn('id', $byProduct->keys())->pluck('title', 'id');
 
         return response()->json(['data' => [
