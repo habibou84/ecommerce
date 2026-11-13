@@ -90,9 +90,23 @@ onMounted(async () => {
     await nextTick()
   } else if (route.query.conversation) {
     await fromConversation(route.query.conversation)
+  } else if (route.query.client) {
+    await fromCustomer(route.query.client)
   }
   ready.value = true
 })
+
+// Commande ouverte depuis la fiche d'un client : son téléphone et son nom, puis son adresse habituelle
+async function fromCustomer(id) {
+  try {
+    const c = (await http.get(`/customers/${id}`)).data.data
+    form.customer_phone = c.phone_display
+    form.customer_name = c.name ?? ''
+  } catch {
+    return
+  }
+  await lookupCustomer()
+}
 
 async function fromConversation(id) {
   try {
@@ -794,6 +808,7 @@ async function save() {
 
           <!-- Client connu : fiche résumée et son adresse habituelle -->
           <Alert v-if="known?.is_blacklisted" tone="error">Ce client est sur liste noire{{ known.blacklist_reason ? ` : ${known.blacklist_reason}` : '' }}.</Alert>
+          <Alert v-else-if="known?.refused_count" tone="warning">Ce client a refusé {{ known.refused_count }} commande(s) : pensez à demander un acompte ou à confirmer avant d'expédier.</Alert>
           <div v-else-if="known" class="flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-600 font-bold text-white">{{ (known.name ?? '?').charAt(0).toUpperCase() }}</span>
             <div class="min-w-[12rem] flex-1">

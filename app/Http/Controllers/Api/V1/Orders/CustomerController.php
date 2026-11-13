@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\V1\Orders;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
 use App\Models\Customer;
 use App\Models\Tag;
 use App\Services\Customers\CustomerBook;
 use App\Services\Customers\Loyalty;
+use App\Services\Orders\MessageTexts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Jibiat\Socle\PhoneNumber;
@@ -18,6 +20,9 @@ use Jibiat\Socle\Rules\PhoneNumber as PhoneRule;
  */
 class CustomerController extends Controller
 {
+    /** Livraisons à partir desquelles un client est « fidèle » */
+    private const LOYAL_FROM = 3;
+
     public function __construct(private readonly CustomerBook $book) {}
 
     public function index(Request $request): JsonResponse
@@ -27,6 +32,7 @@ class CustomerController extends Controller
             'filter' => ['nullable', 'in:blacklisted,risky,loyal,to_relaunch'],
             'tag' => ['nullable', 'string', 'max:40'],
             'sort' => ['nullable', 'in:recent,spent,orders'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
         $search = trim((string) $request->query('search'));
         $digits = preg_replace('/\D/', '', $search);
@@ -36,14 +42,14 @@ class CustomerController extends Controller
                 ->when(strlen($digits) >= 4, fn ($q) => $q->orWhere('phone', 'like', "%{$digits}%"))))
             ->when($request->query('filter') === 'blacklisted', fn ($q) => $q->whereNotNull('blacklisted_at'))
             ->when($request->query('filter') === 'risky', fn ($q) => $q->where('refused_count', '>', 0))
-            ->when($request->query('filter') === 'loyal', fn ($q) => $q->where('delivered_count', '>=', 3))
+            ->when($request->query('filter') === 'loyal', fn ($q) => $q->where('delivered_count', '>=', self::LOYAL_FROM))
             ->when($request->query('filter') === 'to_relaunch', fn ($q) => $q->toRelaunch())
             ->when($request->query('tag'), fn ($q, $tag) => $q->whereHas('tags', fn ($t) => $t->where('name', $tag)))
             ->with('tags:id,name')
             ->when($request->query('sort') === 'spent', fn ($q) => $q->orderByDesc('total_spent'))
             ->when($request->query('sort') === 'orders', fn ($q) => $q->orderByDesc('orders_count'))
             ->orderByDesc('last_order_at')->orderByDesc('id')
-            ->paginate(30);
+            ->paginate((int) $request->query('per_page', 30));
 
         return response()->json([
             'data' => $page->getCollection()->map(fn (Customer $c) => $this->present($c)),
@@ -51,10 +57,42 @@ class CustomerController extends Controller
         ]);
     }
 
+    /**
+     * Chiffres de l'onglet Clients : combien, nouveaux ce mois-ci, fidèles, à relancer, avec refus, et les étiquettes.
+     */
+    public function summary(): JsonResponse
+    {
+        return response()->json(['data' => [
+            'total' => Customer::count(),
+            'new_month' => Customer::where('created_at', '>=', now()->startOfMonth())->count(),
+            'loyal' => Customer::where('delivered_count', '>=', self::LOYAL_FROM)->count(),
+            'to_relaunch' => Customer::toRelaunch()->count(),
+            'risky' => Customer::where('refused_count', '>', 0)->count(),
+            'blacklisted' => Customer::whereNotNull('blacklisted_at')->count(),
+            'tags' => Tag::query()->whereHas('customers')->withCount('customers')->orderByDesc('customers_count')->limit(12)->pluck('name'),
+        ]]);
+    }
+
+    /**
+     * Message de relance prêt à envoyer sur WhatsApp (texte « Relance d'un client », modifiable dans Textes des messages).
+     */
+    public function relaunch(MessageTexts $texts, int $customer): JsonResponse
+    {
+        $model = Customer::findOrFail($customer);
+        $message = $texts->renderForCustomer($this->currentStore(), $model, 'relaunch');
+
+        return response()->json(['data' => [
+            'text' => $message,
+            'whatsapp_url' => 'https://wa.me/'.ltrim($model->phone, '+').'?text='.rawurlencode($message),
+        ]]);
+    }
+
     public function show(int $customer): JsonResponse
     {
         $model = Customer::with(['tags:id,name', 'addresses.place.parent'])->findOrFail($customer);
         $orders = $model->orders()->with('store')->withCount('items')->limit(50)->get();
+        $kept = $model->orders()->where('status', '!=', OrderStatus::Cancelled->value);
+        $completed = $model->orders()->where('status', OrderStatus::Completed->value)->count();
 
         return response()->json(['data' => $this->present($model) + [
             'phone2' => $model->phone2,
@@ -73,6 +111,10 @@ class CustomerController extends Controller
                 'is_default' => $a->is_default,
             ]),
             'orders' => OrderResource::collection($orders)->resolve(),
+            'orders_total' => $model->orders()->count(),
+            'first_order_at' => $model->orders()->oldest()->first()?->created_at?->toIso8601String(),
+            'average_basket' => $completed > 0 ? (int) round($model->total_spent / $completed) : null,
+            'kept_orders' => $kept->count(),
             'whatsapp_url' => 'https://wa.me/'.ltrim($model->phone, '+'),
             'other_stores' => $this->book->elsewhere(request()->user(), $this->currentStore(), $model->phone),
         ]]);
@@ -171,6 +213,9 @@ class CustomerController extends Controller
             'total_spent' => $customer->total_spent,
             'last_order_at' => $customer->last_order_at?->toIso8601String(),
             'is_blacklisted' => $customer->isBlacklisted(),
+            'is_loyal' => $customer->delivered_count >= self::LOYAL_FROM,
+            'is_risky' => $customer->refused_count > 0,
+            'whatsapp_url' => 'https://wa.me/'.ltrim($customer->phone, '+'),
             'tags' => $customer->tags->pluck('name'),
         ];
     }
