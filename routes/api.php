@@ -532,6 +532,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                     Route::get('marketing/boosts', [BoostAdsController::class, 'index'])->name('boosts.index');
                     Route::post('marketing/boosts', [BoostAdsController::class, 'store'])->middleware('throttle:10,1')->name('boosts.store');
                     Route::post('marketing/boosts/{boost}/action', [BoostAdsController::class, 'action'])->whereNumber('boost')->middleware('throttle:20,1')->name('boosts.action');
+                    Route::delete('marketing/boosts/failed', [BoostAdsController::class, 'clearFailed'])->middleware('throttle:20,1')->name('boosts.clear-failed');
+                    Route::delete('marketing/boosts/{boost}', [BoostAdsController::class, 'destroy'])->whereNumber('boost')->middleware('throttle:20,1')->name('boosts.destroy');
                 });
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
