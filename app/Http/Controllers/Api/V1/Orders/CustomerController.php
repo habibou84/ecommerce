@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\V1\Orders;
 
 use App\Enums\OrderStatus;
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
+use App\Models\Conversation;
 use App\Models\Customer;
 use App\Models\Tag;
 use App\Services\Customers\CustomerBook;
@@ -116,6 +118,7 @@ class CustomerController extends Controller
             'average_basket' => $completed > 0 ? (int) round($model->total_spent / $completed) : null,
             'kept_orders' => $kept->count(),
             'whatsapp_url' => 'https://wa.me/'.ltrim($model->phone, '+'),
+            'conversation_id' => $this->conversationId($model),
             'other_stores' => $this->book->elsewhere(request()->user(), $this->currentStore(), $model->phone),
         ]]);
     }
@@ -160,6 +163,21 @@ class CustomerController extends Controller
         $this->book->unblacklist(Customer::findOrFail($customer));
 
         return $this->show($customer);
+    }
+
+    /**
+     * Dernière conversation WhatsApp avec ce client (liée à sa fiche ou à son numéro), pour l'équipe qui a la boîte Messages.
+     */
+    private function conversationId(Customer $customer): ?int
+    {
+        $user = request()->user();
+        if (! $user->can(Permission::OrdersManage->value) && ! $user->can(Permission::OrdersConfirm->value)) {
+            return null;
+        }
+
+        return Conversation::query()
+            ->where(fn ($q) => $q->where('customer_id', $customer->id)->orWhere(fn ($q) => $q->where('channel', 'whatsapp')->where('contact', $customer->phone)))
+            ->orderByDesc('last_message_at')->value('id');
     }
 
     private function validated(Request $request, bool $creating): array

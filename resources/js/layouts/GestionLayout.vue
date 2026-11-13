@@ -170,6 +170,19 @@ watch(() => route.path, (to, from) => {
   else if (from === '/gestion' || !from) sheetDepth.value = 1
   else sheetDepth.value += 1
 }, { immediate: true })
+// Lien direct vers la liste des clients (notification, favori) : l'onglet Clients de l'accueil, pas une fenêtre par-dessus
+watch([swipeOn, () => route.path], ([on, path]) => {
+  if (!on || path !== '/gestion/clients') return
+  const filter = String(route.query.filtre ?? '')
+  try {
+    sessionStorage.setItem('jm.swipe-page', 'clients')
+    sessionStorage.setItem('jm.clients-filter', filter)
+  } catch {
+    // sans stockage : l'accueil s'ouvre sur son dernier onglet
+  }
+  router.replace('/gestion')
+  window.dispatchEvent(new CustomEvent('jm:swipe-go', { detail: { page: 'clients', filter } }))
+}, { immediate: true })
 // Fenêtre ouverte : glisser vers le bas ferme la fenêtre, sans « tirer pour rafraîchir » la page du navigateur
 watch(sheetOpen, (open) => {
   for (const el of [document.documentElement, document.body]) el.style.overscrollBehaviorY = open ? 'none' : ''

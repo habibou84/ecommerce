@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ColorIcon from './ColorIcon.vue'
 import Icon from './Icon.vue'
@@ -123,6 +123,22 @@ onMounted(async () => {
   go(i, false)
   startPage = i
 })
+
+// ── Clients : filtre demandé par un lien (ex. « à relancer »), lu une fois à l'arrivée puis à chaque demande ──
+const clientsFilter = ref('')
+try {
+  clientsFilter.value = sessionStorage.getItem('jm.clients-filter') ?? ''
+  sessionStorage.removeItem('jm.clients-filter')
+} catch {
+  clientsFilter.value = ''
+}
+function onSwipeGo(e) {
+  const i = pages.value.findIndex((p) => p.key === e.detail?.page)
+  if (e.detail?.page === 'clients') clientsFilter.value = e.detail.filter ?? ''
+  if (i >= 0) go(i)
+}
+onMounted(() => window.addEventListener('jm:swipe-go', onSwipeGo))
+onBeforeUnmount(() => window.removeEventListener('jm:swipe-go', onSwipeGo))
 
 // ── Indicateur de glissement : points des pages toujours visibles, et une aide animée tant qu'on n'a jamais glissé ──
 const HINT_KEY = 'jm.swipe-hint-done'
@@ -348,7 +364,7 @@ function open(to) {
 
         <!-- CLIENTS : chargés seulement une fois l'onglet affiché, et pas en double quand la page Clients est ouverte par-dessus -->
         <template v-else-if="p.key === 'clients'">
-          <CustomerList v-if="seen.has('clients') && route.path !== '/gestion/clients'" />
+          <CustomerList v-if="seen.has('clients') && route.path !== '/gestion/clients'" :filter="clientsFilter" />
         </template>
 
         <!-- ARTICLES : catalogue et stock réunis -->

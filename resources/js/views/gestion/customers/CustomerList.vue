@@ -15,6 +15,7 @@ import { useAuthStore } from '../../../stores/auth'
  * avec le message WhatsApp prêt, liste qui se charge en défilant, ajout d'un client. Utilisé dans l'onglet « Clients »
  * de l'accueil du téléphone et sur la page Clients.
  */
+const props = defineProps({ filter: { type: String, default: '' } })
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -22,7 +23,7 @@ const canEdit = computed(() => auth.can('orders.manage'))
 
 // Filtre ouvert depuis l'accueil (« Clientes fidèles à relancer » → ?filtre=to_relaunch)
 const FILTERS = ['blacklisted', 'risky', 'loyal', 'to_relaunch']
-const filters = reactive({ search: '', filter: FILTERS.includes(route.query.filtre) ? route.query.filtre : '', tag: '', sort: 'recent' })
+const filters = reactive({ search: '', filter: FILTERS.includes(route.query.filtre) ? route.query.filtre : FILTERS.includes(props.filter) ? props.filter : '', tag: '', sort: 'recent' })
 const customers = ref([])
 const meta = ref(null)
 const loading = ref(false)
@@ -79,6 +80,8 @@ watch(() => filters.search, () => {
   timer = setTimeout(() => load(1), 300)
 })
 watch(() => [filters.filter, filters.tag, filters.sort], () => load(1))
+// Filtre demandé de l'extérieur (lien « à relancer »)
+watch(() => props.filter, (value) => { filters.filter = FILTERS.includes(value) ? value : '' })
 onBeforeUnmount(() => { clearTimeout(timer); observer?.disconnect() })
 
 // Défilement continu : la fin de liste déclenche la page suivante
