@@ -115,10 +115,11 @@ class TrackingController extends Controller
     public function metaPending(Request $request, string $key, MetaAds $ads): JsonResponse
     {
         $pending = $this->pending($request, $key);
-        $data = ['businesses' => $pending['businesses'], 'assets' => null];
+        $data = ['businesses' => $pending['businesses'], 'assets' => null, 'permissions' => null];
         if ($business = $this->business($pending, (string) $request->query('business'))) {
             try {
                 $data['assets'] = $ads->assets($pending['access']['token'], $business['id']);
+                $data['permissions'] = $ads->permissions($pending['access']['token']);
             } catch (RuntimeException $e) {
                 throw new BusinessRuleException($e->getMessage());
             }
