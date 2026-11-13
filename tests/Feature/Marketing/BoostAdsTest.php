@@ -156,6 +156,22 @@ class BoostAdsTest extends TestCase
         $this->assertSame('ended', Boost::find($boost['id'])->status);
     }
 
+    public function test_a_duplicate_product_set_at_meta_is_reused(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/333333/product_sets*' => fn (Request $r) => $r->method() === 'POST'
+            ? Http::response(['error' => ['error_user_msg' => 'Erreur lors de la création d\'un ensemble de produits car un ensemble de produits doublon existe déjà']], 400)
+            : Http::response(['data' => [
+                ['id' => 'autre', 'name' => 'Autre', 'filter' => '{"color":{"eq":"red"}}'],
+                ['id' => 'set7', 'name' => 'Boost 1 · tout le catalogue', 'filter' => '{"availability":{"eq":"in stock"}}'],
+            ]])]);
+        app(Credits::class)->update(['paid' => true, 'boost_weight' => 2]);
+        $this->store->forceFill(['order_credits' => 50, 'credits_welcomed_at' => now()])->save();
+
+        $this->launch(['kind' => 'catalog', 'product_ids' => null])->assertCreated();
+
+        $this->assertSame('set7', $this->sent('/act_5/adsets')['promoted_object']['product_set_id']);
+    }
+
     public function test_a_page_without_instagram_gets_a_facebook_only_ad(): void
     {
         $this->fakeMeta();
