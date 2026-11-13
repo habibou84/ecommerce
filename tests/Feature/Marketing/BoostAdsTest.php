@@ -207,7 +207,7 @@ class BoostAdsTest extends TestCase
     {
         $this->fakeMeta(['graph.facebook.com/*/act_5/adcreatives' => Http::response(['error' => ['message' => 'Page non autorisée']], 400)]);
         $this->launch()->assertStatus(422)->assertJsonPath('message', 'Meta n\'a pas créé la pub : Meta : Page non autorisée (étape : visuel de la pub)');
-        $this->assertSame(['failed', 'Meta : Page non autorisée'], [Boost::sole()->status, Boost::sole()->error]);
+        $this->assertSame(['failed', 'Meta : Page non autorisée (étape : visuel de la pub)'], [Boost::sole()->status, Boost::sole()->error]);
         $this->assertSame('DELETED', $this->sent('/camp1')['status']);
 
         // Compte publicitaire inactif ou solde vide : refusé avant Meta
