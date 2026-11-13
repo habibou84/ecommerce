@@ -91,6 +91,15 @@ async function loadScreens() {
 }
 const tvOnline = computed(() => !!screens.value?.some((s) => !s.is_link && s.online))
 const studioOnline = computed(() => !!screens.value?.some((s) => s.is_link && s.online))
+// Forme de la télé connectée (largeur / hauteur de sa fenêtre) : l'aperçu a exactement la même, donc la même mise en page
+// (large, carré ou vertical). Sans télé connue : 16/9.
+const tvRatio = computed(() => {
+  const tv = (screens.value ?? []).filter((s) => !s.is_link && s.online && s.width && s.height).sort((a, b) => (a.last_seen_at < b.last_seen_at ? 1 : -1))[0]
+  return tv ? tv.width / tv.height : 16 / 9
+})
+// Petit : toute la largeur si l'écran est large, hauteur limitée s'il est carré ou vertical
+const tvSmallStyle = computed(() => (tvRatio.value >= 1.2 ? { aspectRatio: String(tvRatio.value), width: '100%' } : { aspectRatio: String(tvRatio.value), height: 'min(34vh, 260px)' }))
+const tvBoxStyle = computed(() => (big.value ? { aspectRatio: String(tvRatio.value), width: `min(calc(100vw - 1.5rem), calc((100vh - 1.5rem) * ${tvRatio.value}))` } : tvSmallStyle.value))
 // Fenêtre « Connecter la télé / TikTok Studio » qui monte du bas : elle attend l'écran, affiche ✓ puis se ferme
 const connecting = ref(null) // 'tv' | 'studio'
 const connected = ref(false)
@@ -591,12 +600,12 @@ const ago = (iso) => {
         <div class="sticky top-[50px] -mx-1 bg-[#0b1120] px-1 pb-2" :class="big ? 'z-[70]' : 'z-10'">
           <div v-if="big" class="fixed inset-0 bg-black/90" aria-hidden="true" @click="big = false" />
           <button v-if="big" type="button" class="fixed right-3 top-3 z-[1] rounded-full bg-white px-4 py-2 text-sm font-black text-slate-900 shadow-lg" @click="big = false">✕ Fermer</button>
-          <div v-if="shownView === 'tv'">
-            <div v-if="big" class="aspect-video" aria-hidden="true" />
+          <div v-if="shownView === 'tv'" class="flex justify-center">
+            <div v-if="big" :style="tvSmallStyle" aria-hidden="true" />
             <div
-              class="relative aspect-video overflow-hidden rounded-xl bg-black ring-2 ring-red-600/70"
+              class="relative overflow-hidden rounded-xl bg-black ring-2 ring-red-600/70"
               :class="big ? 'fixed left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 cursor-zoom-out' : 'cursor-zoom-in'"
-              :style="big ? { width: 'min(calc(100vw - 1.5rem), calc((100vh - 1.5rem) * 16 / 9))' } : null"
+              :style="tvBoxStyle"
               role="button" tabindex="0" :aria-label="big ? 'Fermer l\'aperçu agrandi' : 'Agrandir l\'aperçu de l\'écran'"
               @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
             >
