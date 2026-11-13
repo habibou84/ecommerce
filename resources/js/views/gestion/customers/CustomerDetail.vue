@@ -1,6 +1,7 @@
 <script setup>
 import Icon from '../../../components/Icon.vue'
 import { computed, onMounted, ref } from 'vue'
+import { usePageTitle } from '../../../lib/pageTitle'
 import Alert from '../../../components/Alert.vue'
 import ChipsInput from '../../../components/ChipsInput.vue'
 import Field from '../../../components/Field.vue'
@@ -25,6 +26,7 @@ const props = defineProps({ id: { type: String, required: true } })
 const auth = useAuthStore()
 
 const customer = ref(null)
+usePageTitle(() => (customer.value ? customer.value.name || 'Client sans nom' : ''))
 const initial = computed(() => (customer.value?.name || '#').trim().charAt(0).toUpperCase())
 const form = ref(null)
 const error = ref('')
@@ -98,7 +100,7 @@ async function relaunch() {
 
 <template>
   <div v-if="customer" class="space-y-4">
-    <RouterLink to="/gestion/clients" class="text-sm text-slate-500 hover:text-emerald-700">← Clients</RouterLink>
+    <RouterLink to="/gestion/clients" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Clients</RouterLink>
 
     <!-- Résumé : qui c'est, et les gestes de tous les jours -->
     <div class="card space-y-3 p-4">

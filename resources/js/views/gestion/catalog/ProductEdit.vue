@@ -3,6 +3,7 @@ import AiMeter from '../../../components/AiMeter.vue'
 import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import Icon from '../../../components/Icon.vue'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { usePageTitle } from '../../../lib/pageTitle'
 import { RouterLink, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import BundleEditor from '../../../components/BundleEditor.vue'
@@ -57,6 +58,7 @@ const form = reactive({
   tags: [],
 })
 const product = ref(null) // fiche chargée (photos, adresse publique)
+usePageTitle(() => product.value?.title || '')
 const hasVariants = ref(false)
 const isBundle = ref(false) // pack : contenu modifié dans l'écran Packs quand il a des tailles
 const options = ref([{ name: 'Taille', values: [] }])
@@ -540,7 +542,7 @@ const margin = computed(() => {
 
   <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save" @focusin="onFocus" @focusout="onBlur">
     <div class="flex flex-wrap items-center gap-2">
-      <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
+      <RouterLink to="/gestion/catalogue" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
       <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare"><Icon name="share" :size="16" class="mr-1 inline-block align-[-3px]" />Partager</button>
       <button v-if="product && form.status === 'active' && form.is_visible_online && auth.can('store.manage') && platformOn(auth, 'social_meta|social_tiktok')" type="button" class="btn-secondary px-3 py-1.5" @click="publishing = true"><Icon name="megaphone" :size="16" class="mr-1 inline-block align-[-3px]" />Publier sur les réseaux</button>

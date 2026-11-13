@@ -175,6 +175,20 @@ select.input-lg {
     }
 }
 
+/* Fenêtre ouverte depuis l'accueil glissant (téléphone) : pas de barre d'onglets en bas.
+   Les barres d'action prévues au-dessus de cette barre (« Créer la commande », « Enregistrer »…) se collent en bas,
+   et les liens de retour des pages (« ← Commandes ») disparaissent : la croix et la poignée suffisent. */
+.sheet-body .fixed[class*='bottom-[calc(4rem'] {
+    bottom: 0;
+    padding-bottom: max(0.625rem, env(safe-area-inset-bottom, 0px));
+}
+.sheet-body .fixed[class*='bottom-[calc(8.5rem'] {
+    bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}
+.sheet-body .back-link {
+    display: none;
+}
+
 /* Application livreur, mode nuit : couleurs inversées (lecture le soir), photos et cartes gardées telles quelles */
 .courier-night {
   filter: invert(1) hue-rotate(180deg);

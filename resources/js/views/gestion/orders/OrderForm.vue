@@ -727,7 +727,7 @@ async function save() {
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
   <form v-else class="space-y-5 pb-40 lg:pb-6" v-no-autofill novalidate @submit.prevent="save" @focusin="bringToTop">
     <RouterLink v-if="conversation" :to="`/gestion/messages/${conversation.id}`" class="text-sm text-slate-500 hover:text-emerald-700">← Conversation avec {{ conversation.name || conversation.phone_display }}</RouterLink>
-    <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
+    <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="back-link text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
 
     <!-- Saisie rapide : un bandeau, ouvert seulement quand on en a besoin -->

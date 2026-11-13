@@ -16,12 +16,15 @@ import { boot } from '../lib/boot'
 import { guideClear, guideCurrent } from '../lib/guide'
 import http, { errorMessage } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
+import { pageTitle } from '../lib/pageTitle'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const menuOpen = ref(false)
 const switchError = ref('')
+// Titre de l'en-tête et de la fenêtre : celui de l'écran ouvert s'il en donne un (« Commande #1002 »), sinon celui de la route
+const screenTitle = computed(() => pageTitle() || route.meta.title)
 
 // Lien « Aller au contenu » : le focus passe sur la page, le prochain Tab part de son premier élément
 function skipToContent() {
@@ -456,7 +459,7 @@ async function switchTo(store) {
           <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         <div class="min-w-0" :class="swipeHome ? 'hidden lg:block' : ''">
-          <h1 class="truncate text-[17px] font-bold leading-tight sm:text-xl">{{ route.meta.title }}</h1>
+          <h1 class="truncate text-[17px] font-bold leading-tight sm:text-xl">{{ screenTitle }}</h1>
           <p v-if="route.path === '/gestion'" class="truncate text-[12.5px] leading-tight text-slate-500 first-letter:uppercase sm:text-sm">{{ todayLabel }}</p>
         </div>
         <div class="relative ml-auto flex shrink-0 items-center gap-2" :class="swipeHome ? 'before:pointer-events-none before:absolute before:-left-8 before:inset-y-0 before:w-8 before:bg-gradient-to-r before:from-transparent before:to-slate-50 max-lg:-mr-4 max-lg:bg-slate-50 max-lg:pr-4' : ''">
@@ -499,12 +502,12 @@ async function switchTo(store) {
       <!-- Glissement : l'écran ouvert depuis un onglet, dans une fenêtre (croix, ou glisser vers le bas) -->
       <div v-if="sheetOpen" v-show="!fullscreenOn" class="fixed inset-0 z-30 bg-slate-900/40 transition-opacity" :style="{ opacity: Math.max(0.2, 1 - sheetDrag / 400) }" @click="closeSheet" />
       <section v-if="sheetOpen" class="fixed inset-x-0 bottom-0 top-3 z-40 flex flex-col overflow-hidden rounded-t-[28px] bg-slate-50 shadow-2xl"
-               :class="[sheetDrag ? '' : 'transition-transform duration-200', { invisible: fullscreenOn }]" :style="{ transform: `translateY(${sheetDrag}px)` }" role="dialog" :aria-label="route.meta.title">
+               :class="[sheetDrag ? '' : 'transition-transform duration-200', { invisible: fullscreenOn }]" :style="{ transform: `translateY(${sheetDrag}px)` }" role="dialog" :aria-label="screenTitle">
         <header class="shrink-0 bg-white px-4 pb-2 pt-2" @touchstart.passive="dragBegin($event)" @touchmove.passive="dragMove" @touchend="dragEnd">
           <div class="mx-auto mb-2 h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
           <div class="flex items-center gap-2">
             <button v-if="sheetDepth > 1" type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xl font-bold" aria-label="Retour" @click="sheetBack">‹</button>
-            <h2 class="min-w-0 flex-1 truncate text-[18px] font-extrabold">{{ route.meta.title }}</h2>
+            <h2 class="min-w-0 flex-1 truncate text-[18px] font-extrabold">{{ screenTitle }}</h2>
             <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-700" aria-label="Fermer" @click="closeSheet"><Icon name="close" :size="20" /></button>
           </div>
         </header>

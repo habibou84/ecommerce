@@ -92,7 +92,7 @@ function reset() {
 
 <template>
   <div class="mx-auto max-w-xl space-y-4">
-    <RouterLink to="/gestion/caisse" class="text-sm text-slate-600 hover:text-slate-900">← Caisse</RouterLink>
+    <RouterLink to="/gestion/caisse" class="back-link text-sm text-slate-600 hover:text-slate-900">← Caisse</RouterLink>
     <MaterielTip category="caisse" text="Imprimez vos tickets au comptoir :" />
 
     <!-- Vente enregistrée -->
