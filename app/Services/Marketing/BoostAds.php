@@ -337,9 +337,7 @@ class BoostAds
                 $ids = $collection->products()->with('variants')->get()->flatMap(fn (Product $p) => $p->variants->map(fn ($v) => CatalogFeed::itemId($v->sku, $v->id)))->values()->all();
                 $filter = ['and' => [$filter, ['retailer_id' => ['is_any' => $ids]]]];
             }
-            $set = (string) ($this->graph->graph('POST', $catalog.'/product_sets', $token, [
-                'name' => Str::limit('Boost '.$boost->id.' · '.($collection?->title ?? 'tout le catalogue'), 90, ''), 'filter' => json_encode($filter),
-            ])['id'] ?? '');
+            $set = $this->productSet($catalog, $token, Str::limit('Boost '.$boost->id.' · '.($collection?->title ?? 'tout le catalogue'), 90, ''), $filter);
             $boost->update(['product_set_id' => $set]);
         }
 
@@ -409,6 +407,43 @@ class BoostAds
         ])['id'] ?? '')]);
         $this->step = 'activation';
         $this->graph->graph('POST', $boost->campaign_id, $token, ['status' => 'ACTIVE']);
+    }
+
+    /**
+     * Ensemble de produits du boost. Meta refuse d'en créer un deuxième avec le même filtre (« ensemble de produits
+     * doublon », par exemple après une pub refusée ou un boost précédent) : on reprend alors celui qui existe.
+     *
+     * @param  array<string, mixed>  $filter
+     */
+    private function productSet(string $catalog, string $token, string $name, array $filter): string
+    {
+        try {
+            return (string) ($this->graph->graph('POST', $catalog.'/product_sets', $token, ['name' => $name, 'filter' => json_encode($filter)])['id'] ?? '');
+        } catch (RuntimeException $e) {
+            $wanted = $this->normalized($filter);
+            $rows = $this->graph->graph('GET', $catalog.'/product_sets', $token, ['fields' => 'id,name,filter', 'limit' => 200])['data'] ?? [];
+            foreach ($rows as $row) {
+                $existing = is_string($row['filter'] ?? null) ? json_decode($row['filter'], true) : ($row['filter'] ?? null);
+                if (is_array($existing) && $this->normalized($existing) === $wanted) {
+                    return (string) $row['id'];
+                }
+            }
+
+            throw $e;
+        }
+    }
+
+    /** Filtre comparable : clés triées, listes triées (Meta peut renvoyer le même filtre dans un autre ordre) */
+    private function normalized(array $value): array
+    {
+        foreach ($value as $key => $item) {
+            if (is_array($item)) {
+                $value[$key] = $this->normalized($item);
+            }
+        }
+        array_is_list($value) ? sort($value) : ksort($value);
+
+        return $value;
     }
 
     /**
