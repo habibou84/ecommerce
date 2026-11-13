@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ColorIcon from './ColorIcon.vue'
 import Icon from './Icon.vue'
+import CustomerList from '../views/gestion/customers/CustomerList.vue'
 import LivePrepare from '../views/gestion/marketing/LivePrepare.vue'
 import BoostPanel from './marketing/BoostPanel.vue'
 import http from '../lib/http'
@@ -66,6 +67,9 @@ const PAGES = [
     settings: [{ to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' }, { to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' }, { to: '/gestion/statistiques', label: 'Statistiques' }, { to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
   { key: 'shop', name: 'Boutique', icon: '🏪', show: () => canOpen('/gestion/boutique-en-ligne'), badge: () => (s.value.shop?.abandoned ? { n: s.value.shop.abandoned, level: 'orange' } : null),
     settings: [{ to: '/gestion/boutique-en-ligne', label: 'Apparence' }, { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus' }, { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' }] },
+  // Clients : chiffres, recherche, relances et liste, dans l'onglet (la fiche s'ouvre par-dessus)
+  { key: 'clients', name: 'Clients', icon: '👥', show: () => canOpen('/gestion/clients'), badge: () => (s.value.to_relaunch ? { n: s.value.to_relaunch, level: 'orange' } : null),
+    settings: [{ to: '/gestion/marketing/relances', label: 'Relances WhatsApp' }, { to: '/gestion/marketing/fidelite', label: 'Fidélité et parrainage' }, { to: '/gestion/marketing/avis', label: 'Avis clients' }, { to: '/gestion/textes-messages', label: 'Textes des messages (relance…)' }] },
   { key: 'items', name: 'Articles', icon: '👗', show: () => canOpen('/gestion/catalogue'), badge: () => (s.value.stock && s.value.stock.out + s.value.stock.low ? { n: s.value.stock.out + s.value.stock.low, level: s.value.stock.out ? 'red' : 'orange' } : null),
     settings: [{ to: '/gestion/collections', label: 'Collections' }, { to: '/gestion/packs', label: 'Packs et prix de gros' }, { to: '/gestion/stock', label: 'Stock détaillé et mouvements' }, { to: '/gestion/stock/commandes', label: 'Fournisseurs et bons de commande' }, { to: '/gestion/catalogue/import', label: 'Importer des produits' }] },
   { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (s.value.unread_messages ? { n: s.value.unread_messages, level: 'orange' } : null), settings: [{ to: '/gestion/parametres', label: 'Informations de l\'espace marchand' }, { to: '/gestion/equipe', label: 'Équipe' }] },
@@ -200,7 +204,6 @@ async function share() {
 // ── Plus : grandes icônes ──
 const PLUS = [
   { to: '/gestion/messages', label: 'Messages', color: 'whatsapp' },
-  { to: '/gestion/clients', label: 'Clients', color: 'clients' },
   { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
   { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
@@ -341,6 +344,11 @@ function open(to) {
         <!-- Chargée seulement une fois la page Boost affichée -->
         <template v-else-if="p.key === 'boost'">
           <BoostPanel v-if="seen.has('boost')" />
+        </template>
+
+        <!-- CLIENTS : chargés seulement une fois l'onglet affiché, et pas en double quand la page Clients est ouverte par-dessus -->
+        <template v-else-if="p.key === 'clients'">
+          <CustomerList v-if="seen.has('clients') && route.path !== '/gestion/clients'" />
         </template>
 
         <!-- ARTICLES : catalogue et stock réunis -->
