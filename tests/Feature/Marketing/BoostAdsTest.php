@@ -64,6 +64,7 @@ class BoostAdsTest extends TestCase
             'graph.facebook.com/*/111/owned_pages*' => Http::response(['data' => [['id' => '444', 'name' => 'Awa Mode']]]),
             'graph.facebook.com/*/111/client_pages*' => Http::response(['data' => []]),
             'graph.facebook.com/*/me/accounts*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/444?*' => Http::response(['id' => '444']),
             'graph.facebook.com/*/act_5/delivery_estimate*' => Http::response(['data' => [['estimate_mau_lower_bound' => 120000, 'estimate_mau_upper_bound' => 150000]]]),
             'graph.facebook.com/*/333333/product_sets' => Http::response(['id' => 'set1']),
             'graph.facebook.com/*/act_5/campaigns' => Http::response(['id' => 'camp1']),
@@ -153,6 +154,30 @@ class BoostAdsTest extends TestCase
         $this->sent('/adset1');
         $this->storeApi($this->store, 'POST', "marketing/boosts/{$boost['id']}/action", ['action' => 'stop'])->assertOk();
         $this->assertSame('ended', Boost::find($boost['id'])->status);
+    }
+
+    public function test_a_page_without_instagram_gets_a_facebook_only_ad(): void
+    {
+        $this->fakeMeta();
+        app(Credits::class)->update(['paid' => true, 'boost_weight' => 2]);
+        $this->store->forceFill(['order_credits' => 50, 'credits_welcomed_at' => now()])->save();
+
+        $this->launch()->assertCreated();
+
+        $this->assertSame(['facebook'], $this->sent('/act_5/adsets')['targeting']['publisher_platforms']);
+        $this->assertArrayNotHasKey('instagram_user_id', $this->sent('/act_5/adcreatives')->data());
+    }
+
+    public function test_a_page_with_instagram_sends_its_account_with_the_ad(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/444?*' => Http::response(['id' => '444', 'instagram_business_account' => ['id' => '9090']])]);
+        app(Credits::class)->update(['paid' => true, 'boost_weight' => 2]);
+        $this->store->forceFill(['order_credits' => 50, 'credits_welcomed_at' => now()])->save();
+
+        $this->launch()->assertCreated();
+
+        $this->assertSame('9090', $this->sent('/act_5/adcreatives')['instagram_user_id']);
+        $this->assertArrayNotHasKey('publisher_platforms', $this->sent('/act_5/adsets')['targeting']);
     }
 
     public function test_carousel_and_catalog_boosts(): void

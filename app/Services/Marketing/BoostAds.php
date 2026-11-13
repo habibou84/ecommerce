@@ -354,6 +354,11 @@ class BoostAds
             'start_time' => now()->toIso8601String(), 'end_time' => $boost->ends_at->toIso8601String(),
             'targeting' => $this->targeting($store, $boost->zones ?? [], $boost->age_min, $boost->age_max, $boost->gender),
         ];
+        // Instagram demande un compte Instagram lié à la Page ; sans lui (beaucoup de boutiques n'en ont pas), la pub reste sur Facebook
+        $instagram = $this->instagramOf($boost->page_id, $token);
+        if ($instagram === null) {
+            $adset['targeting']['publisher_platforms'] = ['facebook'];
+        }
         if ($boost->kind === 'catalog') {
             $adset['promoted_object'] = ['product_set_id' => $boost->product_set_id, 'custom_event_type' => 'PURCHASE'];
         } elseif ($sales) {
@@ -386,11 +391,29 @@ class BoostAds
                 ])->all(),
             ]];
         }
+        if ($instagram !== null) {
+            $creative['instagram_user_id'] = $instagram;
+        }
         $creativeId = (string) ($this->graph->graph('POST', $act.'/adcreatives', $token, $creative)['id'] ?? '');
         $boost->update(['ad_id' => (string) ($this->graph->graph('POST', $act.'/ads', $token, [
             'name' => 'Boost '.$boost->id, 'adset_id' => $boost->adset_id, 'creative' => ['creative_id' => $creativeId], 'status' => 'ACTIVE',
         ])['id'] ?? '')]);
         $this->graph->graph('POST', $boost->campaign_id, $token, ['status' => 'ACTIVE']);
+    }
+
+    /**
+     * Compte Instagram professionnel lié à la Page Facebook, ou null (pas de compte lié, ou Meta ne le donne pas).
+     */
+    private function instagramOf(string $pageId, string $token): ?string
+    {
+        try {
+            $page = $this->graph->graph('GET', $pageId, $token, ['fields' => 'instagram_business_account{id},connected_instagram_account{id}']);
+        } catch (RuntimeException) {
+            return null;
+        }
+        $id = (string) ($page['instagram_business_account']['id'] ?? $page['connected_instagram_account']['id'] ?? '');
+
+        return $id !== '' ? $id : null;
     }
 
     /** Pause, reprise ou arrêt définitif */
