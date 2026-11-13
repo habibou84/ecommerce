@@ -233,6 +233,35 @@ class BoostAdsTest extends TestCase
         $this->launch()->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'solde'));
     }
 
+    public function test_a_failed_boost_can_be_deleted_but_not_one_with_spend(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/act_5/adcreatives' => Http::response(['error' => ['message' => 'Page non autorisée']], 400)]);
+
+        $this->launch()->assertStatus(422);
+        $this->storeApi($this->store, 'DELETE', 'marketing/boosts/'.Boost::sole()->id)->assertOk();
+        $this->assertSame(0, Boost::count());
+
+        $this->launch()->assertStatus(422);
+        $kept = Boost::sole();
+        $kept->update(['spend' => 500]);
+        $this->storeApi($this->store, 'DELETE', 'marketing/boosts/'.$kept->id)->assertStatus(422);
+        $this->assertSame(1, Boost::count());
+    }
+
+    public function test_all_failed_boosts_are_cleared_at_once_and_the_others_are_kept(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/act_5/adcreatives' => Http::response(['error' => ['message' => 'Page non autorisée']], 400)]);
+        $this->launch()->assertStatus(422);
+        $this->launch()->assertStatus(422);
+        $this->launch()->assertStatus(422);
+        $kept = Boost::query()->latest('id')->first();
+        $kept->update(['spend' => 500]);
+
+        $this->storeApi($this->store, 'DELETE', 'marketing/boosts/failed')->assertOk()->assertJsonPath('data.deleted', 2);
+
+        $this->assertSame([$kept->id], Boost::pluck('id')->all());
+    }
+
     public function test_the_assistant_can_be_turned_off_from_the_console(): void
     {
         app(Features::class)->set('boost_ads', 'hidden');
