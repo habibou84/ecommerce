@@ -30,7 +30,7 @@ const TABS = [
   { value: 'returned', label: 'Retournées' },
 ]
 const PERIODS = [
-  { value: '', label: 'Tout' },
+  { value: '', label: 'Toutes les dates' },
   { value: 'today', label: 'Aujourd\'hui' },
   { value: 'yesterday', label: 'Hier' },
   { value: 'tomorrow', label: 'Demain' },
@@ -164,10 +164,10 @@ function deliveryBadge(o) {
   return { text: label.includes(',') ? label.split(',')[0] : new Date(`${o.scheduled_date}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }), tone: o.scheduled_date === iso(new Date()) ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700' }
 }
 
-// Action principale de chaque ligne, selon l'étape
+// Action principale de chaque ligne, selon l'étape : toujours en vert de la marque (l'ocre est pour les statuts à traiter)
 function mainAction(o) {
-  if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-ocre-700 hover:bg-ocre-800', run: () => confirmOrder(o) }
-  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && o.prepay_due > 0 && !o.shipment_id && canManage.value) return { label: 'Lien de paiement', icon: 'cash', tone: 'bg-ocre-700 hover:bg-ocre-800', run: () => sendPayLink(o) }
+  if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => confirmOrder(o) }
+  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && o.prepay_due > 0 && !o.shipment_id && canManage.value) return { label: 'Lien de paiement', icon: 'cash', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => sendPayLink(o) }
   if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && !o.deliverer) return { label: 'Faire livrer', icon: 'truck', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openAssign([o.id]) }
   if (o.status === 'shipped' && canManage.value) return { label: 'Livrée', icon: 'check', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openComplete(o) }
   return null
@@ -390,20 +390,24 @@ async function exportList() {
       </select>
       <button type="button" class="btn-ghost hidden sm:inline-flex" @click="exportList">Exporter (Excel)</button>
       <RouterLink v-if="canManage" to="/gestion/commandes/retours" class="btn-ghost hidden xl:inline-flex">Retours</RouterLink>
-      <RouterLink v-if="canManage" to="/gestion/commandes/nouvelle" class="btn-brand ml-auto hidden lg:inline-flex"><Icon name="plus" :size="18" />Commande</RouterLink>
+      <RouterLink v-if="canManage" to="/gestion/commandes/nouvelle" class="btn-brand ml-auto hidden lg:inline-flex"><Icon name="plus" :size="18" />Nouvelle commande</RouterLink>
     </div>
 
-    <div v-tab-strip class="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <button
-        v-for="p in PERIODS"
-        :key="p.value"
-        type="button"
-        class="shrink-0 rounded-full px-3 py-1 text-sm font-semibold"
-        :class="filters.period === p.value ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'"
-        @click="setPeriod(p.value)"
-      >
-        {{ p.label }}
-      </button>
+    <!-- Période : un sélecteur compact (un seul choix), pour ne pas le confondre avec les étapes en dessous -->
+    <div v-tab-strip class="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <div class="inline-flex gap-0.5 rounded-xl bg-slate-200/70 p-1" role="group" aria-label="Période">
+        <button
+          v-for="p in PERIODS"
+          :key="p.value"
+          type="button"
+          class="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold"
+          :class="filters.period === p.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+          :aria-pressed="filters.period === p.value"
+          @click="setPeriod(p.value)"
+        >
+          {{ p.label }}
+        </button>
+      </div>
     </div>
     <div v-if="filters.period === 'custom'" class="flex flex-wrap items-center gap-2 text-sm">
       Du <input v-model="filters.from" type="date" class="input w-auto" aria-label="Du" />
@@ -417,16 +421,20 @@ async function exportList() {
       <button type="button" class="text-emerald-700 hover:underline" @click="clearFilters">Tout effacer</button>
     </div>
 
-    <nav v-tab-strip class="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <!-- Étape de la commande : des onglets soulignés -->
+    <nav v-tab-strip class="-mx-4 flex gap-5 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Étape des commandes">
       <button
         v-for="tab in TABS"
         :key="tab.value"
-        class="inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3.5 text-sm font-semibold"
-        :class="filters.status === tab.value ? 'border-slate-900 bg-slate-900 text-white' : tab.alert && counts.late ? 'border-red-200 bg-white text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:border-field'"
+        type="button"
+        role="tab"
+        :aria-selected="filters.status === tab.value"
+        class="-mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-[2.5px] text-sm font-semibold"
+        :class="filters.status === tab.value ? 'border-emerald-700 text-emerald-800' : tab.alert && counts.late ? 'border-transparent text-red-700 hover:border-red-200' : 'border-transparent text-slate-600 hover:border-field hover:text-slate-900'"
         @click="filters.status = tab.value"
       >
         {{ tab.label }}
-        <span class="rounded-md px-1.5 text-xs font-bold" :class="filters.status === tab.value ? 'bg-white/20' : tab.alert && counts.late ? 'bg-red-100 text-red-800' : 'bg-slate-100'">{{ tab.value ? counts[tab.value] ?? 0 : total(counts) }}</span>
+        <span class="rounded-md px-1.5 text-xs font-bold" :class="filters.status === tab.value ? 'bg-emerald-50 text-emerald-800' : tab.alert && counts.late ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'">{{ tab.value ? counts[tab.value] ?? 0 : total(counts) }}</span>
       </button>
     </nav>
 
