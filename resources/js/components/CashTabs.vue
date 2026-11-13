@@ -5,9 +5,10 @@ import { useAuthStore } from '../stores/auth'
 // Menu « Caisse » : tout l'argent de la boutique
 const auth = useAuthStore()
 const tabs = computed(() => [
-  ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse', label: 'Vue d\'ensemble', exact: true }] : []),
-  ...(auth.can('couriers.manage') || auth.can('finance.view') ? [{ to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' }] : []),
-  ...(auth.can('carriers.manage') ? [{ to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' }] : []),
+  ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse', label: 'Ma caisse', exact: true }] : []),
+  ...(auth.can('couriers.manage') || auth.can('finance.view') ? [{ to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' }] : []),
+  ...(auth.can('carriers.manage') ? [{ to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' }] : []),
+  ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' }] : []),
 ])
 </script>
 

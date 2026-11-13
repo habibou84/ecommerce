@@ -20,7 +20,7 @@ const openingFloat = ref(0)
 const moveForm = reactive({ open: false, type: 'expense', category: 'stock', channel: '', amount: null, method: 'cash', occurredOn: '', note: '', error: '' })
 const closeForm = reactive({ open: false, counted: null, note: '', error: '', result: null })
 
-const TYPES = { expense: 'Dépense', withdrawal: 'Retrait', deposit: 'Apport' }
+const TYPES = { expense: 'Dépense', withdrawal: 'Argent sorti', deposit: 'Monnaie ajoutée' }
 
 async function load() {
   try {
@@ -94,47 +94,63 @@ function gap(difference) {
 
 <template>
   <section v-if="register" class="space-y-3">
-    <h2 class="text-lg font-semibold">Caisse du jour</h2>
+    <h2 class="text-lg font-semibold">Tiroir-caisse du jour</h2>
     <Alert v-if="error">{{ error }}</Alert>
 
-    <!-- Caisse fermée -->
+    <!-- Tiroir fermé -->
     <div v-if="!register.session" class="card space-y-3 p-4">
-      <p class="text-sm text-slate-600">La caisse est fermée. Ouvrez-la avec le fond de caisse (la monnaie présente dans le tiroir) avant d'encaisser des espèces.</p>
+      <p class="text-sm text-slate-600">Le tiroir est fermé. Ouvrez-le avec le fond de caisse (la monnaie que vous mettez dans le tiroir au départ) avant d'encaisser des espèces.</p>
       <form v-if="canHold" class="flex items-end gap-2" @submit.prevent="openRegister">
-        <Field id="cd-float" label="Fond de caisse" class="flex-1"><input id="cd-float" v-model.number="openingFloat" type="number" min="0" class="input" /></Field>
+        <Field id="cd-float" label="Fond de caisse (monnaie de départ)" class="flex-1"><input id="cd-float" v-model.number="openingFloat" type="number" min="0" class="input" /></Field>
         <button class="btn-brand">Ouvrir la caisse</button>
       </form>
       <RouterLink v-if="canHold" to="/gestion/caisse/vente" class="block text-sm text-emerald-800 underline">Vendre sans espèces (Wave, Orange Money…)</RouterLink>
     </div>
 
-    <!-- Caisse ouverte -->
-    <div v-else class="card space-y-3 p-4">
-      <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <p class="text-sm text-slate-600">
-          Ouverte {{ formatDateTime(register.session.opened_at) }}<template v-if="register.session.opened_by"> par {{ register.session.opened_by }}</template>
-          · fond {{ money(register.session.opening_float) }}
-        </p>
-        <p class="text-sm">Espèces attendues : <strong class="text-lg">{{ money(register.session.expected_cash) }}</strong></p>
+    <!-- Tiroir ouvert -->
+    <div v-else class="card space-y-4 p-4">
+      <p class="flex items-center gap-2 text-sm text-slate-600">
+        <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-600" aria-hidden="true"></span>
+        <span><strong class="text-emerald-800">Ouverte</strong> {{ formatDateTime(register.session.opened_at) }}<template v-if="register.session.opened_by"> par {{ register.session.opened_by }}</template></span>
+      </p>
+      <div>
+        <p class="text-sm text-slate-600">Espèces qui doivent être dans le tiroir</p>
+        <p class="whitespace-nowrap text-3xl font-bold tracking-tight">{{ money(register.session.expected_cash) }}</p>
+        <p class="text-xs text-slate-600">Départ de la journée (fond de caisse) : {{ money(register.session.opening_float) }}</p>
       </div>
-      <div v-if="canHold" class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <RouterLink to="/gestion/caisse/vente" class="btn-brand col-span-2 text-center sm:col-span-1">Vente comptoir</RouterLink>
-        <button class="btn-secondary" @click="startMove('expense')">Dépense</button>
-        <button class="btn-secondary" @click="startMove('withdrawal')">Retrait / apport</button>
-        <button class="btn-secondary" @click="startClose">Clôturer</button>
+
+      <template v-if="canHold">
+        <RouterLink to="/gestion/caisse/vente" class="btn-brand flex min-h-12 w-full items-center justify-center gap-2 text-base">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z" /></svg>
+          Vente au comptoir
+        </RouterLink>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="btn-secondary" @click="startMove('expense')">Noter une dépense</button>
+          <button class="btn-secondary" @click="startMove('withdrawal')">Sortir ou ajouter</button>
+        </div>
+      </template>
+
+      <div v-if="register.movements.length" class="border-t border-slate-100 pt-3">
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">Aujourd'hui dans le tiroir</p>
+        <ul class="divide-y divide-slate-100 text-sm">
+          <li v-for="m in register.movements" :key="m.id" class="flex items-center gap-2 py-2">
+            <span class="min-w-0 flex-1">
+              <span class="block truncate">{{ TYPES[m.type] }}<template v-if="m.category_label"> · {{ m.category_label }}</template><template v-if="m.channel_label"> {{ m.channel_label }}</template></span>
+              <span class="block truncate text-xs text-slate-600"><template v-if="m.note">{{ m.note }} · </template>{{ formatDateTime(m.occurred_at) }}<template v-if="m.method !== 'cash'"> · {{ m.method }}</template></span>
+            </span>
+            <span class="whitespace-nowrap font-semibold" :class="m.type === 'deposit' ? 'text-emerald-800' : 'text-red-700'">{{ m.type === 'deposit' ? '+' : '−' }}{{ money(m.amount) }}</span>
+          </li>
+        </ul>
       </div>
-      <ul v-if="register.movements.length" class="divide-y divide-slate-100 border-t border-slate-100 text-sm">
-        <li v-for="m in register.movements" :key="m.id" class="flex items-center gap-2 py-1.5">
-          <span class="flex-1 truncate">
-            {{ TYPES[m.type] }}<template v-if="m.category_label"> · {{ m.category_label }}</template><template v-if="m.channel_label"> {{ m.channel_label }}</template><template v-if="m.note"> · {{ m.note }}</template>
-            <span class="text-xs text-slate-500"> · {{ formatDateTime(m.occurred_at) }}<template v-if="m.method !== 'cash'"> · {{ m.method }}</template></span>
-          </span>
-          <span class="whitespace-nowrap font-medium" :class="m.type === 'deposit' ? 'text-emerald-800' : 'text-red-700'">{{ m.type === 'deposit' ? '+' : '−' }}{{ money(m.amount) }}</span>
-        </li>
-      </ul>
+
+      <div v-if="canHold" class="space-y-1.5 border-t border-slate-100 pt-4">
+        <button class="btn-secondary w-full" @click="startClose">Clôturer la journée</button>
+        <p class="text-center text-xs text-slate-600">Le soir : comptez les espèces du tiroir et comparez-les au montant attendu.</p>
+      </div>
     </div>
 
     <details v-if="register.closings.length" class="card p-4 text-sm">
-      <summary class="cursor-pointer font-medium">Dernières clôtures</summary>
+      <summary class="cursor-pointer font-medium">Voir les dernières clôtures</summary>
       <ul class="mt-2 divide-y divide-slate-100">
         <li v-for="c in register.closings" :key="c.id" class="flex flex-wrap items-center gap-2 py-1.5">
           <span class="flex-1">{{ formatDateTime(c.closed_at) }}<template v-if="c.closed_by"> · {{ c.closed_by }}</template></span>
@@ -145,12 +161,12 @@ function gap(difference) {
       </ul>
     </details>
 
-    <Modal v-if="moveForm.open" :title="moveForm.type === 'expense' ? 'Dépense' : 'Retrait ou apport d\'espèces'" @close="moveForm.open = false">
+    <Modal v-if="moveForm.open" :title="moveForm.type === 'expense' ? 'Noter une dépense' : 'Sortir ou ajouter de l\'argent'" @close="moveForm.open = false">
       <form class="space-y-4" @submit.prevent="saveMove">
         <Alert v-if="moveForm.error">{{ moveForm.error }}</Alert>
         <div v-if="moveForm.type !== 'expense'" class="flex rounded-lg bg-slate-100 p-1 text-sm" role="group">
-          <button type="button" class="flex-1 rounded-md py-1" :class="moveForm.type === 'withdrawal' ? 'bg-white shadow-sm' : ''" @click="moveForm.type = 'withdrawal'">Retrait (banque, prélèvement)</button>
-          <button type="button" class="flex-1 rounded-md py-1" :class="moveForm.type === 'deposit' ? 'bg-white shadow-sm' : ''" @click="moveForm.type = 'deposit'">Apport (monnaie)</button>
+          <button type="button" class="flex-1 rounded-md py-1" :class="moveForm.type === 'withdrawal' ? 'bg-white shadow-sm' : ''" @click="moveForm.type = 'withdrawal'">Sortir de l'argent (banque, prélèvement)</button>
+          <button type="button" class="flex-1 rounded-md py-1" :class="moveForm.type === 'deposit' ? 'bg-white shadow-sm' : ''" @click="moveForm.type = 'deposit'">Ajouter de la monnaie</button>
         </div>
         <Field v-if="moveForm.type === 'expense'" id="mv-cat" label="Catégorie">
           <select id="mv-cat" v-model="moveForm.category" class="input"><option v-for="c in register.categories" :key="c.value" :value="c.value">{{ c.label }}</option></select>
@@ -170,10 +186,10 @@ function gap(difference) {
       </form>
     </Modal>
 
-    <Modal v-if="closeForm.open" title="Clôture de la caisse" @close="closeForm.open = false">
+    <Modal v-if="closeForm.open" title="Clôturer la journée" @close="closeForm.open = false">
       <div v-if="closeForm.result" class="space-y-3 text-sm">
         <Alert :tone="closeForm.result.difference ? 'warning' : 'success'">
-          Caisse clôturée : {{ money(closeForm.result.counted_cash) }} comptés pour {{ money(closeForm.result.expected_cash) }} attendus. {{ gap(closeForm.result.difference) }}.
+          Journée clôturée : {{ money(closeForm.result.counted_cash) }} comptés pour {{ money(closeForm.result.expected_cash) }} attendus. {{ gap(closeForm.result.difference) }}.
         </Alert>
         <button class="btn-brand w-full" @click="closeForm.open = false">Fermer</button>
       </div>
@@ -183,7 +199,7 @@ function gap(difference) {
         <Field id="cl-counted" label="Espèces comptées dans le tiroir"><input id="cl-counted" v-model.number="closeForm.counted" type="number" min="0" class="input text-lg" required /></Field>
         <p v-if="preview !== null" class="text-sm font-medium" :class="preview < 0 ? 'text-red-700' : preview > 0 ? 'text-sky-800' : 'text-emerald-800'">{{ gap(preview) }}</p>
         <Field id="cl-note" label="Note (explication d'un écart)"><input id="cl-note" v-model="closeForm.note" class="input" maxlength="255" /></Field>
-        <button class="btn-brand w-full">Clôturer</button>
+        <button class="btn-brand w-full">Clôturer la journée</button>
       </form>
     </Modal>
   </section>
