@@ -172,6 +172,11 @@ const outsideAlerts = computed(() => {
   ]
 })
 const pending = computed(() => todo.value.filter((t) => t.count > 0 || t.hint))
+// Ordinateur : les lignes à zéro, regroupées sous « à jour » (dépliables)
+const upToDate = computed(() => todo.value.filter((t) => !(t.count > 0 || t.hint)))
+const upToDateOpen = ref(false)
+// Carte Live : les trois étapes, dans l'ordre
+const liveSteps = ['Vos articles prêts ici', 'Live sur TikTok ou Facebook', 'Les commandes arrivent ici']
 // Téléphone : l'urgent d'abord, trois lignes au plus
 const pendingShort = computed(() => [...pending.value].sort((a, b) => Number(!!b.urgent) - Number(!!a.urgent)).slice(0, 3))
 const pendingHidden = computed(() => pending.value.length - pendingShort.value.length)
@@ -264,11 +269,12 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
           <template v-else>
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />VOTRE LIVE TIKTOK, FACEBOOK…</span>
             <h3 class="mt-2 text-lg font-extrabold leading-tight">Préparez ici, vendez en live sur vos réseaux</h3>
-            <!-- Où se passe quoi, en trois mots : c'est l'explication -->
-            <ol class="relative mt-3 grid grid-cols-3 gap-1.5 text-center text-[13px] font-extrabold leading-tight">
-              <li class="rounded-xl bg-white/25 px-1 py-2"><span class="block text-lg leading-none">📝</span><span class="mt-1 block">Articles prêts ici</span></li>
-              <li class="rounded-xl bg-white/25 px-1 py-2"><span class="block text-lg leading-none">📱</span><span class="mt-1 block">Live sur TikTok, Facebook</span></li>
-              <li class="rounded-xl bg-white/25 px-1 py-2"><span class="block text-lg leading-none">🛒</span><span class="mt-1 block">Commandes ici</span></li>
+            <!-- Où se passe quoi, en trois étapes : c'est l'explication (une suite à lire, pas des boutons) -->
+            <ol class="relative mt-3 grid grid-cols-3 gap-2 text-[13px] font-bold leading-tight">
+              <li v-for="(step, i) in liveSteps" :key="step" class="flex min-w-0 items-start gap-1.5">
+                <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full border-[1.5px] border-white/85 text-[11.5px] font-extrabold" aria-hidden="true">{{ i + 1 }}</span>
+                <span class="min-w-0">{{ step }}</span>
+              </li>
             </ol>
             <p class="mt-2 text-[13px] font-semibold">Les clientes envoient le code (A1, A2…) sur WhatsApp : la commande se crée toute seule.</p>
             <div class="relative mt-3 flex items-center gap-2">
@@ -343,7 +349,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
             <span v-for="c in channels" :key="c.source" class="flex items-center gap-2.5">
               <ColorIcon :name="CHANNEL_COLORS[c.source] ?? 'panier'" :size="30" />
               <span class="w-28 shrink-0 truncate text-sm font-semibold text-slate-700">{{ c.label }}</span>
-              <span class="h-2 min-w-0 flex-1 rounded-full bg-slate-100"><span class="block h-full rounded-full bg-gradient-to-r from-[#8c95ff] to-[#545fe0]" :style="{ width: `${Math.max(4, (c.amount / channelMax) * 100)}%` }" /></span>
+              <span class="h-2 min-w-0 flex-1 rounded-full bg-slate-100"><span class="block h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-700" :style="{ width: `${Math.max(4, (c.amount / channelMax) * 100)}%` }" /></span>
               <span class="w-[78px] shrink-0 text-right text-sm font-bold">{{ money(c.amount) }}</span>
             </span>
           </span>
@@ -470,23 +476,40 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
         </section>
       </div>
 
-      <!-- À faire maintenant : ordinateur, en colonne à droite (tout, même à zéro) -->
+      <!-- À faire maintenant : ordinateur, en colonne à droite. Ce qui attend d'abord, bien visible ;
+           les lignes à zéro regroupées dans « à jour », qu'on déplie pour tout voir -->
       <section v-if="todo.length" class="card hidden self-start p-4 sm:p-5 lg:block">
         <h3 class="text-[17px] font-extrabold">À faire maintenant</h3>
         <p v-if="!pending.length" class="mt-3 flex items-center gap-2 text-sm text-emerald-800"><ColorIcon name="livre" :size="24" :tile="false" />Tout est à jour.</p>
-        <ul class="mt-2 divide-y divide-slate-100">
-          <li v-for="t in todo" :key="t.key">
-            <RouterLink :to="t.to" class="-mx-2 flex items-center gap-3 rounded-xl px-2 py-3 hover:bg-slate-50">
-              <ColorIcon :name="todoColor(t)" :size="38" :class="t.count || t.hint ? '' : 'opacity-50'" />
+        <ul v-if="pending.length" class="mt-3 space-y-1.5">
+          <li v-for="t in pending" :key="t.key">
+            <RouterLink :to="t.to" class="flex items-center gap-3 rounded-xl px-2.5 py-2.5" :class="t.urgent ? 'bg-ocre-50 hover:bg-ocre-100' : 'bg-slate-50 hover:bg-emerald-50'">
+              <ColorIcon :name="todoColor(t)" :size="38" />
               <span class="min-w-0 flex-1">
-                <span class="block text-sm font-semibold" :class="t.count ? 'text-slate-900' : 'text-slate-500'">{{ t.label }}</span>
-                <span v-if="t.hint" class="block text-xs" :class="t.urgent ? 'text-ocre-700' : 'text-slate-500'">{{ t.hint }}</span>
+                <span class="block text-sm font-bold text-slate-900">{{ t.label }}</span>
+                <span v-if="t.hint" class="block text-xs" :class="t.urgent ? 'text-ocre-800' : 'text-slate-600'">{{ t.hint }}</span>
               </span>
-              <span class="text-lg font-bold" :class="t.count ? 'text-slate-900' : 'text-slate-400'">{{ t.count }}</span>
+              <span v-if="t.count" class="grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm font-bold text-white" :class="t.urgent ? 'bg-ocre-700' : 'bg-emerald-700'">{{ t.count }}</span>
               <Icon name="chevron" :size="16" class="text-slate-400" />
             </RouterLink>
           </li>
         </ul>
+        <template v-if="upToDate.length">
+          <button type="button" class="mt-2 flex w-full items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-slate-50" :aria-expanded="upToDateOpen" @click="upToDateOpen = !upToDateOpen">
+            <Icon name="check" :size="16" class="shrink-0 text-emerald-700" />
+            <span class="min-w-0 flex-1">{{ upToDate.length }} {{ pending.length ? 'autre' : 'point' }}{{ upToDate.length > 1 ? 's' : '' }} à jour</span>
+            <span class="font-semibold text-emerald-700">{{ upToDateOpen ? 'Masquer' : 'Voir' }}</span>
+          </button>
+          <ul v-if="upToDateOpen" class="mt-1 divide-y divide-slate-100">
+            <li v-for="t in upToDate" :key="t.key">
+              <RouterLink :to="t.to" class="-mx-2 flex items-center gap-3 rounded-xl px-2 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                <ColorIcon :name="todoColor(t)" :size="30" class="opacity-60" />
+                <span class="min-w-0 flex-1">{{ t.label }}</span>
+                <span class="font-semibold">0</span>
+              </RouterLink>
+            </li>
+          </ul>
+        </template>
       </section>
     </div>
 
