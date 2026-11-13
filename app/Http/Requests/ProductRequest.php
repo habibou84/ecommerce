@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\ProductStatus;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,7 +25,8 @@ class ProductRequest extends FormRequest
             'preorder_deposit_percent' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
             // Acompte de l'article : pourcentage du prix ou montant fixe par pièce
             'deposit_type' => ['sometimes', 'nullable', 'in:percent,fixed'],
-            'deposit_value' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000000', 'required_with:deposit_type'],
+            // Un pourcentage ne dépasse pas 100 ; un montant fixe est en francs par pièce
+            'deposit_value' => ['sometimes', 'nullable', 'integer', 'min:1', Rule::when($this->input('deposit_type') === 'percent', 'max:100', 'max:100000000'), 'required_with:deposit_type'],
             'requires_shipping' => ['sometimes', 'boolean'],
             'is_fragile' => ['sometimes', 'boolean'],
             'low_stock_threshold' => ['nullable', 'integer', 'min:0', 'max:100000'],
@@ -58,9 +60,26 @@ class ProductRequest extends FormRequest
         ];
     }
 
+    /**
+     * Un prix barré est l'ancien prix : il ne peut pas être inférieur au prix de vente.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            foreach ((array) $this->input('variants', []) as $index => $variant) {
+                $compare = $variant['compare_at_price'] ?? null;
+                $price = $variant['price'] ?? null;
+                if (is_numeric($compare) && is_numeric($price) && (int) $compare < (int) $price) {
+                    $validator->errors()->add("variants.{$index}.compare_at_price", 'Le prix barré doit être supérieur ou égal au prix.');
+                }
+            }
+        });
+    }
+
     public function attributes(): array
     {
         return [
+            'deposit_value' => 'acompte', 'variants.*.compare_at_price' => 'prix barré',
             'title' => 'nom', 'description' => 'description', 'options.*.name' => 'nom de l\'option',
             'options.*.values' => 'valeurs de l\'option', 'variants' => 'variantes', 'variants.*.price' => 'prix',
             'variants.*.sku' => 'SKU', 'variants.*.on_hand' => 'stock',

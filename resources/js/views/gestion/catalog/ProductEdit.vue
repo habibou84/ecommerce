@@ -29,13 +29,20 @@ const VALUE_SUGGESTIONS = {
   couleur: ['Noir', 'Blanc', 'Rouge', 'Bleu', 'Vert', 'Jaune', 'Rose', 'Marron'],
 }
 
+// Formats que le serveur accepte (le même pour tous les boutons « Photo »), 20 photos au plus, 10 Mo chacune
+const PHOTO_TYPES = 'image/jpeg,image/png,image/webp'
+const MAX_PHOTOS = 20
+const MAX_PHOTO_MB = 10
+const photoOk = (file) => /^image\/(jpeg|png|webp)$/.test(file.type) || (file.type === '' && /\.(jpe?g|png|webp)$/i.test(file.name))
+
 const loading = ref(!!props.id)
 const saving = ref(false)
 const error = ref('')
 const errors = ref({})
-const saved = ref(false)
+const lookupFailed = ref(false)
 
-const form = reactive({
+// Fiche vierge : aussi utilisée pour « Ajouter un autre produit », pour que rien du produit précédent ne reste
+const blankForm = () => ({
   title: '',
   description: '',
   brand: '',
@@ -56,6 +63,7 @@ const form = reactive({
   collection_ids: [],
   tags: [],
 })
+const form = reactive(blankForm())
 const product = ref(null) // fiche chargée (photos, adresse publique)
 const hasVariants = ref(false)
 const isBundle = ref(false) // pack : contenu modifié dans l'écran Packs quand il a des tailles
@@ -148,12 +156,16 @@ function load(data) {
 }
 
 onMounted(async () => {
-  const requests = [http.get('/collections'), http.get('/tags')]
-  if (canStock.value) requests.push(http.get('/stock/locations'))
-  const [c, t, l] = await Promise.all(requests)
-  collections.value = c.data.data
-  tagSuggestions.value = t.data.data
-  locations.value = (l?.data.data ?? []).filter((x) => x.is_active)
+  // Les listes d'aide (collections, étiquettes, emplacements) ne doivent jamais empêcher d'ouvrir la fiche
+  const [c, t, l] = await Promise.allSettled([
+    http.get('/collections'),
+    http.get('/tags'),
+    canStock.value ? http.get('/stock/locations') : Promise.resolve(null),
+  ])
+  lookupFailed.value = [c, t, l].some((r) => r.status === 'rejected')
+  if (c.status === 'fulfilled') collections.value = c.value.data.data
+  if (t.status === 'fulfilled') tagSuggestions.value = t.value.data.data
+  if (l.status === 'fulfilled') locations.value = (l.value?.data.data ?? []).filter((x) => x.is_active)
   locationId.value = locations.value[0]?.id ?? null
 
   if (props.id) {
@@ -238,7 +250,15 @@ function showNotice(value) {
   clearTimeout(noticeTimer)
   if (!value.created) noticeTimer = setTimeout(() => (notice.value = null), 5000)
 }
-onUnmounted(() => clearTimeout(noticeTimer))
+// Photos choisies avant la création : adresses temporaires libérées dès qu'on n'en a plus besoin
+function releasePending() {
+  pendingFiles.value.forEach((p) => URL.revokeObjectURL(p.url))
+  pendingFiles.value = []
+}
+onUnmounted(() => {
+  clearTimeout(noticeTimer)
+  releasePending()
+})
 
 // Erreur : la page descend jusqu'au champ à corriger (ou au message d'erreur)
 async function showError() {
@@ -251,7 +271,6 @@ async function showError() {
 async function save() {
   error.value = ''
   errors.value = {}
-  saved.value = false
   notice.value = null
   const included = hasVariants.value ? variantRows.value.filter((r) => r.include) : [simple]
   if (included.some((r) => num(r.price) === null) && num(hasVariants.value ? defaults.price : simple.price) === null) {
@@ -265,7 +284,7 @@ async function save() {
     const payload = {
       ...form,
       low_stock_threshold: num(form.low_stock_threshold),
-      preorder_ship_date: form.preorder_ship_date || null,
+      preorder_ship_date: form.preorder_enabled ? form.preorder_ship_date || null : null,
       preorder_deposit_percent: null,
       deposit_type: form.deposit_type || null,
       deposit_value: form.deposit_type ? num(form.deposit_value) : null,
@@ -276,26 +295,10 @@ async function save() {
     const { data } = props.id ? await http.put(`/products/${props.id}`, payload) : await http.post('/products', payload)
 
     if (!props.id) {
-      // Photos choisies avant la création : envoyées, puis rattachées aux variantes qui les ont choisies
-      const chosen = Object.fromEntries(Object.entries(rows).filter(([, r]) => r.image_pending !== null).map(([key, r]) => [key, r.image_pending]))
-      const simplePending = simple.image_pending
-      const ids = await uploadFiles(data.data.id, pendingFiles.value.map((p) => p.file))
-      pendingFiles.value = []
-      let fresh = (await http.get(`/products/${data.data.id}`)).data.data
-      if (Object.keys(chosen).length || simplePending !== null) {
-        load(fresh)
-        Object.entries(chosen).forEach(([key, index]) => rows[key] && ids[index] && (rows[key].image_id = ids[index]))
-        if (simplePending !== null && ids[simplePending]) simple.image_id = ids[simplePending]
-        fresh = (await http.put(`/products/${fresh.id}`, { ...payload, variants: hasVariants.value ? variantRows.value.filter((r) => r.include).map(variantPayload) : [variantPayload(simple)] })).data.data
-      }
-      opening = fresh
-      await router.replace(`/gestion/catalogue/${fresh.id}`)
-      load(fresh)
-      showNotice({ created: true, title: fresh.title, variants: fresh.variants.length, photos: fresh.images.length })
+      await afterCreate(data.data, payload)
       return
     }
     load(data.data)
-    saved.value = true
     showNotice({ created: false, title: data.data.title, variants: data.data.variants.length, photos: data.data.images.length })
   } catch (e) {
     errors.value = fieldErrors(e)
@@ -306,9 +309,42 @@ async function save() {
   }
 }
 
+// Suite d'une création : on se place d'abord sur la fiche créée (un échec plus loin ne peut alors plus faire créer un
+// doublon : « Enregistrer » modifie), puis les photos sont envoyées une à une et rattachées aux variantes choisies
+async function afterCreate(created, payload) {
+  const files = pendingFiles.value.map((p) => p.file)
+  const chosen = Object.fromEntries(Object.entries(rows).filter(([, r]) => r.image_pending !== null).map(([key, r]) => [key, r.image_pending]))
+  const simplePending = simple.image_pending
+
+  opening = created
+  await router.replace(`/gestion/catalogue/${created.id}`)
+  load(created)
+
+  const ids = await uploadFiles(created.id, files)
+  releasePending()
+
+  const attach = Object.entries(chosen).filter(([, index]) => ids[index])
+  const simpleId = simplePending !== null ? ids[simplePending] : null
+  if (attach.length || simpleId) {
+    try {
+      load((await http.get(`/products/${created.id}`)).data.data)
+      attach.forEach(([key, index]) => rows[key] && (rows[key].image_id = ids[index]))
+      if (simpleId) simple.image_id = simpleId
+      const variants = hasVariants.value ? variantRows.value.filter((r) => r.include).map(variantPayload) : [variantPayload(simple)]
+      load((await http.put(`/products/${created.id}`, { ...payload, variants })).data.data)
+    } catch (e) {
+      error.value = `Produit créé, mais les photos n'ont pas pu être rattachées aux variantes (${errorMessage(e)}). Choisissez-les de nouveau, puis enregistrez.`
+      await showError()
+    }
+  }
+  showNotice({ created: true, title: form.title, variants: product.value?.variants.length ?? 1, photos: images.value.length })
+}
+
 // Fiche ouverte depuis une autre (création terminée, « Ajouter un autre produit ») : rechargée ou vidée
 let opening = null
 watch(() => props.id, async (id) => {
+  // Prix de gros et autres boutiques sont ceux de la fiche affichée : rechargés à chaque changement de fiche
+  refreshExtras()
   if (opening && String(opening.id) === String(id)) {
     opening = null
     return
@@ -316,9 +352,14 @@ watch(() => props.id, async (id) => {
   error.value = ''
   errors.value = {}
   if (!id) {
-    Object.assign(form, { title: '', description: '', brand: '', status: 'active', collection_ids: [], tags: [], seo_title: '', seo_description: '' })
+    Object.assign(form, blankForm())
     product.value = null
     images.value = []
+    releasePending()
+    isBundle.value = false
+    showSeo.value = false
+    aiNote.value = ''
+    aiNotice.value = ''
     hasVariants.value = false
     Object.keys(rows).forEach((k) => delete rows[k])
     Object.assign(simple, newRow([]))
@@ -341,21 +382,29 @@ function addAnother() {
   router.push('/gestion/catalogue/nouveau')
 }
 
+// Envoi photo par photo : une photo refusée n'arrête pas les autres. Renvoie un identifiant (ou null) par photo, dans
+// l'ordre des fichiers, pour que chaque variante retrouve bien la photo qu'elle avait choisie.
 async function uploadFiles(productId, files) {
   uploading.value = true
   const ids = []
-  try {
-    for (const file of files) {
+  const failed = []
+  for (const file of files) {
+    try {
       const body = new FormData()
       body.append('image', file)
       const { data } = await http.post(`/products/${productId}/images`, body)
       images.value.push(data.data)
       ids.push(data.data.id)
+    } catch (e) {
+      ids.push(null)
+      failed.push(`${file.name} (${errorMessage(e, 'envoi impossible')})`)
     }
-  } catch (e) {
-    error.value = errorMessage(e, 'Une photo n\'a pas pu être envoyée.')
-  } finally {
-    uploading.value = false
+  }
+  uploading.value = false
+  if (failed.length) {
+    const summary = `${files.length - failed.length} photo(s) sur ${files.length} envoyée(s). Non envoyée(s) : ${failed.join(' ; ')}`
+    error.value = [error.value, summary].filter(Boolean).join(' ')
+    showError()
   }
   return ids
 }
@@ -372,8 +421,26 @@ function removePending(index) {
 }
 
 async function onFiles(event) {
-  const files = [...event.target.files]
+  const picked = [...event.target.files]
   event.target.value = ''
+  error.value = ''
+  const refused = []
+  let files = picked.filter((file) => {
+    if (!photoOk(file)) refused.push(`${file.name} (format non accepté : JPEG, PNG ou WebP)`)
+    else if (file.size > MAX_PHOTO_MB * 1024 * 1024) refused.push(`${file.name} (plus de ${MAX_PHOTO_MB} Mo)`)
+    else return true
+    return false
+  })
+  const room = Math.max(0, MAX_PHOTOS - images.value.length - pendingFiles.value.length)
+  if (files.length > room) {
+    refused.push(`${files.length - room} photo(s) en trop (${MAX_PHOTOS} au plus par produit)`)
+    files = files.slice(0, room)
+  }
+  if (refused.length) {
+    error.value = `Photo(s) non ajoutée(s) : ${refused.join(' ; ')}.`
+    showError()
+  }
+  if (!files.length) return
   if (props.id) await uploadFiles(props.id, files)
   else pendingFiles.value.push(...files.map((file) => ({ file, url: URL.createObjectURL(file) })))
 }
@@ -409,23 +476,41 @@ async function draftFromPhotos() {
 }
 
 async function moveImage(index, delta) {
-  const list = [...images.value]
+  const before = images.value
+  const list = [...before]
   const [item] = list.splice(index, 1)
   list.splice(index + delta, 0, item)
   images.value = list
-  await http.put(`/products/${props.id}/images/order`, { ids: list.map((i) => i.id) })
+  try {
+    await http.put(`/products/${props.id}/images/order`, { ids: list.map((i) => i.id) })
+  } catch (e) {
+    images.value = before
+    error.value = errorMessage(e, 'L\'ordre des photos n\'a pas pu être enregistré.')
+    showError()
+  }
 }
 
 async function removeImage(image) {
   if (!confirm('Supprimer cette photo ?')) return
-  await http.delete(`/products/${props.id}/images/${image.id}`)
+  try {
+    await http.delete(`/products/${props.id}/images/${image.id}`)
+  } catch (e) {
+    error.value = errorMessage(e, 'La photo n\'a pas pu être supprimée.')
+    showError()
+    return
+  }
   images.value = images.value.filter((i) => i.id !== image.id)
   for (const row of [simple, ...Object.values(rows)]) if (row.image_id === image.id) row.image_id = null
 }
 
 async function duplicate() {
-  const { data } = await http.post(`/products/${props.id}/duplicate`)
-  router.push(`/gestion/catalogue/${data.data.id}`)
+  try {
+    const { data } = await http.post(`/products/${props.id}/duplicate`)
+    router.push(`/gestion/catalogue/${data.data.id}`)
+  } catch (e) {
+    error.value = errorMessage(e, 'Le produit n\'a pas pu être dupliqué.')
+    showError()
+  }
 }
 
 async function destroy() {
@@ -443,13 +528,27 @@ const tiers = ref([])
 const tiersSaved = ref(false)
 const tiersErrors = ref({})
 // Vente en gros : à la pièce ou par lot seulement (6, 12…), et minimum par commande
-const sale = ref({ mode: 'piece', sale_lot: '', min_order_quantity: '' })
+const defaultSale = () => ({ mode: 'piece', sale_lot: '', min_order_quantity: '' })
+const sale = ref(defaultSale())
+const tiersLoaded = ref(false) // « Enregistrer » reste fermé tant que les prix actuels ne sont pas lus (sinon on les effacerait)
 async function loadTiers() {
-  if (!props.id) return
-  const { data } = await http.get(`/products/${props.id}/volume-prices`)
-  tiers.value = data.data
-  const s = data.sale ?? {}
-  sale.value = { mode: s.sale_lot ? 'lot' : 'piece', sale_lot: s.sale_lot ?? '', min_order_quantity: s.min_order_quantity ?? '' }
+  tiers.value = []
+  sale.value = defaultSale()
+  tiersSaved.value = false
+  tiersErrors.value = {}
+  tiersLoaded.value = false
+  const id = props.id
+  if (!id) return
+  try {
+    const { data } = await http.get(`/products/${id}/volume-prices`)
+    if (id !== props.id) return
+    tiers.value = data.data
+    const s = data.sale ?? {}
+    sale.value = { mode: s.sale_lot ? 'lot' : 'piece', sale_lot: s.sale_lot ?? '', min_order_quantity: s.min_order_quantity ?? '' }
+    tiersLoaded.value = true
+  } catch (e) {
+    if (id === props.id) tiersErrors.value = { form: errorMessage(e, 'Les prix de gros n\'ont pas pu être chargés.') }
+  }
 }
 async function saveTiers() {
   tiersSaved.value = false
@@ -466,15 +565,24 @@ async function saveTiers() {
     if (!Object.keys(tiersErrors.value).length) tiersErrors.value = { form: errorMessage(e) }
   }
 }
-onMounted(loadTiers)
 
 // Autres boutiques de l'adresse : le produit y est-il ? copie (photos, variantes, prix ; stock à zéro)
 const otherStores = ref([])
 const copying = ref(null)
 const copied = ref('')
 async function loadOtherStores() {
-  if (props.id && (auth.profile?.stores?.length ?? 0) > 1) otherStores.value = (await http.get(`/products/${props.id}/stores`)).data.data
+  otherStores.value = []
+  copied.value = ''
+  const id = props.id
+  if (!id || (auth.profile?.stores?.length ?? 0) <= 1) return
+  try {
+    const { data } = await http.get(`/products/${id}/stores`)
+    if (id === props.id) otherStores.value = data.data
+  } catch (e) {
+    // Bloc d'aide : s'il ne se charge pas, la fiche reste utilisable sans lui
+  }
 }
+const refreshExtras = () => Promise.all([loadTiers(), loadOtherStores()])
 async function copyTo(store) {
   copying.value = store.id
   copied.value = ''
@@ -489,7 +597,7 @@ async function copyTo(store) {
     copying.value = null
   }
 }
-onMounted(loadOtherStores)
+onMounted(refreshExtras)
 
 // Partage sur les réseaux : lien court et image carrée
 const share = ref(null)
@@ -528,6 +636,10 @@ function onBlur() {
 }
 
 const variantError = (index, field) => errors.value[`variants.${index}.${field}`]
+const rowError = (row) => {
+  const index = variantRows.value.filter((r) => r.include).indexOf(row)
+  return variantError(index, 'price') || variantError(index, 'sku') || variantError(index, 'compare_at_price')
+}
 const margin = computed(() => {
   const price = num(simple.price)
   const cost = num(simple.cost_price)
@@ -547,6 +659,7 @@ const margin = computed(() => {
       <!-- Supprimer, Dupliquer : dans le menu ⋯ (la bande du bas ne garde que « Enregistrer ») -->
       <div v-if="props.id && canEdit" class="relative" :class="{ 'ml-auto': !(product && form.status === 'active' && form.is_visible_online) }">
         <button type="button" class="btn-secondary px-3 py-1.5 font-bold" aria-label="Plus d'actions" :aria-expanded="menu" @click="menu = !menu">⋯</button>
+        <div v-if="menu" class="fixed inset-0 z-10" @click="menu = false" />
         <div v-if="menu" class="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm shadow-lg">
           <button type="button" class="block w-full px-4 py-2.5 text-left hover:bg-slate-50" @click="menu = false; duplicate()">Dupliquer</button>
           <button type="button" class="block w-full px-4 py-2.5 text-left text-red-600 hover:bg-red-50" @click="menu = false; destroy()">Supprimer</button>
@@ -555,6 +668,7 @@ const margin = computed(() => {
     </div>
 
     <div v-if="error" data-form-error><Alert>{{ error }}</Alert></div>
+    <p v-if="lookupFailed" class="text-sm text-slate-500">Certaines listes (collections, étiquettes, emplacements) n'ont pas pu être chargées : rechargez la page pour les retrouver.</p>
 
     <section v-if="ai.enabled && !props.id && canEdit" class="card space-y-3 border-emerald-200 bg-emerald-50/60 p-4 sm:p-6">
       <div>
@@ -564,11 +678,11 @@ const margin = computed(() => {
       <div class="flex flex-wrap items-center gap-2">
         <label class="btn-secondary cursor-pointer px-3 py-1.5">
           <Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Photo
-          <input type="file" accept="image/*" class="hidden" @change="onFiles" />
+          <input type="file" :accept="PHOTO_TYPES" class="hidden" @change="onFiles" />
         </label>
         <label class="btn-secondary cursor-pointer px-3 py-1.5">
           + Galerie
-          <input type="file" accept="image/*" multiple class="hidden" @change="onFiles" />
+          <input type="file" :accept="PHOTO_TYPES" multiple class="hidden" @change="onFiles" />
         </label>
         <span class="text-sm text-slate-500">{{ pendingFiles.length ? `${Math.min(pendingFiles.length, 3)} photo(s) pour l'assistant` : 'Aucune photo choisie' }}</span>
       </div>
@@ -602,11 +716,11 @@ const margin = computed(() => {
             <!-- Sur téléphone, le choix de fichier n'ouvre que la galerie : l'appareil photo a son propre bouton -->
             <label class="btn-secondary cursor-pointer px-3 py-1.5" :class="{ 'opacity-60': uploading }">
               <Icon name="image" :size="16" class="mr-1 inline-block align-[-3px]" />Photo
-              <input type="file" accept="image/*" class="hidden" :disabled="uploading" @change="onFiles" />
+              <input type="file" :accept="PHOTO_TYPES" class="hidden" :disabled="uploading" @change="onFiles" />
             </label>
             <label class="btn-secondary cursor-pointer px-3 py-1.5">
               {{ uploading ? 'Envoi…' : '+ Galerie' }}
-              <input type="file" accept="image/jpeg,image/png,image/webp" multiple class="hidden" @change="onFiles" />
+              <input type="file" :accept="PHOTO_TYPES" multiple class="hidden" @change="onFiles" />
             </label>
           </div>
         </div>
@@ -655,7 +769,7 @@ const margin = computed(() => {
           <Field id="price" label="Prix (F)" :error="variantError(0, 'price')">
             <input id="price" v-model="simple.price" class="input" type="number" min="0" inputmode="numeric" required />
           </Field>
-          <Field id="compare" label="Prix barré" hint="Ancien prix affiché barré">
+          <Field id="compare" label="Prix barré" hint="Ancien prix affiché barré" :error="variantError(0, 'compare_at_price')">
             <input id="compare" v-model="simple.compare_at_price" class="input" type="number" min="0" inputmode="numeric" />
           </Field>
           <Field id="cost" label="Coût d'achat" :hint="margin !== null ? `Marge : ${margin} %` : 'Pour calculer votre marge'">
@@ -751,9 +865,7 @@ const margin = computed(() => {
                     <label>SKU <input v-model="row.sku" class="input mt-0.5" maxlength="60" /></label>
                   </div>
                 </details>
-                <p v-if="variantError(variantRows.filter((r) => r.include).indexOf(row), 'price') || variantError(variantRows.filter((r) => r.include).indexOf(row), 'sku')" class="pl-6 text-xs text-red-600" data-variant-error>
-                  {{ variantError(variantRows.filter((r) => r.include).indexOf(row), 'price') || variantError(variantRows.filter((r) => r.include).indexOf(row), 'sku') }}
-                </p>
+                <p v-if="rowError(row)" class="pl-6 text-xs text-red-600" data-variant-error>{{ rowError(row) }}</p>
               </div>
             </div>
           </div>
@@ -814,17 +926,17 @@ const margin = computed(() => {
             <Field id="po-ship" label="Expédition prévue vers le"><input id="po-ship" v-model="form.preorder_ship_date" type="date" class="input" /></Field>
           </div>
           <!-- Acompte de l'article (précommande comprise) -->
-          <div class="space-y-2 rounded-xl border border-slate-200 p-3">
-            <p class="text-sm font-semibold">Acompte pour cet article</p>
-            <label class="flex items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" :value="null" /> Pas d'acompte <span class="text-slate-500">(paiement à la livraison)</span></label>
-            <label class="flex flex-wrap items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" value="percent" /> Un pourcentage
+          <fieldset class="space-y-2 rounded-xl border border-slate-200 p-3">
+            <legend class="px-1 text-sm font-semibold">Acompte pour cet article</legend>
+            <label class="flex items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" :value="null" @change="form.deposit_value = null" /> Pas d'acompte <span class="text-slate-500">(paiement à la livraison)</span></label>
+            <label class="flex flex-wrap items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" value="percent" @change="form.deposit_value = null" /> Un pourcentage
               <input v-if="form.deposit_type === 'percent'" v-model="form.deposit_value" type="number" min="1" max="100" class="input w-20 py-1" aria-label="Pourcentage" /><span v-if="form.deposit_type === 'percent'">%</span>
             </label>
-            <label class="flex flex-wrap items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" value="fixed" /> Un montant fixe par pièce
+            <label class="flex flex-wrap items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" value="fixed" @change="form.deposit_value = null" /> Un montant fixe par pièce
               <input v-if="form.deposit_type === 'fixed'" v-model="form.deposit_value" type="number" min="1" class="input w-28 py-1" aria-label="Montant" /><span v-if="form.deposit_type === 'fixed'">F</span>
             </label>
             <p class="text-xs text-slate-500">Demandé en boutique en ligne, en live et sur WhatsApp. Pour toute la boutique : <RouterLink to="/gestion/acompte" class="font-medium text-emerald-700 underline">Acompte</RouterLink>.</p>
-          </div>
+          </fieldset>
         </div>
       </section>
 
@@ -869,13 +981,13 @@ const margin = computed(() => {
           <p v-if="tiersErrors.sale_lot || tiersErrors.min_order_quantity" class="text-sm text-red-700">{{ tiersErrors.sale_lot || tiersErrors.min_order_quantity }}</p>
         </div>
         <div class="flex items-center gap-2">
-          <button type="button" class="btn-secondary ml-auto px-3 py-1.5" @click="saveTiers">Enregistrer les prix de gros</button>
+          <button type="button" class="btn-secondary ml-auto px-3 py-1.5" :disabled="!tiersLoaded" @click="saveTiers">Enregistrer les prix de gros</button>
           <span v-if="tiersSaved" class="text-sm text-emerald-700">✓</span>
         </div>
       </section>
 
       <section class="card p-4 sm:p-6">
-        <button type="button" class="flex w-full items-center justify-between font-semibold" @click="showSeo = !showSeo">
+        <button type="button" class="flex w-full items-center justify-between font-semibold" :aria-expanded="showSeo" @click="showSeo = !showSeo">
           Référencement (Google, partage WhatsApp)
           <span class="text-slate-400">{{ showSeo ? '−' : '+' }}</span>
         </button>

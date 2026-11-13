@@ -108,6 +108,21 @@ class CatalogApiTest extends TestCase
         $this->assertSame(['Collier'], array_column($this->api('GET', 'products?pack=1')->json('data'), 'title'));
     }
 
+    public function test_a_struck_price_and_a_deposit_percentage_are_checked(): void
+    {
+        $lower = $this->robe();
+        $lower['variants'][0]['compare_at_price'] = 1000;
+        $this->api('POST', 'products', $lower)->assertStatus(422)->assertJsonValidationErrors('variants.0.compare_at_price');
+
+        $this->api('POST', 'products', $this->robe(['deposit_type' => 'percent', 'deposit_value' => 150]))
+            ->assertStatus(422)->assertJsonValidationErrors('deposit_value');
+
+        // Montant fixe au-delà de 100 : permis ; prix barré plus haut : permis
+        $ok = $this->robe(['deposit_type' => 'fixed', 'deposit_value' => 2000]);
+        $ok['variants'][0]['compare_at_price'] = 20000;
+        $this->api('POST', 'products', $ok)->assertCreated()->assertJsonPath('data.deposit_value', 2000);
+    }
+
     public function test_photos_are_uploaded_ordered_and_linked_to_variants(): void
     {
         Storage::fake('public');
