@@ -19,7 +19,7 @@ const store = computed(() => props.data?.store ?? null)
 const items = computed(() => live.value?.items ?? [])
 const available = computed(() => items.value.filter((i) => i.remaining > 0))
 const show = computed(() => live.value?.show ?? null)
-const settings = computed(() => show.value?.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, camera: false, goal: null })
+const settings = computed(() => show.value?.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, camera: true, goal: null })
 const light = computed(() => !!settings.value.light)
 
 // Taille : tout en « em ». Large (télé) : 1em = 1/128 de la largeur ; carré (TikTok LIVE Studio) : 1/84 ;
@@ -765,16 +765,35 @@ onUnmounted(() => {
 .is-light .rays2, .is-camera .rays2 { display: none; }
 /* Mode caméra : écran plus doux à filmer (le téléphone règle l'image sur le visage, l'écran derrière ressort trop fort) :
    blancs cassés, photos baissées, plus de lueurs, de reflet ni de lumières qui balaient */
-.is-camera { --ink: #d2cbc2; --dim: #a294b1; --sun: #d18f12; --mint: #1f9e6b; }
+.is-camera { --stage: #14223a; --stage2: #14223a; --ink: #e6e0d6; --dim: #d6cfc3; --hot: #c9762a; --sun: #dcae24; --mint: #1f9e6b; background: var(--stage); }
 .is-camera .beam, .is-camera .flood, .is-camera .shine, .is-camera .orb { display: none; }
-.is-camera .pic { filter: brightness(.7) contrast(.92) saturate(1.05); }
-.is-camera .photo-bg { filter: blur(2.6em) saturate(1.2) brightness(.45); }
+/* La photo (souvent sur fond blanc) est le point le plus clair de l'écran : la caméra règle sur elle et tout le reste paraît terne */
+.is-camera .pic { filter: brightness(.58) contrast(.9) saturate(1.05); }
+.is-camera .photo-bg { filter: blur(2.6em) saturate(1.2) brightness(.35); animation: none; }
+.is-camera .photo { background: var(--stage); box-shadow: 0 0 0 .3em color-mix(in srgb, var(--ink) 25%, transparent); }
 .is-camera .code, .is-camera .combo { text-shadow: none; }
 .is-camera .toast { background: #b9b1a7; box-shadow: none; }
 .is-camera .live-dot { background: #c2142f; }
-.is-camera .how b { background: color-mix(in srgb, var(--hot) 30%, transparent); }
 .is-camera .cell { background: #b9b1a7; }
 .is-camera.beat .photo, .is-camera.beat .code { animation: none; }
+/* Textes : crème (jamais blanc pur, qui bave), moins gras, plus grands ; « Envoie A2 » dans un cartouche plein */
+.is-camera .title { font-weight: 700; font-size: 4.4em; text-shadow: none; }
+.is-camera.is-square .title { font-size: 3.5em; }
+.is-camera.is-tall .title { font-size: 5.2em; }
+.is-camera .how { color: var(--ink); font-size: 2.8em; }
+.is-camera.is-square .how { font-size: 2.6em; }
+.is-camera.is-tall .how { font-size: 3.5em; }
+.is-camera .how b { background: var(--sun); color: var(--stage); padding: .05em .35em; }
+.is-camera .stock p { font-size: 2.6em; color: var(--ink); }
+.is-camera.is-tall .stock p { font-size: 3.4em; }
+.is-camera .stock .bar { background: rgba(230, 224, 214, .25); }
+.is-camera .stock .bar i { background: var(--mint); }
+.is-camera .bio, .is-camera .brand b { color: var(--ink); }
+/* Bandeau du bas fixe (un texte qui défile se brouille à la caméra), sur fond uni */
+.is-camera .ticker { background: #0d1626; }
+.is-camera .ticker div { animation: none; padding-left: 1.5em; font-size: 2.6em; }
+.is-camera.is-tall .ticker div { font-size: 3.4em; }
+.is-camera .ticker span:not(:first-child) { display: none; }
 /* Mode léger (vieilles télés) : pas de flou ni de reflet */
 .is-light .photo-bg, .is-light .shine { display: none; }
 .is-light .pic { filter: none; transition: opacity .8s; }

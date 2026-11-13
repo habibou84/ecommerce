@@ -67,7 +67,7 @@ class LiveScreens
     /** Réglages du show d'un live : thème, ambiance, sons, musique, mode léger (vieilles télés), mode caméra, objectif */
     public function showSettings(LiveSession $session): array
     {
-        return array_merge(['theme' => 'fete', 'ambiance' => 'aqui', 'sound' => true, 'music' => false, 'light' => false, 'camera' => false, 'goal' => null, 'mystery_mode' => 'zoom'],
+        return array_merge(['theme' => 'fete', 'ambiance' => 'aqui', 'sound' => true, 'music' => false, 'light' => false, 'camera' => true, 'goal' => null, 'mystery_mode' => 'zoom'],
             Cache::get('live-show-settings:'.$session->id, []));
     }
 
