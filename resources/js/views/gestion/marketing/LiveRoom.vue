@@ -497,11 +497,11 @@ async function redo() {
         </section>
         <!-- Solde : commandes de ce live retirées à la fermeture -->
         <section v-if="live.billing?.billed" class="rounded-[20px] border-2 border-amber-400 bg-amber-50 p-4">
-          <h3 class="font-display text-base font-extrabold">🧾 {{ live.billing.used }} commande{{ live.billing.used > 1 ? 's' : '' }} retirée{{ live.billing.used > 1 ? 's' : '' }} de ton solde</h3>
+          <h3 class="font-display text-base font-extrabold">🧾 {{ live.billing.used }} commande{{ live.billing.used > 1 ? 's' : '' }} retirée{{ live.billing.used > 1 ? 's' : '' }} de votre solde</h3>
           <p class="mt-1 text-xs text-slate-600">Une commande annulée ensuite reste comptée.</p>
           <p class="mt-2 flex justify-between border-t border-amber-200 pt-2 text-sm"><span>Solde après ce live</span><b :class="live.billing.balance < 0 ? 'text-red-700' : ''">{{ live.billing.balance }} commandes</b></p>
           <template v-if="live.billing.recharge">
-            <p class="mt-1 text-sm font-bold text-orange-900">Il faut au moins {{ live.billing.min_orders }} commandes pour ouvrir ton prochain live.</p>
+            <p class="mt-1 text-sm font-bold text-orange-900">Il faut au moins {{ live.billing.min_orders }} commandes pour ouvrir votre prochain live.</p>
             <button type="button" class="mt-2 block w-full rounded-xl bg-slate-900 py-2.5 text-[15px] font-black text-white" @click="openRecharge()">Recharger</button>
           </template>
         </section>

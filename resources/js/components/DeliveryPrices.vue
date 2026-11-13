@@ -118,7 +118,7 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
     <p v-if="!rates && !error" class="py-10 text-center text-slate-500">Chargement…</p>
 
     <template v-if="rates">
-      <p v-if="!rates.home" class="rounded-2xl bg-white p-4 text-[15px]">Choisis d'abord la ville de ta boutique dans <RouterLink to="/gestion/livraisons/tarifs" class="font-bold text-emerald-700 underline">Tarifs de livraison</RouterLink>.</p>
+      <p v-if="!rates.home" class="rounded-2xl bg-white p-4 text-[15px]">Choisissez d'abord la ville de votre boutique dans <RouterLink to="/gestion/livraisons/tarifs" class="font-bold text-emerald-700 underline">Tarifs de livraison</RouterLink>.</p>
       <template v-else>
         <!-- Prix de la ville -->
         <section class="rounded-2xl bg-white p-4">

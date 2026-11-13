@@ -420,7 +420,7 @@ function setDeposit(percent) {
   depositTouched.value = true
   form.deposit_required = percent === null ? '' : Math.ceil((total.value * percent) / 100 / 100) * 100
 }
-// « Coller WhatsApp » depuis l'accueil (?coller=1) : la zone du message est ouverte d'emblée
+// « Coller un message » depuis l'accueil (?coller=1) : la zone du message est ouverte d'emblée
 const pasteOpen = ref(route.query.coller === '1')
 
 // Quantité : boutons − et +

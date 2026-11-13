@@ -101,7 +101,7 @@ const TONE = { pending: 'bg-amber-100 text-amber-900', confirmed: 'bg-sky-100 te
   <div v-if="data" class="space-y-5" :class="count ? 'pb-20' : ''">
     <div>
       <h2 class="text-xl font-extrabold">Matériel</h2>
-      <p class="text-sm text-slate-600">Imprimantes d'étiquettes, accessoires pour vos lives, matériel de caisse… choisis pour marcher avec Jibiat Marchand.</p>
+      <p class="text-sm text-slate-600">Imprimantes d'étiquettes, accessoires pour vos lives, matériel de caisse… choisis pour fonctionner avec Jibiat Marchand.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>

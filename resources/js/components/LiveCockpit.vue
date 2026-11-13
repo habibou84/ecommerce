@@ -563,7 +563,7 @@ const ago = (iso) => {
         <span>{{ live.billing.orders }} commande{{ live.billing.orders > 1 ? 's' : '' }}</span>
         <span :class="live.billing.after < 0 ? 'text-amber-300' : 'text-emerald-300'">Solde après le live : {{ live.billing.after }}</span>
       </div>
-      <p v-if="live.billing.after < 0 && !live.billing.billed" class="mt-1.5 rounded-lg bg-amber-400/15 px-2 py-1 text-xs font-bold text-amber-200">⚠️ Ton solde ne couvre pas toutes les commandes : le live continue, recharge avant le prochain.</p>
+      <p v-if="live.billing.after < 0 && !live.billing.billed" class="mt-1.5 rounded-lg bg-amber-400/15 px-2 py-1 text-xs font-bold text-amber-200">⚠️ Votre solde ne couvre pas toutes les commandes : le live continue, rechargez avant le prochain.</p>
     </div>
     <div v-if="menu" class="grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-2 text-sm font-extrabold text-slate-900">
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('share')">📤 Lien du live</button>
@@ -695,7 +695,7 @@ const ago = (iso) => {
 
             <!-- Sorti du plan -->
             <div v-if="showOff" class="mt-2 rounded-xl bg-amber-500/15 p-2 ring-1 ring-amber-400/50">
-              <p class="text-[12.5px] font-bold text-amber-200">↪ Tu es sorti du plan : l'écran ne montre plus « {{ plan.current.value.label }} ».</p>
+              <p class="text-[12.5px] font-bold text-amber-200">↪ Vous êtes sorti du plan : l'écran ne montre plus « {{ plan.current.value.label }} ».</p>
               <div class="mt-1.5 flex flex-wrap gap-1.5">
                 <button type="button" class="rounded-lg bg-amber-400 px-3 py-1.5 text-[12.5px] font-extrabold text-slate-900" @click="applyStep(plan.current.value)">↩ Reprendre le plan</button>
                 <button v-if="adoptable" type="button" class="rounded-lg bg-white/15 px-3 py-1.5 text-[12.5px] font-extrabold" @click="plan.adopt(current.code)">Continuer depuis {{ current.code }}</button>

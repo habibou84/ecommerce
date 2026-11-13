@@ -97,9 +97,9 @@ const catalogReady = computed(() => !!setup.value?.catalog_id && !!setup.value?.
 const blocker = computed(() => {
   const s = setup.value
   if (!s) return null
-  if (!s.connected) return { text: 'Connecte d\'abord ton compte Facebook.', connect: true, label: '🔗 Connecter mon Facebook' }
+  if (!s.connected) return { text: 'Connectez d\'abord votre compte Facebook.', connect: true, label: '🔗 Connecter mon Facebook' }
   if (!s.ad_accounts.some((a) => a.usable)) return { text: 'Aucun compte publicitaire actif en FCFA, euros ou dollars.', href: 'https://business.facebook.com/settings/ad-accounts', label: 'Créer un compte publicitaire ↗' }
-  if (account.value && !account.value.card) return { text: 'Ajoute une carte à ton compte publicitaire : la pub est payée à Meta.', href: 'https://business.facebook.com/billing_hub/payment_settings', label: 'Ajouter une carte ↗' }
+  if (account.value && !account.value.card) return { text: 'Ajoutez une carte à votre compte publicitaire : la pub est payée à Meta.', href: 'https://business.facebook.com/billing_hub/payment_settings', label: 'Ajouter une carte ↗' }
   if (!s.pages.length) return { text: 'Il faut une page Facebook pour publier la pub.', href: 'https://www.facebook.com/pages/create', label: 'Créer une page ↗' }
   return null
 })
@@ -198,7 +198,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
 
       <!-- 1. Que booster ? -->
       <section v-if="step === 0" class="space-y-3">
-        <h3 class="font-display text-base font-extrabold">Que veux-tu booster ?</h3>
+        <h3 class="font-display text-base font-extrabold">Que voulez-vous booster ?</h3>
         <div class="grid grid-cols-3 gap-2">
           <button v-for="[k, icon, label, sub] in [['product', '🎯', 'Un produit', '1 photo'], ['products', '🎠', 'Plusieurs', '2 à 10'], ['catalog', '🗂️', 'Catalogue', 'tout ou partie']]" :key="k" type="button"
             class="grid justify-items-center gap-0.5 rounded-xl border-2 px-1 py-2.5 text-sm font-extrabold" :class="kind === k ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="kind = k">
@@ -222,7 +222,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
               <span v-if="kind === 'products'" class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 text-xs font-black text-white" :class="many.includes(p.id) ? 'border-[#1877f2] bg-[#1877f2]' : 'border-field'">✓</span>
             </button>
           </div>
-          <p v-if="kind === 'products' && many.length < 2" class="text-xs text-amber-700">Choisis au moins 2 produits.</p>
+          <p v-if="kind === 'products' && many.length < 2" class="text-xs text-amber-700">Choisissez au moins 2 produits.</p>
         </template>
 
         <template v-else>
@@ -258,7 +258,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
       <!-- 3. Public -->
       <section v-if="step === 2" class="space-y-3">
         <h3 class="font-display text-base font-extrabold">Qui voit la pub ?</h3>
-        <p class="text-xs text-slate-500">Là où tu livres. Rien de coché : toute la Côte d'Ivoire.</p>
+        <p class="text-xs text-slate-500">Là où vous livrez. Rien de coché : toute la Côte d'Ivoire.</p>
         <div class="flex flex-wrap gap-1.5">
           <button v-for="z in setup.zones" :key="z.key" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="zones.includes(z.key) ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="toggleZone(z.key)">{{ z.name }}</button>
         </div>
@@ -285,7 +285,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
               <p class="truncate p-1.5 text-xs font-bold">{{ p.title }}</p>
             </div>
           </div>
-          <p v-else class="bg-slate-50 p-3 text-xs text-slate-500">Chacun voit des produits différents de ton catalogue.</p>
+          <p v-else class="bg-slate-50 p-3 text-xs text-slate-500">Chacun voit des produits différents de votre catalogue.</p>
         </div>
         <div class="flex items-center justify-between gap-2">
           <label class="text-sm font-bold" for="boost-text">Texte de la pub</label>
@@ -295,7 +295,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
           <button v-for="(v, k) in versions" :key="k" type="button" class="flex-1 rounded-lg border-2 py-1.5 text-xs font-bold" :class="message === v ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="message = v; edited = true">Version {{ k + 1 }}</button>
         </div>
         <textarea id="boost-text" v-model="message" rows="3" maxlength="600" class="input" @input="edited = true" />
-        <p v-if="versions.length" class="text-xs text-slate-500">3 versions pour 1 action IA. Touche une version, puis corrige si besoin.</p>
+        <p v-if="versions.length" class="text-xs text-slate-500">3 versions pour 1 action IA. Touchez une version, puis corrigez si besoin.</p>
 
         <div v-if="setup.ad_accounts.filter((a) => a.usable).length > 1 || setup.pages.length > 1" class="grid gap-2 sm:grid-cols-2">
           <label class="text-sm font-bold">Compte publicitaire
@@ -310,7 +310,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Boost</dt><dd class="text-right font-bold">{{ kind === 'product' ? chosen[0]?.title : kind === 'products' ? `${many.length} produits (carrousel)` : `${collectionName} (${catalogCount} produits)` }}</dd></div>
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Budget</dt><dd class="text-right font-bold">{{ money(budget) }} / jour · {{ days }} jours</dd></div>
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Public</dt><dd class="text-right font-bold">{{ zones.length ? setup.zones.filter((z) => zones.includes(z.key)).map((z) => z.name.replace(' (toutes communes)', '')).join(', ') : 'Côte d\'Ivoire' }} · {{ age[0] }} – {{ age[1] }} ans</dd></div>
-          <div class="flex justify-between gap-3 border-t border-slate-200 pt-1.5"><dt class="text-slate-500">Payé à Meta (ta carte)</dt><dd class="font-display text-base font-extrabold">{{ money(total) }} max</dd></div>
+          <div class="flex justify-between gap-3 border-t border-slate-200 pt-1.5"><dt class="text-slate-500">Payé à Meta (votre carte)</dt><dd class="font-display text-base font-extrabold">{{ money(total) }} max</dd></div>
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Mon solde</dt><dd class="text-right font-bold">{{ setup.fee.counted ? `${setup.fee.weight} commande${setup.fee.weight > 1 ? 's' : ''} retirée${setup.fee.weight > 1 ? 's' : ''} par commande venue du boost` : 'rien de retiré' }}</dd></div>
         </dl>
       </section>

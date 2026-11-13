@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import ColorIcon from '../../../components/ColorIcon.vue'
 import Alert from '../../../components/Alert.vue'
 import LiveDeliveryFees from '../../../components/LiveDeliveryFees.vue'
 import LiveItemsPanel from '../../../components/LiveItemsPanel.vue'
@@ -223,7 +224,7 @@ async function start() {
     const id = draft.value.id
     // Solde trop bas : recharge (pack ou illimité), payée par PayDunya
     if (billing.value?.paid && billing.value.next === 'pay') {
-      openRecharge(`Il te faut au moins ${billing.value.min_orders} commandes dans ton solde pour ouvrir les commandes du live.`)
+      openRecharge(`Il vous faut au moins ${billing.value.min_orders} commandes dans votre solde pour ouvrir les commandes du live.`)
       busy.value = false
       return
     }
@@ -244,9 +245,10 @@ async function start() {
 
 const card = (n) => [
   'flex items-center gap-3 rounded-[20px] px-3.5 py-3',
-  n < step.value ? 'border-[2.5px] border-emerald-500 bg-emerald-50' : n === step.value ? 'border-[3px] border-ocre-600 bg-white' : 'bg-white opacity-50',
+  n < step.value ? 'border-[2.5px] border-emerald-500 bg-emerald-50' : n === step.value ? 'border-[3px] border-ocre-600 bg-white' : 'border border-slate-200 bg-white',
 ]
-const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full text-[18px] font-black text-white', n < step.value ? 'bg-emerald-500' : 'bg-slate-900']
+// Étapes à venir : texte lisible (pas pâli), seul le numéro est gris
+const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full text-[18px] font-black', n < step.value ? 'bg-emerald-700 text-white' : n === step.value ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700']
 </script>
 
 <template>
@@ -280,24 +282,24 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         <template v-if="!preparing">
           <p class="px-0.5 pt-1 font-display text-base font-extrabold">Ou lancer un live</p>
           <button type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-white p-3 text-left" @click="preparing = true">
-            <span class="text-2xl" aria-hidden="true">🔴</span>
+            <ColorIcon name="live" :size="34" />
             <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Faire un live</b><span class="text-xs text-slate-500">Ferme les commandes WhatsApp</span></span>
             <span class="text-sm font-extrabold text-emerald-700">Préparer ▸</span>
           </button>
         </template>
       </template>
 
-      <!-- Que veux-tu faire ? : faire un live, ou des commandes WhatsApp sans live -->
+      <!-- Que voulez-vous faire ? : faire un live, ou des commandes WhatsApp sans live -->
       <template v-else>
-        <p class="px-0.5 font-display text-base font-extrabold">Que veux-tu faire ?</p>
+        <p class="px-0.5 font-display text-base font-extrabold">Que voulez-vous faire ?</p>
         <div class="grid grid-cols-2 gap-2">
           <button type="button" class="grid min-h-[118px] content-start gap-1 rounded-[18px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 p-3 text-left text-white" :class="mode === 'live' ? 'ring-[3px] ring-slate-900 ring-offset-2' : ''" :aria-pressed="mode === 'live'" @click="mode = 'live'">
-            <span class="text-[28px] leading-none" aria-hidden="true">🔴</span>
+            <ColorIcon name="live" :size="34" />
             <b class="font-display text-base font-extrabold leading-tight">Faire un live</b>
-            <span class="text-[13px] leading-snug">Sur TikTok, tu montres tes articles</span>
+            <span class="text-[13px] leading-snug">Sur TikTok, vous montrez vos articles</span>
           </button>
           <button type="button" class="grid min-h-[118px] content-start gap-1 rounded-[18px] border-2 border-emerald-200 bg-white p-3 text-left" :class="mode === 'whatsapp' ? 'ring-[3px] ring-slate-900 ring-offset-2' : ''" :aria-pressed="mode === 'whatsapp'" @click="mode = 'whatsapp'">
-            <span class="text-[28px] leading-none" aria-hidden="true">💬</span>
+            <ColorIcon name="whatsapp" :size="34" />
             <b class="font-display text-base font-extrabold leading-tight">Commandes WhatsApp</b>
             <span class="text-[13px] leading-snug text-slate-500">Sans live, avec les codes</span>
           </button>
@@ -305,8 +307,8 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
 
         <!-- Commandes WhatsApp sans live : court, en grand -->
         <section v-if="mode === 'whatsapp'" class="space-y-2 rounded-[18px] border-2 border-emerald-200 bg-white p-4">
-          <h3 class="font-display text-base font-extrabold">💬 Commandes WhatsApp</h3>
-          <p class="text-base leading-snug">Tes clients envoient le code <span class="rounded-md bg-red-600 px-1.5 text-sm font-extrabold text-white">A1</span> sur WhatsApp.</p>
+          <h3 class="font-display text-base font-extrabold">Commandes WhatsApp</h3>
+          <p class="text-base leading-snug">Vos clients envoient le code <span class="rounded-md bg-red-600 px-1.5 text-sm font-extrabold text-white">A1</span> sur WhatsApp.</p>
           <p class="text-base leading-snug">La commande s'enregistre toute seule.</p>
           <RouterLink to="/gestion/live/commandes-whatsapp" class="btn-brand w-full justify-center py-3 text-base font-extrabold">Ouvrir les commandes WhatsApp</RouterLink>
           <p class="text-[13px] text-slate-500">Lancer un live les ferme.</p>
@@ -315,15 +317,15 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
 
       <template v-if="showSteps">
       <div class="flex items-center gap-3 rounded-[18px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 p-3.5 text-white">
-        <span class="min-w-0 flex-1"><b class="block font-display text-lg font-extrabold leading-tight">Ton live en 5 étapes</b><span class="text-sm opacity-95">Jibiat Marchand enregistre les commandes.</span></span>
-        <button type="button" class="shrink-0 rounded-full bg-white/20 px-3 py-2 text-[13px] font-extrabold" @click="video = true">🎬 1 min 30</button>
+        <span class="min-w-0 flex-1"><b class="block font-display text-lg font-extrabold leading-tight">Votre live en 5 étapes</b><span class="text-sm opacity-95">Jibiat Marchand enregistre les commandes.</span></span>
+        <button type="button" class="shrink-0 rounded-full bg-white/20 px-3 py-2 text-[13px] font-extrabold" aria-label="Voir la vidéo (1 min 30)" @click="video = true"><span aria-hidden="true">▶ 1 min 30</span></button>
       </div>
 
       <!-- 1 · WhatsApp -->
       <div :class="card(1)">
         <span :class="bubble(1)">{{ step > 1 ? '✓' : 1 }}</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">{{ whatsapp ? 'WhatsApp connecté' : step > 1 ? 'Sans WhatsApp' : 'Connecte ton numéro WhatsApp sur Meta' }}</b>
+          <b class="block text-[18px] leading-tight">{{ whatsapp ? 'WhatsApp connecté' : step > 1 ? 'Sans WhatsApp' : 'Connectez votre numéro WhatsApp sur Meta' }}</b>
           <span class="text-[13.5px] text-slate-500">{{ whatsapp ? 'Les commandes arrivent toutes seules' : 'Pour recevoir les commandes' }}</span>
           <template v-if="step === 1">
             <button type="button" class="mt-2 block w-full rounded-xl bg-whatsapp py-3 text-[16px] font-black text-white" @click="connectWhatsapp">Connecter WhatsApp</button>
@@ -354,8 +356,8 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <div :class="card(3)">
         <span :class="bubble(3)">{{ step > 3 ? '✓' : 3 }}</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">{{ done.items ? `${products.count} article(s) · ${products.first} à ${products.last}` : 'Choisis tes articles' }}</b>
-          <span class="text-[13.5px] text-slate-500">{{ done.items ? `${products.pieces} pièces` : noPhoto ? `📷 ${noPhoto} article(s) sans photo` : 'Dans ton catalogue, un live passé ou un nouvel article' }}</span>
+          <b class="block text-[18px] leading-tight">{{ done.items ? `${products.count} article(s) · ${products.first} à ${products.last}` : 'Choisissez vos articles' }}</b>
+          <span class="text-[13.5px] text-slate-500">{{ done.items ? `${products.pieces} pièces` : noPhoto ? `📷 ${noPhoto} article(s) sans photo` : 'Dans votre catalogue, un live passé ou un nouvel article' }}</span>
         </div>
         <button v-if="step >= 3" type="button" class="shrink-0 text-[14px] font-black" :class="done.items ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'items'">{{ done.items ? 'Modifier' : 'Choisir ▸' }}</button>
       </div>
@@ -365,7 +367,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         <span :class="bubble(4)">{{ step > 4 ? '✓' : 4 }}</span>
         <div class="min-w-0 flex-1">
           <b class="block text-[18px] leading-tight">{{ done.pin ? 'Carte prête' : 'La carte à épingler' }}</b>
-          <span class="text-[13.5px] text-slate-500">{{ done.pin ? 'En fond vert sur le live ✓' : 'À mettre en fond vert sur ton live' }}</span>
+          <span class="text-[13.5px] text-slate-500">{{ done.pin ? 'En fond vert sur le live ✓' : 'À mettre en fond vert sur votre live' }}</span>
         </div>
         <button v-if="step >= 4" type="button" class="shrink-0 text-[14px] font-black" :class="done.pin ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'pin'">{{ done.pin ? 'Revoir' : 'Ouvrir ▸' }}</button>
       </div>
@@ -374,8 +376,8 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <div :class="card(5)">
         <span :class="bubble(5)">5</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">Lance ton live sur TikTok</b>
-          <span class="text-[13.5px] text-slate-500">Puis ouvre les commandes du live ici</span>
+          <b class="block text-[18px] leading-tight">Lancez votre live sur TikTok</b>
+          <span class="text-[13.5px] text-slate-500">Puis ouvrez les commandes du live ici</span>
         </div>
       </div>
       <template v-if="step === 5">
@@ -415,7 +417,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         <LivePin :live="draft" />
         <section class="space-y-3 rounded-2xl bg-orange-50 p-4">
           <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">1</b><p class="text-[15px]"><b>Télécharge</b> la carte (bouton ci-dessus).</p></div>
-          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">2</b><p class="text-[15px]">Dans ton live TikTok, ouvre <b>Fond vert</b> et choisis la carte dans ta galerie : les clientes voient tes articles et leurs codes pendant tout le live.</p></div>
+          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">2</b><p class="text-[15px]">Dans votre live TikTok, ouvrez <b>Fond vert</b> et choisissez la carte dans votre galerie : les clientes voient vos articles et leurs codes pendant tout le live.</p></div>
         </section>
       </div>
       <footer class="border-t border-slate-200 p-3">

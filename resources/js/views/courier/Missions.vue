@@ -52,7 +52,7 @@ function scanned(input) {
   const code = rawCode(input)
   const found = code && (missions.value ?? []).find((m) => (m.labels ?? []).includes(code))
   if (found) router.push(`/livreur/missions/${found.id}`)
-  else error.value = code ? 'Ce colis n\'est dans aucune de tes courses.' : 'Ce n\'est pas une étiquette de colis.'
+  else error.value = code ? 'Ce colis n\'est dans aucune de vos courses.' : 'Ce n\'est pas une étiquette de colis.'
 }
 
 const FINAL = ['delivered', 'returned', 'cancelled', 'lost']
