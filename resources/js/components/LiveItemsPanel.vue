@@ -227,7 +227,7 @@ async function save() {
             </div>
             <div v-for="v in g.variants" :key="v.id" class="flex items-center gap-3 p-2" :class="g.variants.length > 1 ? 'pl-5' : ''">
               <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left" :aria-pressed="!!line(v.id)" @click="toggle(v)">
-                <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2" :class="line(v.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'"><Icon v-if="line(v.id)" name="check" :size="14" /></span>
+                <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2" :class="line(v.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-field'"><Icon v-if="line(v.id)" name="check" :size="14" /></span>
                 <img v-if="v.image && g.variants.length === 1" :src="v.image" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
                 <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ g.variants.length > 1 ? v.variant : v.title }}</b><span class="text-xs text-slate-500">{{ money(v.price) }} · {{ v.available }} en stock</span></span>
               </button>

@@ -219,7 +219,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
               <img v-if="p.image" :src="p.image" alt="" class="h-12 w-12 shrink-0 rounded-lg object-cover" loading="lazy">
               <span v-else class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-slate-100" aria-hidden="true">📷</span>
               <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ p.title }}</b><span class="text-xs text-slate-500">{{ [p.price ? money(p.price) : null, p.sold ? `${p.sold} vendu${p.sold > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ') }}</span></span>
-              <span v-if="kind === 'products'" class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 text-xs font-black text-white" :class="many.includes(p.id) ? 'border-[#1877f2] bg-[#1877f2]' : 'border-slate-300'">✓</span>
+              <span v-if="kind === 'products'" class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 text-xs font-black text-white" :class="many.includes(p.id) ? 'border-[#1877f2] bg-[#1877f2]' : 'border-field'">✓</span>
             </button>
           </div>
           <p v-if="kind === 'products' && many.length < 2" class="text-xs text-amber-700">Choisis au moins 2 produits.</p>

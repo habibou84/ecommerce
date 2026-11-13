@@ -136,7 +136,7 @@ const stateOf = (s) => (s.done ? 'done' : s.skipped ? 'skipped' : 'todo')
           <button v-for="s in p.steps" :key="s.key" type="button" class="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm"
             :class="s.key === current ? 'bg-emerald-50 font-semibold text-emerald-900' : 'hover:bg-slate-50'" :aria-current="s.key === current ? 'step' : undefined" @click="select(s.key)">
             <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-semibold"
-              :class="{ done: 'bg-emerald-600 text-white', skipped: 'border border-dashed border-slate-400 text-slate-400', todo: 'border border-slate-300 text-slate-500' }[stateOf(s)]">
+              :class="{ done: 'bg-emerald-600 text-white', skipped: 'border border-dashed border-slate-400 text-slate-400', todo: 'border border-field text-slate-500' }[stateOf(s)]">
               <Icon v-if="s.done" name="check" :size="13" /><template v-else>{{ steps.indexOf(s) + 1 }}</template>
             </span>
             <span class="min-w-0 flex-1" :class="{ 'text-slate-400 line-through decoration-slate-300': s.skipped }">{{ s.title }}</span>

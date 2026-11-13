@@ -185,13 +185,13 @@ async function separate(store) {
         <input id="new-name" v-model="form.name" class="input" maxlength="80" required />
       </Field>
       <Field v-if="data.next_address" id="new-path" label="Adresse de sa page" :error="errors.path">
-        <div class="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-600">
+        <div class="flex items-stretch overflow-hidden rounded-lg border border-field focus-within:border-emerald-600">
           <span class="flex max-w-[60%] items-center truncate bg-slate-50 px-3 text-sm text-slate-500">{{ data.next_address.replace(/^https?:\/\//, '') }}/</span>
           <input id="new-path" v-model="form.path" class="min-w-0 flex-1 px-3 py-2.5 text-base outline-none sm:text-sm" maxlength="30" autocapitalize="off" spellcheck="false" required @input="slugTouched = true" />
         </div>
       </Field>
       <Field v-else id="new-slug" label="Adresse" :error="errors.slug">
-        <div class="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-600">
+        <div class="flex items-stretch overflow-hidden rounded-lg border border-field focus-within:border-emerald-600">
           <input id="new-slug" v-model="form.slug" class="min-w-0 flex-1 px-3 py-2.5 text-base outline-none sm:text-sm" maxlength="40" autocapitalize="off" spellcheck="false" required @input="slugTouched = true" />
           <span class="flex items-center bg-slate-50 px-3 text-sm text-slate-500">.{{ boot.domain }}</span>
         </div>

@@ -123,7 +123,7 @@ function done(data) {
       </Field>
 
       <Field id="slug" label="Adresse de votre boutique" :error="errors.slug || (slugState.available === false ? slugState.message : '')">
-        <div class="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20">
+        <div class="flex items-stretch overflow-hidden rounded-lg border border-field focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20">
           <input
             id="slug"
             v-model="form.slug"

@@ -53,12 +53,12 @@ async function copy() {
       <p class="text-center text-sm font-medium text-slate-700">Le numéro est sur quel WhatsApp ?</p>
       <div class="grid grid-cols-2 gap-2">
         <a v-for="app in APPS" :key="app.id" :href="intentFor(app.id)"
-          :class="['flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold shadow-sm', app.id === 'com.whatsapp' ? 'bg-[#25D366] text-white hover:bg-[#1ebe5b]' : 'border-2 border-[#25D366] bg-white text-[#128C7E] hover:bg-emerald-50']">
+          :class="['flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold shadow-sm', app.id === 'com.whatsapp' ? 'bg-whatsapp text-white hover:bg-whatsapp-dark' : 'border-2 border-whatsapp bg-white text-whatsapp hover:bg-emerald-50']">
           <span aria-hidden="true">💬</span> {{ app.label }}
         </a>
       </div>
     </template>
-    <a v-else :href="link" target="_blank" rel="noopener" class="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3 font-semibold text-white shadow-sm hover:bg-[#1ebe5b]">
+    <a v-else :href="link" target="_blank" rel="noopener" class="flex w-full items-center justify-center gap-2 rounded-xl bg-whatsapp py-3 font-semibold text-white shadow-sm hover:bg-whatsapp-dark">
       <span aria-hidden="true">💬</span> Envoyer le message WhatsApp
     </a>
     <button v-if="text" type="button" class="mx-auto block text-xs text-slate-500 underline" @click="copy">

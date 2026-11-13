@@ -169,7 +169,7 @@ async function share() {
       <section class="card p-4">
         <h3 class="font-extrabold">2 · Ouvert pendant</h3>
         <div class="mt-2 grid grid-cols-4 gap-2">
-          <button v-for="[h, label] in DURATIONS" :key="label" type="button" class="rounded-xl py-2 text-sm font-bold" :class="hours === h ? 'bg-emerald-700 text-white' : 'border border-slate-300'" @click="hours = h">{{ label }}</button>
+          <button v-for="[h, label] in DURATIONS" :key="label" type="button" class="rounded-xl py-2 text-sm font-bold" :class="hours === h ? 'bg-emerald-700 text-white' : 'border border-field'" @click="hours = h">{{ label }}</button>
         </div>
       </section>
       <section v-if="billing?.paid" class="card bg-slate-50 p-4 text-sm text-slate-600">

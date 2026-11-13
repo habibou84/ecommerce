@@ -109,7 +109,7 @@ async function changeSlug() {
         <p v-else class="mt-1 text-sm text-slate-600">L'ancienne adresse redirige vers la nouvelle pendant 90 jours.</p>
       </div>
       <Field id="slug" :label="hosted ? 'Nom de la page' : 'Adresse'" :error="slugError">
-        <div class="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-600">
+        <div class="flex items-stretch overflow-hidden rounded-lg border border-field focus-within:border-emerald-600">
           <span v-if="hosted" class="flex max-w-[55%] items-center truncate bg-slate-50 px-3 text-sm text-slate-500">{{ auth.store.host_url.replace(/^https?:\/\//, '') }}/</span>
           <input id="slug" v-model="slug" class="min-w-0 flex-1 px-3 py-2.5 text-base outline-none sm:text-sm" :maxlength="hosted ? 30 : 40" autocapitalize="off" spellcheck="false" />
           <span v-if="!hosted" class="flex items-center bg-slate-50 px-3 text-sm text-slate-500">.{{ boot.domain }}</span>

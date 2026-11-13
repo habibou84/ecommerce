@@ -815,7 +815,7 @@ const ago = (iso) => {
     <section v-else-if="tab === 'messages'" class="space-y-1.5">
       <div class="flex items-center gap-1.5 text-xs font-extrabold">
         <button v-for="[key, label] in [['all', 'Tous'], ['todo', `À répondre · ${questions.length}`]]" :key="key" type="button" :aria-pressed="messageFilter === key"
-                class="rounded-full border-[1.5px] px-3 py-1" :class="messageFilter === key ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white'" @click="messageFilter = key">{{ label }}</button>
+                class="rounded-full border-[1.5px] px-3 py-1" :class="messageFilter === key ? 'border-slate-900 bg-slate-900 text-white' : 'border-field bg-white'" @click="messageFilter = key">{{ label }}</button>
       </div>
       <p v-if="live.whatsapp === null" class="rounded-xl bg-white p-3 text-sm text-slate-600">Votre WhatsApp n'est pas connecté : les messages des clientes n'arrivent pas ici. <RouterLink to="/gestion/whatsapp" class="font-bold underline">Connecter WhatsApp</RouterLink></p>
       <p v-else-if="!messages.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">{{ messageFilter === 'todo' ? 'Aucune question en attente ✓' : 'Les messages des clientes s\'afficheront ici.' }}</p>
@@ -846,7 +846,7 @@ const ago = (iso) => {
           </span>
           <form v-else class="space-y-1.5" @submit.prevent="sendReply(m)">
             <div class="flex flex-wrap gap-1">
-              <button v-for="q in QUICK" :key="q" type="button" class="rounded-lg border-[1.5px] border-slate-300 bg-white px-2 py-1 text-left text-[11px] font-bold" :disabled="replying.busy" @click="sendReply(m, q)">{{ q }}</button>
+              <button v-for="q in QUICK" :key="q" type="button" class="rounded-lg border-[1.5px] border-field bg-white px-2 py-1 text-left text-[11px] font-bold" :disabled="replying.busy" @click="sendReply(m, q)">{{ q }}</button>
             </div>
             <div class="flex gap-1.5">
               <input v-model="replying.body" class="input min-w-0 flex-1 py-1.5 text-sm" placeholder="Votre réponse…" maxlength="1000" />

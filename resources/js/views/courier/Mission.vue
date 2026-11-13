@@ -287,7 +287,7 @@ async function step(status) {
         <p class="label">Code donné par le client</p>
         <div class="flex justify-center gap-2">
           <input v-for="(d, i) in digits" :key="i" :ref="(el) => (boxes[i] = el)" :value="d" inputmode="numeric" maxlength="1" :aria-label="`Chiffre ${i + 1} du code`"
-                 class="h-16 w-14 rounded-xl border-2 text-center text-3xl font-bold" :class="errors.code ? 'border-red-500 bg-red-50' : 'border-slate-300 focus:border-emerald-600'"
+                 class="h-16 w-14 rounded-xl border-2 text-center text-3xl font-bold" :class="errors.code ? 'border-red-500 bg-red-50' : 'border-field focus:border-emerald-600'"
                  @input="typeDigit(i, $event)" @keydown.backspace="backDigit(i, $event)" />
         </div>
         <p v-if="errors.code" class="mt-1 text-sm text-red-600">{{ errors.code }}</p>

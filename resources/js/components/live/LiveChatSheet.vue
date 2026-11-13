@@ -63,7 +63,7 @@ const label = (m) => (m.type === 'image' ? '📷 Photo' : m.body)
       </div>
       <template v-if="chat?.can_reply !== false">
         <div class="mt-2 flex shrink-0 flex-wrap gap-1">
-          <button v-for="q in quick" :key="q" type="button" class="rounded-lg border-[1.5px] border-slate-300 bg-white px-2 py-1 text-left text-[11.5px] font-bold" :disabled="busy" @click="send(q)">{{ q }}</button>
+          <button v-for="q in quick" :key="q" type="button" class="rounded-lg border-[1.5px] border-field bg-white px-2 py-1 text-left text-[11.5px] font-bold" :disabled="busy" @click="send(q)">{{ q }}</button>
         </div>
         <form class="mt-2 flex shrink-0 gap-1.5" @submit.prevent="send()">
           <input v-model="body" class="input min-w-0 flex-1 py-2 text-sm" placeholder="Votre réponse…" maxlength="1000" aria-label="Votre réponse" />

@@ -624,7 +624,7 @@ const margin = computed(() => {
             </template>
           </div>
           <div v-for="(pending, index) in pendingFiles" :key="pending.url" class="relative">
-            <img :src="pending.url" alt="" class="aspect-square w-full rounded-lg border border-dashed border-slate-300 object-cover opacity-80" />
+            <img :src="pending.url" alt="" class="aspect-square w-full rounded-lg border border-dashed border-field object-cover opacity-80" />
             <button type="button" class="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-base font-bold text-red-600 shadow ring-1 ring-slate-200" aria-label="Retirer cette photo" title="Retirer cette photo" @click="removePending(index)">✕</button>
             <p class="mt-1 text-center text-xs leading-tight text-slate-500">Envoyée à l'enregistrement</p>
           </div>
