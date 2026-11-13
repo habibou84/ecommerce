@@ -34,7 +34,7 @@ const defiGoal = ref(5)
 const reward = ref('delivery')
 const winner = ref(null)
 const local = ref(null) // réglages juste enregistrés, en attendant la prochaine lecture
-const showSettings = computed(() => local.value ?? props.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, camera: false, goal: null, mystery_mode: 'zoom' })
+const showSettings = computed(() => local.value ?? props.settings ?? { theme: 'fete', ambiance: 'aqui', sound: true, music: false, light: false, camera: true, goal: null, mystery_mode: 'zoom' })
 const mystery = computed(() => props.state?.mystery ?? null)
 
 async function run(request) {
