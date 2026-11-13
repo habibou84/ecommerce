@@ -768,8 +768,9 @@ onUnmounted(() => {
 .is-camera { --stage: #14223a; --stage2: #14223a; --ink: #e6e0d6; --dim: #d6cfc3; --hot: #c9762a; --sun: #dcae24; --mint: #1f9e6b; background: var(--stage); }
 .is-camera .beam, .is-camera .flood, .is-camera .shine, .is-camera .orb { display: none; }
 /* La photo (souvent sur fond blanc) est le point le plus clair de l'écran : la caméra règle sur elle et tout le reste paraît terne */
-.is-camera .pic { filter: brightness(.58) contrast(.9) saturate(1.05); }
-.is-camera .photo-bg { filter: blur(2.6em) saturate(1.2) brightness(.35); animation: none; }
+.is-camera .pic { filter: brightness(.45) contrast(.9) saturate(1.05); }
+/* Pas de photo floutée autour d'une photo en paysage : de grandes bandes claires. Un aplat uni (fond du cadre) */
+.is-camera .photo-bg { display: none; }
 .is-camera .photo { background: var(--stage); box-shadow: 0 0 0 .3em color-mix(in srgb, var(--ink) 25%, transparent); }
 .is-camera .code, .is-camera .combo { text-shadow: none; }
 .is-camera .toast { background: #b9b1a7; box-shadow: none; }
