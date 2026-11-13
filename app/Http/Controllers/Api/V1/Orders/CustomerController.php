@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Api\V1\Orders;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
-use App\Enums\OrderStatus;
 use App\Models\Customer;
 use App\Models\Tag;
 use App\Services\Customers\CustomerBook;

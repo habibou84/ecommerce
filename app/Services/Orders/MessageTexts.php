@@ -49,7 +49,7 @@ class MessageTexts
         ],
         'relaunch' => [
             'label' => 'Relance d\'un client (bouton Relancer de l\'onglet Clients)',
-            'text' => "Bonjour {prenom}, ça fait un moment ! 😊 Il y a du nouveau chez {boutique}, venez voir : {lien_boutique}",
+            'text' => 'Bonjour {prenom}, ça fait un moment ! 😊 Il y a du nouveau chez {boutique}, venez voir : {lien_boutique}',
         ],
         'review_request' => [
             'label' => 'Demande d\'avis',
@@ -99,7 +99,8 @@ class MessageTexts
      */
     public function renderForCustomer(Store $store, Customer $customer, string $key): string
     {
-        $order = (new Order)->forceFill(['store_id' => $store->id, 'customer_name' => $customer->name, 'number' => 0, 'tracking_token' => 'relance']);
+        $order = (new Order)->forceFill(['store_id' => $store->id, 'customer_name' => $customer->name, 'number' => 0, 'tracking_token' => 'relance',
+            'delivery_method' => 'delivery', 'subtotal' => 0, 'shipping_fee' => 0, 'total' => 0, 'amount_paid' => 0, 'amount_refunded' => 0]);
         $order->setRelation('store', $store);
         $order->setRelation('items', collect());
 
