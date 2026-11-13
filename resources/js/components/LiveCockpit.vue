@@ -61,6 +61,16 @@ const shownView = computed(() => (VIEWS.value.some(([k]) => k === view.value) ? 
 
 // Ce que montrent la télé et LIVE Studio, en direct
 const display = ref(null)
+// Aperçu de l'écran agrandi (un toucher, ✕ ou Échap pour refermer)
+const big = ref(false)
+function closeOnEscape(e) {
+  if (e.key === 'Escape') big.value = false
+}
+watch(big, (on) => {
+  if (on) window.addEventListener('keydown', closeOnEscape)
+  else window.removeEventListener('keydown', closeOnEscape)
+})
+onUnmounted(() => window.removeEventListener('keydown', closeOnEscape))
 async function loadDisplay() {
   if (!cardsOn.value) return
   try {
@@ -577,13 +587,32 @@ const ago = (iso) => {
         </div>
 
         <!-- Ce que voient les clientes : toujours visible en haut pendant qu'on utilise la console -->
-        <div class="sticky top-[50px] z-10 -mx-1 bg-[#0b1120] px-1 pb-2">
-          <div v-if="shownView === 'tv'" class="relative aspect-video overflow-hidden rounded-xl bg-black ring-2 ring-red-600/70">
-            <LiveShowStage v-if="display" :data="display" />
-            <span class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[10px] font-black">📺 À L'ÉCRAN</span>
+        <!-- Un toucher agrandit l'aperçu (le même, sans le recréer : pas de son en double) ; un autre toucher le referme -->
+        <div class="sticky top-[50px] -mx-1 bg-[#0b1120] px-1 pb-2" :class="big ? 'z-[70]' : 'z-10'">
+          <div v-if="big" class="fixed inset-0 bg-black/90" aria-hidden="true" @click="big = false" />
+          <button v-if="big" type="button" class="fixed right-3 top-3 z-[1] rounded-full bg-white px-4 py-2 text-sm font-black text-slate-900 shadow-lg" @click="big = false">✕ Fermer</button>
+          <div v-if="shownView === 'tv'">
+            <div v-if="big" class="aspect-video" aria-hidden="true" />
+            <div
+              class="relative aspect-video overflow-hidden rounded-xl bg-black ring-2 ring-red-600/70"
+              :class="big ? 'fixed left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 cursor-zoom-out' : 'cursor-zoom-in'"
+              :style="big ? { width: 'min(calc(100vw - 1.5rem), calc((100vh - 1.5rem) * 16 / 9))' } : null"
+              role="button" tabindex="0" :aria-label="big ? 'Fermer l\'aperçu agrandi' : 'Agrandir l\'aperçu de l\'écran'"
+              @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
+            >
+              <LiveShowStage v-if="display" :data="display" />
+              <span class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[10px] font-black">📺 À L'ÉCRAN<template v-if="!big"> · 🔍</template></span>
+            </div>
           </div>
           <div v-else class="flex justify-center">
-            <div class="relative h-[min(34vh,260px)] overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16">
+            <div v-if="big" class="h-[min(34vh,260px)]" style="aspect-ratio: 9 / 16" aria-hidden="true" />
+            <div
+              class="relative overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900"
+              :class="big ? 'fixed left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 cursor-zoom-out' : 'h-[min(34vh,260px)] cursor-zoom-in'"
+              :style="{ aspectRatio: '9 / 16', ...(big ? { height: 'min(92vh, calc((100vw - 1.5rem) * 16 / 9))' } : {}) }"
+              role="button" tabindex="0" :aria-label="big ? 'Fermer l\'aperçu agrandi' : 'Agrandir l\'aperçu de l\'écran'"
+              @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
+            >
               <span class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[56px] leading-none" aria-hidden="true">🧕🏾</span>
               <div class="absolute top-[3%] left-[3%] w-[55%]" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
             </div>
