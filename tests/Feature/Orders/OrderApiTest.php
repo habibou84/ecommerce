@@ -3,6 +3,7 @@
 namespace Tests\Feature\Orders;
 
 use App\Enums\Role;
+use App\Models\Conversation;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\Store;
@@ -176,6 +177,11 @@ class OrderApiTest extends TestCase
         $detail = $this->api('GET', "customers/{$customerId}")->json('data');
         $this->assertSame(1, $detail['orders_total']);
         $this->assertNotNull($detail['first_order_at']);
+
+        // Conversation WhatsApp du client (par son numéro) : le bouton « Conversation » de la fiche
+        $this->assertNull($detail['conversation_id']);
+        $conversation = Conversation::create(['store_id' => $this->store->id, 'channel' => 'whatsapp', 'contact' => $detail['phone'], 'last_message_at' => now()]);
+        $this->assertSame($conversation->id, $this->api('GET', "customers/{$customerId}")->json('data.conversation_id'));
     }
 
     public function test_delivery_zones_and_places(): void

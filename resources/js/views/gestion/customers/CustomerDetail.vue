@@ -115,10 +115,11 @@ async function relaunch() {
           </div>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <RouterLink v-if="auth.can('orders.manage') && !customer.is_blacklisted" :to="`/gestion/commandes/nouvelle?client=${customer.id}`" class="btn-brand justify-center font-black">＋ Commande</RouterLink>
         <a :href="`tel:${customer.phone}`" class="btn-secondary justify-center"><Icon name="phone" :size="16" class="mr-1 inline-block align-[-3px]" />Appeler</a>
-        <a :href="customer.whatsapp_url" target="_blank" rel="noopener" class="btn-secondary justify-center">💬 WhatsApp</a>
+        <RouterLink v-if="customer.conversation_id" :to="`/gestion/messages/${customer.conversation_id}`" class="btn-secondary justify-center">💬 Conversation</RouterLink>
+        <a :href="customer.whatsapp_url" target="_blank" rel="noopener" class="btn-secondary justify-center">WhatsApp</a>
         <button v-if="!customer.is_blacklisted" type="button" class="btn-secondary justify-center" :disabled="relaunching" @click="relaunch">⏰ Relancer</button>
       </div>
     </div>
