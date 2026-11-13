@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth'
 import AiMeter from './AiMeter.vue'
 
 /**
- * « Choisis tes articles » › « Nouvel article » : un article qui n'est pas encore au catalogue. La photo d'abord
+ * « Choisissez vos articles » › « Nouvel article » : un article qui n'est pas encore au catalogue. La photo d'abord
  * (obligatoire : les clientes commandent sur la photo), l'assistant IA propose le nom, la description et les tailles
  * ou couleurs, la marchande met le prix et les pièces. L'article est créé au catalogue puis ajouté au live.
  */
@@ -108,7 +108,7 @@ async function save() {
       <template v-else>
         <span class="text-4xl" aria-hidden="true">📷</span>
         <b class="mt-1 text-[16px]">Prendre la photo</b>
-        <span class="text-xs text-slate-500">Obligatoire : tes clientes commandent sur la photo</span>
+        <span class="text-xs text-slate-500">Obligatoire : vos clientes commandent sur la photo</span>
       </template>
     </label>
 

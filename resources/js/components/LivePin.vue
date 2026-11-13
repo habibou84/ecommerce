@@ -93,7 +93,7 @@ async function share() {
   <section class="card space-y-3 p-4">
     <div v-if="!bare">
       <h3 class="font-extrabold">📌 La carte à épingler</h3>
-      <p class="mt-1 text-sm text-slate-600">Tes articles et leurs codes sur une image, à mettre en fond vert sur ton live TikTok.</p>
+      <p class="mt-1 text-sm text-slate-600">Vos articles et leurs codes sur une image, à mettre en fond vert sur votre live TikTok.</p>
     </div>
 
     <div class="grid grid-cols-2 gap-1.5" role="tablist" aria-label="Format de la photo">
@@ -117,6 +117,6 @@ async function share() {
       <button v-if="canShare" type="button" class="btn-secondary justify-center" :disabled="busy" @click="share">Partager (WhatsApp, TikTok…)</button>
     </div>
     <p v-if="done" class="text-sm font-semibold text-emerald-700">{{ done }}</p>
-    <p class="text-xs text-slate-500">La photo est refaite quand tu ajoutes ou retires un article.</p>
+    <p class="text-xs text-slate-500">La photo est refaite quand vous ajoutez ou retirez un article.</p>
   </section>
 </template>

@@ -55,6 +55,8 @@ const cashTodo = computed(() => [
 const badge = (items) => (items.length ? { n: items.length, level: items.some((i) => i.urgent) ? 'red' : 'orange' } : null)
 
 // ── Pages ──
+// Icône de couleur de chaque onglet (la même que dans le menu), à la place des émojis
+const PAGE_COLORS = { live: 'live', boost: 'promo', orders: 'panier', cash: 'caisse', shop: 'boutique', clients: 'clients', items: 'produit', more: 'menu' }
 const PAGES = [
   { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
     settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/whatsapp', label: 'WhatsApp' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
@@ -72,7 +74,7 @@ const PAGES = [
     settings: [{ to: '/gestion/marketing/relances', label: 'Relances WhatsApp' }, { to: '/gestion/marketing/fidelite', label: 'Fidélité et parrainage' }, { to: '/gestion/marketing/avis', label: 'Avis clients' }, { to: '/gestion/textes-messages', label: 'Textes des messages (relance…)' }] },
   { key: 'items', name: 'Articles', icon: '👗', show: () => canOpen('/gestion/catalogue'), badge: () => (s.value.stock && s.value.stock.out + s.value.stock.low ? { n: s.value.stock.out + s.value.stock.low, level: s.value.stock.out ? 'red' : 'orange' } : null),
     settings: [{ to: '/gestion/collections', label: 'Collections' }, { to: '/gestion/packs', label: 'Packs et prix de gros' }, { to: '/gestion/stock', label: 'Stock détaillé et mouvements' }, { to: '/gestion/stock/commandes', label: 'Fournisseurs et bons de commande' }, { to: '/gestion/catalogue/import', label: 'Importer des produits' }] },
-  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (s.value.unread_messages ? { n: s.value.unread_messages, level: 'orange' } : null), settings: [{ to: '/gestion/parametres', label: 'Informations de l\'espace marchand' }, { to: '/gestion/equipe', label: 'Équipe' }] },
+  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (s.value.unread_messages ? { n: s.value.unread_messages, level: 'orange' } : null), settings: [{ to: '/gestion/parametres', label: 'Ma boutique' }, { to: '/gestion/equipe', label: 'Équipe' }] },
 ]
 const pages = computed(() => PAGES.filter((p) => p.show()))
 
@@ -229,7 +231,7 @@ const PLUS = [
   { to: '/gestion/mes-boutiques', label: 'Mes boutiques', color: 'boutique' },
   { to: '/gestion/demarrage', label: 'Bien démarrer', color: 'aide' },
   { to: '/gestion/whatsapp', label: 'WhatsApp', color: 'whatsapp' },
-  { to: '/gestion/parametres', label: 'Informations', color: 'reglages' },
+  { to: '/gestion/parametres', label: 'Ma boutique', color: 'reglages' },
 ]
 const plus = computed(() => links(PLUS))
 // Réglages de chaque page, regroupés dans Plus
@@ -262,7 +264,7 @@ function open(to) {
                 class="relative mt-1 shrink-0 rounded-full px-3 py-1.5 text-[13.5px] font-extrabold transition"
                 :class="i === current ? (p.badge()?.level === 'red' ? 'bg-rose-800 text-white' : 'bg-slate-900 text-white') : (p.badge()?.level === 'red' ? 'bg-rose-100 text-rose-900' : 'bg-white text-slate-600 shadow-soft')"
                 @click="go(i)">
-          {{ p.icon }} {{ p.name }}
+          <span class="inline-flex items-center gap-1.5"><ColorIcon :name="PAGE_COLORS[p.key] ?? 'menu'" :size="18" :tile="false" />{{ p.name }}</span>
           <span v-if="p.badge()" class="absolute -right-1.5 -top-2 min-w-[19px] rounded-full border-2 border-slate-50 px-1 text-center text-[11px] font-black leading-[15px] text-white"
                 :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-rose-600' : 'bg-amber-500'">{{ p.badge().n }}</span>
         </button>
@@ -335,7 +337,7 @@ function open(to) {
         <!-- BOUTIQUE EN LIGNE -->
         <template v-else-if="p.key === 'shop'">
           <div class="rounded-[22px] bg-gradient-to-br from-blue-900 to-blue-500 p-4 text-white">
-            <p class="text-sm font-semibold opacity-90">Ta boutique en ligne</p>
+            <p class="text-sm font-semibold opacity-90">Votre boutique en ligne</p>
             <p class="truncate text-[18px] font-black">{{ shopUrl.replace(/^https?:\/\//, '') }}</p>
             <div class="mt-3 grid grid-cols-2 gap-2">
               <button type="button" class="rounded-xl bg-white py-2.5 text-sm font-black text-blue-900" @click="share">{{ copied ? 'Lien copié ✓' : '🔗 Partager' }}</button>
@@ -399,12 +401,12 @@ function open(to) {
             <RouterLink v-for="t in plus" :key="t.to + t.label" :to="t.to" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-white px-1 py-3 text-center shadow-soft transition active:scale-95">
               <ColorIcon :name="t.color" :size="44" />
               <span class="text-[12.5px] font-semibold leading-tight text-slate-700">{{ t.label }}</span>
-              <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-rose-600 px-1.5 text-[10px] font-black text-white">{{ s.unread_messages }} non lu(s)</span>
+              <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-rose-600 px-1.5 text-[11px] font-black text-white">{{ s.unread_messages }} non lu{{ s.unread_messages > 1 ? 's' : '' }}</span>
             </RouterLink>
           </div>
-          <h3 class="mb-2 mt-5 px-1 text-[15px] font-black text-slate-700">⚙ Réglages</h3>
+          <h3 class="mb-2 mt-5 px-1 text-[15px] font-black text-slate-700"><span aria-hidden="true">⚙</span> Réglages</h3>
           <details v-for="g in pageSettings" :key="g.key" class="mb-2 rounded-2xl bg-white shadow-soft">
-            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-[15px] font-extrabold">{{ g.icon }} {{ g.name }}<span class="ml-auto text-slate-400" aria-hidden="true">›</span></summary>
+            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-[15px] font-extrabold"><span aria-hidden="true">{{ g.icon }}</span> {{ g.name }}<span class="ml-auto text-slate-400" aria-hidden="true">›</span></summary>
             <RouterLink v-for="l in g.items" :key="l.to + l.label" :to="l.to" class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-[14.5px] font-semibold">{{ l.label }}<span class="text-lg text-slate-400" aria-hidden="true">›</span></RouterLink>
           </details>
           <div class="mt-3 grid grid-cols-2 gap-2">

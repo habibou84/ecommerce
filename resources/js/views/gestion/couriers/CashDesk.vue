@@ -80,7 +80,7 @@ async function remit() {
       <p class="text-sm font-medium text-slate-600">À récupérer chez vos livreurs (espèces)</p>
       <p class="whitespace-nowrap text-3xl font-bold tracking-tight">{{ money(totalHeld) }}</p>
       <p class="mt-1 text-sm text-slate-600">
-        {{ toCollectCount }} livreur(s) ont des espèces à verser. Le paiement mobile money du client va directement sur votre compte marchand.
+        {{ toCollectCount }} livreur{{ toCollectCount > 1 ? 's ont' : ' a' }} des espèces à verser. Le paiement mobile money du client va directement sur votre compte marchand.
       </p>
       <div v-if="overLimitCount || data?.declarations?.length" class="mt-2.5 flex flex-wrap gap-1.5">
         <span v-if="overLimitCount" class="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">{{ overLimitCount }} plafond(s) dépassé(s)</span>

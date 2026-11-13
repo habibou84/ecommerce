@@ -412,7 +412,7 @@ async function redo() {
       <nav v-if="live.status === 'draft'" class="grid grid-cols-2 border-b border-slate-200" role="tablist" aria-label="Live ou support">
         <button v-for="[value, label] in [['live', 'Live'], ['support', 'Support']]" :key="value" type="button" role="tab" :aria-selected="pane === value"
                 class="-mb-px border-b-[3px] py-2.5 text-base font-extrabold" :class="pane === value ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'" @click="pane = value">
-          {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-[10px] font-black text-white">● OUVERT</span>
+          {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-[11px] font-black text-white">● OUVERT</span>
         </button>
       </nav>
 
@@ -497,11 +497,11 @@ async function redo() {
         </section>
         <!-- Solde : commandes de ce live retirées à la fermeture -->
         <section v-if="live.billing?.billed" class="rounded-[20px] border-2 border-amber-400 bg-amber-50 p-4">
-          <h3 class="font-display text-base font-extrabold">🧾 {{ live.billing.used }} commande{{ live.billing.used > 1 ? 's' : '' }} retirée{{ live.billing.used > 1 ? 's' : '' }} de ton solde</h3>
+          <h3 class="font-display text-base font-extrabold">🧾 {{ live.billing.used }} commande{{ live.billing.used > 1 ? 's' : '' }} retirée{{ live.billing.used > 1 ? 's' : '' }} de votre solde</h3>
           <p class="mt-1 text-xs text-slate-600">Une commande annulée ensuite reste comptée.</p>
           <p class="mt-2 flex justify-between border-t border-amber-200 pt-2 text-sm"><span>Solde après ce live</span><b :class="live.billing.balance < 0 ? 'text-red-700' : ''">{{ live.billing.balance }} commandes</b></p>
           <template v-if="live.billing.recharge">
-            <p class="mt-1 text-sm font-bold text-orange-900">Il faut au moins {{ live.billing.min_orders }} commandes pour ouvrir ton prochain live.</p>
+            <p class="mt-1 text-sm font-bold text-orange-900">Il faut au moins {{ live.billing.min_orders }} commandes pour ouvrir votre prochain live.</p>
             <button type="button" class="mt-2 block w-full rounded-xl bg-slate-900 py-2.5 text-[15px] font-black text-white" @click="openRecharge()">Recharger</button>
           </template>
         </section>
@@ -603,7 +603,7 @@ async function redo() {
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm font-semibold">{{ c.name }}</span>
                 <span class="flex flex-wrap items-center gap-1 text-xs text-slate-500">
-                  <span v-for="(code, k) in c.codes" :key="k" class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ code }}</span>
+                  <span v-for="(code, k) in c.codes" :key="k" class="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">{{ code }}</span>
                   {{ money(c.amount) }} · {{ c.sources }}
                 </span>
               </span>
@@ -612,7 +612,7 @@ async function redo() {
             <!-- Détail : chaque réservation, commande, annulation -->
             <ul v-if="openClient === c.key" class="mt-2 space-y-1 rounded-xl bg-slate-50 p-2 text-sm">
               <li v-for="r in c.list" :key="r.id" class="flex flex-wrap items-center gap-2">
-                <span class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ r.code }}</span>
+                <span class="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">{{ r.code }}</span>
                 <span class="min-w-0 flex-1 text-slate-600">{{ SOURCE[r.source] }}<template v-if="r.shipping_address"> · {{ r.shipping_address }}</template></span>
                 <span class="rounded-full px-2 py-0.5 text-[11px]" :class="STATUS[r.status][1]">{{ STATUS[r.status][0] }}</span>
                 <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-xs font-medium text-emerald-700 underline">{{ r.order.reference }}</RouterLink>

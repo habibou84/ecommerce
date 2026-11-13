@@ -116,7 +116,7 @@ const todo = computed(() => {
   // Argent et colis qui traînent chez les livreurs (délais des alertes)
   if (s.couriers) {
     const late = s.couriers.late
-    items.push({ key: 'courier_cash', icon: 'cash', label: 'Argent à récupérer chez les livreurs', count: late.length, to: '/gestion/caisse/livreurs',
+    items.push({ key: 'courier_cash', icon: 'cash', label: 'Argent chez les livreurs', count: late.length, to: '/gestion/caisse/livreurs',
       hint: late.length ? `${money(late.reduce((sum, c) => sum + c.held, 0))} pas encore versés depuis trop longtemps` : '', urgent: late.length > 0 })
   }
   if (s.carriers) {
@@ -193,7 +193,7 @@ const todoColor = (t) => (t.key === 'stock' ? 'stock' : TODO_COLORS[t.icon] ?? '
 // Actions rapides, toujours visibles (selon les droits)
 const quick = computed(() => [
   auth.can('orders.manage') && { to: '/gestion/commandes/nouvelle', color: 'panier', label: 'Nouvelle commande' },
-  auth.can('orders.manage') && { to: '/gestion/commandes/nouvelle?coller=1', color: 'coller', label: 'Coller WhatsApp' },
+  auth.can('orders.manage') && { to: '/gestion/commandes/nouvelle?coller=1', color: 'coller', label: 'Coller un message' },
   auth.can('products.manage') && { to: '/gestion/catalogue/nouveau', color: 'produit', label: 'Ajouter un produit' },
   auth.can('cash.manage') && { to: '/gestion/caisse/vente', color: 'caisse', label: 'Vente comptoir' },
 ].filter(Boolean))
@@ -353,7 +353,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
               <span class="w-[78px] shrink-0 text-right text-sm font-bold">{{ money(c.amount) }}</span>
             </span>
           </span>
-          <span class="mt-3 block border-t border-slate-100 pt-2 text-sm text-slate-500">Livré ce mois-ci : <strong class="text-slate-800">{{ money(stats.orders.month_revenue) }}</strong> · {{ stats.orders.month_delivered }} commande(s)</span>
+          <span class="mt-3 block border-t border-slate-100 pt-2 text-sm text-slate-500">Livré ce mois-ci : <strong class="text-slate-800">{{ money(stats.orders.month_revenue) }}</strong> · {{ stats.orders.month_delivered }} commande{{ stats.orders.month_delivered > 1 ? 's' : '' }}</span>
         </RouterLink>
 
         <!-- À faire maintenant : téléphone, juste sous les ventes -->

@@ -71,11 +71,11 @@ const groups = [
     { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus', also: ['/gestion/boutique-en-ligne/menus'] },
     { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' },
     { to: '/gestion/marketing', label: 'Promotions' },
-    { to: '/gestion/boost', label: '🚀 Boost Facebook' },
+    { to: '/gestion/boost', label: 'Boost Facebook' },
   ] },
   { label: 'Réglages', color: 'reglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
     { to: '/gestion/demarrage', label: 'Bien démarrer' },
-    { to: '/gestion/parametres', label: 'Informations de l\'espace marchand' },
+    { to: '/gestion/parametres', label: 'Ma boutique' },
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/alertes', label: 'Alertes' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
@@ -102,7 +102,7 @@ function canOpen(path) {
 const several = computed(() => !!auth.profile?.is_owner && ((auth.profile?.stores?.length ?? 0) > 1 || !!auth.profile?.owns_several))
 const nav = computed(() => [
   { to: '/gestion', label: 'Accueil', color: 'accueil', icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z', exact: true },
-  ...(several.value ? [{ to: '/gestion/mes-boutiques', label: 'Vue d\'ensemble', color: 'menu', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' }] : []),
+  ...(several.value ? [{ to: '/gestion/mes-boutiques', label: 'Toutes mes boutiques', color: 'menu', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' }] : []),
   ...groups.flatMap((group) => {
     const items = group.items.filter((item) => canOpen(item.to) && !(item.single && several.value))
     if (!items.length) return []
@@ -359,7 +359,7 @@ async function switchTo(store) {
           </button>
           <a :href="auth.store?.url" target="_blank" class="mt-1 flex items-center gap-1.5 border-t border-slate-100 px-3 pb-2 pt-3 text-sm text-slate-700 hover:bg-slate-50">Voir le site de {{ auth.store?.name }} <Icon name="external" :size="14" /></a>
           <div v-if="auth.profile?.is_owner" class="border-t border-slate-100 pt-1">
-            <RouterLink to="/gestion/mes-boutiques/statistiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Vue d'ensemble</RouterLink>
+            <RouterLink to="/gestion/mes-boutiques/statistiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Toutes mes boutiques</RouterLink>
             <RouterLink to="/gestion/mes-boutiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Gérer mes boutiques</RouterLink>
           </div>
         </div>
@@ -538,7 +538,7 @@ async function switchTo(store) {
             <ColorIcon v-if="isActive({ to: '/gestion/messages' })" name="whatsapp" :size="26" :tile="false" />
             <Icon v-else name="messages" :size="22" />
           </span>Messages
-          <span v-if="badges.messages" class="absolute right-[calc(50%-22px)] -top-0.5 min-w-[18px] rounded-full bg-[#e54a6e] px-1 text-center text-[10px] font-bold leading-[18px] text-white ring-2 ring-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
+          <span v-if="badges.messages" class="absolute right-[calc(50%-22px)] -top-0.5 min-w-[18px] rounded-full bg-[#e54a6e] px-1 text-center text-[11px] font-bold leading-[18px] text-white ring-2 ring-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
         </RouterLink>
         <span v-else />
         <button type="button" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="plusOpen ? 'text-emerald-700' : 'text-slate-600'" @click="plusOpen = true">

@@ -198,7 +198,7 @@ const editable = (member) => !member.is_owner && member.user_id !== auth.user?.i
             <select v-if="invitableRoles().some((r) => r.value === member.role)" class="input sm:w-56" :value="member.role" @change="updateMember(member, { role: $event.target.value })">
               <option v-for="role in invitableRoles()" :key="role.value" :value="role.value">{{ role.label }}</option>
             </select>
-            <span v-else class="text-sm text-slate-600 sm:w-56">{{ member.role_label }}<template v-if="member.role === 'courier'"> · partage dans Vue d'ensemble › Livreurs</template></span>
+            <span v-else class="text-sm text-slate-600 sm:w-56">{{ member.role_label }}<template v-if="member.role === 'courier'"> · partage dans Toutes mes boutiques › Livreurs</template></span>
             <div class="flex gap-2">
               <button class="btn-secondary px-3 py-2" @click="updateMember(member, { status: member.status === 'active' ? 'suspended' : 'active' })">
                 {{ member.status === 'active' ? 'Suspendre' : 'Réactiver' }}

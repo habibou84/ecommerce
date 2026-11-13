@@ -37,7 +37,7 @@ async function createBatch() {
     const res = (await http.post('/parcel-labels/batches', { format: format.value, quantity: quantity.value })).data.data
     data.value = res.overview
     await download(`/parcel-labels/batches/${res.id}/pdf`, 'etiquettes.pdf')
-    notice.value = `${quantity.value} étiquettes prêtes : imprime le PDF.`
+    notice.value = `${quantity.value} étiquettes prêtes : imprimez le PDF.`
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -56,7 +56,7 @@ async function found(input) {
   try {
     const res = (await http.get('/parcel-labels/lookup', { params: { code } })).data.data
     if (res.order_id) router.push(`/gestion/commandes/${res.order_id}`)
-    else notice.value = `L'étiquette ${res.code} n'est pas encore utilisée : ouvre une commande et scanne-la pour la relier.`
+    else notice.value = `L'étiquette ${res.code} n'est pas encore utilisée : ouvrez une commande et scannez-la pour la relier.`
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -70,8 +70,8 @@ async function found(input) {
     <p v-if="!data" class="text-sm text-slate-500">Chargement…</p>
     <template v-else>
       <section class="card p-4">
-        <p class="text-lg font-extrabold">Il te reste {{ data.free }} étiquette{{ data.free > 1 ? 's' : '' }}</p>
-        <p class="text-sm text-slate-600">{{ data.used }} déjà reliée{{ data.used > 1 ? 's' : '' }} à une commande. Colle une étiquette sur le colis, puis scanne-la depuis la commande.</p>
+        <p class="text-lg font-extrabold">Il vous reste {{ data.free }} étiquette{{ data.free > 1 ? 's' : '' }}</p>
+        <p class="text-sm text-slate-600">{{ data.used }} déjà reliée{{ data.used > 1 ? 's' : '' }} à une commande. Collez une étiquette sur le colis, puis scannez-la depuis la commande.</p>
         <div v-if="data.free + data.used" class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-emerald-500" :style="{ width: `${(data.free / (data.free + data.used)) * 100}%` }" /></div>
         <button type="button" class="btn-secondary mt-3 w-full" @click="scanning = true">📷 Scanner un colis pour ouvrir sa commande</button>
       </section>
@@ -84,7 +84,7 @@ async function found(input) {
         <div class="space-y-1 text-sm">
           <label v-for="f in data.formats" :key="f.code" class="flex items-center gap-2"><input v-model="format" type="radio" :value="f.code"> <span :class="{ 'font-bold': format === f.code }">{{ f.label }}</span></label>
         </div>
-        <p class="text-xs text-slate-500">Mini 40 × 30 : imprimante d'étiquettes (rouleau) ou feuilles d'autocollants A4 (45 par feuille). Chaque étiquette a un code unique, à ta boutique.</p>
+        <p class="text-xs text-slate-500">Mini 40 × 30 : imprimante d'étiquettes (rouleau) ou feuilles d'autocollants A4 (45 par feuille). Chaque étiquette a un code unique, à votre boutique.</p>
         <button type="button" class="btn-brand w-full" :disabled="busy || !format" @click="createBatch">⬇ Imprimer les {{ quantity }} étiquettes</button>
       </section>
 
