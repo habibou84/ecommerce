@@ -382,9 +382,9 @@ async function exportList() {
       </div>
       <button type="button" class="btn-secondary relative shrink-0 px-3" @click="filtersOpen = true">
         <Icon name="filter" :size="18" />Filtres
-        <span v-if="activeFilters.length" class="rounded-full bg-emerald-600 px-1.5 text-xs text-white">{{ activeFilters.length }}</span>
+        <span v-if="activeFilters.length" class="rounded-full bg-emerald-700 px-1.5 text-xs text-white">{{ activeFilters.length }}</span>
       </button>
-      <button type="button" class="shrink-0 rounded-xl border px-3 py-2.5 text-sm font-semibold lg:hidden" :class="selecting ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="selecting = !selecting; if (!selecting) selected = new Set()">{{ selecting ? 'Terminer' : 'Choisir' }}</button>
+      <button type="button" class="shrink-0 rounded-xl border px-3 py-2.5 text-sm font-semibold lg:hidden" :class="selecting ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-field bg-white text-slate-700'" @click="selecting = !selecting; if (!selecting) selected = new Set()">{{ selecting ? 'Terminer' : 'Choisir' }}</button>
       <select v-model="filters.sort" class="input hidden w-auto sm:block" aria-label="Trier">
         <option v-for="s in SORTS" :key="s.value" :value="s.value">Trier : {{ s.label.toLowerCase() }}</option>
       </select>
@@ -422,7 +422,7 @@ async function exportList() {
         v-for="tab in TABS"
         :key="tab.value"
         class="inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3.5 text-sm font-semibold"
-        :class="filters.status === tab.value ? 'border-slate-900 bg-slate-900 text-white' : tab.alert && counts.late ? 'border-red-200 bg-white text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'"
+        :class="filters.status === tab.value ? 'border-slate-900 bg-slate-900 text-white' : tab.alert && counts.late ? 'border-red-200 bg-white text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:border-field'"
         @click="filters.status = tab.value"
       >
         {{ tab.label }}
@@ -538,7 +538,7 @@ async function exportList() {
           <!-- Mode sélection : toute la carte coche ou décoche -->
           <button v-if="selecting" type="button" class="absolute inset-0 z-10 rounded-[inherit]" :aria-label="`${selected.has(o.id) ? 'Décocher' : 'Cocher'} ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)" />
           <div class="flex items-start gap-3">
-            <button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold" :class="selected.has(o.id) ? 'bg-emerald-700 text-white' : selecting ? 'border-2 border-slate-300 bg-white text-transparent' : avatar(o.customer_name || phone(o)).tone" :aria-label="`Sélectionner ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)">
+            <button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold" :class="selected.has(o.id) ? 'bg-emerald-700 text-white' : selecting ? 'border-2 border-field bg-white text-transparent' : avatar(o.customer_name || phone(o)).tone" :aria-label="`Sélectionner ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)">
               <Icon v-if="selected.has(o.id)" name="check" :size="20" /><template v-else>{{ avatar(o.customer_name || phone(o)).initials }}</template>
             </button>
             <RouterLink :to="`/gestion/commandes/${o.id}`" class="min-w-0 flex-1">
@@ -587,7 +587,7 @@ async function exportList() {
         <div>
           <p class="label-lg">Les dates portent sur</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="d in [['scheduled', 'La livraison'], ['created', 'La commande']]" :key="d[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.date_field === d[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300'" @click="filters.date_field = d[0]">{{ d[1] }}</button>
+            <button v-for="d in [['scheduled', 'La livraison'], ['created', 'La commande']]" :key="d[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.date_field === d[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field'" @click="filters.date_field = d[0]">{{ d[1] }}</button>
           </div>
         </div>
         <div v-if="options">
@@ -609,7 +609,7 @@ async function exportList() {
         <div>
           <p class="label-lg">Paiement</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="p in [['', 'Tous'], ['to_collect', 'À encaisser'], ['paid', 'Payées']]" :key="p[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.payment === p[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300'" @click="filters.payment = p[0]">{{ p[1] }}</button>
+            <button v-for="p in [['', 'Tous'], ['to_collect', 'À encaisser'], ['paid', 'Payées']]" :key="p[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.payment === p[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field'" @click="filters.payment = p[0]">{{ p[1] }}</button>
           </div>
         </div>
         <div>
@@ -624,7 +624,7 @@ async function exportList() {
         <div>
           <p class="label-lg">Trier par</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="s in SORTS" :key="s.value" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.sort === s.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300'" @click="filters.sort = s.value">{{ s.label }}</button>
+            <button v-for="s in SORTS" :key="s.value" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.sort === s.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field'" @click="filters.sort = s.value">{{ s.label }}</button>
           </div>
         </div>
         <div class="flex gap-2 sm:hidden">

@@ -39,6 +39,11 @@
     --color-ocre-600: #d4500f;
     --color-ocre-700: #c2410c;
     --color-ocre-800: #9a3412;
+    /* Contour des champs, cases et boutons secondaires : 3:1 sur blanc (WCAG 1.4.11), on voit où écrire et où toucher */
+    --color-field: #8a94a0;
+    /* Vert WhatsApp foncé pour les boutons à texte blanc (5,3:1) ; le vert vif #25d366 ne garde que le logo (2:1 avec du blanc) */
+    --color-whatsapp: #0b7a5c;
+    --color-whatsapp-dark: #08664c;
     /* Vert nuit : menu sur ordinateur, en-têtes */
     --color-night: #063b24;
     /* Verts du logo Jibiat Marchand (du vert profond au vert vif) à la place du vert émeraude de Tailwind :
@@ -60,6 +65,11 @@
 @layer base {
     body {
         font-feature-settings: 'cv11';
+    }
+    /* Focus clavier toujours visible (WCAG 2.4.7) : anneau vert au clavier seulement, pas au toucher ni à la souris */
+    :focus-visible {
+        outline: 2px solid var(--color-emerald-700);
+        outline-offset: 2px;
     }
     /* Chiffres de même largeur là où sont les montants et les quantités (gras, tableaux, grands chiffres) :
        ils s'alignent en colonne. Pas sur tout le texte, sinon les traits d'union s'élargissent. */
@@ -101,8 +111,9 @@
     background-image: linear-gradient(140deg, #13a058 0%, var(--color-emerald-800) 100%);
 }
 @utility bg-live-grad {
-    background-color: #e54a6e;
-    background-image: linear-gradient(140deg, #f0587a 0%, #8b6cf2 100%);
+    /* Assez foncé pour du texte blanc de petite taille (5,6:1 aux deux bouts) */
+    background-color: #c02a4e;
+    background-image: linear-gradient(140deg, #c02a4e 0%, #6d4fd6 100%);
 }
 
 @utility btn {
@@ -115,7 +126,7 @@
     @apply btn bg-slate-900 text-white hover:bg-slate-700;
 }
 @utility btn-secondary {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply btn border border-field bg-white text-slate-700 hover:bg-slate-50;
 }
 @utility btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700;
@@ -124,11 +135,11 @@
     @apply btn text-slate-600 hover:bg-slate-100;
 }
 @utility input {
-    @apply block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 focus:outline-none sm:text-sm;
+    @apply block w-full rounded-xl border border-field bg-white px-3 py-2.5 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/25 focus:outline-none sm:text-sm;
 }
 /* Grands champs et libellés (formulaire de commande) : lisibles d'un coup d'œil */
 @utility input-lg {
-    @apply block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500;
+    @apply block w-full rounded-xl border border-field bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/25 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500;
 }
 @utility label-lg {
     @apply mb-1.5 block text-[15px] font-semibold text-slate-800;

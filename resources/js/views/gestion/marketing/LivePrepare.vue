@@ -326,7 +326,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
           <b class="block text-[18px] leading-tight">{{ whatsapp ? 'WhatsApp connecté' : step > 1 ? 'Sans WhatsApp' : 'Connecte ton numéro WhatsApp sur Meta' }}</b>
           <span class="text-[13.5px] text-slate-500">{{ whatsapp ? 'Les commandes arrivent toutes seules' : 'Pour recevoir les commandes' }}</span>
           <template v-if="step === 1">
-            <button type="button" class="mt-2 block w-full rounded-xl bg-[#25d366] py-3 text-[16px] font-black text-white" @click="connectWhatsapp">Connecter WhatsApp</button>
+            <button type="button" class="mt-2 block w-full rounded-xl bg-whatsapp py-3 text-[16px] font-black text-white" @click="connectWhatsapp">Connecter WhatsApp</button>
             <button type="button" class="mt-2 block w-full text-center text-[13px] font-bold text-slate-500 underline" @click="skipWhatsapp">Continuer sans WhatsApp</button>
           </template>
           <button v-else-if="!whatsapp && auth.can('store.manage')" type="button" class="mt-1 text-[13px] font-bold text-emerald-700 underline" @click="connectWhatsapp">Connecter WhatsApp</button>
@@ -419,7 +419,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         </section>
       </div>
       <footer class="border-t border-slate-200 p-3">
-        <button type="button" class="w-full rounded-2xl bg-emerald-600 py-3.5 text-[16px] font-black text-white" :disabled="busy" @click="pinReady">C'est fait ✓</button>
+        <button type="button" class="w-full rounded-2xl bg-emerald-700 py-3.5 text-[16px] font-black text-white" :disabled="busy" @click="pinReady">C'est fait ✓</button>
       </footer>
     </div>
 

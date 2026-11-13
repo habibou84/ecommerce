@@ -22,7 +22,7 @@ const connect = () => connectWhatsappDirect(router, route.fullPath)
     <Icon name="check" :size="18" class="shrink-0" />WhatsApp relié : les commandes envoyées sur WhatsApp pendant le live sont lues toutes seules.
   </p>
 
-  <section v-else class="card border-2 border-[#25d366] p-4">
+  <section v-else class="card border-2 border-whatsapp p-4">
     <div class="flex items-center gap-2.5">
       <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><Icon name="whatsapp" :size="22" /></span>
       <h3 class="text-[18px] font-black leading-tight">Connecte ton numéro WhatsApp sur Meta</h3>
@@ -33,7 +33,7 @@ const connect = () => connectWhatsappDirect(router, route.fullPath)
       <div class="ml-auto w-max max-w-[85%] rounded-lg bg-[#d9fdd3] px-2 py-0.5">✅ Réservé ! Ton quartier ?</div>
     </div>
 
-    <button v-if="auth.can('store.manage')" type="button" class="mt-3 block w-full rounded-xl bg-[#25d366] py-3 text-[16px] font-black text-white" @click="connect">Connecter WhatsApp</button>
+    <button v-if="auth.can('store.manage')" type="button" class="mt-3 block w-full rounded-xl bg-whatsapp py-3 text-[16px] font-black text-white" @click="connect">Connecter WhatsApp</button>
     <p v-else class="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">Demande au responsable de la boutique de connecter WhatsApp.</p>
 
     <WhatsAppHelp class="mt-3" />

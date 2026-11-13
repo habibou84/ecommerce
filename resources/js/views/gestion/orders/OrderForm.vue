@@ -766,7 +766,7 @@ async function save() {
                 :key="s.value"
                 type="button"
                 class="inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 text-[15px] font-semibold"
-                :class="form.source === s.value ? 'border-2 border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'"
+                :class="form.source === s.value ? 'border-2 border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:border-field'"
                 :aria-pressed="form.source === s.value"
                 @click="form.source = s.value"
               >
@@ -787,7 +787,7 @@ async function save() {
           <Field v-if="showPhone2" id="phone2" label="Autre numéro" large :error="errors.shipping_phone2">
             <div class="flex gap-2">
               <input id="phone2" v-model="form.shipping_phone2" class="input-lg sm:max-w-xs" type="tel" inputmode="tel" placeholder="07 00 00 00 00" @input="form.shipping_phone2 = formatPhone(form.shipping_phone2)" />
-              <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-300 px-3 text-sm font-medium text-slate-600 hover:bg-slate-50" @click="removePhone2"><Icon name="close" :size="18" />Retirer</button>
+              <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-field px-3 text-sm font-medium text-slate-600 hover:bg-slate-50" @click="removePhone2"><Icon name="close" :size="18" />Retirer</button>
             </div>
           </Field>
           <button v-else type="button" class="-mt-1 text-[15px] font-medium text-emerald-700 hover:underline" @click="showPhone2 = true">+ Ajouter un autre numéro</button>
@@ -795,7 +795,7 @@ async function save() {
           <!-- Client connu : fiche résumée et son adresse habituelle -->
           <Alert v-if="known?.is_blacklisted" tone="error">Ce client est sur liste noire{{ known.blacklist_reason ? ` : ${known.blacklist_reason}` : '' }}.</Alert>
           <div v-else-if="known" class="flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3">
-            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-600 font-bold text-white">{{ (known.name ?? '?').charAt(0).toUpperCase() }}</span>
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-700 font-bold text-white">{{ (known.name ?? '?').charAt(0).toUpperCase() }}</span>
             <div class="min-w-[12rem] flex-1">
               <p class="font-semibold">Client connu · {{ known.orders_count }} commande(s)<template v-if="known.delivery_rate !== null && known.delivery_rate !== undefined"> · {{ known.delivery_rate }} % livrées</template></p>
               <p v-if="lastAddressText && addressTaken && form.delivery_method === 'delivery'" class="flex items-start gap-1 text-sm font-semibold text-emerald-800"><Icon name="check" :size="16" class="mt-0.5 shrink-0" /><span>Adresse reprise : {{ lastAddressText }}</span></p>
@@ -824,7 +824,7 @@ async function save() {
           <template v-if="form.delivery_method === 'delivery'">
             <div>
               <p class="label-lg">Qui livre ?</p>
-              <button type="button" class="flex min-h-14 w-full items-center gap-3 rounded-xl border-2 bg-white px-4 py-2.5 text-left disabled:opacity-70" :class="chosen ? 'border-emerald-600' : 'border-slate-300 border-dashed'" :disabled="!canPrice" @click="pickerOpen = true">
+              <button type="button" class="flex min-h-14 w-full items-center gap-3 rounded-xl border-2 bg-white px-4 py-2.5 text-left disabled:opacity-70" :class="chosen ? 'border-emerald-600' : 'border-field border-dashed'" :disabled="!canPrice" @click="pickerOpen = true">
                 <template v-if="chosenCarrier || chosenCourier">
                   <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-bold" :class="chosenCarrier ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-emerald-800'">{{ initials(delivererName) }}</span>
                   <span class="min-w-0 flex-1">
@@ -867,14 +867,14 @@ async function save() {
                   :key="d.date"
                   type="button"
                   class="rounded-full border px-4 py-2 text-[15px] first-letter:uppercase"
-                  :class="!pickDate && form.scheduled_date === d.date ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : d.disabled ? 'cursor-not-allowed border-slate-200 text-slate-400 line-through' : 'border-slate-300 text-slate-700'"
+                  :class="!pickDate && form.scheduled_date === d.date ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : d.disabled ? 'cursor-not-allowed border-slate-200 text-slate-400 line-through' : 'border-field text-slate-700'"
                   :disabled="d.disabled"
                   :title="!d.open ? 'Pas de livraison ce jour-là' : d.disabled ? 'Trop tôt pour qui livre' : undefined"
                   @click="pickDate = false; form.scheduled_date = d.date"
                 >
                   {{ d.label }}
                 </button>
-                <button type="button" class="rounded-full border px-4 py-2 text-[15px]" :class="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date)) ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300 text-slate-700'" @click="pickDate = true">Autre date</button>
+                <button type="button" class="rounded-full border px-4 py-2 text-[15px]" :class="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date)) ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field text-slate-700'" @click="pickDate = true">Autre date</button>
                 <input v-if="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto" type="date" :min="earliestDate ?? isoDay(0)" aria-label="Date de livraison" />
               </div>
               <p v-if="errors.scheduled_date" class="mt-2 text-sm text-red-600">{{ errors.scheduled_date }}</p>
@@ -958,9 +958,9 @@ async function save() {
                 <button type="button" class="btn-ghost -mr-1 -mt-1 px-1.5 text-slate-400 hover:text-red-600" :aria-label="`Retirer ${item.title}`" @click="items.splice(index, 1)"><Icon name="close" :size="18" /></button>
               </div>
               <div class="mt-3 flex flex-wrap items-center gap-3">
-                <div class="flex items-center rounded-lg border border-slate-300">
+                <div class="flex items-center rounded-lg border border-field">
                   <button type="button" class="px-3 py-1.5 text-lg leading-none text-slate-600 disabled:opacity-40" :disabled="item.quantity <= 1" aria-label="Moins" @click="step(item, -1)">−</button>
-                  <input v-model.number="item.quantity" type="number" min="1" class="w-12 border-x border-slate-300 py-1.5 text-center text-sm focus:outline-none" aria-label="Quantité" />
+                  <input v-model.number="item.quantity" type="number" min="1" class="w-12 border-x border-field py-1.5 text-center text-sm" aria-label="Quantité" />
                   <button type="button" class="px-3 py-1.5 text-lg leading-none text-slate-600" aria-label="Plus" @click="step(item, 1)">+</button>
                 </div>
                 <label class="flex items-center gap-1.5 text-sm text-slate-500">
@@ -976,7 +976,7 @@ async function save() {
               <div v-if="item.needs_variant" data-needs-variant class="mt-3 flex flex-wrap items-center gap-2 text-sm">
                 <span class="text-amber-800">Quelle variante ?</span>
                 <button v-if="!item.choices" type="button" class="btn-secondary px-2 py-1" @click="chooseVariantFor(item)">Choisir</button>
-                <button v-for="v in item.choices ?? []" :key="v.id" type="button" class="rounded-full border border-slate-300 bg-white px-3 py-1 hover:border-emerald-600" @click="setVariant(item, v)">
+                <button v-for="v in item.choices ?? []" :key="v.id" type="button" class="rounded-full border border-field bg-white px-3 py-1 hover:border-emerald-600" @click="setVariant(item, v)">
                   {{ v.title }} ({{ v.available }})
                 </button>
               </div>
@@ -1053,7 +1053,7 @@ async function save() {
               </div>
               <p class="text-sm text-slate-600">Payé par</p>
               <div class="flex flex-wrap gap-1.5">
-                <button v-for="[value, label] in PAY_METHODS" :key="value" type="button" class="rounded-full border px-3 py-1 text-sm" :class="paid.method === value ? 'border-2 border-emerald-700 bg-emerald-50 font-bold text-emerald-900' : 'border-slate-300'" @click="paid.method = value">{{ label }}</button>
+                <button v-for="[value, label] in PAY_METHODS" :key="value" type="button" class="rounded-full border px-3 py-1 text-sm" :class="paid.method === value ? 'border-2 border-emerald-700 bg-emerald-50 font-bold text-emerald-900' : 'border-field'" @click="paid.method = value">{{ label }}</button>
               </div>
               <input v-model.trim="paid.reference" class="input py-1.5 text-sm" maxlength="100" placeholder="N° de transaction (facultatif)" aria-label="N° de transaction" />
               <p v-if="errors['paid.amount'] || errors['paid.method']" class="text-xs text-red-600">{{ errors['paid.amount'] || errors['paid.method'] }}</p>
@@ -1074,9 +1074,9 @@ async function save() {
               <input id="deposit" v-model="form.deposit_required" type="number" min="0" class="input w-32 py-1 text-right" placeholder="auto" @input="depositTouched = true" />
             </div>
             <div class="flex flex-wrap justify-end gap-1.5 text-xs font-bold">
-              <button type="button" class="rounded-full border border-slate-300 px-2.5 py-1" @click="setDeposit(null)">Auto</button>
-              <button type="button" class="rounded-full border border-slate-300 px-2.5 py-1" @click="setDeposit(30)">30 %</button>
-              <button type="button" class="rounded-full border border-slate-300 px-2.5 py-1" @click="setDeposit(50)">50 %</button>
+              <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(null)">Auto</button>
+              <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(30)">30 %</button>
+              <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(50)">50 %</button>
             </div>
             <p class="text-right text-xs text-slate-500">Auto : selon les articles et le réglage de la boutique.</p>
           </div>

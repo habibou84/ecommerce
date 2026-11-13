@@ -132,7 +132,7 @@ async function save() {
             :key="theme.code"
             type="button"
             class="rounded-xl border-2 p-3 text-left"
-            :class="theme.code === state.theme.code ? 'border-emerald-700' : 'border-slate-200 hover:border-slate-300'"
+            :class="theme.code === state.theme.code ? 'border-emerald-700' : 'border-slate-200 hover:border-field'"
             :disabled="busy === 'theme'"
             @click="theme.code !== state.theme.code && activate(theme.code)"
           >
@@ -181,7 +181,7 @@ async function save() {
         <div class="grid gap-4 sm:grid-cols-3">
           <Field v-for="field in colorFields" :id="`s-${field.key}`" :key="field.key" :label="field.label" :error="errors[field.key]">
             <div class="flex gap-2">
-              <input :id="`s-${field.key}`" v-model="settings[field.key]" type="color" class="h-11 w-14 rounded border border-slate-300" />
+              <input :id="`s-${field.key}`" v-model="settings[field.key]" type="color" class="h-11 w-14 rounded border border-field" />
               <input v-model="settings[field.key]" class="input font-mono" maxlength="7" :aria-label="`${field.label} (code)`" />
             </div>
           </Field>

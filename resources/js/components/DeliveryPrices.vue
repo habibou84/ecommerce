@@ -109,7 +109,7 @@ async function saveWave() {
   }
 }
 
-const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-1 text-[15px] font-black tabular-nums', on ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-300 font-bold text-slate-500']
+const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-1 text-[15px] font-black tabular-nums', on ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-field font-bold text-slate-500']
 </script>
 
 <template>
@@ -165,7 +165,7 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
               <b class="block text-[15px]">🌊 Votre lien de paiement Wave</b>
               <p class="text-[13px] text-slate-600">Collez-le ici : il est envoyé tout seul à la cliente. Elle paie, envoie la capture du reçu, et vous validez.</p>
               <div class="mt-2 flex gap-2">
-                <input v-model="wave" type="url" @paste="onWavePaste" inputmode="url" placeholder="Collez votre lien Wave" class="min-w-0 flex-1 rounded-xl border-2 border-slate-300 px-3 py-2 text-[14px]" aria-label="Lien de paiement Wave">
+                <input v-model="wave" type="url" @paste="onWavePaste" inputmode="url" placeholder="Collez votre lien Wave" class="min-w-0 flex-1 rounded-xl border-2 border-field px-3 py-2 text-[14px]" aria-label="Lien de paiement Wave">
                 <button type="button" class="shrink-0 rounded-xl bg-sky-600 px-4 font-black text-white" :disabled="busy || wave.trim() === (rates.wave_link ?? '')" @click="saveWave">{{ waveSaved ? '✓' : 'OK' }}</button>
               </div>
               <p class="mt-1 text-[12px] text-slate-500">Sur l'accueil de Wave : <b>Envoi de lien</b> › <b>Partager</b> sans taper de somme › <b>Copier</b>, puis collez ici.</p>
@@ -194,13 +194,13 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
           <button type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100" aria-label="Fermer" @click="sheet = null">✕</button>
         </div>
         <div class="mt-3 grid grid-cols-3 gap-2">
-          <button v-for="c in chips" :key="c" type="button" class="rounded-xl py-3 text-[16px] font-black tabular-nums" :class="sheet.value === c ? 'bg-emerald-600 text-white' : 'bg-slate-100'" :disabled="busy" @click="choose(c)">{{ c.toLocaleString('fr-FR') }}</button>
+          <button v-for="c in chips" :key="c" type="button" class="rounded-xl py-3 text-[16px] font-black tabular-nums" :class="sheet.value === c ? 'bg-emerald-700 text-white' : 'bg-slate-100'" :disabled="busy" @click="choose(c)">{{ c.toLocaleString('fr-FR') }}</button>
         </div>
         <form class="mt-2 flex items-center gap-2" @submit.prevent="other !== '' && choose(Number(other))">
-          <input v-model="other" type="number" inputmode="numeric" min="0" placeholder="Autre prix" class="min-w-0 flex-1 rounded-xl border-2 border-slate-300 px-3 py-2.5 text-[16px] font-bold" aria-label="Autre prix">
-          <button type="submit" class="rounded-xl bg-emerald-600 px-4 py-3 font-black text-white" :disabled="busy || other === ''">OK</button>
+          <input v-model="other" type="number" inputmode="numeric" min="0" placeholder="Autre prix" class="min-w-0 flex-1 rounded-xl border-2 border-field px-3 py-2.5 text-[16px] font-bold" aria-label="Autre prix">
+          <button type="submit" class="rounded-xl bg-emerald-700 px-4 py-3 font-black text-white" :disabled="busy || other === ''">OK</button>
         </form>
-        <button v-if="canReset" type="button" class="mt-3 block w-full rounded-xl border-2 border-slate-300 py-3 text-[15px] font-black" :disabled="busy" @click="reset">{{ resetLabel }}</button>
+        <button v-if="canReset" type="button" class="mt-3 block w-full rounded-xl border-2 border-field py-3 text-[15px] font-black" :disabled="busy" @click="reset">{{ resetLabel }}</button>
 
         <!-- Quartiers à part dans la commune -->
         <template v-if="sheet.kind === 'place' && sheet.place.has_children">

@@ -79,7 +79,7 @@ async function found(input) {
       <section v-if="canManage && data.formats.length" class="card space-y-3 p-4">
         <h3 class="font-extrabold">Nouveau lot à imprimer</h3>
         <div class="grid grid-cols-4 gap-2">
-          <button v-for="q in data.quantities" :key="q" type="button" class="rounded-xl py-2 font-bold" :class="quantity === q ? 'bg-emerald-700 text-white' : 'border border-slate-300'" @click="quantity = q">{{ q }}</button>
+          <button v-for="q in data.quantities" :key="q" type="button" class="rounded-xl py-2 font-bold" :class="quantity === q ? 'bg-emerald-700 text-white' : 'border border-field'" @click="quantity = q">{{ q }}</button>
         </div>
         <div class="space-y-1 text-sm">
           <label v-for="f in data.formats" :key="f.code" class="flex items-center gap-2"><input v-model="format" type="radio" :value="f.code"> <span :class="{ 'font-bold': format === f.code }">{{ f.label }}</span></label>

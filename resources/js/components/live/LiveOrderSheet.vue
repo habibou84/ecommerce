@@ -82,7 +82,7 @@ const proof = computed(() => order.value?.upfront?.payment_proof_at && order.val
             <RouterLink v-if="proof" :to="`/gestion/commandes/${order.id}`" class="col-span-2 rounded-xl bg-emerald-700 py-3 text-center text-[15px] font-black text-white">💳 Voir le reçu et valider</RouterLink>
             <button v-else-if="order.status === 'pending_confirmation' && auth.can('orders.confirm')" type="button" class="col-span-2 rounded-xl bg-emerald-700 py-3 text-[15px] font-black text-white disabled:opacity-60" :disabled="working" @click="confirmOrder">✓ Client a confirmé</button>
             <a v-if="phone" :href="`tel:${phone}`" class="rounded-xl bg-slate-100 py-2.5 text-center text-sm font-black">📞 Appeler</a>
-            <a v-if="waLink" :href="waLink" target="_blank" rel="noopener" class="rounded-xl bg-[#25d366] py-2.5 text-center text-sm font-black text-white">WhatsApp</a>
+            <a v-if="waLink" :href="waLink" target="_blank" rel="noopener" class="rounded-xl bg-whatsapp py-2.5 text-center text-sm font-black text-white">WhatsApp</a>
           </div>
           <RouterLink :to="`/gestion/commandes/${order.id}`" class="mt-3 block text-center text-sm font-extrabold text-emerald-700 underline">Ouvrir la commande complète ›</RouterLink>
         </template>
@@ -99,7 +99,7 @@ const proof = computed(() => order.value?.upfront?.payment_proof_at && order.val
           <button v-if="r.status === 'reserved' && r.shipping_place_id" type="button" class="col-span-2 rounded-xl bg-emerald-700 py-3 text-[15px] font-black text-white disabled:opacity-60" :disabled="busy" @click="emit('retry', r)">🔁 Créer la commande</button>
           <button v-if="r.status === 'reserved'" type="button" class="col-span-2 rounded-xl py-3 text-[15px] font-black" :class="r.shipping_place_id ? 'bg-slate-100 text-slate-900' : 'bg-slate-900 text-white'" @click="emit('place', r)">📍 {{ r.shipping_place_id ? 'Changer le quartier' : 'Choisir le quartier' }}</button>
           <a v-if="phone" :href="`tel:${phone}`" class="rounded-xl bg-slate-100 py-2.5 text-center text-sm font-black">📞 Appeler</a>
-          <a v-if="waLink" :href="waLink" target="_blank" rel="noopener" class="rounded-xl bg-[#25d366] py-2.5 text-center text-sm font-black text-white">WhatsApp</a>
+          <a v-if="waLink" :href="waLink" target="_blank" rel="noopener" class="rounded-xl bg-whatsapp py-2.5 text-center text-sm font-black text-white">WhatsApp</a>
           <button type="button" class="col-span-2 rounded-xl border-2 border-red-200 py-2.5 text-sm font-black text-red-700 disabled:opacity-60" :disabled="busy" @click="emit('cancel', r)">Annuler la réservation</button>
         </div>
       </template>

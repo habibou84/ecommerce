@@ -184,8 +184,8 @@ function saveOrder() {
     </div>
 
     <div v-if="storeNames.length > 1" class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-sm font-semibold">
-      <button type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="!storeFilter ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'" @click="storeFilter = ''">Toutes</button>
-      <button v-for="n in storeNames" :key="n" type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="storeFilter === n ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'" @click="storeFilter = n">{{ n }}</button>
+      <button type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="!storeFilter ? 'bg-slate-900 text-white' : 'border border-field bg-white text-slate-700'" @click="storeFilter = ''">Toutes</button>
+      <button v-for="n in storeNames" :key="n" type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="storeFilter === n ? 'bg-slate-900 text-white' : 'border border-field bg-white text-slate-700'" @click="storeFilter = n">{{ n }}</button>
     </div>
 
     <section v-for="m in offers" :key="`offer-${m.id}`" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 shadow-sm">
@@ -197,7 +197,7 @@ function saveOrder() {
       </RouterLink>
       <template v-if="declining?.id === m.id">
         <div class="flex flex-wrap gap-2">
-          <button v-for="r in REASONS" :key="r" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="reason === r ? 'border-emerald-600 bg-white font-medium' : 'border-slate-300'" @click="reason = r">{{ r }}</button>
+          <button v-for="r in REASONS" :key="r" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="reason === r ? 'border-emerald-600 bg-white font-medium' : 'border-field'" @click="reason = r">{{ r }}</button>
         </div>
         <input v-model="reason" class="input" maxlength="255" placeholder="Motif du refus" />
         <div class="grid grid-cols-2 gap-2">

@@ -99,7 +99,7 @@ async function save() {
     <p v-if="error" class="rounded-xl bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
 
     <label class="relative flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed text-center"
-           :class="preview ? 'border-emerald-300' : 'border-slate-300 bg-slate-50 py-8'">
+           :class="preview ? 'border-emerald-300' : 'border-field bg-slate-50 py-8'">
       <input type="file" accept="image/*" class="sr-only" @change="pick" />
       <template v-if="preview">
         <img :src="preview" alt="Photo de l'article" class="max-h-64 w-full object-contain" />

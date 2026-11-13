@@ -439,7 +439,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
               v-for="(d, i) in week"
               :key="d.date"
               type="button"
-              class="group relative flex h-full flex-1 items-end justify-center focus:outline-none"
+              class="group relative flex h-full flex-1 items-end justify-center rounded-md"
               :aria-label="`${dayLabel(d.date, true)} : ${money(d.amount)}, ${d.count} commande(s)`"
               @mouseenter="activeDay = i"
               @focus="activeDay = i"

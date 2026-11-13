@@ -481,7 +481,7 @@ async function whatsapp(s) {
         <div>
           <p class="mb-1 text-sm font-medium">Remarques (facultatif)</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="t in RATING_TAGS" :key="t.code" type="button" :aria-pressed="rating.tags.includes(t.code)" :class="['rounded-full border px-3 py-1 text-sm', rating.tags.includes(t.code) ? (t.good ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-red-400 bg-red-50 text-red-800') : 'border-slate-300']" @click="toggleTag(t.code)">{{ t.label }}</button>
+            <button v-for="t in RATING_TAGS" :key="t.code" type="button" :aria-pressed="rating.tags.includes(t.code)" :class="['rounded-full border px-3 py-1 text-sm', rating.tags.includes(t.code) ? (t.good ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-red-400 bg-red-50 text-red-800') : 'border-field']" @click="toggleTag(t.code)">{{ t.label }}</button>
           </div>
         </div>
         <Field id="rt-comment" label="Commentaire (facultatif)"><textarea id="rt-comment" v-model="rating.comment" class="input" rows="2" maxlength="500" /></Field>
