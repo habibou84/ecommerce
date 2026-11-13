@@ -70,9 +70,10 @@ const STATUS = { paid: 'payé', offered: 'offert', pending: 'en attente' }
         <ul class="mt-1 divide-y divide-slate-100 text-sm">
           <li v-for="l in credits.data.usage.lives" :key="`l${l.label}${l.at}`" class="flex items-center gap-2 py-2">🔴 <span class="min-w-0 flex-1 truncate">{{ l.label }} <span class="text-xs text-slate-500">{{ date(l.at) }}</span></span><b class="tabular-nums">−{{ Math.abs(l.orders) }}</b></li>
           <li v-if="credits.data.usage.whatsapp" class="flex items-center gap-2 py-2">💬 <span class="flex-1">Commandes WhatsApp</span><b class="tabular-nums">−{{ credits.data.usage.whatsapp }}</b></li>
+          <li v-if="credits.data.usage.whatsapp_orders" class="flex items-center gap-2 py-2">🧾 <span class="flex-1">Commandes WhatsApp hors live (récap, catalogue, modèles)</span><b class="tabular-nums">−{{ credits.data.usage.whatsapp_orders }}</b></li>
           <li v-for="b in credits.data.usage.boosts" :key="`b${b.label}`" class="flex items-center gap-2 py-2">🚀 <span class="min-w-0 flex-1 truncate">Boost {{ b.label }}</span><b class="tabular-nums">−{{ Math.abs(b.orders) }}</b></li>
           <li v-if="credits.data.usage.ai" class="flex items-center gap-2 py-2">✨ <span class="flex-1">Actions IA utilisées</span><b class="tabular-nums">{{ credits.data.usage.ai }}</b></li>
-          <li v-if="!credits.data.usage.lives.length && !credits.data.usage.whatsapp && !credits.data.usage.boosts.length && !credits.data.usage.ai" class="py-2 text-slate-500">Rien d'utilisé ce mois-ci.</li>
+          <li v-if="!credits.data.usage.lives.length && !credits.data.usage.whatsapp && !credits.data.usage.whatsapp_orders && !credits.data.usage.boosts.length && !credits.data.usage.ai" class="py-2 text-slate-500">Rien d'utilisé ce mois-ci.</li>
         </ul>
       </section>
 

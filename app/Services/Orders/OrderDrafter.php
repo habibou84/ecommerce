@@ -45,9 +45,10 @@ class OrderDrafter
 
     /**
      * @param  list<UploadedFile>  $screenshots
+     * @param  string  $feature  action IA notée (« whatsapp_recap » : comprise dans le prix de la commande)
      * @return array<string, mixed>
      */
-    public function draft(Store $store, User $user, ?string $text, array $screenshots = []): array
+    public function draft(Store $store, ?User $user, ?string $text, array $screenshots = [], string $feature = 'order_draft'): array
     {
         $products = $this->catalog->products($store, (string) $text);
 
@@ -57,7 +58,7 @@ class OrderDrafter
             filled($text) ? "Conversation :\n".Str::limit(trim($text), 8000) : 'Conversation : voir les captures d\'écran.',
         ]))];
 
-        $draft = $this->assistant->run($store, $user, 'order_draft', self::SYSTEM, $content, self::schema());
+        $draft = $this->assistant->run($store, $user, $feature, self::SYSTEM, $content, self::schema());
 
         $phones = collect([$draft['phone'] ?? null, $draft['phone2'] ?? null])->filter()
             ->map(fn ($p) => PhoneNumber::normalize((string) $p))->filter()->unique()->values();

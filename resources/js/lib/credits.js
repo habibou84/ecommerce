@@ -25,6 +25,7 @@ export function openRecharge(message = '') {
 /** Ce qui est compté : payant (live, WhatsApp, boost) ou gratuit (boutique en ligne, saisie à la main) */
 export const COUNTED = [
   ['💬', 'Commandes prises par WhatsApp (live compris)', true],
+  ['🧾', 'Commandes WhatsApp hors live confirmées (récap, catalogue, modèles)', true],
   ['🚀', 'Commandes venues d\'un boost Meta', true],
   ['🛍️', 'Commandes de ta boutique en ligne', false],
   ['✍️', 'Commandes saisies à la main', false],

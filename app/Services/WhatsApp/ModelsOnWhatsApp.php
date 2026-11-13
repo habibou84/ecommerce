@@ -37,8 +37,9 @@ use Throwable;
  * commande en touchant : « Je prends » → taille → nombre de pièces (vente en gros) → commune et quartier (comme au
  * live) → récapitulatif → « Je confirme ». Numéro relié par QR code : les mêmes étapes avec des numéros à taper.
  *
- * Les touches reviennent avec un identifiant « models:… ». Ces commandes sont des commandes WhatsApp de la boutique :
- * jamais comptées dans le prix du live. L'assistant se tait 6 h après une réponse de l'équipe dans la conversation.
+ * Les touches reviennent avec un identifiant « models:… ». Ces commandes sont des commandes WhatsApp de la boutique,
+ * hors live : une fois confirmées, chacune compte 1 commande du solde (retirée le soir). L'assistant se tait 6 h après
+ * une réponse de l'équipe dans la conversation, depuis l'application ou depuis le téléphone de la boutique.
  */
 class ModelsOnWhatsApp
 {
@@ -92,7 +93,7 @@ class ModelsOnWhatsApp
         }
 
         return ConversationMessage::forStore($conversation->store_id)->where('conversation_id', $conversation->id)->where('direction', 'out')
-            ->whereNotNull('user_id')->where('created_at', '>=', now()->subHours(self::PAUSE_HOURS))->doesntExist();
+            ->whereNotIn('type', ['auto', 'template'])->where('created_at', '>=', now()->subHours(self::PAUSE_HOURS))->doesntExist();
     }
 
     /**
@@ -479,6 +480,7 @@ class ModelsOnWhatsApp
                 'shipping_place_id' => $place->id,
                 'shipping_address' => $address ?? $place->label(),
                 'internal_note' => 'WhatsApp : commandé depuis les modèles',
+                'credit_channel' => 'models',
                 'items' => collect($lines)->map(fn (int $q, int $id) => ['variant_id' => $id, 'quantity' => $q])->values()->all(),
             ], null, 'customer');
         } catch (BusinessRuleException|QuotaExceededException $e) {

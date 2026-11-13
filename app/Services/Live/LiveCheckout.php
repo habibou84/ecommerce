@@ -24,6 +24,7 @@ use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\Inbox;
 use App\Services\WhatsApp\ModelsOnWhatsApp;
+use App\Services\WhatsApp\RecapOrders;
 use App\Services\WhatsApp\WhatsAppBridge;
 use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Collection;
@@ -412,7 +413,11 @@ class LiveCheckout
         return $this->text($conversation, "❌ *COMMANDE ANNULÉE*\n\nLa commande n° {$order->reference()} est annulée. Merci et à bientôt sur nos lives !");
     }
 
-    private function confirm(Conversation $conversation, int $orderId): bool
+    /**
+     * « Je confirme » touché par le client (ou commande déjà confirmée par la boutique) : la confirmation est notée,
+     * puis le message de remerciement avec ce qu'il reste à payer.
+     */
+    public function confirm(Conversation $conversation, int $orderId): bool
     {
         $phone = PhoneNumber::normalize($conversation->contact);
         $order = Order::forStore($conversation->store_id)->whereKey($orderId)->where('customer_phone', $phone)->first();
@@ -421,7 +426,13 @@ class LiveCheckout
         }
         $first = $order->status === OrderStatus::PendingConfirmation;
         if ($first) {
-            $order = $this->desk->recordConfirmation($order, ConfirmationOutcome::Confirmed, 'whatsapp', 'Confirmée par la cliente sur WhatsApp (live)', null, null);
+            $recap = $order->credit_channel === 'recap';
+            $order = $this->desk->recordConfirmation($order, ConfirmationOutcome::Confirmed, 'whatsapp',
+                'Confirmée par la cliente sur WhatsApp ('.($recap ? 'récap' : 'live').')', null, null);
+            // Récap envoyé par la boutique : elle est prévenue que la cliente a confirmé
+            if ($recap) {
+                rescue(fn () => app(RecapOrders::class)->confirmed($order, 'la cliente'));
+            }
         }
         if ($order->status === OrderStatus::Cancelled) {
             return $this->text($conversation, "La commande n° {$order->reference()} a été annulée : écrivez-nous si c'est une erreur.");
@@ -663,8 +674,9 @@ class LiveCheckout
             ->whereIn('status', [OrderStatus::PendingConfirmation->value, OrderStatus::Confirmed->value])
             ->whereIn('id', LiveReservation::forStore($storeId)->where('customer_phone', $phone)->whereNotNull('order_id')->select('order_id'))
             ->where('created_at', '>=', now()->subDays(2))->latest('id')->first()
-            // Commande passée depuis les modèles de la boutique (hors live)
-            ?? ModelsOnWhatsApp::openOrder($storeId, $phone);
+            // Commande passée depuis les modèles de la boutique (hors live), ou récap envoyé par la boutique
+            ?? ModelsOnWhatsApp::openOrder($storeId, $phone)
+            ?? RecapOrders::openOrder($storeId, $phone);
     }
 
     /**
