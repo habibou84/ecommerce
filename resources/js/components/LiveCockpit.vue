@@ -578,7 +578,7 @@ const ago = (iso) => {
     <nav class="sticky top-0 z-20 grid grid-cols-3 gap-1 rounded-xl bg-[#1e2638] p-1 text-[14px] font-extrabold" role="tablist">
       <button v-for="[key, label, count] in [['live', '🔴 Live', 0], ['commandes', 'Commandes', newOrders + proofs], ['messages', 'Messages', questions.length]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
               class="relative rounded-lg py-2" :class="tab === key ? 'bg-white text-slate-900' : 'text-slate-400'" @click="tab = key">
-        {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{{ count }}</span>
+        {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[11px] text-white">{{ count }}</span>
       </button>
     </nav>
 
@@ -627,7 +627,7 @@ const ago = (iso) => {
                 @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
               >
                 <LiveShowStage v-if="display" :data="display" />
-                <span v-if="!big" class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[10px] font-black">📺 À L'ÉCRAN</span>
+                <span v-if="!big" class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[11px] font-black">📺 À L'ÉCRAN</span>
               </div>
             </Teleport>
           </div>
@@ -649,7 +649,7 @@ const ago = (iso) => {
                   <div class="absolute inset-x-2.5 top-2.5 flex items-center gap-1.5 text-white">
                     <span class="h-7 w-7 rounded-full bg-slate-300" aria-hidden="true" />
                     <b class="truncate text-[11px]">{{ display?.store?.name }}</b>
-                    <span class="ml-auto rounded bg-[#fe2c55] px-1.5 py-0.5 text-[10px] font-black">LIVE</span>
+                    <span class="ml-auto rounded bg-[#fe2c55] px-1.5 py-0.5 text-[11px] font-black">LIVE</span>
                   </div>
                   <div class="absolute bottom-14 left-2.5 right-14 flex flex-col gap-1 text-[11px] text-white" aria-hidden="true">
                     <span><b class="text-white/70">Awa</b> A1 svp</span>
@@ -668,7 +668,7 @@ const ago = (iso) => {
         <!-- Copilote, Articles, Plus -->
         <div class="grid grid-cols-3 gap-1 rounded-xl bg-white/10 p-1" role="tablist" aria-label="Console du live">
           <button v-for="[key, label] in SUBS" :key="key" type="button" role="tab" :aria-selected="sub === key" class="rounded-lg py-2 text-[12px] font-extrabold" :class="sub === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="sub = key">
-            {{ label }}<span v-if="key === 'copilot' && questions.length" class="ml-0.5 rounded-full bg-red-600 px-1 text-[9px] text-white">{{ questions.length }}</span>
+            {{ label }}<span v-if="key === 'copilot' && questions.length" class="ml-0.5 rounded-full bg-red-600 px-1 text-[11px] text-white">{{ questions.length }}</span>
           </button>
         </div>
         <p v-if="showError" class="rounded-xl bg-red-500/15 px-3 py-2 text-sm font-bold text-red-200">{{ showError }}</p>
@@ -686,7 +686,7 @@ const ago = (iso) => {
 
             <!-- Maintenant à l'écran -->
             <div v-if="plan.current.value" class="mt-2 rounded-xl bg-emerald-500/15 p-2 ring-1 ring-emerald-400/40">
-              <p class="text-[10.5px] font-black tracking-wider text-emerald-300 uppercase">🟢 Maintenant à l'écran</p>
+              <p class="text-[11px] font-black tracking-wider text-emerald-300 uppercase">🟢 Maintenant à l'écran</p>
               <p class="text-[14px] leading-snug font-extrabold">{{ plan.current.value.label }}</p>
               <p class="text-[12px]" :class="overtime ? 'font-bold text-amber-300' : 'text-slate-400'">depuis {{ stepClock }} · ≈ {{ plan.current.value.time }} conseillé{{ overtime ? ' : passe à la suite' : '' }}</p>
               <p class="mt-1 text-[12.5px] leading-snug text-amber-200">« {{ plan.current.value.say }} »</p>
@@ -704,7 +704,7 @@ const ago = (iso) => {
 
             <!-- Ensuite, et le bouton pour y passer -->
             <template v-if="plan.next.value">
-              <p class="mt-2 text-[10.5px] font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
+              <p class="mt-2 text-[11px] font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
               <p class="text-[13.5px] font-bold">{{ plan.next.value.label }}</p>
               <button type="button" class="mt-1.5 w-full rounded-xl bg-amber-400 px-3 py-3 text-[14px] font-extrabold text-slate-900" :class="{ 'animate-pulse': overtime }" @click="act({ kind: 'plan' })">
                 {{ plan.current.value ? 'Passer à' : 'Commencer' }} : {{ plan.next.value.label.replace(/^\S+\s/, '') }} ▶
@@ -743,9 +743,9 @@ const ago = (iso) => {
               <span class="absolute top-1 left-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
               <span v-if="p.mystery && !p.revealed" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-xs font-black text-violet-700">🎁 MYSTÈRE</span>
               <span v-else-if="!p.remaining" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-sm font-black text-red-600">VENDU</span>
-              <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[9px] font-black text-white">BIENTÔT</span>
+              <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[11px] font-black text-white">BIENTÔT</span>
               <span class="block truncate px-1.5 pt-0.5 text-[11px] font-bold">{{ p.title }}</span>
-              <span class="block px-1.5 pb-1 text-[10.5px] text-slate-500"><b class="text-slate-900">{{ p.remaining }}</b> / {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} att.</template></span>
+              <span class="block px-1.5 pb-1 text-[11px] text-slate-500"><b class="text-slate-900">{{ p.remaining }}</b> / {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} att.</template></span>
             </button>
             <button type="button" class="grid min-h-24 place-items-center rounded-xl border-2 border-dashed border-white/30 text-xs font-extrabold text-slate-300" @click="emit('add')">＋ Ajouter</button>
           </div>
@@ -823,17 +823,17 @@ const ago = (iso) => {
         <div class="flex items-center gap-2.5">
           <span v-if="m.codes.length && byCode[m.codes[0]]" class="relative h-10 w-10 shrink-0">
             <img v-if="byCode[m.codes[0]].image" :src="byCode[m.codes[0]].image" alt="" class="h-10 w-10 rounded-lg object-cover" />
-            <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[10px] leading-tight font-black">{{ m.codes[0] }}</span>
+            <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[11px] leading-tight font-black">{{ m.codes[0] }}</span>
           </span>
           <span v-else class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-lg">{{ m.type === 'image' ? '📷' : '💬' }}</span>
           <div class="min-w-0 flex-1">
             <p class="text-[13px] font-extrabold"><span v-if="needsAction(m)" class="text-red-600">● </span>{{ m.name }}</p>
             <p class="text-xs break-words text-slate-600">
               {{ m.type === 'image' ? '📷 capture' + (m.codes.length ? ` · lue : ${m.codes.join(', ')}` : '') : `« ${m.body} »` }}
-              <span v-if="messageState(m)" class="ml-1 inline-block rounded-full border-[1.5px] border-slate-900 px-1.5 text-[10px] font-black" :class="messageState(m) === 'COMMANDÉ' ? 'bg-slate-900 text-white' : ''">{{ messageState(m) }}</span>
+              <span v-if="messageState(m)" class="ml-1 inline-block rounded-full border-[1.5px] border-slate-900 px-1.5 text-[11px] font-black" :class="messageState(m) === 'COMMANDÉ' ? 'bg-slate-900 text-white' : ''">{{ messageState(m) }}</span>
             </p>
           </div>
-          <span class="shrink-0 self-start text-[10px] text-slate-400">{{ ago(m.created_at) }}</span>
+          <span class="shrink-0 self-start text-[11px] text-slate-400">{{ ago(m.created_at) }}</span>
           <span class="shrink-0 text-xl font-black text-slate-300" aria-hidden="true">›</span>
         </div>
         <div v-if="m.place_check && needsAction(m)" class="mt-1.5 pl-12" @click.stop>
@@ -861,9 +861,9 @@ const ago = (iso) => {
     <!-- ═══ Commandes ═══ -->
     <section v-else class="space-y-1.5">
       <div class="grid grid-cols-3 gap-1 rounded-xl bg-white p-2 text-center">
-        <span><b class="block text-lg font-black">{{ live.summary.orders }}</b><span class="text-[10px] font-bold text-slate-500">commande{{ live.summary.orders > 1 ? 's' : '' }}</span></span>
-        <span><b class="block text-lg font-black">{{ money(live.summary.amount) }}</b><span class="text-[10px] font-bold text-slate-500">montant</span></span>
-        <span><b class="block text-lg font-black">{{ keptCount }}</b><span class="text-[10px] font-bold text-slate-500">quartier{{ keptCount > 1 ? 's' : '' }} attendu{{ keptCount > 1 ? 's' : '' }}</span></span>
+        <span><b class="block text-lg font-black">{{ live.summary.orders }}</b><span class="text-[11px] font-bold text-slate-500">commande{{ live.summary.orders > 1 ? 's' : '' }}</span></span>
+        <span><b class="block text-lg font-black">{{ money(live.summary.amount) }}</b><span class="text-[11px] font-bold text-slate-500">montant</span></span>
+        <span><b class="block text-lg font-black">{{ keptCount }}</b><span class="text-[11px] font-bold text-slate-500">quartier{{ keptCount > 1 ? 's' : '' }} attendu{{ keptCount > 1 ? 's' : '' }}</span></span>
       </div>
       <button type="button" class="w-full rounded-xl border-[1.5px] border-slate-900 bg-white py-2 text-sm font-extrabold" @click="emit('quick')">+ Réservation vue dans les commentaires</button>
       <p v-if="retryError" class="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{{ retryError }}</p>
@@ -872,7 +872,7 @@ const ago = (iso) => {
         <span class="relative h-10 w-10 shrink-0">
           <img v-if="byCode[r.code]?.image" :src="byCode[r.code].image" alt="" class="h-10 w-10 rounded-lg object-cover" :class="{ grayscale: r.status === 'waiting' }" />
           <span v-else class="block h-10 w-10 rounded-lg bg-slate-100" />
-          <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[10px] leading-tight font-black">{{ r.code }}</span>
+          <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[11px] leading-tight font-black">{{ r.code }}</span>
         </span>
         <div class="min-w-0 flex-1">
           <p class="truncate text-[13px] font-extrabold">
@@ -891,10 +891,10 @@ const ago = (iso) => {
           </p>
         </div>
         <span class="flex shrink-0 flex-col items-end gap-0.5 self-start">
-          <span class="text-[10px] text-slate-400">{{ ago(r.created_at) }}</span>
+          <span class="text-[11px] text-slate-400">{{ ago(r.created_at) }}</span>
           <button v-if="r.status === 'reserved' && r.shipping_place_id" type="button" class="text-[11px] font-bold text-red-700 underline" :disabled="retrying" @click.stop="retryOrder(r)">🔁 Créer la commande</button>
           <button v-else-if="r.status === 'reserved'" type="button" class="text-[11px] font-bold underline" @click.stop="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
-          <RouterLink v-if="r.order?.proof" @click.stop :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-[10.5px] font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
+          <RouterLink v-if="r.order?.proof" @click.stop :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
           <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-[11px] font-bold underline" @click.stop>{{ r.order.reference }}</RouterLink>
           <button v-else type="button" class="text-[11px] font-bold text-slate-500 underline" :disabled="busy" @click.stop="emit('cancel', r)">Annuler</button>
         </span>

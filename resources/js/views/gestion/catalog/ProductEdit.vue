@@ -614,7 +614,7 @@ const margin = computed(() => {
         <div class="grid grid-cols-3 gap-3 sm:grid-cols-5">
           <div v-for="(image, index) in images" :key="image.id" class="group relative">
             <img :src="image.urls.thumb" :alt="image.alt" class="aspect-square w-full rounded-lg border border-slate-200 object-cover" />
-            <span v-if="index === 0" class="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-[10px] font-medium">Principale</span>
+            <span v-if="index === 0" class="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-[11px] font-medium">Principale</span>
             <template v-if="canEdit">
               <button type="button" class="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-base font-bold text-red-600 shadow ring-1 ring-slate-200" aria-label="Retirer cette photo" title="Retirer cette photo" @click="removeImage(image)">✕</button>
               <div class="mt-1 flex justify-center gap-1 text-xs">

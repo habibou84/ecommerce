@@ -262,7 +262,7 @@ async function save() {
         <div v-for="(i, index) in items" :key="i.variant_id" class="rounded-2xl border border-slate-200 p-2">
           <div class="flex items-center gap-3">
             <button type="button" class="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-600 font-black text-white" :aria-label="`Code ${codes[productKey(i)]} : changer`" @click="signing = i">
-              {{ codes[productKey(i)] }}<span class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-[9px] text-red-600 shadow">✎</span>
+              {{ codes[productKey(i)] }}<span class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-[11px] text-red-600 shadow">✎</span>
             </button>
             <img v-if="i.image" :src="i.image" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover" />
             <label v-else class="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-xl border-2 border-dashed border-red-300 bg-red-50 text-lg" :aria-label="`Ajouter la photo de ${i.title.split(' — ')[0]}`">
