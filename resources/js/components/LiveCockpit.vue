@@ -99,7 +99,8 @@ const tvRatio = computed(() => {
 })
 // Petit : toute la largeur si l'écran est large, hauteur limitée s'il est carré ou vertical
 const tvSmallStyle = computed(() => (tvRatio.value >= 1.2 ? { aspectRatio: String(tvRatio.value), width: '100%' } : { aspectRatio: String(tvRatio.value), height: 'min(34vh, 260px)' }))
-const tvBoxStyle = computed(() => (big.value ? { aspectRatio: String(tvRatio.value), width: `min(calc(100vw - 1.5rem), calc((100vh - 1.5rem) * ${tvRatio.value}))` } : tvSmallStyle.value))
+// Agrandi : l'aperçu réel prend tout l'écran du téléphone possible, à la forme exacte de la télé
+const tvBoxStyle = computed(() => (big.value ? { aspectRatio: String(tvRatio.value), width: `min(100vw, calc(100vh * ${tvRatio.value}))` } : tvSmallStyle.value))
 // Fenêtre « Connecter la télé / TikTok Studio » qui monte du bas : elle attend l'écran, affiche ✓ puis se ferme
 const connecting = ref(null) // 'tv' | 'studio'
 const connected = ref(false)
@@ -596,34 +597,55 @@ const ago = (iso) => {
         </div>
 
         <!-- Ce que voient les clientes : toujours visible en haut pendant qu'on utilise la console -->
-        <!-- Un toucher agrandit l'aperçu (le même, sans le recréer : pas de son en double) ; un autre toucher le referme -->
+        <!-- Un toucher agrandit l'aperçu (le même, sans le recréer : pas de son en double) ; « Fermer », le fond ou Échap le referme.
+             Télé : l'aperçu réel, à la forme exacte de l'écran connecté, le plus grand possible sur fond noir.
+             TikTok Studio : la carte posée sur le live d'une cliente (vidéo et commentaires d'exemple). -->
         <div class="sticky top-[50px] -mx-1 bg-[#0b1120] px-1 pb-2" :class="big ? 'z-[70]' : 'z-10'">
-          <div v-if="big" class="fixed inset-0 bg-black/90" aria-hidden="true" @click="big = false" />
-          <button v-if="big" type="button" class="fixed right-3 top-3 z-[1] rounded-full bg-white px-4 py-2 text-sm font-black text-slate-900 shadow-lg" @click="big = false">✕ Fermer</button>
+          <div v-if="big" class="fixed inset-0 bg-black" aria-hidden="true" @click="big = false" />
+          <button v-if="big" type="button" class="fixed right-3 top-3 z-[2] min-h-11 rounded-full bg-white px-4 text-sm font-black text-slate-900 shadow-lg" @click="big = false">Fermer</button>
           <div v-if="shownView === 'tv'" class="flex justify-center">
             <div v-if="big" :style="tvSmallStyle" aria-hidden="true" />
             <div
-              class="relative overflow-hidden rounded-xl bg-black ring-2 ring-red-600/70"
-              :class="big ? 'fixed left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 cursor-zoom-out' : 'cursor-zoom-in'"
+              class="relative overflow-hidden bg-black"
+              :class="big ? 'fixed left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 cursor-zoom-out' : 'cursor-zoom-in rounded-xl ring-2 ring-red-600/70'"
               :style="tvBoxStyle"
               role="button" tabindex="0" :aria-label="big ? 'Fermer l\'aperçu agrandi' : 'Agrandir l\'aperçu de l\'écran'"
               @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
             >
               <LiveShowStage v-if="display" :data="display" />
-              <span class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[10px] font-black">📺 À L'ÉCRAN<template v-if="!big"> · 🔍</template></span>
+              <span v-if="!big" class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[10px] font-black">📺 À L'ÉCRAN</span>
             </div>
+            <!-- Télé large sur un téléphone tenu droit : tourner le téléphone l'agrandit -->
+            <p v-if="big && tvRatio >= 1.2" class="pointer-events-none fixed inset-x-0 bottom-[12vh] z-[2] hidden text-center text-sm font-bold text-slate-300 portrait:block">Tournez le téléphone pour voir en plus grand</p>
           </div>
           <div v-else class="flex justify-center">
             <div v-if="big" class="h-[min(34vh,260px)]" style="aspect-ratio: 9 / 16" aria-hidden="true" />
             <div
-              class="relative overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900"
-              :class="big ? 'fixed left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 cursor-zoom-out' : 'h-[min(34vh,260px)] cursor-zoom-in'"
-              :style="{ aspectRatio: '9 / 16', ...(big ? { height: 'min(92vh, calc((100vw - 1.5rem) * 16 / 9))' } : {}) }"
+              class="relative overflow-hidden bg-gradient-to-b from-amber-800 to-stone-900"
+              :class="big ? 'fixed left-1/2 top-[66px] z-[1] -translate-x-1/2 rounded-[18px] cursor-zoom-out' : 'h-[min(34vh,260px)] rounded-[18px] border-[3px] border-slate-600 cursor-zoom-in'"
+              :style="{ aspectRatio: '9 / 16', ...(big ? { height: 'min(calc(100vh - 78px), calc((100vw - 1.5rem) * 16 / 9))' } : {}) }"
               role="button" tabindex="0" :aria-label="big ? 'Fermer l\'aperçu agrandi' : 'Agrandir l\'aperçu de l\'écran'"
               @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
             >
-              <span class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[56px] leading-none" aria-hidden="true">🧕🏾</span>
-              <div class="absolute top-[3%] left-[3%] w-[55%]" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
+              <span v-if="!big" class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[56px] leading-none" aria-hidden="true">🧕🏾</span>
+              <!-- Agrandi : le live d'une cliente (la vendeuse, la barre du haut, des commentaires d'exemple) -->
+              <template v-if="big">
+                <span class="absolute bottom-0 left-1/2 h-[30%] w-[60%] -translate-x-1/2 rounded-t-full bg-[#2a1a10]" aria-hidden="true" />
+                <span class="absolute bottom-[27%] left-1/2 h-[16%] w-[27%] -translate-x-1/2 rounded-full bg-[#3b2415]" aria-hidden="true" />
+                <div class="absolute inset-x-2.5 top-2.5 flex items-center gap-1.5 text-white">
+                  <span class="h-7 w-7 rounded-full bg-slate-300" aria-hidden="true" />
+                  <b class="truncate text-[11px]">{{ display?.store?.name }}</b>
+                  <span class="ml-auto rounded bg-[#fe2c55] px-1.5 py-0.5 text-[10px] font-black">LIVE</span>
+                </div>
+                <div class="absolute bottom-14 left-2.5 right-14 flex flex-col gap-1 text-[11px] text-white" aria-hidden="true">
+                  <span><b class="text-white/70">Awa</b> A1 svp</span>
+                  <span><b class="text-white/70">Mariam</b> c'est combien ?</span>
+                  <span><b class="text-white/70">Fatou</b> j'ai envoyé A1</span>
+                </div>
+                <div class="absolute bottom-3.5 left-2.5 right-14 flex h-8 items-center rounded-full bg-black/35 pl-3 text-[11px] text-white/75" aria-hidden="true">Ajouter un commentaire…</div>
+                <svg class="absolute bottom-4 right-3" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" /></svg>
+              </template>
+              <div class="absolute left-[3%] w-[55%]" :class="big ? 'top-[54px]' : 'top-[3%]'" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
             </div>
           </div>
         </div>
