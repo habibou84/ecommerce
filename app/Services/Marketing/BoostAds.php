@@ -311,12 +311,16 @@ class BoostAds
                     // déjà supprimée ou injoignable
                 }
             }
-            $boost->update(['status' => 'failed', 'error' => Str::limit($e->getMessage(), 480)]);
-            throw new BusinessRuleException('Meta n\'a pas créé la pub : '.$e->getMessage());
+            $reason = $e->getMessage().($this->step !== '' ? ' (étape : '.$this->step.')' : '');
+            $boost->update(['status' => 'failed', 'error' => Str::limit($reason, 480)]);
+            throw new BusinessRuleException('Meta n\'a pas créé la pub : '.$reason);
         }
 
         return $boost->fresh();
     }
+
+    /** Étape en cours chez Meta, pour dire où une pub est refusée */
+    private string $step = '';
 
     private function createAd(Store $store, Boost $boost, string $token, $products, ?string $pixel, ?string $catalog, ?Collection $collection): void
     {
@@ -326,6 +330,7 @@ class BoostAds
         $sales = $pixel !== null;
 
         // Catalogue : un ensemble de produits (en stock ; une collection ou tout)
+        $this->step = 'ensemble de produits';
         if ($boost->kind === 'catalog') {
             $filter = ['availability' => ['eq' => 'in stock']];
             if ($collection) {
@@ -338,6 +343,7 @@ class BoostAds
             $boost->update(['product_set_id' => $set]);
         }
 
+        $this->step = 'campagne';
         $campaign = ['name' => 'Boost · '.$boost->name, 'objective' => $sales ? 'OUTCOME_SALES' : 'OUTCOME_TRAFFIC', 'status' => 'PAUSED',
             'special_ad_categories' => [], 'is_adset_budget_sharing_enabled' => false];
         if ($boost->kind === 'catalog') {
@@ -345,6 +351,7 @@ class BoostAds
         }
         $boost->update(['campaign_id' => (string) ($this->graph->graph('POST', $act.'/campaigns', $token, $campaign)['id'] ?? '')]);
 
+        $this->step = 'groupe de publicités';
         [$rate, $minor] = self::CURRENCIES[$boost->currency];
         $adset = [
             'name' => 'Boost '.$boost->id, 'campaign_id' => $boost->campaign_id, 'status' => 'ACTIVE',
@@ -366,6 +373,7 @@ class BoostAds
         }
         $boost->update(['adset_id' => (string) ($this->graph->graph('POST', $act.'/adsets', $token, $adset)['id'] ?? '')]);
 
+        $this->step = 'visuel de la pub';
         $shop = ['type' => 'SHOP_NOW'];
         $creative = ['name' => 'Boost '.$boost->id];
         if ($boost->kind === 'catalog') {
@@ -395,9 +403,11 @@ class BoostAds
             $creative['instagram_user_id'] = $instagram;
         }
         $creativeId = (string) ($this->graph->graph('POST', $act.'/adcreatives', $token, $creative)['id'] ?? '');
+        $this->step = 'pub';
         $boost->update(['ad_id' => (string) ($this->graph->graph('POST', $act.'/ads', $token, [
             'name' => 'Boost '.$boost->id, 'adset_id' => $boost->adset_id, 'creative' => ['creative_id' => $creativeId], 'status' => 'ACTIVE',
         ])['id'] ?? '')]);
+        $this->step = 'activation';
         $this->graph->graph('POST', $boost->campaign_id, $token, ['status' => 'ACTIVE']);
     }
 
