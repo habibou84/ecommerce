@@ -91,11 +91,11 @@ async function savePayout() {
     <!-- Ce que les entreprises de livraison doivent à la boutique -->
     <section class="space-y-3">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 class="text-lg font-semibold">À recevoir</h2>
-        <p v-if="balances" class="text-sm text-slate-600">Total : <strong class="text-slate-900">{{ money(balances.total) }}</strong></p>
+        <h2 class="text-lg font-semibold">Argent chez les entreprises de livraison</h2>
+        <p v-if="balances" class="text-sm text-slate-600">Total à recevoir : <strong class="text-slate-900">{{ money(balances.total) }}</strong></p>
       </div>
       <p class="text-sm text-slate-600">
-        Encaissé par l'entreprise, moins son tarif, pas encore reversé.
+        Ce que l'entreprise a encaissé pour vous, moins son tarif, et qu'elle ne vous a pas encore reversé.
       </p>
       <p v-if="balances && !balances.data.length" class="card p-6 text-sm text-slate-500">Aucune entreprise de livraison connectée.</p>
       <article v-for="c in balances?.data ?? []" :key="c.connection_id" class="card text-sm">

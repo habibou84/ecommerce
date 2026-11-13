@@ -54,9 +54,10 @@ const groups = [
     { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' },
   ] },
   { label: 'Caisse', color: 'caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', items: [
-    { to: '/gestion/caisse', label: 'Vue d\'ensemble', exact: true },
-    { to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' },
-    { to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' },
+    { to: '/gestion/caisse', label: 'Ma caisse', exact: true },
+    { to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' },
+    { to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' },
+    { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' },
   ] },
   { label: 'Boutique en ligne', color: 'boutique', icon: 'M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8M10 20v-5h4v5', items: [
     { to: '/gestion/boutique-en-ligne', label: 'Apparence', exact: true },
