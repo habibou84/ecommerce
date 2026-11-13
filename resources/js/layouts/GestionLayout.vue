@@ -23,6 +23,13 @@ const router = useRouter()
 const menuOpen = ref(false)
 const switchError = ref('')
 
+// Lien « Aller au contenu » : le focus passe sur la page, le prochain Tab part de son premier élément
+function skipToContent() {
+  const main = document.getElementById('contenu')
+  main?.focus()
+  main?.scrollIntoView({ block: 'start' })
+}
+
 // Menu en groupes : un groupe n'affiche que les pages que le rôle peut ouvrir (droits lus sur les routes),
 // disparaît s'il est vide et devient un lien direct s'il ne garde qu'une page
 const groups = [
@@ -295,6 +302,8 @@ async function switchTo(store) {
 
 <template>
   <div class="min-h-screen lg:flex">
+    <!-- Clavier : premier arrêt de Tab, pour sauter le menu et aller droit au contenu de la page -->
+    <a href="#contenu" class="sr-only z-50 rounded-xl bg-emerald-700 text-sm font-semibold text-white shadow-lg focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-4 focus:py-3" @click.prevent="skipToContent">Aller au contenu</a>
     <!-- Barre latérale (ordinateur) / menu déroulant (téléphone) -->
     <aside
       class="fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col overflow-y-auto border-r border-slate-200 bg-white transition lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
@@ -465,7 +474,7 @@ async function switchTo(store) {
         <RouterLink :to="`/gestion/demarrage?etape=${guideStep.key}`" class="shrink-0 font-semibold underline">Revenir au guide</RouterLink>
         <button type="button" class="shrink-0 text-emerald-700" aria-label="Fermer" @click="guideClear(); guideStep = null"><Icon name="close" :size="16" /></button>
       </div>
-      <main class="mx-auto max-w-6xl p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
+      <main id="contenu" tabindex="-1" class="mx-auto max-w-6xl p-4 pb-24 focus:outline-none sm:p-6 sm:pb-24 lg:pb-6">
         <!-- Changement de boutique : la page est recréée avec les données de la nouvelle boutique -->
         <!-- Glissement : l'accueil reste chargé derrière la fenêtre -->
         <template v-if="swipeOn"><Dashboard v-if="homeSeen" :key="`home${auth.store?.id}`" /></template>
