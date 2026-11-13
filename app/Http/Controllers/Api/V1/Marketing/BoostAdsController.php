@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Marketing;
 
+use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Models\Boost;
 use App\Services\Marketing\BoostAds;
@@ -71,6 +72,25 @@ class BoostAdsController extends Controller
         $boost = $data['action'] === 'extend' ? $this->ads->extend($boost, (int) $data['days']) : $this->ads->setStatus($boost, $data['action']);
 
         return response()->json(['data' => $this->ads->present($boost)]);
+    }
+
+    /** Supprime un boost qui n'a pas été créé chez Meta (rien n'est perdu : ni dépense, ni commande) */
+    public function destroy(Boost $boost): JsonResponse
+    {
+        if (! $boost->isDeletable()) {
+            throw new BusinessRuleException('Seul un boost qui n\'a pas été créé chez Meta, sans dépense ni commande, peut être supprimé.');
+        }
+        $boost->delete();
+
+        return response()->json(['data' => ['id' => $boost->id]]);
+    }
+
+    /** Efface d'un coup tous les boosts « pas créés » de la boutique */
+    public function clearFailed(): JsonResponse
+    {
+        $deleted = Boost::query()->where('status', 'failed')->where('spend', 0)->where('orders', 0)->where('credits_used', 0)->delete();
+
+        return response()->json(['data' => ['deleted' => $deleted]]);
     }
 
     /** @return array<string, mixed> */
