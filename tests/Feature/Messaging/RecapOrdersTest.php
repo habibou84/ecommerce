@@ -20,6 +20,7 @@ use App\Services\Billing\Credits;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
+use App\Services\Platform\Features;
 use App\Services\WhatsApp\RecapOrders;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -48,6 +49,9 @@ class RecapOrdersTest extends TestCase
 
     private int $id = 0;
 
+    /** @var (callable(Request): mixed)|null */
+    private $meta = null;
+
     private const CLIENT = '2250506070809';
 
     protected function setUp(): void
@@ -56,6 +60,10 @@ class RecapOrdersTest extends TestCase
         $this->giveProductsPhotos();
         Http::preventStrayRequests();
         Http::fake(['https://graph.facebook.com/v25.0/*' => function (Request $request) {
+            // Catalogue et réglages commerce du numéro : réponse propre au test qui la prévoit
+            if ($this->meta !== null && preg_match('/product_catalogs|whatsapp_commerce_settings/', $request->url())) {
+                return ($this->meta)($request);
+            }
             $this->out[] = $request->data();
 
             return Http::response(['messaging_product' => 'whatsapp', 'messages' => [['id' => 'wamid.out'.count($this->out)]]]);
@@ -326,6 +334,72 @@ class RecapOrdersTest extends TestCase
         $this->webhook(['messages' => [['from' => self::CLIENT, 'id' => 'wamid.cart', 'timestamp' => (string) now()->timestamp, 'type' => 'order',
             'order' => ['product_items' => [['product_retailer_id' => $sku, 'quantity' => 1, 'item_price' => 15000]]]]]]);
         $this->assertSame('catalog', Order::sole()->credit_channel);
+    }
+
+    public function test_a_catalog_cart_asks_the_commune_then_sends_the_recap(): void
+    {
+        $angre = Place::whereNull('store_id')->where('name', 'Angré')->firstOrFail();
+        $this->webhook(['messages' => [['from' => self::CLIENT, 'id' => 'wamid.cart', 'timestamp' => (string) now()->timestamp, 'type' => 'order',
+            'order' => ['product_items' => [['product_retailer_id' => 'V'.$this->variant('M'), 'quantity' => 1, 'item_price' => 15000]]]]],
+            'contacts' => [['wa_id' => self::CLIENT, 'profile' => ['name' => 'Fatou Diallo']]]]);
+        [$communes] = $this->sent();
+        $this->assertStringContainsString('PANIER BIEN REÇU', $communes['interactive']['body']['text']);
+        $order = Order::sole();
+
+        $this->tap('live:place:'.$angre->id, 'Angré', 'list_reply');
+        [$recap] = $this->sent();
+        $this->assertSame($angre->id, $order->fresh()->shipping_place_id);
+        $this->tap("live:confirm:{$order->id}", '✅ Je confirme');
+        $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
+        $this->assertStringContainsString('(catalogue)', $order->confirmations()->sole()->note);
+    }
+
+    public function test_switches_turn_off_the_cart_follow_up_and_the_recap(): void
+    {
+        $this->storeApi($this->store, 'PUT', 'whatsapp/cart-flow', ['enabled' => false])->assertOk()->assertJsonPath('data.recap.enabled', true);
+        $data = $this->storeApi($this->store, 'PUT', 'whatsapp/recap', ['enabled' => false])->assertOk()->json('data');
+        $this->assertFalse($data['recap']['enabled']);
+
+        $this->webhook(['messages' => [['from' => self::CLIENT, 'id' => 'wamid.cart', 'timestamp' => (string) now()->timestamp, 'type' => 'order',
+            'order' => ['product_items' => [['product_retailer_id' => 'V'.$this->variant('M'), 'quantity' => 1, 'item_price' => 15000]]]]]]);
+        $this->assertSame([], $this->sent());
+        $this->merchant('récap');
+        $this->assertSame([], $this->sent());
+        $this->assertSame(1, Order::count());
+    }
+
+    public function test_the_whatsapp_menu_shows_what_is_waiting_and_recent_orders(): void
+    {
+        $this->client('La robe wax M pour Angré');
+        $this->merchant('récap');
+        $data = $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertOk()->json('data');
+        $this->assertSame(['unread' => 1, 'recaps' => 1, 'carts' => 0], $data['todo']);
+        $this->assertSame(['recap'], array_column($data['orders'], 'channel'));
+        $this->assertNotNull($data['phone_message_at']);
+        $this->assertSame(['enabled' => true, 'remind_hours' => 2, 'expire_hours' => 24, 'waiting' => 1, 'confirmed_last_30_days' => 0], $data['recap']);
+    }
+
+    public function test_the_catalog_is_shown_on_the_number_through_meta(): void
+    {
+        app(Features::class)->set('whatsapp_catalog', 'on');
+        $this->store->forceFill(['marketing' => ['meta_catalog_id' => '777']])->save();
+        $calls = [];
+        $this->meta = function (Request $request) use (&$calls) {
+            if (str_contains($request->url(), '2233/product_catalogs')) {
+                return Http::response(['data' => [['id' => '777', 'name' => 'Awa Mode']]]);
+            }
+            $calls[] = [$request->method(), $request->data()];
+
+            return $request->method() === 'GET'
+                ? Http::response(['data' => [['is_catalog_visible' => count($calls) > 1, 'is_cart_enabled' => count($calls) > 1, 'id' => '1']]])
+                : Http::response(['success' => true]);
+        };
+        $before = $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertOk()->json('data.catalog.number');
+        $this->assertSame(['catalog' => ['id' => '777', 'name' => 'Awa Mode'], 'visible' => false, 'cart' => false], $before);
+
+        $after = $this->storeApi($this->store, 'PUT', 'whatsapp/catalog/visible', ['visible' => true])->assertOk()->json('data.catalog.number');
+        $this->assertSame(['POST', ['is_catalog_visible' => 'true', 'is_cart_enabled' => 'true']], $calls[1]);
+        $this->assertTrue($after['visible'] && $after['cart']);
     }
 
     public function test_whatsapp_orders_outside_live_are_counted_in_the_evening(): void

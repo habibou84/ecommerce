@@ -46,6 +46,8 @@ class Store extends Model
         'allow_backorder' => false,
         'low_stock_threshold' => 3,
         'whatsapp_models' => true,
+        'whatsapp_recap' => true,
+        'whatsapp_cart_flow' => true,
         'deposit_mode' => 'never',
         'deposit_blocks' => true,
     ];
@@ -61,6 +63,8 @@ class Store extends Model
             'storefront_enabled' => 'boolean',
             'whatsapp_qr_enabled' => 'boolean',
             'whatsapp_models' => 'boolean',
+            'whatsapp_recap' => 'boolean',
+            'whatsapp_cart_flow' => 'boolean',
             'deposit_blocks' => 'boolean',
             'deposit_min_total' => 'integer',
             'deposit_rule_percent' => 'integer',

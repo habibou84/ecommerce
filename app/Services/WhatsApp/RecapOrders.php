@@ -52,6 +52,8 @@ use Throwable;
  *
  * Payante : une fois confirmée, la commande compte 1 commande du solde (retirée le soir) ; solde vide, un nouveau
  * récap n'envoie rien au client. Un nouveau « récap » met à jour la commande encore à confirmer.
+ *
+ * Le même parcours sert après un panier du catalogue WhatsApp (follow) : commune demandée, puis récapitulatif.
  */
 class RecapOrders
 {
@@ -111,7 +113,8 @@ class RecapOrders
         }
         $rest = self::recapText($text);
         if ($rest !== null) {
-            return $this->recap($conversation, $rest);
+            // Récap éteint dans WhatsApp › Assistant des ventes : le mot reste un message comme un autre
+            return $this->store($conversation)->whatsapp_recap && $this->recap($conversation, $rest);
         }
 
         return self::confirms($text) && $this->confirmFromChat($conversation);
@@ -325,6 +328,28 @@ class RecapOrders
         Cache::put(self::stateKey($conversation), $state, now()->addHours(12));
 
         return $this->proceed($conversation);
+    }
+
+    /**
+     * Panier du catalogue WhatsApp devenu commande : la commune est demandée si elle manque, puis le récapitulatif
+     * avec « Je confirme » part (même parcours que le récap). Seulement quand chaque article est connu de la boutique
+     * (un article inconnu n'a pas de prix sûr : l'équipe le saisit en confirmant).
+     */
+    public function follow(Conversation $conversation, Order $order): void
+    {
+        $phone = PhoneNumber::normalize($conversation->contact);
+        if ($phone === null || $order->customer_phone !== $phone || ! in_array($order->status, [OrderStatus::PendingConfirmation, OrderStatus::Confirmed], true)
+            || $order->items()->whereNull('variant_id')->exists()) {
+            return;
+        }
+        Cache::put(self::orderKey($order->store_id, $phone), $order->id, now()->addDays(2));
+        if ($order->shipping_place_id === null && $order->delivery_method === 'delivery') {
+            Cache::put(self::placeKey($conversation), $order->id, now()->addDay());
+            app(LiveSales::class)->askAddress($conversation, "🛒 *PANIER BIEN REÇU, MERCI !*\n\n📍 *OÙ VOUS LIVRER ?*");
+
+            return;
+        }
+        app(LiveCheckout::class)->recap($conversation, $order);
     }
 
     /**

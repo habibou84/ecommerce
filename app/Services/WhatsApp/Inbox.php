@@ -243,6 +243,10 @@ class Inbox
         $message = $this->land($storeId, $phone, $name, 'order', $body, $providerId, $sentAt, $viaLink);
         if ($order !== null) {
             $message->conversation->forceFill(['order_id' => $order->id])->save();
+            // Assistant des ventes : commune demandée, puis récapitulatif avec « Je confirme »
+            if ($store->whatsapp_cart_flow) {
+                rescue(fn () => app(RecapOrders::class)->follow($message->conversation, $order));
+            }
         }
 
         return $message;

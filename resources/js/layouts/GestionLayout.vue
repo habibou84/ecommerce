@@ -38,13 +38,21 @@ function skipToContent() {
 const groups = [
   { label: 'Ventes', color: 'panier', icon: 'M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2', items: [
     { to: '/gestion/commandes', label: 'Commandes' },
-    { to: '/gestion/messages', label: 'Messages', badge: 'messages' },
     { to: '/gestion/confirmation', label: 'À confirmer' },
     { to: '/gestion/etiquettes', label: 'Étiquettes' },
     { to: '/gestion/caisse/vente', label: 'Vente au comptoir' },
     { to: '/gestion/clients', label: 'Clients' },
     { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' },
     { to: '/gestion/statistiques', label: 'Statistiques' },
+  ] },
+  // WhatsApp : conversations, assistants des ventes et des réponses, textes et relances, au même endroit
+  { label: 'WhatsApp', color: 'whatsapp', icon: 'M3 21l1.7-5A8.5 8.5 0 1 1 8 19.4z', items: [
+    { to: '/gestion/whatsapp', label: 'Accueil WhatsApp', exact: true },
+    { to: '/gestion/messages', label: 'Conversations', badge: 'messages' },
+    { to: '/gestion/whatsapp/ventes', label: 'Assistant des ventes', also: ['/gestion/whatsapp/commandes-codes'] },
+    { to: '/gestion/whatsapp/reponses', label: 'Assistant des réponses' },
+    { to: '/gestion/textes-messages', label: 'Textes des messages' },
+    { to: '/gestion/marketing/relances', label: 'Relances' },
   ] },
   { label: 'Live', color: 'live', icon: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8', items: [
     { to: '/gestion/live', label: 'Préparer un live', exact: true },
@@ -83,8 +91,6 @@ const groups = [
     { to: '/gestion/alertes', label: 'Alertes' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/acompte', label: 'Acompte' },
-    { to: '/gestion/whatsapp', label: 'WhatsApp' },
-    { to: '/gestion/textes-messages', label: 'Textes des messages' },
     { to: '/gestion/materiel', label: 'Matériel (étiquettes, live…)' },
     { to: '/gestion/mes-boutiques', label: 'Ajouter une boutique', single: true },
   ] },

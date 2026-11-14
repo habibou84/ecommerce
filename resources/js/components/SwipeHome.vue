@@ -7,6 +7,7 @@ import Icon from './Icon.vue'
 import CustomerList from '../views/gestion/customers/CustomerList.vue'
 import LivePrepare from '../views/gestion/marketing/LivePrepare.vue'
 import BoostPanel from './marketing/BoostPanel.vue'
+import WhatsAppHub from './WhatsAppHub.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
 import { platformOn } from '../router'
@@ -55,29 +56,36 @@ const cashTodo = computed(() => [
 ])
 const badge = (items) => (items.length ? { n: items.length, level: items.some((i) => i.urgent) ? 'red' : 'orange' } : null)
 
+// Données WhatsApp (GET whatsapp/sales), chargées à l'arrivée sur la page WhatsApp
+const whatsapp = ref(null)
+
 // ── Pages ──
 // « 1 commande », « 3 commandes » (pas de « commande(s) »)
 const pl = (n, one, many) => `${n ?? 0} ${n > 1 ? many : one}`
 // Icône de couleur de chaque onglet (la même que dans le menu), à la place des émojis
-const PAGE_COLORS = { live: 'live', boost: 'promo', orders: 'panier', cash: 'caisse', shop: 'boutique', clients: 'clients', items: 'produit', more: 'menu' }
+const PAGE_COLORS = { live: 'live', whatsapp: 'whatsapp', boost: 'promo', orders: 'panier', cash: 'caisse', shop: 'boutique', clients: 'clients', items: 'produit', more: 'menu' }
 const PAGES = [
   { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
-    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/whatsapp', label: 'WhatsApp' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+  // WhatsApp : ce qui attend (non lus, récaps, paniers), conversations, assistants des ventes et des réponses
+  { key: 'whatsapp', name: 'WhatsApp', icon: '💬', show: () => canOpen('/gestion/whatsapp') || canOpen('/gestion/messages'),
+    badge: () => { const n = (s.value.unread_messages ?? 0) + (whatsapp.value?.todo?.recaps ?? 0) + (whatsapp.value?.todo?.carts ?? 0); return n ? { n, level: 'orange' } : null },
+    settings: [{ to: '/gestion/whatsapp', label: 'Mon numéro WhatsApp' }, { to: '/gestion/whatsapp/ventes', label: 'Assistant des ventes' }, { to: '/gestion/whatsapp/reponses', label: 'Assistant des réponses' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/marketing/relances', label: 'Relances' }] },
   // Boost : la pub Facebook et Instagram au même endroit (connexion, pixel, produits à booster, commandes venues des boosts)
   { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
     settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
-    settings: [{ to: '/gestion/livraisons', label: 'Livraisons' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
+    settings: [{ to: '/gestion/livraisons', label: 'Livraisons' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
     settings: [{ to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' }, { to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' }, { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' }, { to: '/gestion/statistiques', label: 'Statistiques' }, { to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
   { key: 'shop', name: 'Boutique', icon: '🏪', show: () => canOpen('/gestion/boutique-en-ligne'), badge: () => (s.value.shop?.abandoned ? { n: s.value.shop.abandoned, level: 'orange' } : null),
     settings: [{ to: '/gestion/boutique-en-ligne', label: 'Apparence' }, { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus' }, { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' }] },
   // Clients : chiffres, recherche, relances et liste, dans l'onglet (la fiche s'ouvre par-dessus)
   { key: 'clients', name: 'Clients', icon: '👥', show: () => canOpen('/gestion/clients'), badge: () => (s.value.to_relaunch ? { n: s.value.to_relaunch, level: 'orange' } : null),
-    settings: [{ to: '/gestion/marketing/relances', label: 'Relances WhatsApp' }, { to: '/gestion/marketing/fidelite', label: 'Fidélité et parrainage' }, { to: '/gestion/marketing/avis', label: 'Avis clients' }, { to: '/gestion/textes-messages', label: 'Textes des messages (relance…)' }] },
+    settings: [{ to: '/gestion/marketing/fidelite', label: 'Fidélité et parrainage' }, { to: '/gestion/marketing/avis', label: 'Avis clients' }] },
   { key: 'items', name: 'Articles', icon: '👗', show: () => canOpen('/gestion/catalogue'), badge: () => (s.value.stock && s.value.stock.out + s.value.stock.low ? { n: s.value.stock.out + s.value.stock.low, level: s.value.stock.out ? 'red' : 'orange' } : null),
     settings: [{ to: '/gestion/collections', label: 'Collections' }, { to: '/gestion/packs', label: 'Packs et prix de gros' }, { to: '/gestion/stock', label: 'Stock détaillé et mouvements' }, { to: '/gestion/stock/commandes', label: 'Fournisseurs et bons de commande' }, { to: '/gestion/catalogue/import', label: 'Importer des produits' }] },
-  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (s.value.unread_messages ? { n: s.value.unread_messages, level: 'orange' } : null), settings: [{ to: '/gestion/parametres', label: 'Ma boutique' }, { to: '/gestion/equipe', label: 'Équipe' }] },
+  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => null, settings: [{ to: '/gestion/parametres', label: 'Ma boutique' }, { to: '/gestion/equipe', label: 'Équipe' }] },
 ]
 const pages = computed(() => PAGES.filter((p) => p.show()))
 
@@ -113,6 +121,7 @@ watch(current, (i) => {
   const tab = bar?.children[i]
   if (bar && tab) bar.scrollTo({ left: Math.max(0, tab.offsetLeft - (bar.clientWidth - tab.offsetWidth) / 2), behavior: 'smooth' })
   if (key === 'orders') loadOrders()
+  if (key === 'whatsapp') loadWhatsapp()
   if (key === 'items') loadItems()
 }, { immediate: true })
 onMounted(async () => {
@@ -189,6 +198,12 @@ async function loadOrders() {
   orders.value = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [] } }))).data.data
 }
 
+// ── WhatsApp : ce qui attend et les entrées du menu (réglages WhatsApp : seulement qui gère la boutique) ──
+async function loadWhatsapp() {
+  if (whatsapp.value || !canOpen('/gestion/whatsapp')) return
+  whatsapp.value = (await http.get('/whatsapp/sales').catch(() => ({ data: { data: null } }))).data.data
+}
+
 // ── Articles : catalogue et stock réunis ──
 const items = ref(null)
 const itemFilter = ref('')
@@ -223,7 +238,6 @@ async function share() {
 
 // ── Plus : grandes icônes ──
 const PLUS = [
-  { to: '/gestion/messages', label: 'Messages', color: 'whatsapp' },
   { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
   { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
@@ -232,7 +246,6 @@ const PLUS = [
   { to: '/gestion/equipe', label: 'Équipe', color: 'profil' },
   { to: '/gestion/mes-boutiques', label: 'Toutes mes boutiques', color: 'boutique' },
   { to: '/gestion/demarrage', label: 'Bien démarrer', color: 'aide' },
-  { to: '/gestion/whatsapp', label: 'WhatsApp', color: 'whatsapp' },
   { to: '/gestion/parametres', label: 'Ma boutique', color: 'reglages' },
 ]
 const plus = computed(() => links(PLUS))
@@ -280,6 +293,16 @@ function open(to) {
         <!-- Chargée seulement une fois la page Live affichée, et pas en double quand « Préparer un live » est ouvert par-dessus -->
         <template v-if="p.key === 'live'">
           <LivePrepare v-if="seen.has('live') && route.path !== '/gestion/live'" />
+        </template>
+
+        <!-- WHATSAPP : ce qui attend, conversations, assistants -->
+        <template v-else-if="p.key === 'whatsapp'">
+          <WhatsAppHub :data="whatsapp" :unread="s.unread_messages ?? 0" :can-manage="canOpen('/gestion/whatsapp')" :can-messages="canOpen('/gestion/messages')" />
+          <RouterLink v-if="canOpen('/gestion/whatsapp')" to="/gestion/whatsapp" class="card mt-3 flex items-center gap-3 px-3.5 py-3">
+            <ColorIcon name="whatsapp" :size="36" />
+            <span class="min-w-0 flex-1"><b class="block text-[15px]">Mon numéro</b><span class="text-[13px] text-slate-500">{{ whatsapp?.account ? whatsapp.account.display_phone : 'Connecter mon numéro WhatsApp' }}</span></span>
+            <Icon name="chevron" :size="16" class="text-slate-400" />
+          </RouterLink>
         </template>
 
         <!-- COMMANDES (+ livraisons) -->

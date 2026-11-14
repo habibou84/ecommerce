@@ -426,11 +426,11 @@ class LiveCheckout
         }
         $first = $order->status === OrderStatus::PendingConfirmation;
         if ($first) {
-            $recap = $order->credit_channel === 'recap';
+            $channel = ['recap' => 'récap', 'catalog' => 'catalogue', 'models' => 'modèles'][$order->credit_channel] ?? 'live';
             $order = $this->desk->recordConfirmation($order, ConfirmationOutcome::Confirmed, 'whatsapp',
-                'Confirmée par la cliente sur WhatsApp ('.($recap ? 'récap' : 'live').')', null, null);
-            // Récap envoyé par la boutique : elle est prévenue que la cliente a confirmé
-            if ($recap) {
+                "Confirmée par la cliente sur WhatsApp ({$channel})", null, null);
+            // Récap envoyé par la boutique ou panier du catalogue : elle est prévenue que la cliente a confirmé
+            if (in_array($order->credit_channel, ['recap', 'catalog'], true)) {
                 rescue(fn () => app(RecapOrders::class)->confirmed($order, 'la cliente'));
             }
         }
