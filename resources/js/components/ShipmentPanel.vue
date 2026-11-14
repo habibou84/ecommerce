@@ -232,7 +232,7 @@ async function whatsapp(s) {
       <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><Icon name="truck" :size="18" /></span>
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">{{ planned.name }}</span>
-        <span class="block text-xs text-emerald-800">{{ order.status === 'pending_confirmation' ? 'Livreur choisi · la course part dès la confirmation' : canShip ? 'Livreur choisi · course en préparation' : 'Livreur choisi' }}</span>
+        <span class="block text-xs text-emerald-800">{{ order.status === 'pending_confirmation' ? 'Livreur choisi · la course partira à la confirmation' : canShip ? 'Livreur choisi · course pas encore envoyée' : 'Livreur choisi' }}</span>
       </span>
       <button type="button" class="btn-secondary shrink-0 px-3 py-1.5" :disabled="busy" @click="openPicker">Modifier</button>
     </div>
