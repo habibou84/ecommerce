@@ -135,7 +135,7 @@ async function relaunch() {
       <div class="card p-3"><p class="text-xs text-slate-500">Refus</p><p class="text-lg font-semibold" :class="customer.refused_count ? 'text-red-600' : ''">{{ customer.refused_count }}</p></div>
       <div class="card p-3"><p class="text-xs text-slate-500">Dépensé</p><p class="text-lg font-semibold">{{ money(customer.total_spent) }}</p></div>
       <div class="card p-3"><p class="text-xs text-slate-500">Panier moyen</p><p class="text-lg font-semibold">{{ customer.average_basket !== null ? money(customer.average_basket) : '—' }}</p></div>
-      <div class="card p-3"><p class="text-xs text-slate-500">Client depuis</p><p class="text-lg font-semibold">{{ customer.first_order_at ? formatDate(customer.first_order_at) : '—' }}</p></div>
+      <div class="card p-3"><p class="text-xs text-slate-500">Client depuis</p><p class="text-lg font-semibold">{{ customer.first_order_at ? new Date(customer.first_order_at).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : '—' }}</p></div>
     </div>
 
     <!-- Onglets -->

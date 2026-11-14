@@ -40,21 +40,23 @@ const orderTodo = computed(() => {
   if (!o) return []
   const late = (s.value.couriers?.late_returns ?? 0) + (s.value.carriers?.late_returns ?? 0)
   return [
-    { key: 'proofs', icon: '💳', count: o.waiting?.proofs ?? 0, text: `${o.waiting?.proofs} paiement(s) à valider`, action: 'Valider', to: '/gestion/commandes?alert=proof', urgent: true },
-    { key: 'confirm', icon: '⏰', count: o.to_confirm, text: `${o.to_confirm} commande(s) à confirmer`, action: 'Confirmer', to: canOpen('/gestion/confirmation') ? '/gestion/confirmation' : '/gestion/commandes?status=pending_confirmation', urgent: o.callbacks_due > 0 },
-    { key: 'unassigned', icon: '🛵', count: o.waiting?.unassigned ?? 0, text: `${o.waiting?.unassigned} colis sans livreur`, action: 'Choisir', to: '/gestion/commandes?status=to_ship', urgent: true },
-    { key: 'not_picked', icon: '📦', count: o.waiting?.not_picked ?? 0, text: `${o.waiting?.not_picked} colis pas encore ramassé(s)`, action: 'Voir', to: '/gestion/commandes?alert=not_picked', urgent: false },
-    { key: 'unhandled', icon: '⚠️', count: o.waiting?.unhandled ?? 0, text: `${o.waiting?.unhandled} problème(s) de livraison`, action: 'Traiter', to: '/gestion/commandes?alert=unhandled', urgent: true },
-    { key: 'returns', icon: '↩️', count: late, text: `${late} colis à rapporter en retard`, action: 'Voir', to: '/gestion/commandes?alert=to_bring_back', urgent: true },
+    { key: 'proofs', icon: 'cash', count: o.waiting?.proofs ?? 0, text: pl(o.waiting?.proofs, 'paiement à valider', 'paiements à valider'), action: 'Valider', to: '/gestion/commandes?alert=proof', urgent: true },
+    { key: 'confirm', icon: 'clock', count: o.to_confirm, text: pl(o.to_confirm, 'commande à confirmer', 'commandes à confirmer'), action: 'Confirmer', to: canOpen('/gestion/confirmation') ? '/gestion/confirmation' : '/gestion/commandes?status=pending_confirmation', urgent: o.callbacks_due > 0 },
+    { key: 'unassigned', icon: 'truck', count: o.waiting?.unassigned ?? 0, text: `${o.waiting?.unassigned} colis sans livreur`, action: 'Choisir', to: '/gestion/commandes?status=to_ship', urgent: true },
+    { key: 'not_picked', icon: 'box', count: o.waiting?.not_picked ?? 0, text: pl(o.waiting?.not_picked, 'colis pas encore ramassé', 'colis pas encore ramassés'), action: 'Voir', to: '/gestion/commandes?alert=not_picked', urgent: false },
+    { key: 'unhandled', icon: 'alert', count: o.waiting?.unhandled ?? 0, text: pl(o.waiting?.unhandled, 'problème de livraison', 'problèmes de livraison'), action: 'Traiter', to: '/gestion/commandes?alert=unhandled', urgent: true },
+    { key: 'returns', icon: 'box', count: late, text: `${late} colis à rapporter en retard`, action: 'Voir', to: '/gestion/commandes?alert=to_bring_back', urgent: true },
   ].filter((t) => t.count > 0)
 })
 const cashTodo = computed(() => [
-  ...(s.value.couriers?.late ?? []).map((x) => ({ key: `c${x.courier_id}`, icon: '🛵', text: `${x.name} garde ${money(x.held)}`, action: 'Encaisser', to: '/gestion/caisse/livreurs', urgent: x.level > 1 })),
-  ...(s.value.carriers?.overdue ?? []).map((x) => ({ key: `e${x.connection_id}`, icon: '🏢', text: `${x.carrier} vous doit ${money(x.amount)}`, action: 'Réclamer', to: '/gestion/caisse/a-recevoir', urgent: x.level > 1 })),
+  ...(s.value.couriers?.late ?? []).map((x) => ({ key: `c${x.courier_id}`, icon: 'truck', text: `${x.name} garde ${money(x.held)}`, action: 'Encaisser', to: '/gestion/caisse/livreurs', urgent: x.level > 1 })),
+  ...(s.value.carriers?.overdue ?? []).map((x) => ({ key: `e${x.connection_id}`, icon: 'cash', text: `${x.carrier} vous doit ${money(x.amount)}`, action: 'Réclamer', to: '/gestion/caisse/a-recevoir', urgent: x.level > 1 })),
 ])
 const badge = (items) => (items.length ? { n: items.length, level: items.some((i) => i.urgent) ? 'red' : 'orange' } : null)
 
 // ── Pages ──
+// « 1 commande », « 3 commandes » (pas de « commande(s) »)
+const pl = (n, one, many) => `${n ?? 0} ${n > 1 ? many : one}`
 // Icône de couleur de chaque onglet (la même que dans le menu), à la place des émojis
 const PAGE_COLORS = { live: 'live', boost: 'promo', orders: 'panier', cash: 'caisse', shop: 'boutique', clients: 'clients', items: 'produit', more: 'menu' }
 const PAGES = [
@@ -283,23 +285,24 @@ function open(to) {
         <!-- COMMANDES (+ livraisons) -->
         <template v-else-if="p.key === 'orders'">
           <div class="mb-3 grid grid-cols-2 gap-2">
-            <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center py-3 text-[15px] font-black">＋ Commande</RouterLink>
-            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center py-3 text-[15px] font-black">🏪 Comptoir</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center whitespace-nowrap px-2 py-3 text-[14px] font-black">＋ Nouvelle commande</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center whitespace-nowrap px-2 py-3 text-[14px] font-black">Vente au comptoir</RouterLink>
           </div>
           <div class="rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
             <p class="text-sm font-semibold opacity-90">Aujourd'hui</p>
-            <p class="text-[26px] font-black leading-tight">{{ s.orders?.today_count ?? 0 }} commande(s) · {{ money(s.orders?.today_amount ?? 0) }}</p>
+            <p class="text-[26px] font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }}</p>
+            <p class="text-sm font-semibold opacity-90">{{ pl(s.orders?.today_count ?? 0, 'commande', 'commandes') }}</p>
           </div>
           <div v-if="orderTodo.length" class="mt-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
-            <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">⚠ À faire</p>
+            <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">À faire</p>
             <RouterLink v-for="t in orderTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-[14px] font-bold first-of-type:border-0">
-              <span aria-hidden="true">{{ t.icon }}</span><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
+              <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
           <div class="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
             <RouterLink to="/gestion/commandes?status=pending_confirmation" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">À confirmer {{ s.orders?.to_confirm ?? '' }}</RouterLink>
             <RouterLink to="/gestion/commandes?status=to_ship" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">À livrer {{ s.orders?.to_ship ?? '' }}</RouterLink>
-            <RouterLink to="/gestion/livraisons" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">🛵 En livraison</RouterLink>
+            <RouterLink to="/gestion/livraisons" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">En livraison</RouterLink>
             <RouterLink to="/gestion/commandes" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">Toutes</RouterLink>
           </div>
           <div class="mt-3 rounded-2xl bg-white p-1 shadow-soft">
@@ -318,7 +321,7 @@ function open(to) {
           <div v-if="cashTodo.length" class="mb-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
             <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">⚠ À encaisser</p>
             <RouterLink v-for="t in cashTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-[14px] font-bold first-of-type:border-0">
-              <span aria-hidden="true">{{ t.icon }}</span><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
+              <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
           <div class="rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
@@ -336,11 +339,11 @@ function open(to) {
 
         <!-- BOUTIQUE EN LIGNE -->
         <template v-else-if="p.key === 'shop'">
-          <div class="rounded-[22px] bg-gradient-to-br from-blue-900 to-blue-500 p-4 text-white">
+          <div class="rounded-[22px] bg-brand-grad p-4 text-white">
             <p class="text-sm font-semibold opacity-90">Votre boutique en ligne</p>
             <p class="truncate text-[18px] font-black">{{ shopUrl.replace(/^https?:\/\//, '') }}</p>
             <div class="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" class="rounded-xl bg-white py-2.5 text-sm font-black text-blue-900" @click="share">{{ copied ? 'Lien copié ✓' : '🔗 Partager' }}</button>
+              <button type="button" class="rounded-xl bg-white py-2.5 text-sm font-black text-emerald-800" @click="share">{{ copied ? 'Lien copié ✓' : 'Partager' }}</button>
               <a :href="shopUrl" target="_blank" rel="noopener" class="rounded-xl bg-white/20 py-2.5 text-center text-sm font-black">Voir ▸</a>
             </div>
           </div>
@@ -404,9 +407,9 @@ function open(to) {
               <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-rose-600 px-1.5 text-[11px] font-black text-white">{{ s.unread_messages }} non lu{{ s.unread_messages > 1 ? 's' : '' }}</span>
             </RouterLink>
           </div>
-          <h3 class="mb-2 mt-5 px-1 text-[15px] font-black text-slate-700"><span aria-hidden="true">⚙</span> Réglages</h3>
+          <h3 class="mb-2 mt-5 px-1 text-[15px] font-black text-slate-700">Réglages</h3>
           <details v-for="g in pageSettings" :key="g.key" class="mb-2 rounded-2xl bg-white shadow-soft">
-            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-[15px] font-extrabold"><span aria-hidden="true">{{ g.icon }}</span> {{ g.name }}<span class="ml-auto text-slate-400" aria-hidden="true">›</span></summary>
+            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-[15px] font-extrabold"><ColorIcon :name="PAGE_COLORS[g.key] ?? 'menu'" :size="22" :tile="false" />{{ g.name }}<span class="ml-auto text-slate-400" aria-hidden="true">›</span></summary>
             <RouterLink v-for="l in g.items" :key="l.to + l.label" :to="l.to" class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-[14.5px] font-semibold">{{ l.label }}<span class="text-lg text-slate-400" aria-hidden="true">›</span></RouterLink>
           </details>
           <div class="mt-3 grid grid-cols-2 gap-2">
