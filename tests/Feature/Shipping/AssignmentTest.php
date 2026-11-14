@@ -164,6 +164,9 @@ class AssignmentTest extends TestCase
         $this->assertSame($this->koffi->id, $order->shipments->sole()->courier_id);
         $this->assertTrue($order->events->contains(fn ($e) => $e->type === 'auto_assigned' && $e->data['to'] === 'Koffi'));
         $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.assignment_error', null);
+        // Course partie : l'accueil ne la compte plus « à faire livrer », comme l'onglet de la liste
+        $this->storeApi($this->store, 'GET', 'dashboard')->assertJsonPath('data.orders.to_ship', 0);
+        $this->storeApi($this->store, 'GET', 'orders')->assertJsonPath('counts.to_ship', 0);
     }
 
     public function test_failed_course_is_shown_with_its_reason(): void
