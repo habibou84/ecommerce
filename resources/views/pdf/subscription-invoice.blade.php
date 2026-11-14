@@ -4,21 +4,24 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #0f172a; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #111a15; }
         h1 { font-size: 20px; margin: 0; }
-        .muted { color: #64748b; }
+        /* Facture de Jibiat Marchand : filet et nom au vert de la marque (charte des couleurs) */
+        body { border-top: 4px solid #012e1b; padding-top: 10px; }
+        .brand { color: #017c40; }
+        .muted { color: #5b6a62; }
         table { width: 100%; border-collapse: collapse; }
-        .items th { text-align: left; border-bottom: 1px solid #cbd5e1; padding: 6px 4px; font-size: 10px; color: #475569; text-transform: uppercase; }
-        .items td { border-bottom: 1px solid #e2e8f0; padding: 8px 4px; }
+        .items th { text-align: left; border-bottom: 1px solid #c7cfc6; padding: 6px 4px; font-size: 10px; color: #3d4a44; text-transform: uppercase; }
+        .items td { border-bottom: 1px solid #e0e5df; padding: 8px 4px; }
         .right { text-align: right; }
-        .total td { font-size: 14px; font-weight: bold; border-top: 1px solid #0f172a; padding-top: 6px; }
+        .total td { font-size: 14px; font-weight: bold; border-top: 1px solid #111a15; padding-top: 6px; }
     </style>
 </head>
 <body>
     <table>
         <tr>
             <td>
-                <h1>Jibiat Marchand</h1>
+                <h1 class="brand">Jibiat Marchand</h1>
                 <div class="muted">{{ config('platform.domain') }}</div>
             </td>
             <td class="right">
