@@ -45,6 +45,22 @@ const groups = [
     { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' },
     { to: '/gestion/statistiques', label: 'Statistiques' },
   ] },
+  // Livraisons puis Caisse, juste après les ventes : la commande, sa livraison, son argent
+  { label: 'Livraisons', color: 'moto', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', items: [
+    { to: '/gestion/livraisons', label: 'En cours', exact: true },
+    { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
+    { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' },
+    { to: '/gestion/livraisons/automatisation', label: 'Automatisation' },
+    { to: '/gestion/livraisons/paie', label: 'Paie des livreurs' },
+    { to: '/gestion/livraisons/tarifs', label: 'Tarifs et zones', also: ['/gestion/livraisons/zones'] },
+    { to: '/gestion/livraisons/reglages', label: 'Réglages des livraisons' },
+  ] },
+  { label: 'Caisse', color: 'caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', items: [
+    { to: '/gestion/caisse', label: 'Ma caisse', exact: true },
+    { to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' },
+    { to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' },
+    { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' },
+  ] },
   // WhatsApp : conversations, assistants des ventes et des réponses, textes et relances, au même endroit
   { label: 'WhatsApp', color: 'whatsapp', icon: 'M3 21l1.7-5A8.5 8.5 0 1 1 8 19.4z', items: [
     { to: '/gestion/whatsapp', label: 'Accueil WhatsApp', exact: true },
@@ -63,19 +79,6 @@ const groups = [
     { to: '/gestion/collections', label: 'Collections' },
     { to: '/gestion/packs', label: 'Packs' },
     { to: '/gestion/stock', label: 'Stock' },
-  ] },
-  { label: 'Livraisons', color: 'moto', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', items: [
-    { to: '/gestion/livraisons', label: 'En cours', exact: true },
-    { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
-    { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' },
-    { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' },
-    { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' },
-  ] },
-  { label: 'Caisse', color: 'caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', items: [
-    { to: '/gestion/caisse', label: 'Ma caisse', exact: true },
-    { to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' },
-    { to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' },
-    { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' },
   ] },
   { label: 'Boutique en ligne', color: 'boutique', icon: 'M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8M10 20v-5h4v5', items: [
     { to: '/gestion/boutique-en-ligne', label: 'Apparence', exact: true },
@@ -260,11 +263,11 @@ const bottomColor = { home: 'accueil', orders: 'panier' }
 // le menu complet reste à un toucher
 const plusOpen = ref(false)
 const PLUS_TILES = [
+  { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
+  { to: '/gestion/caisse', label: 'Caisse', color: 'caisse' },
   { to: '/gestion/catalogue', label: 'Produits', color: 'produit' },
   { to: '/gestion/stock', label: 'Stock', color: 'stock' },
   { to: '/gestion/clients', label: 'Clients', color: 'clients' },
-  { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
-  { to: '/gestion/caisse', label: 'Caisse', color: 'caisse' },
   { to: '/gestion/live', label: 'Live', color: 'live' },
   { to: '/gestion/boutique-en-ligne', label: 'Boutique en ligne', color: 'boutique' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },

@@ -40,16 +40,32 @@ const s = computed(() => props.stats ?? {})
 const orderTodo = computed(() => {
   const o = s.value.orders
   if (!o) return []
-  const late = (s.value.couriers?.late_returns ?? 0) + (s.value.carriers?.late_returns ?? 0)
   return [
     { key: 'proofs', icon: 'cash', count: o.waiting?.proofs ?? 0, text: pl(o.waiting?.proofs, 'paiement à valider', 'paiements à valider'), action: 'Valider', to: '/gestion/commandes?alert=proof', urgent: true },
     { key: 'confirm', icon: 'clock', count: o.to_confirm, text: pl(o.to_confirm, 'commande à confirmer', 'commandes à confirmer'), action: 'Confirmer', to: canOpen('/gestion/confirmation') ? '/gestion/confirmation' : '/gestion/commandes?status=pending_confirmation', urgent: o.callbacks_due > 0 },
+  ].filter((t) => t.count > 0)
+})
+// Livraisons : ce qui attend un livreur, un ramassage, une décision ou un retour
+const deliveryTodo = computed(() => {
+  const o = s.value.orders
+  if (!o) return []
+  const late = (s.value.couriers?.late_returns ?? 0) + (s.value.carriers?.late_returns ?? 0)
+  return [
     { key: 'unassigned', icon: 'truck', count: o.waiting?.unassigned ?? 0, text: pl(o.waiting?.unassigned, 'commande à faire livrer', 'commandes à faire livrer'), action: 'Faire livrer', to: '/gestion/commandes?status=to_ship', urgent: true },
     { key: 'not_picked', icon: 'box', count: o.waiting?.not_picked ?? 0, text: pl(o.waiting?.not_picked, 'colis pas encore ramassé', 'colis pas encore ramassés'), action: 'Voir', to: '/gestion/commandes?alert=not_picked', urgent: false },
     { key: 'unhandled', icon: 'alert', count: o.waiting?.unhandled ?? 0, text: pl(o.waiting?.unhandled, 'problème de livraison', 'problèmes de livraison'), action: 'Traiter', to: '/gestion/commandes?alert=unhandled', urgent: true },
     { key: 'returns', icon: 'box', count: late, text: `${late} colis à rapporter en retard`, action: 'Voir', to: '/gestion/commandes?alert=to_bring_back', urgent: true },
   ].filter((t) => t.count > 0)
 })
+// Raccourcis de la page Livraisons (les onglets du menu Livraisons)
+const DELIVERY_LINKS = [
+  { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
+  { to: '/gestion/livraisons/entreprises', label: 'Entreprises' },
+  { to: '/gestion/livraisons/automatisation', label: 'Automatisation' },
+  { to: '/gestion/livraisons/paie', label: 'Paie des livreurs' },
+  { to: '/gestion/livraisons/tarifs', label: 'Tarifs et zones' },
+  { to: '/gestion/livraisons/reglages', label: 'Réglages' },
+]
 const cashTodo = computed(() => [
   ...(s.value.couriers?.late ?? []).map((x) => ({ key: `c${x.courier_id}`, icon: 'truck', text: `${x.name} garde ${money(x.held)}`, action: 'Encaisser', to: '/gestion/caisse/livreurs', urgent: x.level > 1 })),
   ...(s.value.carriers?.overdue ?? []).map((x) => ({ key: `e${x.connection_id}`, icon: 'cash', text: `${x.carrier} vous doit ${money(x.amount)}`, action: 'Réclamer', to: '/gestion/caisse/a-recevoir', urgent: x.level > 1 })),
@@ -63,7 +79,7 @@ const whatsapp = ref(null)
 // « 1 commande », « 3 commandes » (pas de « commande(s) »)
 const pl = (n, one, many) => `${n ?? 0} ${n > 1 ? many : one}`
 // Icône de couleur de chaque onglet (la même que dans le menu), à la place des émojis
-const PAGE_COLORS = { live: 'live', whatsapp: 'whatsapp', boost: 'promo', orders: 'panier', cash: 'caisse', shop: 'boutique', clients: 'clients', items: 'produit', more: 'menu' }
+const PAGE_COLORS = { live: 'live', whatsapp: 'whatsapp', boost: 'promo', orders: 'panier', delivery: 'moto', cash: 'caisse', shop: 'boutique', clients: 'clients', items: 'produit', more: 'menu' }
 const PAGES = [
   { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
     settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
@@ -75,7 +91,10 @@ const PAGES = [
   { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
     settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
-    settings: [{ to: '/gestion/livraisons', label: 'Livraisons' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
+    settings: [{ to: '/gestion/confirmation', label: 'À confirmer' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
+  // Livraisons : juste après les commandes, avant la caisse
+  { key: 'delivery', name: 'Livraisons', icon: '🛵', show: () => canOpen('/gestion/livraisons') || canOpen('/gestion/livraisons/livreurs'), badge: () => badge(deliveryTodo.value),
+    settings: [{ to: '/gestion/livraisons/automatisation', label: 'Automatisation' }, { to: '/gestion/livraisons/paie', label: 'Paie des livreurs' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs et zones' }, { to: '/gestion/livraisons/reglages', label: 'Réglages des livraisons' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
     settings: [{ to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' }, { to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' }, { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' }, { to: '/gestion/statistiques', label: 'Statistiques' }, { to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
   { key: 'shop', name: 'Boutique', icon: '🏪', show: () => canOpen('/gestion/boutique-en-ligne'), badge: () => (s.value.shop?.abandoned ? { n: s.value.shop.abandoned, level: 'orange' } : null),
@@ -238,7 +257,6 @@ async function share() {
 
 // ── Plus : grandes icônes ──
 const PLUS = [
-  { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
   { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
   { to: '/gestion/stock/commandes', label: 'Commandes fournisseurs', color: 'camion' },
@@ -335,6 +353,27 @@ function open(to) {
               <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 font-black text-slate-600">{{ (o.customer_name ?? '?').charAt(0).toUpperCase() }}</span>
               <span class="min-w-0 flex-1"><b class="block truncate text-[14.5px]">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }} · {{ o.source_label }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template></span></span>
               <StateBadge :status="o.status" :label="o.status_label" class="shrink-0" />
+            </RouterLink>
+          </div>
+        </template>
+
+        <!-- LIVRAISONS : ce qui attend, colis dehors, livreurs, automatisation, paie -->
+        <template v-else-if="p.key === 'delivery'">
+          <div v-if="deliveryTodo.length" class="mb-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
+            <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">À faire</p>
+            <RouterLink v-for="t in deliveryTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-[14px] font-bold first-of-type:border-0">
+              <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
+            </RouterLink>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <RouterLink to="/gestion/commandes?status=to_ship" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-[19px] font-black">{{ s.orders?.to_ship ?? 0 }}</b><span class="text-xs text-slate-500">à livrer</span></RouterLink>
+            <RouterLink to="/gestion/livraisons" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-[19px] font-black">{{ (s.couriers?.on_the_way ?? 0) + (s.carriers?.on_the_way ?? 0) }}</b><span class="text-xs text-slate-500">en route</span></RouterLink>
+            <RouterLink to="/gestion/commandes?alert=to_bring_back" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-[19px] font-black">{{ (s.couriers?.to_bring_back ?? 0) + (s.carriers?.to_bring_back ?? 0) }}</b><span class="text-xs text-slate-500">à rapporter</span></RouterLink>
+          </div>
+          <RouterLink v-if="canOpen('/gestion/livraisons')" to="/gestion/livraisons" class="btn-brand mt-3 w-full justify-center py-3 text-[15px] font-black">Voir les livraisons en cours</RouterLink>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <RouterLink v-for="l in links(DELIVERY_LINKS)" :key="l.to" :to="l.to" class="flex items-center gap-2 rounded-2xl bg-white px-3 py-3 text-[14px] font-extrabold shadow-soft">
+              <span class="min-w-0 flex-1">{{ l.label }}</span><Icon name="chevron" :size="14" class="shrink-0 text-slate-400" />
             </RouterLink>
           </div>
         </template>
