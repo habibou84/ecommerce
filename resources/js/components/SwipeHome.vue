@@ -1,10 +1,13 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import StateBadge from './StateBadge.vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ColorIcon from './ColorIcon.vue'
 import Icon from './Icon.vue'
+import CustomerList from '../views/gestion/customers/CustomerList.vue'
 import LivePrepare from '../views/gestion/marketing/LivePrepare.vue'
 import BoostPanel from './marketing/BoostPanel.vue'
+import WhatsAppHub from './WhatsAppHub.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
 import { platformOn } from '../router'
@@ -39,36 +42,50 @@ const orderTodo = computed(() => {
   if (!o) return []
   const late = (s.value.couriers?.late_returns ?? 0) + (s.value.carriers?.late_returns ?? 0)
   return [
-    { key: 'proofs', icon: '💳', count: o.waiting?.proofs ?? 0, text: `${o.waiting?.proofs} paiement(s) à valider`, action: 'Valider', to: '/gestion/commandes?alert=proof', urgent: true },
-    { key: 'confirm', icon: '⏰', count: o.to_confirm, text: `${o.to_confirm} commande(s) à confirmer`, action: 'Confirmer', to: canOpen('/gestion/confirmation') ? '/gestion/confirmation' : '/gestion/commandes?status=pending_confirmation', urgent: o.callbacks_due > 0 },
-    { key: 'unassigned', icon: '🛵', count: o.waiting?.unassigned ?? 0, text: `${o.waiting?.unassigned} colis sans livreur`, action: 'Choisir', to: '/gestion/commandes?status=to_ship', urgent: true },
-    { key: 'not_picked', icon: '📦', count: o.waiting?.not_picked ?? 0, text: `${o.waiting?.not_picked} colis pas encore ramassé(s)`, action: 'Voir', to: '/gestion/commandes?alert=not_picked', urgent: false },
-    { key: 'unhandled', icon: '⚠️', count: o.waiting?.unhandled ?? 0, text: `${o.waiting?.unhandled} problème(s) de livraison`, action: 'Traiter', to: '/gestion/commandes?alert=unhandled', urgent: true },
-    { key: 'returns', icon: '↩️', count: late, text: `${late} colis à rapporter en retard`, action: 'Voir', to: '/gestion/commandes?alert=to_bring_back', urgent: true },
+    { key: 'proofs', icon: 'cash', count: o.waiting?.proofs ?? 0, text: pl(o.waiting?.proofs, 'paiement à valider', 'paiements à valider'), action: 'Valider', to: '/gestion/commandes?alert=proof', urgent: true },
+    { key: 'confirm', icon: 'clock', count: o.to_confirm, text: pl(o.to_confirm, 'commande à confirmer', 'commandes à confirmer'), action: 'Confirmer', to: canOpen('/gestion/confirmation') ? '/gestion/confirmation' : '/gestion/commandes?status=pending_confirmation', urgent: o.callbacks_due > 0 },
+    { key: 'unassigned', icon: 'truck', count: o.waiting?.unassigned ?? 0, text: pl(o.waiting?.unassigned, 'commande à faire livrer', 'commandes à faire livrer'), action: 'Faire livrer', to: '/gestion/commandes?status=to_ship', urgent: true },
+    { key: 'not_picked', icon: 'box', count: o.waiting?.not_picked ?? 0, text: pl(o.waiting?.not_picked, 'colis pas encore ramassé', 'colis pas encore ramassés'), action: 'Voir', to: '/gestion/commandes?alert=not_picked', urgent: false },
+    { key: 'unhandled', icon: 'alert', count: o.waiting?.unhandled ?? 0, text: pl(o.waiting?.unhandled, 'problème de livraison', 'problèmes de livraison'), action: 'Traiter', to: '/gestion/commandes?alert=unhandled', urgent: true },
+    { key: 'returns', icon: 'box', count: late, text: `${late} colis à rapporter en retard`, action: 'Voir', to: '/gestion/commandes?alert=to_bring_back', urgent: true },
   ].filter((t) => t.count > 0)
 })
 const cashTodo = computed(() => [
-  ...(s.value.couriers?.late ?? []).map((x) => ({ key: `c${x.courier_id}`, icon: '🛵', text: `${x.name} garde ${money(x.held)}`, action: 'Encaisser', to: '/gestion/caisse/livreurs', urgent: x.level > 1 })),
-  ...(s.value.carriers?.overdue ?? []).map((x) => ({ key: `e${x.connection_id}`, icon: '🏢', text: `${x.carrier} vous doit ${money(x.amount)}`, action: 'Réclamer', to: '/gestion/caisse/a-recevoir', urgent: x.level > 1 })),
+  ...(s.value.couriers?.late ?? []).map((x) => ({ key: `c${x.courier_id}`, icon: 'truck', text: `${x.name} garde ${money(x.held)}`, action: 'Encaisser', to: '/gestion/caisse/livreurs', urgent: x.level > 1 })),
+  ...(s.value.carriers?.overdue ?? []).map((x) => ({ key: `e${x.connection_id}`, icon: 'cash', text: `${x.carrier} vous doit ${money(x.amount)}`, action: 'Réclamer', to: '/gestion/caisse/a-recevoir', urgent: x.level > 1 })),
 ])
 const badge = (items) => (items.length ? { n: items.length, level: items.some((i) => i.urgent) ? 'red' : 'orange' } : null)
 
+// Données WhatsApp (GET whatsapp/sales), chargées à l'arrivée sur la page WhatsApp
+const whatsapp = ref(null)
+
 // ── Pages ──
+// « 1 commande », « 3 commandes » (pas de « commande(s) »)
+const pl = (n, one, many) => `${n ?? 0} ${n > 1 ? many : one}`
+// Icône de couleur de chaque onglet (la même que dans le menu), à la place des émojis
+const PAGE_COLORS = { live: 'live', whatsapp: 'whatsapp', boost: 'promo', orders: 'panier', cash: 'caisse', shop: 'boutique', clients: 'clients', items: 'produit', more: 'menu' }
 const PAGES = [
   { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
-    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/whatsapp', label: 'WhatsApp' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+  // WhatsApp : ce qui attend (non lus, récaps, paniers), conversations, assistants des ventes et des réponses
+  { key: 'whatsapp', name: 'WhatsApp', icon: '💬', show: () => canOpen('/gestion/whatsapp') || canOpen('/gestion/messages'),
+    badge: () => { const n = (s.value.unread_messages ?? 0) + (whatsapp.value?.todo?.recaps ?? 0) + (whatsapp.value?.todo?.carts ?? 0); return n ? { n, level: 'orange' } : null },
+    settings: [{ to: '/gestion/whatsapp', label: 'Mon numéro WhatsApp' }, { to: '/gestion/whatsapp/ventes', label: 'Assistant des ventes' }, { to: '/gestion/whatsapp/reponses', label: 'Assistant des réponses' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/marketing/relances', label: 'Relances' }] },
   // Boost : la pub Facebook et Instagram au même endroit (connexion, pixel, produits à booster, commandes venues des boosts)
   { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
     settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
-    settings: [{ to: '/gestion/livraisons', label: 'Livraisons en cours' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
+    settings: [{ to: '/gestion/livraisons', label: 'Livraisons' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
     settings: [{ to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' }, { to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' }, { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' }, { to: '/gestion/statistiques', label: 'Statistiques' }, { to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
   { key: 'shop', name: 'Boutique', icon: '🏪', show: () => canOpen('/gestion/boutique-en-ligne'), badge: () => (s.value.shop?.abandoned ? { n: s.value.shop.abandoned, level: 'orange' } : null),
     settings: [{ to: '/gestion/boutique-en-ligne', label: 'Apparence' }, { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus' }, { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' }] },
+  // Clients : chiffres, recherche, relances et liste, dans l'onglet (la fiche s'ouvre par-dessus)
+  { key: 'clients', name: 'Clients', icon: '👥', show: () => canOpen('/gestion/clients'), badge: () => (s.value.to_relaunch ? { n: s.value.to_relaunch, level: 'orange' } : null),
+    settings: [{ to: '/gestion/marketing/fidelite', label: 'Fidélité et parrainage' }, { to: '/gestion/marketing/avis', label: 'Avis clients' }] },
   { key: 'items', name: 'Articles', icon: '👗', show: () => canOpen('/gestion/catalogue'), badge: () => (s.value.stock && s.value.stock.out + s.value.stock.low ? { n: s.value.stock.out + s.value.stock.low, level: s.value.stock.out ? 'red' : 'orange' } : null),
     settings: [{ to: '/gestion/collections', label: 'Collections' }, { to: '/gestion/packs', label: 'Packs et prix de gros' }, { to: '/gestion/stock', label: 'Stock détaillé et mouvements' }, { to: '/gestion/stock/commandes', label: 'Fournisseurs et bons de commande' }, { to: '/gestion/catalogue/import', label: 'Importer des produits' }] },
-  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (s.value.unread_messages ? { n: s.value.unread_messages, level: 'orange' } : null), settings: [{ to: '/gestion/parametres', label: 'Informations de l\'espace marchand' }, { to: '/gestion/equipe', label: 'Équipe' }] },
+  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => null, settings: [{ to: '/gestion/parametres', label: 'Ma boutique' }, { to: '/gestion/equipe', label: 'Équipe' }] },
 ]
 const pages = computed(() => PAGES.filter((p) => p.show()))
 
@@ -104,6 +121,7 @@ watch(current, (i) => {
   const tab = bar?.children[i]
   if (bar && tab) bar.scrollTo({ left: Math.max(0, tab.offsetLeft - (bar.clientWidth - tab.offsetWidth) / 2), behavior: 'smooth' })
   if (key === 'orders') loadOrders()
+  if (key === 'whatsapp') loadWhatsapp()
   if (key === 'items') loadItems()
 }, { immediate: true })
 onMounted(async () => {
@@ -119,6 +137,22 @@ onMounted(async () => {
   go(i, false)
   startPage = i
 })
+
+// ── Clients : filtre demandé par un lien (ex. « à relancer »), lu une fois à l'arrivée puis à chaque demande ──
+const clientsFilter = ref('')
+try {
+  clientsFilter.value = sessionStorage.getItem('jm.clients-filter') ?? ''
+  sessionStorage.removeItem('jm.clients-filter')
+} catch {
+  clientsFilter.value = ''
+}
+function onSwipeGo(e) {
+  const i = pages.value.findIndex((p) => p.key === e.detail?.page)
+  if (e.detail?.page === 'clients') clientsFilter.value = e.detail.filter ?? ''
+  if (i >= 0) go(i)
+}
+onMounted(() => window.addEventListener('jm:swipe-go', onSwipeGo))
+onBeforeUnmount(() => window.removeEventListener('jm:swipe-go', onSwipeGo))
 
 // ── Indicateur de glissement : points des pages toujours visibles, et une aide animée tant qu'on n'a jamais glissé ──
 const HINT_KEY = 'jm.swipe-hint-done'
@@ -163,7 +197,12 @@ async function loadOrders() {
   if (orders.value) return
   orders.value = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [] } }))).data.data
 }
-const tone = (o) => ({ pending_confirmation: 'bg-amber-100 text-amber-900', cancelled: 'bg-slate-100 text-slate-500', delivered: 'bg-emerald-100 text-emerald-800', completed: 'bg-emerald-100 text-emerald-800' }[o.status] ?? 'bg-sky-100 text-sky-900')
+
+// ── WhatsApp : ce qui attend et les entrées du menu (réglages WhatsApp : seulement qui gère la boutique) ──
+async function loadWhatsapp() {
+  if (whatsapp.value || !canOpen('/gestion/whatsapp')) return
+  whatsapp.value = (await http.get('/whatsapp/sales').catch(() => ({ data: { data: null } }))).data.data
+}
 
 // ── Articles : catalogue et stock réunis ──
 const items = ref(null)
@@ -199,18 +238,15 @@ async function share() {
 
 // ── Plus : grandes icônes ──
 const PLUS = [
-  { to: '/gestion/messages', label: 'Messages', color: 'whatsapp' },
-  { to: '/gestion/clients', label: 'Clients', color: 'clients' },
   { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
   { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
-  { to: '/gestion/stock/commandes', label: 'Fournisseurs', color: 'camion' },
+  { to: '/gestion/stock/commandes', label: 'Commandes fournisseurs', color: 'camion' },
   { to: '/gestion/alertes', label: 'Alertes', color: 'cloche' },
   { to: '/gestion/equipe', label: 'Équipe', color: 'profil' },
-  { to: '/gestion/mes-boutiques', label: 'Mes boutiques', color: 'boutique' },
+  { to: '/gestion/mes-boutiques', label: 'Toutes mes boutiques', color: 'boutique' },
   { to: '/gestion/demarrage', label: 'Bien démarrer', color: 'aide' },
-  { to: '/gestion/whatsapp', label: 'WhatsApp', color: 'whatsapp' },
-  { to: '/gestion/parametres', label: 'Informations', color: 'reglages' },
+  { to: '/gestion/parametres', label: 'Ma boutique', color: 'reglages' },
 ]
 const plus = computed(() => links(PLUS))
 // Réglages de chaque page, regroupés dans Plus
@@ -223,7 +259,7 @@ const sheet = ref(null)
 const ADD = [
   { to: '/gestion/commandes/nouvelle', label: '🛍️ Nouvelle commande' },
   { to: '/gestion/caisse/vente', label: '🏪 Vente au comptoir' },
-  { to: '/gestion/catalogue/nouveau', label: '📷 Nouvel article' },
+  { to: '/gestion/catalogue/nouveau', label: 'Nouveau produit' },
   { to: '/gestion/live', label: '🔴 Préparer un live' },
 ]
 const sheetLinks = computed(() => (sheet.value === 'add' ? links(ADD) : links(page.value?.settings ?? [])))
@@ -241,11 +277,11 @@ function open(to) {
       <div ref="tabs" class="flex h-full w-full items-center gap-2 overflow-x-auto pl-4 pr-20 [scrollbar-width:none]" role="tablist">
         <button v-for="(p, i) in pages" :key="p.key" type="button" role="tab" :aria-selected="i === current"
                 class="relative mt-1 shrink-0 rounded-full px-3 py-1.5 text-[13.5px] font-extrabold transition"
-                :class="i === current ? (p.badge()?.level === 'red' ? 'bg-rose-800 text-white' : 'bg-slate-900 text-white') : (p.badge()?.level === 'red' ? 'bg-rose-100 text-rose-900' : 'bg-white text-slate-600 shadow-soft')"
+                :class="i === current ? (p.badge()?.level === 'red' ? 'bg-red-700 text-white' : 'bg-slate-900 text-white') : (p.badge()?.level === 'red' ? 'bg-red-100 text-red-900' : 'bg-white text-slate-600 shadow-soft')"
                 @click="go(i)">
-          {{ p.icon }} {{ p.name }}
+          <span class="inline-flex items-center gap-1.5"><ColorIcon :name="PAGE_COLORS[p.key] ?? 'menu'" :size="18" :tile="false" />{{ p.name }}</span>
           <span v-if="p.badge()" class="absolute -right-1.5 -top-2 min-w-[19px] rounded-full border-2 border-slate-50 px-1 text-center text-[11px] font-black leading-[15px] text-white"
-                :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-rose-600' : 'bg-amber-500'">{{ p.badge().n }}</span>
+                :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-red-600' : 'bg-amber-700'">{{ p.badge().n }}</span>
         </button>
       </div>
     </Teleport>
@@ -259,26 +295,37 @@ function open(to) {
           <LivePrepare v-if="seen.has('live') && route.path !== '/gestion/live'" />
         </template>
 
+        <!-- WHATSAPP : ce qui attend, conversations, assistants -->
+        <template v-else-if="p.key === 'whatsapp'">
+          <WhatsAppHub :data="whatsapp" :unread="s.unread_messages ?? 0" :can-manage="canOpen('/gestion/whatsapp')" :can-messages="canOpen('/gestion/messages')" />
+          <RouterLink v-if="canOpen('/gestion/whatsapp')" to="/gestion/whatsapp" class="card mt-3 flex items-center gap-3 px-3.5 py-3">
+            <ColorIcon name="whatsapp" :size="36" />
+            <span class="min-w-0 flex-1"><b class="block text-[15px]">Mon numéro</b><span class="text-[13px] text-slate-500">{{ whatsapp?.account ? whatsapp.account.display_phone : 'Connecter mon numéro WhatsApp' }}</span></span>
+            <Icon name="chevron" :size="16" class="text-slate-400" />
+          </RouterLink>
+        </template>
+
         <!-- COMMANDES (+ livraisons) -->
         <template v-else-if="p.key === 'orders'">
           <div class="mb-3 grid grid-cols-2 gap-2">
-            <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center py-3 text-[15px] font-black">＋ Commande</RouterLink>
-            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center py-3 text-[15px] font-black">🏪 Comptoir</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center whitespace-nowrap px-2 py-3 text-[14px] font-black">＋ Nouvelle commande</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center whitespace-nowrap px-2 py-3 text-[14px] font-black">Vente au comptoir</RouterLink>
           </div>
-          <div class="rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
+          <div class="rounded-[22px] bg-brand-grad p-4 text-white">
             <p class="text-sm font-semibold opacity-90">Aujourd'hui</p>
-            <p class="text-[26px] font-black leading-tight">{{ s.orders?.today_count ?? 0 }} commande(s) · {{ money(s.orders?.today_amount ?? 0) }}</p>
+            <p class="text-[26px] font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }}</p>
+            <p class="text-sm font-semibold opacity-90">{{ pl(s.orders?.today_count ?? 0, 'commande', 'commandes') }}</p>
           </div>
           <div v-if="orderTodo.length" class="mt-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
-            <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">⚠ À faire</p>
+            <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">À faire</p>
             <RouterLink v-for="t in orderTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-[14px] font-bold first-of-type:border-0">
-              <span aria-hidden="true">{{ t.icon }}</span><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
+              <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
           <div class="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
             <RouterLink to="/gestion/commandes?status=pending_confirmation" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">À confirmer {{ s.orders?.to_confirm ?? '' }}</RouterLink>
             <RouterLink to="/gestion/commandes?status=to_ship" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">À livrer {{ s.orders?.to_ship ?? '' }}</RouterLink>
-            <RouterLink to="/gestion/livraisons" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">🛵 En livraison</RouterLink>
+            <RouterLink to="/gestion/livraisons" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">En livraison</RouterLink>
             <RouterLink to="/gestion/commandes" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">Toutes</RouterLink>
           </div>
           <div class="mt-3 rounded-2xl bg-white p-1 shadow-soft">
@@ -287,7 +334,7 @@ function open(to) {
             <RouterLink v-for="o in orders ?? []" :key="o.id" :to="`/gestion/commandes/${o.id}`" class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0">
               <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 font-black text-slate-600">{{ (o.customer_name ?? '?').charAt(0).toUpperCase() }}</span>
               <span class="min-w-0 flex-1"><b class="block truncate text-[14.5px]">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }} · {{ o.source_label }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template></span></span>
-              <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold" :class="tone(o)">{{ o.status_label }}</span>
+              <StateBadge :status="o.status" :label="o.status_label" class="shrink-0" />
             </RouterLink>
           </div>
         </template>
@@ -297,10 +344,10 @@ function open(to) {
           <div v-if="cashTodo.length" class="mb-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
             <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">⚠ À encaisser</p>
             <RouterLink v-for="t in cashTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-[14px] font-bold first-of-type:border-0">
-              <span aria-hidden="true">{{ t.icon }}</span><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
+              <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
-          <div class="rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
+          <div class="rounded-[22px] bg-brand-grad p-4 text-white">
             <p class="text-sm font-semibold opacity-90">Ventes du jour</p>
             <p class="text-[28px] font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }}</p>
           </div>
@@ -310,16 +357,16 @@ function open(to) {
             <div class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-[19px] font-black">{{ s.orders?.today_count ?? 0 }}</b><span class="text-xs text-slate-500">commandes du jour</span></div>
             <div v-if="s.couriers || s.carriers" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-[19px] font-black">{{ (s.couriers?.to_bring_back ?? 0) + (s.carriers?.to_bring_back ?? 0) }}</b><span class="text-xs text-slate-500">colis à rapporter</span></div>
           </div>
-          <RouterLink to="/gestion/caisse" class="btn-brand mt-3 w-full justify-center py-3 text-[15px] font-black">💰 Ouvrir la caisse et clôturer</RouterLink>
+          <RouterLink to="/gestion/caisse" class="btn-brand mt-3 w-full justify-center py-3 text-[15px] font-black">Ouvrir ou clôturer la caisse</RouterLink>
         </template>
 
         <!-- BOUTIQUE EN LIGNE -->
         <template v-else-if="p.key === 'shop'">
-          <div class="rounded-[22px] bg-gradient-to-br from-blue-900 to-blue-500 p-4 text-white">
-            <p class="text-sm font-semibold opacity-90">Ta boutique en ligne</p>
+          <div class="rounded-[22px] bg-brand-grad p-4 text-white">
+            <p class="text-sm font-semibold opacity-90">Votre boutique en ligne</p>
             <p class="truncate text-[18px] font-black">{{ shopUrl.replace(/^https?:\/\//, '') }}</p>
             <div class="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" class="rounded-xl bg-white py-2.5 text-sm font-black text-blue-900" @click="share">{{ copied ? 'Lien copié ✓' : '🔗 Partager' }}</button>
+              <button type="button" class="rounded-xl bg-white py-2.5 text-sm font-black text-emerald-800" @click="share">{{ copied ? 'Lien copié ✓' : 'Partager' }}</button>
               <a :href="shopUrl" target="_blank" rel="noopener" class="rounded-xl bg-white/20 py-2.5 text-center text-sm font-black">Voir ▸</a>
             </div>
           </div>
@@ -343,16 +390,21 @@ function open(to) {
           <BoostPanel v-if="seen.has('boost')" />
         </template>
 
+        <!-- CLIENTS : chargés seulement une fois l'onglet affiché, et pas en double quand la page Clients est ouverte par-dessus -->
+        <template v-else-if="p.key === 'clients'">
+          <CustomerList v-if="seen.has('clients') && route.path !== '/gestion/clients'" :filter="clientsFilter" />
+        </template>
+
         <!-- ARTICLES : catalogue et stock réunis -->
         <template v-else-if="p.key === 'items'">
           <div class="mb-3 grid grid-cols-2 gap-2">
-            <RouterLink v-if="canOpen('/gestion/catalogue/nouveau')" to="/gestion/catalogue/nouveau" class="btn-brand justify-center py-3 text-[15px] font-black">📷 Nouvel article</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/catalogue/nouveau')" to="/gestion/catalogue/nouveau" class="btn-brand justify-center py-3 text-[15px] font-black">＋ Nouveau produit</RouterLink>
             <RouterLink v-if="canOpen('/gestion/stock')" to="/gestion/stock" class="btn-secondary justify-center py-3 text-[15px] font-black">＋ Stock</RouterLink>
           </div>
           <input v-model="itemSearch" class="input" placeholder="🔍 Chercher un article" @input="searchItems" />
           <div class="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
             <button v-for="[v, label] in [['', 'Tout'], ['low', `⚠ Stock bas ${s.stock?.low ?? ''}`], ['out', `Épuisés ${s.stock?.out ?? ''}`]]" :key="v" type="button"
-                    class="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold" :class="itemFilter === v ? 'bg-slate-900 text-white' : (v ? 'bg-rose-50 text-rose-800' : 'bg-white shadow-soft')" @click="itemFilter = v">{{ label }}</button>
+                    class="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold" :class="itemFilter === v ? 'bg-slate-900 text-white' : (v ? 'bg-red-50 text-red-800' : 'bg-white shadow-soft')" @click="itemFilter = v">{{ label }}</button>
           </div>
           <p v-if="!items" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
           <p v-else-if="!items.length" class="p-4 text-center text-sm text-slate-500">Aucun article.</p>
@@ -375,12 +427,12 @@ function open(to) {
             <RouterLink v-for="t in plus" :key="t.to + t.label" :to="t.to" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-white px-1 py-3 text-center shadow-soft transition active:scale-95">
               <ColorIcon :name="t.color" :size="44" />
               <span class="text-[12.5px] font-semibold leading-tight text-slate-700">{{ t.label }}</span>
-              <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-rose-600 px-1.5 text-[10px] font-black text-white">{{ s.unread_messages }} non lu(s)</span>
+              <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-red-600 px-1.5 text-[11px] font-black text-white">{{ s.unread_messages }} non lu{{ s.unread_messages > 1 ? 's' : '' }}</span>
             </RouterLink>
           </div>
-          <h3 class="mb-2 mt-5 px-1 text-[15px] font-black text-slate-700">⚙ Réglages</h3>
+          <h3 class="mb-2 mt-5 px-1 text-[15px] font-black text-slate-700">Réglages</h3>
           <details v-for="g in pageSettings" :key="g.key" class="mb-2 rounded-2xl bg-white shadow-soft">
-            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-[15px] font-extrabold">{{ g.icon }} {{ g.name }}<span class="ml-auto text-slate-400" aria-hidden="true">›</span></summary>
+            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-[15px] font-extrabold"><ColorIcon :name="PAGE_COLORS[g.key] ?? 'menu'" :size="22" :tile="false" />{{ g.name }}<span class="ml-auto text-slate-400" aria-hidden="true">›</span></summary>
             <RouterLink v-for="l in g.items" :key="l.to + l.label" :to="l.to" class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-[14.5px] font-semibold">{{ l.label }}<span class="text-lg text-slate-400" aria-hidden="true">›</span></RouterLink>
           </details>
           <div class="mt-3 grid grid-cols-2 gap-2">

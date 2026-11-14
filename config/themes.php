@@ -32,7 +32,7 @@ return [
             'layout' => ['header' => 'centered', 'cards' => 'flat'],
             'settings' => $settings,
             'defaults' => [
-                'primary_color' => '#047857', 'background_color' => '#ffffff', 'font' => 'sans', 'announcement' => null,
+                'primary_color' => '#017c40', 'background_color' => '#ffffff', 'font' => 'sans', 'announcement' => null,
                 'hero_title' => null, 'hero_subtitle' => null, 'hero_image' => null, 'hero_button' => 'Voir la boutique',
                 'featured_collection_id' => null, 'show_new_arrivals' => true, 'show_collections' => true,
                 'show_whatsapp_button' => true, 'footer_text' => null,

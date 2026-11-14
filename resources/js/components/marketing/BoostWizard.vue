@@ -97,9 +97,9 @@ const catalogReady = computed(() => !!setup.value?.catalog_id && !!setup.value?.
 const blocker = computed(() => {
   const s = setup.value
   if (!s) return null
-  if (!s.connected) return { text: 'Connecte d\'abord ton compte Facebook.', connect: true, label: '🔗 Connecter mon Facebook' }
+  if (!s.connected) return { text: 'Connectez d\'abord votre compte Facebook.', connect: true, label: '🔗 Connecter mon Facebook' }
   if (!s.ad_accounts.some((a) => a.usable)) return { text: 'Aucun compte publicitaire actif en FCFA, euros ou dollars.', href: 'https://business.facebook.com/settings/ad-accounts', label: 'Créer un compte publicitaire ↗' }
-  if (account.value && !account.value.card) return { text: 'Ajoute une carte à ton compte publicitaire : la pub est payée à Meta.', href: 'https://business.facebook.com/billing_hub/payment_settings', label: 'Ajouter une carte ↗' }
+  if (account.value && !account.value.card) return { text: 'Ajoutez une carte à votre compte publicitaire : la pub est payée à Meta.', href: 'https://business.facebook.com/billing_hub/payment_settings', label: 'Ajouter une carte ↗' }
   if (!s.pages.length) return { text: 'Il faut une page Facebook pour publier la pub.', href: 'https://www.facebook.com/pages/create', label: 'Créer une page ↗' }
   return null
 })
@@ -181,8 +181,8 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
   <div class="space-y-3">
     <!-- Étapes -->
     <div class="grid grid-cols-4 gap-1" role="list">
-      <button v-for="(label, k) in STEPS" :key="label" type="button" role="listitem" class="grid gap-1 text-left text-xs font-bold" :class="k === step ? 'text-[#1877f2]' : 'text-slate-500'" :disabled="k > step" @click="step = k">
-        <i class="block h-1.5 rounded-full" :class="k <= step ? 'bg-[#1877f2]' : 'bg-slate-200'" />{{ label }}
+      <button v-for="(label, k) in STEPS" :key="label" type="button" role="listitem" class="grid gap-1 text-left text-xs font-bold" :class="k === step ? 'text-emerald-800' : 'text-slate-500'" :disabled="k > step" @click="step = k">
+        <i class="block h-1.5 rounded-full" :class="k <= step ? 'bg-emerald-700' : 'bg-slate-200'" />{{ label }}
       </button>
     </div>
 
@@ -192,16 +192,16 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
     <template v-if="setup">
       <div v-if="blocker" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
         <p class="font-bold">{{ blocker.text }}</p>
-        <button v-if="blocker.connect" type="button" class="mt-2 block w-full rounded-xl bg-[#1877f2] py-2.5 text-center text-sm font-black text-white" @click="connectFacebook">{{ blocker.label }}</button>
-        <a v-else :href="blocker.href" target="_blank" rel="noopener" class="mt-2 block rounded-xl bg-[#1877f2] py-2.5 text-center text-sm font-black text-white">{{ blocker.label }}</a>
+        <button v-if="blocker.connect" type="button" class="mt-2 block w-full rounded-xl bg-facebook py-2.5 text-center text-sm font-black text-white" @click="connectFacebook">{{ blocker.label }}</button>
+        <a v-else :href="blocker.href" target="_blank" rel="noopener" class="mt-2 block rounded-xl bg-facebook py-2.5 text-center text-sm font-black text-white">{{ blocker.label }}</a>
       </div>
 
       <!-- 1. Que booster ? -->
       <section v-if="step === 0" class="space-y-3">
-        <h3 class="font-display text-base font-extrabold">Que veux-tu booster ?</h3>
+        <h3 class="font-display text-base font-extrabold">Que voulez-vous booster ?</h3>
         <div class="grid grid-cols-3 gap-2">
           <button v-for="[k, icon, label, sub] in [['product', '🎯', 'Un produit', '1 photo'], ['products', '🎠', 'Plusieurs', '2 à 10'], ['catalog', '🗂️', 'Catalogue', 'tout ou partie']]" :key="k" type="button"
-            class="grid justify-items-center gap-0.5 rounded-xl border-2 px-1 py-2.5 text-sm font-extrabold" :class="kind === k ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="kind = k">
+            class="grid justify-items-center gap-0.5 rounded-xl border-2 px-1 py-2.5 text-sm font-extrabold" :class="kind === k ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="kind = k">
             <span class="text-xl" aria-hidden="true">{{ icon }}</span>{{ label }}<span class="text-xs font-semibold text-slate-500">{{ sub }}</span>
           </button>
         </div>
@@ -214,22 +214,22 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
           <input v-model="search" type="search" class="input" placeholder="Chercher un produit" @input="find" />
           <div class="space-y-1.5">
             <button v-for="p in list" :key="p.id" type="button" class="flex w-full items-center gap-2.5 rounded-xl border-2 p-2 text-left"
-              :class="(kind === 'product' ? one === p.id : many.includes(p.id)) ? 'border-[#1877f2] bg-[#e7f0fe]' : 'border-slate-200'"
+              :class="(kind === 'product' ? one === p.id : many.includes(p.id)) ? 'border-emerald-700 bg-emerald-50' : 'border-slate-200'"
               @click="kind === 'product' ? pickOne(p) : toggle(p)">
               <img v-if="p.image" :src="p.image" alt="" class="h-12 w-12 shrink-0 rounded-lg object-cover" loading="lazy">
               <span v-else class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-slate-100" aria-hidden="true">📷</span>
               <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ p.title }}</b><span class="text-xs text-slate-500">{{ [p.price ? money(p.price) : null, p.sold ? `${p.sold} vendu${p.sold > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ') }}</span></span>
-              <span v-if="kind === 'products'" class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 text-xs font-black text-white" :class="many.includes(p.id) ? 'border-[#1877f2] bg-[#1877f2]' : 'border-slate-300'">✓</span>
+              <span v-if="kind === 'products'" class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 text-xs font-black text-white" :class="many.includes(p.id) ? 'border-emerald-700 bg-emerald-700' : 'border-field'">✓</span>
             </button>
           </div>
-          <p v-if="kind === 'products' && many.length < 2" class="text-xs text-amber-700">Choisis au moins 2 produits.</p>
+          <p v-if="kind === 'products' && many.length < 2" class="text-xs text-amber-700">Choisissez au moins 2 produits.</p>
         </template>
 
         <template v-else>
           <p class="text-sm font-bold">Quelle partie du catalogue ?</p>
           <div class="flex flex-wrap gap-1.5">
-            <button type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="collection === null ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="collection = null">Tout · {{ setup.catalog_products }}</button>
-            <button v-for="c in setup.collections" :key="c.id" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="collection === c.id ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="collection = c.id">{{ c.name }} · {{ c.products }}</button>
+            <button type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="collection === null ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="collection = null">Tout · {{ setup.catalog_products }}</button>
+            <button v-for="c in setup.collections" :key="c.id" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="collection === c.id ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="collection = c.id">{{ c.name }} · {{ c.products }}</button>
           </div>
           <p v-if="catalogReady" class="text-xs text-emerald-700">✓ Catalogue et pixel reliés. Meta montre à chacun les produits en stock qui lui plaisent.</p>
           <p v-else class="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-900">Branche d'abord le pixel et le catalogue. <button type="button" class="font-bold underline" @click="connectFacebook">Connecter mon Facebook</button></p>
@@ -240,13 +240,13 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
       <section v-if="step === 1" class="space-y-3">
         <h3 class="font-display text-base font-extrabold">Combien par jour ?</h3>
         <div class="grid grid-cols-3 gap-2">
-          <button v-for="(b, k) in setup.budgets" :key="b" type="button" class="rounded-xl border-2 py-2.5 text-sm font-extrabold tabular-nums" :class="budget === b ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="budget = b">
+          <button v-for="(b, k) in setup.budgets" :key="b" type="button" class="rounded-xl border-2 py-2.5 text-sm font-extrabold tabular-nums" :class="budget === b ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="budget = b">
             {{ money(b) }}<span class="block text-xs font-semibold text-slate-500">{{ ['tester', 'conseillé', 'plus'][k] }}</span>
           </button>
         </div>
         <h3 class="font-display text-base font-extrabold">Pendant combien de jours ?</h3>
         <div class="grid grid-cols-3 gap-2">
-          <button v-for="d in setup.days" :key="d" type="button" class="rounded-xl border-2 py-2.5 text-sm font-extrabold" :class="days === d ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="days = d">{{ d }} jours</button>
+          <button v-for="d in setup.days" :key="d" type="button" class="rounded-xl border-2 py-2.5 text-sm font-extrabold" :class="days === d ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="days = d">{{ d }} jours</button>
         </div>
         <div class="rounded-xl bg-slate-50 p-3">
           <p class="text-xs text-slate-500">Total maximum payé à Meta</p>
@@ -258,17 +258,17 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
       <!-- 3. Public -->
       <section v-if="step === 2" class="space-y-3">
         <h3 class="font-display text-base font-extrabold">Qui voit la pub ?</h3>
-        <p class="text-xs text-slate-500">Là où tu livres. Rien de coché : toute la Côte d'Ivoire.</p>
+        <p class="text-xs text-slate-500">Là où vous livrez. Rien de coché : toute la Côte d'Ivoire.</p>
         <div class="flex flex-wrap gap-1.5">
-          <button v-for="z in setup.zones" :key="z.key" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="zones.includes(z.key) ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="toggleZone(z.key)">{{ z.name }}</button>
+          <button v-for="z in setup.zones" :key="z.key" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="zones.includes(z.key) ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="toggleZone(z.key)">{{ z.name }}</button>
         </div>
         <p class="text-sm font-bold">Âge</p>
         <div class="flex flex-wrap gap-1.5">
-          <button v-for="a in ages" :key="a.join()" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="age[0] === a[0] && age[1] === a[1] ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="age = a">{{ a[0] }} – {{ a[1] }} ans</button>
+          <button v-for="a in ages" :key="a.join()" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="age[0] === a[0] && age[1] === a[1] ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="age = a">{{ a[0] }} – {{ a[1] }} ans</button>
         </div>
         <p class="text-sm font-bold">Qui</p>
         <div class="flex flex-wrap gap-1.5">
-          <button v-for="[g, label] in [['all', 'Tout le monde'], ['women', 'Femmes'], ['men', 'Hommes']]" :key="g" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="gender === g ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="gender = g">{{ label }}</button>
+          <button v-for="[g, label] in [['all', 'Tout le monde'], ['women', 'Femmes'], ['men', 'Hommes']]" :key="g" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="gender === g ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="gender = g">{{ label }}</button>
         </div>
         <p v-if="audience" class="rounded-xl bg-slate-50 p-2.5 text-sm">👥 Public estimé par Meta : <b>{{ people(audience.lower) }} à {{ people(audience.upper) }}</b> personnes</p>
       </section>
@@ -285,17 +285,17 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
               <p class="truncate p-1.5 text-xs font-bold">{{ p.title }}</p>
             </div>
           </div>
-          <p v-else class="bg-slate-50 p-3 text-xs text-slate-500">Chacun voit des produits différents de ton catalogue.</p>
+          <p v-else class="bg-slate-50 p-3 text-xs text-slate-500">Chacun voit des produits différents de votre catalogue.</p>
         </div>
         <div class="flex items-center justify-between gap-2">
           <label class="text-sm font-bold" for="boost-text">Texte de la pub</label>
-          <button type="button" class="rounded-lg bg-[#e7f0fe] px-2.5 py-1.5 text-xs font-extrabold text-[#1877f2]" :disabled="writing" @click="writeWithAi">{{ writing ? 'L\'IA écrit…' : '✨ Écrire avec l\'IA' }}</button>
+          <button type="button" class="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-extrabold text-emerald-800" :disabled="writing" @click="writeWithAi">{{ writing ? 'L\'IA écrit…' : '✨ Écrire avec l\'IA' }}</button>
         </div>
         <div v-if="versions.length" class="flex gap-1.5">
-          <button v-for="(v, k) in versions" :key="k" type="button" class="flex-1 rounded-lg border-2 py-1.5 text-xs font-bold" :class="message === v ? 'border-[#1877f2] bg-[#e7f0fe] text-[#1877f2]' : 'border-slate-200'" @click="message = v; edited = true">Version {{ k + 1 }}</button>
+          <button v-for="(v, k) in versions" :key="k" type="button" class="flex-1 rounded-lg border-2 py-1.5 text-xs font-bold" :class="message === v ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="message = v; edited = true">Version {{ k + 1 }}</button>
         </div>
         <textarea id="boost-text" v-model="message" rows="3" maxlength="600" class="input" @input="edited = true" />
-        <p v-if="versions.length" class="text-xs text-slate-500">3 versions pour 1 action IA. Touche une version, puis corrige si besoin.</p>
+        <p v-if="versions.length" class="text-xs text-slate-500">3 versions pour 1 action IA. Touchez une version, puis corrigez si besoin.</p>
 
         <div v-if="setup.ad_accounts.filter((a) => a.usable).length > 1 || setup.pages.length > 1" class="grid gap-2 sm:grid-cols-2">
           <label class="text-sm font-bold">Compte publicitaire
@@ -310,15 +310,15 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Boost</dt><dd class="text-right font-bold">{{ kind === 'product' ? chosen[0]?.title : kind === 'products' ? `${many.length} produits (carrousel)` : `${collectionName} (${catalogCount} produits)` }}</dd></div>
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Budget</dt><dd class="text-right font-bold">{{ money(budget) }} / jour · {{ days }} jours</dd></div>
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Public</dt><dd class="text-right font-bold">{{ zones.length ? setup.zones.filter((z) => zones.includes(z.key)).map((z) => z.name.replace(' (toutes communes)', '')).join(', ') : 'Côte d\'Ivoire' }} · {{ age[0] }} – {{ age[1] }} ans</dd></div>
-          <div class="flex justify-between gap-3 border-t border-slate-200 pt-1.5"><dt class="text-slate-500">Payé à Meta (ta carte)</dt><dd class="font-display text-base font-extrabold">{{ money(total) }} max</dd></div>
+          <div class="flex justify-between gap-3 border-t border-slate-200 pt-1.5"><dt class="text-slate-500">Payé à Meta (votre carte)</dt><dd class="font-display text-base font-extrabold">{{ money(total) }} max</dd></div>
           <div class="flex justify-between gap-3"><dt class="text-slate-500">Mon solde</dt><dd class="text-right font-bold">{{ setup.fee.counted ? `${setup.fee.weight} commande${setup.fee.weight > 1 ? 's' : ''} retirée${setup.fee.weight > 1 ? 's' : ''} par commande venue du boost` : 'rien de retiré' }}</dd></div>
         </dl>
       </section>
 
       <div class="flex gap-2">
         <button v-if="step > 0" type="button" class="btn-secondary px-4" @click="step--">◀</button>
-        <button v-if="step < 3" type="button" class="flex-1 rounded-xl bg-[#1877f2] py-3 text-base font-black text-white disabled:opacity-50" :disabled="!canNext" @click="step++">Continuer ▶</button>
-        <button v-else type="button" class="flex-1 rounded-xl bg-[#1877f2] py-3 text-base font-black text-white disabled:opacity-50" :disabled="busy || !!blocker || !message.trim()" @click="launch">{{ busy ? 'Envoi à Meta…' : '🚀 Lancer le boost' }}</button>
+        <button v-if="step < 3" type="button" class="flex-1 rounded-xl bg-emerald-700 py-3 text-base font-black text-white disabled:opacity-50" :disabled="!canNext" @click="step++">Continuer ▶</button>
+        <button v-else type="button" class="flex-1 rounded-xl bg-emerald-700 py-3 text-base font-black text-white disabled:opacity-50" :disabled="busy || !!blocker || !message.trim()" @click="launch">{{ busy ? 'Envoi à Meta…' : '🚀 Lancer le boost' }}</button>
       </div>
     </template>
   </div>

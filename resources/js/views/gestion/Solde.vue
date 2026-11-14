@@ -21,7 +21,7 @@ onMounted(async () => {
     try {
       const { data } = await http.post(`/credits/${number}/confirm`)
       credits.data = data.data
-      notice.value = data.data.status === 'paid' ? { ok: true, text: 'Paiement reçu : ton solde est rechargé. Merci !' } : { ok: false, text: 'Paiement pas encore confirmé. Réessaie dans quelques minutes.' }
+      notice.value = data.data.status === 'paid' ? { ok: true, text: 'Paiement reçu : votre solde est rechargé. Merci !' } : { ok: false, text: 'Paiement pas encore confirmé. Réessayez dans quelques minutes.' }
     } catch (e) {
       notice.value = { ok: false, text: errorMessage(e) }
     }
@@ -37,7 +37,6 @@ const STATUS = { paid: 'payé', offered: 'offert', pending: 'en attente' }
 
 <template>
   <div class="mx-auto max-w-xl space-y-3">
-    <h1 class="font-display text-xl font-extrabold">💳 Mon solde</h1>
     <p v-if="notice" class="rounded-xl p-3 text-sm font-bold" :class="notice.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">{{ notice.text }}</p>
     <p v-if="!credits.data" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
 
@@ -51,7 +50,7 @@ const STATUS = { paid: 'payé', offered: 'offert', pending: 'en attente' }
           <div class="rounded-xl bg-slate-50 p-3"><b class="block font-display text-2xl tabular-nums">{{ credits.data.ai }}</b><span class="text-xs text-slate-500">actions IA</span></div>
         </div>
         <p v-if="credits.data.month_until" class="text-sm font-bold text-emerald-700">♾️ Illimité jusqu'au {{ new Date(credits.data.month_until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) }}</p>
-        <p v-else-if="credits.data.low" class="rounded-xl bg-ocre-50 p-2.5 text-sm font-bold text-ocre-800">⚠️ Plus que {{ credits.data.orders }} commandes : recharge avant ton prochain live.</p>
+        <p v-else-if="credits.data.low" class="rounded-xl bg-ocre-50 p-2.5 text-sm font-bold text-ocre-800">⚠️ Plus que {{ credits.data.orders }} commandes : rechargez avant votre prochain live.</p>
         <p v-if="!credits.data.paid" class="text-sm text-slate-500">Pour l'instant, rien n'est compté : tout est gratuit.</p>
       </section>
 
@@ -70,9 +69,10 @@ const STATUS = { paid: 'payé', offered: 'offert', pending: 'en attente' }
         <ul class="mt-1 divide-y divide-slate-100 text-sm">
           <li v-for="l in credits.data.usage.lives" :key="`l${l.label}${l.at}`" class="flex items-center gap-2 py-2">🔴 <span class="min-w-0 flex-1 truncate">{{ l.label }} <span class="text-xs text-slate-500">{{ date(l.at) }}</span></span><b class="tabular-nums">−{{ Math.abs(l.orders) }}</b></li>
           <li v-if="credits.data.usage.whatsapp" class="flex items-center gap-2 py-2">💬 <span class="flex-1">Commandes WhatsApp</span><b class="tabular-nums">−{{ credits.data.usage.whatsapp }}</b></li>
+          <li v-if="credits.data.usage.whatsapp_orders" class="flex items-center gap-2 py-2">🧾 <span class="flex-1">Commandes WhatsApp hors live (récap, catalogue, modèles)</span><b class="tabular-nums">−{{ credits.data.usage.whatsapp_orders }}</b></li>
           <li v-for="b in credits.data.usage.boosts" :key="`b${b.label}`" class="flex items-center gap-2 py-2">🚀 <span class="min-w-0 flex-1 truncate">Boost {{ b.label }}</span><b class="tabular-nums">−{{ Math.abs(b.orders) }}</b></li>
           <li v-if="credits.data.usage.ai" class="flex items-center gap-2 py-2">✨ <span class="flex-1">Actions IA utilisées</span><b class="tabular-nums">{{ credits.data.usage.ai }}</b></li>
-          <li v-if="!credits.data.usage.lives.length && !credits.data.usage.whatsapp && !credits.data.usage.boosts.length && !credits.data.usage.ai" class="py-2 text-slate-500">Rien d'utilisé ce mois-ci.</li>
+          <li v-if="!credits.data.usage.lives.length && !credits.data.usage.whatsapp && !credits.data.usage.whatsapp_orders && !credits.data.usage.boosts.length && !credits.data.usage.ai" class="py-2 text-slate-500">Rien d'utilisé ce mois-ci.</li>
         </ul>
       </section>
 

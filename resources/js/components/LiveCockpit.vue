@@ -61,6 +61,16 @@ const shownView = computed(() => (VIEWS.value.some(([k]) => k === view.value) ? 
 
 // Ce que montrent la télé et LIVE Studio, en direct
 const display = ref(null)
+// Aperçu de l'écran agrandi (un toucher, ✕ ou Échap pour refermer)
+const big = ref(false)
+function closeOnEscape(e) {
+  if (e.key === 'Escape') big.value = false
+}
+watch(big, (on) => {
+  if (on) window.addEventListener('keydown', closeOnEscape)
+  else window.removeEventListener('keydown', closeOnEscape)
+})
+onUnmounted(() => window.removeEventListener('keydown', closeOnEscape))
 async function loadDisplay() {
   if (!cardsOn.value) return
   try {
@@ -81,6 +91,22 @@ async function loadScreens() {
 }
 const tvOnline = computed(() => !!screens.value?.some((s) => !s.is_link && s.online))
 const studioOnline = computed(() => !!screens.value?.some((s) => s.is_link && s.online))
+// Forme de la télé connectée (largeur / hauteur de sa fenêtre) : l'aperçu a exactement la même, donc la même mise en page
+// (large, carré ou vertical). Sans télé connue : 16/9.
+const tvRatio = computed(() => {
+  const tv = (screens.value ?? []).filter((s) => !s.is_link && s.online && s.width && s.height).sort((a, b) => (a.last_seen_at < b.last_seen_at ? 1 : -1))[0]
+  return tv ? tv.width / tv.height : 16 / 9
+})
+// Agrandi : posé sur la page, centré par des positions explicites ; l'aperçu réel prend tout l'écran possible,
+// à la forme exacte de la télé (dvh : la hauteur visible, sans la barre d'adresse du téléphone)
+const tvBigStyle = computed(() => ({
+  position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 81,
+  width: `min(100vw, calc(100dvh * ${tvRatio.value}))`, height: `min(100dvh, calc(100vw / ${tvRatio.value}))`,
+}))
+const studioBigStyle = {
+  position: 'fixed', left: '50%', top: '66px', transform: 'translateX(-50%)', zIndex: 81,
+  aspectRatio: '9 / 16', height: 'min(calc(100vh - 78px), calc((100vw - 1.5rem) * 16 / 9))',
+}
 // Fenêtre « Connecter la télé / TikTok Studio » qui monte du bas : elle attend l'écran, affiche ✓ puis se ferme
 const connecting = ref(null) // 'tv' | 'studio'
 const connected = ref(false)
@@ -537,7 +563,7 @@ const ago = (iso) => {
         <span>{{ live.billing.orders }} commande{{ live.billing.orders > 1 ? 's' : '' }}</span>
         <span :class="live.billing.after < 0 ? 'text-amber-300' : 'text-emerald-300'">Solde après le live : {{ live.billing.after }}</span>
       </div>
-      <p v-if="live.billing.after < 0 && !live.billing.billed" class="mt-1.5 rounded-lg bg-amber-400/15 px-2 py-1 text-xs font-bold text-amber-200">⚠️ Ton solde ne couvre pas toutes les commandes : le live continue, recharge avant le prochain.</p>
+      <p v-if="live.billing.after < 0 && !live.billing.billed" class="mt-1.5 rounded-lg bg-amber-400/15 px-2 py-1 text-xs font-bold text-amber-200">⚠️ Votre solde ne couvre pas toutes les commandes : le live continue, rechargez avant le prochain.</p>
     </div>
     <div v-if="menu" class="grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-2 text-sm font-extrabold text-slate-900">
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('share')">📤 Lien du live</button>
@@ -552,7 +578,7 @@ const ago = (iso) => {
     <nav class="sticky top-0 z-20 grid grid-cols-3 gap-1 rounded-xl bg-[#1e2638] p-1 text-[14px] font-extrabold" role="tablist">
       <button v-for="[key, label, count] in [['live', '🔴 Live', 0], ['commandes', 'Commandes', newOrders + proofs], ['messages', 'Messages', questions.length]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
               class="relative rounded-lg py-2" :class="tab === key ? 'bg-white text-slate-900' : 'text-slate-400'" @click="tab = key">
-        {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[10px] text-white">{{ count }}</span>
+        {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[11px] text-white">{{ count }}</span>
       </button>
     </nav>
 
@@ -577,23 +603,72 @@ const ago = (iso) => {
         </div>
 
         <!-- Ce que voient les clientes : toujours visible en haut pendant qu'on utilise la console -->
+        <!-- Un toucher agrandit l'aperçu ; « Fermer », le fond ou Échap le referme. Le petit aperçu ne change pas.
+             Agrandi, il est posé sur la page (Teleport) : dans la console, un parent le décalait. C'est le même aperçu,
+             déplacé et non recréé : pas de son en double.
+             Télé : l'aperçu réel, à la forme exacte de l'écran connecté, le plus grand possible sur fond noir.
+             TikTok Studio : la carte posée sur le live d'une cliente (vidéo et commentaires d'exemple). -->
         <div class="sticky top-[50px] z-10 -mx-1 bg-[#0b1120] px-1 pb-2">
-          <div v-if="shownView === 'tv'" class="relative aspect-video overflow-hidden rounded-xl bg-black ring-2 ring-red-600/70">
-            <LiveShowStage v-if="display" :data="display" />
-            <span class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[10px] font-black">📺 À L'ÉCRAN</span>
+          <Teleport to="body">
+            <template v-if="big">
+              <div class="fixed inset-0 z-[80] bg-black" aria-hidden="true" @click="big = false" />
+              <button type="button" class="fixed right-3 top-3 z-[82] min-h-11 rounded-full bg-white px-4 text-sm font-black text-slate-900 shadow-lg" @click="big = false">Fermer</button>
+              <!-- Télé large sur un téléphone tenu droit : tourner le téléphone l'agrandit -->
+              <p v-if="shownView === 'tv' && tvRatio >= 1.2" class="pointer-events-none fixed inset-x-0 bottom-[12vh] z-[82] hidden text-center text-sm font-bold text-slate-300 portrait:block">Tournez le téléphone pour voir en plus grand</p>
+            </template>
+          </Teleport>
+          <div v-if="shownView === 'tv'">
+            <div v-if="big" class="aspect-video rounded-xl bg-black ring-2 ring-red-600/70" aria-hidden="true" />
+            <Teleport to="body" :disabled="!big">
+              <div
+                :class="big ? 'overflow-hidden bg-black cursor-zoom-out' : 'relative aspect-video overflow-hidden rounded-xl bg-black ring-2 ring-red-600/70 cursor-zoom-in'"
+                :style="big ? tvBigStyle : null"
+                role="button" tabindex="0" :aria-label="big ? 'Fermer l\'aperçu agrandi' : 'Agrandir l\'aperçu de l\'écran'"
+                @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
+              >
+                <LiveShowStage v-if="display" :data="display" />
+                <span v-if="!big" class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[11px] font-black">📺 À L'ÉCRAN</span>
+              </div>
+            </Teleport>
           </div>
           <div v-else class="flex justify-center">
-            <div class="relative h-[min(34vh,260px)] overflow-hidden rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16">
-              <span class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[56px] leading-none" aria-hidden="true">🧕🏾</span>
-              <div class="absolute top-[3%] left-[3%] w-[55%]" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
-            </div>
+            <div v-if="big" class="h-[min(34vh,260px)] rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16" aria-hidden="true" />
+            <Teleport to="body" :disabled="!big">
+              <div
+                class="overflow-hidden bg-gradient-to-b from-amber-800 to-stone-900"
+                :class="big ? 'rounded-[18px] cursor-zoom-out' : 'relative h-[min(34vh,260px)] rounded-[18px] border-[3px] border-slate-600 cursor-zoom-in'"
+                :style="big ? studioBigStyle : { aspectRatio: '9 / 16' }"
+                role="button" tabindex="0" :aria-label="big ? 'Fermer l\'aperçu agrandi' : 'Agrandir l\'aperçu de l\'écran'"
+                @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
+              >
+                <span v-if="!big" class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[56px] leading-none" aria-hidden="true">🧕🏾</span>
+                <!-- Agrandi : le live d'une cliente (la vendeuse, la barre du haut, des commentaires d'exemple) -->
+                <template v-if="big">
+                  <span class="absolute bottom-0 left-1/2 h-[30%] w-[60%] -translate-x-1/2 rounded-t-full bg-[#2a1a10]" aria-hidden="true" />
+                  <span class="absolute bottom-[27%] left-1/2 h-[16%] w-[27%] -translate-x-1/2 rounded-full bg-[#3b2415]" aria-hidden="true" />
+                  <div class="absolute inset-x-2.5 top-2.5 flex items-center gap-1.5 text-white">
+                    <span class="h-7 w-7 rounded-full bg-slate-300" aria-hidden="true" />
+                    <b class="truncate text-[11px]">{{ display?.store?.name }}</b>
+                    <span class="ml-auto rounded bg-[#fe2c55] px-1.5 py-0.5 text-[11px] font-black">LIVE</span>
+                  </div>
+                  <div class="absolute bottom-14 left-2.5 right-14 flex flex-col gap-1 text-[11px] text-white" aria-hidden="true">
+                    <span><b class="text-white/70">Awa</b> A1 svp</span>
+                    <span><b class="text-white/70">Mariam</b> c'est combien ?</span>
+                    <span><b class="text-white/70">Fatou</b> j'ai envoyé A1</span>
+                  </div>
+                  <div class="absolute bottom-3.5 left-2.5 right-14 flex h-8 items-center rounded-full bg-black/35 pl-3 text-[11px] text-white/75" aria-hidden="true">Ajouter un commentaire…</div>
+                  <svg class="absolute bottom-4 right-3" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" /></svg>
+                </template>
+                <div class="absolute left-[3%] w-[55%]" :class="big ? 'top-[54px]' : 'top-[3%]'" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
+              </div>
+            </Teleport>
           </div>
         </div>
 
         <!-- Copilote, Articles, Plus -->
         <div class="grid grid-cols-3 gap-1 rounded-xl bg-white/10 p-1" role="tablist" aria-label="Console du live">
           <button v-for="[key, label] in SUBS" :key="key" type="button" role="tab" :aria-selected="sub === key" class="rounded-lg py-2 text-[12px] font-extrabold" :class="sub === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="sub = key">
-            {{ label }}<span v-if="key === 'copilot' && questions.length" class="ml-0.5 rounded-full bg-red-600 px-1 text-[9px] text-white">{{ questions.length }}</span>
+            {{ label }}<span v-if="key === 'copilot' && questions.length" class="ml-0.5 rounded-full bg-red-600 px-1 text-[11px] text-white">{{ questions.length }}</span>
           </button>
         </div>
         <p v-if="showError" class="rounded-xl bg-red-500/15 px-3 py-2 text-sm font-bold text-red-200">{{ showError }}</p>
@@ -611,7 +686,7 @@ const ago = (iso) => {
 
             <!-- Maintenant à l'écran -->
             <div v-if="plan.current.value" class="mt-2 rounded-xl bg-emerald-500/15 p-2 ring-1 ring-emerald-400/40">
-              <p class="text-[10.5px] font-black tracking-wider text-emerald-300 uppercase">🟢 Maintenant à l'écran</p>
+              <p class="text-[11px] font-black tracking-wider text-emerald-300 uppercase">🟢 Maintenant à l'écran</p>
               <p class="text-[14px] leading-snug font-extrabold">{{ plan.current.value.label }}</p>
               <p class="text-[12px]" :class="overtime ? 'font-bold text-amber-300' : 'text-slate-400'">depuis {{ stepClock }} · ≈ {{ plan.current.value.time }} conseillé{{ overtime ? ' : passe à la suite' : '' }}</p>
               <p class="mt-1 text-[12.5px] leading-snug text-amber-200">« {{ plan.current.value.say }} »</p>
@@ -620,7 +695,7 @@ const ago = (iso) => {
 
             <!-- Sorti du plan -->
             <div v-if="showOff" class="mt-2 rounded-xl bg-amber-500/15 p-2 ring-1 ring-amber-400/50">
-              <p class="text-[12.5px] font-bold text-amber-200">↪ Tu es sorti du plan : l'écran ne montre plus « {{ plan.current.value.label }} ».</p>
+              <p class="text-[12.5px] font-bold text-amber-200">↪ Vous êtes sorti du plan : l'écran ne montre plus « {{ plan.current.value.label }} ».</p>
               <div class="mt-1.5 flex flex-wrap gap-1.5">
                 <button type="button" class="rounded-lg bg-amber-400 px-3 py-1.5 text-[12.5px] font-extrabold text-slate-900" @click="applyStep(plan.current.value)">↩ Reprendre le plan</button>
                 <button v-if="adoptable" type="button" class="rounded-lg bg-white/15 px-3 py-1.5 text-[12.5px] font-extrabold" @click="plan.adopt(current.code)">Continuer depuis {{ current.code }}</button>
@@ -629,7 +704,7 @@ const ago = (iso) => {
 
             <!-- Ensuite, et le bouton pour y passer -->
             <template v-if="plan.next.value">
-              <p class="mt-2 text-[10.5px] font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
+              <p class="mt-2 text-[11px] font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
               <p class="text-[13.5px] font-bold">{{ plan.next.value.label }}</p>
               <button type="button" class="mt-1.5 w-full rounded-xl bg-amber-400 px-3 py-3 text-[14px] font-extrabold text-slate-900" :class="{ 'animate-pulse': overtime }" @click="act({ kind: 'plan' })">
                 {{ plan.current.value ? 'Passer à' : 'Commencer' }} : {{ plan.next.value.label.replace(/^\S+\s/, '') }} ▶
@@ -668,9 +743,9 @@ const ago = (iso) => {
               <span class="absolute top-1 left-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
               <span v-if="p.mystery && !p.revealed" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-xs font-black text-violet-700">🎁 MYSTÈRE</span>
               <span v-else-if="!p.remaining" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-sm font-black text-red-600">VENDU</span>
-              <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[9px] font-black text-white">BIENTÔT</span>
+              <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[11px] font-black text-white">BIENTÔT</span>
               <span class="block truncate px-1.5 pt-0.5 text-[11px] font-bold">{{ p.title }}</span>
-              <span class="block px-1.5 pb-1 text-[10.5px] text-slate-500"><b class="text-slate-900">{{ p.remaining }}</b> / {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} att.</template></span>
+              <span class="block px-1.5 pb-1 text-[11px] text-slate-500"><b class="text-slate-900">{{ p.remaining }}</b> / {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} att.</template></span>
             </button>
             <button type="button" class="grid min-h-24 place-items-center rounded-xl border-2 border-dashed border-white/30 text-xs font-extrabold text-slate-300" @click="emit('add')">＋ Ajouter</button>
           </div>
@@ -740,7 +815,7 @@ const ago = (iso) => {
     <section v-else-if="tab === 'messages'" class="space-y-1.5">
       <div class="flex items-center gap-1.5 text-xs font-extrabold">
         <button v-for="[key, label] in [['all', 'Tous'], ['todo', `À répondre · ${questions.length}`]]" :key="key" type="button" :aria-pressed="messageFilter === key"
-                class="rounded-full border-[1.5px] px-3 py-1" :class="messageFilter === key ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white'" @click="messageFilter = key">{{ label }}</button>
+                class="rounded-full border-[1.5px] px-3 py-1" :class="messageFilter === key ? 'border-slate-900 bg-slate-900 text-white' : 'border-field bg-white'" @click="messageFilter = key">{{ label }}</button>
       </div>
       <p v-if="live.whatsapp === null" class="rounded-xl bg-white p-3 text-sm text-slate-600">Votre WhatsApp n'est pas connecté : les messages des clientes n'arrivent pas ici. <RouterLink to="/gestion/whatsapp" class="font-bold underline">Connecter WhatsApp</RouterLink></p>
       <p v-else-if="!messages.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">{{ messageFilter === 'todo' ? 'Aucune question en attente ✓' : 'Les messages des clientes s\'afficheront ici.' }}</p>
@@ -748,17 +823,17 @@ const ago = (iso) => {
         <div class="flex items-center gap-2.5">
           <span v-if="m.codes.length && byCode[m.codes[0]]" class="relative h-10 w-10 shrink-0">
             <img v-if="byCode[m.codes[0]].image" :src="byCode[m.codes[0]].image" alt="" class="h-10 w-10 rounded-lg object-cover" />
-            <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[10px] leading-tight font-black">{{ m.codes[0] }}</span>
+            <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[11px] leading-tight font-black">{{ m.codes[0] }}</span>
           </span>
           <span v-else class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-lg">{{ m.type === 'image' ? '📷' : '💬' }}</span>
           <div class="min-w-0 flex-1">
             <p class="text-[13px] font-extrabold"><span v-if="needsAction(m)" class="text-red-600">● </span>{{ m.name }}</p>
             <p class="text-xs break-words text-slate-600">
               {{ m.type === 'image' ? '📷 capture' + (m.codes.length ? ` · lue : ${m.codes.join(', ')}` : '') : `« ${m.body} »` }}
-              <span v-if="messageState(m)" class="ml-1 inline-block rounded-full border-[1.5px] border-slate-900 px-1.5 text-[10px] font-black" :class="messageState(m) === 'COMMANDÉ' ? 'bg-slate-900 text-white' : ''">{{ messageState(m) }}</span>
+              <span v-if="messageState(m)" class="ml-1 inline-block rounded-full border-[1.5px] border-slate-900 px-1.5 text-[11px] font-black" :class="messageState(m) === 'COMMANDÉ' ? 'bg-slate-900 text-white' : ''">{{ messageState(m) }}</span>
             </p>
           </div>
-          <span class="shrink-0 self-start text-[10px] text-slate-400">{{ ago(m.created_at) }}</span>
+          <span class="shrink-0 self-start text-[11px] text-slate-400">{{ ago(m.created_at) }}</span>
           <span class="shrink-0 text-xl font-black text-slate-300" aria-hidden="true">›</span>
         </div>
         <div v-if="m.place_check && needsAction(m)" class="mt-1.5 pl-12" @click.stop>
@@ -771,7 +846,7 @@ const ago = (iso) => {
           </span>
           <form v-else class="space-y-1.5" @submit.prevent="sendReply(m)">
             <div class="flex flex-wrap gap-1">
-              <button v-for="q in QUICK" :key="q" type="button" class="rounded-lg border-[1.5px] border-slate-300 bg-white px-2 py-1 text-left text-[11px] font-bold" :disabled="replying.busy" @click="sendReply(m, q)">{{ q }}</button>
+              <button v-for="q in QUICK" :key="q" type="button" class="rounded-lg border-[1.5px] border-field bg-white px-2 py-1 text-left text-[11px] font-bold" :disabled="replying.busy" @click="sendReply(m, q)">{{ q }}</button>
             </div>
             <div class="flex gap-1.5">
               <input v-model="replying.body" class="input min-w-0 flex-1 py-1.5 text-sm" placeholder="Votre réponse…" maxlength="1000" />
@@ -786,9 +861,9 @@ const ago = (iso) => {
     <!-- ═══ Commandes ═══ -->
     <section v-else class="space-y-1.5">
       <div class="grid grid-cols-3 gap-1 rounded-xl bg-white p-2 text-center">
-        <span><b class="block text-lg font-black">{{ live.summary.orders }}</b><span class="text-[10px] font-bold text-slate-500">commande{{ live.summary.orders > 1 ? 's' : '' }}</span></span>
-        <span><b class="block text-lg font-black">{{ money(live.summary.amount) }}</b><span class="text-[10px] font-bold text-slate-500">montant</span></span>
-        <span><b class="block text-lg font-black">{{ keptCount }}</b><span class="text-[10px] font-bold text-slate-500">quartier{{ keptCount > 1 ? 's' : '' }} attendu{{ keptCount > 1 ? 's' : '' }}</span></span>
+        <span><b class="block text-lg font-black">{{ live.summary.orders }}</b><span class="text-[11px] font-bold text-slate-500">commande{{ live.summary.orders > 1 ? 's' : '' }}</span></span>
+        <span><b class="block text-lg font-black">{{ money(live.summary.amount) }}</b><span class="text-[11px] font-bold text-slate-500">montant</span></span>
+        <span><b class="block text-lg font-black">{{ keptCount }}</b><span class="text-[11px] font-bold text-slate-500">quartier{{ keptCount > 1 ? 's' : '' }} attendu{{ keptCount > 1 ? 's' : '' }}</span></span>
       </div>
       <button type="button" class="w-full rounded-xl border-[1.5px] border-slate-900 bg-white py-2 text-sm font-extrabold" @click="emit('quick')">+ Réservation vue dans les commentaires</button>
       <p v-if="retryError" class="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{{ retryError }}</p>
@@ -797,7 +872,7 @@ const ago = (iso) => {
         <span class="relative h-10 w-10 shrink-0">
           <img v-if="byCode[r.code]?.image" :src="byCode[r.code].image" alt="" class="h-10 w-10 rounded-lg object-cover" :class="{ grayscale: r.status === 'waiting' }" />
           <span v-else class="block h-10 w-10 rounded-lg bg-slate-100" />
-          <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[10px] leading-tight font-black">{{ r.code }}</span>
+          <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[11px] leading-tight font-black">{{ r.code }}</span>
         </span>
         <div class="min-w-0 flex-1">
           <p class="truncate text-[13px] font-extrabold">
@@ -816,10 +891,10 @@ const ago = (iso) => {
           </p>
         </div>
         <span class="flex shrink-0 flex-col items-end gap-0.5 self-start">
-          <span class="text-[10px] text-slate-400">{{ ago(r.created_at) }}</span>
+          <span class="text-[11px] text-slate-400">{{ ago(r.created_at) }}</span>
           <button v-if="r.status === 'reserved' && r.shipping_place_id" type="button" class="text-[11px] font-bold text-red-700 underline" :disabled="retrying" @click.stop="retryOrder(r)">🔁 Créer la commande</button>
           <button v-else-if="r.status === 'reserved'" type="button" class="text-[11px] font-bold underline" @click.stop="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
-          <RouterLink v-if="r.order?.proof" @click.stop :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-[10.5px] font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
+          <RouterLink v-if="r.order?.proof" @click.stop :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
           <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-[11px] font-bold underline" @click.stop>{{ r.order.reference }}</RouterLink>
           <button v-else type="button" class="text-[11px] font-bold text-slate-500 underline" :disabled="busy" @click.stop="emit('cancel', r)">Annuler</button>
         </span>

@@ -192,9 +192,9 @@ async function save() {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex flex-col bg-white" role="dialog" aria-modal="true" aria-label="Choisis tes articles">
+  <div class="fixed inset-0 z-50 flex flex-col bg-white" role="dialog" aria-modal="true" aria-label="Choisissez vos articles">
     <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-      <h2 class="text-[18px] font-black">{{ tab === 'new' ? 'Nouvel article' : 'Choisis tes articles' }}</h2>
+      <h2 class="text-[18px] font-black">{{ tab === 'new' ? 'Nouvel article' : 'Choisissez vos articles' }}</h2>
       <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-lg" aria-label="Fermer" @click="emit('close')">✕</button>
     </header>
     <nav v-if="tab !== 'new'" class="grid grid-cols-3 gap-1.5 px-4 pt-3" role="tablist">
@@ -227,7 +227,7 @@ async function save() {
             </div>
             <div v-for="v in g.variants" :key="v.id" class="flex items-center gap-3 p-2" :class="g.variants.length > 1 ? 'pl-5' : ''">
               <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left" :aria-pressed="!!line(v.id)" @click="toggle(v)">
-                <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2" :class="line(v.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'"><Icon v-if="line(v.id)" name="check" :size="14" /></span>
+                <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md border-2" :class="line(v.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-field'"><Icon v-if="line(v.id)" name="check" :size="14" /></span>
                 <img v-if="v.image && g.variants.length === 1" :src="v.image" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
                 <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ g.variants.length > 1 ? v.variant : v.title }}</b><span class="text-xs text-slate-500">{{ money(v.price) }} · {{ v.available }} en stock</span></span>
               </button>
@@ -257,12 +257,12 @@ async function save() {
 
       <!-- Sélection -->
       <div v-else class="space-y-2">
-        <p v-if="!items.length" class="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">Aucun article. Coche-les dans « Mon catalogue » ou reprends un live passé.</p>
-        <p v-else class="text-xs text-slate-500">L'ordre donne les codes (A1, A2…). Touche le code pour le changer.</p>
+        <p v-if="!items.length" class="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">Aucun article. Cochez-les dans « Mon catalogue » ou reprenez un live passé.</p>
+        <p v-else class="text-xs text-slate-500">L'ordre donne les codes (A1, A2…). Touchez le code pour le changer.</p>
         <div v-for="(i, index) in items" :key="i.variant_id" class="rounded-2xl border border-slate-200 p-2">
           <div class="flex items-center gap-3">
             <button type="button" class="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-600 font-black text-white" :aria-label="`Code ${codes[productKey(i)]} : changer`" @click="signing = i">
-              {{ codes[productKey(i)] }}<span class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-[9px] text-red-600 shadow">✎</span>
+              {{ codes[productKey(i)] }}<span class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-[11px] text-red-600 shadow">✎</span>
             </button>
             <img v-if="i.image" :src="i.image" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover" />
             <label v-else class="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-xl border-2 border-dashed border-red-300 bg-red-50 text-lg" :aria-label="`Ajouter la photo de ${i.title.split(' — ')[0]}`">
@@ -291,7 +291,7 @@ async function save() {
 
     <footer v-if="tab !== 'new'" class="border-t border-slate-200 p-3">
       <button v-if="withoutPhoto" type="button" class="w-full rounded-xl bg-red-50 py-3.5 text-[15px] font-black text-red-700" @click="tab = 'selection'">
-        📷 Ajoute la photo de {{ withoutPhoto }} article(s) pour valider
+        📷 Ajoutez la photo de {{ withoutPhoto }} article(s) pour valider
       </button>
       <button v-else type="button" class="btn-brand w-full justify-center py-3.5 text-[16px] font-black" :disabled="busy || !items.length" @click="save">
         {{ busy ? 'Enregistrement…' : `Valider · ${items.length} article(s), ${pieces} pièces` }}

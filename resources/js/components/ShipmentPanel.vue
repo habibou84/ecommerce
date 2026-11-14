@@ -1,4 +1,5 @@
 <script setup>
+import StateBadge from './StateBadge.vue'
 import Icon from './Icon.vue'
 import { useAuthStore } from '../stores/auth'
 import CourierWhatsAppButton from './CourierWhatsAppButton.vue'
@@ -10,7 +11,7 @@ import Field from './Field.vue'
 import Modal from './Modal.vue'
 import http, { errorMessage } from '../lib/http'
 import { formatDateTime, money } from '../lib/format'
-import { MANUAL_STATUSES, SHIPMENT_TONES, SOURCE_LABELS } from '../lib/shipping'
+import { MANUAL_STATUSES, SOURCE_LABELS } from '../lib/shipping'
 
 // « aujourd'hui », « demain » ou « le lundi 23 novembre »
 function dayLabel(iso) {
@@ -232,11 +233,15 @@ async function whatsapp(s) {
       <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><Icon name="truck" :size="18" /></span>
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">{{ planned.name }}</span>
-        <span class="block text-xs text-emerald-800">{{ order.status === 'pending_confirmation' ? 'Livreur choisi · la course part dès la confirmation' : canShip ? 'Livreur choisi · course en préparation' : 'Livreur choisi' }}</span>
+        <span class="block text-xs text-emerald-800">{{ order.status === 'pending_confirmation' ? 'Livreur choisi · la course partira à la confirmation' : canShip ? 'Livreur choisi · course pas encore envoyée' : 'Livreur choisi' }}</span>
       </span>
       <button type="button" class="btn-secondary shrink-0 px-3 py-1.5" :disabled="busy" @click="openPicker">Modifier</button>
     </div>
-    <button v-if="planned && canShip" type="button" class="btn-brand w-full py-2" :disabled="busy" @click="assignTo(plannedKey)">Envoyer la course à {{ planned.name }}</button>
+    <!-- Envoi automatique en échec : la raison, et le même bouton pour réessayer -->
+    <p v-if="planned && canShip && order.assignment_error" class="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">
+      La course n'a pas pu être envoyée à {{ order.assignment_error.to || planned.name }}<template v-if="order.assignment_error.error"> : {{ order.assignment_error.error }}</template>
+    </p>
+    <button v-if="planned && canShip" type="button" class="btn-brand w-full py-2" :disabled="busy" @click="assignTo(plannedKey)">{{ order.assignment_error ? 'Réessayer l\'envoi' : 'Envoyer la course' }} à {{ planned.name }}</button>
     <p v-if="!shipments.length && !canShip && !planned" class="text-slate-500">
       {{ order.delivery_method === 'pickup' ? 'Retrait en boutique.' : 'Confirmez la commande pour la faire livrer.' }}
     </p>
@@ -245,7 +250,7 @@ async function whatsapp(s) {
     <article v-for="s in shipments" :key="s.id" class="space-y-2 rounded-lg border border-slate-200 p-3" :class="{ 'opacity-60': ['cancelled', 'rejected'].includes(s.status) }">
       <div class="flex flex-wrap items-center gap-2">
         <span class="font-medium">{{ s.reference }}</span>
-        <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[s.status]">{{ s.status_label }}</span>
+        <StateBadge kind="shipment" :status="s.status" :label="s.status_label" />
         <span class="text-slate-500">{{ s.carrier?.name }}</span>
       </div>
       <p v-if="s.tracking_code" class="text-slate-600">
@@ -267,7 +272,7 @@ async function whatsapp(s) {
           <button v-if="s.is_cancellable" class="btn-ghost px-3 py-1.5 text-red-700" @click="openModal('cancel', s)">Annuler</button>
         </div>
       </div>
-      <div v-if="s.needs_decision && !s.is_final" class="rounded bg-rose-50 p-2 text-rose-900">
+      <div v-if="s.needs_decision && !s.is_final" class="rounded bg-ocre-50 p-2 text-ocre-900">
         <p class="font-medium">{{ s.carrier?.name || 'L\'entreprise de livraison' }} attend votre décision : nouvelle date ou retour du colis.</p>
         <div v-if="s.carrier_actions?.decide" class="mt-2 flex flex-wrap gap-2">
           <button class="btn-brand px-3 py-1.5" @click="openModal('redeliver', s)">Relivrer le…</button>
@@ -283,8 +288,8 @@ async function whatsapp(s) {
       <a v-if="s.label_url && !s.is_final" :href="s.label_url" target="_blank" rel="noopener" class="btn-secondary inline-flex w-fit px-3 py-1.5">🏷️ Imprimer l'étiquette{{ s.carrier?.name ? ` de ${s.carrier.name}` : '' }}</a>
       <!-- Notes du livreur chez l'entreprise de livraison -->
       <div v-if="s.carrier_ratings && (s.can_rate_courier || s.carrier_ratings.merchant || s.carrier_ratings.recipient)" class="rounded bg-slate-50 p-2 space-y-1">
-        <p v-if="s.carrier_ratings.merchant">Votre note du livreur : <span class="text-amber-500" aria-hidden="true">{{ stars(s.carrier_ratings.merchant.score) }}</span> <strong>{{ s.carrier_ratings.merchant.score }}/5</strong><template v-if="s.carrier_ratings.merchant.comment"> · « {{ s.carrier_ratings.merchant.comment }} »</template></p>
-        <p v-if="s.carrier_ratings.recipient">Note du client : <span class="text-amber-500" aria-hidden="true">{{ stars(s.carrier_ratings.recipient.score) }}</span> <strong>{{ s.carrier_ratings.recipient.score }}/5</strong><template v-if="s.carrier_ratings.recipient.comment"> · « {{ s.carrier_ratings.recipient.comment }} »</template></p>
+        <p v-if="s.carrier_ratings.merchant">Votre note du livreur : <span class="text-yellow-500" aria-hidden="true">{{ stars(s.carrier_ratings.merchant.score) }}</span> <strong>{{ s.carrier_ratings.merchant.score }}/5</strong><template v-if="s.carrier_ratings.merchant.comment"> · « {{ s.carrier_ratings.merchant.comment }} »</template></p>
+        <p v-if="s.carrier_ratings.recipient">Note du client : <span class="text-yellow-500" aria-hidden="true">{{ stars(s.carrier_ratings.recipient.score) }}</span> <strong>{{ s.carrier_ratings.recipient.score }}/5</strong><template v-if="s.carrier_ratings.recipient.comment"> · « {{ s.carrier_ratings.recipient.comment }} »</template></p>
         <button v-if="s.can_rate_courier" class="btn-secondary px-2 py-1" @click="openRating(s)">⭐ Noter le livreur</button>
       </div>
       <ol class="space-y-1 border-l-2 border-slate-100 pl-3 text-xs text-slate-600">
@@ -475,13 +480,13 @@ async function whatsapp(s) {
         <div>
           <p class="mb-1 text-sm font-medium">Note</p>
           <div class="flex gap-1" role="radiogroup" aria-label="Note du livreur">
-            <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rating.score === n" :aria-label="`${n} sur 5`" :class="['text-3xl leading-none', n <= rating.score ? 'text-amber-500' : 'text-slate-300']" @click="rating.score = n">★</button>
+            <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rating.score === n" :aria-label="`${n} sur 5`" :class="['text-3xl leading-none', n <= rating.score ? 'text-yellow-500' : 'text-slate-300']" @click="rating.score = n">★</button>
           </div>
         </div>
         <div>
           <p class="mb-1 text-sm font-medium">Remarques (facultatif)</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="t in RATING_TAGS" :key="t.code" type="button" :aria-pressed="rating.tags.includes(t.code)" :class="['rounded-full border px-3 py-1 text-sm', rating.tags.includes(t.code) ? (t.good ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-red-400 bg-red-50 text-red-800') : 'border-slate-300']" @click="toggleTag(t.code)">{{ t.label }}</button>
+            <button v-for="t in RATING_TAGS" :key="t.code" type="button" :aria-pressed="rating.tags.includes(t.code)" :class="['rounded-full border px-3 py-1 text-sm', rating.tags.includes(t.code) ? (t.good ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-red-400 bg-red-50 text-red-800') : 'border-field']" @click="toggleTag(t.code)">{{ t.label }}</button>
           </div>
         </div>
         <Field id="rt-comment" label="Commentaire (facultatif)"><textarea id="rt-comment" v-model="rating.comment" class="input" rows="2" maxlength="500" /></Field>

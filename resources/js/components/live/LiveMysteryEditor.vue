@@ -45,7 +45,7 @@ async function save(p, mystery) {
 
 <template>
   <div class="space-y-2 text-sm" :class="dark ? 'text-white' : 'text-slate-900'">
-    <p :class="dark ? 'text-slate-300' : 'text-slate-600'">Coche un article : il reste <b>caché</b> (écran, liste envoyée aux clientes, étiquette) jusqu'à ce que tu le révèles pendant le live. Les indices sont donnés un par un.</p>
+    <p :class="dark ? 'text-slate-300' : 'text-slate-600'">Cochez un article : il reste <b>caché</b> (écran, liste envoyée aux clientes, étiquette) jusqu'à ce que vous le révéliez pendant le live. Les indices sont donnés un par un.</p>
     <div v-for="p in products" :key="p.code" class="rounded-xl p-2" :class="dark ? 'bg-white/10' : 'border border-slate-200 bg-white'">
       <div class="flex items-center gap-2">
         <span class="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-slate-200"><img v-if="p.image" :src="p.image" alt="" class="h-full w-full object-cover" :class="{ 'blur-[3px]': p.mystery && !p.revealed }"></span>

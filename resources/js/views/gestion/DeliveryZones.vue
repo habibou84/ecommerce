@@ -118,7 +118,7 @@ async function destroy() {
       <div>
         <p class="mb-1.5 text-sm font-medium">Jours sans livraison</p>
         <div class="flex flex-wrap gap-2">
-          <button v-for="[day, label] in WEEKDAYS" :key="day" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="calendar.closed_weekdays.includes(day) ? 'border-red-300 bg-red-50 font-semibold text-red-800 line-through' : 'border-slate-300'" :aria-pressed="calendar.closed_weekdays.includes(day)" @click="toggleWeekday(day)">{{ label }}</button>
+          <button v-for="[day, label] in WEEKDAYS" :key="day" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="calendar.closed_weekdays.includes(day) ? 'border-red-300 bg-red-50 font-semibold text-red-800 line-through' : 'border-field'" :aria-pressed="calendar.closed_weekdays.includes(day)" @click="toggleWeekday(day)">{{ label }}</button>
         </div>
       </div>
       <div>

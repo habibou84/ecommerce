@@ -1,11 +1,11 @@
 <script setup>
+import StateBadge from '../../../components/StateBadge.vue'
 import { onMounted, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Pagination from '../../../components/Pagination.vue'
 import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
-import { SHIPMENT_TONES } from '../../../lib/shipping'
 
 const filter = ref('active')
 const page = ref(1)
@@ -42,7 +42,7 @@ watch(page, load)
         <li v-for="s in result?.data ?? []" :key="s.id">
           <RouterLink :to="`/gestion/commandes/${s.order_id}`" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm hover:bg-slate-50">
             <span class="w-24 font-medium">{{ s.reference }}</span>
-            <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[s.status]">{{ s.status_label }}</span>
+            <StateBadge kind="shipment" :status="s.status" :label="s.status_label" />
             <span class="min-w-0 flex-1 truncate">{{ s.customer_name }} · {{ s.place }}</span>
             <span class="text-slate-500">{{ s.carrier?.name }}<template v-if="s.tracking_code"> · {{ s.tracking_code }}</template></span>
             <span class="w-24 text-right">{{ money(s.cod_amount) }}</span>

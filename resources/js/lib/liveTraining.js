@@ -14,7 +14,7 @@ export const LIVE_TRAINING = [
     },
     {
       n: 3, title: 'Préparer votre live dans Jibiat Marchand', seconds: 53,
-      points: ['Sur l\'accueil, « Ton live en 5 étapes » : WhatsApp, prix de livraison, articles, carte, lancement', 'Choisissez vos articles dans l\'ordre : chacun reçoit son code (A1, A2…)', 'Épinglez la carte sur fond vert, lancez votre live sur TikTok puis touchez « J\'ouvre les commandes du live »'],
+      points: ['Sur l\'accueil, « Votre live en 5 étapes » : WhatsApp, prix de livraison, articles, carte, lancement', 'Choisissez vos articles dans l\'ordre : chacun reçoit son code (A1, A2…)', 'Épinglez la carte sur fond vert, lancez votre live sur TikTok puis touchez « J\'ouvre les commandes du live »'],
       checklist: ['Mon WhatsApp est connecté et mon prix de livraison réglé', 'Mes articles sont dans l\'ordre de présentation', 'Ma carte est prête sur le fond vert'],
       action: { label: 'Préparer un live', prepare: true },
     },

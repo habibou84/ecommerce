@@ -30,7 +30,7 @@ const FILTERS = [{ value: 'pending', label: 'À récupérer' }, { value: 'receiv
 <template>
   <div class="space-y-4">
     <div class="flex items-center gap-2">
-      <RouterLink to="/gestion/commandes" class="text-sm text-slate-500">← Commandes</RouterLink>
+      <RouterLink to="/gestion/commandes" class="back-link text-sm text-slate-500">← Commandes</RouterLink>
     </div>
     <p class="text-sm text-slate-600">Un retour ou un échange se crée depuis la commande livrée (bouton « Retour / échange »).</p>
     <div class="flex flex-wrap gap-1">

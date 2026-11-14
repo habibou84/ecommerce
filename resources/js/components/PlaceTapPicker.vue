@@ -77,7 +77,7 @@ function back() {
           <span v-if="showFees && q.fee !== commune.fee" class="block text-xs" :class="q.learned ? 'text-emerald-700' : 'text-slate-500'">{{ feeText(q) }}{{ q.learned ? ' · retenu' : '' }}</span>
         </button>
         <button type="button" class="col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/50 px-3 py-2 text-center text-[15px] font-semibold text-emerald-800 sm:col-span-3" @click="pick({ ...commune, label: commune.name }, [home?.id])">Toute la commune</button>
-        <button type="button" class="col-span-2 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-center text-sm text-slate-600 sm:col-span-3" @click="emit('search')">+ Quartier pas dans la liste</button>
+        <button type="button" class="col-span-2 rounded-xl border border-dashed border-field px-3 py-2 text-center text-sm text-slate-600 sm:col-span-3" @click="emit('search')">+ Quartier pas dans la liste</button>
       </div>
     </template>
 
@@ -89,7 +89,7 @@ function back() {
           <span class="block truncate text-[15px] font-semibold">{{ p.name }}</span>
           <span v-if="showFees" class="block text-xs" :class="p.learned ? 'text-emerald-700' : 'text-slate-500'">{{ feeText(p) }}{{ p.learned ? ' · retenu' : '' }}</span>
         </button>
-        <button v-if="hidden && !all" type="button" class="rounded-xl border border-dashed border-slate-300 px-3 py-2 text-left text-sm text-slate-600" @click="all = true">+ {{ hidden }} autre(s) commune(s)</button>
+        <button v-if="hidden && !all" type="button" class="rounded-xl border border-dashed border-field px-3 py-2 text-left text-sm text-slate-600" @click="all = true">+ {{ hidden }} autre(s) commune(s)</button>
         <button v-if="rates.cities.length" type="button" class="rounded-xl border border-dashed border-sky-300 px-3 py-2 text-left text-sm font-medium text-sky-800" @click="cities = true">Expédition vers une autre ville…</button>
       </div>
     </template>

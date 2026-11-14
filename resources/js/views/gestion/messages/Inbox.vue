@@ -396,7 +396,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
             <div class="mt-0.5 flex items-center gap-2">
               <span class="truncate text-xs" :class="c.unread ? 'text-slate-800' : 'text-slate-500'"><Icon v-if="drafts[c.id] && String(c.id) !== id" name="file" :size="12" class="mr-0.5 inline-block align-[-1px] text-amber-600" />{{ c.preview }}</span>
               <span v-if="c.order" class="ml-auto shrink-0 rounded bg-slate-100 px-1.5 text-[11px] text-slate-600">{{ c.order.reference }}</span>
-              <span v-if="c.unread" class="shrink-0 rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white" :class="{ 'ml-auto': !c.order }">{{ c.unread }}</span>
+              <span v-if="c.unread" class="shrink-0 rounded-full bg-emerald-700 px-1.5 text-[11px] font-semibold text-white" :class="{ 'ml-auto': !c.order }">{{ c.unread }}</span>
             </div>
           </RouterLink>
           <button v-if="listPage < listLastPage" type="button" class="w-full p-3 text-sm font-medium text-emerald-700 hover:bg-slate-50" @click="loadList(true)">Voir plus de conversations</button>
@@ -448,7 +448,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
                 @keydown.space.prevent="toggleMessage(row.message)"
               >
                 <span v-if="selecting && row.message.direction === 'in'" class="mb-1 flex items-center gap-1.5 text-xs font-medium" :class="selected.includes(row.message.id) ? 'text-emerald-700' : 'text-slate-400'">
-                  <span class="grid h-4 w-4 place-items-center rounded border" :class="selected.includes(row.message.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'">{{ selected.includes(row.message.id) ? '✓' : '' }}</span>
+                  <span class="grid h-4 w-4 place-items-center rounded border" :class="selected.includes(row.message.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-field'">{{ selected.includes(row.message.id) ? '✓' : '' }}</span>
                   {{ selected.includes(row.message.id) ? 'Dans la commande' : 'Ajouter à la commande' }}
                 </span>
                 <p class="whitespace-pre-wrap break-words">

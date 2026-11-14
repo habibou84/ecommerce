@@ -22,6 +22,8 @@ use Jibiat\Socle\PhoneNumber;
  *
  * Panier renvoyé alors que la commande WhatsApp du client (moins de 24 h) est encore à confirmer : le même panier ne crée
  * rien de plus, un panier différent est ajouté à cette commande (une seule livraison).
+ *
+ * Commande payante : une fois confirmée, elle compte 1 commande du solde (retirée le soir), comme au live.
  */
 class CatalogOrders
 {
@@ -72,6 +74,7 @@ class CatalogOrders
                 'delivery_method' => 'delivery',
                 'customer_note' => filled($text) ? mb_substr(trim($text), 0, 1000) : null,
                 'internal_note' => self::NOTE,
+                'credit_channel' => 'catalog',
                 'items' => $lineData,
             ], null, 'customer');
         } catch (BusinessRuleException|QuotaExceededException $e) {

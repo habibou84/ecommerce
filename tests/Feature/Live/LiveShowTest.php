@@ -37,7 +37,7 @@ class LiveShowTest extends TestCase
         $this->storeApi($this->store, 'POST', "lives/{$live}/start")->assertOk();
 
         $this->storeApi($this->store, 'GET', "lives/{$live}/display")->assertOk()
-            ->assertJsonPath('data.live.show.settings.theme', 'fete')->assertJsonPath('data.live.show.settings.ambiance', 'aqui')->assertJsonPath('data.live.show.settings.sound', true)->assertJsonCount(1, 'data.live.items.0.photos')->assertJsonPath('data.live.show.event', null);
+            ->assertJsonPath('data.live.show.settings.theme', 'fete')->assertJsonPath('data.live.show.settings.ambiance', 'aqui')->assertJsonPath('data.live.show.settings.sound', true)->assertJsonPath('data.live.show.settings.camera', true)->assertJsonCount(1, 'data.live.items.0.photos')->assertJsonPath('data.live.show.event', null);
         // La roue attend des commandes
         $this->storeApi($this->store, 'POST', "lives/{$live}/show/moment", ['type' => 'wheel'])->assertStatus(422);
 
@@ -52,6 +52,9 @@ class LiveShowTest extends TestCase
         $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['ambiance' => 'noon'])->assertOk()->assertJsonPath('data.ambiance', 'noon')->assertJsonPath('data.theme', 'neon');
         $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['ambiance' => 'disco'])->assertStatus(422);
         $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['camera' => true])->assertOk()->assertJsonPath('data.camera', true)->assertJsonPath('data.ambiance', 'noon');
+        // Le mode caméra est actif d'office ; on peut le couper pour un écran qui n'est pas filmé
+        $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['camera' => false])->assertOk()->assertJsonPath('data.camera', false);
+        $this->storeApi($this->store, 'PUT', "lives/{$live}/show", ['camera' => true])->assertOk()->assertJsonPath('data.camera', true);
         $goal = $this->storeApi($this->store, 'POST', "lives/{$live}/show/moment", ['type' => 'goal', 'goal' => 30])->assertOk()->json('data.event');
         $this->assertSame(['goal' => 30], $goal['data']);
         $this->storeApi($this->store, 'GET', "lives/{$live}/display")->assertJsonPath('data.live.show.settings.theme', 'neon')->assertJsonPath('data.live.show.settings.goal', 30)

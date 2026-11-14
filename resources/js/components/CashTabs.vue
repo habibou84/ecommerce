@@ -6,9 +6,9 @@ import { useAuthStore } from '../stores/auth'
 const auth = useAuthStore()
 const tabs = computed(() => [
   ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse', label: 'Ma caisse', exact: true }] : []),
-  ...(auth.can('couriers.manage') || auth.can('finance.view') ? [{ to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' }] : []),
-  ...(auth.can('carriers.manage') ? [{ to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' }] : []),
-  ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' }] : []),
+  ...(auth.can('couriers.manage') || auth.can('finance.view') ? [{ to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs', short: 'Livreurs' }] : []),
+  ...(auth.can('carriers.manage') ? [{ to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises', short: 'Entreprises' }] : []),
+  ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles', short: 'Dépenses' }] : []),
 ])
 </script>
 
@@ -21,7 +21,7 @@ const tabs = computed(() => [
       class="whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium"
       :class="(tab.exact ? $route.path === tab.to : $route.path.startsWith(tab.to)) ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-600 hover:text-slate-900'"
     >
-      {{ tab.label }}
+      <span class="sm:hidden">{{ tab.short ?? tab.label }}</span><span class="hidden sm:inline">{{ tab.label }}</span>
     </RouterLink>
   </nav>
 </template>

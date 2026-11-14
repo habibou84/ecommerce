@@ -16,6 +16,7 @@ use App\Models\StoreInvitation;
 use App\Models\StoreUser;
 use App\Notifications\BillingNotice;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Ai\Assistant;
 use Carbon\CarbonImmutable;
 
 /**
@@ -182,7 +183,7 @@ class PlanLimits
             'payment_accounts' => PaymentAccount::forStore($store->id)->count(),
             // La boutique elle-même et celles que son abonnement couvre
             'stores' => 1 + Store::where('billing_store_id', $store->id)->count(),
-            'ai_actions_per_month' => AiUsage::forStore($store->id)->where('succeeded', true)
+            'ai_actions_per_month' => AiUsage::forStore($store->id)->where('succeeded', true)->whereNotIn('feature', Assistant::INCLUDED)
                 ->where('created_at', '>=', CarbonImmutable::now($store->timezone)->startOfMonth()->utc())->count(),
             default => 0,
         };

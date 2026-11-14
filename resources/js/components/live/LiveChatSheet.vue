@@ -59,11 +59,11 @@ const label = (m) => (m.type === 'image' ? '📷 Photo' : m.body)
       <div ref="list" class="mt-2 min-h-24 flex-1 space-y-1.5 overflow-y-auto overscroll-contain">
         <p v-if="!chat && !error" class="py-6 text-center text-sm text-slate-500">Chargement…</p>
         <p v-for="m in chat?.messages ?? []" :key="m.id" class="max-w-[85%] rounded-xl px-2.5 py-1.5 text-[13.5px] break-words whitespace-pre-line"
-           :class="m.direction === 'out' ? 'ml-auto bg-[#dcf8c6]' : 'bg-slate-100'">{{ label(m) }}</p>
+           :class="m.direction === 'out' ? 'ml-auto bg-whatsapp-bubble' : 'bg-slate-100'">{{ label(m) }}</p>
       </div>
       <template v-if="chat?.can_reply !== false">
         <div class="mt-2 flex shrink-0 flex-wrap gap-1">
-          <button v-for="q in quick" :key="q" type="button" class="rounded-lg border-[1.5px] border-slate-300 bg-white px-2 py-1 text-left text-[11.5px] font-bold" :disabled="busy" @click="send(q)">{{ q }}</button>
+          <button v-for="q in quick" :key="q" type="button" class="rounded-lg border-[1.5px] border-field bg-white px-2 py-1 text-left text-[11.5px] font-bold" :disabled="busy" @click="send(q)">{{ q }}</button>
         </div>
         <form class="mt-2 flex shrink-0 gap-1.5" @submit.prevent="send()">
           <input v-model="body" class="input min-w-0 flex-1 py-2 text-sm" placeholder="Votre réponse…" maxlength="1000" aria-label="Votre réponse" />

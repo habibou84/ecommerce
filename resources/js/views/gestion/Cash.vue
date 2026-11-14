@@ -64,7 +64,7 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
             <span class="min-w-0 flex-1">
               <span class="block font-semibold">Chez mes livreurs</span>
               <span class="block text-xs" :class="data.position.couriers_cash_count ? 'text-orange-800' : 'text-slate-600'">
-                <template v-if="data.position.couriers_cash_count">{{ data.position.couriers_cash_count }} livreur(s) à faire verser</template>
+                <template v-if="data.position.couriers_cash_count">{{ data.position.couriers_cash_count }} livreur{{ data.position.couriers_cash_count > 1 ? 's' : '' }} à faire verser</template>
                 <template v-else>Rien à faire verser</template>
               </span>
             </span>
@@ -90,7 +90,7 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
             <button class="block w-full text-left" :disabled="!data.position.customers_due_count" @click="showCredit = !showCredit">
               <p class="text-sm font-medium text-slate-600">Clients : reste à payer</p>
               <p class="whitespace-nowrap text-xl font-bold">{{ money(data.position.customers_due) }}</p>
-              <p class="text-xs text-slate-600">{{ data.position.customers_due_count }} commande(s) livrée(s), pas soldée(s)</p>
+              <p class="text-xs text-slate-600">{{ data.position.customers_due_count }} commande{{ data.position.customers_due_count > 1 ? 's livrées, pas soldées' : ' livrée, pas soldée' }}</p>
               <p v-if="data.position.customers_due_count" class="mt-1 text-xs font-medium text-emerald-800">{{ showCredit ? 'Masquer le détail ▴' : 'Voir le détail ▾' }}</p>
             </button>
             <ul v-if="showCredit" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">

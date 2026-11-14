@@ -51,12 +51,12 @@ class DeliveryFeesOnWhatsApp
     }
 
     /**
-     * Personne de l'équipe n'a répondu dans la conversation ces 6 dernières heures.
+     * Personne de l'équipe n'a répondu dans la conversation ces 6 dernières heures (application ou téléphone).
      */
     public function enabled(Conversation $conversation): bool
     {
         return $conversation->channel === 'whatsapp' && ConversationMessage::forStore($conversation->store_id)->where('conversation_id', $conversation->id)
-            ->where('direction', 'out')->whereNotNull('user_id')->where('created_at', '>=', now()->subHours(self::PAUSE_HOURS))->doesntExist();
+            ->where('direction', 'out')->whereNotIn('type', ['auto', 'template'])->where('created_at', '>=', now()->subHours(self::PAUSE_HOURS))->doesntExist();
     }
 
     /**

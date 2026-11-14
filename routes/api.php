@@ -437,6 +437,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
             });
             Route::middleware('permission:'.Permission::CustomersView->value)->group(function () {
                 Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
+                Route::get('customers/summary', [CustomerController::class, 'summary'])->name('customers.summary');
+                Route::get('customers/{customer}/relaunch', [CustomerController::class, 'relaunch'])->whereNumber('customer')->name('customers.relaunch');
                 Route::get('customers/{customer}', [CustomerController::class, 'show'])->whereNumber('customer')->name('customers.show');
                 Route::get('customers/elsewhere', [CustomerController::class, 'elsewhere'])->name('customers.elsewhere');
             });
@@ -595,6 +597,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('whatsapp/sales', [WhatsAppSalesController::class, 'show'])->name('whatsapp.sales.show');
                 Route::put('whatsapp/sales', [WhatsAppSalesController::class, 'update'])->name('whatsapp.sales.update');
                 Route::put('whatsapp/models', [WhatsAppSalesController::class, 'models'])->name('whatsapp.models.update');
+                Route::put('whatsapp/recap', [WhatsAppSalesController::class, 'recap'])->name('whatsapp.recap.update');
+                Route::put('whatsapp/cart-flow', [WhatsAppSalesController::class, 'cartFlow'])->name('whatsapp.cart-flow.update');
+                Route::put('whatsapp/catalog/visible', [WhatsAppSalesController::class, 'catalogVisible'])->middleware('throttle:10,1')->name('whatsapp.catalog.visible');
                 // Connexion WhatsApp depuis l'application installée : la fenêtre Facebook dépose son résultat ici
                 Route::post('whatsapp/connect-session', [WhatsAppConnectSessionController::class, 'register'])->middleware('throttle:20,1')->name('whatsapp.connect-session.register');
                 Route::get('whatsapp/connect-session/{key}', [WhatsAppConnectSessionController::class, 'show'])->where('key', '[A-Za-z0-9]{32,64}')->middleware('throttle:120,1')->name('whatsapp.connect-session.show');

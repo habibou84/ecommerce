@@ -16,7 +16,7 @@ const results = ref([])
 
 const STATES = [
   ['hidden', 'Masquée', 'bg-slate-700 text-white'],
-  ['test', 'Test', 'bg-amber-500 text-white'],
+  ['test', 'Test', 'bg-amber-700 text-white'],
   ['on', 'Active', 'bg-emerald-700 text-white'],
 ]
 

@@ -59,7 +59,7 @@ const LINES = [
         <div class="flex flex-wrap items-center gap-2">
           <h3 class="mr-auto font-semibold">Entrées et sorties</h3>
           <button v-for="[value, label] in PERIODS" :key="value" class="rounded-full border px-3 py-1"
-                  :class="period === value ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-white'"
+                  :class="period === value ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-field bg-white'"
                   @click="period = value; load()">{{ label }}</button>
         </div>
         <ul class="divide-y divide-slate-100">

@@ -49,7 +49,7 @@ const unsold = computed(() => (bilan.value?.items ?? []).filter((i) => i.sold ==
     <p v-else class="text-sm text-slate-500">Aucun moment lancé pendant ce live : la prochaine fois, essaie l'article mystère, le défi ou les 3 premiers.</p>
     <p class="text-xs text-slate-500">Commandes reçues dans les 2 minutes qui suivent chaque moment.</p>
     <p v-if="best" class="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">👍 À refaire : {{ MOMENT_NAMES[best.type] ?? best.type }} ({{ best.orders }} commande{{ best.orders > 1 ? 's' : '' }} juste après)</p>
-    <p v-if="unsold.length" class="rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">👀 À revoir : {{ unsold.map((i) => i.code).join(', ') }} {{ unsold.length > 1 ? 'n\'ont' : 'n\'a' }} rien vendu (photo, prix, moment où tu l'as montré ?)</p>
+    <p v-if="unsold.length" class="rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">👀 À revoir : {{ unsold.map((i) => i.code).join(', ') }} {{ unsold.length > 1 ? 'n\'ont' : 'n\'a' }} rien vendu (photo, prix, moment où vous l'avez montré ?)</p>
     <p v-if="bilan.quarters.length" class="text-sm text-slate-600">📍 Quartiers qui ont le plus commandé : <b>{{ bilan.quarters.slice(0, 3).map((q) => `${q.name} (${q.orders})`).join(', ') }}</b></p>
   </section>
 </template>

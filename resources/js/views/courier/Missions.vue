@@ -1,4 +1,5 @@
 <script setup>
+import StateBadge from '../../components/StateBadge.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
 import QrScanner from '../../components/QrScanner.vue'
@@ -8,7 +9,6 @@ import { newMissionAlert } from '../../lib/alertSound'
 import { cachedGet, loadMissions, offline, savedRoute, saveRoute, sendStep } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
 import { autoOrder, currentPosition, dueDay, isLate, isLater, itineraryUrl, routeOrder, shortDay, tomorrow } from '../../lib/route'
-import { SHIPMENT_TONES } from '../../lib/shipping'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -52,7 +52,7 @@ function scanned(input) {
   const code = rawCode(input)
   const found = code && (missions.value ?? []).find((m) => (m.labels ?? []).includes(code))
   if (found) router.push(`/livreur/missions/${found.id}`)
-  else error.value = code ? 'Ce colis n\'est dans aucune de tes courses.' : 'Ce n\'est pas une étiquette de colis.'
+  else error.value = code ? 'Ce colis n\'est dans aucune de vos courses.' : 'Ce n\'est pas une étiquette de colis.'
 }
 
 const FINAL = ['delivered', 'returned', 'cancelled', 'lost']
@@ -184,8 +184,8 @@ function saveOrder() {
     </div>
 
     <div v-if="storeNames.length > 1" class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-sm font-semibold">
-      <button type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="!storeFilter ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'" @click="storeFilter = ''">Toutes</button>
-      <button v-for="n in storeNames" :key="n" type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="storeFilter === n ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'" @click="storeFilter = n">{{ n }}</button>
+      <button type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="!storeFilter ? 'bg-slate-900 text-white' : 'border border-field bg-white text-slate-700'" @click="storeFilter = ''">Toutes</button>
+      <button v-for="n in storeNames" :key="n" type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="storeFilter === n ? 'bg-slate-900 text-white' : 'border border-field bg-white text-slate-700'" @click="storeFilter = n">{{ n }}</button>
     </div>
 
     <section v-for="m in offers" :key="`offer-${m.id}`" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 shadow-sm">
@@ -197,7 +197,7 @@ function saveOrder() {
       </RouterLink>
       <template v-if="declining?.id === m.id">
         <div class="flex flex-wrap gap-2">
-          <button v-for="r in REASONS" :key="r" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="reason === r ? 'border-emerald-600 bg-white font-medium' : 'border-slate-300'" @click="reason = r">{{ r }}</button>
+          <button v-for="r in REASONS" :key="r" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="reason === r ? 'border-emerald-600 bg-white font-medium' : 'border-field'" @click="reason = r">{{ r }}</button>
         </div>
         <input v-model="reason" class="input" maxlength="255" placeholder="Motif du refus" />
         <div class="grid grid-cols-2 gap-2">
@@ -236,7 +236,7 @@ function saveOrder() {
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-2">
             <span class="font-semibold">{{ m.place || 'Quartier ?' }}</span>
-            <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[m.status]">{{ m.status_label }}</span>
+            <StateBadge kind="shipment" :status="m.status" :label="m.status_label" class="ml-auto" />
           </span>
           <span class="mt-1 block text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }}</span>
           <span v-if="m.address" class="block truncate text-sm text-slate-500">{{ m.address }}</span>
@@ -276,7 +276,7 @@ function saveOrder() {
       <h2 class="pt-2 text-sm font-semibold text-slate-500">Terminées aujourd'hui</h2>
       <RouterLink v-for="m in done" :key="m.id" :to="`/livreur/missions/${m.id}`" class="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm opacity-70 shadow-sm">
         <span class="flex-1"><template v-if="m.store">{{ m.store }} · </template>{{ m.place }} · {{ m.customer_name }}</span>
-        <span class="rounded-full px-2 py-0.5 text-xs" :class="SHIPMENT_TONES[m.status]">{{ m.status_label }}</span>
+        <StateBadge kind="shipment" :status="m.status" :label="m.status_label" />
       </RouterLink>
     </template>
   </div>
