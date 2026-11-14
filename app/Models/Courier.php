@@ -57,6 +57,14 @@ class Courier extends Model
         return $place !== null && array_intersect($place->lineageIds(), $this->places->pluck('id')->all()) !== [];
     }
 
+    /**
+     * Missions confiées (historique, y compris refusées) : sert au « chacun son tour ».
+     */
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(CourierAssignment::class);
+    }
+
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class);

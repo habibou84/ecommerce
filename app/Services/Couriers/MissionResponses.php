@@ -17,7 +17,8 @@ use Illuminate\Support\Collection;
 /**
  * Réponse du livreur à une mission : vue, acceptée ou refusée avec un motif. Refusée, elle est annulée et, en
  * affectation automatique, repart aussitôt vers un autre livreur ; l'équipe est prévenue dans tous les cas.
- * Sans réponse au bout d'un quart d'heure, l'équipe reçoit un rappel.
+ * Sans réponse au bout d'un quart d'heure, l'équipe reçoit un rappel ; en envoi automatique, la boutique peut aussi
+ * la faire passer au livreur suivant après le délai qu'elle choisit.
  */
 class MissionResponses
 {
@@ -81,6 +82,35 @@ class MissionResponses
             $reason.' · '.($next ? 'confiée à '.($next->courier?->name ?? $next->connection?->name) : 'à confier à un autre livreur')), $courier->user);
 
         return $next;
+    }
+
+    /**
+     * Envoi automatique avec délai de réponse : mission toujours ni acceptée ni refusée après ce délai → reprise au
+     * livreur (comme un refus, il ne la revoit plus) et confiée au suivant. L'équipe est prévenue.
+     */
+    public function passUnanswered(): int
+    {
+        $late = CourierAssignment::withoutGlobalScopes()->with(['shipment.order', 'shipment.store', 'courier.user'])
+            ->where('status', 'assigned')->whereNull('accepted_at')
+            ->whereHas('shipment', fn ($q) => $q->withoutGlobalScopes()->where('status', ShipmentStatus::AwaitingPickup->value)
+                ->whereHas('store', fn ($s) => $s->where('assignment_mode', 'auto')->whereNotNull('mission_timeout_minutes')))
+            ->get()
+            ->filter(fn (CourierAssignment $a) => $a->assigned_at->lt(now()->subMinutes($a->shipment->store->mission_timeout_minutes)));
+
+        foreach ($late as $assignment) {
+            $shipment = $assignment->shipment;
+            $minutes = $shipment->store->mission_timeout_minutes;
+            $reason = "Pas de réponse en {$minutes} min";
+            $assignment->forceFill(['status' => 'declined', 'declined_at' => now(), 'completed_at' => now(), 'decline_reason' => $reason])->save();
+            $this->shipments->cancel($shipment, "{$assignment->courier->name} : {$reason}", null);
+
+            $next = $this->advisor->autoAssign($shipment->order->fresh());
+            $this->team->notify($shipment->store, Permission::ShipmentsManage->value, new MissionResponse($shipment, $assignment->courier->name.' n\'a pas répondu',
+                $reason.' · '.($next ? 'confiée à '.($next->courier?->name ?? $next->connection?->name) : 'à confier à un autre livreur')));
+            $assignment->courier->user?->notify(new MissionResponse($shipment, 'Mission reprise', "Pas de réponse en {$minutes} min : elle a été confiée à quelqu'un d'autre", '/livreur'));
+        }
+
+        return $late->count();
     }
 
     /**

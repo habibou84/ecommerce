@@ -98,7 +98,7 @@ async function deleteRule() {
   modal.value = null
   await load()
 }
-const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la zone)` : `${money(r.amount)} par livraison`) + (r.expedition_amount != null ? `, ${money(r.expedition_amount)} par expédition` : '') + (r.failed_attempt_amount ? `, ${money(r.failed_attempt_amount)} par tentative` : '')
+const ruleLabel = (r) => (r.type === 'delivery_fee' ? 'Les frais de livraison payés par le client' + (r.amount ? ` (${money(r.amount)} si la livraison est offerte)` : '') : r.type === 'per_zone' ? `${money(r.amount)} (selon la zone)` : `${money(r.amount)} par livraison`) + (r.expedition_amount != null ? `, ${money(r.expedition_amount)} par expédition` : '') + (r.failed_attempt_amount ? `, ${money(r.failed_attempt_amount)} par tentative` : '')
 </script>
 
 <template>
@@ -183,9 +183,10 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
       <form class="space-y-4" @submit.prevent="saveRule">
         <Field id="ru-name" label="Nom" :error="errors.name"><input id="ru-name" v-model="rule.name" class="input" required /></Field>
         <Field id="ru-type" label="Calcul">
-          <select id="ru-type" v-model="rule.type" class="input"><option value="per_delivery">Montant fixe par livraison</option><option value="per_zone">Selon la zone de livraison</option></select>
+          <select id="ru-type" v-model="rule.type" class="input"><option value="per_delivery">Montant fixe par livraison</option><option value="per_zone">Selon la zone de livraison</option><option value="delivery_fee">La totalité des frais de livraison payés par le client</option></select>
         </Field>
-        <Field id="ru-amount" :label="rule.type === 'per_zone' ? 'Montant par défaut' : 'Par livraison réussie'" :error="errors.amount">
+        <p v-if="rule.type === 'delivery_fee'" class="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Le livreur reçoit, pour chaque livraison réussie, les frais de livraison que le client a payés sur la commande (ex. 1 500 F pour une livraison facturée 1 500 F).</p>
+        <Field id="ru-amount" :label="rule.type === 'delivery_fee' ? 'Si la livraison est offerte au client' : rule.type === 'per_zone' ? 'Montant par défaut' : 'Par livraison réussie'" :hint="rule.type === 'delivery_fee' ? 'Ce que le livreur reçoit quand le client ne paie pas de frais (0 : rien).' : ''" :error="errors.amount">
           <input id="ru-amount" v-model.number="rule.amount" type="number" min="0" class="input" required />
         </Field>
         <div v-if="rule.type === 'per_zone'" class="space-y-2">

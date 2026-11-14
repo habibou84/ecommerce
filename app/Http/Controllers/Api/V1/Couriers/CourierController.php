@@ -171,7 +171,7 @@ class CourierController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:80'],
-            'type' => ['required', Rule::in(['per_delivery', 'per_zone'])],
+            'type' => ['required', Rule::in(CourierPayRule::TYPES)],
             'amount' => ['required', 'integer', 'min:0', 'max:10000000'],
             'zone_amounts' => ['nullable', 'array'],
             'zone_amounts.*' => ['integer', 'min:0', 'max:10000000'],
