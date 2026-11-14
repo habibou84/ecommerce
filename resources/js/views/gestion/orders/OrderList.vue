@@ -169,7 +169,7 @@ function mainAction(o) {
   if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => confirmOrder(o) }
   if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && o.prepay_due > 0 && !o.shipment_id && canManage.value) return { label: 'Lien de paiement', icon: 'cash', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => sendPayLink(o) }
   if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && !o.deliverer) return { label: 'Faire livrer', icon: 'truck', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openAssign([o.id]) }
-  if (o.status === 'shipped' && canManage.value) return { label: 'Livrée', icon: 'check', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openComplete(o) }
+  if (o.status === 'shipped' && canManage.value) return { label: 'Marquer livrée', icon: 'check', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openComplete(o) }
   return null
 }
 
@@ -479,7 +479,7 @@ async function exportList() {
     <!-- Ordinateur : tableau groupé par jour -->
     <div v-if="orders.length" class="card hidden overflow-x-auto lg:block">
       <table class="w-full table-fixed text-left text-sm">
-        <colgroup><col class="w-12" /><col class="w-[25%]" /><col class="w-[17%]" /><col class="w-[15%]" /><col class="w-[11%]" /><col class="w-[13%]" /><col class="w-[19%]" /></colgroup>
+        <colgroup><col class="w-12" /><col class="w-[22%]" /><col class="w-[15%]" /><col class="w-[12%]" /><col class="w-[10%]" /><col class="w-[15%]" /><col class="w-[26%]" /></colgroup>
         <thead class="text-xs font-semibold uppercase tracking-wide text-slate-500">
           <tr>
             <th class="w-12 py-2.5 pl-4 pr-2"><input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="allSelected" aria-label="Tout sélectionner" @change="toggleAll" /></th>
@@ -517,7 +517,9 @@ async function exportList() {
               <td class="truncate py-3 pr-3 text-slate-600" :title="o.items_label">{{ o.items_label }}</td>
               <td class="py-3 pr-3 text-right"><p class="font-bold">{{ money(o.total) }}</p><p class="whitespace-nowrap text-xs" :class="PAYMENT_TONES[o.payment_status]">{{ o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status) ? 'À encaisser' : o.payment_status_label }}</p></td>
               <td class="py-3 pr-3">
-                <span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS_TONES[o.status]"><Icon :name="STATUS_ICONS[o.status] ?? 'more'" :size="13" />{{ o.status_label }}</span>
+                <span class="inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS_TONES[o.status]"><Icon :name="STATUS_ICONS[o.status] ?? 'more'" :size="13" />{{ o.status_label }}</span>
+                <!-- Livreur choisi : sous le statut (la colonne Actions est trop étroite pour son nom) -->
+                <p v-if="showDeliverer(o)" class="mt-1 flex max-w-[11rem] items-center gap-1 text-xs font-semibold text-emerald-800"><Icon name="truck" :size="12" class="shrink-0" /><span class="truncate">{{ o.deliverer }}</span><span v-if="o.deliverer_planned" class="shrink-0 font-normal">· prévu</span></p>
                 <p v-if="o.callback_at && o.status === 'pending_confirmation'" class="mt-0.5 text-xs text-amber-800">Rappel {{ new Date(o.callback_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</p>
               </td>
               <td class="py-3 pr-4">
@@ -525,11 +527,7 @@ async function exportList() {
                   <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50" :title="`Appeler ${o.customer_name ?? ''}`"><Icon name="phone" :size="16" /></a>
                   <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50" title="WhatsApp"><Icon name="whatsapp" :size="16" /></a>
                   <button v-if="mainAction(o)" type="button" class="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 text-sm font-semibold text-white" :class="mainAction(o).tone" :disabled="busy" @click="mainAction(o).run()"><Icon :name="mainAction(o).icon" :size="15" />{{ mainAction(o).label }}</button>
-                  <span v-else-if="showDeliverer(o)" class="inline-flex h-9 max-w-[14rem] items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 pl-2.5 pr-1 text-sm">
-                    <Icon name="truck" :size="15" class="shrink-0 text-emerald-700" />
-                    <span class="min-w-0 truncate font-semibold text-emerald-900">{{ o.deliverer }}<span v-if="o.deliverer_planned" class="font-normal text-emerald-700"> · prévu</span></span>
-                    <button v-if="o.deliverer_editable && canAssign" type="button" class="h-7 shrink-0 rounded-lg bg-white px-2 text-xs font-semibold text-emerald-800 shadow-sm" :disabled="busy" @click="editDeliverer(o)">Modifier</button>
-                  </span>
+                  <button v-else-if="showDeliverer(o) && o.deliverer_editable && canAssign" type="button" class="inline-flex h-9 items-center whitespace-nowrap rounded-xl border border-field bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="busy" @click="editDeliverer(o)">Changer de livreur</button>
                 </div>
               </td>
             </tr>
@@ -574,7 +572,7 @@ async function exportList() {
             <div v-else-if="showDeliverer(o)" class="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 pl-3 pr-1">
               <Icon name="truck" :size="17" class="shrink-0 text-emerald-700" />
               <span class="min-w-0 flex-1 truncate text-[15px] font-semibold text-emerald-900">{{ o.deliverer }}<span v-if="o.deliverer_planned" class="font-normal text-emerald-700"> · prévu</span></span>
-              <button v-if="o.deliverer_editable && canAssign" type="button" class="h-9 shrink-0 rounded-lg bg-white px-3 text-sm font-semibold text-emerald-800 shadow-sm" :disabled="busy" @click="editDeliverer(o)">Modifier</button>
+              <button v-if="o.deliverer_editable && canAssign" type="button" class="h-9 shrink-0 rounded-lg bg-white px-3 text-sm font-semibold text-emerald-800 shadow-sm" :disabled="busy" @click="editDeliverer(o)">Changer</button>
             </div>
           </div>
         </div>

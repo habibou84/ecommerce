@@ -54,9 +54,9 @@ const actions = computed(() => {
   }
   if (canManage.value) {
     const steps = [
-      { key: 'shipped', label: 'En route', icon: 'truck', run: () => setStatus('shipped') },
-      { key: 'completed', label: 'Livrée', icon: 'check', run: () => openModal('complete') },
-      { key: 'processing', label: 'En préparation', icon: 'box', run: () => setStatus('processing') },
+      { key: 'shipped', label: 'Marquer en route', icon: 'truck', run: () => setStatus('shipped') },
+      { key: 'completed', label: 'Marquer livrée', icon: 'check', run: () => openModal('complete') },
+      { key: 'processing', label: 'Marquer en préparation', icon: 'box', run: () => setStatus('processing') },
     ].filter((a) => nextStatuses.value.includes(a.key))
     if (!list.primary) list.primary = steps.shift() ?? null
     list.secondary.push(...steps)
@@ -307,7 +307,7 @@ async function addNote() {
             <p v-if="order.shipping_landmark" class="text-slate-500">Repère : {{ order.shipping_landmark }}</p>
             <p v-if="order.shipping_phone2" class="text-slate-500">Autre numéro : {{ order.shipping_phone2 }}</p>
             <p v-if="(order.planned_courier || order.planned_carrier) && !order.shipments.length" class="flex items-center gap-1.5 text-emerald-800">
-              <Icon name="truck" :size="16" />Livrée par {{ (order.planned_courier || order.planned_carrier).name }}{{ order.status === 'pending_confirmation' ? ' dès la confirmation' : '' }}
+              <Icon name="truck" :size="16" />Sera livrée par {{ (order.planned_courier || order.planned_carrier).name }}{{ order.status === 'pending_confirmation' ? ' (course envoyée à la confirmation)' : '' }}
             </p>
           </template>
           <p v-if="order.scheduled_date" class="font-medium" :class="order.is_late ? 'text-red-700' : 'text-slate-700'">Livraison prévue le {{ new Date(`${order.scheduled_date.slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) }}</p>
