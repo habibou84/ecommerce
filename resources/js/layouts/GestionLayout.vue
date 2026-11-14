@@ -381,7 +381,7 @@ async function switchTo(store) {
               <ColorIcon v-if="item.color" :name="item.color" :size="30" />
               <svg v-else viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
               {{ item.label }}
-              <span v-if="groupBadge(item) && openGroup !== item.label" class="ml-auto rounded-full bg-emerald-700 px-1.5 text-[11px] font-semibold text-white">{{ groupBadge(item) }}</span>
+              <span v-if="groupBadge(item) && openGroup !== item.label" class="ml-auto rounded-full bg-slate-800 px-1.5 text-[11px] font-semibold text-white">{{ groupBadge(item) }}</span>
               <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400 transition" :class="[{ 'rotate-90': openGroup === item.label }, groupBadge(item) && openGroup !== item.label ? '' : 'ml-auto']" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" /></svg>
             </button>
             <div v-show="openGroup === item.label" class="mb-1 ml-[26px] space-y-0.5 border-l border-slate-200 pl-3">
@@ -394,7 +394,7 @@ async function switchTo(store) {
                 @click="menuOpen = false"
               >
                 {{ sub.label }}
-                <span v-if="badges[sub.badge]" class="ml-auto rounded-full bg-emerald-700 px-1.5 text-[11px] font-semibold text-white">{{ badges[sub.badge] }}</span>
+                <span v-if="badges[sub.badge]" class="ml-auto rounded-full bg-slate-800 px-1.5 text-[11px] font-semibold text-white">{{ badges[sub.badge] }}</span>
               </RouterLink>
             </div>
           </div>

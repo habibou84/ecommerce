@@ -272,7 +272,7 @@ async function whatsapp(s) {
           <button v-if="s.is_cancellable" class="btn-ghost px-3 py-1.5 text-red-700" @click="openModal('cancel', s)">Annuler</button>
         </div>
       </div>
-      <div v-if="s.needs_decision && !s.is_final" class="rounded bg-rose-50 p-2 text-rose-900">
+      <div v-if="s.needs_decision && !s.is_final" class="rounded bg-ocre-50 p-2 text-ocre-900">
         <p class="font-medium">{{ s.carrier?.name || 'L\'entreprise de livraison' }} attend votre décision : nouvelle date ou retour du colis.</p>
         <div v-if="s.carrier_actions?.decide" class="mt-2 flex flex-wrap gap-2">
           <button class="btn-brand px-3 py-1.5" @click="openModal('redeliver', s)">Relivrer le…</button>

@@ -264,11 +264,11 @@ function open(to) {
       <div ref="tabs" class="flex h-full w-full items-center gap-2 overflow-x-auto pl-4 pr-20 [scrollbar-width:none]" role="tablist">
         <button v-for="(p, i) in pages" :key="p.key" type="button" role="tab" :aria-selected="i === current"
                 class="relative mt-1 shrink-0 rounded-full px-3 py-1.5 text-[13.5px] font-extrabold transition"
-                :class="i === current ? (p.badge()?.level === 'red' ? 'bg-rose-800 text-white' : 'bg-slate-900 text-white') : (p.badge()?.level === 'red' ? 'bg-rose-100 text-rose-900' : 'bg-white text-slate-600 shadow-soft')"
+                :class="i === current ? (p.badge()?.level === 'red' ? 'bg-red-700 text-white' : 'bg-slate-900 text-white') : (p.badge()?.level === 'red' ? 'bg-red-100 text-red-900' : 'bg-white text-slate-600 shadow-soft')"
                 @click="go(i)">
           <span class="inline-flex items-center gap-1.5"><ColorIcon :name="PAGE_COLORS[p.key] ?? 'menu'" :size="18" :tile="false" />{{ p.name }}</span>
           <span v-if="p.badge()" class="absolute -right-1.5 -top-2 min-w-[19px] rounded-full border-2 border-slate-50 px-1 text-center text-[11px] font-black leading-[15px] text-white"
-                :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-rose-600' : 'bg-amber-500'">{{ p.badge().n }}</span>
+                :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-red-600' : 'bg-amber-500'">{{ p.badge().n }}</span>
         </button>
       </div>
     </Teleport>
@@ -288,7 +288,7 @@ function open(to) {
             <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center whitespace-nowrap px-2 py-3 text-[14px] font-black">＋ Nouvelle commande</RouterLink>
             <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center whitespace-nowrap px-2 py-3 text-[14px] font-black">Vente au comptoir</RouterLink>
           </div>
-          <div class="rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
+          <div class="rounded-[22px] bg-brand-grad p-4 text-white">
             <p class="text-sm font-semibold opacity-90">Aujourd'hui</p>
             <p class="text-[26px] font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }}</p>
             <p class="text-sm font-semibold opacity-90">{{ pl(s.orders?.today_count ?? 0, 'commande', 'commandes') }}</p>
@@ -324,7 +324,7 @@ function open(to) {
               <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
-          <div class="rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
+          <div class="rounded-[22px] bg-brand-grad p-4 text-white">
             <p class="text-sm font-semibold opacity-90">Ventes du jour</p>
             <p class="text-[28px] font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }}</p>
           </div>
@@ -381,7 +381,7 @@ function open(to) {
           <input v-model="itemSearch" class="input" placeholder="🔍 Chercher un article" @input="searchItems" />
           <div class="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
             <button v-for="[v, label] in [['', 'Tout'], ['low', `⚠ Stock bas ${s.stock?.low ?? ''}`], ['out', `Épuisés ${s.stock?.out ?? ''}`]]" :key="v" type="button"
-                    class="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold" :class="itemFilter === v ? 'bg-slate-900 text-white' : (v ? 'bg-rose-50 text-rose-800' : 'bg-white shadow-soft')" @click="itemFilter = v">{{ label }}</button>
+                    class="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold" :class="itemFilter === v ? 'bg-slate-900 text-white' : (v ? 'bg-red-50 text-red-800' : 'bg-white shadow-soft')" @click="itemFilter = v">{{ label }}</button>
           </div>
           <p v-if="!items" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
           <p v-else-if="!items.length" class="p-4 text-center text-sm text-slate-500">Aucun article.</p>
@@ -404,7 +404,7 @@ function open(to) {
             <RouterLink v-for="t in plus" :key="t.to + t.label" :to="t.to" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-white px-1 py-3 text-center shadow-soft transition active:scale-95">
               <ColorIcon :name="t.color" :size="44" />
               <span class="text-[12.5px] font-semibold leading-tight text-slate-700">{{ t.label }}</span>
-              <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-rose-600 px-1.5 text-[11px] font-black text-white">{{ s.unread_messages }} non lu{{ s.unread_messages > 1 ? 's' : '' }}</span>
+              <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-red-600 px-1.5 text-[11px] font-black text-white">{{ s.unread_messages }} non lu{{ s.unread_messages > 1 ? 's' : '' }}</span>
             </RouterLink>
           </div>
           <h3 class="mb-2 mt-5 px-1 text-[15px] font-black text-slate-700">Réglages</h3>
