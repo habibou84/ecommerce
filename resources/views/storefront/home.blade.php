@@ -25,7 +25,7 @@
         <section class="mb-12">
             <div class="mb-4 flex items-end justify-between gap-4">
                 <h2 class="text-2xl font-bold">{{ $featured['collection']->title }}</h2>
-                <a href="/collections/{{ $featured['collection']->slug }}" class="shrink-0 text-sm text-brand underline">Tout voir</a>
+                <a href="/collections/{{ $featured['collection']->slug }}" class="shrink-0 text-sm text-brand-text underline">Tout voir</a>
             </div>
             <div class="grid grid-cols-2 gap-x-4 gap-y-6 lg:grid-cols-4">
                 @foreach ($featured['cards'] as $card)
@@ -40,7 +40,7 @@
             <h2 class="mb-4 text-2xl font-bold">Nos collections</h2>
             <div class="flex gap-2 overflow-x-auto pb-2">
                 @foreach ($collections as $collection)
-                    <a href="/collections/{{ $collection->slug }}" class="shrink-0 rounded-full border border-brand px-4 py-2 text-sm text-brand hover:bg-brand-soft">{{ $collection->title }}</a>
+                    <a href="/collections/{{ $collection->slug }}" class="shrink-0 rounded-full border border-brand px-4 py-2 text-sm text-brand-text hover:bg-brand-soft">{{ $collection->title }}</a>
                 @endforeach
             </div>
         </section>
@@ -50,7 +50,7 @@
         <section class="mb-12">
             <div class="mb-4 flex items-end justify-between gap-4">
                 <h2 class="text-2xl font-bold">Nouveautés</h2>
-                <a href="/produits" class="shrink-0 text-sm text-brand underline">Tous les produits</a>
+                <a href="/produits" class="shrink-0 text-sm text-brand-text underline">Tous les produits</a>
             </div>
             <div class="grid grid-cols-2 gap-x-4 gap-y-6 lg:grid-cols-4">
                 @foreach ($newArrivals as $card)
