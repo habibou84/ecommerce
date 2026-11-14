@@ -15,7 +15,7 @@ export const ORDER_TABS = [
   { value: '', label: 'Toutes' },
   { value: 'pending_confirmation', label: 'À confirmer' },
   { value: 'to_ship', label: 'À faire livrer' },
-  { value: 'at_courier', label: 'Chez le livreur' },
+  { value: 'at_courier', label: 'À ramasser' },
   { value: 'shipped', label: 'En route' },
   { value: 'late', label: 'En retard', alert: true },
   { value: 'completed', label: 'Livrées' },

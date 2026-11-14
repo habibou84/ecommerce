@@ -107,7 +107,7 @@ class OrderListTest extends TestCase
         $this->assertSame(['courier:'.$courier->id, true, $shipment->id], [$rows[$confirmed->id]['deliverer_key'], $rows[$confirmed->id]['deliverer_editable'], $rows[$confirmed->id]['shipment_id']]);
         $this->assertFalse($rows[$other->id]['deliverer_editable']);
 
-        // « À faire livrer » : sans course ; « Chez le livreur » : course demandée, pas encore partie
+        // « À faire livrer » : sans course ; « À ramasser » : course demandée, colis pas encore ramassé
         $this->assertSame([$other->id], collect($this->api('GET', 'orders?status=to_ship')->json('data'))->pluck('id')->all());
         $this->assertSame([$confirmed->id], collect($this->api('GET', 'orders?status=at_courier')->json('data'))->pluck('id')->all());
         $this->api('GET', 'orders')->assertJsonPath('counts.to_ship', 1)->assertJsonPath('counts.at_courier', 1);

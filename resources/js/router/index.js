@@ -80,7 +80,7 @@ const storeRoutes = [
       { path: 'stock/journal', component: () => import('../views/gestion/stock/StockMovements.vue'), meta: { title: 'Stock', permission: 'stock.manage' } },
       { path: 'stock/emplacements', component: () => import('../views/gestion/stock/StockLocations.vue'), meta: { title: 'Stock', permission: 'stock.manage' } },
       // Livraisons : qui livre et comment (les anciennes adresses « expeditions » et « livreurs » redirigent ici)
-      // Les livraisons en cours se suivent dans la liste des commandes (onglets Chez le livreur, En route) :
+      // Les livraisons en cours se suivent dans la liste des commandes (onglets À ramasser, En route) :
       // l'ancienne adresse y mène ; le menu Livraisons ne garde que les réglages (livreurs, entreprises, tarifs…)
       { path: 'livraisons', redirect: '/gestion/commandes?status=shipped' },
       { path: 'livraisons/livreurs', component: () => import('../views/gestion/couriers/Couriers.vue'), meta: { title: 'Mes livreurs', permission: 'couriers.manage' } },

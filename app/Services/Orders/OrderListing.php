@@ -180,7 +180,7 @@ class OrderListing
     {
         return match ($status) {
             null, '' => $query,
-            // À faire livrer : confirmées sans course en cours ; Chez le livreur : course demandée, pas encore partie
+            // À faire livrer : confirmées sans course en cours ; À ramasser : course demandée, colis pas encore ramassé
             'to_ship' => self::toShip($query),
             'at_courier' => $query->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->whereHas('shipments', self::activeShipment(...)),
             'late' => $this->late($query),
@@ -263,7 +263,7 @@ class OrderListing
             // « Modifier » le livreur depuis la liste : choix pas encore envoyé, ou course de mon livreur pas encore partie
             'deliverer_key' => $this->delivererKey($order, $shipment),
             'shipment_id' => $shipment && ! $shipment->status->isFinal() ? $shipment->id : null,
-            // Course en cours : son état et le numéro de suivi, visibles dans la liste (onglets Chez le livreur, En route)
+            // Course en cours : son état et le numéro de suivi, visibles dans la liste (onglets À ramasser, En route)
             'shipment_status' => $shipment && ! $shipment->status->isFinal() ? $shipment->status->value : null,
             'shipment_status_label' => $shipment && ! $shipment->status->isFinal() ? $shipment->status->label() : null,
             'tracking_code' => $shipment && ! $shipment->status->isFinal() ? $shipment->carrier_tracking_code : null,
