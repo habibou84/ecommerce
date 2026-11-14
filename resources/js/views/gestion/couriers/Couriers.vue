@@ -6,6 +6,7 @@ import CourierWhatsAppButton from '../../../components/CourierWhatsAppButton.vue
 import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
+import PlacesPicker from '../../../components/PlacesPicker.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
@@ -36,8 +37,8 @@ function open(courier) {
   errors.value = {}
   error.value = ''
   editing.value = courier
-    ? { ...courier, pay_rule_id: courier.pay_rule?.id ?? null, zone_ids: courier.zones.map((z) => z.id) }
-    : { name: '', phone: '', vehicle_type: 'moto', pay_rule_id: null, cash_limit: null, zone_ids: [], note: '', store_ids: [] }
+    ? { ...courier, pay_rule_id: courier.pay_rule?.id ?? null, places: [...courier.places] }
+    : { name: '', phone: '', vehicle_type: 'moto', pay_rule_id: null, cash_limit: null, places: [], note: '', store_ids: [] }
   modal.value = 'edit'
 }
 
@@ -45,7 +46,8 @@ async function save() {
   busy.value = true
   errors.value = {}
   try {
-    const payload = { ...editing.value, cash_limit: editing.value.cash_limit === '' ? null : editing.value.cash_limit }
+    const { places, ...fields } = editing.value
+    const payload = { ...fields, place_ids: places.map((p) => p.id), cash_limit: fields.cash_limit === '' ? null : fields.cash_limit }
     if (editing.value.id) {
       delete payload.phone
       await http.patch(`/couriers/${editing.value.id}`, payload)
@@ -115,7 +117,7 @@ async function deactivate(courier) {
           <span class="min-w-0 flex-1">
             <span class="block font-medium">{{ c.name }} <span class="font-normal text-slate-500">· {{ c.phone_display }} · {{ data.vehicles[c.vehicle_type] }}</span></span>
             <span class="block text-slate-500">
-              {{ c.zones.map((z) => z.name).join(', ') || 'Toutes zones' }} · {{ c.pay_rule?.name ?? 'sans règle de paie' }}
+              {{ c.places.map((p) => p.label).join(', ') || 'Partout' }} · {{ c.pay_rule?.name ?? 'sans règle de paie' }}
               <template v-if="c.active_missions"> · {{ c.active_missions }} mission(s) en cours</template>
             </span>
             <a v-if="c.location" :href="mapUrl(c.location)" target="_blank" class="block text-emerald-700 hover:underline"><Icon name="pin" :size="16" class="mr-1 inline-block align-[-3px]" />Position {{ ago(c.location.at) }}</a>
@@ -154,12 +156,9 @@ async function deactivate(courier) {
           <select id="cr-rule" v-model="editing.pay_rule_id" class="input"><option :value="null">Aucune</option><option v-for="r in data.pay_rules" :key="r.id" :value="r.id">{{ r.name }}</option></select>
         </Field>
         <fieldset>
-          <legend class="label">Zones couvertes</legend>
-          <div class="flex flex-wrap gap-2">
-            <label v-for="z in data.zones" :key="z.id" class="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 text-sm">
-              <input v-model="editing.zone_ids" type="checkbox" :value="z.id" class="accent-emerald-700" /> {{ z.name }}
-            </label>
-          </div>
+          <legend class="label">Où livre-t-il ?</legend>
+          <PlacesPicker id="cr-places" v-model="editing.places" empty-label="Partout : aucun lieu choisi." />
+          <p class="mt-1 text-xs text-slate-500">Une commune couvre tous ses quartiers. Ses courses lui sont proposées en priorité dans ces lieux.</p>
         </fieldset>
         <fieldset v-if="!editing.id && otherStores().length">
           <legend class="label">Travaille aussi pour</legend>
@@ -168,7 +167,7 @@ async function deactivate(courier) {
               <input v-model="editing.store_ids" type="checkbox" :value="st.id" class="accent-emerald-700" /> {{ st.name }}
             </label>
           </div>
-          <p class="mt-1 text-xs text-slate-500">Une seule application pour toutes ses livraisons ; chaque boutique garde ses zones et sa paie pour lui.</p>
+          <p class="mt-1 text-xs text-slate-500">Une seule application pour toutes ses livraisons ; chaque boutique garde ses lieux et sa paie pour lui.</p>
         </fieldset>
         <button class="btn-brand w-full" :disabled="busy">{{ editing.id ? 'Enregistrer' : 'Ajouter et créer le lien' }}</button>
       </form>

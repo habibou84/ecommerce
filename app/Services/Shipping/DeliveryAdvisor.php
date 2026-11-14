@@ -32,14 +32,14 @@ class DeliveryAdvisor
      */
     public function options(Order $order): array
     {
-        $order->loadMissing('items.product');
+        $order->loadMissing(['items.product', 'place.parent']);
         $zoneId = $order->delivery_zone_id;
 
         // Livreurs qui ont déjà refusé cette commande : on ne la leur propose plus
         $declined = CourierAssignment::forStore($order->store_id)->where('status', 'declined')
             ->whereIn('shipment_id', Shipment::forStore($order->store_id)->where('order_id', $order->id)->select('id'))->pluck('courier_id')->all();
 
-        $couriers = Courier::forStore($order->store_id)->whereIn('status', ['active', 'invited'])->with(['zones:id', 'payRule'])
+        $couriers = Courier::forStore($order->store_id)->whereIn('status', ['active', 'invited'])->with(['places:id', 'payRule'])
             ->withCount(['shipments as active_missions' => fn ($q) => $q->whereIn('status', ['awaiting_pickup', 'in_transit', 'out_for_delivery'])])
             ->get()
             ->map(fn (Courier $c) => [
@@ -49,8 +49,8 @@ class DeliveryAdvisor
                 // Créé mais pas encore connecté : proposé à la main, jamais choisi par les règles automatiques
                 'connected' => $c->status === 'active',
                 'active_missions' => $c->active_missions,
-                'covers_zone' => $c->coversZone($zoneId),
-                'all_zones' => $c->zones->isEmpty(),
+                'covers_zone' => $c->coversPlace($order->place),
+                'all_zones' => $c->places->isEmpty(),
                 'declined' => in_array($c->id, $declined, true),
                 'cost' => $c->payRule?->amountFor($zoneId),
                 'stats' => $this->stats($order->store_id, 'courier_id', $c->id, $zoneId),
@@ -185,7 +185,11 @@ class DeliveryAdvisor
         $fragile = $order->items->contains(fn ($i) => $i->product?->is_fragile);
         $weight = (int) $order->items->sum(fn ($i) => ($i->weight_g ?? 0) * $i->quantity);
 
-        return (empty($c['delivery_zone_ids']) || in_array($order->delivery_zone_id, array_map('intval', $c['delivery_zone_ids']), true))
+        // Lieux : la commande va dans un des lieux du cas (Angré est dans Cocody, dans Abidjan)
+        $order->loadMissing('place.parent');
+        $inPlaces = empty($c['place_ids']) || ($order->place !== null && array_intersect($order->place->lineageIds(), array_map('intval', $c['place_ids'])) !== []);
+
+        return $inPlaces
             && (! isset($c['is_fragile']) || $c['is_fragile'] === null || (bool) $c['is_fragile'] === $fragile)
             && (! isset($c['min_amount']) || $c['min_amount'] === null || $order->total >= $c['min_amount'])
             && (! isset($c['max_amount']) || $c['max_amount'] === null || $order->total <= $c['max_amount'])
