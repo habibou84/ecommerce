@@ -67,7 +67,7 @@ class DeliveryRatesTest extends TestCase
      */
     private function courier(): array
     {
-        $created = $this->storeApi($this->store, 'POST', 'couriers', ['name' => 'Koffi', 'phone' => '0102030405', 'zone_ids' => [DeliveryZone::forStore($this->store->id)->value('id')]])->assertCreated();
+        $created = $this->storeApi($this->store, 'POST', 'couriers', ['name' => 'Koffi', 'phone' => '0102030405', 'place_ids' => [DeliveryZone::forStore($this->store->id)->firstOrFail()->places()->value('places.id')]])->assertCreated();
         $token = basename($created->json('invitation_url'));
         $this->logout();
         $start = $this->storeApi($this->store, 'POST', "invitations/{$token}/accept", ['name' => 'Koffi', 'password' => 'motdepasse'])->assertStatus(202)->json();
