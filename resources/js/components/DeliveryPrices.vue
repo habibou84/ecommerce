@@ -114,7 +114,7 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
 
 <template>
   <div class="space-y-3">
-    <p v-if="error" class="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{{ error }}</p>
+    <p v-if="error" class="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-800">{{ error }}</p>
     <p v-if="!rates && !error" class="py-10 text-center text-slate-500">Chargement…</p>
 
     <template v-if="rates">

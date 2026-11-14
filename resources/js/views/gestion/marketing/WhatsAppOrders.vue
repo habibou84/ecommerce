@@ -234,7 +234,7 @@ async function share() {
 
     <!-- ═══ Bilan ═══ -->
     <template v-else>
-      <section class="rounded-[24px] bg-gradient-to-br from-emerald-700 to-teal-700 p-5 text-white">
+      <section class="rounded-[24px] bg-brand-grad p-5 text-white">
         <span class="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-bold">FERMÉ · {{ formatDateTime(session.ended_at) }}</span>
         <p class="mt-1 text-sm font-semibold text-white/90">{{ session.title }}</p>
         <p class="mt-2 text-4xl font-extrabold">{{ money(session.summary?.amount ?? 0) }}</p>

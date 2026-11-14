@@ -244,7 +244,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div class="min-w-0 space-y-4">
         <!-- Vendre en live, en tête : invitation, live prêt à lancer ou live en direct (rose et violet, la couleur du live) -->
-        <section v-if="live" class="relative overflow-hidden rounded-[24px] p-5 text-white" :class="live.state === 'live' ? 'bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400' : 'bg-live-grad'">
+        <section v-if="live" class="relative overflow-hidden rounded-[24px] p-5 text-white" :class="live.state === 'live' ? 'bg-live-grad' : 'bg-live-grad'">
           <svg class="pointer-events-none absolute -right-8 -top-8 opacity-[.16]" width="180" height="180" viewBox="0 0 48 48" aria-hidden="true"><path d="M15.5 15.5a12 12 0 0 0 0 17M32.5 15.5a12 12 0 0 1 0 17M9.5 9.5a20 20 0 0 0 0 29M38.5 9.5a20 20 0 0 1 0 29" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" /><circle cx="24" cy="24" r="6" fill="#fff" /></svg>
           <template v-if="live.state === 'live'">
             <span class="inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide">
@@ -367,7 +367,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
                 <span class="block text-[15px] font-semibold">{{ t.label }}</span>
                 <span v-if="t.hint" class="block text-sm" :class="t.urgent ? 'text-ocre-700' : 'text-slate-500'">{{ t.hint }}</span>
               </span>
-              <span class="grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm font-bold" :class="t.urgent ? 'bg-ocre-50 text-ocre-800' : 'bg-emerald-50 text-emerald-800'">{{ t.count }}</span>
+              <span class="grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm font-bold" :class="t.urgent ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-800'">{{ t.count }}</span>
             </RouterLink>
             <button v-if="pendingHidden > 0 && !more" type="button" class="block w-full border-t border-slate-100 px-4 py-2.5 text-left text-sm font-semibold text-emerald-700" @click="toggleMore">
               Et {{ pendingHidden }} autre{{ pendingHidden > 1 ? 's' : '' }} ›
@@ -489,7 +489,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
                 <span class="block text-sm font-bold text-slate-900">{{ t.label }}</span>
                 <span v-if="t.hint" class="block text-xs" :class="t.urgent ? 'text-ocre-800' : 'text-slate-600'">{{ t.hint }}</span>
               </span>
-              <span v-if="t.count" class="grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm font-bold text-white" :class="t.urgent ? 'bg-ocre-700' : 'bg-emerald-700'">{{ t.count }}</span>
+              <span v-if="t.count" class="grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm font-bold text-white" :class="t.urgent ? 'bg-ocre-700' : 'bg-slate-800'">{{ t.count }}</span>
               <Icon name="chevron" :size="16" class="text-slate-400" />
             </RouterLink>
           </li>

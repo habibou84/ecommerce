@@ -259,7 +259,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     </div>
 
     <!-- Live en cours : on y retourne d'abord -->
-    <section v-if="current" class="rounded-[24px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 p-5 text-white">
+    <section v-if="current" class="rounded-[24px] bg-live-grad p-5 text-white">
       <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold"><span class="h-2 w-2 animate-pulse rounded-full bg-white" />COMMANDES OUVERTES</span>
       <h2 class="mt-2 text-xl font-extrabold">{{ current.title }}</h2>
       <p class="mt-1 text-3xl font-extrabold">{{ money(current.summary?.amount ?? 0) }}</p>
@@ -293,7 +293,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <template v-else>
         <p class="px-0.5 font-display text-base font-extrabold">Que voulez-vous faire ?</p>
         <div class="grid grid-cols-2 gap-2">
-          <button type="button" class="grid min-h-[118px] content-start gap-1 rounded-[18px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 p-3 text-left text-white" :class="mode === 'live' ? 'ring-[3px] ring-slate-900 ring-offset-2' : ''" :aria-pressed="mode === 'live'" @click="mode = 'live'">
+          <button type="button" class="grid min-h-[118px] content-start gap-1 rounded-[18px] bg-live-grad p-3 text-left text-white" :class="mode === 'live' ? 'ring-[3px] ring-slate-900 ring-offset-2' : ''" :aria-pressed="mode === 'live'" @click="mode = 'live'">
             <ColorIcon name="live" :size="34" />
             <b class="font-display text-base font-extrabold leading-tight">Faire un live</b>
             <span class="text-[13px] leading-snug">Sur TikTok, vous montrez vos articles</span>
@@ -316,9 +316,9 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       </template>
 
       <template v-if="showSteps">
-      <div class="flex items-center gap-3 rounded-[18px] bg-gradient-to-br from-ocre-800 via-ocre-600 to-orange-400 p-3.5 text-white">
-        <span class="min-w-0 flex-1"><b class="block font-display text-lg font-extrabold leading-tight">Votre live en 5 étapes</b><span class="text-sm opacity-95">Jibiat Marchand enregistre les commandes.</span></span>
-        <button type="button" class="shrink-0 rounded-full bg-white/20 px-3 py-2 text-[13px] font-extrabold" aria-label="Voir la vidéo (1 min 30)" @click="video = true"><span aria-hidden="true">▶ 1 min 30</span></button>
+      <div class="flex items-center gap-3 rounded-[18px] border border-slate-200 bg-white p-3.5">
+        <span class="min-w-0 flex-1"><b class="block font-display text-lg font-extrabold leading-tight">Votre live en 5 étapes</b><span class="text-sm text-slate-600">Jibiat Marchand enregistre les commandes.</span></span>
+        <button type="button" class="shrink-0 rounded-full bg-live-soft px-3 py-2 text-[13px] font-extrabold text-live" aria-label="Voir la vidéo (1 min 30)" @click="video = true"><span aria-hidden="true">▶ 1 min 30</span></button>
       </div>
 
       <!-- 1 · WhatsApp -->
@@ -382,7 +382,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       </div>
       <template v-if="step === 5">
         <p v-if="billingLine" class="text-center text-[14.5px] font-extrabold" :class="billing.next === 'pay' ? 'text-slate-700' : 'text-emerald-700'">{{ billingLine }}</p>
-        <button type="button" class="block w-full rounded-2xl bg-rose-600 py-4 text-[18px] font-black text-white" :disabled="busy" @click="start">{{ startLabel }}</button>
+        <button type="button" class="block w-full rounded-2xl bg-live py-4 text-[18px] font-black text-white" :disabled="busy" @click="start">{{ startLabel }}</button>
         <RouterLink :to="`/gestion/live/${draft.id}?onglet=support&support=tv`" class="block text-center text-[13px] font-bold text-slate-500 underline">📺 Afficher sur une télé ou TikTok LIVE Studio</RouterLink>
       </template>
 
