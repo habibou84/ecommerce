@@ -41,6 +41,15 @@ class Courier extends Model
         return $this->belongsToMany(DeliveryZone::class, 'courier_zones');
     }
 
+    /**
+     * Le livreur couvre-t-il cette zone ? Sans zone cochée, il couvre tout (« Toutes zones » dans Mes livreurs),
+     * même une commande sans zone précise.
+     */
+    public function coversZone(?int $zoneId): bool
+    {
+        return $this->zones->isEmpty() || ($zoneId !== null && $this->zones->contains('id', $zoneId));
+    }
+
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class);
