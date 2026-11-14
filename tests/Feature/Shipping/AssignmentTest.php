@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\ShipmentStatus;
 use App\Models\CarrierConnection;
 use App\Models\Courier;
+use App\Models\CourierAssignment;
 use App\Models\CourierPayRule;
 use App\Models\DeliveryZone;
 use App\Models\Order;
@@ -13,6 +14,7 @@ use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Couriers\MissionResponses;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
 use App\Services\Shipping\DeliveryAdvisor;
@@ -138,6 +140,84 @@ class AssignmentTest extends TestCase
         $this->assertSame(['city', 'Abidjan'], [$home[0]['type'], $home[0]['name']]);
         $this->assertContains('Cocody', array_column($home, 'name'));
         $this->assertSame(['commune'], array_values(array_unique(array_column(array_slice($home, 1), 'type'))));
+    }
+
+    private function deliverer(Order $order): ?string
+    {
+        $shipment = $order->fresh('shipments.courier')->shipments->first(fn ($s) => ! $s->status->isFinal());
+
+        return $shipment?->courier?->name ?? $shipment?->connection?->name;
+    }
+
+    public function test_round_robin_between_couriers(): void
+    {
+        // Ali livre partout, Koffi livre Cocody : « le plus proche » donne toujours Koffi pour Angré
+        Courier::create(['store_id' => $this->store->id, 'name' => 'Ali', 'phone' => '+2250102030499', 'status' => 'active', 'is_available' => true]);
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto'])->assertOk()->assertJsonPath('courier_dispatch', 'nearest');
+        $this->assertSame(['Koffi', 'Koffi'], [$this->deliverer($this->order()), $this->deliverer($this->order())]);
+
+        // « Chacun son tour » : Ali (jamais servi) puis Koffi puis Ali
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['courier_dispatch' => 'round_robin'])->assertOk()->assertJsonPath('courier_dispatch', 'round_robin');
+        $this->travel(1)->minutes();
+        $first = $this->deliverer($this->order());
+        $this->travel(1)->minutes();
+        $second = $this->deliverer($this->order());
+        $this->travel(1)->minutes();
+        $third = $this->deliverer($this->order());
+        $this->assertSame(['Ali', 'Koffi', 'Ali'], [$first, $second, $third]);
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['courier_dispatch' => 'au_hasard'])->assertStatus(422);
+    }
+
+    public function test_unanswered_mission_passes_to_the_next_courier(): void
+    {
+        Courier::create(['store_id' => $this->store->id, 'name' => 'Ali', 'phone' => '+2250102030499', 'status' => 'active', 'is_available' => true]);
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto', 'mission_timeout_minutes' => 7])->assertStatus(422);
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto', 'mission_timeout_minutes' => 15])->assertOk()->assertJsonPath('mission_timeout_minutes', 15);
+
+        $order = $this->order();
+        $accepted = $this->order();
+        $this->assertSame(['Koffi', 'Koffi'], [$this->deliverer($order), $this->deliverer($accepted)]);
+        app(MissionResponses::class)->accept($accepted->fresh('shipments')->shipments->sole(), $this->koffi);
+
+        // Avant le délai : rien ; après : la course non acceptée passe à Ali, celle acceptée reste
+        $this->travel(10)->minutes();
+        $this->assertSame(0, app(MissionResponses::class)->passUnanswered());
+        $this->travel(6)->minutes();
+        $this->assertSame(1, app(MissionResponses::class)->passUnanswered());
+        $this->assertSame(['Ali', 'Koffi'], [$this->deliverer($order), $this->deliverer($accepted)]);
+        $this->assertSame('Pas de réponse en 15 min', CourierAssignment::where('courier_id', $this->koffi->id)->where('status', 'declined')->sole()->decline_reason);
+
+        // Sans délai choisi : on prévient seulement
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['mission_timeout_minutes' => null])->assertOk()->assertJsonPath('mission_timeout_minutes', null);
+        $this->order();
+        $this->travel(2)->hours();
+        $this->assertSame(0, app(MissionResponses::class)->passUnanswered());
+    }
+
+    public function test_summary_of_automatic_sending(): void
+    {
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto'])->assertOk();
+        $this->order();
+
+        // Personne pour livrer : la commande attend, la raison est notée et la commande apparaît dans le bilan
+        $this->koffi->update(['is_available' => false]);
+        $this->moto->update(['status' => 'disabled']);
+        $blocked = $this->order()->fresh('events');
+        $this->assertTrue($blocked->events->contains(fn ($e) => $e->type === 'auto_assignment_failed' && $e->data['error'] === DeliveryAdvisor::NOBODY));
+
+        $summary = $this->storeApi($this->store, 'GET', 'shipping-rules')->assertOk()->json('summary');
+        $this->assertSame([7, 1, 1], [$summary['days'], $summary['sent'], $summary['failed']]);
+        $this->assertSame([[$blocked->id, 'Fatou', DeliveryAdvisor::NOBODY]], array_map(fn ($o) => [$o['id'], $o['customer'], $o['reason']], $summary['blocked']));
+
+        // Une fois confiée à la main, elle n'est plus bloquée
+        $this->koffi->update(['is_available' => true]);
+        $this->storeApi($this->store, 'POST', "orders/{$blocked->id}/shipments", ['courier_id' => $this->koffi->id])->assertCreated();
+        $this->storeApi($this->store, 'GET', 'shipping-rules')->assertJsonCount(0, 'summary.blocked');
+
+        // Un cas « je choisis moi-même » n'est pas un échec
+        $this->storeApi($this->store, 'POST', 'shipping-rules', ['name' => 'À la main', 'action' => 'manual'])->assertCreated();
+        $manual = $this->order()->fresh('events');
+        $this->assertFalse($manual->events->contains(fn ($e) => $e->type === 'auto_assignment_failed'));
     }
 
     public function test_old_zones_become_places(): void

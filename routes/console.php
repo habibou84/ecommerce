@@ -84,6 +84,8 @@ Schedule::command('shipping:zones')->dailyAt('03:40')->withoutOverlapping();
  * Missions confiées aux livreurs et toujours sans réponse après un quart d'heure : rappel à l'équipe et au livreur.
  */
 Artisan::command('couriers:remind', function (MissionResponses $responses) {
+    // D'abord les missions à passer au livreur suivant (boutiques en envoi automatique avec un délai), puis les rappels
+    $this->line($responses->passUnanswered().' mission(s) passée(s) au livreur suivant');
     $this->line($responses->remindUnanswered().' mission(s) sans réponse signalée(s)');
 })->purpose('Rappel des missions pas encore acceptées par les livreurs');
 
