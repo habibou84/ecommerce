@@ -402,7 +402,7 @@ async function redo() {
   <Teleport to="body" :disabled="!fullscreen">
   <div :class="fullscreen ? 'fixed inset-0 z-[45] overflow-y-auto overscroll-contain bg-[#0b1120]' : ''">
   <div class="space-y-4" :class="fullscreen ? 'mx-auto max-w-3xl px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-28' : ''">
-    <RouterLink v-if="!fullscreen" to="/gestion/live" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
+    <RouterLink v-if="!fullscreen" to="/gestion/live" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
     <p v-if="!live" class="text-sm text-slate-500">Chargement…</p>

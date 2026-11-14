@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { usePageTitle } from '../../../lib/pageTitle'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Icon from '../../../components/Icon.vue'
@@ -18,6 +19,7 @@ const props = defineProps({ id: { type: String, required: true } })
 const auth = useAuthStore()
 
 const order = ref(null)
+usePageTitle(() => (order.value ? `Commande ${order.value.reference}` : ''))
 const error = ref('')
 const busy = ref(false)
 const modal = ref(null) // 'cancel' | 'complete' | 'return' | 'payment' | 'callback' | 'link' | 'refund'
@@ -170,7 +172,7 @@ async function addNote() {
 
 <template>
   <div v-if="order" class="space-y-5 pb-16 sm:pb-0">
-    <RouterLink to="/gestion/commandes" class="text-sm text-slate-500 hover:text-emerald-700">← Commandes</RouterLink>
+    <RouterLink to="/gestion/commandes" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Commandes</RouterLink>
 
     <div class="flex flex-wrap items-center gap-3">
       <h2 class="text-2xl font-bold">{{ order.reference }}</h2>

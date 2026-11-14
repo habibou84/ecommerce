@@ -143,7 +143,7 @@ async function share() {
 
 <template>
   <div class="mx-auto max-w-2xl space-y-3 pb-8">
-    <RouterLink to="/gestion/live" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Live</RouterLink>
+    <RouterLink to="/gestion/live" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Live</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
 
     <!-- ═══ Préparer ═══ -->

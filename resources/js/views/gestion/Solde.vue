@@ -37,7 +37,6 @@ const STATUS = { paid: 'payé', offered: 'offert', pending: 'en attente' }
 
 <template>
   <div class="mx-auto max-w-xl space-y-3">
-    <h1 class="font-display text-xl font-extrabold">💳 Mon solde</h1>
     <p v-if="notice" class="rounded-xl p-3 text-sm font-bold" :class="notice.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">{{ notice.text }}</p>
     <p v-if="!credits.data" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
 
