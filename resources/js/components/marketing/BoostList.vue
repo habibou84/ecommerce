@@ -6,7 +6,7 @@ import { money } from '../../lib/format'
 /**
  * Mes boosts : chaque pub créée par l'assistant avec son état (en vérification, en cours, en pause, refusée,
  * terminée), la dépense, les clics et les commandes venues de la pub ; pause, reprise, prolongation, arrêt, relance,
- * suppression d'un boost « pas créé » (sans dépense ni commande).
+ * suppression d'un boost « pas créé » ou terminé (sans dépense ni commande).
  */
 const emit = defineEmits(['relaunch'])
 const boosts = ref(null)
@@ -15,9 +15,10 @@ const busy = ref(0)
 const confirmStop = ref(0)
 const confirmDelete = ref(0)
 
-// Un boost « pas créé » sans dépense ni commande peut être supprimé sans rien perdre
-const deletable = (b) => b.status === 'failed' && !b.spend && !b.orders
-const failedCount = computed(() => (boosts.value ?? []).filter(deletable).length)
+// Un boost « pas créé » ou terminé, sans dépense ni commande, peut être supprimé sans rien perdre
+const deletable = (b) => ['failed', 'ended'].includes(b.status) && !b.spend && !b.orders
+const notCreated = (b) => b.status === 'failed' && !b.spend && !b.orders
+const failedCount = computed(() => (boosts.value ?? []).filter(notCreated).length)
 
 async function load() {
   try {
@@ -61,7 +62,7 @@ async function clearFailed() {
   error.value = ''
   try {
     await http.delete('/marketing/boosts/failed')
-    boosts.value = boosts.value.filter((x) => !deletable(x))
+    boosts.value = boosts.value.filter((x) => !notCreated(x))
   } catch (e) {
     error.value = errorMessage(e)
   }

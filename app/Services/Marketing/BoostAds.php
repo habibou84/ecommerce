@@ -516,9 +516,11 @@ class BoostAds
                 $stats = $this->graph->graph('GET', $boost->campaign_id.'/insights', $token, ['fields' => 'spend,clicks,impressions', 'date_preset' => 'maximum'])['data'][0] ?? [];
                 $boost->fill(['spend' => (int) round((float) ($stats['spend'] ?? 0) * $rate), 'clicks' => (int) ($stats['clicks'] ?? 0), 'impressions' => (int) ($stats['impressions'] ?? 0)]);
                 if (in_array($boost->status, Boost::LIVE, true) && $boost->ad_id) {
-                    $ad = $this->graph->graph('GET', $boost->ad_id, $token, ['fields' => 'effective_status,ad_review_feedback']);
+                    $ad = $this->graph->graph('GET', $boost->ad_id, $token, ['fields' => 'effective_status,ad_review_feedback,campaign{effective_status}']);
+                    // Supprimé ou archivé chez Meta (la pub ou sa campagne) : le boost est fini, ses chiffres restent
+                    $goneAtMeta = array_intersect([$ad['effective_status'] ?? '', $ad['campaign']['effective_status'] ?? ''], ['DELETED', 'ARCHIVED']) !== [];
                     $boost->status = match (true) {
-                        $boost->ends_at->isPast() => 'ended',
+                        $boost->ends_at->isPast(), $goneAtMeta => 'ended',
                         ($ad['effective_status'] ?? '') === 'DISAPPROVED' => 'refused',
                         in_array($ad['effective_status'] ?? '', ['PENDING_REVIEW', 'IN_PROCESS'], true) => 'review',
                         in_array($ad['effective_status'] ?? '', ['PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED'], true) => 'paused',

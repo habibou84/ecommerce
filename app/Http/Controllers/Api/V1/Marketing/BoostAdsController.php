@@ -74,11 +74,11 @@ class BoostAdsController extends Controller
         return response()->json(['data' => $this->ads->present($boost)]);
     }
 
-    /** Supprime un boost qui n'a pas été créé chez Meta (rien n'est perdu : ni dépense, ni commande) */
+    /** Supprime un boost pas créé ou terminé, sans dépense ni commande (rien n'est perdu) */
     public function destroy(Boost $boost): JsonResponse
     {
         if (! $boost->isDeletable()) {
-            throw new BusinessRuleException('Seul un boost qui n\'a pas été créé chez Meta, sans dépense ni commande, peut être supprimé.');
+            throw new BusinessRuleException('Seul un boost pas créé ou terminé, sans dépense ni commande, peut être supprimé.');
         }
         $boost->delete();
 

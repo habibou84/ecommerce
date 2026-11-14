@@ -248,6 +248,32 @@ class BoostAdsTest extends TestCase
         $this->assertSame(1, Boost::count());
     }
 
+    public function test_a_boost_deleted_at_meta_ends_in_the_app_and_can_then_be_removed_if_it_has_no_activity(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/ad1?*' => Http::response(['effective_status' => 'DELETED'])]);
+        app(Credits::class)->update(['paid' => true, 'boost_weight' => 2]);
+        $this->store->forceFill(['order_credits' => 50, 'credits_welcomed_at' => now()])->save();
+        $id = $this->launch()->assertCreated()->json('data.id');
+
+        $this->storeApi($this->store, 'GET', 'marketing/boosts')->assertOk()->assertJsonPath('data.0.status', 'ended');
+        // Des chiffres déjà relevés : il reste dans la liste
+        $this->storeApi($this->store, 'DELETE', 'marketing/boosts/'.$id)->assertStatus(422);
+
+        Boost::find($id)->update(['spend' => 0, 'clicks' => 0, 'impressions' => 0]);
+        $this->storeApi($this->store, 'DELETE', 'marketing/boosts/'.$id)->assertOk();
+        $this->assertSame(0, Boost::count());
+    }
+
+    public function test_a_boost_whose_campaign_was_deleted_at_meta_ends_too(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/ad1?*' => Http::response(['effective_status' => 'CAMPAIGN_PAUSED', 'campaign' => ['effective_status' => 'DELETED']])]);
+        app(Credits::class)->update(['paid' => true, 'boost_weight' => 2]);
+        $this->store->forceFill(['order_credits' => 50, 'credits_welcomed_at' => now()])->save();
+        $this->launch()->assertCreated();
+
+        $this->storeApi($this->store, 'GET', 'marketing/boosts')->assertOk()->assertJsonPath('data.0.status', 'ended');
+    }
+
     public function test_all_failed_boosts_are_cleared_at_once_and_the_others_are_kept(): void
     {
         $this->fakeMeta(['graph.facebook.com/*/act_5/adcreatives' => Http::response(['error' => ['message' => 'Page non autorisée']], 400)]);
