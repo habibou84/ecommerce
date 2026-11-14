@@ -9,6 +9,22 @@ import { useAuthStore } from '../../../stores/auth'
 const auth = useAuthStore()
 const state = ref(null)
 const settings = ref({})
+// Couleur choisie trop claire : la boutique l'assombrit pour les textes (liens, prix) et met un texte foncé
+// sur les boutons ; on le dit au marchand (contrastes WCAG, comme la boutique)
+const lum = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)
+const colorAdvice = computed(() => {
+  const c = settings.value.primary_color
+  if (!/^#[0-9a-f]{6}$/i.test(c ?? '')) return ''
+  const onWhite = ratio(c, '#ffffff')
+  if (onWhite >= 4.5) return ''
+  return onWhite < 3
+    ? 'Couleur très claire : sur votre boutique, les liens et les prix seront affichés dans une version plus foncée, et les boutons auront un texte foncé, pour rester lisibles.'
+    : 'Couleur un peu claire : les liens et les prix seront affichés dans une version légèrement plus foncée pour rester lisibles.'
+})
 const error = ref('')
 const errors = ref({})
 const saved = ref(false)
@@ -186,6 +202,7 @@ async function save() {
             </div>
           </Field>
         </div>
+        <p v-if="colorAdvice" class="rounded-xl bg-ocre-50 p-3 text-sm text-ocre-900" role="status">{{ colorAdvice }}</p>
         <Field v-for="field in textFields" :id="`s-${field.key}`" :key="field.key" :label="field.label" :error="errors[field.key]" :hint="field.help">
           <select v-if="field.type === 'select'" :id="`s-${field.key}`" v-model="settings[field.key]" class="input">
             <option v-for="(label, value) in field.options" :key="value" :value="value">{{ label }}</option>

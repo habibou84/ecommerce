@@ -20,7 +20,7 @@
                 <dl class="mt-4 space-y-1 border-t border-slate-200 pt-4">
                     <div class="flex justify-between"><dt>Sous-total</dt><dd data-subtotal>@money($summary['subtotal'])</dd></div>
                     @php($amount = $summary['discount']['amount'] ?? 0)
-                    <div data-discount-row class="flex justify-between text-brand" @if (! $amount) hidden @endif><dt>Remise</dt><dd data-discount>− @money($amount)</dd></div>
+                    <div data-discount-row class="flex justify-between text-brand-text" @if (! $amount) hidden @endif><dt>Remise</dt><dd data-discount>− @money($amount)</dd></div>
                     <div class="flex justify-between text-lg"><dt>Total</dt><dd data-cart-total class="font-semibold">@money($summary['total'])</dd></div>
                 </dl>
                 @include('storefront.partials.free-shipping')
