@@ -30,7 +30,7 @@ const connect = () => connectWhatsappDirect(router, route.fullPath)
     <p class="mt-2 text-[15px] text-slate-700">Connexion officielle de votre numéro chez Meta : les commandes arrivent, et s'enregistrent toutes seules.</p>
     <div class="mt-2.5 space-y-1.5 rounded-xl bg-[#e7f8ee] p-2 text-[13px]" aria-hidden="true">
       <div class="w-max rounded-lg bg-white px-2 py-0.5 font-bold">A2 taille M</div>
-      <div class="ml-auto w-max max-w-[85%] rounded-lg bg-[#d9fdd3] px-2 py-0.5">✅ Réservé ! Ton quartier ?</div>
+      <div class="ml-auto w-max max-w-[85%] rounded-lg bg-whatsapp-bubble px-2 py-0.5">✅ Réservé ! Ton quartier ?</div>
     </div>
 
     <button v-if="auth.can('store.manage')" type="button" class="mt-3 block w-full rounded-xl bg-whatsapp py-3 text-[16px] font-black text-white" @click="connect">Connecter WhatsApp</button>

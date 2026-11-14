@@ -470,7 +470,7 @@ async function redo() {
         <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
         <h2 class="mt-2 text-xl font-extrabold">{{ live.title }}</h2>
         <p class="text-sm text-white/90">{{ live.items.length }} article{{ live.items.length > 1 ? 's' : '' }} · lancez le live au moment où vous passez à l'antenne.</p>
-        <button type="button" class="mt-4 block w-full rounded-2xl bg-white py-3 text-center text-base font-extrabold text-[#c02a4e] disabled:opacity-60" :disabled="busy" @click="start">Lancer le live</button>
+        <button type="button" class="mt-4 block w-full rounded-2xl bg-white py-3 text-center text-base font-extrabold text-live disabled:opacity-60" :disabled="busy" @click="start">Lancer le live</button>
         <button type="button" class="mt-2 block w-full text-center text-sm text-white/90 underline" @click="share = true">Partager le lien avant de commencer</button>
       </section>
 

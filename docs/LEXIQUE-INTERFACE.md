@@ -26,13 +26,34 @@ Les suivre évite qu'une même chose porte plusieurs noms d'un écran à l'autre
 | Toutes les dates | Tout (période) | Liste des commandes, pour ne pas confondre avec l'onglet « Toutes » |
 | Boost Facebook | 🚀 Boost Facebook | Menu : pas d'émoji dans le menu |
 
-## Icônes et couleurs
+## Icônes
 
 - Les icônes viennent de `ColorIcon` (en couleur) ou `Icon` (trait). Pas d'émoji comme icône : ils changent
   d'un téléphone à l'autre et les lecteurs d'écran les lisent (« cercle rouge »). Un émoji gardé pour
   décorer un texte est entouré d'un `<span aria-hidden="true">`.
-- Vert de la marque (`emerald-700`) pour les actions ; ocre pour ce qui est « à traiter » (statuts, compteurs) ;
-  rouge pour le retard et les erreurs.
-- Texte blanc seulement sur `emerald-700` ou plus foncé, `whatsapp` (#0b7a5c) ou le dégradé `bg-live-grad`.
-- Contour des champs et boutons secondaires : `border-field`.
-- Textes de 12 px au minimum.
+- Les icônes en couleur (`colorIcons.js`) illustrent une rubrique ; elles ne disent jamais un état.
+
+## Charte des couleurs
+
+Toutes les couleurs sont déclarées dans `resources/css/app.css` (`@theme`). Pas de couleur écrite en dur
+(`#…`, `bg-[#…]`) dans la gestion : on utilise les classes ci-dessous. Seul l'écran diffusé pendant le live
+(LiveDisplay, LiveShowStage, LiveOverlay) a sa propre palette.
+
+| Rôle | Classes | Pour |
+| --- | --- | --- |
+| Marque | `emerald-700` (actions), `emerald-800` (survol), `emerald-50`/`100` (fonds) | Boutons, liens, onglet actif |
+| Live | `live`, `live-soft`, `bg-live-grad` | Tout ce qui touche au live, et seulement ça |
+| Neutres | `slate-*` (gris teinté de vert), `field` (bord des champs) | Fonds, textes, bordures |
+| Attention | `ocre-*` (`amber` et `orange` reprennent l'ocre) | À confirmer, non payée, à faire livrer, stock bas, échec à décider |
+| Danger | `red-*` | Retard, perte, refus, erreur, suppression |
+| En cours | `sky-*` | Confirmée, en préparation, course demandée |
+| Mouvement | `violet-*` | En route, en livraison |
+| Réussite | `emerald-*` | Livrée, payée, active |
+| Neutre (fini) | `slate-*` | Annulée, brouillon, archivée, colis revenu |
+| Externes | `whatsapp`, `facebook` | Uniquement leurs propres boutons |
+
+- Badge d'état : fond doux + texte foncé de la même teinte (`bg-ocre-50 text-ocre-800`, `bg-sky-100 text-sky-800`…).
+- Texte blanc seulement sur `emerald-700` ou plus foncé, `ocre-700`, `red-600`, `whatsapp`, `facebook`, `bg-live-grad`.
+- Couleurs des statuts : `lib/orders.js` (`STATUS_TONES`, `PAYMENT_TONES`) et `lib/shipping.js` (`SHIPMENT_TONES`).
+- Étoiles de notation et badge premium : `yellow` (« or »).
+- Textes de 11 px au minimum.

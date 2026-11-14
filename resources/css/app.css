@@ -82,6 +82,13 @@
     /* Vert WhatsApp foncé pour les boutons à texte blanc (5,3:1) ; le vert vif #25d366 ne garde que le logo (2:1 avec du blanc) */
     --color-whatsapp: #0b7a5c;
     --color-whatsapp-dark: #08664c;
+    /* Facebook (Meta) : seulement sur les boutons qui mènent chez Facebook (5,5:1 avec le blanc) */
+    --color-facebook: #1464d2;
+    /* Live : rose du live (onglet, boutons sur la carte Live) et son fond doux ; le dégradé rose → violet est bg-live-grad */
+    --color-live: #c02a4e;
+    --color-live-soft: #ffecef;
+    /* Bulles de conversation WhatsApp dans les exemples (imitation de l'application WhatsApp) */
+    --color-whatsapp-bubble: #d9fdd3;
     /* Vert nuit : menu sur ordinateur, en-têtes */
     --color-night: #063b24;
     /* Verts du logo Jibiat Marchand (du vert profond au vert vif) à la place du vert émeraude de Tailwind :
@@ -150,8 +157,8 @@
 }
 @utility bg-live-grad {
     /* Assez foncé pour du texte blanc de petite taille (5,6:1 aux deux bouts) */
-    background-color: #c02a4e;
-    background-image: linear-gradient(140deg, #c02a4e 0%, #6d4fd6 100%);
+    background-color: var(--color-live);
+    background-image: linear-gradient(140deg, var(--color-live) 0%, #6d4fd6 100%);
 }
 
 @utility btn {

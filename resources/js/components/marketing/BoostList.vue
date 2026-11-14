@@ -92,7 +92,7 @@ const ICON = { product: '🎯', products: '🎠', catalog: '🗂️' }
       <p v-if="b.error && ['refused', 'failed'].includes(b.status)" class="rounded-lg bg-red-50 p-2 text-xs text-red-800">{{ b.error }}</p>
 
       <template v-if="!['failed', 'review'].includes(b.status) || b.spend">
-        <div class="h-2 overflow-hidden rounded-full bg-slate-100" :aria-label="`Dépensé : ${money(b.spend)} sur ${money(b.budget_total)}`"><i class="block h-full rounded-full bg-[#1877f2]" :style="{ width: `${Math.min(100, (b.spend / Math.max(1, b.budget_total)) * 100)}%` }" /></div>
+        <div class="h-2 overflow-hidden rounded-full bg-slate-100" :aria-label="`Dépensé : ${money(b.spend)} sur ${money(b.budget_total)}`"><i class="block h-full rounded-full bg-emerald-700" :style="{ width: `${Math.min(100, (b.spend / Math.max(1, b.budget_total)) * 100)}%` }" /></div>
         <div class="grid grid-cols-3 gap-1 text-center">
           <div><b class="block font-display text-base tabular-nums">{{ money(b.spend) }}</b><span class="text-xs text-slate-500">dépensé</span></div>
           <div><b class="block font-display text-base tabular-nums">{{ b.clicks }}</b><span class="text-xs text-slate-500">clics</span></div>
@@ -120,7 +120,7 @@ const ICON = { product: '🎯', products: '🎠', catalog: '🗂️' }
         <button v-else type="button" class="flex-1 rounded-lg bg-red-600 py-2 text-sm font-bold text-white" :disabled="busy === b.id" @click="act(b, 'stop')">Confirmer l'arrêt</button>
       </div>
       <div v-else class="flex gap-1.5">
-        <button type="button" class="flex-1 rounded-lg bg-[#e7f0fe] py-2 text-sm font-bold text-[#1877f2]" @click="emit('relaunch', b)">🔁 Relancer le même boost</button>
+        <button type="button" class="flex-1 rounded-lg bg-emerald-50 py-2 text-sm font-bold text-emerald-800" @click="emit('relaunch', b)">🔁 Relancer le même boost</button>
         <template v-if="deletable(b)">
           <button v-if="confirmDelete !== b.id" type="button" class="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold" aria-label="Supprimer ce boost" @click="confirmDelete = b.id">🗑</button>
           <button v-else type="button" class="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white" :disabled="busy === b.id" @click="remove(b)">Supprimer</button>
