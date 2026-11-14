@@ -236,7 +236,11 @@ async function whatsapp(s) {
       </span>
       <button type="button" class="btn-secondary shrink-0 px-3 py-1.5" :disabled="busy" @click="openPicker">Modifier</button>
     </div>
-    <button v-if="planned && canShip" type="button" class="btn-brand w-full py-2" :disabled="busy" @click="assignTo(plannedKey)">Envoyer la course à {{ planned.name }}</button>
+    <!-- Envoi automatique en échec : la raison, et le même bouton pour réessayer -->
+    <p v-if="planned && canShip && order.assignment_error" class="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">
+      La course n'a pas pu être envoyée à {{ order.assignment_error.to || planned.name }}<template v-if="order.assignment_error.error"> : {{ order.assignment_error.error }}</template>
+    </p>
+    <button v-if="planned && canShip" type="button" class="btn-brand w-full py-2" :disabled="busy" @click="assignTo(plannedKey)">{{ order.assignment_error ? 'Réessayer l\'envoi' : 'Envoyer la course' }} à {{ planned.name }}</button>
     <p v-if="!shipments.length && !canShip && !planned" class="text-slate-500">
       {{ order.delivery_method === 'pickup' ? 'Retrait en boutique.' : 'Confirmez la commande pour la faire livrer.' }}
     </p>

@@ -154,6 +154,35 @@ class AssignmentTest extends TestCase
         $this->storeApi($this->store, 'POST', 'orders', $payload + ['planned_courier_id' => $this->koffi->id])->assertStatus(422)->assertJsonValidationErrors('planned_courier_id');
     }
 
+    public function test_delivery_chosen_after_confirmation_sends_the_course(): void
+    {
+        // Commande déjà confirmée, sans livreur : on le choisit en modifiant la commande, la course part tout de suite
+        $order = $this->order();
+        $this->assertCount(0, $order->shipments);
+        $this->storeApi($this->store, 'PUT', "orders/{$order->id}", ['planned_courier_id' => $this->koffi->id])->assertOk();
+        $order = Order::with(['shipments', 'events'])->findOrFail($order->id);
+        $this->assertSame($this->koffi->id, $order->shipments->sole()->courier_id);
+        $this->assertTrue($order->events->contains(fn ($e) => $e->type === 'auto_assigned' && $e->data['to'] === 'Koffi'));
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.assignment_error', null);
+    }
+
+    public function test_failed_course_is_shown_with_its_reason(): void
+    {
+        // Livreur choisi à la saisie puis désactivé avant la confirmation : l'envoi échoue, la fiche le dit
+        $id = $this->storeApi($this->store, 'POST', 'orders', [
+            'source' => 'whatsapp', 'customer_phone' => '0506070809', 'delivery_method' => 'delivery',
+            'shipping_place_id' => Place::whereNull('store_id')->where('name', 'Angré')->value('id'),
+            'items' => [['variant_id' => $this->vase->variants[0]->id, 'quantity' => 1]], 'planned_courier_id' => $this->koffi->id,
+        ])->assertCreated()->json('data.id');
+        $this->koffi->update(['status' => 'inactive']);
+        $this->storeApi($this->store, 'POST', "orders/{$id}/confirmations", ['outcome' => 'confirmed', 'channel' => 'call'])->assertOk();
+
+        $this->assertCount(0, Order::findOrFail($id)->shipments);
+        $this->storeApi($this->store, 'GET', "orders/{$id}")
+            ->assertJsonPath('data.assignment_error.to', 'Koffi')
+            ->assertJsonPath('data.assignment_error.error', 'Ce livreur est désactivé.');
+    }
+
     public function test_history_stats(): void
     {
         $desk = app(ShipmentDesk::class);
