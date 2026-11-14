@@ -14,6 +14,7 @@ import http, { errorMessage } from '../../../lib/http'
 import { money } from '../../../lib/format'
 import { connectWhatsappDirect } from '../../../lib/whatsappConnect'
 import { useAuthStore } from '../../../stores/auth'
+import { platformOn } from '../../../router'
 import { livesChanged, livesVersion } from '../../../lib/fullscreen'
 
 /**
@@ -277,7 +278,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       </template>
 
       <!-- Commandes avec codes sans live : rangées dans WhatsApp › Assistant des ventes -->
-      <RouterLink v-else to="/gestion/whatsapp/ventes" class="flex items-center gap-2 px-0.5 text-[13px] font-semibold text-slate-600">
+      <RouterLink v-else-if="platformOn(auth, 'whatsapp_codes')" to="/gestion/whatsapp/ventes" class="flex items-center gap-2 px-0.5 text-[13px] font-semibold text-slate-600">
         <ColorIcon name="whatsapp" :size="20" :tile="false" /><span class="min-w-0 flex-1">Sans live, avec les codes A1, A2… : WhatsApp › Assistant des ventes</span><span class="font-extrabold text-emerald-700">▸</span>
       </RouterLink>
 

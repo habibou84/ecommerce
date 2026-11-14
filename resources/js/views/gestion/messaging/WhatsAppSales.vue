@@ -85,14 +85,14 @@ const codes = computed(() => data.value?.codes)
         <p class="rounded-xl bg-slate-50 p-2.5 text-sm text-slate-600"><b class="text-slate-900">{{ data.models.orders_last_30_days }}</b> commande(s) en 30 jours · les catégories viennent de vos collections.</p>
       </section>
 
-      <!-- Commandes avec codes sans live (avant dans le menu Live) -->
-      <section class="card flex flex-wrap items-center gap-3 p-4 sm:p-5">
+      <!-- Commandes avec codes sans live (avant dans le menu Live) : seulement si la console les allume -->
+      <section v-if="codes" class="card flex flex-wrap items-center gap-3 p-4 sm:p-5">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-slate-100 font-display text-sm font-extrabold text-slate-700" aria-hidden="true">A1</span>
         <span class="min-w-0 flex-1">
           <b class="block text-[17px] font-extrabold">Commandes avec codes</b>
           <span class="text-sm text-slate-600">Sans live : vos clients envoient le code A1, A2… et la commande s'enregistre.{{ codes?.status === 'live' ? ' Ouvertes en ce moment.' : '' }}</span>
         </span>
-        <RouterLink :to="codes ? `/gestion/whatsapp/commandes-codes/${codes.id}` : '/gestion/whatsapp/commandes-codes'" class="btn-brand">{{ codes?.status === 'live' ? 'Voir les commandes' : 'Ouvrir les commandes' }}</RouterLink>
+        <RouterLink :to="codes.id ? `/gestion/whatsapp/commandes-codes/${codes.id}` : '/gestion/whatsapp/commandes-codes'" class="btn-brand">{{ codes?.status === 'live' ? 'Voir les commandes' : 'Ouvrir les commandes' }}</RouterLink>
       </section>
     </div>
 

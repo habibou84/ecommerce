@@ -29,6 +29,7 @@ class Features
         // WhatsApp
         'whatsapp_embedded' => ['group' => 'WhatsApp', 'label' => 'Numéro officiel en un clic', 'description' => 'Connexion du numéro WhatsApp officiel de la boutique par Meta.', 'default' => 'on'],
         'whatsapp_qr' => ['group' => 'WhatsApp', 'label' => 'WhatsApp par QR code', 'description' => 'Relier le WhatsApp de la boutique comme WhatsApp Web, pour les boutiques autorisées une à une (fiche de la boutique).', 'default' => 'on'],
+        'whatsapp_codes' => ['group' => 'WhatsApp', 'label' => 'Commandes avec codes sans live', 'description' => 'Les clients envoient le code d\'un article (A1, A2…) sur WhatsApp, sans live (WhatsApp › Assistant des ventes). Des commandes déjà ouvertes continuent jusqu\'à leur fermeture.', 'default' => 'hidden'],
         'whatsapp_campaigns' => ['group' => 'WhatsApp', 'label' => 'Campagnes WhatsApp', 'description' => 'Relance des anciens clients.', 'default' => 'on'],
         // Ventes
         'live' => ['group' => 'Ventes', 'label' => 'Vente en live', 'description' => 'Préparer et animer un live, réservations par code.', 'default' => 'on'],
