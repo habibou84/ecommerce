@@ -1,4 +1,5 @@
 <script setup>
+import StateBadge from '../../../components/StateBadge.vue'
 import Icon from '../../../components/Icon.vue'
 import { computed, onMounted, ref } from 'vue'
 import { usePageTitle } from '../../../lib/pageTitle'
@@ -8,7 +9,6 @@ import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDate, formatDateTime, money } from '../../../lib/format'
-import { STATUS_TONES } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
 
 const adjust = ref({ points: null, note: '', error: '' })
@@ -152,7 +152,7 @@ async function relaunch() {
             <span class="w-16 font-medium">{{ o.reference }}</span>
             <span class="min-w-0 flex-1 truncate text-slate-500">{{ formatDateTime(o.created_at) }} · {{ o.source_label }}</span>
             <span>{{ money(o.total) }}</span>
-            <span class="rounded-full px-2 py-0.5 text-xs" :class="STATUS_TONES[o.status]">{{ o.status_label }}</span>
+            <StateBadge :status="o.status" :label="o.status_label" />
           </RouterLink>
         </li>
         <li v-if="!customer.orders.length" class="px-4 py-6 text-center text-sm text-slate-500">Pas encore de commande.</li>

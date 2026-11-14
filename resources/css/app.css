@@ -162,7 +162,7 @@
 }
 
 @utility btn {
-    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed;
 }
 @utility btn-brand {
     @apply btn bg-emerald-700 text-white shadow-sm shadow-emerald-900/10 hover:bg-emerald-800;
@@ -193,8 +193,27 @@
     @apply mb-1 block text-sm font-semibold text-slate-700;
 }
 @utility card {
-    @apply rounded-2xl border border-slate-200/70 bg-white;
+    @apply rounded-2xl border border-slate-200 bg-white;
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -8px rgb(15 23 42 / 0.1);
+}
+
+/* Bouton désactivé : gris lisible (texte 6,3:1) au lieu d'un bouton pâli à 50 % (texte blanc 2,1:1).
+   S'applique aux boutons de la charte (.btn) et aux boutons pleins écrits à la main (vert, WhatsApp, Facebook, ocre, rouge, noir). */
+.btn:disabled,
+button:disabled[class*='bg-emerald-7'],
+button:disabled[class*='bg-emerald-6'],
+button:disabled[class*='bg-whatsapp'],
+button:disabled[class*='bg-facebook'],
+button:disabled[class*='bg-ocre-7'],
+button:disabled[class*='bg-red-6'],
+button:disabled[class*='bg-red-7'],
+button:disabled[class*='bg-slate-9'] {
+    opacity: 1 !important;
+    background: var(--color-slate-200) !important;
+    color: var(--color-slate-500) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    cursor: not-allowed;
 }
 
 /* Listes déroulantes : même flèche sur tous les navigateurs, à la place de la flèche du système */

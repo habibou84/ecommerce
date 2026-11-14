@@ -1,11 +1,11 @@
 <script setup>
+import StateBadge from '../../components/StateBadge.vue'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { loadMission, offline, sendStep, shrinkPhoto } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
-import { SHIPMENT_TONES } from '../../lib/shipping'
 import { dueDay, isLate, isLater, shortDay } from '../../lib/route'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -168,7 +168,7 @@ async function step(status) {
       <div class="flex items-center gap-2">
         <h1 class="text-lg font-bold">{{ mission.reference }}</h1>
         <p v-if="mission.store" class="text-sm text-sky-800">Marchand {{ mission.store }}</p>
-        <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[mission.status]">{{ mission.status_label }}</span>
+        <StateBadge kind="shipment" :status="mission.status" :label="mission.status_label" class="ml-auto" />
       </div>
       <template v-if="mission.pending_sync && mission.status === 'delivered'">
         <p class="mt-2 text-2xl font-bold">{{ money(mission.collected_amount) }}</p>

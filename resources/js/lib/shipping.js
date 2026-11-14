@@ -11,9 +11,26 @@ export const SHIPMENT_TONES = {
   rescheduled: 'bg-ocre-50 text-ocre-800',
   returning: 'bg-ocre-50 text-ocre-800',
   returned: 'bg-slate-100 text-slate-600',
-  rejected: 'bg-red-100 text-red-800',
+  rejected: 'bg-red-700 text-white',
   cancelled: 'bg-slate-100 text-slate-600',
-  lost: 'bg-red-100 text-red-800',
+  lost: 'bg-red-700 text-white',
+}
+
+// Icône de chaque état de course : l'état se lit aussi sans la couleur
+export const SHIPMENT_ICONS = {
+  requested: 'clock',
+  accepted: 'check',
+  awaiting_pickup: 'box',
+  in_transit: 'truck',
+  out_for_delivery: 'pin',
+  delivered: 'check',
+  failed: 'alert',
+  rescheduled: 'calendar',
+  returning: 'up',
+  returned: 'box',
+  rejected: 'close',
+  cancelled: 'close',
+  lost: 'alert',
 }
 
 // Statuts qu'on saisit à la main pour un transporteur sans API

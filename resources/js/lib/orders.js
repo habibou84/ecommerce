@@ -8,7 +8,7 @@ export const STATUS_TONES = {
   shipped: 'bg-violet-100 text-violet-800',
   completed: 'bg-emerald-100 text-emerald-800',
   cancelled: 'bg-slate-100 text-slate-600',
-  returned: 'bg-red-100 text-red-800',
+  returned: 'bg-red-700 text-white',
 }
 
 // Statut = couleur + icône + mot (jamais la couleur seule)

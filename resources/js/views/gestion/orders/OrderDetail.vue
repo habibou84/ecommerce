@@ -1,4 +1,5 @@
 <script setup>
+import StateBadge from '../../../components/StateBadge.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { usePageTitle } from '../../../lib/pageTitle'
 import Alert from '../../../components/Alert.vue'
@@ -12,7 +13,7 @@ import ParcelLabelCard from '../../../components/ParcelLabelCard.vue'
 import ShipmentPanel from '../../../components/ShipmentPanel.vue'
 import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
-import { CANCEL_REASONS, PAYMENT_METHODS, PAYMENT_TONES, STATUS_TONES, eventLabel, riskLabel } from '../../../lib/orders'
+import { CANCEL_REASONS, PAYMENT_METHODS, PAYMENT_TONES, eventLabel, riskLabel } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -176,7 +177,7 @@ async function addNote() {
 
     <div class="flex flex-wrap items-center gap-3">
       <h2 class="text-2xl font-bold">{{ order.reference }}</h2>
-      <span class="rounded-full px-2.5 py-0.5 text-sm font-medium" :class="STATUS_TONES[order.status]">{{ order.status_label }}</span>
+      <StateBadge :status="order.status" :label="order.status_label" size="md" />
       <span v-if="order.is_preorder" class="rounded-full bg-amber-100 px-2.5 py-0.5 text-sm text-amber-800">Précommande</span>
       <span class="text-sm font-medium" :class="PAYMENT_TONES[order.payment_status]">{{ order.payment_status_label }}</span>
       <span v-if="riskLabel(order.risk_score)" class="rounded-full px-2 py-0.5 text-xs" :class="riskLabel(order.risk_score).tone">{{ riskLabel(order.risk_score).label }}</span>

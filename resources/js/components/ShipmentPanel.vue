@@ -1,4 +1,5 @@
 <script setup>
+import StateBadge from './StateBadge.vue'
 import Icon from './Icon.vue'
 import { useAuthStore } from '../stores/auth'
 import CourierWhatsAppButton from './CourierWhatsAppButton.vue'
@@ -10,7 +11,7 @@ import Field from './Field.vue'
 import Modal from './Modal.vue'
 import http, { errorMessage } from '../lib/http'
 import { formatDateTime, money } from '../lib/format'
-import { MANUAL_STATUSES, SHIPMENT_TONES, SOURCE_LABELS } from '../lib/shipping'
+import { MANUAL_STATUSES, SOURCE_LABELS } from '../lib/shipping'
 
 // « aujourd'hui », « demain » ou « le lundi 23 novembre »
 function dayLabel(iso) {
@@ -249,7 +250,7 @@ async function whatsapp(s) {
     <article v-for="s in shipments" :key="s.id" class="space-y-2 rounded-lg border border-slate-200 p-3" :class="{ 'opacity-60': ['cancelled', 'rejected'].includes(s.status) }">
       <div class="flex flex-wrap items-center gap-2">
         <span class="font-medium">{{ s.reference }}</span>
-        <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[s.status]">{{ s.status_label }}</span>
+        <StateBadge kind="shipment" :status="s.status" :label="s.status_label" />
         <span class="text-slate-500">{{ s.carrier?.name }}</span>
       </div>
       <p v-if="s.tracking_code" class="text-slate-600">

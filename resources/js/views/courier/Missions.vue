@@ -1,4 +1,5 @@
 <script setup>
+import StateBadge from '../../components/StateBadge.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
 import QrScanner from '../../components/QrScanner.vue'
@@ -8,7 +9,6 @@ import { newMissionAlert } from '../../lib/alertSound'
 import { cachedGet, loadMissions, offline, savedRoute, saveRoute, sendStep } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
 import { autoOrder, currentPosition, dueDay, isLate, isLater, itineraryUrl, routeOrder, shortDay, tomorrow } from '../../lib/route'
-import { SHIPMENT_TONES } from '../../lib/shipping'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -236,7 +236,7 @@ function saveOrder() {
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-2">
             <span class="font-semibold">{{ m.place || 'Quartier ?' }}</span>
-            <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[m.status]">{{ m.status_label }}</span>
+            <StateBadge kind="shipment" :status="m.status" :label="m.status_label" class="ml-auto" />
           </span>
           <span class="mt-1 block text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }}</span>
           <span v-if="m.address" class="block truncate text-sm text-slate-500">{{ m.address }}</span>
@@ -276,7 +276,7 @@ function saveOrder() {
       <h2 class="pt-2 text-sm font-semibold text-slate-500">Terminées aujourd'hui</h2>
       <RouterLink v-for="m in done" :key="m.id" :to="`/livreur/missions/${m.id}`" class="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm opacity-70 shadow-sm">
         <span class="flex-1"><template v-if="m.store">{{ m.store }} · </template>{{ m.place }} · {{ m.customer_name }}</span>
-        <span class="rounded-full px-2 py-0.5 text-xs" :class="SHIPMENT_TONES[m.status]">{{ m.status_label }}</span>
+        <StateBadge kind="shipment" :status="m.status" :label="m.status_label" />
       </RouterLink>
     </template>
   </div>

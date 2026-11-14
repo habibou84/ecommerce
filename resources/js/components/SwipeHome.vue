@@ -1,4 +1,5 @@
 <script setup>
+import StateBadge from './StateBadge.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ColorIcon from './ColorIcon.vue'
@@ -187,7 +188,6 @@ async function loadOrders() {
   if (orders.value) return
   orders.value = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [] } }))).data.data
 }
-const tone = (o) => ({ pending_confirmation: 'bg-ocre-50 text-ocre-800', shipped: 'bg-violet-100 text-violet-800', returned: 'bg-red-100 text-red-800', cancelled: 'bg-slate-100 text-slate-600', delivered: 'bg-emerald-100 text-emerald-800', completed: 'bg-emerald-100 text-emerald-800' }[o.status] ?? 'bg-sky-100 text-sky-900')
 
 // ── Articles : catalogue et stock réunis ──
 const items = ref(null)
@@ -311,7 +311,7 @@ function open(to) {
             <RouterLink v-for="o in orders ?? []" :key="o.id" :to="`/gestion/commandes/${o.id}`" class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0">
               <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 font-black text-slate-600">{{ (o.customer_name ?? '?').charAt(0).toUpperCase() }}</span>
               <span class="min-w-0 flex-1"><b class="block truncate text-[14.5px]">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }} · {{ o.source_label }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template></span></span>
-              <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold" :class="tone(o)">{{ o.status_label }}</span>
+              <StateBadge :status="o.status" :label="o.status_label" class="shrink-0" />
             </RouterLink>
           </div>
         </template>
