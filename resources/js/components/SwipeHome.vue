@@ -187,7 +187,7 @@ async function loadOrders() {
   if (orders.value) return
   orders.value = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [] } }))).data.data
 }
-const tone = (o) => ({ pending_confirmation: 'bg-amber-100 text-amber-900', cancelled: 'bg-slate-100 text-slate-500', delivered: 'bg-emerald-100 text-emerald-800', completed: 'bg-emerald-100 text-emerald-800' }[o.status] ?? 'bg-sky-100 text-sky-900')
+const tone = (o) => ({ pending_confirmation: 'bg-ocre-50 text-ocre-800', shipped: 'bg-violet-100 text-violet-800', returned: 'bg-red-100 text-red-800', cancelled: 'bg-slate-100 text-slate-600', delivered: 'bg-emerald-100 text-emerald-800', completed: 'bg-emerald-100 text-emerald-800' }[o.status] ?? 'bg-sky-100 text-sky-900')
 
 // ── Articles : catalogue et stock réunis ──
 const items = ref(null)
