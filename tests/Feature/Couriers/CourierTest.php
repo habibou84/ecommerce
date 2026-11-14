@@ -70,7 +70,7 @@ class CourierTest extends TestCase
      */
     private function onboardCourier(string $phone = '0102030405', string $name = 'Koffi', array $extra = []): array
     {
-        $created = $this->storeApi($this->store, 'POST', 'couriers', ['name' => $name, 'phone' => $phone, 'zone_ids' => [$this->zone()->id], ...$extra])->assertCreated();
+        $created = $this->storeApi($this->store, 'POST', 'couriers', ['name' => $name, 'phone' => $phone, 'place_ids' => [$this->zone()->places()->value('places.id')], ...$extra])->assertCreated();
         $token = basename($created->json('invitation_url'));
 
         $this->logout();
@@ -126,7 +126,7 @@ class CourierTest extends TestCase
         [$courier, $user] = $this->onboardCourier();
 
         $this->assertSame(['active', $user->id], [$courier->status, $courier->user_id]);
-        $this->assertSame([$this->zone()->id], $courier->zones->pluck('id')->all());
+        $this->assertSame([$this->zone()->places()->value('places.id')], $courier->places->pluck('id')->all());
 
         $this->asCourier($user);
         $this->storeApi($this->store, 'GET', 'courier/me')->assertOk()->assertJsonPath('data.name', 'Koffi')->assertJsonPath('data.cash_held', 0);

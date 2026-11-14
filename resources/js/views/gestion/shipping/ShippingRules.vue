@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
+import PlacesPicker from '../../../components/PlacesPicker.vue'
 import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { money } from '../../../lib/format'
@@ -56,7 +57,7 @@ function open(rule = null, template = null) {
   const c = rule?.conditions ?? {}
   editing.value = {
     id: rule?.id, name: rule?.name ?? '', action: rule?.action ?? 'own_courier', carrier_connection_id: rule?.carrier_connection_id ?? null, is_active: rule?.is_active ?? true,
-    zones: [...(c.delivery_zone_ids ?? [])], fragile: c.is_fragile === undefined || c.is_fragile === null ? '' : String(c.is_fragile), min_amount: c.min_amount ?? '', max_amount: c.max_amount ?? '', max_weight_kg: c.max_weight_g ? c.max_weight_g / 1000 : '',
+    places: [...(rule?.places ?? [])], fragile: c.is_fragile === undefined || c.is_fragile === null ? '' : String(c.is_fragile), min_amount: c.min_amount ?? '', max_amount: c.max_amount ?? '', max_weight_kg: c.max_weight_g ? c.max_weight_g / 1000 : '',
   }
   if (template) {
     const { text, ...fields } = template
@@ -69,7 +70,7 @@ async function save() {
   const payload = {
     name: r.name, action: r.action, carrier_connection_id: r.action === 'carrier' ? r.carrier_connection_id : null, is_active: r.is_active,
     conditions: {
-      delivery_zone_ids: r.zones,
+      place_ids: r.places.map((p) => p.id),
       is_fragile: r.fragile === '' ? null : r.fragile === 'true',
       min_amount: r.min_amount === '' ? null : Number(r.min_amount),
       max_amount: r.max_amount === '' ? null : Number(r.max_amount),
@@ -94,7 +95,7 @@ async function remove() {
 function describe(rule) {
   const c = rule.conditions ?? {}
   const parts = []
-  if (c.delivery_zone_ids?.length) parts.push(`va à ${data.value.zones.filter((z) => c.delivery_zone_ids.includes(z.id)).map((z) => z.name).join(' ou ')}`)
+  if (rule.places?.length) parts.push(`va à ${rule.places.map((p) => p.label).join(' ou ')}`)
   if (c.is_fragile === true) parts.push('contient un produit fragile')
   if (c.is_fragile === false) parts.push('ne contient rien de fragile')
   if (c.min_amount) parts.push(`fait au moins ${money(c.min_amount)}`)
@@ -127,7 +128,7 @@ function describe(rule) {
           <p class="mb-1.5 font-medium">Comment le livreur est choisi</p>
           <ol class="list-decimal space-y-1 pl-5 text-slate-600">
             <li>Si un <strong>cas particulier</strong> ci-dessous correspond à la commande, c'est lui qui décide.</li>
-            <li>Sinon, <strong>un de vos livreurs</strong> qui couvre le lieu de livraison et qui est disponible : celui du quartier d'abord, puis le moins occupé. Un livreur sans zone cochée couvre tous les lieux.</li>
+            <li>Sinon, <strong>un de vos livreurs</strong> qui couvre le lieu de livraison et qui est disponible : celui qui couvre ce lieu d'abord, puis le moins occupé. Un livreur sans lieu choisi livre partout.</li>
             <li>S'il n'y en a pas, <strong>l'entreprise de livraison la moins chère</strong> parmi celles que vous avez ajoutées.</li>
             <li v-if="data.assignment_mode === 'auto'">Si personne ne convient, rien ne part : la commande reste dans <strong>« À faire livrer »</strong> et la raison est notée dans son historique.</li>
           </ol>
@@ -167,13 +168,8 @@ function describe(rule) {
         <fieldset class="space-y-2 rounded-lg border border-slate-200 p-3 text-sm">
           <legend class="px-1 font-medium">Si la commande…</legend>
           <div>
-            <p class="mb-1 text-slate-600">Va dans un de ces lieux <span class="text-slate-400">(aucun coché : partout)</span></p>
-            <div class="flex flex-wrap gap-2">
-              <label v-for="z in data.zones" :key="z.id" class="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1">
-                <input v-model="editing.zones" type="checkbox" :value="z.id" class="accent-emerald-700" /> {{ z.name }}
-              </label>
-            </div>
-            <p class="mt-1 text-xs text-slate-400">Seuls les lieux qui ont un prix à part dans Tarifs et zones apparaissent ici.</p>
+            <p class="mb-1 text-slate-600">Va dans un de ces lieux <span class="text-slate-400">(aucun : partout)</span></p>
+            <PlacesPicker id="rule-places" v-model="editing.places" empty-label="Partout." />
           </div>
           <div class="grid grid-cols-2 gap-3">
             <Field id="rule-fragile" label="Contient un produit fragile">
