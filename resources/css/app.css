@@ -254,14 +254,73 @@ select.input-lg {
     display: none;
 }
 
-/* Application livreur, mode nuit : couleurs inversées (lecture le soir), photos et cartes gardées telles quelles */
+/* Application livreur, mode nuit : de vrais tons sombres (jetons de la charte redéfinis), plus de filtre
+   d'inversion. Textes ≥ 6,7:1, couleurs de sens éclaircies (≥ 8,6:1 sur leur fond sombre), bord des champs 3,7:1. */
 .courier-night {
-  filter: invert(1) hue-rotate(180deg);
-  background: #fff;
+    color-scheme: dark;
+    --color-white: #15201a;
+    --color-slate-50: #0d1511;
+    --color-slate-100: #1a2620;
+    --color-slate-200: #2a3a31;
+    --color-slate-300: #3d4f45;
+    --color-slate-400: #9aa8a0;
+    --color-slate-500: #b3bfb8;
+    --color-slate-600: #c6d0ca;
+    --color-slate-700: #d7dfda;
+    --color-slate-800: #e4eae6;
+    --color-slate-900: #eef3ef;
+    --color-slate-950: #f6f9f7;
+    --color-field: #6b7a72;
+    --color-emerald-50: #0f2a1c;
+    --color-emerald-100: #143a27;
+    --color-emerald-200: #1d5236;
+    --color-ocre-50: #2e1a0c;
+    --color-ocre-100: #43260f;
+    --color-amber-50: #2e1a0c;
+    --color-amber-100: #43260f;
+    --color-orange-50: #2e1a0c;
+    --color-orange-100: #43260f;
+    --color-red-50: #2c1212;
+    --color-red-100: #3d1717;
+    --color-sky-50: #0c2333;
+    --color-sky-100: #0f3047;
+    --color-violet-100: #251a45;
+    background-color: var(--color-slate-50);
+    color: var(--color-slate-900);
 }
-.courier-night img,
-.courier-night video {
-  filter: invert(1) hue-rotate(180deg);
+/* Texte blanc des boutons pleins : reste blanc (le jeton « white » sert aux cartes la nuit) */
+.courier-night .text-white {
+    color: #ffffff;
+}
+/* Textes de couleur foncés (faits pour un fond clair) : version claire la nuit */
+.courier-night [class*='text-emerald-7'],
+.courier-night [class*='text-emerald-8'],
+.courier-night [class*='text-emerald-9'] {
+    color: #6fe39b;
+}
+.courier-night [class*='text-ocre-7'],
+.courier-night [class*='text-ocre-8'],
+.courier-night [class*='text-ocre-9'],
+.courier-night [class*='text-amber-7'],
+.courier-night [class*='text-amber-8'],
+.courier-night [class*='text-amber-9'],
+.courier-night [class*='text-orange-7'],
+.courier-night [class*='text-orange-8'] {
+    color: #f6b37a;
+}
+.courier-night [class*='text-red-6'],
+.courier-night [class*='text-red-7'],
+.courier-night [class*='text-red-8'] {
+    color: #fca5a5;
+}
+.courier-night [class*='text-sky-7'],
+.courier-night [class*='text-sky-8'],
+.courier-night [class*='text-sky-9'] {
+    color: #7dd3fc;
+}
+.courier-night [class*='text-violet-7'],
+.courier-night [class*='text-violet-8'] {
+    color: #c4b5fd;
 }
 
 /* Clavier du téléphone ouvert : les barres fixées en bas s'effacent (voir lib/keyboard.js) */
