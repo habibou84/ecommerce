@@ -104,7 +104,8 @@ const storeRoutes = [
       { path: 'marketing/fidelite', component: () => import('../views/gestion/marketing/Loyalty.vue'), meta: { platform: 'loyalty', title: 'Fidélité', permission: 'store.manage' } },
       { path: 'marketing/avis', component: () => import('../views/gestion/marketing/Reviews.vue'), meta: { platform: 'reviews', title: 'Avis clients', permission: 'store.manage' } },
       { path: 'live', component: () => import('../views/gestion/marketing/LivePrepare.vue'), meta: { platform: 'live', title: 'Préparer un live', permission: 'orders.manage' } },
-      { path: 'live/commandes-whatsapp/:id(\\d+)?', component: () => import('../views/gestion/marketing/WhatsAppOrders.vue'), props: true, meta: { platform: 'live', title: 'Commandes WhatsApp', permission: 'orders.manage' } },
+      // Commandes avec codes sans live : rangées dans WhatsApp (ancienne adresse sous Live redirigée)
+      { path: 'live/commandes-whatsapp/:id(\\d+)?', redirect: (to) => `/gestion/whatsapp/commandes-codes${to.params.id ? `/${to.params.id}` : ''}` },
       { path: 'live/passes', component: () => import('../views/gestion/marketing/LivesPast.vue'), meta: { platform: 'live', title: 'Lives passés', permission: 'orders.manage' } },
       { path: 'marketing/live/:id?', redirect: (to) => `/gestion/live${to.params.id ? `/${to.params.id}` : ''}` },
       { path: 'live/:id(\\d+)', component: () => import('../views/gestion/marketing/LiveRoom.vue'), props: true, meta: { platform: 'live', title: 'Live', permission: 'orders.manage' } },
@@ -117,7 +118,11 @@ const storeRoutes = [
       { path: 'statistiques', component: () => import('../views/gestion/Stats.vue'), meta: { title: 'Statistiques', permissionAny: ['finance.view', 'orders.view'] } },
       { path: 'paiements', component: () => import('../views/gestion/payments/Payments.vue'), meta: { platform: 'online_payment', title: 'Paiement en ligne', permission: 'payments.manage' } },
       { path: 'acompte', component: () => import('../views/gestion/payments/DepositSettings.vue'), meta: { title: 'Acompte', permission: 'payments.manage' } },
+      // Menu WhatsApp : accueil (numéro, ce qui attend), assistant des ventes, assistant des réponses, commandes avec codes
       { path: 'whatsapp', component: () => import('../views/gestion/messaging/WhatsApp.vue'), meta: { title: 'WhatsApp', permission: 'store.manage' } },
+      { path: 'whatsapp/ventes', component: () => import('../views/gestion/messaging/WhatsAppSales.vue'), meta: { title: 'Assistant des ventes', permission: 'store.manage' } },
+      { path: 'whatsapp/reponses', component: () => import('../views/gestion/messaging/WhatsAppReplies.vue'), meta: { title: 'Assistant des réponses', permission: 'store.manage' } },
+      { path: 'whatsapp/commandes-codes/:id(\\d+)?', component: () => import('../views/gestion/marketing/WhatsAppOrders.vue'), props: true, meta: { platform: 'live', title: 'Commandes avec codes', permission: 'orders.manage' } },
       { path: 'textes-messages', component: () => import('../views/gestion/messaging/MessageTexts.vue'), meta: { title: 'Textes des messages', permission: 'store.manage' } },
       { path: 'abonnement', component: () => import('../views/gestion/Billing.vue'), meta: { title: 'Abonnement', permission: 'billing.manage' } },
       { path: 'solde', component: () => import('../views/gestion/Solde.vue'), meta: { title: 'Mon solde' } },

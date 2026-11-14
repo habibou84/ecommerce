@@ -42,26 +42,12 @@ const current = computed(() => lives.value?.find((l) => l.status === 'live' && l
 const whatsappOpen = computed(() => lives.value?.find((l) => l.status === 'live' && l.channel === 'whatsapp'))
 const past = computed(() => (lives.value ?? []).filter((l) => l.status === 'ended'))
 
-// « Que veux-tu faire ? » : préparer un live, ou des commandes WhatsApp sans live (choix gardé pour la visite)
-const mode = ref((() => {
-  try {
-    return sessionStorage.getItem('jm.live-mode') === 'whatsapp' ? 'whatsapp' : 'live'
-  } catch {
-    return 'live'
-  }
-})())
-watch(mode, (v) => {
-  try {
-    sessionStorage.setItem('jm.live-mode', v)
-  } catch {
-    // sans stockage : « Préparer un live » à la prochaine visite
-  }
-})
-// Commandes WhatsApp ouvertes : les étapes du live seulement si on choisit de préparer un live
+// Commandes avec codes ouvertes (WhatsApp › Assistant des ventes) : les étapes du live seulement si on choisit de
+// préparer un live ; sinon le live va droit aux étapes
 const preparing = ref(false)
-const showSteps = computed(() => (whatsappOpen.value ? preparing.value : mode.value === 'live'))
+const showSteps = computed(() => (whatsappOpen.value ? preparing.value : true))
 async function closeWhatsapp() {
-  if (!window.confirm('Fermer les commandes WhatsApp ? Les clients ne pourront plus commander avec les codes ; les commandes déjà enregistrées restent.')) return
+  if (!window.confirm('Fermer les commandes avec codes ? Les clients ne pourront plus commander avec les codes ; les commandes déjà enregistrées restent.')) return
   busy.value = true
   try {
     await http.post(`/lives/${whatsappOpen.value.id}/end`)
@@ -244,11 +230,6 @@ async function start() {
   }
 }
 
-// « Préparer un live » ou « Commandes WhatsApp » : même forme, le choix retenu en vert avec une coche
-const choiceClass = (m) => [
-  'relative grid min-h-[118px] content-start gap-1 rounded-[18px] border-2 p-3 text-left transition',
-  mode.value === m ? 'border-emerald-700 bg-emerald-50' : 'border-slate-200 bg-white hover:border-emerald-200',
-]
 const card = (n) => [
   'flex items-center gap-3 rounded-[20px] px-3.5 py-3',
   n < step.value ? 'border-[2.5px] border-emerald-500 bg-emerald-50' : n === step.value ? 'border-[3px] border-ocre-600 bg-white' : 'border border-slate-200 bg-white',
@@ -277,11 +258,11 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <!-- Commandes WhatsApp ouvertes : le montant, voir les commandes, fermer ; un live peut encore être préparé -->
       <template v-if="whatsappOpen">
         <section class="space-y-1.5 rounded-[20px] bg-emerald-700 p-4 text-white">
-          <span class="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-xs font-extrabold text-emerald-700"><span class="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />COMMANDES WHATSAPP OUVERTES</span>
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-xs font-extrabold text-emerald-700"><span class="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />COMMANDES AVEC CODES OUVERTES</span>
           <b class="block font-display text-[28px] font-extrabold leading-tight tabular-nums">{{ money(whatsappOpen.summary?.amount ?? 0) }}</b>
           <span class="block text-sm opacity-90">{{ whatsappOpen.summary?.orders ?? 0 }} commande{{ (whatsappOpen.summary?.orders ?? 0) > 1 ? 's' : '' }}{{ whatsappOpen.closes_at ? ` · jusqu'au ${new Date(whatsappOpen.closes_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : '' }}</span>
           <div class="grid grid-cols-2 gap-2 pt-1">
-            <RouterLink :to="`/gestion/live/commandes-whatsapp/${whatsappOpen.id}`" class="rounded-xl bg-white py-2.5 text-center text-sm font-extrabold text-emerald-700">Voir les commandes</RouterLink>
+            <RouterLink :to="`/gestion/whatsapp/commandes-codes/${whatsappOpen.id}`" class="rounded-xl bg-white py-2.5 text-center text-sm font-extrabold text-emerald-700">Voir les commandes</RouterLink>
             <button type="button" class="rounded-xl bg-white/20 py-2.5 text-sm font-extrabold" :disabled="busy" @click="closeWhatsapp">Fermer</button>
           </div>
         </section>
@@ -289,40 +270,16 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
           <p class="px-0.5 pt-1 font-display text-base font-extrabold">Ou préparer un live</p>
           <button type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-white p-3 text-left" @click="preparing = true">
             <ColorIcon name="live" :size="34" />
-            <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Préparer un live</b><span class="text-xs text-slate-500">Ferme les commandes WhatsApp</span></span>
+            <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Préparer un live</b><span class="text-xs text-slate-500">Ferme les commandes avec codes</span></span>
             <span class="text-sm font-extrabold text-emerald-700">Commencer ▸</span>
           </button>
         </template>
       </template>
 
-      <!-- Que voulez-vous faire ? : préparer un live, ou des commandes WhatsApp sans live -->
-      <template v-else>
-        <p class="px-0.5 font-display text-base font-extrabold">Que voulez-vous faire ?</p>
-        <div class="grid grid-cols-2 gap-2">
-          <!-- Deux choix de même forme : le choix retenu prend le vert de la marque et une coche -->
-          <button type="button" :class="choiceClass('live')" :aria-pressed="mode === 'live'" @click="mode = 'live'">
-            <span v-if="mode === 'live'" class="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-emerald-700 text-white" aria-hidden="true"><Icon name="check" :size="14" /></span>
-            <ColorIcon name="live" :size="34" />
-            <b class="font-display text-base font-extrabold leading-tight">Préparer un live</b>
-            <span class="text-[13px] leading-snug text-slate-500">Sur TikTok, vous montrez vos articles</span>
-          </button>
-          <button type="button" :class="choiceClass('whatsapp')" :aria-pressed="mode === 'whatsapp'" @click="mode = 'whatsapp'">
-            <span v-if="mode === 'whatsapp'" class="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-emerald-700 text-white" aria-hidden="true"><Icon name="check" :size="14" /></span>
-            <ColorIcon name="whatsapp" :size="34" />
-            <b class="font-display text-base font-extrabold leading-tight">Commandes WhatsApp</b>
-            <span class="text-[13px] leading-snug text-slate-500">Sans live, avec les codes</span>
-          </button>
-        </div>
-
-        <!-- Commandes WhatsApp sans live : court, en grand -->
-        <section v-if="mode === 'whatsapp'" class="space-y-2 rounded-[18px] border-2 border-emerald-200 bg-white p-4">
-          <h3 class="font-display text-base font-extrabold">Commandes WhatsApp</h3>
-          <p class="text-base leading-snug">Vos clients envoient le code <span class="rounded-md bg-red-600 px-1.5 text-sm font-extrabold text-white">A1</span> sur WhatsApp.</p>
-          <p class="text-base leading-snug">La commande s'enregistre toute seule.</p>
-          <RouterLink to="/gestion/live/commandes-whatsapp" class="btn-brand w-full justify-center py-3 text-base font-extrabold">Ouvrir les commandes WhatsApp</RouterLink>
-          <p class="text-[13px] text-slate-500">Lancer un live les ferme.</p>
-        </section>
-      </template>
+      <!-- Commandes avec codes sans live : rangées dans WhatsApp › Assistant des ventes -->
+      <RouterLink v-else to="/gestion/whatsapp/ventes" class="flex items-center gap-2 px-0.5 text-[13px] font-semibold text-slate-600">
+        <ColorIcon name="whatsapp" :size="20" :tile="false" /><span class="min-w-0 flex-1">Sans live, avec les codes A1, A2… : WhatsApp › Assistant des ventes</span><span class="font-extrabold text-emerald-700">▸</span>
+      </RouterLink>
 
       <template v-if="showSteps">
       <div class="flex items-center gap-3 rounded-[18px] border border-slate-200 bg-white p-3.5">
@@ -402,7 +359,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         <span aria-hidden="true">🧾</span>
         <RouterLink to="/gestion/solde" class="min-w-0 flex-1">
           <b class="block font-display text-base font-extrabold tabular-nums">{{ billing.month_until ? 'Illimité' : `${billing.orders} commandes` }} · ✨ {{ billing.ai }} IA</b>
-          <span class="text-[13px] text-slate-500">1 commande {{ mode === 'whatsapp' || whatsappOpen ? 'WhatsApp' : 'du live' }} = 1 du solde</span>
+          <span class="text-[13px] text-slate-500">1 commande {{ whatsappOpen ? 'avec code' : 'du live' }} = 1 du solde</span>
         </RouterLink>
         <button type="button" class="shrink-0 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-extrabold text-emerald-700" @click="openRecharge()">Recharger</button>
       </div>

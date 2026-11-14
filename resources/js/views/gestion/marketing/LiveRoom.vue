@@ -137,7 +137,7 @@ async function load() {
     live.value = (await http.get(`/lives/${props.id}`)).data.data
     // Commandes WhatsApp sans live : leur propre écran (pas de TikTok ni d'écran du live)
     if (live.value?.channel === 'whatsapp') {
-      router.replace(`/gestion/live/commandes-whatsapp/${props.id}`)
+      router.replace(`/gestion/whatsapp/commandes-codes/${props.id}`)
       return
     }
   } catch (e) {

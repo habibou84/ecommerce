@@ -9,7 +9,6 @@ const auth = useAuthStore()
 const ALL = [
   { to: '/gestion/marketing', label: 'Promotions', exact: true },
   { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux', short: 'Réseaux' },
-  { to: '/gestion/marketing/relances', label: 'Relances WhatsApp', short: 'Relances' },
   { to: '/gestion/marketing/avis', label: 'Avis clients', short: 'Avis' },
   { to: '/gestion/marketing/fidelite', label: 'Fidélité' },
   { to: '/gestion/marketing/suivi', label: 'Suivi publicitaire', short: 'Suivi pub' },

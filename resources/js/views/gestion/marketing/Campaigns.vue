@@ -2,7 +2,6 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
-import MarketingTabs from '../../../components/MarketingTabs.vue'
 import Modal from '../../../components/Modal.vue'
 import http, { errorMessage } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
@@ -106,7 +105,7 @@ const audienceText = (a) => a.type === 'inactive' ? `Sans commande depuis ${a.da
 
 <template>
   <div class="space-y-4">
-    <MarketingTabs />
+    <RouterLink to="/gestion/whatsapp" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← WhatsApp</RouterLink>
     <div class="flex flex-wrap items-start justify-between gap-2">
       <p class="max-w-2xl text-sm text-slate-600">
         Envoyez un message WhatsApp à vos anciens clients : nouvelle collection, promotion, retour d'un article.

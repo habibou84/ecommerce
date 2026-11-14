@@ -58,7 +58,7 @@ async function refresh() {
 function saved(state) {
   panel.value = false
   session.value = state
-  if (String(props.id) !== String(state.id)) router.replace(`/gestion/live/commandes-whatsapp/${state.id}`)
+  if (String(props.id) !== String(state.id)) router.replace(`/gestion/whatsapp/commandes-codes/${state.id}`)
 }
 
 async function open() {
@@ -99,7 +99,7 @@ async function reopen() {
   busy.value = true
   try {
     const { data } = await http.post(`/lives/${session.value.id}/duplicate`)
-    router.push(`/gestion/live/commandes-whatsapp/${data.data.id}`)
+    router.push(`/gestion/whatsapp/commandes-codes/${data.data.id}`)
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -143,7 +143,7 @@ async function share() {
 
 <template>
   <div class="mx-auto max-w-2xl space-y-3 pb-8">
-    <RouterLink to="/gestion/live" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Live</RouterLink>
+    <RouterLink to="/gestion/whatsapp/ventes" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Assistant des ventes</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
 
     <!-- ═══ Préparer ═══ -->

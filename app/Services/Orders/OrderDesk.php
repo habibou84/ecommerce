@@ -28,6 +28,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Notifications\OrderPlaced;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Billing\Credits;
 use App\Services\Billing\PlanLimits;
 use App\Services\Customers\CustomerBook;
 use App\Services\Customers\Loyalty;
@@ -99,6 +100,8 @@ class OrderDesk
                 'fulfillment_status' => FulfillmentStatus::Unfulfilled,
                 'tracking_token' => Str::random(24),
                 'created_by' => $actor?->id,
+                // Commande WhatsApp payante hors live (récap, catalogue, modèles) : comptée si elle est confirmée
+                'credit_channel' => $data['credit_channel'] ?? null,
             ]);
             $this->applyPlace($store, $order);
             $this->applyExpedition($order, $data);
@@ -267,7 +270,10 @@ class OrderDesk
             }
 
             match ($to) {
-                OrderStatus::Confirmed => $order->forceFill(['confirmed_at' => $order->confirmed_at ?? now(), 'confirmed_by' => $order->confirmed_by ?? $actor?->id, 'callback_at' => null]),
+                OrderStatus::Confirmed => $order->forceFill(['confirmed_at' => $order->confirmed_at ?? now(), 'confirmed_by' => $order->confirmed_by ?? $actor?->id, 'callback_at' => null,
+                    // Commande WhatsApp payante : comptée si les commandes payantes sont allumées et sans illimité, au
+                    // moment où elle est confirmée (retirée du solde le soir)
+                    'credit_due' => $order->credit_channel !== null && $order->credit_due === null ? app(Credits::class)->counting($order->store ?? Store::findOrFail($order->store_id)) : $order->credit_due]),
                 OrderStatus::Shipped => $this->shipItems($order, $actor)->forceFill(['shipped_at' => now()]),
                 OrderStatus::Completed => $this->shipItems($order, $actor)->forceFill(['completed_at' => now(), 'shipped_at' => $order->shipped_at ?? now()]),
                 OrderStatus::Cancelled => $this->releaseUsages($this->releaseItems($order, $actor, 'Commande annulée'))->forceFill([

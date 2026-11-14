@@ -305,7 +305,8 @@ class CustomerMessenger
     }
 
     /**
-     * Notification de Meta : réponses aux boutons (confirmation de commande) et statuts des messages.
+     * Notification de Meta : réponses aux boutons (confirmation de commande), statuts des messages, et messages envoyés
+     * depuis l'application WhatsApp Business du téléphone (échos, numéro en coexistence).
      *
      * @param  array<string, mixed>  $payload
      */
@@ -327,6 +328,11 @@ class CustomerMessenger
                         $column => $column ? now() : null,
                         'error' => ($status['status'] ?? null) === 'failed' ? mb_substr((string) ($status['errors'][0]['title'] ?? 'Échec'), 0, 250) : null,
                     ]));
+                }
+
+                // Messages envoyés depuis l'application WhatsApp Business du téléphone (numéro en coexistence)
+                foreach ($value['message_echoes'] ?? [] as $echo) {
+                    $this->inbox->fromBusinessApp($account, $echo);
                 }
 
                 foreach ($value['messages'] ?? [] as $message) {

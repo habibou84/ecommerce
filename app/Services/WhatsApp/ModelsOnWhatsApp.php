@@ -34,11 +34,12 @@ use Throwable;
 /**
  * Modèles de la boutique montrés sur WhatsApp, hors live : le client écrit « modèles » (ou « catalogue », « vous avez
  * quoi ? ») et reçoit les catégories, puis les photos 5 par 5 (nom, prix, tailles en stock, prix de gros, packs), et
- * commande en touchant : « Je prends » → taille → nombre de pièces (vente en gros) → commune et quartier (comme au
- * live) → récapitulatif → « Je confirme ». Numéro relié par QR code : les mêmes étapes avec des numéros à taper.
+ * commande en touchant : « Je prends » → taille → nombre de pièces (vente en gros) → « Un autre modèle » ou
+ * « Terminer » → commune et quartier (comme au live) → récapitulatif → « Je confirme ». Numéro relié par QR code : les mêmes étapes avec des numéros à taper.
  *
- * Les touches reviennent avec un identifiant « models:… ». Ces commandes sont des commandes WhatsApp de la boutique :
- * jamais comptées dans le prix du live. L'assistant se tait 6 h après une réponse de l'équipe dans la conversation.
+ * Les touches reviennent avec un identifiant « models:… ». Ces commandes sont des commandes WhatsApp de la boutique,
+ * hors live : une fois confirmées, chacune compte 1 commande du solde (retirée le soir). L'assistant se tait 6 h après
+ * une réponse de l'équipe dans la conversation, depuis l'application ou depuis le téléphone de la boutique.
  */
 class ModelsOnWhatsApp
 {
@@ -92,7 +93,7 @@ class ModelsOnWhatsApp
         }
 
         return ConversationMessage::forStore($conversation->store_id)->where('conversation_id', $conversation->id)->where('direction', 'out')
-            ->whereNotNull('user_id')->where('created_at', '>=', now()->subHours(self::PAUSE_HOURS))->doesntExist();
+            ->whereNotIn('type', ['auto', 'template'])->where('created_at', '>=', now()->subHours(self::PAUSE_HOURS))->doesntExist();
     }
 
     /**
@@ -112,7 +113,8 @@ class ModelsOnWhatsApp
     }
 
     /**
-     * Touche du client (liste ou bouton) : « models:cat:c12:1 », « models:take:5 », « models:var:9 », « models:qty:9:6 ».
+     * Touche du client (liste ou bouton) : « models:cat:c12:1 », « models:take:5 », « models:var:9 », « models:qty:9:6 »,
+     * « models:done » (terminer : l'adresse).
      */
     public function onReply(Conversation $conversation, string $payload): bool
     {
@@ -127,6 +129,7 @@ class ModelsOnWhatsApp
             'take' => $this->take($conversation, (int) ($parts[2] ?? 0)),
             'var' => $this->chooseVariant($conversation, (int) ($parts[2] ?? 0)),
             'qty' => $this->add($conversation, (int) ($parts[2] ?? 0), (int) ($parts[3] ?? 1)),
+            'done' => $this->done($conversation),
             default => $this->categories($conversation),
         };
     }
@@ -410,8 +413,30 @@ class ModelsOnWhatsApp
         $lines = Cache::get(self::linesKey($conversation), []);
         $lines[$variant->id] = $quantity;
         Cache::put(self::linesKey($conversation), $lines, now()->addDay());
-        $this->text($conversation, $note."✅ *C'est noté !*\n".$variant->fullTitle().($quantity > 1 ? " × {$quantity}" : '').' · '.Money::format((int) $variant->price * $quantity)
-            ."\n_Le prix final (gros, pack) est sur le récapitulatif._");
+        $pieces = array_sum($lines);
+        $noted = $note."✅ *C'est noté !*\n".$variant->fullTitle().($quantity > 1 ? " × {$quantity}" : '').' · '.Money::format((int) $variant->price * $quantity)
+            ."\n🛍️ {$pieces} article".($pieces > 1 ? 's' : '').' dans votre commande'
+            ."\n_Le prix final (gros, pack) est sur le récapitulatif._";
+        // Plusieurs modèles : un autre article, ou terminer (l'adresse, puis le récapitulatif)
+        if ($this->rich($conversation, $noted, fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendButtons($account, $to, $noted,
+            ['models:menu' => '➕ Un autre modèle', 'models:done' => '✅ Terminer']))) {
+            return true;
+        }
+        // Numéro relié par QR code : l'adresse tout de suite, « modèles » pour ajouter un article
+        $this->text($conversation, $noted."\n\n➕ Un autre modèle ? Écrivez *modèles*.");
+        app(LiveSales::class)->askAddress($conversation, "📍 *DERNIÈRE ÉTAPE : L'ADRESSE*");
+
+        return true;
+    }
+
+    /**
+     * « Terminer » : l'adresse (commune et quartier), puis le récapitulatif ; sans article en attente, les catégories.
+     */
+    private function done(Conversation $conversation): bool
+    {
+        if (! $this->waiting($conversation)) {
+            return $this->categories($conversation);
+        }
         app(LiveSales::class)->askAddress($conversation, "📍 *DERNIÈRE ÉTAPE : L'ADRESSE*");
 
         return true;
@@ -479,6 +504,7 @@ class ModelsOnWhatsApp
                 'shipping_place_id' => $place->id,
                 'shipping_address' => $address ?? $place->label(),
                 'internal_note' => 'WhatsApp : commandé depuis les modèles',
+                'credit_channel' => 'models',
                 'items' => collect($lines)->map(fn (int $q, int $id) => ['variant_id' => $id, 'quantity' => $q])->values()->all(),
             ], null, 'customer');
         } catch (BusinessRuleException|QuotaExceededException $e) {
