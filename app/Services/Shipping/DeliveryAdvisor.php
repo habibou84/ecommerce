@@ -99,13 +99,13 @@ class DeliveryAdvisor
     }
 
     /**
-     * Dès la confirmation : expédition confiée à qui a été choisi à la saisie de la commande, sinon (mode automatique)
-     * à qui désignent les règles. Un échec est noté au journal de la commande.
+     * Dès la confirmation, ou quand le livreur est choisi sur une commande déjà confirmée : expédition confiée à qui a
+     * été choisi, sinon (mode automatique) à qui désignent les règles. Un échec est noté au journal de la commande.
      */
     public function autoAssign(Order $order): ?Shipment
     {
         $order = $order->fresh(['store', 'items.product', 'shipments', 'plannedCourier', 'plannedCarrier']);
-        if ($order->status !== OrderStatus::Confirmed || $order->delivery_method === 'pickup'
+        if (! in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Processing], true) || $order->delivery_method === 'pickup'
             || $order->shipments->contains(fn (Shipment $s) => ! $s->status->isFinal())) {
             return null;
         }
