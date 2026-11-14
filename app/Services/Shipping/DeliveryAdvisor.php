@@ -49,12 +49,14 @@ class DeliveryAdvisor
                 // Créé mais pas encore connecté : proposé à la main, jamais choisi par les règles automatiques
                 'connected' => $c->status === 'active',
                 'active_missions' => $c->active_missions,
-                'covers_zone' => $zoneId !== null && $c->zones->contains('id', $zoneId),
+                'covers_zone' => $c->coversZone($zoneId),
+                'all_zones' => $c->zones->isEmpty(),
                 'declined' => in_array($c->id, $declined, true),
                 'cost' => $c->payRule?->amountFor($zoneId),
                 'stats' => $this->stats($order->store_id, 'courier_id', $c->id, $zoneId),
             ])
-            ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['active_missions']])->values()->all();
+            // Le livreur du quartier d'abord, puis celui qui couvre tout ; disponible ; le moins chargé
+            ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['all_zones'] ? 1 : 0, $c['active_missions']])->values()->all();
 
         $connections = CarrierConnection::forStore($order->store_id)->where('status', 'active')->get()->keyBy('id');
         $carriers = array_map(fn (array $q) => $q + [

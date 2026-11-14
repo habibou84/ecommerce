@@ -343,7 +343,7 @@ async function whatsapp(s) {
               <input v-model="form.target" type="radio" :value="`courier:${c.id}`" class="accent-emerald-700" />
               <span class="min-w-0 flex-1">
                 <span class="block font-medium">{{ c.name }}</span>
-                <span class="block text-xs text-slate-500">{{ c.connected === false ? 'Pas encore connecté' : c.is_available ? 'Disponible' : 'Indisponible' }}{{ c.covers_zone ? ' · couvre ce quartier' : '' }} · {{ c.active_missions }} en cours</span>
+                <span class="block text-xs text-slate-500">{{ c.connected === false ? 'Pas encore connecté' : c.is_available ? 'Disponible' : 'Indisponible' }}{{ c.all_zones ? ' · toutes zones' : c.covers_zone ? ' · couvre ce quartier' : '' }} · {{ c.active_missions }} en cours</span>
                 <span class="block text-xs text-slate-400">{{ history(c.stats) }}</span>
               </span>
               <span v-if="c.cost !== null && c.cost !== undefined" class="text-right"><span class="block font-semibold">{{ money(c.cost) }}</span><span class="block text-xs text-slate-400">sa paie</span></span>

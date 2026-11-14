@@ -102,6 +102,23 @@ class AssignmentTest extends TestCase
         $this->assertSame([OrderStatus::Confirmed, 0], [$other->status, $other->shipments->count()]);
     }
 
+    public function test_courier_without_zones_covers_every_zone(): void
+    {
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto'])->assertOk();
+        // Koffi (zone cochée) indisponible ; Ali n'a aucune zone cochée : « Toutes zones », il est choisi
+        $this->koffi->update(['is_available' => false]);
+        $ali = Courier::create(['store_id' => $this->store->id, 'name' => 'Ali', 'phone' => '+2250102030499', 'status' => 'active', 'is_available' => true]);
+
+        $order = $this->order()->fresh('shipments');
+        $this->assertSame($ali->id, $order->shipments->sole()->courier_id);
+
+        // Les deux disponibles : le livreur du quartier passe avant celui qui couvre tout
+        $this->koffi->update(['is_available' => true]);
+        $this->assertSame('Koffi', app(DeliveryAdvisor::class)->suggest($this->order())['name'] ?? null);
+        $options = app(DeliveryAdvisor::class)->options($this->order());
+        $this->assertSame([['Koffi', true, false], ['Ali', true, true]], array_map(fn ($c) => [$c['name'], $c['covers_zone'], $c['all_zones']], $options['couriers']));
+    }
+
     public function test_delivery_chosen_when_the_order_is_entered(): void
     {
         $angre = Place::whereNull('store_id')->where('name', 'Angré')->value('id');

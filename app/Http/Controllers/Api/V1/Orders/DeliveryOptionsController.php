@@ -53,10 +53,11 @@ class DeliveryOptionsController extends Controller
                 'name' => $c->name,
                 'is_available' => $c->is_available,
                 'active_missions' => $c->active_missions,
-                'covers_zone' => $zone !== null && $c->zones->contains('id', $zone->id),
+                'covers_zone' => $c->coversZone($zone?->id),
+                'all_zones' => $c->zones->isEmpty(),
                 'connected' => $c->status === 'active',
             ])
-            ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['active_missions']])->values();
+            ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['all_zones'] ? 1 : 0, $c['active_missions']])->values();
 
         $connections = CarrierConnection::where('status', 'active')->withCount(['zones' => fn ($q) => $q->where('is_active', true)])->get()->keyBy('id');
         $carriers = array_map(fn (array $q) => [
