@@ -263,7 +263,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
             <h3 class="mt-3 text-xl font-extrabold leading-tight">{{ live.session.title }}</h3>
             <p class="mt-1 text-sm text-white/90">{{ live.session.items_count }} article{{ live.session.items_count > 1 ? 's' : '' }} prêt{{ live.session.items_count > 1 ? 's' : '' }}. <b>Passez à l'antenne sur TikTok ou Facebook, puis touchez « Je suis en live ».</b></p>
-            <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-[#c02a4e] active:scale-[.99]">Je suis en live</RouterLink>
+            <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-live active:scale-[.99]">Je suis en live</RouterLink>
             <button type="button" class="relative mt-2 block w-full text-center text-sm text-white/90 underline" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien pour WhatsApp et Facebook' }}</button>
           </template>
           <template v-else>
@@ -278,7 +278,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
             </ol>
             <p class="mt-2 text-[13px] font-semibold">Les clientes envoient le code (A1, A2…) sur WhatsApp : la commande se crée toute seule.</p>
             <div class="relative mt-3 flex items-center gap-2">
-              <RouterLink to="/gestion/live" class="flex-1 rounded-2xl bg-white py-2.5 text-center text-base font-extrabold text-[#c02a4e] active:scale-[.99]">Préparer un live</RouterLink>
+              <RouterLink to="/gestion/live" class="flex-1 rounded-2xl bg-white py-2.5 text-center text-base font-extrabold text-live active:scale-[.99]">Préparer un live</RouterLink>
               <RouterLink v-if="live.last" :to="`/gestion/live/${live.last.id}`" class="rounded-2xl bg-white/20 px-3 py-2 text-center text-xs font-bold leading-tight">Dernier live<span class="block text-sm">{{ money(live.last.amount) }}</span></RouterLink>
             </div>
           </template>
@@ -321,7 +321,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
               </li>
             </ul>
             <div class="mt-3 flex flex-wrap gap-2 text-sm font-semibold">
-              <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f1ff] px-3 py-1 text-[#1d5bc7]"><Icon name="truck" :size="15" />{{ outside.onTheWay }} colis en route</RouterLink>
+              <RouterLink to="/gestion/commandes?status=shipped" class="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1 text-violet-800"><Icon name="truck" :size="15" />{{ outside.onTheWay }} colis en route</RouterLink>
               <RouterLink to="/gestion/commandes?alert=to_bring_back" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1" :class="outside.lateReturns ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"><Icon name="box" :size="15" />{{ outside.toBringBack }} à rapporter</RouterLink>
             </div>
           </div>
@@ -385,9 +385,9 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
             </div>
           </div>
           <div class="mt-3 grid grid-cols-3 gap-2 text-center">
-            <div class="rounded-2xl bg-[#f1ecff] py-2.5"><p class="text-xl font-extrabold text-[#5b3fc4]">{{ shop.today }}</p><p class="text-xs text-slate-600">commande{{ shop.today > 1 ? 's' : '' }} aujourd'hui</p></div>
-            <div class="rounded-2xl bg-[#eceeff] py-2.5"><p class="text-xl font-extrabold text-[#3a43b5]">{{ shop.month }}</p><p class="text-xs text-slate-600">ce mois-ci</p></div>
-            <RouterLink to="/gestion/paniers-abandonnes" class="rounded-2xl bg-[#ffecef] py-2.5"><p class="text-xl font-extrabold text-[#c02a4e]">{{ shop.abandoned }}</p><p class="text-xs text-slate-600">panier{{ shop.abandoned > 1 ? 's' : '' }} laissé{{ shop.abandoned > 1 ? 's' : '' }}</p></RouterLink>
+            <div class="rounded-2xl bg-emerald-50 py-2.5"><p class="text-xl font-extrabold text-emerald-800">{{ shop.today }}</p><p class="text-xs text-slate-600">commande{{ shop.today > 1 ? 's' : '' }} aujourd'hui</p></div>
+            <div class="rounded-2xl bg-slate-100 py-2.5"><p class="text-xl font-extrabold text-slate-800">{{ shop.month }}</p><p class="text-xs text-slate-600">ce mois-ci</p></div>
+            <RouterLink to="/gestion/paniers-abandonnes" class="rounded-2xl bg-ocre-50 py-2.5"><p class="text-xl font-extrabold text-ocre-800">{{ shop.abandoned }}</p><p class="text-xs text-slate-600">panier{{ shop.abandoned > 1 ? 's' : '' }} laissé{{ shop.abandoned > 1 ? 's' : '' }}</p></RouterLink>
           </div>
           <div class="mt-3 flex gap-2">
             <a :href="shopShare" target="_blank" rel="noopener" class="btn-brand flex-1 justify-center"><Icon name="share" :size="17" />Partager sur WhatsApp</a>
@@ -425,7 +425,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
           <div class="min-w-0 flex-1">
             <p class="font-semibold">Bien démarrer : {{ guide.done }} sur {{ guide.total }} étapes faites</p>
             <p v-if="guideNext" class="text-sm text-slate-600">Prochaine étape : {{ guideNext.title }}</p>
-            <div class="mt-2 h-2 max-w-xs overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-gradient-to-r from-[#5ed39c] to-[#1c9262]" :style="{ width: `${(guide.done / guide.total) * 100}%` }" /></div>
+            <div class="mt-2 h-2 max-w-xs overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-700" :style="{ width: `${(guide.done / guide.total) * 100}%` }" /></div>
           </div>
           <RouterLink :to="guideNext ? `/gestion/demarrage?etape=${guideNext.key}` : '/gestion/demarrage'" class="btn-brand w-full justify-center sm:w-auto">{{ guide.done ? 'Continuer le guide' : 'Commencer le guide' }}</RouterLink>
         </section>

@@ -119,7 +119,7 @@ async function copy(text, key) {
           </li>
         </ul>
         <p v-if="c.error" class="mt-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">⚠️ {{ c.error }}</p>
-        <button v-if="!ready && data.available" type="button" class="mt-3 w-full rounded-xl bg-[#1464d2] py-3 text-base font-black text-white disabled:opacity-60" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Ouverture de Facebook…' : c.connected ? '🔄 Reconnecter Facebook' : '🔗 Connecter mon Facebook' }}</button>
+        <button v-if="!ready && data.available" type="button" class="mt-3 w-full rounded-xl bg-facebook py-3 text-base font-black text-white disabled:opacity-60" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Ouverture de Facebook…' : c.connected ? '🔄 Reconnecter Facebook' : '🔗 Connecter mon Facebook' }}</button>
         <RouterLink v-else-if="!ready" to="/gestion/marketing/suivi" class="btn-brand mt-3 w-full justify-center py-3 text-base font-black">Régler le pixel</RouterLink>
         <p class="mt-2 text-xs text-slate-500">La pub est payée à Meta, par la carte de votre compte publicitaire.</p>
       </section>

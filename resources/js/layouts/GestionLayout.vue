@@ -439,7 +439,7 @@ async function switchTo(store) {
           <button type="button" class="block w-full rounded-lg border-t border-slate-100 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50" @click="logout">Déconnexion</button>
         </div>
         <button type="button" class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-50" :aria-expanded="profileMenu" @click="profileMenu = !profileMenu">
-          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold text-white" style="background:linear-gradient(135deg,#b49dff,#7c5ce8)">{{ (auth.user?.name ?? '?').charAt(0).toUpperCase() }}</span>
+          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-700 text-sm font-bold text-white">{{ (auth.user?.name ?? '?').charAt(0).toUpperCase() }}</span>
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-medium">{{ auth.user?.name }}</span>
             <span class="block truncate text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
@@ -533,15 +533,15 @@ async function switchTo(store) {
           </RouterLink>
         </div>
         <!-- Le live garde sa couleur : c'est ce qui distingue Jibiat Marchand -->
-        <RouterLink v-if="canOpen('/gestion/live')" to="/gestion/live" class="flex flex-col items-center gap-0.5 text-[11px] font-bold text-[#c02a4e]">
-          <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/live' }) ? 'bg-[#ffecef]' : ''"><ColorIcon name="live" :size="26" :tile="false" /></span>Live
+        <RouterLink v-if="canOpen('/gestion/live')" to="/gestion/live" class="flex flex-col items-center gap-0.5 text-[11px] font-bold text-live">
+          <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/live' }) ? 'bg-live-soft' : ''"><ColorIcon name="live" :size="26" :tile="false" /></span>Live
         </RouterLink>
         <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="isActive({ to: '/gestion/messages' }) ? 'text-emerald-700' : 'text-slate-600'">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/messages' }) ? 'bg-emerald-50' : ''">
             <ColorIcon v-if="isActive({ to: '/gestion/messages' })" name="whatsapp" :size="26" :tile="false" />
             <Icon v-else name="messages" :size="22" />
           </span>Messages
-          <span v-if="badges.messages" class="absolute right-[calc(50%-22px)] -top-0.5 min-w-[18px] rounded-full bg-[#e54a6e] px-1 text-center text-[11px] font-bold leading-[18px] text-white ring-2 ring-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
+          <span v-if="badges.messages" class="absolute right-[calc(50%-22px)] -top-0.5 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[11px] font-bold leading-[18px] text-white ring-2 ring-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
         </RouterLink>
         <span v-else />
         <button type="button" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="plusOpen ? 'text-emerald-700' : 'text-slate-600'" @click="plusOpen = true">
