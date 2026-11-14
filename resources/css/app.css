@@ -26,21 +26,59 @@
     --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji';
     --font-display: 'Plus Jakarta Sans', var(--font-sans);
-    /* Lisibilité : petits textes un peu plus grands, gris plus foncés (contraste AA sur fond blanc, même au soleil) */
+    /* Lisibilité : petits textes un peu plus grands */
     --text-xs: 0.8125rem;
     --text-xs--line-height: 1.15rem;
-    --color-slate-400: #5f6b78;
-    --color-slate-500: #4b5866;
-    /* Fond des écrans : blanc légèrement vert, plus doux que le gris bleuté */
+    /* Neutres : une seule échelle de gris, légèrement teintée de vert comme la marque (charte des couleurs).
+       Textes : 400 = 5,3:1 et 500 = 7,4:1 sur le fond de page ; 900 = texte principal. */
     --color-slate-50: #f5f7f4;
-    /* Ocre wax : ce qui demande de l'attention sans être grave (à encaisser, à confirmer, nouveautés) */
+    --color-slate-100: #eef1ed;
+    --color-slate-200: #e0e5df;
+    --color-slate-300: #c7cfc6;
+    --color-slate-400: #5b6a62;
+    --color-slate-500: #46544c;
+    --color-slate-600: #3d4a44;
+    --color-slate-700: #2e3933;
+    --color-slate-800: #1f2924;
+    --color-slate-900: #111a15;
+    --color-slate-950: #0a110d;
+    /* Attention · ocre wax : ce qui attend une action (à confirmer, non payée, à faire livrer, stock bas).
+       Seule couleur de ce rôle : l'ambre et l'orange de Tailwind la reprennent (plus de trois oranges différents). */
     --color-ocre-50: #fff4ec;
     --color-ocre-100: #ffe2cc;
+    --color-ocre-200: #fdc39b;
+    --color-ocre-300: #fba06b;
+    --color-ocre-400: #f2813f;
+    --color-ocre-500: #e8641c;
     --color-ocre-600: #d4500f;
     --color-ocre-700: #c2410c;
     --color-ocre-800: #9a3412;
+    --color-ocre-900: #7a2a0f;
+    --color-ocre-950: #431407;
+    --color-amber-50: var(--color-ocre-50);
+    --color-amber-100: var(--color-ocre-100);
+    --color-amber-200: var(--color-ocre-200);
+    --color-amber-300: var(--color-ocre-300);
+    --color-amber-400: var(--color-ocre-400);
+    --color-amber-500: var(--color-ocre-500);
+    --color-amber-600: var(--color-ocre-600);
+    --color-amber-700: var(--color-ocre-700);
+    --color-amber-800: var(--color-ocre-800);
+    --color-amber-900: var(--color-ocre-900);
+    --color-amber-950: var(--color-ocre-950);
+    --color-orange-50: var(--color-ocre-50);
+    --color-orange-100: var(--color-ocre-100);
+    --color-orange-200: var(--color-ocre-200);
+    --color-orange-300: var(--color-ocre-300);
+    --color-orange-400: var(--color-ocre-400);
+    --color-orange-500: var(--color-ocre-500);
+    --color-orange-600: var(--color-ocre-600);
+    --color-orange-700: var(--color-ocre-700);
+    --color-orange-800: var(--color-ocre-800);
+    --color-orange-900: var(--color-ocre-900);
+    --color-orange-950: var(--color-ocre-950);
     /* Contour des champs, cases et boutons secondaires : 3:1 sur blanc (WCAG 1.4.11), on voit où écrire et où toucher */
-    --color-field: #8a94a0;
+    --color-field: #8a958e;
     /* Vert WhatsApp foncé pour les boutons à texte blanc (5,3:1) ; le vert vif #25d366 ne garde que le logo (2:1 avec du blanc) */
     --color-whatsapp: #0b7a5c;
     --color-whatsapp-dark: #08664c;

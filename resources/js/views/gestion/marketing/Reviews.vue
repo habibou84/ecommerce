@@ -56,7 +56,7 @@ const FILTERS = [{ value: 'pending', label: 'À valider' }, { value: 'published'
     <ul class="space-y-3">
       <li v-for="r in reviews" :key="r.id" class="card space-y-2 p-4 text-sm">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-base"><span class="text-amber-500">{{ '★'.repeat(r.rating) }}</span><span class="text-slate-300">{{ '★'.repeat(5 - r.rating) }}</span></span>
+          <span class="text-base"><span class="text-yellow-500">{{ '★'.repeat(r.rating) }}</span><span class="text-slate-300">{{ '★'.repeat(5 - r.rating) }}</span></span>
           <span class="font-medium">{{ r.product?.title ?? 'Produit supprimé' }}</span>
           <span class="ml-auto rounded bg-slate-100 px-2 py-0.5 text-xs">{{ r.status_label }}</span>
         </div>
