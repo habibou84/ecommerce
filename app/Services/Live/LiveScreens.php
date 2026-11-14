@@ -67,7 +67,7 @@ class LiveScreens
     /** Réglages du show d'un live : thème, ambiance, sons, musique, mode léger (vieilles télés), mode caméra, objectif */
     public function showSettings(LiveSession $session): array
     {
-        return array_merge(['theme' => 'fete', 'ambiance' => 'aqui', 'sound' => true, 'music' => false, 'light' => false, 'camera' => false, 'goal' => null, 'mystery_mode' => 'zoom'],
+        return array_merge(['theme' => 'fete', 'ambiance' => 'aqui', 'sound' => true, 'music' => false, 'light' => false, 'camera' => true, 'goal' => null, 'mystery_mode' => 'zoom'],
             Cache::get('live-show-settings:'.$session->id, []));
     }
 
@@ -423,6 +423,30 @@ class LiveScreens
     public static function testKey(int $screenId): string
     {
         return 'live-screen-test:'.$screenId;
+    }
+
+    /** Taille réelle de la fenêtre de l'écran (en pixels), retenue 5 minutes : la console montre un aperçu de la même forme */
+    public static function sizeKey(int $screenId): string
+    {
+        return 'live-screen-size:'.$screenId;
+    }
+
+    /** @return array{width: int, height: int}|null */
+    public static function size(int $screenId): ?array
+    {
+        return Cache::get(self::sizeKey($screenId));
+    }
+
+    public static function rememberSize(int $screenId, int $width, int $height): void
+    {
+        // Valeurs aberrantes ignorées (l'écran n'a pas à être validé : une erreur 422 le ferait décrocher)
+        if ($width < 100 || $height < 100 || $width > 10000 || $height > 10000) {
+            return;
+        }
+        $size = ['width' => $width, 'height' => $height];
+        if (self::size($screenId) !== $size) {
+            Cache::put(self::sizeKey($screenId), $size, now()->addMinutes(5));
+        }
     }
 
     /**

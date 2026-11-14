@@ -38,7 +38,7 @@ function onKey(e) {
 
 <template>
   <div>
-    <div class="flex min-h-[2.75rem] flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1.5 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20">
+    <div class="flex min-h-[2.75rem] flex-wrap items-center gap-1.5 rounded-lg border border-field bg-white px-2 py-1.5 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20">
       <span v-for="(value, index) in modelValue" :key="value" class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-sm">
         {{ value }}
         <button v-if="!disabled" type="button" class="text-slate-400 hover:text-red-600" :aria-label="`Retirer ${value}`" @click="remove(index)">✕</button>
@@ -58,7 +58,7 @@ function onKey(e) {
         v-for="s in suggestions.filter((s) => !modelValue.some((v) => v.toLowerCase() === s.toLowerCase())).slice(0, 8)"
         :key="s"
         type="button"
-        class="rounded-md border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-600 hover:border-emerald-600 hover:text-emerald-700"
+        class="rounded-md border border-dashed border-field px-2 py-0.5 text-xs text-slate-600 hover:border-emerald-600 hover:text-emerald-700"
         @click="add(s)"
       >
         + {{ s }}

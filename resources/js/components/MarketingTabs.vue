@@ -8,11 +8,11 @@ const router = useRouter()
 const auth = useAuthStore()
 const ALL = [
   { to: '/gestion/marketing', label: 'Promotions', exact: true },
-  { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' },
-  { to: '/gestion/marketing/relances', label: 'Relances WhatsApp' },
-  { to: '/gestion/marketing/avis', label: 'Avis clients' },
+  { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux', short: 'Réseaux' },
+  { to: '/gestion/marketing/relances', label: 'Relances WhatsApp', short: 'Relances' },
+  { to: '/gestion/marketing/avis', label: 'Avis clients', short: 'Avis' },
   { to: '/gestion/marketing/fidelite', label: 'Fidélité' },
-  { to: '/gestion/marketing/suivi', label: 'Suivi publicitaire' },
+  { to: '/gestion/marketing/suivi', label: 'Suivi publicitaire', short: 'Suivi pub' },
 ]
 // Onglets des fonctions masquées dans la console : retirés
 const tabs = computed(() => ALL.filter((tab) => {
@@ -30,7 +30,7 @@ const tabs = computed(() => ALL.filter((tab) => {
       class="whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium"
       :class="(tab.exact ? $route.path === tab.to : $route.path.startsWith(tab.to)) ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-600 hover:text-slate-900'"
     >
-      {{ tab.label }}
+      <span class="sm:hidden">{{ tab.short ?? tab.label }}</span><span class="hidden sm:inline">{{ tab.label }}</span>
     </RouterLink>
   </nav>
 </template>

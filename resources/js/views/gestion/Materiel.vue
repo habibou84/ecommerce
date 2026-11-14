@@ -101,7 +101,7 @@ const TONE = { pending: 'bg-amber-100 text-amber-900', confirmed: 'bg-sky-100 te
   <div v-if="data" class="space-y-5" :class="count ? 'pb-20' : ''">
     <div>
       <h2 class="text-xl font-extrabold">Matériel</h2>
-      <p class="text-sm text-slate-600">Imprimantes d'étiquettes, accessoires pour vos lives, matériel de caisse… choisis pour marcher avec Jibiat Marchand.</p>
+      <p class="text-sm text-slate-600">Imprimantes d'étiquettes, accessoires pour vos lives, matériel de caisse… choisis pour fonctionner avec Jibiat Marchand.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
@@ -126,9 +126,9 @@ const TONE = { pending: 'bg-amber-100 text-amber-900', confirmed: 'bg-sky-100 te
               <span v-if="!p.available" class="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-500">Épuisé</span>
               <button v-else-if="!cart[p.id]" type="button" class="btn-brand px-4" @click="add(p, 1)">Ajouter</button>
               <span v-else class="flex items-center gap-2">
-                <button type="button" class="grid h-9 w-9 place-items-center rounded-full ring-1 ring-slate-300" aria-label="Moins" @click="add(p, -1)">−</button>
+                <button type="button" class="grid h-9 w-9 place-items-center rounded-full ring-1 ring-field" aria-label="Moins" @click="add(p, -1)">−</button>
                 <b class="w-6 text-center">{{ cart[p.id] }}</b>
-                <button type="button" class="grid h-9 w-9 place-items-center rounded-full ring-1 ring-slate-300" aria-label="Plus" :disabled="p.stock !== null && cart[p.id] >= p.stock" @click="add(p, 1)">+</button>
+                <button type="button" class="grid h-9 w-9 place-items-center rounded-full ring-1 ring-field" aria-label="Plus" :disabled="p.stock !== null && cart[p.id] >= p.stock" @click="add(p, 1)">+</button>
               </span>
             </div>
           </div>

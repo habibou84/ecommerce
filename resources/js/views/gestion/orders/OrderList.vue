@@ -30,7 +30,7 @@ const TABS = [
   { value: 'returned', label: 'Retournées' },
 ]
 const PERIODS = [
-  { value: '', label: 'Tout' },
+  { value: '', label: 'Toutes les dates' },
   { value: 'today', label: 'Aujourd\'hui' },
   { value: 'yesterday', label: 'Hier' },
   { value: 'tomorrow', label: 'Demain' },
@@ -164,12 +164,12 @@ function deliveryBadge(o) {
   return { text: label.includes(',') ? label.split(',')[0] : new Date(`${o.scheduled_date}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }), tone: o.scheduled_date === iso(new Date()) ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700' }
 }
 
-// Action principale de chaque ligne, selon l'étape
+// Action principale de chaque ligne, selon l'étape : toujours en vert de la marque (l'ocre est pour les statuts à traiter)
 function mainAction(o) {
-  if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-ocre-700 hover:bg-ocre-800', run: () => confirmOrder(o) }
-  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && o.prepay_due > 0 && !o.shipment_id && canManage.value) return { label: 'Lien de paiement', icon: 'cash', tone: 'bg-ocre-700 hover:bg-ocre-800', run: () => sendPayLink(o) }
+  if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => confirmOrder(o) }
+  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && o.prepay_due > 0 && !o.shipment_id && canManage.value) return { label: 'Lien de paiement', icon: 'cash', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => sendPayLink(o) }
   if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && !o.deliverer) return { label: 'Faire livrer', icon: 'truck', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openAssign([o.id]) }
-  if (o.status === 'shipped' && canManage.value) return { label: 'Livrée', icon: 'check', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openComplete(o) }
+  if (o.status === 'shipped' && canManage.value) return { label: 'Marquer livrée', icon: 'check', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openComplete(o) }
   return null
 }
 
@@ -382,28 +382,32 @@ async function exportList() {
       </div>
       <button type="button" class="btn-secondary relative shrink-0 px-3" @click="filtersOpen = true">
         <Icon name="filter" :size="18" />Filtres
-        <span v-if="activeFilters.length" class="rounded-full bg-emerald-600 px-1.5 text-xs text-white">{{ activeFilters.length }}</span>
+        <span v-if="activeFilters.length" class="rounded-full bg-emerald-700 px-1.5 text-xs text-white">{{ activeFilters.length }}</span>
       </button>
-      <button type="button" class="shrink-0 rounded-xl border px-3 py-2.5 text-sm font-semibold lg:hidden" :class="selecting ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-300 bg-white text-slate-700'" @click="selecting = !selecting; if (!selecting) selected = new Set()">{{ selecting ? 'Terminer' : 'Choisir' }}</button>
+      <button type="button" class="shrink-0 rounded-xl border px-3 py-2.5 text-sm font-semibold lg:hidden" :class="selecting ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-field bg-white text-slate-700'" @click="selecting = !selecting; if (!selecting) selected = new Set()">{{ selecting ? 'Terminer' : 'Choisir' }}</button>
       <select v-model="filters.sort" class="input hidden w-auto sm:block" aria-label="Trier">
         <option v-for="s in SORTS" :key="s.value" :value="s.value">Trier : {{ s.label.toLowerCase() }}</option>
       </select>
       <button type="button" class="btn-ghost hidden sm:inline-flex" @click="exportList">Exporter (Excel)</button>
       <RouterLink v-if="canManage" to="/gestion/commandes/retours" class="btn-ghost hidden xl:inline-flex">Retours</RouterLink>
-      <RouterLink v-if="canManage" to="/gestion/commandes/nouvelle" class="btn-brand ml-auto hidden lg:inline-flex"><Icon name="plus" :size="18" />Commande</RouterLink>
+      <RouterLink v-if="canManage" to="/gestion/commandes/nouvelle" class="btn-brand ml-auto hidden lg:inline-flex"><Icon name="plus" :size="18" />Nouvelle commande</RouterLink>
     </div>
 
-    <div v-tab-strip class="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <button
-        v-for="p in PERIODS"
-        :key="p.value"
-        type="button"
-        class="shrink-0 rounded-full px-3 py-1 text-sm font-semibold"
-        :class="filters.period === p.value ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'"
-        @click="setPeriod(p.value)"
-      >
-        {{ p.label }}
-      </button>
+    <!-- Période : un sélecteur compact (un seul choix), pour ne pas le confondre avec les étapes en dessous -->
+    <div v-tab-strip class="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <div class="inline-flex gap-0.5 rounded-xl bg-slate-200/70 p-1" role="group" aria-label="Période">
+        <button
+          v-for="p in PERIODS"
+          :key="p.value"
+          type="button"
+          class="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold"
+          :class="filters.period === p.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+          :aria-pressed="filters.period === p.value"
+          @click="setPeriod(p.value)"
+        >
+          {{ p.label }}
+        </button>
+      </div>
     </div>
     <div v-if="filters.period === 'custom'" class="flex flex-wrap items-center gap-2 text-sm">
       Du <input v-model="filters.from" type="date" class="input w-auto" aria-label="Du" />
@@ -417,16 +421,20 @@ async function exportList() {
       <button type="button" class="text-emerald-700 hover:underline" @click="clearFilters">Tout effacer</button>
     </div>
 
-    <nav v-tab-strip class="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <!-- Étape de la commande : des onglets soulignés -->
+    <nav v-tab-strip class="-mx-4 flex gap-5 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Étape des commandes">
       <button
         v-for="tab in TABS"
         :key="tab.value"
-        class="inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3.5 text-sm font-semibold"
-        :class="filters.status === tab.value ? 'border-slate-900 bg-slate-900 text-white' : tab.alert && counts.late ? 'border-red-200 bg-white text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'"
+        type="button"
+        role="tab"
+        :aria-selected="filters.status === tab.value"
+        class="-mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-[2.5px] text-sm font-semibold"
+        :class="filters.status === tab.value ? 'border-emerald-700 text-emerald-800' : tab.alert && counts.late ? 'border-transparent text-red-700 hover:border-red-200' : 'border-transparent text-slate-600 hover:border-field hover:text-slate-900'"
         @click="filters.status = tab.value"
       >
         {{ tab.label }}
-        <span class="rounded-md px-1.5 text-xs font-bold" :class="filters.status === tab.value ? 'bg-white/20' : tab.alert && counts.late ? 'bg-red-100 text-red-800' : 'bg-slate-100'">{{ tab.value ? counts[tab.value] ?? 0 : total(counts) }}</span>
+        <span class="rounded-md px-1.5 text-xs font-bold" :class="filters.status === tab.value ? 'bg-emerald-50 text-emerald-800' : tab.alert && counts.late ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'">{{ tab.value ? counts[tab.value] ?? 0 : total(counts) }}</span>
       </button>
     </nav>
 
@@ -471,7 +479,7 @@ async function exportList() {
     <!-- Ordinateur : tableau groupé par jour -->
     <div v-if="orders.length" class="card hidden overflow-x-auto lg:block">
       <table class="w-full table-fixed text-left text-sm">
-        <colgroup><col class="w-12" /><col class="w-[25%]" /><col class="w-[17%]" /><col class="w-[15%]" /><col class="w-[11%]" /><col class="w-[13%]" /><col class="w-[19%]" /></colgroup>
+        <colgroup><col class="w-12" /><col class="w-[22%]" /><col class="w-[15%]" /><col class="w-[12%]" /><col class="w-[10%]" /><col class="w-[15%]" /><col class="w-[26%]" /></colgroup>
         <thead class="text-xs font-semibold uppercase tracking-wide text-slate-500">
           <tr>
             <th class="w-12 py-2.5 pl-4 pr-2"><input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="allSelected" aria-label="Tout sélectionner" @change="toggleAll" /></th>
@@ -509,7 +517,9 @@ async function exportList() {
               <td class="truncate py-3 pr-3 text-slate-600" :title="o.items_label">{{ o.items_label }}</td>
               <td class="py-3 pr-3 text-right"><p class="font-bold">{{ money(o.total) }}</p><p class="whitespace-nowrap text-xs" :class="PAYMENT_TONES[o.payment_status]">{{ o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status) ? 'À encaisser' : o.payment_status_label }}</p></td>
               <td class="py-3 pr-3">
-                <span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS_TONES[o.status]"><Icon :name="STATUS_ICONS[o.status] ?? 'more'" :size="13" />{{ o.status_label }}</span>
+                <span class="inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS_TONES[o.status]"><Icon :name="STATUS_ICONS[o.status] ?? 'more'" :size="13" />{{ o.status_label }}</span>
+                <!-- Livreur choisi : sous le statut (la colonne Actions est trop étroite pour son nom) -->
+                <p v-if="showDeliverer(o)" class="mt-1 flex max-w-[11rem] items-center gap-1 text-xs font-semibold text-emerald-800"><Icon name="truck" :size="12" class="shrink-0" /><span class="truncate">{{ o.deliverer }}</span><span v-if="o.deliverer_planned" class="shrink-0 font-normal">· prévu</span></p>
                 <p v-if="o.callback_at && o.status === 'pending_confirmation'" class="mt-0.5 text-xs text-amber-800">Rappel {{ new Date(o.callback_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</p>
               </td>
               <td class="py-3 pr-4">
@@ -517,11 +527,7 @@ async function exportList() {
                   <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50" :title="`Appeler ${o.customer_name ?? ''}`"><Icon name="phone" :size="16" /></a>
                   <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50" title="WhatsApp"><Icon name="whatsapp" :size="16" /></a>
                   <button v-if="mainAction(o)" type="button" class="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 text-sm font-semibold text-white" :class="mainAction(o).tone" :disabled="busy" @click="mainAction(o).run()"><Icon :name="mainAction(o).icon" :size="15" />{{ mainAction(o).label }}</button>
-                  <span v-else-if="showDeliverer(o)" class="inline-flex h-9 max-w-[14rem] items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 pl-2.5 pr-1 text-sm">
-                    <Icon name="truck" :size="15" class="shrink-0 text-emerald-700" />
-                    <span class="min-w-0 truncate font-semibold text-emerald-900">{{ o.deliverer }}<span v-if="o.deliverer_planned" class="font-normal text-emerald-700"> · prévu</span></span>
-                    <button v-if="o.deliverer_editable && canAssign" type="button" class="h-7 shrink-0 rounded-lg bg-white px-2 text-xs font-semibold text-emerald-800 shadow-sm" :disabled="busy" @click="editDeliverer(o)">Modifier</button>
-                  </span>
+                  <button v-else-if="showDeliverer(o) && o.deliverer_editable && canAssign" type="button" class="inline-flex h-9 items-center whitespace-nowrap rounded-xl border border-field bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="busy" @click="editDeliverer(o)">Changer de livreur</button>
                 </div>
               </td>
             </tr>
@@ -538,7 +544,7 @@ async function exportList() {
           <!-- Mode sélection : toute la carte coche ou décoche -->
           <button v-if="selecting" type="button" class="absolute inset-0 z-10 rounded-[inherit]" :aria-label="`${selected.has(o.id) ? 'Décocher' : 'Cocher'} ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)" />
           <div class="flex items-start gap-3">
-            <button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold" :class="selected.has(o.id) ? 'bg-emerald-700 text-white' : selecting ? 'border-2 border-slate-300 bg-white text-transparent' : avatar(o.customer_name || phone(o)).tone" :aria-label="`Sélectionner ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)">
+            <button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-extrabold" :class="selected.has(o.id) ? 'bg-emerald-700 text-white' : selecting ? 'border-2 border-field bg-white text-transparent' : avatar(o.customer_name || phone(o)).tone" :aria-label="`Sélectionner ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)">
               <Icon v-if="selected.has(o.id)" name="check" :size="20" /><template v-else>{{ avatar(o.customer_name || phone(o)).initials }}</template>
             </button>
             <RouterLink :to="`/gestion/commandes/${o.id}`" class="min-w-0 flex-1">
@@ -566,7 +572,7 @@ async function exportList() {
             <div v-else-if="showDeliverer(o)" class="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 pl-3 pr-1">
               <Icon name="truck" :size="17" class="shrink-0 text-emerald-700" />
               <span class="min-w-0 flex-1 truncate text-[15px] font-semibold text-emerald-900">{{ o.deliverer }}<span v-if="o.deliverer_planned" class="font-normal text-emerald-700"> · prévu</span></span>
-              <button v-if="o.deliverer_editable && canAssign" type="button" class="h-9 shrink-0 rounded-lg bg-white px-3 text-sm font-semibold text-emerald-800 shadow-sm" :disabled="busy" @click="editDeliverer(o)">Modifier</button>
+              <button v-if="o.deliverer_editable && canAssign" type="button" class="h-9 shrink-0 rounded-lg bg-white px-3 text-sm font-semibold text-emerald-800 shadow-sm" :disabled="busy" @click="editDeliverer(o)">Changer</button>
             </div>
           </div>
         </div>
@@ -587,7 +593,7 @@ async function exportList() {
         <div>
           <p class="label-lg">Les dates portent sur</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="d in [['scheduled', 'La livraison'], ['created', 'La commande']]" :key="d[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.date_field === d[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300'" @click="filters.date_field = d[0]">{{ d[1] }}</button>
+            <button v-for="d in [['scheduled', 'La livraison'], ['created', 'La commande']]" :key="d[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.date_field === d[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field'" @click="filters.date_field = d[0]">{{ d[1] }}</button>
           </div>
         </div>
         <div v-if="options">
@@ -609,7 +615,7 @@ async function exportList() {
         <div>
           <p class="label-lg">Paiement</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="p in [['', 'Tous'], ['to_collect', 'À encaisser'], ['paid', 'Payées']]" :key="p[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.payment === p[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300'" @click="filters.payment = p[0]">{{ p[1] }}</button>
+            <button v-for="p in [['', 'Tous'], ['to_collect', 'À encaisser'], ['paid', 'Payées']]" :key="p[0]" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.payment === p[0] ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field'" @click="filters.payment = p[0]">{{ p[1] }}</button>
           </div>
         </div>
         <div>
@@ -624,7 +630,7 @@ async function exportList() {
         <div>
           <p class="label-lg">Trier par</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="s in SORTS" :key="s.value" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.sort === s.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-300'" @click="filters.sort = s.value">{{ s.label }}</button>
+            <button v-for="s in SORTS" :key="s.value" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="filters.sort === s.value ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field'" @click="filters.sort = s.value">{{ s.label }}</button>
           </div>
         </div>
         <div class="flex gap-2 sm:hidden">

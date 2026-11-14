@@ -64,6 +64,7 @@ class BoostAdsTest extends TestCase
             'graph.facebook.com/*/111/owned_pages*' => Http::response(['data' => [['id' => '444', 'name' => 'Awa Mode']]]),
             'graph.facebook.com/*/111/client_pages*' => Http::response(['data' => []]),
             'graph.facebook.com/*/me/accounts*' => Http::response(['data' => []]),
+            'graph.facebook.com/*/444?*' => Http::response(['id' => '444']),
             'graph.facebook.com/*/act_5/delivery_estimate*' => Http::response(['data' => [['estimate_mau_lower_bound' => 120000, 'estimate_mau_upper_bound' => 150000]]]),
             'graph.facebook.com/*/333333/product_sets' => Http::response(['id' => 'set1']),
             'graph.facebook.com/*/act_5/campaigns' => Http::response(['id' => 'camp1']),
@@ -155,6 +156,46 @@ class BoostAdsTest extends TestCase
         $this->assertSame('ended', Boost::find($boost['id'])->status);
     }
 
+    public function test_a_duplicate_product_set_at_meta_is_reused(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/333333/product_sets*' => fn (Request $r) => $r->method() === 'POST'
+            ? Http::response(['error' => ['error_user_msg' => 'Erreur lors de la création d\'un ensemble de produits car un ensemble de produits doublon existe déjà']], 400)
+            : Http::response(['data' => [
+                ['id' => 'autre', 'name' => 'Autre', 'filter' => '{"color":{"eq":"red"}}'],
+                ['id' => 'set7', 'name' => 'Boost 1 · tout le catalogue', 'filter' => '{"availability":{"eq":"in stock"}}'],
+            ]])]);
+        app(Credits::class)->update(['paid' => true, 'boost_weight' => 2]);
+        $this->store->forceFill(['order_credits' => 50, 'credits_welcomed_at' => now()])->save();
+
+        $this->launch(['kind' => 'catalog', 'product_ids' => null])->assertCreated();
+
+        $this->assertSame('set7', $this->sent('/act_5/adsets')['promoted_object']['product_set_id']);
+    }
+
+    public function test_a_page_without_instagram_gets_a_facebook_only_ad(): void
+    {
+        $this->fakeMeta();
+        app(Credits::class)->update(['paid' => true, 'boost_weight' => 2]);
+        $this->store->forceFill(['order_credits' => 50, 'credits_welcomed_at' => now()])->save();
+
+        $this->launch()->assertCreated();
+
+        $this->assertSame(['facebook'], $this->sent('/act_5/adsets')['targeting']['publisher_platforms']);
+        $this->assertArrayNotHasKey('instagram_user_id', $this->sent('/act_5/adcreatives')->data());
+    }
+
+    public function test_a_page_with_instagram_sends_its_account_with_the_ad(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/444?*' => Http::response(['id' => '444', 'instagram_business_account' => ['id' => '9090']])]);
+        app(Credits::class)->update(['paid' => true, 'boost_weight' => 2]);
+        $this->store->forceFill(['order_credits' => 50, 'credits_welcomed_at' => now()])->save();
+
+        $this->launch()->assertCreated();
+
+        $this->assertSame('9090', $this->sent('/act_5/adcreatives')['instagram_user_id']);
+        $this->assertArrayNotHasKey('publisher_platforms', $this->sent('/act_5/adsets')['targeting']);
+    }
+
     public function test_carousel_and_catalog_boosts(): void
     {
         $this->fakeMeta();
@@ -181,8 +222,8 @@ class BoostAdsTest extends TestCase
     public function test_meta_refusal_is_reported_and_the_campaign_removed(): void
     {
         $this->fakeMeta(['graph.facebook.com/*/act_5/adcreatives' => Http::response(['error' => ['message' => 'Page non autorisée']], 400)]);
-        $this->launch()->assertStatus(422)->assertJsonPath('message', 'Meta n\'a pas créé la pub : Meta : Page non autorisée');
-        $this->assertSame(['failed', 'Meta : Page non autorisée'], [Boost::sole()->status, Boost::sole()->error]);
+        $this->launch()->assertStatus(422)->assertJsonPath('message', 'Meta n\'a pas créé la pub : Meta : Page non autorisée (étape : visuel de la pub)');
+        $this->assertSame(['failed', 'Meta : Page non autorisée (étape : visuel de la pub)'], [Boost::sole()->status, Boost::sole()->error]);
         $this->assertSame('DELETED', $this->sent('/camp1')['status']);
 
         // Compte publicitaire inactif ou solde vide : refusé avant Meta
@@ -190,6 +231,35 @@ class BoostAdsTest extends TestCase
         app(Credits::class)->update(['paid' => true]);
         $this->store->forceFill(['order_credits' => 0, 'credits_welcomed_at' => now()])->save();
         $this->launch()->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'solde'));
+    }
+
+    public function test_a_failed_boost_can_be_deleted_but_not_one_with_spend(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/act_5/adcreatives' => Http::response(['error' => ['message' => 'Page non autorisée']], 400)]);
+
+        $this->launch()->assertStatus(422);
+        $this->storeApi($this->store, 'DELETE', 'marketing/boosts/'.Boost::sole()->id)->assertOk();
+        $this->assertSame(0, Boost::count());
+
+        $this->launch()->assertStatus(422);
+        $kept = Boost::sole();
+        $kept->update(['spend' => 500]);
+        $this->storeApi($this->store, 'DELETE', 'marketing/boosts/'.$kept->id)->assertStatus(422);
+        $this->assertSame(1, Boost::count());
+    }
+
+    public function test_all_failed_boosts_are_cleared_at_once_and_the_others_are_kept(): void
+    {
+        $this->fakeMeta(['graph.facebook.com/*/act_5/adcreatives' => Http::response(['error' => ['message' => 'Page non autorisée']], 400)]);
+        $this->launch()->assertStatus(422);
+        $this->launch()->assertStatus(422);
+        $this->launch()->assertStatus(422);
+        $kept = Boost::query()->latest('id')->first();
+        $kept->update(['spend' => 500]);
+
+        $this->storeApi($this->store, 'DELETE', 'marketing/boosts/failed')->assertOk()->assertJsonPath('data.deleted', 2);
+
+        $this->assertSame([$kept->id], Boost::pluck('id')->all());
     }
 
     public function test_the_assistant_can_be_turned_off_from_the_console(): void

@@ -98,9 +98,13 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
 <template>
   <div class="space-y-5">
     <div v-if="auth.can('finance.view')" class="flex flex-wrap items-center gap-2">
-      <button v-for="[value, label] in PRESETS" :key="value" class="rounded-full border px-3 py-1 text-sm"
-              :class="period.preset === value ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-white'"
-              @click="period.preset = value; value !== 'custom' && load()">{{ label }}</button>
+      <!-- Période : même sélecteur que la liste des commandes -->
+      <div class="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-xl bg-slate-200/70 p-1 [scrollbar-width:none]" role="group" aria-label="Période">
+        <button v-for="[value, label] in PRESETS" :key="value" type="button" class="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold"
+                :class="period.preset === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+                :aria-pressed="period.preset === value"
+                @click="period.preset = value; value !== 'custom' && load()">{{ label }}</button>
+      </div>
       <template v-if="period.preset === 'custom'">
         <input v-model="period.from" type="date" class="input w-auto py-1" />
         <input v-model="period.to" type="date" class="input w-auto py-1" />

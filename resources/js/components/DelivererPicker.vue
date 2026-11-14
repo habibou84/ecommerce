@@ -91,7 +91,7 @@ function pick(key) {
         >
           <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-bold" :class="e.type === 'courier' ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800'">{{ initials(e.name) }}</span>
           <span class="min-w-0 flex-1">
-            <span class="flex flex-wrap items-center gap-2 text-base font-semibold">{{ e.name }}<span v-if="e.partner" class="rounded-full bg-sky-600 px-2 py-0.5 text-xs font-semibold text-white">Votre entreprise</span><span v-if="e.cheapest" class="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Le moins cher</span></span>
+            <span class="flex flex-wrap items-center gap-2 text-base font-semibold">{{ e.name }}<span v-if="e.partner" class="rounded-full bg-sky-700 px-2 py-0.5 text-xs font-semibold text-white">Votre entreprise</span><span v-if="e.cheapest" class="rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-semibold text-white">Le moins cher</span></span>
             <span class="block text-sm text-slate-500">{{ e.sub }}</span>
           </span>
           <span v-if="e.price !== null" class="text-base font-bold tabular-nums">{{ money(e.price) }}</span>
@@ -106,7 +106,7 @@ function pick(key) {
         </button>
       </template>
 
-      <button type="button" class="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 px-3 py-3 text-left text-slate-600" :class="{ 'ring-2 ring-emerald-600': !modelValue }" @click="pick('')">
+      <button type="button" class="flex w-full items-center gap-3 rounded-xl border border-dashed border-field px-3 py-3 text-left text-slate-600" :class="{ 'ring-2 ring-emerald-600': !modelValue }" @click="pick('')">
         <Icon name="clock" :size="22" />
         <span><span class="block font-semibold">Décider plus tard</span><span class="block text-sm">À la confirmation, ou selon vos règles automatiques</span></span>
       </button>

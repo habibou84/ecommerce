@@ -3,6 +3,7 @@ import AiMeter from '../../../components/AiMeter.vue'
 import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import Icon from '../../../components/Icon.vue'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { usePageTitle } from '../../../lib/pageTitle'
 import { RouterLink, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import BundleEditor from '../../../components/BundleEditor.vue'
@@ -57,6 +58,7 @@ const form = reactive({
   tags: [],
 })
 const product = ref(null) // fiche chargée (photos, adresse publique)
+usePageTitle(() => product.value?.title || '')
 const hasVariants = ref(false)
 const isBundle = ref(false) // pack : contenu modifié dans l'écran Packs quand il a des tailles
 const options = ref([{ name: 'Taille', values: [] }])
@@ -515,18 +517,6 @@ async function copyShare(text) {
 
 // Menu ⋯ (Dupliquer, Supprimer)
 const menu = ref(false)
-// Clavier ouvert au téléphone : la bande « Enregistrer » se cache pour ne pas couvrir le champ
-const typing = ref(false)
-let blurTimer
-const isTyping = (el) => window.innerWidth < 1024 && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'file', 'button', 'submit'].includes(el.type)))
-function onFocus(event) {
-  clearTimeout(blurTimer)
-  if (isTyping(event.target)) typing.value = true
-}
-function onBlur() {
-  blurTimer = setTimeout(() => (typing.value = false), 150)
-}
-
 const variantError = (index, field) => errors.value[`variants.${index}.${field}`]
 const margin = computed(() => {
   const price = num(simple.price)
@@ -538,9 +528,9 @@ const margin = computed(() => {
 <template>
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
 
-  <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save" @focusin="onFocus" @focusout="onBlur">
+  <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save">
     <div class="flex flex-wrap items-center gap-2">
-      <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
+      <RouterLink to="/gestion/catalogue" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
       <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare"><Icon name="share" :size="16" class="mr-1 inline-block align-[-3px]" />Partager</button>
       <button v-if="product && form.status === 'active' && form.is_visible_online && auth.can('store.manage') && platformOn(auth, 'social_meta|social_tiktok')" type="button" class="btn-secondary px-3 py-1.5" @click="publishing = true"><Icon name="megaphone" :size="16" class="mr-1 inline-block align-[-3px]" />Publier sur les réseaux</button>
@@ -582,7 +572,8 @@ const margin = computed(() => {
       <Alert v-if="aiNotice" tone="success">{{ aiNotice }}</Alert>
     </section>
 
-    <fieldset :disabled="!canEdit" class="space-y-5">
+    <!-- Téléphone : la photo d'abord (on part de la photo, comme pour un article du live), puis le nom -->
+    <fieldset :disabled="!canEdit" class="flex flex-col gap-5">
       <section class="card space-y-4 p-4 sm:p-6">
         <Field id="title" label="Nom du produit" :error="errors.title">
           <input id="title" v-model="form.title" class="input" maxlength="255" placeholder="Robe wax évasée" required />
@@ -595,7 +586,7 @@ const margin = computed(() => {
         </Field>
       </section>
 
-      <section class="card space-y-3 p-4 sm:p-6">
+      <section class="card space-y-3 p-4 max-sm:order-first sm:p-6">
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">Photos</h2>
           <div v-if="canEdit" class="flex gap-2">
@@ -614,7 +605,7 @@ const margin = computed(() => {
         <div class="grid grid-cols-3 gap-3 sm:grid-cols-5">
           <div v-for="(image, index) in images" :key="image.id" class="group relative">
             <img :src="image.urls.thumb" :alt="image.alt" class="aspect-square w-full rounded-lg border border-slate-200 object-cover" />
-            <span v-if="index === 0" class="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-[10px] font-medium">Principale</span>
+            <span v-if="index === 0" class="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-[11px] font-medium">Principale</span>
             <template v-if="canEdit">
               <button type="button" class="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-base font-bold text-red-600 shadow ring-1 ring-slate-200" aria-label="Retirer cette photo" title="Retirer cette photo" @click="removeImage(image)">✕</button>
               <div class="mt-1 flex justify-center gap-1 text-xs">
@@ -624,7 +615,7 @@ const margin = computed(() => {
             </template>
           </div>
           <div v-for="(pending, index) in pendingFiles" :key="pending.url" class="relative">
-            <img :src="pending.url" alt="" class="aspect-square w-full rounded-lg border border-dashed border-slate-300 object-cover opacity-80" />
+            <img :src="pending.url" alt="" class="aspect-square w-full rounded-lg border border-dashed border-field object-cover opacity-80" />
             <button type="button" class="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-base font-bold text-red-600 shadow ring-1 ring-slate-200" aria-label="Retirer cette photo" title="Retirer cette photo" @click="removePending(index)">✕</button>
             <p class="mt-1 text-center text-xs leading-tight text-slate-500">Envoyée à l'enregistrement</p>
           </div>
@@ -925,7 +916,7 @@ const margin = computed(() => {
     </div>
 
     <!-- Bande « Enregistrer » : cachée pendant la saisie au téléphone (clavier ouvert) -->
-    <div v-if="canEdit && !typing" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur lg:bottom-0 lg:left-64">
+    <div v-if="canEdit" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur lg:bottom-0 lg:left-64">
       <div class="mx-auto flex max-w-5xl items-center gap-2">
         <span v-if="hasVariants" class="text-sm text-slate-500">{{ variantRows.filter((r) => r.include).length }} variante(s)</span>
         <button class="btn-brand ml-auto" :disabled="saving || uploading">{{ saving ? 'Enregistrement…' : uploading ? 'Envoi des photos…' : 'Enregistrer' }}</button>

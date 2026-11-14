@@ -6,7 +6,6 @@ import BoostPanel from '../../../components/marketing/BoostPanel.vue'
 
 <template>
   <div class="mx-auto max-w-xl space-y-3">
-    <h1 class="text-xl font-extrabold">🚀 Boost</h1>
     <BoostPanel />
   </div>
 </template>

@@ -63,7 +63,7 @@ function saved(state) {
 
 async function open() {
   if (billing.value?.paid && billing.value.next === 'pay') {
-    openRecharge(`Il te faut au moins ${billing.value.min_orders} commandes dans ton solde pour ouvrir les commandes WhatsApp.`)
+    openRecharge(`Il vous faut au moins ${billing.value.min_orders} commandes dans votre solde pour ouvrir les commandes WhatsApp.`)
     return
   }
   busy.value = true
@@ -143,21 +143,21 @@ async function share() {
 
 <template>
   <div class="mx-auto max-w-2xl space-y-3 pb-8">
-    <RouterLink to="/gestion/live" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Live</RouterLink>
+    <RouterLink to="/gestion/live" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Live</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
 
     <!-- ═══ Préparer ═══ -->
     <template v-if="!session || session.status === 'draft'">
       <section class="rounded-[24px] bg-emerald-700 px-4 py-5 text-white">
         <h2 class="text-[24px] font-black leading-tight">💬 Commandes WhatsApp</h2>
-        <p class="mt-1 text-[15px] font-semibold text-emerald-50">Sans live : tes clients envoient le code (A1, A2…) ou « LISTE » sur WhatsApp, et la commande s'enregistre toute seule.</p>
+        <p class="mt-1 text-[15px] font-semibold text-emerald-50">Sans live : vos clients envoient le code (A1, A2…) ou « LISTE » sur WhatsApp, et la commande s'enregistre toute seule.</p>
       </section>
       <section class="card p-4">
         <div class="flex items-center justify-between gap-2">
-          <h3 class="font-extrabold">1 · Tes articles</h3>
+          <h3 class="font-extrabold">1 · Vos articles</h3>
           <button type="button" class="text-sm font-bold text-emerald-700" @click="panel = true">{{ products.length ? 'Modifier' : 'Choisir ▸' }}</button>
         </div>
-        <p v-if="!products.length" class="mt-1 text-sm text-slate-500">Dans ton catalogue, un live passé ou un nouvel article. Chacun reçoit son code.</p>
+        <p v-if="!products.length" class="mt-1 text-sm text-slate-500">Dans votre catalogue, un live passé ou un nouvel article. Chacun reçoit son code.</p>
         <ul class="mt-2 divide-y divide-slate-100 text-sm">
           <li v-for="p in products" :key="p.code" class="flex items-center gap-3 py-2">
             <img v-if="p.image" :src="p.image" alt="" class="h-10 w-10 rounded-lg object-cover">
@@ -169,7 +169,7 @@ async function share() {
       <section class="card p-4">
         <h3 class="font-extrabold">2 · Ouvert pendant</h3>
         <div class="mt-2 grid grid-cols-4 gap-2">
-          <button v-for="[h, label] in DURATIONS" :key="label" type="button" class="rounded-xl py-2 text-sm font-bold" :class="hours === h ? 'bg-emerald-700 text-white' : 'border border-slate-300'" @click="hours = h">{{ label }}</button>
+          <button v-for="[h, label] in DURATIONS" :key="label" type="button" class="rounded-xl py-2 text-sm font-bold" :class="hours === h ? 'bg-emerald-700 text-white' : 'border border-field'" @click="hours = h">{{ label }}</button>
         </div>
       </section>
       <section v-if="billing?.paid" class="card bg-slate-50 p-4 text-sm text-slate-600">
@@ -188,12 +188,12 @@ async function share() {
         <p class="mt-2 text-3xl font-black">{{ money(session.summary?.amount ?? 0) }}</p>
         <p class="text-sm text-white/90">
           {{ todayOrders }} commande{{ todayOrders > 1 ? 's' : '' }}{{ session.billing?.per_day ? ' aujourd\'hui' : '' }} ·
-          {{ session.closes_at ? `ouvert jusqu'au ${formatDateTime(session.closes_at)}` : 'ouvert jusqu\'à ce que tu fermes' }}
+          {{ session.closes_at ? `ouvert jusqu'au ${formatDateTime(session.closes_at)}` : 'ouvert jusqu\'à ce que vous fermiez' }}
         </p>
       </section>
       <section v-if="session.paused" class="card space-y-2 border-orange-300 bg-orange-50 p-4 text-sm text-orange-900">
         <b class="block">Solde vide : les nouveaux codes ne sont plus pris.</b>
-        <p>Les commandes déjà enregistrées restent. Recharge pour reprendre.</p>
+        <p>Les commandes déjà enregistrées restent. Rechargez pour reprendre.</p>
         <button type="button" class="btn-brand w-full" @click="openRecharge()">Recharger</button>
       </section>
       <section class="card p-4">
@@ -211,7 +211,7 @@ async function share() {
       </section>
       <section class="card p-4">
         <h3 class="font-extrabold">Dernières commandes</h3>
-        <p v-if="!recent.length" class="mt-1 text-sm text-slate-500">Rien pour l'instant. Partage la liste dans ton statut ou tes groupes.</p>
+        <p v-if="!recent.length" class="mt-1 text-sm text-slate-500">Rien pour l'instant. Partagez la liste dans votre statut ou vos groupes.</p>
         <ul class="mt-2 space-y-1.5 text-sm">
           <li v-for="r in recent" :key="r.id">
             <b>{{ r.customer_name || r.customer_phone || 'Client' }}</b> · {{ r.code }}
@@ -225,7 +225,7 @@ async function share() {
         <h3 class="font-extrabold">🧾 Retiré du solde chaque soir</h3>
         <p v-for="d in session.billing.days" :key="d.day" class="mt-1">{{ dayLabel(d.day) }} : {{ d.orders }} commande{{ d.orders > 1 ? 's' : '' }}{{ d.used ? ` · −${d.used} au solde` : '' }}</p>
       </section>
-      <p v-if="copied" class="text-center text-sm font-bold text-emerald-700">Liste copiée : colle-la dans ton statut ou tes groupes.</p>
+      <p v-if="copied" class="text-center text-sm font-bold text-emerald-700">Liste copiée : collez-la dans votre statut ou vos groupes.</p>
       <div class="grid grid-cols-2 gap-2">
         <button type="button" class="btn-secondary" @click="share">Partager la liste</button>
         <button type="button" class="btn-secondary text-red-700" :disabled="busy" @click="close">Fermer les commandes</button>
@@ -234,7 +234,7 @@ async function share() {
 
     <!-- ═══ Bilan ═══ -->
     <template v-else>
-      <section class="rounded-[24px] bg-gradient-to-br from-emerald-700 to-teal-700 p-5 text-white">
+      <section class="rounded-[24px] bg-brand-grad p-5 text-white">
         <span class="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-bold">FERMÉ · {{ formatDateTime(session.ended_at) }}</span>
         <p class="mt-1 text-sm font-semibold text-white/90">{{ session.title }}</p>
         <p class="mt-2 text-4xl font-extrabold">{{ money(session.summary?.amount ?? 0) }}</p>

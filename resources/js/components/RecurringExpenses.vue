@@ -62,27 +62,33 @@ const total = computed(() => items.value.filter((i) => i.is_active).reduce((sum,
 </script>
 
 <template>
-  <section class="card space-y-3 p-4">
+  <section class="space-y-4">
+    <div class="card p-4">
+      <p class="text-sm font-medium text-slate-600">Chaque mois, vous dépensez</p>
+      <p class="whitespace-nowrap text-3xl font-bold tracking-tight">{{ money(total) }}</p>
+      <p class="mt-1 text-sm text-slate-600">Loyer, salaires, internet, publicité… Ces dépenses sont notées automatiquement chaque mois, le jour choisi, dans vos dépenses et votre bénéfice.</p>
+    </div>
+
     <div class="flex items-center justify-between gap-2">
-      <div>
-        <h2 class="font-semibold">Dépenses mensuelles</h2>
-        <p class="text-sm text-slate-500">Loyer, salaires, internet, publicité… notés automatiquement chaque mois dans vos dépenses et votre bénéfice.</p>
-      </div>
-      <button v-if="canEdit" class="btn-secondary shrink-0" @click="edit()">Ajouter</button>
+      <h2 class="text-lg font-semibold">Mes dépenses mensuelles</h2>
+      <button v-if="canEdit" class="btn-brand shrink-0" @click="edit()">Ajouter</button>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
-    <ul v-if="items.length" class="divide-y divide-slate-100 text-sm">
-      <li v-for="i in items" :key="i.id" class="flex items-center gap-2 py-2" :class="i.is_active ? '' : 'opacity-60'">
-        <div class="min-w-0 flex-1">
-          <p class="font-medium">{{ i.category_label }}<template v-if="i.channel_label"> {{ i.channel_label }}</template><template v-if="i.note"> · {{ i.note }}</template></p>
-          <p class="text-xs text-slate-500">Le {{ i.day_of_month }} de chaque mois<template v-if="i.next_date"> · prochaine fois le {{ formatDate(i.next_date) }}</template><template v-else> · en pause</template></p>
-        </div>
-        <span class="font-medium">{{ money(i.amount) }}</span>
-        <button v-if="canEdit" class="text-sm text-emerald-700" @click="edit(i)">Modifier</button>
+    <ul v-if="items.length" class="space-y-2 text-sm">
+      <li v-for="i in items" :key="i.id">
+        <component :is="canEdit ? 'button' : 'div'" class="card flex w-full items-center gap-2 p-3.5 text-left" :class="i.is_active ? '' : 'bg-slate-100'" @click="canEdit && edit(i)">
+          <span class="min-w-0 flex-1">
+            <span class="block font-semibold" :class="i.is_active ? '' : 'text-slate-600'">{{ i.category_label }}<template v-if="i.channel_label"> {{ i.channel_label }}</template><template v-if="i.note"> · {{ i.note }}</template></span>
+            <span v-if="i.is_active" class="block text-xs text-slate-600">Le {{ i.day_of_month }} de chaque mois<template v-if="i.next_date"> · prochaine fois le {{ formatDate(i.next_date) }}</template></span>
+            <span v-else class="mt-0.5 inline-block rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">En pause</span>
+          </span>
+          <span class="whitespace-nowrap font-bold" :class="i.is_active ? '' : 'text-slate-600'">{{ money(i.amount) }}</span>
+          <span v-if="canEdit" class="text-slate-500" aria-hidden="true">›</span>
+        </component>
       </li>
-      <li class="flex justify-between py-2 font-semibold"><span>Total par mois</span><span>{{ money(total) }}</span></li>
     </ul>
-    <p v-else class="text-sm text-slate-500">Aucune dépense mensuelle.</p>
+    <p v-else class="card p-4 text-sm text-slate-600">Aucune dépense mensuelle. Ajoutez votre loyer, vos salaires… ils seront notés tout seuls chaque mois.</p>
+    <p v-if="items.some((i) => !i.is_active)" class="text-xs text-slate-600">Les dépenses en pause ne sont pas comptées dans le total.</p>
 
     <Modal v-if="form.open" :title="form.id ? 'Dépense mensuelle' : 'Nouvelle dépense mensuelle'" @close="form.open = false">
       <form class="space-y-4" @submit.prevent="save">

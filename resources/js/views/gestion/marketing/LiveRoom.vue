@@ -402,7 +402,7 @@ async function redo() {
   <Teleport to="body" :disabled="!fullscreen">
   <div :class="fullscreen ? 'fixed inset-0 z-[45] overflow-y-auto overscroll-contain bg-[#0b1120]' : ''">
   <div class="space-y-4" :class="fullscreen ? 'mx-auto max-w-3xl px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-28' : ''">
-    <RouterLink v-if="!fullscreen" to="/gestion/live" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
+    <RouterLink v-if="!fullscreen" to="/gestion/live" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
     <p v-if="!live" class="text-sm text-slate-500">Chargement…</p>
@@ -412,7 +412,7 @@ async function redo() {
       <nav v-if="live.status === 'draft'" class="grid grid-cols-2 border-b border-slate-200" role="tablist" aria-label="Live ou support">
         <button v-for="[value, label] in [['live', 'Live'], ['support', 'Support']]" :key="value" type="button" role="tab" :aria-selected="pane === value"
                 class="-mb-px border-b-[3px] py-2.5 text-base font-extrabold" :class="pane === value ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'" @click="pane = value">
-          {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-[10px] font-black text-white">● OUVERT</span>
+          {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-[11px] font-black text-white">● OUVERT</span>
         </button>
       </nav>
 
@@ -466,11 +466,11 @@ async function redo() {
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
                    @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" @updated="live = $event" />
 
-      <section v-else-if="live.status === 'draft' && pane === 'live'" class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
+      <section v-else-if="live.status === 'draft' && pane === 'live'" class="overflow-hidden rounded-[24px] bg-brand-grad p-5 text-white">
         <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
         <h2 class="mt-2 text-xl font-extrabold">{{ live.title }}</h2>
         <p class="text-sm text-white/90">{{ live.items.length }} article{{ live.items.length > 1 ? 's' : '' }} · lancez le live au moment où vous passez à l'antenne.</p>
-        <button type="button" class="mt-4 block w-full rounded-2xl bg-white py-3 text-center text-base font-extrabold text-[#c02a4e] disabled:opacity-60" :disabled="busy" @click="start">Lancer le live</button>
+        <button type="button" class="mt-4 block w-full rounded-2xl bg-white py-3 text-center text-base font-extrabold text-emerald-700 disabled:opacity-60" :disabled="busy" @click="start">Lancer le live</button>
         <button type="button" class="mt-2 block w-full text-center text-sm text-white/90 underline" @click="share = true">Partager le lien avant de commencer</button>
       </section>
 
@@ -484,7 +484,7 @@ async function redo() {
           <p class="mt-2 text-[14px]"><b>{{ live.orders_after ?? 0 }}</b> commande{{ (live.orders_after ?? 0) > 1 ? 's' : '' }} depuis la fin du live<template v-if="live.billing"> · <b>{{ live.billing.orders }}</b> en tout dans ce live</template></p>
           <button type="button" class="mt-3 block w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-2.5 font-extrabold text-orange-800 disabled:opacity-60" :disabled="busy" @click="stopOrders">Arrêter les commandes maintenant</button>
         </section>
-        <section class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
+        <section class="overflow-hidden rounded-[24px] bg-brand-grad p-5 text-white">
           <span class="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-bold">TERMINÉ · {{ formatDateTime(live.ended_at) }} · {{ duration }}</span>
           <p class="mt-1 text-sm font-semibold text-white/90">{{ live.title }}</p>
           <p class="mt-2 text-4xl font-extrabold">{{ money(live.summary.amount) }}</p>
@@ -497,11 +497,11 @@ async function redo() {
         </section>
         <!-- Solde : commandes de ce live retirées à la fermeture -->
         <section v-if="live.billing?.billed" class="rounded-[20px] border-2 border-amber-400 bg-amber-50 p-4">
-          <h3 class="font-display text-base font-extrabold">🧾 {{ live.billing.used }} commande{{ live.billing.used > 1 ? 's' : '' }} retirée{{ live.billing.used > 1 ? 's' : '' }} de ton solde</h3>
+          <h3 class="font-display text-base font-extrabold">🧾 {{ live.billing.used }} commande{{ live.billing.used > 1 ? 's' : '' }} retirée{{ live.billing.used > 1 ? 's' : '' }} de votre solde</h3>
           <p class="mt-1 text-xs text-slate-600">Une commande annulée ensuite reste comptée.</p>
           <p class="mt-2 flex justify-between border-t border-amber-200 pt-2 text-sm"><span>Solde après ce live</span><b :class="live.billing.balance < 0 ? 'text-red-700' : ''">{{ live.billing.balance }} commandes</b></p>
           <template v-if="live.billing.recharge">
-            <p class="mt-1 text-sm font-bold text-orange-900">Il faut au moins {{ live.billing.min_orders }} commandes pour ouvrir ton prochain live.</p>
+            <p class="mt-1 text-sm font-bold text-orange-900">Il faut au moins {{ live.billing.min_orders }} commandes pour ouvrir votre prochain live.</p>
             <button type="button" class="mt-2 block w-full rounded-xl bg-slate-900 py-2.5 text-[15px] font-black text-white" @click="openRecharge()">Recharger</button>
           </template>
         </section>
@@ -603,7 +603,7 @@ async function redo() {
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm font-semibold">{{ c.name }}</span>
                 <span class="flex flex-wrap items-center gap-1 text-xs text-slate-500">
-                  <span v-for="(code, k) in c.codes" :key="k" class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ code }}</span>
+                  <span v-for="(code, k) in c.codes" :key="k" class="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">{{ code }}</span>
                   {{ money(c.amount) }} · {{ c.sources }}
                 </span>
               </span>
@@ -612,7 +612,7 @@ async function redo() {
             <!-- Détail : chaque réservation, commande, annulation -->
             <ul v-if="openClient === c.key" class="mt-2 space-y-1 rounded-xl bg-slate-50 p-2 text-sm">
               <li v-for="r in c.list" :key="r.id" class="flex flex-wrap items-center gap-2">
-                <span class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ r.code }}</span>
+                <span class="rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">{{ r.code }}</span>
                 <span class="min-w-0 flex-1 text-slate-600">{{ SOURCE[r.source] }}<template v-if="r.shipping_address"> · {{ r.shipping_address }}</template></span>
                 <span class="rounded-full px-2 py-0.5 text-[11px]" :class="STATUS[r.status][1]">{{ STATUS[r.status][0] }}</span>
                 <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-xs font-medium text-emerald-700 underline">{{ r.order.reference }}</RouterLink>

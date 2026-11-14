@@ -52,7 +52,8 @@ async function poll() {
   if (document.hidden && data.value) return
   try {
     if (!token.value) await create()
-    const res = (await http.get(`/screens/${token.value}`)).data.data
+    // La taille de la fenêtre est envoyée à chaque fois : la console montre un aperçu de la même forme
+    const res = (await http.get(`/screens/${token.value}`, { params: { w: window.innerWidth, h: window.innerHeight } })).data.data
     offline.value = false
     if (!res.paired) {
       code.value = res.code

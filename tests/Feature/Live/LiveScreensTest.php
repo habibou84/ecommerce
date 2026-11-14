@@ -47,6 +47,23 @@ class LiveScreensTest extends TestCase
         ]])->assertCreated()->json('data.id');
     }
 
+    public function test_the_screen_reports_its_window_size_so_the_console_preview_has_the_same_shape(): void
+    {
+        $created = $this->platformApi('POST', 'screens')->assertCreated()->json('data');
+        $this->storeApi($this->store, 'POST', 'lives/screens/pair', ['code' => $created['code'], 'name' => 'Télé salon'])->assertCreated();
+
+        // Taille inconnue tant que l'écran ne l'a pas signalée : la console garde 16/9
+        $this->storeApi($this->store, 'GET', 'lives/screens')->assertJsonPath('data.0.width', null)->assertJsonPath('data.0.height', null);
+
+        // L'écran signale la taille de sa fenêtre (ici une télé tournée) à chaque demande
+        $this->platformApi('GET', 'screens/'.$created['token'].'?w=1080&h=1920')->assertOk()->assertJsonPath('data.paired', true);
+        $this->storeApi($this->store, 'GET', 'lives/screens')->assertJsonPath('data.0.width', 1080)->assertJsonPath('data.0.height', 1920);
+
+        // Une taille aberrante est ignorée, sans faire échouer l'écran ni effacer la précédente
+        $this->platformApi('GET', 'screens/'.$created['token'].'?w=5&h=abc')->assertOk();
+        $this->storeApi($this->store, 'GET', 'lives/screens')->assertJsonPath('data.0.width', 1080)->assertJsonPath('data.0.height', 1920);
+    }
+
     public function test_a_screen_is_paired_with_a_code_and_shows_the_live_without_private_data(): void
     {
         // La télé ouvre /ecran : un code à 4 chiffres, rien d'autre tant qu'elle n'est pas reliée

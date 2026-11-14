@@ -181,7 +181,7 @@ async function cancel(value) {
     </section>
 
     <section v-if="data.access_key" class="card space-y-1 p-4 text-sm" :class="data.access_key.premium ? 'bg-slate-950 text-white ring-0' : ''">
-      <p v-if="data.access_key.premium" class="text-base font-semibold text-amber-300">🏅 {{ data.access_key.badge }}</p>
+      <p v-if="data.access_key.premium" class="text-base font-semibold text-yellow-300">🏅 {{ data.access_key.badge }}</p>
       <p v-else class="font-semibold">Clé d'accès</p>
       <p v-if="data.access_key.offered_by" class="text-slate-300">Offerte par <strong class="text-white">{{ data.access_key.offered_by }}</strong></p>
       <p>

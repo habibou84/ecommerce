@@ -10,26 +10,26 @@
     <meta charset="UTF-8">
     <style>
         @page { margin: 12mm 19mm; }
-        body { font-family: DejaVu Sans, sans-serif; color: #0f172a; margin: 0; }
+        body { font-family: DejaVu Sans, sans-serif; color: #111a15; margin: 0; }
         table.sheet { border-collapse: collapse; }
-        td.cell { width: 85.6mm; height: 54mm; padding: 0; border: 0.2mm dashed #94a3b8; vertical-align: top; }
+        td.cell { width: 85.6mm; height: 54mm; padding: 0; border: 0.2mm dashed #8a958e; vertical-align: top; }
         .card { width: 85.6mm; height: 54mm; position: relative; overflow: hidden; }
         .premium { background: #0b0f19; color: #fff; }
-        .timed { background: #fff; color: #0f172a; }
+        .timed { background: #fff; color: #111a15; }
         .qr { position: absolute; left: 4mm; top: 9mm; width: 30mm; height: 30mm; background: #fff; padding: 1.2mm; }
         .qr img { width: 30mm; height: 30mm; }
         .text { position: absolute; left: 38.5mm; top: 4mm; right: 3mm; }
         .brand { font-size: 7.5pt; font-weight: bold; letter-spacing: 0.3mm; }
         .title { font-size: 10.5pt; font-weight: bold; margin-top: 2.5mm; line-height: 1.15; }
         .gold { color: #fbbf24; }
-        .green { color: #047857; }
+        .green { color: #017c40; }
         .number { font-size: 15pt; font-weight: bold; margin-top: 1mm; }
         .offer { font-size: 7.5pt; margin-top: 1.5mm; }
         .code { font-family: DejaVu Sans Mono, monospace; font-size: 11pt; font-weight: bold; margin-top: 2mm; letter-spacing: 0.4mm; }
         .help { position: absolute; left: 4mm; right: 3mm; bottom: 2.5mm; font-size: 6pt; }
-        .muted { color: #64748b; }
+        .muted { color: #5b6a62; }
         .light { color: #fde68a; }
-        .offered { font-size: 6.5pt; margin-top: 1mm; color: #e2e8f0; }
+        .offered { font-size: 6.5pt; margin-top: 1mm; color: #e0e5df; }
     </style>
 </head>
 <body>

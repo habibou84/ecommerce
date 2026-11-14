@@ -26,19 +26,69 @@
     --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji';
     --font-display: 'Plus Jakarta Sans', var(--font-sans);
-    /* Lisibilité : petits textes un peu plus grands, gris plus foncés (contraste AA sur fond blanc, même au soleil) */
+    /* Lisibilité : petits textes un peu plus grands */
     --text-xs: 0.8125rem;
     --text-xs--line-height: 1.15rem;
-    --color-slate-400: #5f6b78;
-    --color-slate-500: #4b5866;
-    /* Fond des écrans : blanc légèrement vert, plus doux que le gris bleuté */
+    /* Neutres : une seule échelle de gris, légèrement teintée de vert comme la marque (charte des couleurs).
+       Textes : 400 = 5,3:1 et 500 = 7,4:1 sur le fond de page ; 900 = texte principal. */
     --color-slate-50: #f5f7f4;
-    /* Ocre wax : ce qui demande de l'attention sans être grave (à encaisser, à confirmer, nouveautés) */
-    --color-ocre-50: #fff4ec;
-    --color-ocre-100: #ffe2cc;
-    --color-ocre-600: #d4500f;
-    --color-ocre-700: #c2410c;
-    --color-ocre-800: #9a3412;
+    --color-slate-100: #eef1ed;
+    --color-slate-200: #e0e5df;
+    --color-slate-300: #c7cfc6;
+    --color-slate-400: #5b6a62;
+    --color-slate-500: #46544c;
+    --color-slate-600: #3d4a44;
+    --color-slate-700: #2e3933;
+    --color-slate-800: #1f2924;
+    --color-slate-900: #111a15;
+    --color-slate-950: #0a110d;
+    /* Attention · ocre doré (l'ocre jaune du wax) : ce qui attend une action (à confirmer, non payée, à faire livrer, stock bas).
+       Seule couleur de ce rôle : l'ambre et l'orange de Tailwind la reprennent (plus de trois oranges différents). */
+    --color-ocre-50: #fff8eb;
+    --color-ocre-100: #fdecc8;
+    --color-ocre-200: #fad58f;
+    --color-ocre-300: #f5b957;
+    --color-ocre-400: #ea9a2c;
+    --color-ocre-500: #d47f12;
+    --color-ocre-600: #aa6109;
+    --color-ocre-700: #9c5508;
+    --color-ocre-800: #8a4b08;
+    --color-ocre-900: #6e3b0a;
+    --color-ocre-950: #3d1f05;
+    --color-amber-50: var(--color-ocre-50);
+    --color-amber-100: var(--color-ocre-100);
+    --color-amber-200: var(--color-ocre-200);
+    --color-amber-300: var(--color-ocre-300);
+    --color-amber-400: var(--color-ocre-400);
+    --color-amber-500: var(--color-ocre-500);
+    --color-amber-600: var(--color-ocre-600);
+    --color-amber-700: var(--color-ocre-700);
+    --color-amber-800: var(--color-ocre-800);
+    --color-amber-900: var(--color-ocre-900);
+    --color-amber-950: var(--color-ocre-950);
+    --color-orange-50: var(--color-ocre-50);
+    --color-orange-100: var(--color-ocre-100);
+    --color-orange-200: var(--color-ocre-200);
+    --color-orange-300: var(--color-ocre-300);
+    --color-orange-400: var(--color-ocre-400);
+    --color-orange-500: var(--color-ocre-500);
+    --color-orange-600: var(--color-ocre-600);
+    --color-orange-700: var(--color-ocre-700);
+    --color-orange-800: var(--color-ocre-800);
+    --color-orange-900: var(--color-ocre-900);
+    --color-orange-950: var(--color-ocre-950);
+    /* Contour des champs, cases et boutons secondaires : 3:1 sur blanc (WCAG 1.4.11), on voit où écrire et où toucher */
+    --color-field: #8a958e;
+    /* Vert WhatsApp foncé pour les boutons à texte blanc (5,3:1) ; le vert vif #25d366 ne garde que le logo (2:1 avec du blanc) */
+    --color-whatsapp: #0b7a5c;
+    --color-whatsapp-dark: #08664c;
+    /* Facebook (Meta) : seulement sur les boutons qui mènent chez Facebook (5,5:1 avec le blanc) */
+    --color-facebook: #1464d2;
+    /* Live : rose du live, en petit seulement (onglet Live, son icône, le point « en direct ») ; les cartes du live sont en vert de la marque */
+    --color-live: #c02a4e;
+    --color-live-soft: #ffecef;
+    /* Bulles de conversation WhatsApp dans les exemples (imitation de l'application WhatsApp) */
+    --color-whatsapp-bubble: #d9fdd3;
     /* Vert nuit : menu sur ordinateur, en-têtes */
     --color-night: #063b24;
     /* Verts du logo Jibiat Marchand (du vert profond au vert vif) à la place du vert émeraude de Tailwind :
@@ -52,7 +102,7 @@
     --color-emerald-600: #039a45;
     --color-emerald-700: #017c40;
     --color-emerald-800: #01653a;
-    --color-emerald-900: #035231;
+    --color-emerald-900: #03462c;
     --color-emerald-950: #012e1b;
 }
 
@@ -60,6 +110,11 @@
 @layer base {
     body {
         font-feature-settings: 'cv11';
+    }
+    /* Focus clavier toujours visible (WCAG 2.4.7) : anneau vert au clavier seulement, pas au toucher ni à la souris */
+    :focus-visible {
+        outline: 2px solid var(--color-emerald-700);
+        outline-offset: 2px;
     }
     /* Chiffres de même largeur là où sont les montants et les quantités (gras, tableaux, grands chiffres) :
        ils s'alignent en colonne. Pas sur tout le texte, sinon les traits d'union s'élargissent. */
@@ -92,21 +147,17 @@
 }
 
 /* Composants d'interface (mêmes noms que dans Delivery App) */
-/* Style « dégradé doux », le même que l'application Jibiat : ombre légère des cartes, dégradés de la marque et du live */
+/* Style « dégradé doux », le même que l'application Jibiat : ombre légère des cartes, dégradé de la marque */
 @utility shadow-soft {
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -8px rgb(15 23 42 / 0.12);
 }
 @utility bg-brand-grad {
-    background-color: var(--color-emerald-700);
-    background-image: linear-gradient(140deg, #13a058 0%, var(--color-emerald-800) 100%);
+    /* Dégradé calme (700 → 900) : le vert vif 400-500 reste aux petits éléments */
+    background-color: var(--color-emerald-800);
+    background-image: linear-gradient(140deg, var(--color-emerald-700) 0%, var(--color-emerald-900) 100%);
 }
-@utility bg-live-grad {
-    background-color: #e54a6e;
-    background-image: linear-gradient(140deg, #f0587a 0%, #8b6cf2 100%);
-}
-
 @utility btn {
-    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed;
 }
 @utility btn-brand {
     @apply btn bg-emerald-700 text-white shadow-sm shadow-emerald-900/10 hover:bg-emerald-800;
@@ -115,7 +166,7 @@
     @apply btn bg-slate-900 text-white hover:bg-slate-700;
 }
 @utility btn-secondary {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply btn border border-field bg-white text-slate-700 hover:bg-slate-50;
 }
 @utility btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700;
@@ -124,11 +175,11 @@
     @apply btn text-slate-600 hover:bg-slate-100;
 }
 @utility input {
-    @apply block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 focus:outline-none sm:text-sm;
+    @apply block w-full rounded-xl border border-field bg-white px-3 py-2.5 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/25 focus:outline-none sm:text-sm;
 }
 /* Grands champs et libellés (formulaire de commande) : lisibles d'un coup d'œil */
 @utility input-lg {
-    @apply block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500;
+    @apply block w-full rounded-xl border border-field bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/25 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500;
 }
 @utility label-lg {
     @apply mb-1.5 block text-[15px] font-semibold text-slate-800;
@@ -137,18 +188,133 @@
     @apply mb-1 block text-sm font-semibold text-slate-700;
 }
 @utility card {
-    @apply rounded-2xl border border-slate-200/70 bg-white;
+    @apply rounded-2xl border border-slate-200 bg-white;
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -8px rgb(15 23 42 / 0.1);
 }
 
-/* Application livreur, mode nuit : couleurs inversées (lecture le soir), photos et cartes gardées telles quelles */
-.courier-night {
-  filter: invert(1) hue-rotate(180deg);
-  background: #fff;
+/* Bouton désactivé : gris lisible (texte 6,3:1) au lieu d'un bouton pâli à 50 % (texte blanc 2,1:1).
+   S'applique aux boutons de la charte (.btn) et aux boutons pleins écrits à la main (vert, WhatsApp, Facebook, ocre, rouge, noir). */
+.btn:disabled,
+button:disabled[class*='bg-emerald-7'],
+button:disabled[class*='bg-emerald-6'],
+button:disabled[class*='bg-whatsapp'],
+button:disabled[class*='bg-facebook'],
+button:disabled[class*='bg-ocre-7'],
+button:disabled[class*='bg-red-6'],
+button:disabled[class*='bg-red-7'],
+button:disabled[class*='bg-slate-9'] {
+    opacity: 1 !important;
+    background: var(--color-slate-200) !important;
+    color: var(--color-slate-500) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    cursor: not-allowed;
 }
-.courier-night img,
-.courier-night video {
-  filter: invert(1) hue-rotate(180deg);
+
+/* Listes déroulantes : même flèche sur tous les navigateurs, à la place de la flèche du système */
+select.input,
+select.input-lg {
+    appearance: none;
+    padding-right: 2.5rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234b5866' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1.1rem;
+}
+
+/* Téléphone réglé sur « réduire les animations » : fenêtres, glissements et pulsations sans mouvement */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Fenêtre ouverte depuis l'accueil glissant (téléphone) : pas de barre d'onglets en bas.
+   Les barres d'action prévues au-dessus de cette barre (« Créer la commande », « Enregistrer »…) se collent en bas,
+   et les liens de retour des pages (« ← Commandes ») disparaissent : la croix et la poignée suffisent. */
+.sheet-body .fixed[class*='bottom-[calc(4rem'] {
+    bottom: 0;
+    padding-bottom: max(0.625rem, env(safe-area-inset-bottom, 0px));
+}
+.sheet-body .fixed[class*='bottom-[calc(8.5rem'] {
+    bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}
+.sheet-body .back-link {
+    display: none;
+}
+
+/* Application livreur, mode nuit : de vrais tons sombres (jetons de la charte redéfinis), plus de filtre
+   d'inversion. Textes ≥ 6,7:1, couleurs de sens éclaircies (≥ 8,6:1 sur leur fond sombre), bord des champs 3,7:1. */
+.courier-night {
+    color-scheme: dark;
+    --color-white: #15201a;
+    --color-slate-50: #0d1511;
+    --color-slate-100: #1a2620;
+    --color-slate-200: #2a3a31;
+    --color-slate-300: #3d4f45;
+    --color-slate-400: #9aa8a0;
+    --color-slate-500: #b3bfb8;
+    --color-slate-600: #c6d0ca;
+    --color-slate-700: #d7dfda;
+    --color-slate-800: #e4eae6;
+    --color-slate-900: #eef3ef;
+    --color-slate-950: #f6f9f7;
+    --color-field: #6b7a72;
+    --color-emerald-50: #0f2a1c;
+    --color-emerald-100: #143a27;
+    --color-emerald-200: #1d5236;
+    --color-ocre-50: #2b200b;
+    --color-ocre-100: #3d2d0f;
+    --color-amber-50: #2b200b;
+    --color-amber-100: #3d2d0f;
+    --color-orange-50: #2b200b;
+    --color-orange-100: #3d2d0f;
+    --color-red-50: #2c1212;
+    --color-red-100: #3d1717;
+    --color-sky-50: #0c2333;
+    --color-sky-100: #0f3047;
+    --color-violet-100: #251a45;
+    background-color: var(--color-slate-50);
+    color: var(--color-slate-900);
+}
+/* Texte blanc des boutons pleins : reste blanc (le jeton « white » sert aux cartes la nuit) */
+.courier-night .text-white {
+    color: #ffffff;
+}
+/* Textes de couleur foncés (faits pour un fond clair) : version claire la nuit */
+.courier-night [class*='text-emerald-7'],
+.courier-night [class*='text-emerald-8'],
+.courier-night [class*='text-emerald-9'] {
+    color: #6fe39b;
+}
+.courier-night [class*='text-ocre-7'],
+.courier-night [class*='text-ocre-8'],
+.courier-night [class*='text-ocre-9'],
+.courier-night [class*='text-amber-7'],
+.courier-night [class*='text-amber-8'],
+.courier-night [class*='text-amber-9'],
+.courier-night [class*='text-orange-7'],
+.courier-night [class*='text-orange-8'] {
+    color: #f5c46b;
+}
+.courier-night [class*='text-red-6'],
+.courier-night [class*='text-red-7'],
+.courier-night [class*='text-red-8'] {
+    color: #fca5a5;
+}
+.courier-night [class*='text-sky-7'],
+.courier-night [class*='text-sky-8'],
+.courier-night [class*='text-sky-9'] {
+    color: #7dd3fc;
+}
+.courier-night [class*='text-violet-7'],
+.courier-night [class*='text-violet-8'] {
+    color: #c4b5fd;
 }
 
 /* Clavier du téléphone ouvert : les barres fixées en bas s'effacent (voir lib/keyboard.js) */

@@ -22,7 +22,7 @@ const OPTIONS = [
 
 <template>
   <Modal title="Terminer le live" @close="emit('close')">
-    <p class="text-[15px] text-slate-600">Tu peux garder les commandes actives encore un peu, pour ceux qui regardent le replay.</p>
+    <p class="text-[15px] text-slate-600">Vous pouvez garder les commandes actives encore un peu, pour ceux qui regardent le replay.</p>
     <div class="mt-3 space-y-2.5">
       <button v-for="o in OPTIONS" :key="String(o.value)" type="button" class="block w-full rounded-2xl border-2 p-3.5 text-left"
               :class="choice === o.value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white'" @click="choice = o.value">

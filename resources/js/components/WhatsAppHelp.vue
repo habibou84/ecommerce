@@ -11,6 +11,6 @@ const url = computed(() => (boot.supportWhatsapp
 <template>
   <p class="text-[13.5px] text-slate-600">
     Un blocage chez Meta ?
-    <a v-if="url" :href="url" target="_blank" rel="noopener" class="font-bold text-emerald-700 underline">Écris-nous sur WhatsApp</a><template v-else>Écris-nous</template>, on t'aide.
+    <a v-if="url" :href="url" target="_blank" rel="noopener" class="font-bold text-emerald-700 underline">Écrivez-nous sur WhatsApp</a><template v-else>Écrivez-nous</template>, nous vous aidons.
   </p>
 </template>

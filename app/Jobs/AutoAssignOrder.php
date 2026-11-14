@@ -10,7 +10,8 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 
 /**
- * Commande confirmée, boutique en affectation automatique : expédition créée selon les règles.
+ * Commande confirmée : expédition confiée à qui a été choisi (à la saisie ou plus tard), sinon (boutique en
+ * affectation automatique) selon les règles.
  */
 class AutoAssignOrder implements ShouldQueue
 {
@@ -19,6 +20,16 @@ class AutoAssignOrder implements ShouldQueue
     public int $tries = 1;
 
     public function __construct(public readonly int $orderId) {}
+
+    /**
+     * Livreur de la boutique choisi : course créée tout de suite (la fiche ouverte juste après l'enregistrement la
+     * montre déjà). Entreprise de livraison ou règles automatiques : en arrière-plan (appel à l'entreprise).
+     */
+    public static function launch(int $orderId): void
+    {
+        $courierPlanned = Order::withoutGlobalScopes()->whereKey($orderId)->whereNotNull('planned_courier_id')->exists();
+        $courierPlanned ? self::dispatchSync($orderId) : self::dispatch($orderId);
+    }
 
     public function handle(DeliveryAdvisor $advisor): void
     {

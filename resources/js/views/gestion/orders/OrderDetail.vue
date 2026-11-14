@@ -1,5 +1,7 @@
 <script setup>
+import StateBadge from '../../../components/StateBadge.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
+import { usePageTitle } from '../../../lib/pageTitle'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Icon from '../../../components/Icon.vue'
@@ -11,13 +13,14 @@ import ParcelLabelCard from '../../../components/ParcelLabelCard.vue'
 import ShipmentPanel from '../../../components/ShipmentPanel.vue'
 import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime, money } from '../../../lib/format'
-import { CANCEL_REASONS, PAYMENT_METHODS, PAYMENT_TONES, STATUS_TONES, eventLabel, riskLabel } from '../../../lib/orders'
+import { CANCEL_REASONS, PAYMENT_METHODS, PAYMENT_TONES, eventLabel, riskLabel } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
 
 const props = defineProps({ id: { type: String, required: true } })
 const auth = useAuthStore()
 
 const order = ref(null)
+usePageTitle(() => (order.value ? `Commande ${order.value.reference}` : ''))
 const error = ref('')
 const busy = ref(false)
 const modal = ref(null) // 'cancel' | 'complete' | 'return' | 'payment' | 'callback' | 'link' | 'refund'
@@ -52,9 +55,9 @@ const actions = computed(() => {
   }
   if (canManage.value) {
     const steps = [
-      { key: 'shipped', label: 'En route', icon: 'truck', run: () => setStatus('shipped') },
-      { key: 'completed', label: 'Livrée', icon: 'check', run: () => openModal('complete') },
-      { key: 'processing', label: 'En préparation', icon: 'box', run: () => setStatus('processing') },
+      { key: 'shipped', label: 'Marquer en route', icon: 'truck', run: () => setStatus('shipped') },
+      { key: 'completed', label: 'Marquer livrée', icon: 'check', run: () => openModal('complete') },
+      { key: 'processing', label: 'Marquer en préparation', icon: 'box', run: () => setStatus('processing') },
     ].filter((a) => nextStatuses.value.includes(a.key))
     if (!list.primary) list.primary = steps.shift() ?? null
     list.secondary.push(...steps)
@@ -170,11 +173,11 @@ async function addNote() {
 
 <template>
   <div v-if="order" class="space-y-5 pb-16 sm:pb-0">
-    <RouterLink to="/gestion/commandes" class="text-sm text-slate-500 hover:text-emerald-700">← Commandes</RouterLink>
+    <RouterLink to="/gestion/commandes" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Commandes</RouterLink>
 
     <div class="flex flex-wrap items-center gap-3">
       <h2 class="text-2xl font-bold">{{ order.reference }}</h2>
-      <span class="rounded-full px-2.5 py-0.5 text-sm font-medium" :class="STATUS_TONES[order.status]">{{ order.status_label }}</span>
+      <StateBadge :status="order.status" :label="order.status_label" size="md" />
       <span v-if="order.is_preorder" class="rounded-full bg-amber-100 px-2.5 py-0.5 text-sm text-amber-800">Précommande</span>
       <span class="text-sm font-medium" :class="PAYMENT_TONES[order.payment_status]">{{ order.payment_status_label }}</span>
       <span v-if="riskLabel(order.risk_score)" class="rounded-full px-2 py-0.5 text-xs" :class="riskLabel(order.risk_score).tone">{{ riskLabel(order.risk_score).label }}</span>
@@ -305,7 +308,7 @@ async function addNote() {
             <p v-if="order.shipping_landmark" class="text-slate-500">Repère : {{ order.shipping_landmark }}</p>
             <p v-if="order.shipping_phone2" class="text-slate-500">Autre numéro : {{ order.shipping_phone2 }}</p>
             <p v-if="(order.planned_courier || order.planned_carrier) && !order.shipments.length" class="flex items-center gap-1.5 text-emerald-800">
-              <Icon name="truck" :size="16" />Livrée par {{ (order.planned_courier || order.planned_carrier).name }}{{ order.status === 'pending_confirmation' ? ' dès la confirmation' : '' }}
+              <Icon name="truck" :size="16" />Sera livrée par {{ (order.planned_courier || order.planned_carrier).name }}{{ order.status === 'pending_confirmation' ? ' (course envoyée à la confirmation)' : '' }}
             </p>
           </template>
           <p v-if="order.scheduled_date" class="font-medium" :class="order.is_late ? 'text-red-700' : 'text-slate-700'">Livraison prévue le {{ new Date(`${order.scheduled_date.slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) }}</p>

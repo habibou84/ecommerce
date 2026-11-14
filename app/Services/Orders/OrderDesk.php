@@ -12,6 +12,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\Permission;
 use App\Exceptions\BusinessRuleException;
+use App\Jobs\AutoAssignOrder;
 use App\Models\CarrierConnection;
 use App\Models\Courier;
 use App\Models\Order;
@@ -180,6 +181,10 @@ class OrderDesk
             if (array_key_exists('planned_courier_id', $data) || array_key_exists('planned_carrier_connection_id', $data) || $order->delivery_method === 'pickup') {
                 $this->applyPlannedDelivery($order, $data);
             }
+            // Livreur choisi ou changé sur une commande déjà confirmée : la course part, comme à la confirmation
+            $plannedChanged = $order->isDirty(['planned_courier_id', 'planned_carrier_connection_id'])
+                && ($order->planned_courier_id || $order->planned_carrier_connection_id)
+                && in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Processing], true);
             if ($order->isDirty('scheduled_date') && $order->scheduled_date?->lt(today())) {
                 throw new BusinessRuleException('La date de livraison est déjà passée : choisissez aujourd\'hui ou plus tard.', 'scheduled_date');
             }
@@ -205,6 +210,10 @@ class OrderDesk
             $after = $order->only(array_keys($before));
             $changes = array_keys(array_diff_assoc(array_map('strval', $after), array_map('strval', $before)));
             $this->log($order, 'edited', ['fields' => $changes, 'items' => $itemsChanged], $actor);
+            if ($plannedChanged) {
+                $orderId = $order->id;
+                DB::afterCommit(fn () => AutoAssignOrder::launch($orderId));
+            }
             if ($placeChanged && $order->isExpedition()) {
                 Expeditions::prepareMessage($order);
             }

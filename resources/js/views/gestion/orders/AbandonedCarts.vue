@@ -27,7 +27,7 @@ async function remind(cart) {
 
 <template>
   <div class="space-y-4">
-    <RouterLink to="/gestion/commandes" class="text-sm text-slate-500 hover:text-emerald-700">← Commandes</RouterLink>
+    <RouterLink to="/gestion/commandes" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Commandes</RouterLink>
     <p class="text-sm text-slate-600">
       Clients qui ont laissé leur numéro et des articles dans leur panier sans commander (7 derniers jours).
       Si votre WhatsApp est connecté avec la relance activée, ils reçoivent un message automatique une heure après.

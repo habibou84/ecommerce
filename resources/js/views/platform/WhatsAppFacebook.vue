@@ -162,10 +162,10 @@ async function copyLink() {
 </script>
 
 <template>
-  <AuthShell title="Connecte ton numéro WhatsApp sur Meta" subtitle="Connexion officielle, avec ton compte Facebook.">
+  <AuthShell title="Connectez votre numéro WhatsApp sur Meta" subtitle="Connexion officielle, avec votre compte Facebook.">
     <div v-if="handedBack" class="space-y-2 text-center">
       <p class="text-lg font-extrabold">✅ C'est fait !</p>
-      <p class="text-[15px] text-slate-700">Ferme cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
+      <p class="text-[15px] text-slate-700">Fermez cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
     </div>
     <p v-else-if="checking" class="text-center text-sm text-slate-600">{{ returned ? 'Connexion reçue de Facebook, retour vers votre espace…' : 'Chargement…' }}</p>
     <Alert v-else-if="!back || returned || !destination || !options.appId || !options.configId" tone="error">
@@ -179,12 +179,12 @@ async function copyLink() {
         <button type="button" class="btn-secondary w-full" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien' }}</button>
       </div>
       <div class="rounded-lg border-2 border-[var(--brand)] bg-brand-soft p-3 text-center">
-        <p class="text-sm text-slate-700">Ton numéro WhatsApp sera connecté à :</p>
+        <p class="text-sm text-slate-700">Votre numéro WhatsApp sera connecté à :</p>
         <p class="text-lg font-black">{{ destination.name }}</p>
         <p class="text-xs text-slate-600">{{ destination.host }}</p>
       </div>
-      <p class="text-sm font-semibold text-red-700">Ce n'est pas ton espace ? Ferme cette page : quelqu'un essaie de récupérer ton WhatsApp.</p>
-      <p class="text-[15px] text-slate-700">Facebook s'ouvre et te guide : suis ses étapes jusqu'au bout.</p>
+      <p class="text-sm font-semibold text-red-700">Ce n'est pas votre espace ? Fermez cette page : quelqu'un essaie de récupérer votre WhatsApp.</p>
+      <p class="text-[15px] text-slate-700">Facebook s'ouvre et vous guide : suivez ses étapes jusqu'au bout.</p>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
       <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
       <button type="button" class="btn-secondary w-full" @click="leave">Revenir</button>

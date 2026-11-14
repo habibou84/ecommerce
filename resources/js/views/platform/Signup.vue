@@ -108,7 +108,7 @@ function done(data) {
     <form v-else class="space-y-4" @submit.prevent="submit">
       <Alert v-if="error">{{ error }}</Alert>
       <div v-if="accessKey" class="rounded-xl p-3 text-sm text-white" :class="accessKey.premium ? 'bg-slate-950' : 'bg-emerald-900'">
-        <p v-if="accessKey.premium" class="font-semibold text-amber-300">🏅 {{ accessKey.badge }}</p>
+        <p v-if="accessKey.premium" class="font-semibold text-yellow-300">🏅 {{ accessKey.badge }}</p>
         <p v-if="accessKey.offered_by">Offerte par <strong>{{ accessKey.offered_by.name }}</strong></p>
         <p>Offre <strong>{{ accessKey.plan }}</strong> {{ accessKey.founder ? 'à vie' : `pendant ${accessKey.months} mois` }}<template v-if="accessKey.offered_by">, puis −{{ Math.round(accessKey.discount_rate * 100) }} %</template> · clé {{ accessKey.code }}</p>
       </div>
@@ -123,7 +123,7 @@ function done(data) {
       </Field>
 
       <Field id="slug" label="Adresse de votre boutique" :error="errors.slug || (slugState.available === false ? slugState.message : '')">
-        <div class="flex items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20">
+        <div class="flex items-stretch overflow-hidden rounded-lg border border-field focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20">
           <input
             id="slug"
             v-model="form.slug"

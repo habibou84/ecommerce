@@ -76,7 +76,7 @@ async function saveHome() {
       <h2 class="text-2xl font-extrabold leading-tight">Combien faites-vous payer la livraison dans {{ rates.home?.name }} ?</h2>
       <p class="text-slate-600">Votre prix habituel. Vous l'ajusterez commune par commune au fil des commandes, sans revenir ici.</p>
       <div class="flex items-center justify-center gap-2 rounded-2xl border-2 border-emerald-600 bg-white p-4">
-        <input v-model="base" class="w-40 bg-transparent text-center text-4xl font-black outline-none" type="number" min="0" inputmode="numeric" aria-label="Prix de livraison habituel" />
+        <input v-model="base" class="w-40 bg-transparent text-center text-4xl font-black" type="number" min="0" inputmode="numeric" aria-label="Prix de livraison habituel" />
         <span class="text-lg font-bold text-slate-500">F CFA</span>
       </div>
       <div class="grid grid-cols-4 gap-2">

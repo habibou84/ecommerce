@@ -311,12 +311,16 @@ class BoostAds
                     // déjà supprimée ou injoignable
                 }
             }
-            $boost->update(['status' => 'failed', 'error' => Str::limit($e->getMessage(), 480)]);
-            throw new BusinessRuleException('Meta n\'a pas créé la pub : '.$e->getMessage());
+            $reason = $e->getMessage().($this->step !== '' ? ' (étape : '.$this->step.')' : '');
+            $boost->update(['status' => 'failed', 'error' => Str::limit($reason, 480)]);
+            throw new BusinessRuleException('Meta n\'a pas créé la pub : '.$reason);
         }
 
         return $boost->fresh();
     }
+
+    /** Étape en cours chez Meta, pour dire où une pub est refusée */
+    private string $step = '';
 
     private function createAd(Store $store, Boost $boost, string $token, $products, ?string $pixel, ?string $catalog, ?Collection $collection): void
     {
@@ -326,18 +330,18 @@ class BoostAds
         $sales = $pixel !== null;
 
         // Catalogue : un ensemble de produits (en stock ; une collection ou tout)
+        $this->step = 'ensemble de produits';
         if ($boost->kind === 'catalog') {
             $filter = ['availability' => ['eq' => 'in stock']];
             if ($collection) {
                 $ids = $collection->products()->with('variants')->get()->flatMap(fn (Product $p) => $p->variants->map(fn ($v) => CatalogFeed::itemId($v->sku, $v->id)))->values()->all();
                 $filter = ['and' => [$filter, ['retailer_id' => ['is_any' => $ids]]]];
             }
-            $set = (string) ($this->graph->graph('POST', $catalog.'/product_sets', $token, [
-                'name' => Str::limit('Boost '.$boost->id.' · '.($collection?->title ?? 'tout le catalogue'), 90, ''), 'filter' => json_encode($filter),
-            ])['id'] ?? '');
+            $set = $this->productSet($catalog, $token, Str::limit('Boost '.$boost->id.' · '.($collection?->title ?? 'tout le catalogue'), 90, ''), $filter);
             $boost->update(['product_set_id' => $set]);
         }
 
+        $this->step = 'campagne';
         $campaign = ['name' => 'Boost · '.$boost->name, 'objective' => $sales ? 'OUTCOME_SALES' : 'OUTCOME_TRAFFIC', 'status' => 'PAUSED',
             'special_ad_categories' => [], 'is_adset_budget_sharing_enabled' => false];
         if ($boost->kind === 'catalog') {
@@ -345,6 +349,7 @@ class BoostAds
         }
         $boost->update(['campaign_id' => (string) ($this->graph->graph('POST', $act.'/campaigns', $token, $campaign)['id'] ?? '')]);
 
+        $this->step = 'groupe de publicités';
         [$rate, $minor] = self::CURRENCIES[$boost->currency];
         $adset = [
             'name' => 'Boost '.$boost->id, 'campaign_id' => $boost->campaign_id, 'status' => 'ACTIVE',
@@ -354,6 +359,11 @@ class BoostAds
             'start_time' => now()->toIso8601String(), 'end_time' => $boost->ends_at->toIso8601String(),
             'targeting' => $this->targeting($store, $boost->zones ?? [], $boost->age_min, $boost->age_max, $boost->gender),
         ];
+        // Instagram demande un compte Instagram lié à la Page ; sans lui (beaucoup de boutiques n'en ont pas), la pub reste sur Facebook
+        $instagram = $this->instagramOf($boost->page_id, $token);
+        if ($instagram === null) {
+            $adset['targeting']['publisher_platforms'] = ['facebook'];
+        }
         if ($boost->kind === 'catalog') {
             $adset['promoted_object'] = ['product_set_id' => $boost->product_set_id, 'custom_event_type' => 'PURCHASE'];
         } elseif ($sales) {
@@ -361,6 +371,7 @@ class BoostAds
         }
         $boost->update(['adset_id' => (string) ($this->graph->graph('POST', $act.'/adsets', $token, $adset)['id'] ?? '')]);
 
+        $this->step = 'visuel de la pub';
         $shop = ['type' => 'SHOP_NOW'];
         $creative = ['name' => 'Boost '.$boost->id];
         if ($boost->kind === 'catalog') {
@@ -386,11 +397,68 @@ class BoostAds
                 ])->all(),
             ]];
         }
+        if ($instagram !== null) {
+            $creative['instagram_user_id'] = $instagram;
+        }
         $creativeId = (string) ($this->graph->graph('POST', $act.'/adcreatives', $token, $creative)['id'] ?? '');
+        $this->step = 'pub';
         $boost->update(['ad_id' => (string) ($this->graph->graph('POST', $act.'/ads', $token, [
             'name' => 'Boost '.$boost->id, 'adset_id' => $boost->adset_id, 'creative' => ['creative_id' => $creativeId], 'status' => 'ACTIVE',
         ])['id'] ?? '')]);
+        $this->step = 'activation';
         $this->graph->graph('POST', $boost->campaign_id, $token, ['status' => 'ACTIVE']);
+    }
+
+    /**
+     * Ensemble de produits du boost. Meta refuse d'en créer un deuxième avec le même filtre (« ensemble de produits
+     * doublon », par exemple après une pub refusée ou un boost précédent) : on reprend alors celui qui existe.
+     *
+     * @param  array<string, mixed>  $filter
+     */
+    private function productSet(string $catalog, string $token, string $name, array $filter): string
+    {
+        try {
+            return (string) ($this->graph->graph('POST', $catalog.'/product_sets', $token, ['name' => $name, 'filter' => json_encode($filter)])['id'] ?? '');
+        } catch (RuntimeException $e) {
+            $wanted = $this->normalized($filter);
+            $rows = $this->graph->graph('GET', $catalog.'/product_sets', $token, ['fields' => 'id,name,filter', 'limit' => 200])['data'] ?? [];
+            foreach ($rows as $row) {
+                $existing = is_string($row['filter'] ?? null) ? json_decode($row['filter'], true) : ($row['filter'] ?? null);
+                if (is_array($existing) && $this->normalized($existing) === $wanted) {
+                    return (string) $row['id'];
+                }
+            }
+
+            throw $e;
+        }
+    }
+
+    /** Filtre comparable : clés triées, listes triées (Meta peut renvoyer le même filtre dans un autre ordre) */
+    private function normalized(array $value): array
+    {
+        foreach ($value as $key => $item) {
+            if (is_array($item)) {
+                $value[$key] = $this->normalized($item);
+            }
+        }
+        array_is_list($value) ? sort($value) : ksort($value);
+
+        return $value;
+    }
+
+    /**
+     * Compte Instagram professionnel lié à la Page Facebook, ou null (pas de compte lié, ou Meta ne le donne pas).
+     */
+    private function instagramOf(string $pageId, string $token): ?string
+    {
+        try {
+            $page = $this->graph->graph('GET', $pageId, $token, ['fields' => 'instagram_business_account{id},connected_instagram_account{id}']);
+        } catch (RuntimeException) {
+            return null;
+        }
+        $id = (string) ($page['instagram_business_account']['id'] ?? $page['connected_instagram_account']['id'] ?? '');
+
+        return $id !== '' ? $id : null;
     }
 
     /** Pause, reprise ou arrêt définitif */

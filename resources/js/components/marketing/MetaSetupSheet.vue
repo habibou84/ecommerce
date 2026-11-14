@@ -83,12 +83,12 @@ async function finish() {
         <template v-if="setup.assets">
           <!-- Liste vide : on dit pourquoi, et quoi faire -->
           <div v-if="noAccess?.kind === 'missing'" class="space-y-1 rounded-xl bg-amber-50 p-3 text-amber-900">
-            <p class="font-bold">Facebook ne nous a pas donné accès à tes {{ noAccess.names.join(', ') }}.</p>
-            <p>Il manque une autorisation dans la configuration de la connexion Facebook (chez Meta). Quand c'est ajouté, reconnecte-toi et coche-les dans la fenêtre de Facebook.</p>
+            <p class="font-bold">Facebook ne nous a pas donné accès à vos {{ noAccess.names.join(', ') }}.</p>
+            <p>Il manque une autorisation dans la configuration de la connexion Facebook (chez Meta). Quand c'est ajouté, reconnectez-vous et cochez-les dans la fenêtre de Facebook.</p>
           </div>
           <div v-else-if="noAccess?.kind === 'none'" class="space-y-1 rounded-xl bg-amber-50 p-3 text-amber-900">
             <p class="font-bold">Aucun catalogue n'a été coché dans la fenêtre de Facebook.</p>
-            <p>Reconnecte-toi et coche ton catalogue (et ton compte publicitaire), ou crée-en un nouveau ci-dessous.</p>
+            <p>Reconnectez-vous et cochez votre catalogue (et votre compte publicitaire), ou créez-en un nouveau ci-dessous.</p>
           </div>
           <Field id="meta-pixel-choice" label="Pixel">
             <select id="meta-pixel-choice" v-model="setup.pixel" class="input">
@@ -102,7 +102,7 @@ async function finish() {
               <option v-for="c in setup.assets.catalogs" :key="c.id" :value="c.id">{{ c.name }}{{ c.products !== null ? ` (${c.products} article(s))` : '' }}</option>
             </select>
           </Field>
-          <p class="text-slate-500">Tes produits seront ajoutés à ce catalogue et relus toutes les heures ; le pixel sera relié au catalogue.</p>
+          <p class="text-slate-500">Vos produits seront ajoutés à ce catalogue et relus toutes les heures ; le pixel sera relié au catalogue.</p>
           <button type="button" class="btn-brand w-full" :disabled="busy" @click="finish">{{ busy ? 'Branchement…' : 'Brancher' }}</button>
         </template>
         <p v-else-if="busy" class="text-slate-500">Chargement des pixels et catalogues…</p>

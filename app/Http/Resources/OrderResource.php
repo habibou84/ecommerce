@@ -78,6 +78,8 @@ class OrderResource extends JsonResource
             // Qui livre, choisi à la saisie (l'expédition est créée à la confirmation)
             'planned_courier' => $this->plannedCourier?->only(['id', 'name']),
             'planned_carrier' => $this->plannedCarrier?->only(['id', 'name']),
+            // Envoi automatique de la course au livreur choisi qui a échoué (pas de course en cours) : la raison, à montrer
+            'assignment_error' => $this->assignmentError(),
             'location_id' => $this->location_id,
             'scheduled_date' => $this->scheduled_date?->toDateString(),
             'time_slot' => $this->time_slot,
@@ -175,6 +177,23 @@ class OrderResource extends JsonResource
                 'created_at' => $e->created_at->toIso8601String(),
             ]),
         ];
+    }
+
+    /**
+     * Dernier envoi automatique au livreur choisi en échec, sans course en cours depuis.
+     *
+     * @return array{to: ?string, error: ?string}|null
+     */
+    private function assignmentError(): ?array
+    {
+        if (! $this->relationLoaded('events') || ! $this->relationLoaded('shipments')
+            || $this->shipments->contains(fn (Shipment $s) => ! $s->status->isFinal())) {
+            return null;
+        }
+        $last = $this->events->filter(fn ($e) => in_array($e->type, ['auto_assigned', 'auto_assignment_failed', 'shipment_created'], true))
+            ->sortBy('id')->last();
+
+        return $last?->type === 'auto_assignment_failed' ? ['to' => $last->data['to'] ?? null, 'error' => $last->data['error'] ?? null] : null;
     }
 
     public static function loadDetail(Order $order): Order

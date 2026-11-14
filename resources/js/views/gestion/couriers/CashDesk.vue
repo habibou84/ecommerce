@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import CashTabs from '../../../components/CashTabs.vue'
 import Field from '../../../components/Field.vue'
@@ -22,6 +22,16 @@ async function load() {
   }
 }
 onMounted(load)
+
+// Du plus urgent au moins urgent : plafond dépassé, puis le plus ancien ; ceux qui n'ont rien à verser à la fin
+const rows = computed(() => {
+  const list = [...(data.value?.data ?? [])]
+  const rank = (r) => (!r.held ? 3 : r.over_limit ? 0 : 1)
+  return list.sort((a, b) => rank(a) - rank(b) || String(a.oldest_at ?? '9').localeCompare(String(b.oldest_at ?? '9')) || b.held - a.held)
+})
+const totalHeld = computed(() => rows.value.reduce((sum, r) => sum + r.held, 0))
+const toCollectCount = computed(() => rows.value.filter((r) => r.held > 0).length)
+const overLimitCount = computed(() => rows.value.filter((r) => r.over_limit).length)
 
 async function open(row) {
   Object.assign(form, { received_amount: row.held, method: 'cash', note: '' })
@@ -66,18 +76,28 @@ async function remit() {
 <template>
   <div class="space-y-4">
     <CashTabs />
-    <p class="text-sm text-slate-600">Espèces encaissées par vos livreurs et pas encore versées. Le paiement mobile money du client va directement à votre espace marchand.</p>
+    <section class="card p-4">
+      <p class="text-sm font-medium text-slate-600">À récupérer chez vos livreurs (espèces)</p>
+      <p class="whitespace-nowrap text-3xl font-bold tracking-tight">{{ money(totalHeld) }}</p>
+      <p class="mt-1 text-sm text-slate-600">
+        {{ toCollectCount ? `${toCollectCount} livreur${toCollectCount > 1 ? 's ont' : ' a'} des espèces à verser.` : 'Aucun livreur n\'a d\'espèces à verser.' }} Le paiement mobile money du client va directement sur votre compte marchand.
+      </p>
+      <div v-if="overLimitCount || data?.declarations?.length" class="mt-2.5 flex flex-wrap gap-1.5">
+        <span v-if="overLimitCount" class="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">{{ overLimitCount }} plafond(s) dépassé(s)</span>
+        <span v-if="data?.declarations?.length" class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">{{ data.declarations.length }} versement(s) à confirmer</span>
+      </div>
+    </section>
     <Alert v-if="error && !current && !deciding">{{ error }}</Alert>
 
     <section v-if="data?.declarations?.length" class="card border-amber-300 p-4 text-sm">
-      <h3 class="mb-1 font-semibold">Versements déclarés par vos livreurs</h3>
-      <p class="mb-2 text-slate-500">Vérifiez la caisse ou votre compte, puis confirmez : le versement est enregistré avec l'écart éventuel.</p>
+      <h3 class="mb-1 text-base font-semibold">À confirmer</h3>
+      <p class="mb-2 text-slate-600">Vos livreurs disent avoir versé cet argent. Vérifiez votre compte ou le tiroir, puis confirmez le montant réellement reçu.</p>
       <ul class="divide-y divide-slate-100">
         <li v-for="d in data.declarations" :key="d.id" class="flex flex-wrap items-center gap-3 py-2">
           <span class="min-w-0 flex-1">
             <span class="block font-medium">{{ d.courier }} · {{ money(d.amount) }} <span class="font-normal text-slate-500">· {{ d.method_label }}</span></span>
             <span class="block text-slate-500">
-              {{ formatDateTime(d.created_at) }}<template v-if="d.reference"> · réf. <strong>{{ d.reference }}</strong></template> · il détient {{ money(d.held) }}
+              {{ formatDateTime(d.created_at) }}<template v-if="d.reference"> · réf. <strong>{{ d.reference }}</strong></template> · il avait {{ money(d.held) }} à verser
               <template v-if="d.note"> · « {{ d.note }} »</template>
               <a v-if="d.proof_url" :href="d.proof_url" target="_blank" class="text-emerald-700 hover:underline"> · voir le reçu</a>
             </span>
@@ -88,23 +108,33 @@ async function remit() {
       </ul>
     </section>
 
-    <div v-if="data" class="card">
-      <ul class="divide-y divide-slate-100">
-        <li v-for="row in data.data" :key="row.courier_id" class="flex items-center gap-3 px-4 py-3 text-sm">
-          <span class="min-w-0 flex-1">
-            <span class="block font-medium">{{ row.name }}</span>
-            <span class="block text-slate-500">{{ row.collections_count }} livraison(s)<template v-if="row.oldest_at"> depuis le {{ formatDateTime(row.oldest_at) }}</template></span>
-            <span v-if="row.over_limit" class="mt-1 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Plafond dépassé</span>
+    <section v-if="data" class="space-y-2.5">
+      <div>
+        <h3 class="text-lg font-semibold">Livreurs</h3>
+        <p class="text-sm text-slate-600">Du plus urgent au moins urgent.</p>
+      </div>
+      <article
+        v-for="row in rows"
+        :key="row.courier_id"
+        class="card flex items-center gap-3 p-3.5 text-sm"
+        :class="row.over_limit ? 'border-red-300' : !row.held ? 'bg-slate-100' : ''"
+      >
+        <span class="min-w-0 flex-1">
+          <span class="block font-semibold" :class="row.held ? '' : 'text-slate-600'">{{ row.name }}</span>
+          <span class="block text-slate-600">
+            <template v-if="row.held">{{ row.collections_count }} livraison(s)<template v-if="row.oldest_at"> depuis le {{ formatDateTime(row.oldest_at) }}</template></template>
+            <template v-else>Rien à verser</template>
           </span>
-          <span class="shrink-0 text-right text-base font-semibold">{{ money(row.held) }}</span>
-          <button class="btn-brand px-3 py-1.5" :disabled="!row.held" @click="open(row)">Recevoir</button>
-        </li>
-        <li v-if="!data.data.length" class="px-4 py-6 text-sm text-slate-500">Aucun livreur.</li>
-      </ul>
-    </div>
+          <span v-if="row.over_limit" class="mt-1 inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">Plafond dépassé</span>
+        </span>
+        <span class="shrink-0 text-right text-lg font-bold" :class="row.held ? '' : 'text-slate-600'">{{ money(row.held) }}</span>
+        <button class="px-4 py-2.5" :class="row.over_limit ? 'btn-brand' : 'btn-secondary'" :disabled="!row.held" @click="open(row)">Recevoir</button>
+      </article>
+      <p v-if="!rows.length" class="card px-4 py-6 text-sm text-slate-600">Aucun livreur.</p>
+    </section>
 
     <section v-if="data?.remittances.length" class="card p-4 text-sm">
-      <h3 class="mb-2 font-semibold">Derniers versements</h3>
+      <h3 class="mb-2 text-base font-semibold">Derniers versements reçus</h3>
       <ul class="divide-y divide-slate-100">
         <li v-for="r in data.remittances" :key="r.id" class="flex flex-wrap items-center gap-3 py-2">
           <span class="flex-1">{{ r.courier }} · {{ formatDateTime(r.received_at) }} · reçu par {{ r.received_by }}</span>
@@ -128,7 +158,7 @@ async function remit() {
       <form v-else class="space-y-4" @submit.prevent="submitDecision">
         <Alert v-if="error">{{ error }}</Alert>
         <template v-if="deciding.mode === 'confirm'">
-          <p class="text-sm">Déclaré : <strong>{{ money(deciding.declaration.amount) }}</strong> ({{ deciding.declaration.method_label }}) · il détient {{ money(deciding.declaration.held) }}</p>
+          <p class="text-sm">Déclaré : <strong>{{ money(deciding.declaration.amount) }}</strong> ({{ deciding.declaration.method_label }}) · il avait {{ money(deciding.declaration.held) }} à verser</p>
           <Field id="dc-amount" label="Montant réellement reçu"><input id="dc-amount" v-model.number="decision.received_amount" type="number" min="0" class="input text-lg" required /></Field>
           <button class="btn-brand w-full">Confirmer la réception</button>
         </template>
