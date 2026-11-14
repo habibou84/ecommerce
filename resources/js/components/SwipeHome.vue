@@ -64,7 +64,7 @@ const PAGES = [
   { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
     settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
-    settings: [{ to: '/gestion/livraisons', label: 'Livraisons en cours' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
+    settings: [{ to: '/gestion/livraisons', label: 'Livraisons' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
     settings: [{ to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' }, { to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' }, { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' }, { to: '/gestion/statistiques', label: 'Statistiques' }, { to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
   { key: 'shop', name: 'Boutique', icon: '🏪', show: () => canOpen('/gestion/boutique-en-ligne'), badge: () => (s.value.shop?.abandoned ? { n: s.value.shop.abandoned, level: 'orange' } : null),
@@ -225,10 +225,10 @@ const PLUS = [
   { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
   { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
-  { to: '/gestion/stock/commandes', label: 'Fournisseurs', color: 'camion' },
+  { to: '/gestion/stock/commandes', label: 'Commandes fournisseurs', color: 'camion' },
   { to: '/gestion/alertes', label: 'Alertes', color: 'cloche' },
   { to: '/gestion/equipe', label: 'Équipe', color: 'profil' },
-  { to: '/gestion/mes-boutiques', label: 'Mes boutiques', color: 'boutique' },
+  { to: '/gestion/mes-boutiques', label: 'Toutes mes boutiques', color: 'boutique' },
   { to: '/gestion/demarrage', label: 'Bien démarrer', color: 'aide' },
   { to: '/gestion/whatsapp', label: 'WhatsApp', color: 'whatsapp' },
   { to: '/gestion/parametres', label: 'Ma boutique', color: 'reglages' },
@@ -244,7 +244,7 @@ const sheet = ref(null)
 const ADD = [
   { to: '/gestion/commandes/nouvelle', label: '🛍️ Nouvelle commande' },
   { to: '/gestion/caisse/vente', label: '🏪 Vente au comptoir' },
-  { to: '/gestion/catalogue/nouveau', label: '📷 Nouvel article' },
+  { to: '/gestion/catalogue/nouveau', label: 'Nouveau produit' },
   { to: '/gestion/live', label: '🔴 Préparer un live' },
 ]
 const sheetLinks = computed(() => (sheet.value === 'add' ? links(ADD) : links(page.value?.settings ?? [])))
@@ -331,7 +331,7 @@ function open(to) {
             <div class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-[19px] font-black">{{ s.orders?.today_count ?? 0 }}</b><span class="text-xs text-slate-500">commandes du jour</span></div>
             <div v-if="s.couriers || s.carriers" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-[19px] font-black">{{ (s.couriers?.to_bring_back ?? 0) + (s.carriers?.to_bring_back ?? 0) }}</b><span class="text-xs text-slate-500">colis à rapporter</span></div>
           </div>
-          <RouterLink to="/gestion/caisse" class="btn-brand mt-3 w-full justify-center py-3 text-[15px] font-black">💰 Ouvrir la caisse et clôturer</RouterLink>
+          <RouterLink to="/gestion/caisse" class="btn-brand mt-3 w-full justify-center py-3 text-[15px] font-black">Ouvrir ou clôturer la caisse</RouterLink>
         </template>
 
         <!-- BOUTIQUE EN LIGNE -->
@@ -372,7 +372,7 @@ function open(to) {
         <!-- ARTICLES : catalogue et stock réunis -->
         <template v-else-if="p.key === 'items'">
           <div class="mb-3 grid grid-cols-2 gap-2">
-            <RouterLink v-if="canOpen('/gestion/catalogue/nouveau')" to="/gestion/catalogue/nouveau" class="btn-brand justify-center py-3 text-[15px] font-black">📷 Nouvel article</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/catalogue/nouveau')" to="/gestion/catalogue/nouveau" class="btn-brand justify-center py-3 text-[15px] font-black">＋ Nouveau produit</RouterLink>
             <RouterLink v-if="canOpen('/gestion/stock')" to="/gestion/stock" class="btn-secondary justify-center py-3 text-[15px] font-black">＋ Stock</RouterLink>
           </div>
           <input v-model="itemSearch" class="input" placeholder="🔍 Chercher un article" @input="searchItems" />
