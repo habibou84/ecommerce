@@ -45,7 +45,7 @@ class CourierMissions
             return;
         }
         $rule = $courier->payRule;
-        $pay = $rule?->amountFor($shipment->order->delivery_zone_id, $shipment->order->isExpedition()) ?? 0;
+        $pay = $rule?->amountFor($shipment->order->delivery_zone_id, $shipment->order->isExpedition(), (int) $shipment->order->shipping_fee) ?? 0;
 
         match ($to) {
             ShipmentStatus::Delivered => $pay > 0 ? $this->earn($shipment, $courier, 'delivery', $pay) : null,

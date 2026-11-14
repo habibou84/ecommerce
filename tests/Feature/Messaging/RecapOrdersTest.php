@@ -127,7 +127,8 @@ class RecapOrdersTest extends TestCase
     /** @return list<string> */
     private function notices(): array
     {
-        return $this->store->owner->notifications()->where('type', RecapNotice::class)->oldest('created_at')->get()->pluck('data.title')->all();
+        // reorder : la relation trie déjà de la plus récente à la plus ancienne
+        return $this->store->owner->notifications()->where('type', RecapNotice::class)->reorder('created_at')->get()->pluck('data.title')->all();
     }
 
     public function test_the_word_recap_and_confirmations_are_recognised(): void
@@ -182,7 +183,9 @@ class RecapOrdersTest extends TestCase
         $this->assertSame("live:confirm:{$order->id}", $recap['interactive']['action']['buttons'][0]['reply']['id']);
         $this->assertStringContainsString('Récap envoyé à Fatou Diallo', $this->notices()[0]);
 
-        // Le client touche « Je confirme » : confirmée, comptée (le soir), la boutique est prévenue
+        // Le client touche « Je confirme » : confirmée, comptée (le soir), la boutique est prévenue (une seconde plus
+        // tard : les alertes sont triées par heure, deux dans la même seconde n'ont pas d'ordre sûr)
+        $this->travel(1)->seconds();
         $this->tap("live:confirm:{$order->id}", '✅ Je confirme');
         $order->refresh();
         $this->assertSame(OrderStatus::Confirmed, $order->status);
@@ -259,6 +262,7 @@ class RecapOrdersTest extends TestCase
 
         app(Credits::class)->update(['paid' => true, 'welcome_orders' => 0, 'welcome_ai' => 0]);
         $this->store->forceFill(['order_credits' => 0])->save();
+        $this->travel(1)->seconds(); // alertes triées par heure : la suivante vient après
         $this->client('La robe wax M pour Angré');
         $this->sent();
         $this->merchant('récap');

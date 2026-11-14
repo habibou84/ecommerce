@@ -565,6 +565,29 @@ class CourierTest extends TestCase
         $this->storeApi($this->store, 'GET', 'courier/me')->assertForbidden();
     }
 
+    public function test_courier_paid_the_whole_delivery_fee(): void
+    {
+        // Règle « frais de livraison » : le livreur reçoit ce que le client a payé pour la livraison (1 500 F ici) ;
+        // livraison offerte : le montant de secours (300 F)
+        $rule = $this->storeApi($this->store, 'POST', 'courier-pay-rules', ['name' => 'Frais de livraison', 'type' => 'delivery_fee', 'amount' => 300])->assertCreated()->json('data.id');
+        [$courier, $user] = $this->onboardCourier(extra: ['pay_rule_id' => $rule]);
+
+        $paid = $this->order();
+        $free = $this->order();
+        $free->forceFill(['shipping_fee' => 0])->save();
+        $this->assertSame(1500, $paid->shipping_fee);
+        foreach ([$paid, $free] as $order) {
+            $shipment = $this->assign($order, $courier);
+            $this->asCourier($user);
+            $this->step($shipment, ['status' => 'in_transit'])->assertOk();
+            $this->step($shipment, ['status' => 'delivered', 'payment_method' => 'cash'])->assertOk();
+            $this->asCourier($this->store->owner);
+        }
+
+        $this->storeApi($this->store, 'GET', "couriers/{$courier->id}/earnings")->assertJsonPath('unpaid', 1500 + 300);
+        $this->storeApi($this->store, 'POST', 'courier-pay-rules', ['name' => 'Autre', 'type' => 'au_kilo', 'amount' => 1])->assertStatus(422);
+    }
+
     public function test_cash_desk_and_payroll(): void
     {
         $rule = CourierPayRule::create(['store_id' => $this->store->id, 'name' => 'Par zone', 'type' => 'per_zone', 'amount' => 800, 'zone_amounts' => [(string) $this->zone()->id => 1200]]);

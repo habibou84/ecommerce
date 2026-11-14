@@ -6,7 +6,7 @@ import Modal from '../../../components/Modal.vue'
 import PlacesPicker from '../../../components/PlacesPicker.vue'
 import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
-import { money } from '../../../lib/format'
+import { formatDateTime, money } from '../../../lib/format'
 
 const data = ref(null)
 const error = ref('')
@@ -19,6 +19,14 @@ const MODES = [
   ['suggest', 'Jibiat Marchand propose, je valide', 'Quand vous appuyez sur « Faire livrer », le bon livreur est déjà choisi. Vous n\'avez qu\'à valider (ou changer).', true],
   ['auto', 'Envoi automatique', 'Dès que la commande est confirmée, la course part toute seule, sans action de votre part.', false],
 ]
+
+// Entre plusieurs livreurs qui conviennent
+const DISPATCH = [
+  ['nearest', 'Le plus proche', 'Celui qui livre ce quartier ou cette commune d\'abord, puis le moins occupé.'],
+  ['round_robin', 'Chacun son tour', 'Les courses tournent entre vos livreurs : celui qui n\'en a pas reçu depuis le plus longtemps passe en premier.'],
+]
+// Envoi automatique : délai sans réponse du livreur avant de passer au suivant (null : prévenir l'équipe seulement)
+const TIMEOUTS = [[null, 'Prévenir l\'équipe seulement (après 15 min)'], [10, 'Passer au livreur suivant après 10 min'], [15, 'Passer au livreur suivant après 15 min'], [30, 'Passer au livreur suivant après 30 min'], [60, 'Passer au livreur suivant après 1 h']]
 
 // Cas particuliers prêts à l'emploi : ouvrent la fenêtre déjà remplie
 const TEMPLATES = [
@@ -111,6 +119,26 @@ function describe(rule) {
     <Alert v-if="error">{{ error }}</Alert>
 
     <template v-if="data">
+      <!-- Bilan de l'envoi automatique -->
+      <section v-if="data.assignment_mode === 'auto' || data.summary.sent || data.summary.blocked.length" class="card p-4 text-sm">
+        <h3 class="mb-2 font-semibold">Ces {{ data.summary.days }} derniers jours</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="rounded-lg bg-emerald-50 p-3"><b class="block text-xl text-emerald-800">{{ data.summary.sent }}</b><span class="text-emerald-900">{{ data.summary.sent > 1 ? 'commandes envoyées' : 'commande envoyée' }} automatiquement</span></div>
+          <div class="rounded-lg p-3" :class="data.summary.blocked.length ? 'bg-orange-50' : 'bg-slate-50'"><b class="block text-xl" :class="data.summary.blocked.length ? 'text-orange-800' : 'text-slate-700'">{{ data.summary.blocked.length }}</b><span :class="data.summary.blocked.length ? 'text-orange-900' : 'text-slate-600'">{{ data.summary.blocked.length > 1 ? 'commandes bloquées' : 'commande bloquée' }}, à faire livrer à la main</span></div>
+        </div>
+        <ul v-if="data.summary.blocked.length" class="mt-3 divide-y divide-slate-100">
+          <li v-for="o in data.summary.blocked" :key="o.id">
+            <RouterLink :to="`/gestion/commandes/${o.id}`" class="flex items-center gap-3 py-2 hover:text-emerald-700">
+              <span class="min-w-0 flex-1">
+                <span class="block font-medium">{{ o.reference }}<template v-if="o.customer"> · {{ o.customer }}</template><template v-if="o.place"> · {{ o.place }}</template></span>
+                <span class="block text-slate-500">{{ o.reason }} · {{ formatDateTime(o.at) }}</span>
+              </span>
+              <span class="shrink-0 text-xs font-semibold text-emerald-700">Faire livrer ▸</span>
+            </RouterLink>
+          </li>
+        </ul>
+      </section>
+
       <section class="card space-y-3 p-4">
         <h3 class="font-semibold">Quand une commande est confirmée, qui la livre ?</h3>
         <div class="grid gap-2 sm:grid-cols-3">
@@ -128,11 +156,32 @@ function describe(rule) {
           <p class="mb-1.5 font-medium">Comment le livreur est choisi</p>
           <ol class="list-decimal space-y-1 pl-5 text-slate-600">
             <li>Si un <strong>cas particulier</strong> ci-dessous correspond à la commande, c'est lui qui décide.</li>
-            <li>Sinon, <strong>un de vos livreurs</strong> qui couvre le lieu de livraison et qui est disponible : celui qui couvre ce lieu d'abord, puis le moins occupé. Un livreur sans lieu choisi livre partout.</li>
+            <li>Sinon, <strong>un de vos livreurs</strong> qui livre ce lieu et qui est disponible{{ data.courier_dispatch === 'round_robin' ? ', chacun son tour' : ' : le plus proche d\'abord, puis le moins occupé' }}. Un livreur sans lieu choisi livre partout.</li>
             <li>S'il n'y en a pas, <strong>l'entreprise de livraison la moins chère</strong> parmi celles que vous avez ajoutées.</li>
-            <li v-if="data.assignment_mode === 'auto'">Si personne ne convient, rien ne part : la commande reste dans <strong>« À faire livrer »</strong> et la raison est notée dans son historique.</li>
+            <li v-if="data.assignment_mode === 'auto'">Si personne ne convient, rien ne part : la commande reste dans <strong>« À faire livrer »</strong>, la raison est notée dans son historique et elle apparaît dans le bilan ci-dessus.</li>
+            <li v-if="data.assignment_mode === 'auto'">Si le livreur refuse la course, elle part aussitôt au suivant{{ data.mission_timeout_minutes ? `, et aussi s'il ne répond pas en ${data.mission_timeout_minutes} min` : '' }}.</li>
           </ol>
           <p class="mt-2 text-slate-500">Un livreur choisi à la saisie de la commande passe toujours avant. Un livreur qui n'a pas encore ouvert son lien d'accès n'est jamais choisi tout seul.</p>
+        </div>
+      </section>
+
+      <section v-if="data.assignment_mode !== 'off'" class="card space-y-4 p-4">
+        <div>
+          <h3 class="mb-2 font-semibold">Entre plusieurs de vos livreurs, lequel ?</h3>
+          <div class="grid gap-2 sm:grid-cols-2">
+            <label v-for="[value, label, help] in DISPATCH" :key="value" class="flex cursor-pointer gap-2 rounded-lg border p-3 text-sm"
+                   :class="data.courier_dispatch === value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
+              <input type="radio" :checked="data.courier_dispatch === value" class="mt-0.5 accent-emerald-700" @change="settings({ courier_dispatch: value })" />
+              <span><span class="block font-medium">{{ label }}</span><span class="text-slate-500">{{ help }}</span></span>
+            </label>
+          </div>
+        </div>
+        <div v-if="data.assignment_mode === 'auto'">
+          <h3 class="mb-1 font-semibold">Si le livreur ne répond pas</h3>
+          <p class="mb-2 text-sm text-slate-500">Le livreur accepte ou refuse la course dans son application. S'il la refuse, elle part au suivant. S'il ne répond pas :</p>
+          <select class="input max-w-md" :value="data.mission_timeout_minutes ?? ''" @change="settings({ mission_timeout_minutes: $event.target.value === '' ? null : Number($event.target.value) })">
+            <option v-for="[value, label] in TIMEOUTS" :key="String(value)" :value="value ?? ''">{{ label }}</option>
+          </select>
         </div>
       </section>
 
