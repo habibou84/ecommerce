@@ -466,11 +466,11 @@ async function redo() {
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
                    @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" @updated="live = $event" />
 
-      <section v-else-if="live.status === 'draft' && pane === 'live'" class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
+      <section v-else-if="live.status === 'draft' && pane === 'live'" class="overflow-hidden rounded-[24px] bg-brand-grad p-5 text-white">
         <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
         <h2 class="mt-2 text-xl font-extrabold">{{ live.title }}</h2>
         <p class="text-sm text-white/90">{{ live.items.length }} article{{ live.items.length > 1 ? 's' : '' }} · lancez le live au moment où vous passez à l'antenne.</p>
-        <button type="button" class="mt-4 block w-full rounded-2xl bg-white py-3 text-center text-base font-extrabold text-live disabled:opacity-60" :disabled="busy" @click="start">Lancer le live</button>
+        <button type="button" class="mt-4 block w-full rounded-2xl bg-white py-3 text-center text-base font-extrabold text-emerald-700 disabled:opacity-60" :disabled="busy" @click="start">Lancer le live</button>
         <button type="button" class="mt-2 block w-full text-center text-sm text-white/90 underline" @click="share = true">Partager le lien avant de commencer</button>
       </section>
 
@@ -484,7 +484,7 @@ async function redo() {
           <p class="mt-2 text-[14px]"><b>{{ live.orders_after ?? 0 }}</b> commande{{ (live.orders_after ?? 0) > 1 ? 's' : '' }} depuis la fin du live<template v-if="live.billing"> · <b>{{ live.billing.orders }}</b> en tout dans ce live</template></p>
           <button type="button" class="mt-3 block w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-2.5 font-extrabold text-orange-800 disabled:opacity-60" :disabled="busy" @click="stopOrders">Arrêter les commandes maintenant</button>
         </section>
-        <section class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
+        <section class="overflow-hidden rounded-[24px] bg-brand-grad p-5 text-white">
           <span class="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-bold">TERMINÉ · {{ formatDateTime(live.ended_at) }} · {{ duration }}</span>
           <p class="mt-1 text-sm font-semibold text-white/90">{{ live.title }}</p>
           <p class="mt-2 text-4xl font-extrabold">{{ money(live.summary.amount) }}</p>

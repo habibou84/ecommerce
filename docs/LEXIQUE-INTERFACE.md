@@ -42,7 +42,7 @@ Toutes les couleurs sont déclarées dans `resources/css/app.css` (`@theme`). Pa
 | Rôle | Classes | Pour |
 | --- | --- | --- |
 | Marque | `emerald-700` (actions), `emerald-800` (survol), `emerald-50`/`100` (fonds) | Boutons, liens, onglet actif |
-| Live | `live`, `live-soft`, `bg-live-grad` | Tout ce qui touche au live, et seulement ça |
+| Live | `live`, `live-soft` | En petit seulement : onglet Live, son icône, point « en direct ». Les cartes du live sont en `bg-brand-grad` |
 | Neutres | `slate-*` (gris teinté de vert), `field` (bord des champs) | Fonds, textes, bordures |
 | Attention | `ocre-*`, ocre doré (`amber` et `orange` reprennent l'ocre) | À confirmer, non payée, à faire livrer, stock bas, échec à décider |
 | Danger | `red-*` | Retard, perte, refus, erreur, suppression |
@@ -53,7 +53,9 @@ Toutes les couleurs sont déclarées dans `resources/css/app.css` (`@theme`). Pa
 | Externes | `whatsapp`, `facebook` | Uniquement leurs propres boutons |
 
 - Badge d'état : fond doux + texte foncé de la même teinte (`bg-ocre-50 text-ocre-800`, `bg-sky-100 text-sky-800`…).
-- Texte blanc seulement sur `emerald-700` ou plus foncé, `ocre-700`, `red-600`, `whatsapp`, `facebook`, `bg-live-grad`.
+- Texte blanc seulement sur `emerald-700` ou plus foncé, `ocre-700`, `red-600`, `whatsapp`, `facebook`, `bg-brand-grad`.
 - Couleurs des statuts : `lib/orders.js` (`STATUS_TONES`, `PAYMENT_TONES`) et `lib/shipping.js` (`SHIPMENT_TONES`).
+- Deux choix côte à côte (ex. « Faire un live » / « Commandes WhatsApp ») ont la même forme : le choix retenu
+  prend `border-emerald-700 bg-emerald-50` et une coche.
 - Étoiles de notation et badge premium : `yellow` (« or »).
 - Textes de 11 px au minimum.

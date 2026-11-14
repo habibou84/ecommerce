@@ -243,12 +243,12 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
 
     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div class="min-w-0 space-y-4">
-        <!-- Vendre en live, en tête : invitation, live prêt à lancer ou live en direct (rose et violet, la couleur du live) -->
-        <section v-if="live" class="relative overflow-hidden rounded-[24px] p-5 text-white" :class="live.state === 'live' ? 'bg-live-grad' : 'bg-live-grad'">
+        <!-- Vendre en live, en tête : invitation, live prêt à lancer ou live en direct (vert de la marque ; le rose du live ne reste que sur le point « en direct ») -->
+        <section v-if="live" class="relative overflow-hidden rounded-[24px] bg-brand-grad p-5 text-white">
           <svg class="pointer-events-none absolute -right-8 -top-8 opacity-[.16]" width="180" height="180" viewBox="0 0 48 48" aria-hidden="true"><path d="M15.5 15.5a12 12 0 0 0 0 17M32.5 15.5a12 12 0 0 1 0 17M9.5 9.5a20 20 0 0 0 0 29M38.5 9.5a20 20 0 0 1 0 29" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" /><circle cx="24" cy="24" r="6" fill="#fff" /></svg>
           <template v-if="live.state === 'live'">
             <span class="inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide">
-              <span class="h-2 w-2 animate-pulse rounded-full bg-white" />EN DIRECT SUR VOS RÉSEAUX
+              <span class="h-2 w-2 animate-pulse rounded-full bg-live ring-2 ring-white" />EN DIRECT SUR VOS RÉSEAUX
             </span>
             <h3 class="mt-3 text-xl font-extrabold leading-tight">{{ live.session.title }}<span v-if="liveMinutes" class="ml-2 text-sm font-semibold text-white/85">depuis {{ liveMinutes.replace(/^depuis /, '') }}</span></h3>
             <p class="mt-2 text-4xl font-extrabold">{{ money(live.session.summary.amount) }}</p>
@@ -257,13 +257,13 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
               <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ live.session.summary.pending }}</b>en attente</span>
               <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ live.session.sold_out }}</b>épuisé{{ live.session.sold_out > 1 ? 's' : '' }}</span>
             </div>
-            <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-ocre-700 active:scale-[.99]">Suivre les commandes du live</RouterLink>
+            <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-emerald-700 active:scale-[.99]">Suivre les commandes du live</RouterLink>
           </template>
           <template v-else-if="live.state === 'ready'">
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
             <h3 class="mt-3 text-xl font-extrabold leading-tight">{{ live.session.title }}</h3>
             <p class="mt-1 text-sm text-white/90">{{ live.session.items_count }} article{{ live.session.items_count > 1 ? 's' : '' }} prêt{{ live.session.items_count > 1 ? 's' : '' }}. <b>Passez à l'antenne sur TikTok ou Facebook, puis touchez « Je suis en live ».</b></p>
-            <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-live active:scale-[.99]">Je suis en live</RouterLink>
+            <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-emerald-700 active:scale-[.99]">Je suis en live</RouterLink>
             <button type="button" class="relative mt-2 block w-full text-center text-sm text-white/90 underline" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien pour WhatsApp et Facebook' }}</button>
           </template>
           <template v-else>
@@ -278,7 +278,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
             </ol>
             <p class="mt-2 text-[13px] font-semibold">Les clientes envoient le code (A1, A2…) sur WhatsApp : la commande se crée toute seule.</p>
             <div class="relative mt-3 flex items-center gap-2">
-              <RouterLink to="/gestion/live" class="flex-1 rounded-2xl bg-white py-2.5 text-center text-base font-extrabold text-live active:scale-[.99]">Préparer un live</RouterLink>
+              <RouterLink to="/gestion/live" class="flex-1 rounded-2xl bg-white py-2.5 text-center text-base font-extrabold text-emerald-700 active:scale-[.99]">Préparer un live</RouterLink>
               <RouterLink v-if="live.last" :to="`/gestion/live/${live.last.id}`" class="rounded-2xl bg-white/20 px-3 py-2 text-center text-xs font-bold leading-tight">Dernier live<span class="block text-sm">{{ money(live.last.amount) }}</span></RouterLink>
             </div>
           </template>
