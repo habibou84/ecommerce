@@ -44,7 +44,7 @@ Toutes les couleurs sont déclarées dans `resources/css/app.css` (`@theme`). Pa
 | Marque | `emerald-700` (actions), `emerald-800` (survol), `emerald-50`/`100` (fonds) | Boutons, liens, onglet actif |
 | Live | `live`, `live-soft`, `bg-live-grad` | Tout ce qui touche au live, et seulement ça |
 | Neutres | `slate-*` (gris teinté de vert), `field` (bord des champs) | Fonds, textes, bordures |
-| Attention | `ocre-*` (`amber` et `orange` reprennent l'ocre) | À confirmer, non payée, à faire livrer, stock bas, échec à décider |
+| Attention | `ocre-*`, ocre doré (`amber` et `orange` reprennent l'ocre) | À confirmer, non payée, à faire livrer, stock bas, échec à décider |
 | Danger | `red-*` | Retard, perte, refus, erreur, suppression |
 | En cours | `sky-*` | Confirmée, en préparation, course demandée |
 | Mouvement | `violet-*` | En route, en livraison |
