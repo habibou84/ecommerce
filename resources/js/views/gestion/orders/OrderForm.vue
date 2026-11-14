@@ -774,12 +774,13 @@ async function save() {
 
           <div v-if="!editing">
             <p class="label-lg">Canal de vente</p>
-            <div class="flex flex-wrap gap-2">
+            <!-- Téléphone : une seule ligne qu'on fait glisser (le numéro du client reste à l'écran) ; ordinateur : sur plusieurs lignes -->
+            <div v-tab-strip class="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
               <button
                 v-for="s in SOURCES"
                 :key="s.value"
                 type="button"
-                class="inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 text-[15px] font-semibold"
+                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-[15px] font-semibold"
                 :class="form.source === s.value ? 'border-2 border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:border-field'"
                 :aria-pressed="form.source === s.value"
                 @click="form.source = s.value"

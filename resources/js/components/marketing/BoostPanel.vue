@@ -101,7 +101,7 @@ async function copy(text, key) {
 
     <template v-if="data">
       <!-- En tête : ce que fait le Boost -->
-      <section class="rounded-[22px] bg-gradient-to-br from-[#1877f2] to-[#7b3fe4] p-4 text-white">
+      <section class="rounded-[22px] bg-brand-grad p-4 text-white">
         <p class="text-lg font-black leading-snug">Boostez vos ventes sur Facebook et Instagram</p>
         <p class="mt-1 text-sm opacity-90">Vous voyez combien de commandes chaque pub vous apporte.</p>
       </section>
@@ -119,7 +119,7 @@ async function copy(text, key) {
           </li>
         </ul>
         <p v-if="c.error" class="mt-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">⚠️ {{ c.error }}</p>
-        <button v-if="!ready && data.available" type="button" class="mt-3 w-full rounded-xl bg-[#1877f2] py-3 text-base font-black text-white disabled:opacity-60" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Ouverture de Facebook…' : c.connected ? '🔄 Reconnecter Facebook' : '🔗 Connecter mon Facebook' }}</button>
+        <button v-if="!ready && data.available" type="button" class="mt-3 w-full rounded-xl bg-[#1464d2] py-3 text-base font-black text-white disabled:opacity-60" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Ouverture de Facebook…' : c.connected ? '🔄 Reconnecter Facebook' : '🔗 Connecter mon Facebook' }}</button>
         <RouterLink v-else-if="!ready" to="/gestion/marketing/suivi" class="btn-brand mt-3 w-full justify-center py-3 text-base font-black">Régler le pixel</RouterLink>
         <p class="mt-2 text-xs text-slate-500">La pub est payée à Meta, par la carte de votre compte publicitaire.</p>
       </section>
@@ -139,32 +139,32 @@ async function copy(text, key) {
 
       <!-- Assistant : créer la pub depuis l'application -->
       <section v-if="assistant" class="rounded-2xl bg-white p-4 shadow-soft">
-        <h3 class="font-display text-base font-extrabold">🚀 Nouveau boost</h3>
+        <h3 class="font-display text-base font-extrabold">Nouveau boost</h3>
         <p class="mt-0.5 text-xs text-slate-500">Un produit, plusieurs ou votre catalogue, en 4 écrans.</p>
-        <button type="button" class="mt-3 w-full rounded-xl bg-[#1877f2] py-3 text-base font-black text-white" @click="wizard = { from: null }">Créer un boost</button>
+        <button type="button" class="mt-3 w-full rounded-xl bg-emerald-700 py-3 text-base font-black text-white" @click="wizard = { from: null }">Créer un boost</button>
       </section>
 
       <!-- Le produit à booster : il se vend, il a du stock, il a une bonne marge -->
       <section v-if="assistant && suggested" class="rounded-2xl bg-white p-4 shadow-soft">
-        <h3 class="font-display text-base font-extrabold">💡 Le produit à booster</h3>
+        <h3 class="font-display text-base font-extrabold">Le produit à booster</h3>
         <div class="mt-2 flex items-center gap-3">
           <img v-if="suggested.image" :src="suggested.image" alt="" class="h-14 w-14 shrink-0 rounded-xl object-cover">
           <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ suggested.title }}</b><span class="text-xs text-slate-500">{{ money(suggested.price) }}{{ suggested.margin ? ` · marge ${money(suggested.margin)}` : '' }}</span></span>
         </div>
         <div class="mt-2 flex flex-wrap gap-1.5 text-xs font-bold">
-          <span class="rounded-full bg-[#e7f0fe] px-2.5 py-1 text-[#1877f2]">⭐ {{ suggested.sold }} vendu{{ suggested.sold > 1 ? 's' : '' }} ce mois</span>
-          <span v-if="suggested.stock !== null" class="rounded-full bg-[#e7f0fe] px-2.5 py-1 text-[#1877f2]">📦 {{ suggested.stock }} en stock</span>
-          <span v-if="suggested.margin" class="rounded-full bg-[#e7f0fe] px-2.5 py-1 text-[#1877f2]">💰 bonne marge</span>
+          <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-800">⭐ {{ suggested.sold }} vendu{{ suggested.sold > 1 ? 's' : '' }} ce mois</span>
+          <span v-if="suggested.stock !== null" class="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-800">📦 {{ suggested.stock }} en stock</span>
+          <span v-if="suggested.margin" class="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-800">💰 bonne marge</span>
         </div>
-        <button type="button" class="mt-3 w-full rounded-xl bg-[#1877f2] py-3 text-base font-black text-white" @click="wizard = { from: null, productId: suggested.id }">🚀 Booster ce produit</button>
+        <button type="button" class="mt-3 w-full rounded-xl bg-emerald-700 py-3 text-base font-black text-white" @click="wizard = { from: null, productId: suggested.id }">Booster ce produit</button>
       </section>
 
       <!-- Booster un produit (à la main, chez Meta) -->
       <section class="rounded-2xl bg-white p-4 shadow-soft">
-        <h3 class="text-base font-black">✨ {{ assistant ? 'Ou le faire moi-même chez Meta' : 'Booster un produit' }}</h3>
+        <h3 class="text-base font-black">{{ assistant ? 'Ou le faire moi-même chez Meta' : 'Booster un produit' }}</h3>
         <p class="mt-0.5 text-xs text-slate-500">Touchez un produit : lien suivi, texte et photo prêts.</p>
         <div class="mt-2 grid grid-cols-3 gap-2">
-          <button v-for="p in data.products" :key="p.id" type="button" class="overflow-hidden rounded-xl border-2 text-left" :class="picked?.id === p.id ? 'border-[#1877f2]' : 'border-slate-200'" @click="picked = picked?.id === p.id ? null : p">
+          <button v-for="p in data.products" :key="p.id" type="button" class="overflow-hidden rounded-xl border-2 text-left" :class="picked?.id === p.id ? 'border-emerald-700' : 'border-slate-200'" @click="picked = picked?.id === p.id ? null : p">
             <img v-if="p.image" :src="p.image" alt="" class="aspect-square w-full object-cover" loading="lazy">
             <span v-else class="grid aspect-square w-full place-items-center bg-slate-100 text-2xl" aria-hidden="true">📷</span>
             <span class="block truncate px-1.5 pt-1 text-xs font-bold">{{ p.title }}</span>
@@ -174,30 +174,30 @@ async function copy(text, key) {
         <p v-if="!data.products.length" class="mt-2 text-sm text-slate-500">Ajoutez des produits à votre catalogue pour les booster.</p>
 
         <!-- Les 4 étapes pour booster le produit choisi -->
-        <div v-if="picked" class="mt-3 space-y-2 rounded-2xl bg-[#e7f0fe] p-3 text-sm">
+        <div v-if="picked" class="mt-3 space-y-2 rounded-2xl bg-emerald-50 p-3 text-sm">
           <p class="font-black">Booster « {{ picked.title }} »</p>
           <div class="flex items-center gap-2 rounded-xl bg-white p-2.5">
-            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#1877f2] text-xs font-black text-white">1</span>
+            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-700 text-xs font-black text-white">1</span>
             <span class="min-w-0 flex-1"><b>Le lien suivi</b><span class="block truncate text-xs text-slate-500">{{ picked.link }}</span></span>
-            <button type="button" class="shrink-0 rounded-lg bg-[#1877f2] px-3 py-1.5 text-xs font-extrabold text-white" @click="copy(picked.link, 'link')">{{ copied === 'link' ? 'Copié ✓' : 'Copier' }}</button>
+            <button type="button" class="shrink-0 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-extrabold text-white" @click="copy(picked.link, 'link')">{{ copied === 'link' ? 'Copié ✓' : 'Copier' }}</button>
           </div>
           <div class="flex items-start gap-2 rounded-xl bg-white p-2.5">
-            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#1877f2] text-xs font-black text-white">2</span>
+            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-700 text-xs font-black text-white">2</span>
             <span class="min-w-0 flex-1"><b>Le texte de la pub</b><span class="block whitespace-pre-line text-xs text-slate-600">{{ picked.text }}</span></span>
-            <button type="button" class="shrink-0 rounded-lg bg-[#1877f2] px-3 py-1.5 text-xs font-extrabold text-white" @click="copy(picked.text, 'text')">{{ copied === 'text' ? 'Copié ✓' : 'Copier' }}</button>
+            <button type="button" class="shrink-0 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-extrabold text-white" @click="copy(picked.text, 'text')">{{ copied === 'text' ? 'Copié ✓' : 'Copier' }}</button>
           </div>
           <div v-if="picked.image_large" class="flex items-center gap-2 rounded-xl bg-white p-2.5">
-            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#1877f2] text-xs font-black text-white">3</span>
+            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-700 text-xs font-black text-white">3</span>
             <span class="min-w-0 flex-1"><b>La photo</b><span class="block text-xs text-slate-500">à mettre dans la pub</span></span>
-            <a :href="picked.image_large" download class="shrink-0 rounded-lg bg-[#1877f2] px-3 py-1.5 text-xs font-extrabold text-white">Télécharger</a>
+            <a :href="picked.image_large" download class="shrink-0 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-extrabold text-white">Télécharger</a>
           </div>
           <div class="rounded-xl bg-white p-2.5">
             <div class="flex items-center gap-2">
-              <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#1877f2] text-xs font-black text-white">4</span>
+              <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-700 text-xs font-black text-white">4</span>
               <b class="min-w-0 flex-1">Créer la pub chez Meta</b>
             </div>
             <p class="mt-1 text-xs text-slate-600">Collez le lien et le texte, ajoutez la photo, choisissez votre budget.</p>
-            <a href="https://business.facebook.com/latest/ad_center/" target="_blank" rel="noopener" class="mt-2 block rounded-xl bg-[#1877f2] py-2.5 text-center text-sm font-black text-white">Ouvrir Meta ↗</a>
+            <a href="https://business.facebook.com/latest/ad_center/" target="_blank" rel="noopener" class="mt-2 block rounded-xl bg-emerald-700 py-2.5 text-center text-sm font-black text-white">Ouvrir Meta ↗</a>
           </div>
           <p class="text-xs text-slate-600">Les commandes venues de ce lien s'affichent dans « Mes boosts ».</p>
         </div>
@@ -205,7 +205,7 @@ async function copy(text, key) {
 
       <!-- Mes boosts : commandes venues des liens suivis -->
       <section class="rounded-2xl bg-white p-4 shadow-soft">
-        <h3 class="text-base font-black">📊 Mes boosts <span class="font-normal text-slate-500">· 30 derniers jours</span></h3>
+        <h3 class="text-base font-black">Mes boosts <span class="font-normal text-slate-500">· 30 derniers jours</span></h3>
         <BoostList v-if="assistant" ref="listRef" class="mt-2" @relaunch="(b) => (wizard = { from: b })" />
         <div class="mt-2 grid grid-cols-2 gap-1.5">
           <div class="rounded-xl bg-slate-50 p-2.5"><b class="block text-lg font-black">{{ data.results.orders }}</b><span class="text-xs text-slate-500">commande{{ data.results.orders > 1 ? 's' : '' }} venue{{ data.results.orders > 1 ? 's' : '' }} d'un boost</span></div>
@@ -219,7 +219,7 @@ async function copy(text, key) {
 
       <!-- Prix -->
       <section class="rounded-2xl bg-white p-4 shadow-soft">
-        <h3 class="text-base font-black">💳 Prix</h3>
+        <h3 class="text-base font-black">Prix</h3>
         <p class="mt-1 text-sm text-slate-600">Connexion, pixel et liens suivis : <b>gratuits</b>. La pub : payée à Meta. Chaque commande venue d'un boost compte dans <RouterLink to="/gestion/solde" class="font-bold text-emerald-700 underline">votre solde</RouterLink>, comme une commande en live.</p>
       </section>
     </template>

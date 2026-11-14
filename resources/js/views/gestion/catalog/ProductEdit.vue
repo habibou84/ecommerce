@@ -584,7 +584,8 @@ const margin = computed(() => {
       <Alert v-if="aiNotice" tone="success">{{ aiNotice }}</Alert>
     </section>
 
-    <fieldset :disabled="!canEdit" class="space-y-5">
+    <!-- Téléphone : la photo d'abord (on part de la photo, comme pour un article du live), puis le nom -->
+    <fieldset :disabled="!canEdit" class="flex flex-col gap-5">
       <section class="card space-y-4 p-4 sm:p-6">
         <Field id="title" label="Nom du produit" :error="errors.title">
           <input id="title" v-model="form.title" class="input" maxlength="255" placeholder="Robe wax évasée" required />
@@ -597,7 +598,7 @@ const margin = computed(() => {
         </Field>
       </section>
 
-      <section class="card space-y-3 p-4 sm:p-6">
+      <section class="card space-y-3 p-4 max-sm:order-first sm:p-6">
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">Photos</h2>
           <div v-if="canEdit" class="flex gap-2">
