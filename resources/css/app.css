@@ -84,7 +84,7 @@
     --color-whatsapp-dark: #08664c;
     /* Facebook (Meta) : seulement sur les boutons qui mènent chez Facebook (5,5:1 avec le blanc) */
     --color-facebook: #1464d2;
-    /* Live : rose du live (onglet, boutons sur la carte Live) et son fond doux ; le dégradé rose → violet est bg-live-grad */
+    /* Live : rose du live, en petit seulement (onglet Live, son icône, le point « en direct ») ; les cartes du live sont en vert de la marque */
     --color-live: #c02a4e;
     --color-live-soft: #ffecef;
     /* Bulles de conversation WhatsApp dans les exemples (imitation de l'application WhatsApp) */
@@ -147,7 +147,7 @@
 }
 
 /* Composants d'interface (mêmes noms que dans Delivery App) */
-/* Style « dégradé doux », le même que l'application Jibiat : ombre légère des cartes, dégradés de la marque et du live */
+/* Style « dégradé doux », le même que l'application Jibiat : ombre légère des cartes, dégradé de la marque */
 @utility shadow-soft {
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -8px rgb(15 23 42 / 0.12);
 }
@@ -156,12 +156,6 @@
     background-color: var(--color-emerald-800);
     background-image: linear-gradient(140deg, var(--color-emerald-700) 0%, var(--color-emerald-900) 100%);
 }
-@utility bg-live-grad {
-    /* Assez foncé pour du texte blanc de petite taille (5,6:1 aux deux bouts) */
-    background-color: var(--color-live);
-    background-image: linear-gradient(140deg, var(--color-live) 0%, #6d4fd6 100%);
-}
-
 @utility btn {
     @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed;
 }
