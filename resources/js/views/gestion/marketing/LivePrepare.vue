@@ -42,7 +42,7 @@ const current = computed(() => lives.value?.find((l) => l.status === 'live' && l
 const whatsappOpen = computed(() => lives.value?.find((l) => l.status === 'live' && l.channel === 'whatsapp'))
 const past = computed(() => (lives.value ?? []).filter((l) => l.status === 'ended'))
 
-// « Que veux-tu faire ? » : faire un live, ou des commandes WhatsApp sans live (choix gardé pour la visite)
+// « Que veux-tu faire ? » : préparer un live, ou des commandes WhatsApp sans live (choix gardé pour la visite)
 const mode = ref((() => {
   try {
     return sessionStorage.getItem('jm.live-mode') === 'whatsapp' ? 'whatsapp' : 'live'
@@ -54,7 +54,7 @@ watch(mode, (v) => {
   try {
     sessionStorage.setItem('jm.live-mode', v)
   } catch {
-    // sans stockage : « Faire un live » à la prochaine visite
+    // sans stockage : « Préparer un live » à la prochaine visite
   }
 })
 // Commandes WhatsApp ouvertes : les étapes du live seulement si on choisit de préparer un live
@@ -244,7 +244,7 @@ async function start() {
   }
 }
 
-// « Faire un live » ou « Commandes WhatsApp » : même forme, le choix retenu en vert avec une coche
+// « Préparer un live » ou « Commandes WhatsApp » : même forme, le choix retenu en vert avec une coche
 const choiceClass = (m) => [
   'relative grid min-h-[118px] content-start gap-1 rounded-[18px] border-2 p-3 text-left transition',
   mode.value === m ? 'border-emerald-700 bg-emerald-50' : 'border-slate-200 bg-white hover:border-emerald-200',
@@ -286,16 +286,16 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
           </div>
         </section>
         <template v-if="!preparing">
-          <p class="px-0.5 pt-1 font-display text-base font-extrabold">Ou lancer un live</p>
+          <p class="px-0.5 pt-1 font-display text-base font-extrabold">Ou préparer un live</p>
           <button type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-white p-3 text-left" @click="preparing = true">
             <ColorIcon name="live" :size="34" />
-            <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Faire un live</b><span class="text-xs text-slate-500">Ferme les commandes WhatsApp</span></span>
-            <span class="text-sm font-extrabold text-emerald-700">Préparer ▸</span>
+            <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Préparer un live</b><span class="text-xs text-slate-500">Ferme les commandes WhatsApp</span></span>
+            <span class="text-sm font-extrabold text-emerald-700">Commencer ▸</span>
           </button>
         </template>
       </template>
 
-      <!-- Que voulez-vous faire ? : faire un live, ou des commandes WhatsApp sans live -->
+      <!-- Que voulez-vous faire ? : préparer un live, ou des commandes WhatsApp sans live -->
       <template v-else>
         <p class="px-0.5 font-display text-base font-extrabold">Que voulez-vous faire ?</p>
         <div class="grid grid-cols-2 gap-2">
@@ -303,7 +303,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
           <button type="button" :class="choiceClass('live')" :aria-pressed="mode === 'live'" @click="mode = 'live'">
             <span v-if="mode === 'live'" class="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-emerald-700 text-white" aria-hidden="true"><Icon name="check" :size="14" /></span>
             <ColorIcon name="live" :size="34" />
-            <b class="font-display text-base font-extrabold leading-tight">Faire un live</b>
+            <b class="font-display text-base font-extrabold leading-tight">Préparer un live</b>
             <span class="text-[13px] leading-snug text-slate-500">Sur TikTok, vous montrez vos articles</span>
           </button>
           <button type="button" :class="choiceClass('whatsapp')" :aria-pressed="mode === 'whatsapp'" @click="mode = 'whatsapp'">

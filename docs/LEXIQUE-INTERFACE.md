@@ -24,6 +24,7 @@ Les suivre évite qu'une même chose porte plusieurs noms d'un écran à l'autre
 | Nouvelle commande | Commande (bouton +) | Accueil, liste des commandes |
 | Coller un message | Coller WhatsApp | Accueil (le message peut venir de Facebook ou Instagram) |
 | Toutes les dates | Tout (période) | Liste des commandes, pour ne pas confondre avec l'onglet « Toutes » |
+| Préparer un live | Faire un live | Menu Live, accueil (le live se prépare ici et se fait sur TikTok ou Facebook) |
 | Boost Facebook | 🚀 Boost Facebook | Menu : pas d'émoji dans le menu |
 
 ## Icônes
@@ -55,7 +56,7 @@ Toutes les couleurs sont déclarées dans `resources/css/app.css` (`@theme`). Pa
 - Badge d'état : fond doux + texte foncé de la même teinte (`bg-ocre-50 text-ocre-800`, `bg-sky-100 text-sky-800`…).
 - Texte blanc seulement sur `emerald-700` ou plus foncé, `ocre-700`, `red-600`, `whatsapp`, `facebook`, `bg-brand-grad`.
 - Couleurs des statuts : `lib/orders.js` (`STATUS_TONES`, `PAYMENT_TONES`) et `lib/shipping.js` (`SHIPMENT_TONES`).
-- Deux choix côte à côte (ex. « Faire un live » / « Commandes WhatsApp ») ont la même forme : le choix retenu
+- Deux choix côte à côte (ex. « Préparer un live » / « Commandes WhatsApp ») ont la même forme : le choix retenu
   prend `border-emerald-700 bg-emerald-50` et une coche.
 - Étoiles de notation et badge premium : `yellow` (« or »).
 - Textes de 11 px au minimum.
