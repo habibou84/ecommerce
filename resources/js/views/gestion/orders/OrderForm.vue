@@ -1111,8 +1111,8 @@ async function save() {
     </div>
 
     <!-- Téléphone : total et validation toujours visibles, au-dessus de la barre de navigation -->
-    <!-- Une seule ligne, effacée pendant la saisie (clavier ouvert) -->
-    <div class="hide-on-keyboard fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur lg:hidden">
+    <!-- Une seule ligne, toujours là : le clavier la recouvre pendant la frappe, elle revient dès qu'il se ferme -->
+    <div class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur lg:hidden">
       <div class="min-w-0">
         <p class="text-xs text-slate-500">Total</p>
         <p class="text-lg font-extrabold leading-tight tabular-nums">{{ money(total) }}</p>

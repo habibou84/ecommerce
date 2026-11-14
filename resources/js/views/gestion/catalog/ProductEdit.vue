@@ -517,18 +517,6 @@ async function copyShare(text) {
 
 // Menu ⋯ (Dupliquer, Supprimer)
 const menu = ref(false)
-// Clavier ouvert au téléphone : la bande « Enregistrer » se cache pour ne pas couvrir le champ
-const typing = ref(false)
-let blurTimer
-const isTyping = (el) => window.innerWidth < 1024 && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'file', 'button', 'submit'].includes(el.type)))
-function onFocus(event) {
-  clearTimeout(blurTimer)
-  if (isTyping(event.target)) typing.value = true
-}
-function onBlur() {
-  blurTimer = setTimeout(() => (typing.value = false), 150)
-}
-
 const variantError = (index, field) => errors.value[`variants.${index}.${field}`]
 const margin = computed(() => {
   const price = num(simple.price)
@@ -540,7 +528,7 @@ const margin = computed(() => {
 <template>
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
 
-  <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save" @focusin="onFocus" @focusout="onBlur">
+  <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save">
     <div class="flex flex-wrap items-center gap-2">
       <RouterLink to="/gestion/catalogue" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
@@ -928,7 +916,7 @@ const margin = computed(() => {
     </div>
 
     <!-- Bande « Enregistrer » : cachée pendant la saisie au téléphone (clavier ouvert) -->
-    <div v-if="canEdit && !typing" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur lg:bottom-0 lg:left-64">
+    <div v-if="canEdit" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur lg:bottom-0 lg:left-64">
       <div class="mx-auto flex max-w-5xl items-center gap-2">
         <span v-if="hasVariants" class="text-sm text-slate-500">{{ variantRows.filter((r) => r.include).length }} variante(s)</span>
         <button class="btn-brand ml-auto" :disabled="saving || uploading">{{ saving ? 'Enregistrement…' : uploading ? 'Envoi des photos…' : 'Enregistrer' }}</button>
