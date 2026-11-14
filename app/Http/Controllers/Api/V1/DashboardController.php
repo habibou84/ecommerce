@@ -15,6 +15,7 @@ use App\Models\Order;
 use App\Models\WhatsappAccount;
 use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
+use App\Services\Orders\OrderListing;
 use App\Services\Reports\DailyAdvice;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\OutsideStock;
@@ -46,7 +47,8 @@ class DashboardController extends Controller
                     ->where('status', '!=', OrderStatus::Cancelled->value)->sum('total'),
                 'to_confirm' => Order::where('status', OrderStatus::PendingConfirmation->value)->count(),
                 'callbacks_due' => Order::where('status', OrderStatus::PendingConfirmation->value)->where('callback_at', '<=', now())->count(),
-                'to_ship' => Order::whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->count(),
+                // Même calcul que l'onglet « À faire livrer » de la liste (sans les commandes déjà chez le livreur)
+                'to_ship' => OrderListing::toShip(Order::query())->count(),
                 // Files des alertes : sans livreur, pas ramassées, problèmes de livraison sans suite
                 'waiting' => OrderAlerts::counts(),
                 'month_revenue' => (int) (clone $month)->sum('total'),

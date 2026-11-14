@@ -9,7 +9,8 @@ import Pagination from '../../../components/Pagination.vue'
 import MaterielTip from '../../../components/MaterielTip.vue'
 import http, { download, errorMessage } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
-import { CANCEL_REASONS, PAYMENT_TONES, SOURCES, STATUS_ICONS, STATUS_TONES, avatar, riskLabel } from '../../../lib/orders'
+import { CANCEL_REASONS, ORDER_TABS, PAYMENT_TONES, SOURCES, STATUS_ICONS, STATUS_TONES, avatar, riskLabel, tabCount } from '../../../lib/orders'
+import { SHIPMENT_TONES } from '../../../lib/shipping'
 import { useAuthStore } from '../../../stores/auth'
 
 const auth = useAuthStore()
@@ -18,17 +19,6 @@ const router = useRouter()
 const canManage = computed(() => auth.can('orders.manage'))
 const canAssign = computed(() => auth.can('shipments.manage'))
 
-const TABS = [
-  { value: '', label: 'Toutes' },
-  { value: 'pending_confirmation', label: 'À confirmer' },
-  { value: 'to_ship', label: 'À faire livrer' },
-  { value: 'at_courier', label: 'Chez le livreur' },
-  { value: 'shipped', label: 'En route' },
-  { value: 'late', label: 'En retard', alert: true },
-  { value: 'completed', label: 'Livrées' },
-  { value: 'cancelled', label: 'Annulées' },
-  { value: 'returned', label: 'Retournées' },
-]
 const PERIODS = [
   { value: '', label: 'Tout' },
   { value: 'today', label: 'Aujourd\'hui' },
@@ -107,7 +97,6 @@ function setPeriod(value) {
   filters.period = value
   if (value !== 'custom') Object.assign(filters, { from: '', to: '' })
 }
-const total = (c) => Object.entries(c).filter(([k]) => !['to_ship', 'at_courier', 'late'].includes(k)).reduce((s, [, n]) => s + n, 0)
 
 // Filtres actifs (pastilles retirables)
 const delivererLabel = (key) => {
@@ -419,14 +408,14 @@ async function exportList() {
 
     <nav v-tab-strip class="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <button
-        v-for="tab in TABS"
+        v-for="tab in ORDER_TABS"
         :key="tab.value"
         class="inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3.5 text-sm font-semibold"
         :class="filters.status === tab.value ? 'border-slate-900 bg-slate-900 text-white' : tab.alert && counts.late ? 'border-red-200 bg-white text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'"
         @click="filters.status = tab.value"
       >
         {{ tab.label }}
-        <span class="rounded-md px-1.5 text-xs font-bold" :class="filters.status === tab.value ? 'bg-white/20' : tab.alert && counts.late ? 'bg-red-100 text-red-800' : 'bg-slate-100'">{{ tab.value ? counts[tab.value] ?? 0 : total(counts) }}</span>
+        <span class="rounded-md px-1.5 text-xs font-bold" :class="filters.status === tab.value ? 'bg-white/20' : tab.alert && counts.late ? 'bg-red-100 text-red-800' : 'bg-slate-100'">{{ tabCount(counts, tab.value) }}</span>
       </button>
     </nav>
 
@@ -505,6 +494,7 @@ async function exportList() {
                   <Icon :name="deliveryBadge(o).late ? 'alert' : 'truck'" :size="12" />{{ deliveryBadge(o).text }}
                 </span>
                 <p v-if="o.deliverer && !showDeliverer(o)" class="mt-0.5 flex items-center gap-1 whitespace-nowrap text-xs text-slate-500"><Icon name="truck" :size="12" />{{ o.deliverer }}<template v-if="o.deliverer_planned"> (prévu)</template></p>
+                <p v-if="o.shipment_status_label" class="mt-0.5 truncate text-xs" :title="o.tracking_code ? `Suivi : ${o.tracking_code}` : ''"><span class="rounded-full px-2 py-0.5 font-semibold" :class="SHIPMENT_TONES[o.shipment_status]">{{ o.shipment_status_label }}</span><span v-if="o.tracking_code" class="ml-1 text-slate-500">{{ o.tracking_code }}</span></p>
               </td>
               <td class="truncate py-3 pr-3 text-slate-600" :title="o.items_label">{{ o.items_label }}</td>
               <td class="py-3 pr-3 text-right"><p class="font-bold">{{ money(o.total) }}</p><p class="whitespace-nowrap text-xs" :class="PAYMENT_TONES[o.payment_status]">{{ o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status) ? 'À encaisser' : o.payment_status_label }}</p></td>
@@ -556,6 +546,7 @@ async function exportList() {
           <div class="mt-2 flex flex-wrap items-center gap-1.5 pl-14">
             <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS_TONES[o.status]"><Icon :name="STATUS_ICONS[o.status] ?? 'more'" :size="13" />{{ o.status_label }}</span>
             <span v-if="deliveryBadge(o)" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" :class="deliveryBadge(o).tone"><Icon :name="deliveryBadge(o).late ? 'alert' : 'calendar'" :size="13" />{{ deliveryBadge(o).text }}</span>
+            <span v-if="o.shipment_status_label" class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="SHIPMENT_TONES[o.shipment_status]">{{ o.shipment_status_label }}<template v-if="o.tracking_code"> · {{ o.tracking_code }}</template></span>
             <span v-if="o.possible_duplicate" class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">Doublon ?</span>
             <span v-if="o.deliverer && !showDeliverer(o)" class="inline-flex items-center gap-1 text-xs text-slate-500"><Icon name="truck" :size="13" />{{ o.deliverer }}</span>
           </div>

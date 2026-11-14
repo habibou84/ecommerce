@@ -10,6 +10,26 @@ export const STATUS_TONES = {
   returned: 'bg-red-100 text-red-700',
 }
 
+// Onglets d'état de la liste des commandes : les mêmes partout (liste, page Commandes de la navigation par glissement)
+export const ORDER_TABS = [
+  { value: '', label: 'Toutes' },
+  { value: 'pending_confirmation', label: 'À confirmer' },
+  { value: 'to_ship', label: 'À faire livrer' },
+  { value: 'at_courier', label: 'Chez le livreur' },
+  { value: 'shipped', label: 'En route' },
+  { value: 'late', label: 'En retard', alert: true },
+  { value: 'completed', label: 'Livrées' },
+  { value: 'cancelled', label: 'Annulées' },
+  { value: 'returned', label: 'Retournées' },
+]
+// Chiffre d'un onglet, à partir des « counts » renvoyés par GET /orders (Toutes : la somme des statuts)
+export function tabCount(counts, tab) {
+  if (tab) return counts?.[tab] ?? 0
+  return Object.entries(counts ?? {}).filter(([k]) => !['to_ship', 'at_courier', 'late'].includes(k)).reduce((s, [, n]) => s + n, 0)
+}
+// Lien vers la liste ouverte sur un onglet
+export const tabLink = (tab) => (tab ? `/gestion/commandes?status=${tab}` : '/gestion/commandes')
+
 // Statut = couleur + icône + mot (jamais la couleur seule)
 export const STATUS_ICONS = {
   pending_confirmation: 'clock',

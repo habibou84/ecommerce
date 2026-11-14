@@ -111,6 +111,11 @@ class OrderListTest extends TestCase
         $this->assertSame([$other->id], collect($this->api('GET', 'orders?status=to_ship')->json('data'))->pluck('id')->all());
         $this->assertSame([$confirmed->id], collect($this->api('GET', 'orders?status=at_courier')->json('data'))->pluck('id')->all());
         $this->api('GET', 'orders')->assertJsonPath('counts.to_ship', 1)->assertJsonPath('counts.at_courier', 1);
+        // L'accueil compte « À faire livrer » comme l'onglet (sans les commandes déjà chez le livreur)
+        $this->api('GET', 'dashboard')->assertJsonPath('data.orders.to_ship', 1);
+        // Course en cours : son état dans la ligne (plus d'écran « Livraisons en cours » à part)
+        $this->assertSame([$shipment->status->value, $shipment->status->label()], [$rows[$confirmed->id]['shipment_status'], $rows[$confirmed->id]['shipment_status_label']]);
+        $this->assertNull($rows[$other->id]['shipment_status_label']);
         $this->assertSame(0, $rows[$other->id]['prepay_due']);
 
         // Changer le statut : chaque commande à part

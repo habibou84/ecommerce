@@ -47,7 +47,6 @@ const groups = [
     { to: '/gestion/stock', label: 'Stock' },
   ] },
   { label: 'Livraisons', color: 'moto', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', items: [
-    { to: '/gestion/livraisons', label: 'En cours', exact: true },
     { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
     { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' },
     { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' },
@@ -229,11 +228,12 @@ const bottomColor = { home: 'accueil', orders: 'panier' }
 // « Plus » : tout Jibiat Marchand en tuiles de couleur (seulement les pages que le rôle peut ouvrir) ;
 // le menu complet reste à un toucher
 const plusOpen = ref(false)
+const DELIVERY_PAGES = ['/gestion/livraisons/livreurs', '/gestion/livraisons/entreprises', '/gestion/livraisons/tarifs', '/gestion/livraisons/qui-livre-quoi']
 const PLUS_TILES = [
   { to: '/gestion/catalogue', label: 'Produits', color: 'produit' },
   { to: '/gestion/stock', label: 'Stock', color: 'stock' },
   { to: '/gestion/clients', label: 'Clients', color: 'clients' },
-  { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
+  { to: DELIVERY_PAGES, label: 'Livraisons', color: 'moto' },
   { to: '/gestion/caisse', label: 'Caisse', color: 'caisse' },
   { to: '/gestion/live', label: 'Live', color: 'live' },
   { to: '/gestion/boutique-en-ligne', label: 'Boutique en ligne', color: 'boutique' },
@@ -244,7 +244,8 @@ const PLUS_TILES = [
   { to: '/gestion/confirmation', label: 'À confirmer', color: 'telephone' },
   { to: '/gestion/demarrage', label: 'Bien démarrer', color: 'aide' },
 ]
-const plusTiles = computed(() => PLUS_TILES.filter((tile) => canOpen(tile.to)))
+// Tuile Livraisons : la première page du menu Livraisons que le rôle peut ouvrir
+const plusTiles = computed(() => PLUS_TILES.map((tile) => (Array.isArray(tile.to) ? { ...tile, to: tile.to.find(canOpen) } : tile)).filter((tile) => tile.to && canOpen(tile.to)))
 watch(() => route.path, () => { plusOpen.value = false })
 
 // Session de support de la plateforme : bandeau pour le support (lui-même) et pour la boutique

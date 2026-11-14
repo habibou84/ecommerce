@@ -7,6 +7,7 @@ import LivePrepare from '../views/gestion/marketing/LivePrepare.vue'
 import BoostPanel from './marketing/BoostPanel.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
+import { ORDER_TABS, tabCount, tabLink } from '../lib/orders'
 import { platformOn } from '../router'
 import { boot } from '../lib/boot'
 import { useAuthStore } from '../stores/auth'
@@ -61,7 +62,7 @@ const PAGES = [
   { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
     settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
-    settings: [{ to: '/gestion/livraisons', label: 'Livraisons en cours' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
+    settings: [{ to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
     settings: [{ to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' }, { to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' }, { to: '/gestion/statistiques', label: 'Statistiques' }, { to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
   { key: 'shop', name: 'Boutique', icon: '🏪', show: () => canOpen('/gestion/boutique-en-ligne'), badge: () => (s.value.shop?.abandoned ? { n: s.value.shop.abandoned, level: 'orange' } : null),
@@ -159,10 +160,16 @@ watch(current, (i) => {
 
 // ── Commandes : les dernières, chargées une fois à l'arrivée sur la page ──
 const orders = ref(null)
-async function loadOrders() {
-  if (orders.value) return
-  orders.value = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [] } }))).data.data
+// Chiffres des onglets : ceux de la liste des commandes (même calcul, mêmes noms)
+const orderCounts = ref(null)
+async function loadOrders(force = false) {
+  if (orders.value && !force) return
+  const data = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [], counts: null } }))).data
+  orders.value = data.data
+  orderCounts.value = data.counts ?? orderCounts.value
 }
+// Retour à l'accueil après une action dans la liste : chiffres à jour
+watch(() => route.path, (path) => { if (path === '/gestion' && orders.value) loadOrders(true) })
 const tone = (o) => ({ pending_confirmation: 'bg-amber-100 text-amber-900', cancelled: 'bg-slate-100 text-slate-500', delivered: 'bg-emerald-100 text-emerald-800', completed: 'bg-emerald-100 text-emerald-800' }[o.status] ?? 'bg-sky-100 text-sky-900')
 
 // ── Articles : catalogue et stock réunis ──
@@ -201,7 +208,7 @@ async function share() {
 const PLUS = [
   { to: '/gestion/messages', label: 'Messages', color: 'whatsapp' },
   { to: '/gestion/clients', label: 'Clients', color: 'clients' },
-  { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
+  { to: ['/gestion/livraisons/livreurs', '/gestion/livraisons/entreprises', '/gestion/livraisons/tarifs', '/gestion/livraisons/qui-livre-quoi'], label: 'Livraisons', color: 'moto' },
   { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
   { to: '/gestion/stock/commandes', label: 'Fournisseurs', color: 'camion' },
@@ -212,7 +219,8 @@ const PLUS = [
   { to: '/gestion/whatsapp', label: 'WhatsApp', color: 'whatsapp' },
   { to: '/gestion/parametres', label: 'Informations', color: 'reglages' },
 ]
-const plus = computed(() => links(PLUS))
+// Livraisons : la première page du menu Livraisons que le rôle peut ouvrir
+const plus = computed(() => links(PLUS.map((l) => (Array.isArray(l.to) ? { ...l, to: l.to.find(canOpen) ?? '' } : l)).filter((l) => l.to)))
 // Réglages de chaque page, regroupés dans Plus
 const pageSettings = computed(() => pages.value.filter((p) => p.key !== 'more').map((p) => ({ ...p, items: links(p.settings) })).filter((p) => p.items.length))
 const helpUrl = computed(() => (boot.supportWhatsapp ? `https://wa.me/${String(boot.supportWhatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide pour mon espace marchand ${auth.store?.name ?? ''}.`)}` : null))
@@ -275,11 +283,13 @@ function open(to) {
               <span aria-hidden="true">{{ t.icon }}</span><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
+          <!-- Onglets d'état : les mêmes que la liste des commandes, qui s'ouvre sur l'onglet touché -->
           <div class="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
-            <RouterLink to="/gestion/commandes?status=pending_confirmation" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">À confirmer {{ s.orders?.to_confirm ?? '' }}</RouterLink>
-            <RouterLink to="/gestion/commandes?status=to_ship" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">À livrer {{ s.orders?.to_ship ?? '' }}</RouterLink>
-            <RouterLink to="/gestion/livraisons" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">🛵 En livraison</RouterLink>
-            <RouterLink to="/gestion/commandes" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">Toutes</RouterLink>
+            <RouterLink v-for="tab in ORDER_TABS" :key="tab.value" :to="tabLink(tab.value)"
+                        class="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold shadow-soft"
+                        :class="tab.alert && orderCounts?.late ? 'bg-rose-100 text-rose-900' : 'bg-white'">
+              {{ tab.label }}<span v-if="orderCounts" class="ml-1 opacity-70">{{ tabCount(orderCounts, tab.value) }}</span>
+            </RouterLink>
           </div>
           <div class="mt-3 rounded-2xl bg-white p-1 shadow-soft">
             <p v-if="!orders" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
