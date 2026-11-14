@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Marketing;
 
+use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Models\LiveItem;
 use App\Models\LiveReservation;
@@ -12,6 +13,7 @@ use App\Services\Catalog\ImageStore;
 use App\Services\Live\LiveImages;
 use App\Services\Live\LiveSales;
 use App\Services\Places\Places;
+use App\Services\Platform\Features;
 use App\Services\Storefront\ThemeSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -298,6 +300,9 @@ class LiveController extends Controller
         if ($live->status !== 'draft') {
             return $this->state($this->live->start($live, $hours));
         }
+        if ($live->isWhatsApp()) {
+            $this->ensureCodes();
+        }
 
         // Commandes payantes : illimité en cours, sinon assez de commandes dans le solde, sinon la recharge est demandée
         return $this->state(DB::transaction(function () use ($live, $hours) {
@@ -378,7 +383,7 @@ class LiveController extends Controller
      */
     private function validated(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'title' => ['required', 'string', 'max:120'],
             'channel' => ['nullable', 'in:live,whatsapp'],
             'hold_minutes' => ['nullable', 'integer', 'between:10,1440'],
@@ -389,6 +394,19 @@ class LiveController extends Controller
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:9999'],
             'items.*.code' => ['nullable', 'string', 'regex:'.self::SIGN],
         ], self::SIGN_MESSAGES);
+        if (($data['channel'] ?? null) === LiveSession::CHANNEL_WHATSAPP) {
+            $this->ensureCodes();
+        }
+
+        return $data;
+    }
+
+    /** Commandes avec codes sans live : fonction de la console (masquée par défaut) */
+    private function ensureCodes(): void
+    {
+        if (! app(Features::class)->enabled('whatsapp_codes', $this->currentStore())) {
+            throw new BusinessRuleException('Les commandes avec codes sans live ne sont pas ouvertes pour votre boutique.', 'channel');
+        }
     }
 
     private function state(LiveSession $session, int $status = 200): JsonResponse

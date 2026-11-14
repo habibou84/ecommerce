@@ -68,9 +68,10 @@ class WhatsAppSalesController extends Controller
             // Dernier message écrit depuis le téléphone de la boutique : montre que les échos de Meta arrivent
             'phone_message_at' => ConversationMessage::query()->where('direction', 'out')->where('type', 'text')->whereNull('user_id')->max('sent_at'),
             'account' => $account ? ['display_phone' => $account->display_phone, 'status' => $account->status] : null,
-            // Commandes avec codes sans live (venues du menu Live) : ouvertes, en préparation, ou aucune
-            'codes' => LiveSession::query()->where('channel', LiveSession::CHANNEL_WHATSAPP)->whereIn('status', ['live', 'draft'])
-                ->latest('id')->first(['id', 'status']),
+            // Commandes avec codes sans live (fonction de la console) : ouvertes, en préparation, aucune ({}), ou
+            // fonction éteinte (null)
+            'codes' => ! app(Features::class)->enabled('whatsapp_codes', $store) ? null : LiveSession::query()->where('channel', LiveSession::CHANNEL_WHATSAPP)->whereIn('status', ['live', 'draft'])
+                ->latest('id')->first(['id', 'status']) ?? (object) [],
             'orders' => Order::query()->whereNotNull('credit_channel')->latest('id')->limit(8)
                 ->get(['id', 'number', 'store_id', 'customer_name', 'customer_phone', 'credit_channel', 'status', 'total', 'created_at'])
                 ->map(fn (Order $o) => ['id' => $o->id, 'reference' => $o->reference(), 'customer' => $o->customer_name ?: $o->customer_phone,

@@ -6,10 +6,12 @@ use App\Models\LiveItem;
 use App\Models\LiveSession;
 use App\Models\LiveSessionBill;
 use App\Models\Place;
+use App\Models\PlatformSetting;
 use App\Models\Store;
 use App\Services\Billing\Credits;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Live\LiveSales;
+use App\Services\Platform\Features;
 use Illuminate\Support\Facades\Http;
 use Tests\Concerns\LiveProductsHavePhotos;
 use Tests\TestCase;
@@ -140,5 +142,26 @@ class WhatsAppOrdersTest extends TestCase
         // Rouvrir avec ces articles : une nouvelle session WhatsApp
         $copy = $this->storeApi($this->store, 'POST', "lives/{$id}/duplicate")->assertCreated()->json('data.id');
         $this->assertSame('whatsapp', LiveSession::find($copy)->channel);
+    }
+
+    public function test_codes_without_live_are_a_console_feature_hidden_by_default(): void
+    {
+        $features = app(Features::class);
+        PlatformSetting::where('key', 'feature.whatsapp_codes')->delete();
+        $this->assertSame('hidden', (new Features)->state('whatsapp_codes'));
+
+        // Éteinte : ni ouverture ni lancement, et l'assistant des ventes ne montre pas la carte
+        $draft = $this->storeApi($this->store, 'POST', 'lives', ['title' => 'Live', 'items' => [['variant_id' => $this->variant, 'quantity' => 3]]])->assertCreated()->json('data.id');
+        LiveSession::whereKey($draft)->update(['channel' => LiveSession::CHANNEL_WHATSAPP]);
+        $features->set('whatsapp_codes', 'hidden');
+        $this->storeApi($this->store, 'POST', 'lives', ['title' => 'Commandes WhatsApp', 'channel' => 'whatsapp', 'items' => [['variant_id' => $this->variant, 'quantity' => 3]]])
+            ->assertStatus(422)->assertJsonValidationErrors('channel');
+        $this->storeApi($this->store, 'POST', "lives/{$draft}/start", ['open_hours' => 168])->assertStatus(422);
+        $this->assertNull($this->storeApi($this->store, 'GET', 'whatsapp/sales')->json('data.codes'));
+
+        // Allumée dans la console : de nouveau possible
+        $features->set('whatsapp_codes', 'on');
+        $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertJsonPath('data.codes.id', $draft);
+        $this->storeApi($this->store, 'POST', "lives/{$draft}/start", ['open_hours' => 168])->assertOk();
     }
 }
