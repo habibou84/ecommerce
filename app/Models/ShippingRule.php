@@ -18,7 +18,7 @@ class ShippingRule extends Model
         'carrier' => 'Cette entreprise de livraison',
         'cheapest' => 'Le moins cher',
         'fastest' => 'Le plus rapide',
-        'manual' => 'Choisir à la main',
+        'manual' => 'Je choisis moi-même',
     ];
 
     protected $fillable = ['store_id', 'name', 'priority', 'conditions', 'action', 'carrier_connection_id', 'is_active'];

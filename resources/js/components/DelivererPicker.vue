@@ -35,7 +35,7 @@ const cheapest = computed(() => {
 const entries = computed(() => [
   ...(props.options?.couriers ?? []).map((c) => ({
     key: `courier:${c.id}`, type: 'courier', name: c.name, price: null, faded: !c.is_available, disabled: false,
-    sub: ['Mon livreur', c.connected === false ? 'pas encore connecté' : c.is_available ? 'Disponible' : 'Indisponible', c.covers_zone ? `couvre ${place.value || 'le quartier'}` : '', c.active_missions ? `${c.active_missions} course(s) en cours` : ''].filter(Boolean).join(' · '),
+    sub: ['Mon livreur', c.connected === false ? 'pas encore connecté' : c.is_available ? 'Disponible' : 'Indisponible', c.all_zones ? 'toutes zones' : c.covers_zone ? `couvre ${place.value || 'le quartier'}` : '', c.active_missions ? `${c.active_missions} course(s) en cours` : ''].filter(Boolean).join(' · '),
   })),
   ...(props.options?.carriers ?? []).map((c) => ({
     key: `carrier:${c.id}`, type: 'carrier', name: c.name, price: c.covered ? c.fee : null, faded: !c.covered, disabled: !c.covered && !!props.placeLabel,
