@@ -42,19 +42,19 @@
     --color-slate-800: #1f2924;
     --color-slate-900: #111a15;
     --color-slate-950: #0a110d;
-    /* Attention · ocre wax : ce qui attend une action (à confirmer, non payée, à faire livrer, stock bas).
+    /* Attention · ocre doré (l'ocre jaune du wax) : ce qui attend une action (à confirmer, non payée, à faire livrer, stock bas).
        Seule couleur de ce rôle : l'ambre et l'orange de Tailwind la reprennent (plus de trois oranges différents). */
-    --color-ocre-50: #fff4ec;
-    --color-ocre-100: #ffe2cc;
-    --color-ocre-200: #fdc39b;
-    --color-ocre-300: #fba06b;
-    --color-ocre-400: #f2813f;
-    --color-ocre-500: #e8641c;
-    --color-ocre-600: #d4500f;
-    --color-ocre-700: #c2410c;
-    --color-ocre-800: #9a3412;
-    --color-ocre-900: #7a2a0f;
-    --color-ocre-950: #431407;
+    --color-ocre-50: #fff8eb;
+    --color-ocre-100: #fdecc8;
+    --color-ocre-200: #fad58f;
+    --color-ocre-300: #f5b957;
+    --color-ocre-400: #ea9a2c;
+    --color-ocre-500: #d47f12;
+    --color-ocre-600: #aa6109;
+    --color-ocre-700: #9c5508;
+    --color-ocre-800: #8a4b08;
+    --color-ocre-900: #6e3b0a;
+    --color-ocre-950: #3d1f05;
     --color-amber-50: var(--color-ocre-50);
     --color-amber-100: var(--color-ocre-100);
     --color-amber-200: var(--color-ocre-200);
@@ -274,12 +274,12 @@ select.input-lg {
     --color-emerald-50: #0f2a1c;
     --color-emerald-100: #143a27;
     --color-emerald-200: #1d5236;
-    --color-ocre-50: #2e1a0c;
-    --color-ocre-100: #43260f;
-    --color-amber-50: #2e1a0c;
-    --color-amber-100: #43260f;
-    --color-orange-50: #2e1a0c;
-    --color-orange-100: #43260f;
+    --color-ocre-50: #2b200b;
+    --color-ocre-100: #3d2d0f;
+    --color-amber-50: #2b200b;
+    --color-amber-100: #3d2d0f;
+    --color-orange-50: #2b200b;
+    --color-orange-100: #3d2d0f;
     --color-red-50: #2c1212;
     --color-red-100: #3d1717;
     --color-sky-50: #0c2333;
@@ -306,7 +306,7 @@ select.input-lg {
 .courier-night [class*='text-amber-9'],
 .courier-night [class*='text-orange-7'],
 .courier-night [class*='text-orange-8'] {
-    color: #f6b37a;
+    color: #f5c46b;
 }
 .courier-night [class*='text-red-6'],
 .courier-night [class*='text-red-7'],

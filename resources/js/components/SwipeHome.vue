@@ -268,7 +268,7 @@ function open(to) {
                 @click="go(i)">
           <span class="inline-flex items-center gap-1.5"><ColorIcon :name="PAGE_COLORS[p.key] ?? 'menu'" :size="18" :tile="false" />{{ p.name }}</span>
           <span v-if="p.badge()" class="absolute -right-1.5 -top-2 min-w-[19px] rounded-full border-2 border-slate-50 px-1 text-center text-[11px] font-black leading-[15px] text-white"
-                :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-red-600' : 'bg-amber-500'">{{ p.badge().n }}</span>
+                :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-red-600' : 'bg-amber-700'">{{ p.badge().n }}</span>
         </button>
       </div>
     </Teleport>
