@@ -287,8 +287,8 @@ async function whatsapp(s) {
       <a v-if="s.label_url && !s.is_final" :href="s.label_url" target="_blank" rel="noopener" class="btn-secondary inline-flex w-fit px-3 py-1.5">🏷️ Imprimer l'étiquette{{ s.carrier?.name ? ` de ${s.carrier.name}` : '' }}</a>
       <!-- Notes du livreur chez l'entreprise de livraison -->
       <div v-if="s.carrier_ratings && (s.can_rate_courier || s.carrier_ratings.merchant || s.carrier_ratings.recipient)" class="rounded bg-slate-50 p-2 space-y-1">
-        <p v-if="s.carrier_ratings.merchant">Votre note du livreur : <span class="text-amber-500" aria-hidden="true">{{ stars(s.carrier_ratings.merchant.score) }}</span> <strong>{{ s.carrier_ratings.merchant.score }}/5</strong><template v-if="s.carrier_ratings.merchant.comment"> · « {{ s.carrier_ratings.merchant.comment }} »</template></p>
-        <p v-if="s.carrier_ratings.recipient">Note du client : <span class="text-amber-500" aria-hidden="true">{{ stars(s.carrier_ratings.recipient.score) }}</span> <strong>{{ s.carrier_ratings.recipient.score }}/5</strong><template v-if="s.carrier_ratings.recipient.comment"> · « {{ s.carrier_ratings.recipient.comment }} »</template></p>
+        <p v-if="s.carrier_ratings.merchant">Votre note du livreur : <span class="text-yellow-500" aria-hidden="true">{{ stars(s.carrier_ratings.merchant.score) }}</span> <strong>{{ s.carrier_ratings.merchant.score }}/5</strong><template v-if="s.carrier_ratings.merchant.comment"> · « {{ s.carrier_ratings.merchant.comment }} »</template></p>
+        <p v-if="s.carrier_ratings.recipient">Note du client : <span class="text-yellow-500" aria-hidden="true">{{ stars(s.carrier_ratings.recipient.score) }}</span> <strong>{{ s.carrier_ratings.recipient.score }}/5</strong><template v-if="s.carrier_ratings.recipient.comment"> · « {{ s.carrier_ratings.recipient.comment }} »</template></p>
         <button v-if="s.can_rate_courier" class="btn-secondary px-2 py-1" @click="openRating(s)">⭐ Noter le livreur</button>
       </div>
       <ol class="space-y-1 border-l-2 border-slate-100 pl-3 text-xs text-slate-600">
@@ -479,7 +479,7 @@ async function whatsapp(s) {
         <div>
           <p class="mb-1 text-sm font-medium">Note</p>
           <div class="flex gap-1" role="radiogroup" aria-label="Note du livreur">
-            <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rating.score === n" :aria-label="`${n} sur 5`" :class="['text-3xl leading-none', n <= rating.score ? 'text-amber-500' : 'text-slate-300']" @click="rating.score = n">★</button>
+            <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rating.score === n" :aria-label="`${n} sur 5`" :class="['text-3xl leading-none', n <= rating.score ? 'text-yellow-500' : 'text-slate-300']" @click="rating.score = n">★</button>
           </div>
         </div>
         <div>
