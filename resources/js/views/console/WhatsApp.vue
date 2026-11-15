@@ -383,7 +383,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
             <div v-for="m in current.messages" :key="m.id" class="flex" :class="m.direction === 'out' ? 'justify-end' : ''">
               <div class="max-w-[80%] whitespace-pre-line rounded-xl px-3 py-2" :class="m.direction === 'out' ? 'bg-emerald-100' : 'bg-white ring-1 ring-slate-200'">
                 {{ m.body }}
-                <span class="mt-1 block text-right text-[11px] text-slate-500">
+                <span class="mt-1 block text-right text-xs text-slate-500">
                   <template v-if="m.author">{{ m.author }} · </template>{{ formatDateTime(m.sent_at) }}<template v-if="m.direction === 'out' && STATUS[m.status]"> · {{ STATUS[m.status] }}</template>
                 </span>
                 <span v-if="m.error" class="block text-xs text-red-700">{{ m.error }}</span>

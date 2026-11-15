@@ -57,7 +57,7 @@ function warning() {
     <div class="flex items-start gap-3">
       <ColorIcon name="aide" :size="44" />
       <div class="min-w-0 flex-1">
-        <h3 class="text-[17px] font-extrabold">Répondre aux questions simples</h3>
+        <h3 class="text-lg font-extrabold">Répondre aux questions simples</h3>
         <p class="text-sm text-slate-600">Disponible ? Prix ? Tailles ? Frais de livraison ? L'assistant répond avec votre catalogue et votre stock. En cas de doute, il vous laisse la main.</p>
       </div>
       <ToggleSwitch v-model="form.enabled" label="Répondre automatiquement aux questions simples" class="mt-1" />

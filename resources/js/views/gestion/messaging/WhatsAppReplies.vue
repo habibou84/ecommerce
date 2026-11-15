@@ -52,7 +52,7 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
     <section class="card flex items-start gap-3 p-4 sm:p-5">
       <ColorIcon name="moto" :size="44" />
       <div class="min-w-0 flex-1">
-        <h2 class="text-[17px] font-extrabold">Prix de livraison</h2>
+        <h2 class="text-lg font-extrabold">Prix de livraison</h2>
         <p class="text-sm text-slate-600">« C'est combien la livraison à Yop ? » : le client reçoit le prix et les quartiers, à partir de vos tarifs.</p>
       </div>
       <RouterLink to="/gestion/livraisons/tarifs" class="btn-secondary shrink-0">Mes tarifs</RouterLink>
@@ -63,12 +63,12 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
 
     <RouterLink to="/gestion/textes-messages" class="card flex items-center gap-3 px-4 py-3">
       <ColorIcon name="cloche" :size="36" />
-      <span class="min-w-0 flex-1"><b class="block text-[15px]">Textes des messages</b><span class="text-[13px] text-slate-500">Changer les mots de chaque message</span></span>
+      <span class="min-w-0 flex-1"><b class="block text-base">Textes des messages</b><span class="text-sm text-slate-500">Changer les mots de chaque message</span></span>
       <Icon name="chevron" :size="16" class="text-slate-400" />
     </RouterLink>
 
     <section id="historique" class="card p-4 sm:p-5">
-      <h2 class="text-[17px] font-extrabold">Messages envoyés</h2>
+      <h2 class="text-lg font-extrabold">Messages envoyés</h2>
       <div class="mt-2 flex flex-wrap gap-1.5 text-sm" role="radiogroup" aria-label="Filtrer les messages">
         <button v-for="[key, text] in FILTERS" :key="key" type="button" role="radio" :aria-checked="filter === key" class="rounded-full px-3 py-1 font-medium"
                 :class="filter === key ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-700'" @click="filter = key">{{ text }}</button>

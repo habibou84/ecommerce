@@ -395,8 +395,8 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
             </div>
             <div class="mt-0.5 flex items-center gap-2">
               <span class="truncate text-xs" :class="c.unread ? 'text-slate-800' : 'text-slate-500'"><Icon v-if="drafts[c.id] && String(c.id) !== id" name="file" :size="12" class="mr-0.5 inline-block align-[-1px] text-amber-600" />{{ c.preview }}</span>
-              <span v-if="c.order" class="ml-auto shrink-0 rounded bg-slate-100 px-1.5 text-[11px] text-slate-600">{{ c.order.reference }}</span>
-              <span v-if="c.unread" class="shrink-0 rounded-full bg-emerald-700 px-1.5 text-[11px] font-semibold text-white" :class="{ 'ml-auto': !c.order }">{{ c.unread }}</span>
+              <span v-if="c.order" class="ml-auto shrink-0 rounded bg-slate-100 px-1.5 text-xs text-slate-600">{{ c.order.reference }}</span>
+              <span v-if="c.unread" class="shrink-0 rounded-full bg-emerald-700 px-1.5 text-xs font-semibold text-white" :class="{ 'ml-auto': !c.order }">{{ c.unread }}</span>
             </div>
           </RouterLink>
           <button v-if="listPage < listLastPage" type="button" class="w-full p-3 text-sm font-medium text-emerald-700 hover:bg-slate-50" @click="loadList(true)">Voir plus de conversations</button>
@@ -457,7 +457,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
                     <template v-else>{{ part }}</template>
                   </template>
                 </p>
-                <p class="mt-1 text-right text-[11px] text-slate-500" :title="formatDateTime(row.message.sent_at)">
+                <p class="mt-1 text-right text-xs text-slate-500" :title="formatDateTime(row.message.sent_at)">
                   <span v-if="row.message.by">{{ row.message.by }} · </span>{{ hour(row.message.sent_at) }}
                   <span v-if="row.message.direction === 'out' && statusIcon[row.message.status]" :class="row.message.status === 'read' ? 'text-sky-600' : row.message.status === 'failed' ? 'text-red-600' : ''" :aria-label="STATUS_LABEL[row.message.status]">{{ statusIcon[row.message.status] }}</span>
                 </p>

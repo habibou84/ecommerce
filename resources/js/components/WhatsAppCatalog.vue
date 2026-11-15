@@ -53,7 +53,7 @@ async function save(key, url, body) {
     <div class="flex items-start gap-3">
       <ColorIcon name="produit" :size="44" />
       <div class="min-w-0 flex-1">
-        <h2 class="text-[17px] font-extrabold">Catalogue WhatsApp</h2>
+        <h2 class="text-lg font-extrabold">Catalogue WhatsApp</h2>
         <p class="text-sm text-slate-600">Vos clients remplissent un panier dans WhatsApp ; il devient une commande « À confirmer ». {{ c.orders_last_30_days }} panier(s) en 30 jours.</p>
       </div>
     </div>
@@ -64,7 +64,7 @@ async function save(key, url, body) {
           <Icon v-if="s.done" name="check" :size="16" /><template v-else>{{ i + 1 }}</template>
         </span>
         <span class="min-w-0 flex-1">
-          <b class="block text-[15px]">{{ s.label }}</b>
+          <b class="block text-base">{{ s.label }}</b>
           <span class="block text-sm text-slate-600">{{ s.hint }}</span>
           <span v-if="s.key === 'meta' && s.key === current" class="mt-2 flex flex-wrap items-center gap-3">
             <RouterLink to="/gestion/marketing/suivi" class="btn-brand">Brancher avec Facebook</RouterLink>
@@ -83,7 +83,7 @@ async function save(key, url, body) {
     <p v-if="c.meta && !number" class="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">Les étapes 2 et 3 se vérifient avec votre numéro WhatsApp officiel connecté (en haut de l'accueil WhatsApp).</p>
 
     <div class="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-      <span class="min-w-0 flex-1 text-sm"><b class="block text-[15px]">Après un panier</b>Demander la commune, puis envoyer le récap avec « Je confirme »</span>
+      <span class="min-w-0 flex-1 text-sm"><b class="block text-base">Après un panier</b>Demander la commune, puis envoyer le récap avec « Je confirme »</span>
       <ToggleSwitch :model-value="c.cart_flow" :disabled="busy === 'flow'" label="Après un panier, demander la commune puis envoyer le récap" @update:model-value="save('flow', '/whatsapp/cart-flow', { enabled: $event })" />
     </div>
     <p v-if="error" class="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">{{ error }}</p>

@@ -274,7 +274,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
 
     <!-- ═══ Mes produits ═══ -->
     <template v-if="tab === 'products'">
-      <p class="text-[17px] font-extrabold">Que voir sur l'écran du live ?</p>
+      <p class="text-lg font-extrabold">Que voir sur l'écran du live ?</p>
       <div class="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Que voir sur l'écran du live ?">
         <button v-for="[value, icon, label] in MODES" :key="value" type="button" role="radio" :aria-checked="mode === value" :disabled="busy"
                 class="rounded-2xl border-2 bg-white px-1 py-3 text-center text-sm font-extrabold leading-tight" :class="mode === value ? 'border-emerald-700 bg-emerald-50 text-emerald-900 ring-4 ring-emerald-100' : 'border-slate-200 text-slate-700'" @click="setMode(value)">
@@ -299,12 +299,12 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
               <img v-if="i.image" :src="i.image" alt="" class="h-full w-full bg-slate-100 object-contain" loading="lazy" />
             </span>
             <span class="absolute left-1 top-1 rounded-md bg-red-600 px-1.5 text-xs font-black text-white">{{ i.code }}</span>
-            <span v-if="featured === i.id" class="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-black text-white">À L'ÉCRAN</span>
+            <span v-if="featured === i.id" class="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-pastille font-black text-white">À L'ÉCRAN</span>
             <span v-if="i.remaining === 0" class="absolute inset-x-0 top-0 grid h-[72px] place-items-center bg-white/60 text-sm font-black text-red-600">VENDU</span>
             <span class="block px-1.5 pb-1.5 pt-1 text-xs">
               <b class="block truncate">{{ i.title }}</b>
-              <span v-if="flashLeft(i) > 0" class="text-[11px] font-black text-red-600">⚡ {{ money(i.price) }}</span>
-              <span v-else class="text-[11px] text-slate-500">{{ money(i.price) }}</span>
+              <span v-if="flashLeft(i) > 0" class="text-xs font-black text-red-600">⚡ {{ money(i.price) }}</span>
+              <span v-else class="text-xs text-slate-500">{{ money(i.price) }}</span>
             </span>
           </button>
         </div>
@@ -341,7 +341,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
 
       <!-- Aperçu : ce que voient les clientes en ce moment -->
       <div class="relative cursor-zoom-in overflow-hidden rounded-2xl bg-slate-900" role="button" tabindex="0" aria-label="Agrandir l'écran du live" @click="expanded = true" @keydown.enter="expanded = true">
-        <p class="px-3 pt-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">À l'écran maintenant</p>
+        <p class="px-3 pt-2 text-xs font-extrabold uppercase tracking-wider text-slate-400">À l'écran maintenant</p>
         <div class="mx-auto aspect-video w-full max-w-md p-2">
           <div class="pointer-events-none h-full overflow-hidden rounded-lg"><LiveDisplay v-if="display" :data="display" :effects="false" /></div>
         </div>
@@ -364,7 +364,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
               {{ icon }} {{ SHORT[value] }}
             </button>
           </div>
-          <p class="mx-auto mt-3 w-full max-w-3xl px-4 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Touchez un produit pour changer</p>
+          <p class="mx-auto mt-3 w-full max-w-3xl px-4 text-xs font-extrabold uppercase tracking-wider text-slate-400">Touchez un produit pour changer</p>
           <div class="mx-auto mt-2 grid min-h-0 w-full max-w-3xl flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto px-3 pb-2 sm:grid-cols-4">
             <button v-for="i in items" :key="i.id" type="button" :disabled="busy"
                     class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="mode === 'product' && featured === i.id ? 'border-red-600' : 'border-transparent'" @click="showItem(i)">
@@ -373,7 +373,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
               </span>
               <span class="absolute left-1 top-1 rounded-md bg-red-600 px-1.5 text-xs font-black text-white">{{ i.code }}</span>
               <span v-if="i.remaining === 0" class="absolute inset-x-0 top-0 grid h-16 place-items-center bg-white/60 text-sm font-black text-red-600">VENDU</span>
-              <span class="block px-1.5 pb-1 pt-0.5 text-[11px]">
+              <span class="block px-1.5 pb-1 pt-0.5 text-xs">
                 <b class="block truncate">{{ i.title }}</b>
                 <span v-if="flashLeft(i) > 0" class="font-black text-red-600">⚡ {{ money(i.price) }} · {{ chrono(i) }}</span>
                 <span v-else class="text-slate-500">{{ money(i.price) }}</span>
@@ -392,8 +392,8 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       </Teleport>
 
       <div v-if="mode === 'product' && items.length > 1" class="grid grid-cols-2 gap-2">
-        <button type="button" class="btn-secondary whitespace-nowrap px-2 py-4 text-[15px]" :disabled="busy" @click="previous">◀ Produit précédent</button>
-        <button type="button" class="btn-brand whitespace-nowrap px-2 py-4 text-[15px]" :disabled="busy" @click="next">Produit suivant ▶</button>
+        <button type="button" class="btn-secondary whitespace-nowrap px-2 py-4 text-base" :disabled="busy" @click="previous">◀ Produit précédent</button>
+        <button type="button" class="btn-brand whitespace-nowrap px-2 py-4 text-base" :disabled="busy" @click="next">Produit suivant ▶</button>
       </div>
 
       <div class="flex items-center justify-between px-0.5">
@@ -408,8 +408,8 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
             <img v-if="i.image" :src="i.image" alt="" class="h-full w-full object-contain bg-slate-100" loading="lazy" />
           </span>
           <span class="absolute left-1.5 top-1.5 rounded-md bg-red-600 px-1.5 text-sm font-black text-white">{{ i.code }}</span>
-          <span v-if="mode === 'product' && featured === i.id" class="absolute right-1.5 top-1.5 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-black text-white">À L'ÉCRAN</span>
-          <span v-if="i.remaining === 0" class="absolute inset-x-0 top-0 grid aspect-[4/3] place-items-center bg-white/60 text-xl font-black text-red-600">VENDU</span>
+          <span v-if="mode === 'product' && featured === i.id" class="absolute right-1.5 top-1.5 rounded-full bg-red-600 px-2 py-0.5 text-pastille font-black text-white">À L'ÉCRAN</span>
+          <span v-if="i.remaining === 0" class="absolute inset-x-0 top-0 grid aspect-[4/3] place-items-center bg-white/60 text-lg font-black text-red-600">VENDU</span>
           <span class="block p-2 text-sm">
             <b class="block truncate">{{ i.title }}</b>
             <span class="text-xs text-slate-500">{{ money(i.price) }} · {{ i.remaining === 0 ? 'épuisé' : `${i.remaining} pièce${i.remaining > 1 ? 's' : ''}` }}</span>
@@ -468,7 +468,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
             <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 font-black text-white">2</span>
             <div class="min-w-0 flex-1">
               <label for="screen-code" class="block text-base font-bold">Tapez le code affiché sur la télé :</label>
-              <input id="screen-code" v-model="code" class="input mt-2 py-3 text-center text-4xl font-black tracking-[.6em]" inputmode="numeric" maxlength="4" placeholder="····" autocomplete="off" />
+              <input id="screen-code" v-model="code" class="input mt-2 py-3 text-center text-3xl font-black tracking-[.6em]" inputmode="numeric" maxlength="4" placeholder="····" autocomplete="off" />
               <p v-if="pairErrors.code" class="mt-1 text-sm text-red-600">{{ pairErrors.code }}</p>
             </div>
           </div>
@@ -526,11 +526,11 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       <div v-if="preview" class="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" @click.self="preview = false">
         <div class="text-center">
           <div class="relative mx-auto overflow-hidden rounded-[22px] bg-gradient-to-b from-amber-800 to-stone-900 shadow-2xl" :style="{ width: `${PHONE_W}px`, height: `${PHONE_W * 16 / 9}px` }">
-            <span class="absolute bottom-8 left-1/2 -translate-x-1/2 text-[120px] leading-none" aria-hidden="true">🧕🏾</span>
+            <span class="absolute bottom-8 left-1/2 -translate-x-1/2 text-9xl leading-none" aria-hidden="true">🧕🏾</span>
             <iframe v-for="(l, i) in STUDIO_LINKS" :key="l.key" :src="studioUrl(l.key)" :title="`Aperçu : ${l.label}`" class="absolute border-0" scrolling="no"
                     :style="{ width: `${CARD.w}px`, height: `${CARD.h}px`, transform: `scale(${previewScale})`, transformOrigin: '0 0', background: 'transparent',
                               left: `${previewGap + i * (CARD.w * previewScale + previewGap)}px`, top: '28px' }" />
-            <span class="absolute inset-x-2 bottom-2 h-6 rounded-full bg-white/20 px-3 py-1 text-left text-[10px] text-white">Ajouter un commentaire…</span>
+            <span class="absolute inset-x-2 bottom-2 h-6 rounded-full bg-white/20 px-3 py-1 text-left text-pastille text-white">Ajouter un commentaire…</span>
           </div>
           <p class="mt-3 text-sm text-white">Taille réelle d'un téléphone : si c'est lisible ici, ce l'est pour vos clientes.</p>
           <button type="button" class="btn-secondary mt-3" @click="preview = false">Fermer</button>

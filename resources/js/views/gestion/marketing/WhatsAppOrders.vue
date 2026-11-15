@@ -149,8 +149,8 @@ async function share() {
     <!-- ═══ Préparer ═══ -->
     <template v-if="!session || session.status === 'draft'">
       <section class="rounded-[24px] bg-emerald-700 px-4 py-5 text-white">
-        <h2 class="text-[24px] font-black leading-tight">💬 Commandes WhatsApp</h2>
-        <p class="mt-1 text-[15px] font-semibold text-emerald-50">Sans live : vos clients envoient le code (A1, A2…) ou « LISTE » sur WhatsApp, et la commande s'enregistre toute seule.</p>
+        <h2 class="text-2xl font-black leading-tight">💬 Commandes WhatsApp</h2>
+        <p class="mt-1 text-base font-semibold text-emerald-50">Sans live : vos clients envoient le code (A1, A2…) ou « LISTE » sur WhatsApp, et la commande s'enregistre toute seule.</p>
       </section>
       <section class="card p-4">
         <div class="flex items-center justify-between gap-2">
@@ -237,7 +237,7 @@ async function share() {
       <section class="rounded-[24px] bg-brand-grad p-5 text-white">
         <span class="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-bold">FERMÉ · {{ formatDateTime(session.ended_at) }}</span>
         <p class="mt-1 text-sm font-semibold text-white/90">{{ session.title }}</p>
-        <p class="mt-2 text-4xl font-extrabold">{{ money(session.summary?.amount ?? 0) }}</p>
+        <p class="mt-2 text-3xl font-extrabold">{{ money(session.summary?.amount ?? 0) }}</p>
         <div class="mt-3 grid grid-cols-3 gap-2 text-xs">
           <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ session.summary?.orders ?? 0 }}</b>commandes</span>
           <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ pieces }}</b>pièces</span>

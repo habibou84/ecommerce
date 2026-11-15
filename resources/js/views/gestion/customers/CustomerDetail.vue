@@ -107,13 +107,13 @@ async function relaunch() {
       <div class="flex items-center gap-3">
         <span class="grid h-14 w-14 shrink-0 place-items-center rounded-full text-xl font-black" :class="customer.is_blacklisted ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'">{{ initial }}</span>
         <div class="min-w-0 flex-1">
-          <h2 class="truncate text-xl font-bold">{{ customer.name || 'Sans nom' }}</h2>
+          <h2 class="truncate text-2xl font-bold">{{ customer.name || 'Sans nom' }}</h2>
           <p class="text-sm text-slate-500">{{ customer.phone_display }}</p>
           <div class="mt-1 flex flex-wrap gap-1 empty:hidden">
-            <span v-if="customer.is_blacklisted" class="rounded-full bg-red-100 px-2 text-[11px] font-extrabold text-red-700">Liste noire</span>
-            <span v-else-if="customer.is_risky" class="rounded-full bg-amber-100 px-2 text-[11px] font-extrabold text-amber-800">⚠ {{ customer.refused_count }} refus</span>
-            <span v-if="customer.is_loyal" class="rounded-full bg-emerald-100 px-2 text-[11px] font-extrabold text-emerald-800">⭐ Fidèle</span>
-            <span v-for="t in customer.tags" :key="t" class="rounded-full bg-slate-100 px-2 text-[11px] font-bold text-slate-600">{{ t }}</span>
+            <span v-if="customer.is_blacklisted" class="rounded-full bg-red-100 px-2 text-xs font-extrabold text-red-700">Liste noire</span>
+            <span v-else-if="customer.is_risky" class="rounded-full bg-amber-100 px-2 text-xs font-extrabold text-amber-800">⚠ {{ customer.refused_count }} refus</span>
+            <span v-if="customer.is_loyal" class="rounded-full bg-emerald-100 px-2 text-xs font-extrabold text-emerald-800">⭐ Fidèle</span>
+            <span v-for="t in customer.tags" :key="t" class="rounded-full bg-slate-100 px-2 text-xs font-bold text-slate-600">{{ t }}</span>
           </div>
         </div>
       </div>
@@ -140,7 +140,7 @@ async function relaunch() {
 
     <!-- Onglets -->
     <div class="flex gap-2 overflow-x-auto [scrollbar-width:none]" role="tablist">
-      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="tab === t.key" class="shrink-0 rounded-full px-3.5 py-1.5 text-[13.5px] font-extrabold"
+      <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-selected="tab === t.key" class="shrink-0 rounded-full px-3.5 py-1.5 text-sm font-extrabold"
               :class="tab === t.key ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 shadow-soft'" @click="tab = t.key">{{ t.label }}</button>
     </div>
 

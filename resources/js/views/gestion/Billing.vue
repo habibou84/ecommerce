@@ -230,7 +230,7 @@ async function cancel(value) {
         <label v-for="p in paidPlans" :key="p.code" class="flex flex-col gap-2 rounded-xl border p-4 text-sm" :class="[choice.plan === p.code ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200', priceOf(p) ? 'cursor-pointer' : 'opacity-50']">
           <span class="flex items-center gap-2"><input v-model="choice.plan" type="radio" :value="p.code" :disabled="!priceOf(p)" class="accent-emerald-700" /><span class="text-base font-semibold">{{ p.name }}</span>
             <span v-if="p.code === data.plan.code && sub?.status !== 'trialing'" class="ml-auto rounded bg-white px-1.5 text-xs text-emerald-800">Actuelle</span></span>
-          <span v-if="priceOf(p)" class="text-xl font-semibold">{{ money(priceOf(p)) }}<span class="text-sm font-normal text-slate-500"> / {{ CYCLE_UNIT[choice.cycle] }}</span></span>
+          <span v-if="priceOf(p)" class="text-2xl font-semibold">{{ money(priceOf(p)) }}<span class="text-sm font-normal text-slate-500"> / {{ CYCLE_UNIT[choice.cycle] }}</span></span>
           <span v-else class="text-slate-500">Pas de paiement à la {{ CYCLE_UNIT[choice.cycle] }}</span>
           <span v-if="choice.cycle === 'yearly' && yearlySaving(p)" class="text-xs font-medium text-emerald-700">{{ money(yearlySaving(p)) }} d'économie par an</span>
           <ul class="space-y-0.5 text-slate-600">

@@ -81,7 +81,7 @@ const removeTest = (store) => saveTests(data.value.test_stores.filter((s) => s.i
 <template>
   <div class="space-y-5">
     <div>
-      <h1 class="text-xl font-semibold">Fonctions</h1>
+      <h1 class="text-2xl font-semibold">Fonctions</h1>
       <p class="mt-1 text-sm text-slate-600">
         <b>Masquée</b> : invisible pour les marchands, le serveur refuse les appels. <b>Test</b> : seulement pour les boutiques de test ci-dessous
         (par exemple pour la vérification de Meta). <b>Active</b> : pour tout le monde, dans la limite de l'offre. Masquer ne supprime rien : les

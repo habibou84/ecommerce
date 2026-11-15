@@ -78,7 +78,7 @@ async function close(id) {
 
 <template>
   <div class="max-w-3xl space-y-4">
-    <h2 class="text-xl font-semibold">Équipe de la console</h2>
+    <h2 class="text-2xl font-semibold">Équipe de la console</h2>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="added" tone="success">{{ added }}</Alert>
 

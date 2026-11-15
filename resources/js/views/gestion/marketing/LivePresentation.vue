@@ -133,7 +133,7 @@ onUnmounted(() => window.removeEventListener('keydown', keys))
   <div v-if="!started" class="min-h-screen bg-slate-50 px-4 py-6">
     <div class="mx-auto max-w-md space-y-3">
       <button type="button" class="text-sm text-emerald-700" @click="router.push(`/gestion/live/${id}`)">← Retour au live</button>
-      <h1 class="text-xl font-extrabold">Mode présentation</h1>
+      <h1 class="text-2xl font-extrabold">Mode présentation</h1>
       <p class="text-sm text-slate-600">La page à partager à l'écran dans votre live TikTok : l'article en grand en haut, votre visage en bas. Aucune commande, aucun numéro ni montant n'y apparaît.</p>
       <p v-if="error" class="rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
       <section class="card space-y-1 p-4">

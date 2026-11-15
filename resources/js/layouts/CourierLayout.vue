@@ -121,7 +121,7 @@ const badge = (tab) => (tab.to === '/livreur' ? offline.offers : 0)
       <RouterLink v-for="tab in TABS" :key="tab.to" :to="tab.to" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs"
                   :class="tab.active($route.path) ? 'font-semibold text-emerald-700' : 'text-slate-500'">
         <span class="relative text-xl leading-none">{{ tab.icon }}
-          <span v-if="badge(tab)" class="absolute -top-1.5 -right-3 min-w-5 rounded-full bg-red-600 px-1 text-[11px] font-bold leading-5 text-white">{{ badge(tab) }}</span>
+          <span v-if="badge(tab)" class="absolute -top-1.5 -right-3 min-w-5 rounded-full bg-red-600 px-1 text-pastille font-bold leading-5 text-white">{{ badge(tab) }}</span>
           <span v-else-if="tab.to === '/livreur/caisse' && cashAlert" class="absolute -top-1 -right-1.5 h-3 w-3 rounded-full bg-amber-500 ring-2 ring-white" />
         </span>{{ tab.label }}
       </RouterLink>

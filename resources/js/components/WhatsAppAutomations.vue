@@ -275,7 +275,7 @@ const META_STEPS = [
       <div class="flex items-start gap-3">
         <ColorIcon name="cloche" :size="44" />
         <div class="min-w-0 flex-1">
-          <h3 class="text-[17px] font-extrabold">Envoyez les messages tout seuls</h3>
+          <h3 class="text-lg font-extrabold">Envoyez les messages tout seuls</h3>
           <p class="text-sm text-slate-600">Confirmation, livreur en route, livraison, avis, lien de paiement… envoyés automatiquement depuis votre numéro WhatsApp officiel.</p>
         </div>
       </div>
@@ -340,7 +340,7 @@ const META_STEPS = [
               <button type="button" class="min-w-0 flex-1 text-left" :aria-expanded="open === key" @click="open = open === key ? '' : key">
                 <span class="block text-sm font-semibold">{{ label(key) }}</span>
                 <span class="block text-xs text-slate-500">{{ when(key) }}</span>
-                <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium" :class="badge(key)[1]">{{ badge(key)[0] }}</span>
+                <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium" :class="badge(key)[1]">{{ badge(key)[0] }}</span>
               </button>
               <RouterLink v-if="data.events[key].manual" to="/gestion/marketing/relances" class="text-xs font-medium text-emerald-700 hover:underline">Relances</RouterLink>
               <ToggleSwitch v-else :model-value="isOn(key)" :label="label(key)" :disabled="busy === key || account.status === 'disabled'" @update:model-value="toggle(key, $event)" />

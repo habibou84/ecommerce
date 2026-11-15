@@ -93,7 +93,7 @@ const chip = (on) => (on ? 'bg-violet-700 text-white' : props.dark ? 'bg-white/1
           <button type="button" class="rounded-lg py-2 text-sm font-extrabold" :class="dark ? 'bg-white/10' : 'bg-violet-50'" :disabled="busy || !!state?.announce_at" @click="moment('announce')">{{ state?.announce_at ? '📣 Annoncé ✓' : '📣 Annoncer (5 min)' }}</button>
         </div>
         <div class="mt-1.5 grid grid-cols-3 gap-1" role="radiogroup" aria-label="Comment le faire deviner">
-          <button v-for="[value, label] in MYSTERY_MODES" :key="value" type="button" role="radio" :aria-checked="(showSettings.mystery_mode || 'zoom') === value" class="rounded-lg py-1.5 text-[11px] font-extrabold" :class="chip((showSettings.mystery_mode || 'zoom') === value)" :disabled="busy" @click="saveShow({ mystery_mode: value })">{{ label }}</button>
+          <button v-for="[value, label] in MYSTERY_MODES" :key="value" type="button" role="radio" :aria-checked="(showSettings.mystery_mode || 'zoom') === value" class="rounded-lg py-1.5 text-xs font-extrabold" :class="chip((showSettings.mystery_mode || 'zoom') === value)" :disabled="busy" @click="saveShow({ mystery_mode: value })">{{ label }}</button>
         </div>
       </template>
       <p v-else class="mt-1 text-xs" :class="dark ? 'text-slate-300' : 'text-violet-700'">Aucun article mystère : coche « 🎁 Mystère » sur un article (onglet Plan, ou à la préparation).</p>
@@ -115,7 +115,7 @@ const chip = (on) => (on ? 'bg-violet-700 text-white' : props.dark ? 'bg-white/1
 
     <!-- Autres moments -->
     <div class="grid grid-cols-3 gap-1.5">
-      <button v-for="[type, icon, label] in MOMENTS" :key="type" type="button" class="rounded-xl px-1 py-2 text-center text-[11px] font-extrabold leading-tight disabled:opacity-60" :class="dark ? 'bg-white/10' : 'bg-white shadow-sm'" :disabled="busy || (type === 'last' && !!state?.last_until && new Date(state.last_until) > new Date())" @click="moment(type)">
+      <button v-for="[type, icon, label] in MOMENTS" :key="type" type="button" class="rounded-xl px-1 py-2 text-center text-xs font-extrabold leading-tight disabled:opacity-60" :class="dark ? 'bg-white/10' : 'bg-white shadow-sm'" :disabled="busy || (type === 'last' && !!state?.last_until && new Date(state.last_until) > new Date())" @click="moment(type)">
         <span class="block text-xl" aria-hidden="true">{{ icon }}</span>{{ label }}
       </button>
     </div>
@@ -138,7 +138,7 @@ const chip = (on) => (on ? 'bg-violet-700 text-white' : props.dark ? 'bg-white/1
         <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="chip(showSettings.light)" :disabled="busy" @click="saveShow({ light: !showSettings.light })">🪶 Mode léger</button>
         <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="chip(showSettings.camera)" :disabled="busy" @click="saveShow({ camera: !showSettings.camera })">🎥 Mode caméra</button>
       </div>
-      <p class="mt-2 text-[11px]" :class="dark ? 'text-slate-400' : 'text-violet-700'">Sur la télé, touchez une fois « 🔊 Activer le son du show » pour entendre les sons.</p>
+      <p class="mt-2 text-xs" :class="dark ? 'text-slate-400' : 'text-violet-700'">Sur la télé, touchez une fois « 🔊 Activer le son du show » pour entendre les sons.</p>
     </details>
   </div>
 </template>

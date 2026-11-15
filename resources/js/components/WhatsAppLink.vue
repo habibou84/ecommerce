@@ -105,7 +105,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
     <div v-else class="flex items-start gap-3">
       <ColorIcon name="telephone" :size="44" />
       <div class="min-w-0 flex-1">
-        <h3 class="text-[17px] font-extrabold">Conversations clients dans Messages</h3>
+        <h3 class="text-lg font-extrabold">Conversations clients dans Messages</h3>
         <p class="text-sm text-slate-600">Vos clients vous écrivent, vous répondez depuis l'application, et tout reste sur votre téléphone.</p>
       </div>
       <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[link.status][1]">{{ STATUS[link.status][0] }}</span>
