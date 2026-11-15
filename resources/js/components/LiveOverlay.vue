@@ -95,6 +95,8 @@ const gridItems = computed(() => {
     <div v-else :key="shown.id" class="lo-card">
       <!-- Rien sur la photo : le code est en dessous -->
       <div class="lo-photo">
+        <!-- La photo entière (rien de coupé), sur un fond fait de la même photo floutée : pas de bandes vides -->
+        <div v-if="shown.image" class="lo-photo-bg" :style="{ backgroundImage: `url('${shown.image}')` }" />
         <img v-if="shown.image" :src="shown.image" alt="" />
         <span v-if="flashLeft > 0 && shown.remaining > 0" class="lo-chrono">⏱ {{ chrono }}</span>
         <span v-else-if="shown.remaining === 0" class="lo-sold">VENDU</span>
@@ -117,7 +119,9 @@ const gridItems = computed(() => {
 /* La carte : la photo en grand avec le code, puis « Envoie A1 » et le numéro (480 × 780 : 12 em × 19,5 em) */
 .lo-card { display: flex; flex-direction: column; background: #fff; }
 .lo-photo { position: relative; flex: 1; min-height: 0; background: #fde7c7; }
-.lo-photo img { width: 100%; height: 100%; object-fit: cover; }
+.lo-photo { overflow: hidden; }
+.lo-photo-bg { position: absolute; inset: -10%; background-size: cover; background-position: center; filter: blur(.8em) brightness(.75) saturate(1.1); }
+.lo-photo img { position: relative; width: 100%; height: 100%; object-fit: contain; }
 .lo-chrono, .lo-sold { position: absolute; right: .3em; bottom: .3em; background: #fff; color: #b91c1c; font-weight: 900; font-size: 1.4em; border-radius: .3em; padding: .05em .4em; }
 .lo-sold { background: #111827; color: #fff; }
 .lo-foot { flex-shrink: 0; background: #0f172a; text-align: center; padding: .35em .3em .45em; }

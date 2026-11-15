@@ -631,17 +631,18 @@ const ago = (iso) => {
               </div>
             </Teleport>
           </div>
+          <!-- TikTok Studio au repos : la carte seule (deux fois plus large que dans un faux téléphone).
+               Agrandie : la même carte posée sur le live d'une cliente. -->
           <div v-else class="flex justify-center">
-            <div v-if="big" class="h-[min(34vh,260px)] rounded-[18px] border-[3px] border-slate-600 bg-gradient-to-b from-amber-800 to-stone-900" style="aspect-ratio: 9 / 16" aria-hidden="true" />
+            <div v-if="big" class="h-[min(34vh,260px)]" style="aspect-ratio: 480 / 780" aria-hidden="true" />
             <Teleport to="body" :disabled="!big">
               <div
-                class="overflow-hidden bg-gradient-to-b from-amber-800 to-stone-900"
-                :class="big ? 'rounded-[18px] cursor-zoom-out' : 'relative h-[min(34vh,260px)] rounded-[18px] border-[3px] border-slate-600 cursor-zoom-in'"
-                :style="big ? studioBigStyle : { aspectRatio: '9 / 16' }"
+                class="overflow-hidden"
+                :class="big ? 'rounded-[18px] bg-gradient-to-b from-amber-800 to-stone-900 cursor-zoom-out' : 'relative h-[min(34vh,260px)] cursor-zoom-in'"
+                :style="big ? studioBigStyle : { aspectRatio: '480 / 780' }"
                 role="button" tabindex="0" :aria-label="big ? 'Fermer l\'aperçu agrandi' : 'Agrandir l\'aperçu de l\'écran'"
                 @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
               >
-                <span v-if="!big" class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[56px] leading-none" aria-hidden="true">🧕🏾</span>
                 <!-- Agrandi : le live d'une cliente (la vendeuse, la barre du haut, des commentaires d'exemple) -->
                 <template v-if="big">
                   <span class="absolute bottom-0 left-1/2 h-[30%] w-[60%] -translate-x-1/2 rounded-t-full bg-[#2a1a10]" aria-hidden="true" />
@@ -659,7 +660,8 @@ const ago = (iso) => {
                   <div class="absolute bottom-3.5 left-2.5 right-14 flex h-8 items-center rounded-full bg-black/35 pl-3 text-[11px] text-white/75" aria-hidden="true">Ajouter un commentaire…</div>
                   <svg class="absolute bottom-4 right-3" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" /></svg>
                 </template>
-                <div class="absolute left-[3%] w-[55%]" :class="big ? 'top-[54px]' : 'top-[3%]'" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
+                <!-- La carte : toute la place au repos ; en haut à gauche, 55 % de large, sur le live agrandi -->
+                <div class="absolute" :class="big ? 'left-[3%] top-[54px] w-[55%]' : 'inset-0'" style="aspect-ratio: 480 / 780"><LiveOverlay v-if="display" :data="display" format="carte" /></div>
               </div>
             </Teleport>
           </div>
