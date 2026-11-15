@@ -7,7 +7,7 @@ import StateBadge from '../../../components/StateBadge.vue'
 import ToggleSwitch from '../../../components/ToggleSwitch.vue'
 import WhatsAppCatalog from '../../../components/WhatsAppCatalog.vue'
 import http, { errorMessage } from '../../../lib/http'
-import { money } from '../../../lib/format'
+import { formatDateTime, money } from '../../../lib/format'
 
 /**
  * WhatsApp › Assistant des ventes : les commandes prises dans WhatsApp s'enregistrent toutes seules. Récap écrit par
@@ -46,28 +46,80 @@ const codes = computed(() => data.value?.codes)
     <Alert v-if="error">{{ error }}</Alert>
 
     <div class="grid gap-4 lg:grid-cols-2">
-      <!-- Récap : écrit par le marchand depuis son téléphone -->
-      <section class="card space-y-3 p-4 sm:p-5">
+      <!-- Récap : le marchand écrit « récap » depuis son téléphone quand le client a donné sa commande -->
+      <section class="card space-y-4 p-4 sm:p-5 lg:col-span-2">
         <div class="flex items-start gap-3">
           <ColorIcon name="livre" :size="44" />
           <div class="min-w-0 flex-1">
             <h2 class="text-[17px] font-extrabold">Récap</h2>
-            <p class="text-sm text-slate-600">Vous discutez depuis votre téléphone, puis vous écrivez « récap » : la commande part au client avec « Je confirme ».</p>
+            <p class="text-sm text-slate-600">La commande s'enregistre toute seule à partir de votre conversation WhatsApp.</p>
           </div>
           <ToggleSwitch :model-value="data.recap.enabled" :disabled="busy === 'recap'" label="Récap allumé" @update:model-value="save('recap', '/whatsapp/recap', { enabled: $event })" />
         </div>
-        <div class="grid grid-cols-3 gap-2 text-xs text-slate-600">
-          <span class="rounded-xl bg-slate-50 p-2.5"><b class="block text-base text-slate-900">{{ data.recap.remind_hours }} h</b>relance du client</span>
-          <span class="rounded-xl bg-slate-50 p-2.5"><b class="block text-base text-slate-900">{{ data.recap.expire_hours }} h</b>annulation, stock rendu</span>
-          <span class="rounded-xl p-2.5" :class="data.recap.waiting ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-50'"><b class="block text-base" :class="data.recap.waiting ? 'text-ocre-800' : 'text-slate-900'">{{ data.recap.waiting }}</b>sans réponse</span>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <!-- Les trois étapes -->
+          <ol class="space-y-3">
+            <li class="flex gap-3">
+              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white" aria-hidden="true">1</span>
+              <span class="min-w-0 text-sm text-slate-700"><b class="block text-[15px] text-slate-900">Votre client vous écrit sur WhatsApp</b>Vous discutez normalement, depuis votre téléphone.</span>
+            </li>
+            <li class="flex gap-3">
+              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white" aria-hidden="true">2</span>
+              <span class="min-w-0 text-sm text-slate-700">
+                <b class="block text-[15px] text-slate-900">Dès qu'il vous a dit ce qu'il commande, écrivez « récap »</b>
+                C'est-à-dire l'article, la taille ou la couleur, la quantité, et si possible sa commune et son quartier.
+                L'application relit la conversation et prépare la commande. S'il manque la taille ou la commune, elle les demande au client.
+              </span>
+            </li>
+            <li class="flex gap-3">
+              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white" aria-hidden="true">3</span>
+              <span class="min-w-0 text-sm text-slate-700"><b class="block text-[15px] text-slate-900">Le client reçoit le récapitulatif</b>Articles, prix, frais de livraison, total, et un bouton « Je confirme ». Il touche le bouton : la commande est enregistrée comme confirmée.</span>
+            </li>
+          </ol>
+
+          <!-- Exemple, avec le bon moment marqué -->
+          <figure class="space-y-1.5 rounded-2xl bg-slate-50 p-3 text-sm" aria-label="Exemple de conversation">
+            <figcaption class="text-xs font-black uppercase tracking-wide text-slate-500">Exemple</figcaption>
+            <p class="w-fit max-w-[85%] rounded-xl rounded-tl-sm bg-white px-3 py-1.5 shadow-soft"><b>Client :</b> Bonsoir, la robe wax rouge vous avez en M ?</p>
+            <p class="ml-auto w-fit max-w-[85%] rounded-xl rounded-tr-sm bg-emerald-100 px-3 py-1.5"><b>Vous :</b> Oui ma chérie, 15 000 F.</p>
+            <p class="w-fit max-w-[85%] rounded-xl rounded-tl-sm bg-white px-3 py-1.5 shadow-soft"><b>Client :</b> Ok, je prends une. Je suis à Cocody Angré.</p>
+            <p class="flex items-start gap-1.5 px-1 text-[13px] font-semibold text-emerald-800"><Icon name="check" :size="15" class="mt-0.5 shrink-0" />Le client a donné l'article, la taille, la quantité et le lieu : c'est le moment.</p>
+            <p class="ml-auto w-fit rounded-xl rounded-tr-sm bg-emerald-100 px-3 py-1.5 font-bold"><b>Vous :</b> récap</p>
+            <div class="w-fit max-w-[90%] rounded-xl rounded-tl-sm bg-white px-3 py-2 shadow-soft">
+              <p><b>Le client reçoit :</b> Robe wax rouge, taille M · Livraison Cocody Angré : 1 500 F · <b>Total : 16 500 F</b></p>
+              <span class="mt-1.5 inline-block rounded-lg border border-emerald-200 px-3 py-1 text-[13px] font-bold text-emerald-800">Je confirme</span>
+            </div>
+          </figure>
         </div>
+
+        <!-- Ce qui se passe sans réponse, et qui n'a pas encore confirmé -->
+        <ul class="space-y-1 text-sm text-slate-700">
+          <li><b>Pas de réponse au bout de {{ data.recap.remind_hours }} h ?</b> On relance le client.</li>
+          <li><b>Toujours rien au bout de {{ data.recap.expire_hours }} h ?</b> La commande est annulée et l'article remis en stock. Rien n'est compté.</li>
+        </ul>
+        <RouterLink v-if="data.recap.waiting" to="/gestion/whatsapp/ventes#commandes" class="flex items-center gap-2 rounded-xl bg-ocre-50 p-3 text-sm font-semibold text-ocre-800">
+          <Icon name="clock" :size="16" class="shrink-0" />
+          <span class="min-w-0 flex-1">{{ data.recap.waiting }} {{ data.recap.waiting > 1 ? "clients n'ont pas encore confirmé" : "client n'a pas encore confirmé" }}</span>
+          <span class="font-black">Voir ▸</span>
+        </RouterLink>
+
+        <!-- Ce qu'il faut pour que ça marche, avec le témoin -->
+        <div class="rounded-xl border border-slate-200 p-3 text-sm">
+          <p class="text-slate-700"><b class="text-slate-900">Pour que ça marche :</b> votre numéro WhatsApp officiel doit rester dans l'application WhatsApp Business de votre téléphone.</p>
+          <p v-if="data.phone_message_at" class="mt-1.5 flex items-center gap-1.5 font-semibold text-emerald-800"><Icon name="check" :size="15" class="shrink-0" />Ça marche : message reçu de votre téléphone le {{ formatDateTime(data.phone_message_at) }}</p>
+          <p v-else class="mt-1.5 font-semibold text-ocre-800">Pour vérifier, écrivez un message à un client depuis votre téléphone : il doit apparaître dans Conversations.</p>
+        </div>
+
         <details class="text-sm">
-          <summary class="cursor-pointer font-semibold text-emerald-700">Comment ça marche</summary>
-          <ul class="mt-2 list-disc space-y-1 pl-5 text-slate-600">
-            <li>« récap » seul : l'application relit la conversation. « récap 2 robes M Angré » : vos précisions comptent d'abord.</li>
-            <li>S'il manque la taille ou la commune, le client la choisit dans une liste.</li>
-            <li>Le client touche « Je confirme », ou vous écrivez « confirmé » dans la discussion.</li>
-            <li>Il faut le numéro officiel resté dans l'application WhatsApp Business (coexistence).</li>
+          <summary class="cursor-pointer font-semibold text-emerald-700">Plus de détails</summary>
+          <ul class="mt-2 list-disc space-y-1.5 pl-5 text-slate-600">
+            <li><b>Le client commande plusieurs articles :</b> écrivez « récap » une fois qu'il a tout donné. S'il en ajoute un après, écrivez « récap » à nouveau : la même commande est mise à jour.</li>
+            <li><b>La conversation est confuse</b> (plusieurs articles discutés, changement d'avis) : écrivez ce qu'il a vraiment choisi après le mot, par exemple « récap 2 robes wax M Angré ». Ce que vous écrivez passe avant le reste.</li>
+            <li><b>Le client hésite encore entre plusieurs articles :</b> attendez qu'il ait choisi. Sans article reconnu, rien n'est envoyé au client et vous êtes prévenu.</li>
+            <li><b>Le client répond « oui » par écrit au lieu de toucher le bouton :</b> écrivez « confirmé » dans la discussion, la commande est confirmée.</li>
+            <li>Pas besoin de demander son nom ni son numéro : WhatsApp les donne déjà.</li>
+            <li>Chaque commande confirmée compte 1 commande de votre solde.</li>
           </ul>
         </details>
       </section>
