@@ -593,11 +593,8 @@ const ago = (iso) => {
 
       <!-- Télé ou TikTok Studio : connecté, ou bandeau à déplier pour connecter -->
       <template v-if="shownView !== 'pin'">
-        <p v-if="shownView === 'tv' ? tvOnline : studioOnline" class="flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-1.5 text-[12.5px] font-extrabold text-emerald-300">
-          <span class="min-w-0 flex-1">✓ {{ shownView === 'tv' ? 'Télé connectée' : 'TikTok Studio connecté' }}</span>
-          <button type="button" class="shrink-0 rounded-lg bg-white/15 px-2.5 py-1 text-[12px] font-black text-white" @click="openConnect(shownView, true)">Gérer</button>
-        </p>
-        <div v-else class="flex items-center gap-2 rounded-xl bg-red-500/15 px-3 py-2 ring-1 ring-red-400/50">
+        <!-- Connecté : rien ici (le point vert de l'onglet le dit, « Gérer les écrans » est dans Plus) ; pas connecté : le bandeau rouge -->
+        <div v-if="!(shownView === 'tv' ? tvOnline : studioOnline)" class="flex items-center gap-2 rounded-xl bg-red-500/15 px-3 py-2 ring-1 ring-red-400/50">
           <b class="min-w-0 flex-1 text-[13px]">{{ shownView === 'tv' ? '📺 Télé pas connectée' : '📱 TikTok Studio pas connecté' }}</b>
           <button type="button" class="shrink-0 rounded-lg bg-white px-3 py-1.5 text-[13px] font-black text-slate-900" @click="openConnect(shownView)">Connecter</button>
         </div>
@@ -608,7 +605,8 @@ const ago = (iso) => {
              déplacé et non recréé : pas de son en double.
              Télé : l'aperçu réel, à la forme exacte de l'écran connecté, le plus grand possible sur fond noir.
              TikTok Studio : la carte posée sur le live d'une cliente (vidéo et commentaires d'exemple). -->
-        <div class="sticky top-[50px] z-10 -mx-1 bg-[#0b1120] px-1 pb-2">
+        <!-- L'aperçu est en haut au départ, puis part avec la page quand on fait défiler : toute la place pour les conseils -->
+        <div class="relative z-10 -mx-1 bg-[#0b1120] px-1 pb-2">
           <Teleport to="body">
             <template v-if="big">
               <div class="fixed inset-0 z-[80] bg-black" aria-hidden="true" @click="big = false" />
@@ -679,57 +677,59 @@ const ago = (iso) => {
           <button v-if="plan.next.value" type="button" class="w-full rounded-xl bg-amber-400 px-3 py-3 text-[14px] font-extrabold text-slate-900" :class="{ 'animate-pulse': overtime }" @click="act({ kind: 'plan' })">
             {{ plan.current.value ? 'Passer à' : 'Commencer' }} : {{ plan.next.value.label.replace(/^\S+\s/, '') }} ▶
           </button>
-          <!-- 1. Le plan : ce qui est à l'écran maintenant et ce qui vient ensuite -->
-          <div class="rounded-2xl bg-violet-500/15 p-2.5 ring-1 ring-violet-400/30">
-            <div class="flex items-center gap-2 text-[11px] font-black tracking-wider text-violet-200 uppercase">
-              <span>📋 Plan du live<template v-if="plan.current.value"> · étape {{ plan.currentIndex.value + 1 }} sur {{ plan.steps.value.length }}</template></span>
-              <span class="ml-auto font-bold tracking-normal normal-case text-slate-400">{{ planLeft }}</span>
+          <!-- 1. Maintenant à l'écran : l'étape et la phrase à dire, en grand -->
+          <div v-if="plan.current.value" class="rounded-2xl bg-emerald-500/15 p-3 ring-2 ring-emerald-400/60">
+            <p class="text-[12px] font-black tracking-wider text-emerald-300 uppercase">🟢 Maintenant à l'écran · étape {{ plan.currentIndex.value + 1 }} sur {{ plan.steps.value.length }}</p>
+            <p class="mt-1 text-[18px] leading-snug font-black">{{ plan.current.value.label }}</p>
+            <p class="text-[14px] font-semibold" :class="overtime ? 'text-amber-300' : 'text-slate-300'">depuis {{ stepClock }} · ≈ {{ plan.current.value.time }} conseillé</p>
+            <p v-if="overtime" class="mt-1 text-[14px] font-bold text-amber-300">⏰ C'est le moment de passer à la suite</p>
+            <div class="mt-2 rounded-xl bg-amber-400/15 p-3 ring-1 ring-amber-300/50">
+              <p class="text-[12px] font-black tracking-wider text-amber-300 uppercase">🗣 À dire maintenant</p>
+              <p class="mt-1 text-[20px] leading-snug font-extrabold text-white">« {{ plan.current.value.say }} »</p>
             </div>
-            <div class="mt-1.5 flex gap-0.5" aria-hidden="true">
-              <i v-for="step in plan.steps.value" :key="step.key" class="h-1.5 flex-1 rounded-full" :class="step === plan.current.value ? 'bg-emerald-400' : step.done ? 'bg-amber-400' : 'bg-white/15'" />
-            </div>
-
-            <!-- Maintenant à l'écran -->
-            <div v-if="plan.current.value" class="mt-2 rounded-xl bg-emerald-500/15 p-2 ring-1 ring-emerald-400/40">
-              <p class="text-[11px] font-black tracking-wider text-emerald-300 uppercase">🟢 Maintenant à l'écran</p>
-              <p class="text-[14px] leading-snug font-extrabold">{{ plan.current.value.label }}</p>
-              <p class="text-[12px]" :class="overtime ? 'font-bold text-amber-300' : 'text-slate-400'">depuis {{ stepClock }} · ≈ {{ plan.current.value.time }} conseillé{{ overtime ? ' : passe à la suite' : '' }}</p>
-              <p class="mt-1 text-[12.5px] leading-snug text-amber-200">« {{ plan.current.value.say }} »</p>
-            </div>
-            <p v-else class="mt-2 text-[13px] text-slate-300">Le plan n'a pas encore commencé.</p>
-
             <!-- Sorti du plan -->
-            <div v-if="showOff" class="mt-2 rounded-xl bg-amber-500/15 p-2 ring-1 ring-amber-400/50">
-              <p class="text-[12.5px] font-bold text-amber-200">↪ Vous êtes sorti du plan : l'écran ne montre plus « {{ plan.current.value.label }} ».</p>
+            <div v-if="showOff" class="mt-2 rounded-xl bg-amber-500/15 p-2.5 ring-1 ring-amber-400/50">
+              <p class="text-[14px] font-bold text-amber-200">↪ Vous êtes sorti du plan : l'écran ne montre plus « {{ plan.current.value.label }} ».</p>
               <div class="mt-1.5 flex flex-wrap gap-1.5">
-                <button type="button" class="rounded-lg bg-amber-400 px-3 py-1.5 text-[12.5px] font-extrabold text-slate-900" @click="applyStep(plan.current.value)">↩ Reprendre le plan</button>
-                <button v-if="adoptable" type="button" class="rounded-lg bg-white/15 px-3 py-1.5 text-[12.5px] font-extrabold" @click="plan.adopt(current.code)">Continuer depuis {{ current.code }}</button>
+                <button type="button" class="min-h-11 rounded-lg bg-amber-400 px-3 text-[14px] font-extrabold text-slate-900" @click="applyStep(plan.current.value)">↩ Reprendre le plan</button>
+                <button v-if="adoptable" type="button" class="min-h-11 rounded-lg bg-white/15 px-3 text-[14px] font-extrabold" @click="plan.adopt(current.code)">Continuer depuis {{ current.code }}</button>
               </div>
             </div>
+          </div>
+          <p v-else-if="plan.next.value" class="rounded-2xl bg-white/5 p-3 text-[15px] font-bold text-slate-200">Le plan n'a pas encore commencé : touchez « Commencer » ci-dessus.</p>
 
-            <!-- Ensuite, et le bouton pour y passer -->
+          <!-- 2. Les conseils du copilote : le premier en grand, avec sa phrase à dire -->
+          <p class="pt-1 text-[12px] font-black tracking-wider text-slate-300 uppercase">🧭 Conseils du copilote</p>
+          <LiveCopilot :live="live" :products="products" :current="current" :next="next" :state="showState" :orders="screenOrders" :with-plan="false"
+                       :questions="questions.filter(isQuestion)" :now="now" :plan="plan" :last-at="moments.lastAt" :featured-since="track.since" :sold-at-feature="track.sold" :shown-codes="track.shown" @act="act" />
+
+          <!-- 3. Le plan en entier : où on en est, ce qui vient ensuite, revenir ou recommencer -->
+          <div class="rounded-2xl bg-violet-500/15 p-3 ring-1 ring-violet-400/30">
+            <div class="flex items-center gap-2 text-[12px] font-black tracking-wider text-violet-200 uppercase">
+              <span>📋 Plan du live<template v-if="plan.current.value"> · étape {{ plan.currentIndex.value + 1 }} sur {{ plan.steps.value.length }}</template></span>
+              <span class="ml-auto font-bold tracking-normal normal-case text-slate-300">{{ planLeft }}</span>
+            </div>
+            <div class="mt-2 flex gap-0.5" aria-hidden="true">
+              <i v-for="step in plan.steps.value" :key="step.key" class="h-2 flex-1 rounded-full" :class="step === plan.current.value ? 'bg-emerald-400' : step.done ? 'bg-amber-400' : 'bg-white/15'" />
+            </div>
             <template v-if="plan.next.value">
-              <p class="mt-2 text-[11px] font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
-              <p class="text-[13.5px] font-bold">{{ plan.next.value.label }}</p>
+              <p class="mt-2.5 text-[12px] font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
+              <p class="text-[15px] font-bold">{{ plan.next.value.label }}</p>
             </template>
-            <p v-else class="mt-2 text-[13px] font-bold text-emerald-300">✓ Plan terminé : bravo !</p>
-
-            <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-bold text-violet-200">
-              <button v-if="plan.current.value" type="button" class="underline" @click="backStep">◀ Étape précédente</button>
-              <button v-if="plan.current.value || plan.steps.value.some((x) => x.done)" type="button" class="underline" @click="restartPlan">↺ Recommencer le plan</button>
+            <p v-else class="mt-2.5 text-[15px] font-bold text-emerald-300">✓ Plan terminé : bravo !</p>
+            <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px] font-bold text-violet-200">
+              <button v-if="plan.current.value" type="button" class="min-h-11 underline" @click="backStep">◀ Étape précédente</button>
+              <button v-if="plan.current.value || plan.steps.value.some((x) => x.done)" type="button" class="min-h-11 underline" @click="restartPlan">↺ Recommencer le plan</button>
               <details class="w-full">
-                <summary class="cursor-pointer">Voir tout le plan</summary>
+                <summary class="min-h-11 cursor-pointer py-2">Voir tout le plan</summary>
                 <ol class="mt-1 space-y-0.5 font-normal">
-                  <li v-for="(step, k) in plan.steps.value" :key="step.key" class="flex items-center gap-2 rounded-lg px-2 py-1 text-[12.5px]" :class="step === plan.current.value ? 'bg-emerald-500/15 font-bold text-white' : step.done ? 'text-slate-500 line-through' : step === plan.next.value ? 'bg-white/10 font-bold text-white' : 'text-slate-300'">
+                  <li v-for="(step, k) in plan.steps.value" :key="step.key" class="flex items-center gap-2 rounded-lg px-2 py-1 text-[14px]" :class="step === plan.current.value ? 'bg-emerald-500/15 font-bold text-white' : step.done ? 'text-slate-500 line-through' : step === plan.next.value ? 'bg-white/10 font-bold text-white' : 'text-slate-300'">
                     <span class="w-4 text-center">{{ step === plan.current.value ? '🟢' : step.done ? '✓' : step === plan.next.value ? '⏭' : k + 1 }}</span>{{ step.label }}
                   </li>
                 </ol>
               </details>
             </div>
           </div>
-          <!-- 2. Les conseils du moment -->
-          <LiveCopilot :live="live" :products="products" :current="current" :next="next" :state="showState" :orders="screenOrders" :with-plan="false"
-                       :questions="questions.filter(isQuestion)" :now="now" :plan="plan" :last-at="moments.lastAt" :featured-since="track.since" :sold-at-feature="track.sold" :shown-codes="track.shown" @act="act" />
         </template>
 
         <template v-else-if="sub === 'articles'">
@@ -759,7 +759,11 @@ const ago = (iso) => {
         </template>
 
         <template v-else>
-          <!-- Plus : tous les moments, musique, thème, modes ; article mystère ; durée prévue -->
+          <!-- Plus : les écrans reliés, tous les moments, musique, thème, modes ; article mystère ; durée prévue -->
+          <div v-if="cardsOn" class="flex flex-wrap gap-1.5">
+            <button type="button" class="min-h-11 flex-1 rounded-xl bg-white/10 px-3 text-[14px] font-extrabold" @click="openConnect('tv', tvOnline)">📺 Télé : {{ tvOnline ? 'gérer' : 'connecter' }}</button>
+            <button type="button" class="min-h-11 flex-1 rounded-xl bg-white/10 px-3 text-[14px] font-extrabold" @click="openConnect('studio', studioOnline)">📱 TikTok Studio : {{ studioOnline ? 'gérer' : 'connecter' }}</button>
+          </div>
           <LiveShowRemote :id="live.id" dark no-reactions :settings="display?.live?.show?.settings" :state="showState" :has-mystery="hasMystery" @changed="loadDisplay" @launched="(t) => { moments.add(t); if (t === 'reveal') emit('reload') }" />
           <details class="rounded-xl bg-white/5 p-3" :open="!products.some((p) => p.mystery)">
             <summary class="cursor-pointer text-[13px] font-extrabold">🎁 Choisir l'article mystère et ses indices</summary>
