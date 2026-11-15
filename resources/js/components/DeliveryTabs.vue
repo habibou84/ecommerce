@@ -17,7 +17,7 @@ const tabs = computed(() => [
 </script>
 
 <template>
-  <nav v-tab-strip class="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">
+  <nav v-tab-strip class="delivery-tabs -mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">
     <RouterLink
       v-for="tab in tabs"
       :key="tab.to"
