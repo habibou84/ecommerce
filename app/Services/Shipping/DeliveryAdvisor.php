@@ -25,8 +25,8 @@ class DeliveryAdvisor
     /** En dessous, l'historique de la zone est jugé trop maigre : on prend celui de toutes les zones */
     private const MIN_ZONE_SAMPLE = 3;
 
-    /** Envoi automatique sans personne pour livrer */
-    public const NOBODY = 'aucun livreur disponible qui livre ce lieu, ni entreprise de livraison utilisable';
+    /** Livreur choisi automatiquement : personne de libre pour livrer */
+    public const NOBODY = 'aucun livreur ni entreprise de livraison libre pour ce lieu';
 
     public function __construct(private readonly ShipmentDesk $shipments, private readonly OrderDesk $orders) {}
 

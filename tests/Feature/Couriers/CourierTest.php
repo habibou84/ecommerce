@@ -506,7 +506,7 @@ class CourierTest extends TestCase
         $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/decline", ['reason' => 'Trop loin'])->assertOk();
         $this->assertSame(['cancelled', OrderStatus::Confirmed], [$shipment->fresh()->status->value, $order->fresh()->status]);
         $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()
-            ->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Mission refusée par Koffi') && str_contains($n->data['body'], 'Trop loin')));
+            ->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Course refusée par Koffi') && str_contains($n->data['body'], 'Trop loin')));
         $this->assertSame([['cancelled', null]], array_map(fn ($m) => [$m['status'], $m['acceptance']], $this->storeApi($this->store, 'GET', 'courier/missions')->json('data')));
 
         // Affectation automatique : la commande refusée part vers un autre livreur, jamais vers celui qui a refusé
@@ -536,7 +536,7 @@ class CourierTest extends TestCase
         $this->travel(16)->minutes();
         $this->artisan('couriers:remind')->expectsOutputToContain('1 mission(s)')->assertSuccessful();
         $this->artisan('couriers:remind')->expectsOutputToContain('0 mission(s)')->assertSuccessful();
-        $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Mission pas encore acceptée')));
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Course pas encore acceptée')));
         $this->assertTrue(DatabaseNotification::where('notifiable_id', $user->id)->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'en attente de votre réponse')));
     }
 
