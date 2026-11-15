@@ -676,7 +676,11 @@ const ago = (iso) => {
         <p v-if="showError" class="rounded-xl bg-red-500/15 px-3 py-2 text-sm font-bold text-red-200">{{ showError }}</p>
 
         <template v-if="sub === 'copilot'">
-          <!-- 1. Le plan : ce qui est à l'écran maintenant, ce qui vient ensuite, et le bouton pour y passer -->
+          <!-- Le bouton pour passer à l'étape suivante du plan : juste sous le menu, au-dessus de la carte du plan -->
+          <button v-if="plan.next.value" type="button" class="w-full rounded-xl bg-amber-400 px-3 py-3 text-[14px] font-extrabold text-slate-900" :class="{ 'animate-pulse': overtime }" @click="act({ kind: 'plan' })">
+            {{ plan.current.value ? 'Passer à' : 'Commencer' }} : {{ plan.next.value.label.replace(/^\S+\s/, '') }} ▶
+          </button>
+          <!-- 1. Le plan : ce qui est à l'écran maintenant et ce qui vient ensuite -->
           <div class="rounded-2xl bg-violet-500/15 p-2.5 ring-1 ring-violet-400/30">
             <div class="flex items-center gap-2 text-[11px] font-black tracking-wider text-violet-200 uppercase">
               <span>📋 Plan du live<template v-if="plan.current.value"> · étape {{ plan.currentIndex.value + 1 }} sur {{ plan.steps.value.length }}</template></span>
@@ -708,9 +712,6 @@ const ago = (iso) => {
             <template v-if="plan.next.value">
               <p class="mt-2 text-[11px] font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
               <p class="text-[13.5px] font-bold">{{ plan.next.value.label }}</p>
-              <button type="button" class="mt-1.5 w-full rounded-xl bg-amber-400 px-3 py-3 text-[14px] font-extrabold text-slate-900" :class="{ 'animate-pulse': overtime }" @click="act({ kind: 'plan' })">
-                {{ plan.current.value ? 'Passer à' : 'Commencer' }} : {{ plan.next.value.label.replace(/^\S+\s/, '') }} ▶
-              </button>
             </template>
             <p v-else class="mt-2 text-[13px] font-bold text-emerald-300">✓ Plan terminé : bravo !</p>
 
