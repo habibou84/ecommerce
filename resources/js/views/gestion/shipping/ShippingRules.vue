@@ -15,9 +15,9 @@ const errors = ref({})
 
 // Les trois façons de faire livrer une commande confirmée, dites simplement
 const MODES = [
-  ['off', 'Je choisis moi-même', 'À chaque commande, vous choisissez le livreur ou l\'entreprise dans la liste. Rien n\'est présélectionné.', false],
-  ['suggest', 'Jibiat Marchand propose, je valide', 'Quand vous appuyez sur « Faire livrer », le bon livreur est déjà choisi. Vous n\'avez qu\'à valider (ou changer).', true],
-  ['auto', 'Envoi automatique', 'Dès que la commande est confirmée, la course part toute seule, sans action de votre part.', false],
+  ['off', 'Je choisis le livreur moi-même', 'Pour chaque commande, vous appuyez sur « Faire livrer » et vous choisissez un de vos livreurs ou une entreprise de livraison.', false],
+  ['suggest', 'Le livreur m\'est proposé, je confirme', 'En appuyant sur « Faire livrer », le livreur le mieux placé est déjà choisi. Vous confirmez, ou vous en prenez un autre. Rien n\'est confié sans vous.', true],
+  ['auto', 'Le livreur est choisi automatiquement', 'Dès que la commande est confirmée, elle est confiée à un de vos livreurs, qui la reçoit tout de suite dans son application. Si aucun livreur n\'est libre, elle est confiée à une entreprise de livraison. Vous n\'avez rien à faire.', false],
 ]
 
 // Entre plusieurs livreurs qui conviennent
@@ -25,8 +25,8 @@ const DISPATCH = [
   ['nearest', 'Le plus proche', 'Celui qui livre ce quartier ou cette commune d\'abord, puis le moins occupé.'],
   ['round_robin', 'Chacun son tour', 'Les courses tournent entre vos livreurs : celui qui n\'en a pas reçu depuis le plus longtemps passe en premier.'],
 ]
-// Envoi automatique : délai sans réponse du livreur avant de passer au suivant (null : prévenir l'équipe seulement)
-const TIMEOUTS = [[null, 'Prévenir l\'équipe seulement (après 15 min)'], [10, 'Passer au livreur suivant après 10 min'], [15, 'Passer au livreur suivant après 15 min'], [30, 'Passer au livreur suivant après 30 min'], [60, 'Passer au livreur suivant après 1 h']]
+// Livreur choisi automatiquement : délai sans acceptation avant de confier la course à un autre (null : prévenir seulement)
+const TIMEOUTS = [[null, 'Me prévenir seulement (après 15 min)'], [10, 'La confier à un autre livreur après 10 min'], [15, 'La confier à un autre livreur après 15 min'], [30, 'La confier à un autre livreur après 30 min'], [60, 'La confier à un autre livreur après 1 h']]
 
 // Cas particuliers prêts à l'emploi : ouvrent la fenêtre déjà remplie
 const TEMPLATES = [
@@ -119,12 +119,12 @@ function describe(rule) {
     <Alert v-if="error">{{ error }}</Alert>
 
     <template v-if="data">
-      <!-- Bilan de l'envoi automatique -->
+      <!-- Bilan : commandes confiées automatiquement, commandes sans livreur -->
       <section v-if="data.assignment_mode === 'auto' || data.summary.sent || data.summary.blocked.length" class="card p-4 text-sm">
         <h3 class="mb-2 font-semibold">Ces {{ data.summary.days }} derniers jours</h3>
         <div class="grid grid-cols-2 gap-2">
-          <div class="rounded-lg bg-emerald-50 p-3"><b class="block text-xl text-emerald-800">{{ data.summary.sent }}</b><span class="text-emerald-900">{{ data.summary.sent > 1 ? 'commandes envoyées' : 'commande envoyée' }} automatiquement</span></div>
-          <div class="rounded-lg p-3" :class="data.summary.blocked.length ? 'bg-orange-50' : 'bg-slate-50'"><b class="block text-xl" :class="data.summary.blocked.length ? 'text-orange-800' : 'text-slate-700'">{{ data.summary.blocked.length }}</b><span :class="data.summary.blocked.length ? 'text-orange-900' : 'text-slate-600'">{{ data.summary.blocked.length > 1 ? 'commandes bloquées' : 'commande bloquée' }}, à faire livrer à la main</span></div>
+          <div class="rounded-lg bg-emerald-50 p-3"><b class="block text-xl text-emerald-800">{{ data.summary.sent }}</b><span class="text-emerald-900">{{ data.summary.sent > 1 ? 'commandes confiées' : 'commande confiée' }} automatiquement à un livreur</span></div>
+          <div class="rounded-lg p-3" :class="data.summary.blocked.length ? 'bg-orange-50' : 'bg-slate-50'"><b class="block text-xl" :class="data.summary.blocked.length ? 'text-orange-800' : 'text-slate-700'">{{ data.summary.blocked.length }}</b><span :class="data.summary.blocked.length ? 'text-orange-900' : 'text-slate-600'">{{ data.summary.blocked.length > 1 ? 'commandes' : 'commande' }} sans livreur, à confier vous-même</span></div>
         </div>
         <ul v-if="data.summary.blocked.length" class="mt-3 divide-y divide-slate-100">
           <li v-for="o in data.summary.blocked" :key="o.id">
@@ -133,7 +133,7 @@ function describe(rule) {
                 <span class="block font-medium">{{ o.reference }}<template v-if="o.customer"> · {{ o.customer }}</template><template v-if="o.place"> · {{ o.place }}</template></span>
                 <span class="block text-slate-500">{{ o.reason }} · {{ formatDateTime(o.at) }}</span>
               </span>
-              <span class="shrink-0 text-xs font-semibold text-emerald-700">Faire livrer ▸</span>
+              <span class="shrink-0 text-xs font-semibold text-emerald-700">Confier ▸</span>
             </RouterLink>
           </li>
         </ul>
@@ -151,6 +151,9 @@ function describe(rule) {
             </span>
           </label>
         </div>
+        <p v-if="data.assignment_mode === 'auto'" class="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 text-sm text-slate-700">
+          <strong>Exemple :</strong> la commande d'Awa à Cocody est confirmée à 10 h → elle est confiée à Moussa (il livre Cocody), qui la voit aussitôt dans son application.
+        </p>
 
         <div v-if="data.assignment_mode !== 'off'" class="rounded-lg bg-slate-50 p-3 text-sm">
           <p class="mb-1.5 font-medium">Comment le livreur est choisi</p>
@@ -158,10 +161,10 @@ function describe(rule) {
             <li>Si un <strong>cas particulier</strong> ci-dessous correspond à la commande, c'est lui qui décide.</li>
             <li>Sinon, <strong>un de vos livreurs</strong> qui livre ce lieu et qui est disponible{{ data.courier_dispatch === 'round_robin' ? ', chacun son tour' : ' : le plus proche d\'abord, puis le moins occupé' }}. Un livreur sans lieu choisi livre partout.</li>
             <li>S'il n'y en a pas, <strong>l'entreprise de livraison la moins chère</strong> parmi celles que vous avez ajoutées.</li>
-            <li v-if="data.assignment_mode === 'auto'">Si personne ne convient, rien ne part : la commande reste dans <strong>« À faire livrer »</strong>, la raison est notée dans son historique et elle apparaît dans le bilan ci-dessus.</li>
-            <li v-if="data.assignment_mode === 'auto'">Si le livreur refuse la course, elle part aussitôt au suivant{{ data.mission_timeout_minutes ? `, et aussi s'il ne répond pas en ${data.mission_timeout_minutes} min` : '' }}.</li>
+            <li v-if="data.assignment_mode === 'auto'">Si aucun livreur ni entreprise n'est libre, la commande n'est confiée à personne : elle reste dans <strong>« À faire livrer »</strong> et vous êtes prévenu (la raison est notée dans son historique et dans le bilan ci-dessus).</li>
+            <li v-if="data.assignment_mode === 'auto'">Si le livreur refuse, elle est confiée aussitôt à un autre livreur{{ data.mission_timeout_minutes ? `, et aussi s'il ne l'accepte pas en ${data.mission_timeout_minutes} min` : '' }}.</li>
           </ol>
-          <p class="mt-2 text-slate-500">Un livreur choisi à la saisie de la commande passe toujours avant. Un livreur qui n'a pas encore ouvert son lien d'accès n'est jamais choisi tout seul.</p>
+          <p class="mt-2 text-slate-500">Un livreur choisi à la saisie de la commande passe toujours avant. Un livreur qui n'a pas encore ouvert son lien d'accès n'est jamais choisi automatiquement.</p>
         </div>
       </section>
 
@@ -177,8 +180,8 @@ function describe(rule) {
           </div>
         </div>
         <div v-if="data.assignment_mode === 'auto'">
-          <h3 class="mb-1 font-semibold">Si le livreur ne répond pas</h3>
-          <p class="mb-2 text-sm text-slate-500">Le livreur accepte ou refuse la course dans son application. S'il la refuse, elle part au suivant. S'il ne répond pas :</p>
+          <h3 class="mb-1 font-semibold">Si le livreur n'accepte pas la course</h3>
+          <p class="mb-2 text-sm text-slate-500">Le livreur accepte ou refuse la course dans son application. S'il la refuse, elle est confiée aussitôt à un autre livreur. S'il ne répond pas :</p>
           <select class="input max-w-md" :value="data.mission_timeout_minutes ?? ''" @change="settings({ mission_timeout_minutes: $event.target.value === '' ? null : Number($event.target.value) })">
             <option v-for="[value, label] in TIMEOUTS" :key="String(value)" :value="value ?? ''">{{ label }}</option>
           </select>
@@ -235,7 +238,7 @@ function describe(rule) {
             <option value="carrier">Une entreprise de livraison précise</option>
             <option value="cheapest">Le moins cher</option>
             <option value="fastest">Le plus rapide (d'après l'historique)</option>
-            <option value="manual">Je choisis moi-même (rien n'est envoyé tout seul)</option>
+            <option value="manual">Je choisis le livreur moi-même (rien n'est confié sans moi)</option>
           </select>
         </Field>
         <Field v-if="editing.action === 'carrier'" id="rule-carrier" label="Entreprise de livraison" :error="errors.carrier_connection_id">
