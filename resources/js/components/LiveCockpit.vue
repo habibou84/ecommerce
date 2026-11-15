@@ -627,7 +627,6 @@ const ago = (iso) => {
                 @click="big = !big" @keydown.enter.prevent="big = !big" @keydown.space.prevent="big = !big"
               >
                 <LiveShowStage v-if="display" :data="display" />
-                <span v-if="!big" class="absolute top-1.5 right-1.5 rounded-md bg-black/60 px-1.5 text-[11px] font-black">📺 À L'ÉCRAN</span>
               </div>
             </Teleport>
           </div>
