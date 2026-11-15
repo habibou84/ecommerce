@@ -42,7 +42,7 @@ async function refresh() {
 <template>
   <section class="card p-4 sm:p-5">
     <div class="flex items-center gap-2">
-      <h3 class="flex-1 text-[17px] font-extrabold">État chez Meta</h3>
+      <h3 class="flex-1 text-lg font-extrabold">État chez Meta</h3>
       <span class="rounded-full px-2.5 py-1 text-xs font-bold" :class="BADGE[meta.state] ?? BADGE.unknown">{{ meta.title }}</span>
     </div>
     <ul class="mt-2 divide-y divide-slate-100">

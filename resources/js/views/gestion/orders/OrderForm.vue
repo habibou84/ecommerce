@@ -760,7 +760,7 @@ async function save() {
     </section>
     <Alert v-if="parseInfo" tone="info">{{ parseInfo }}</Alert>
     <!-- Ce qui manque, après un appui sur « Créer la commande » -->
-    <div v-if="missingNotice" data-missing-notice class="sticky top-[4.5rem] z-20 flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-3 text-[15px] font-medium text-amber-900 shadow" role="alert">
+    <div v-if="missingNotice" data-missing-notice class="sticky top-[4.5rem] z-20 flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-3 text-base font-medium text-amber-900 shadow" role="alert">
       <Icon name="alert" :size="20" class="shrink-0" />{{ missingNotice }} pour {{ editing ? 'enregistrer' : 'créer la commande' }}.
     </div>
 
@@ -780,7 +780,7 @@ async function save() {
                 v-for="s in SOURCES"
                 :key="s.value"
                 type="button"
-                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-[15px] font-semibold"
+                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-base font-semibold"
                 :class="form.source === s.value ? 'border-2 border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:border-field'"
                 :aria-pressed="form.source === s.value"
                 @click="form.source = s.value"
@@ -805,7 +805,7 @@ async function save() {
               <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-field px-3 text-sm font-medium text-slate-600 hover:bg-slate-50" @click="removePhone2"><Icon name="close" :size="18" />Retirer</button>
             </div>
           </Field>
-          <button v-else type="button" class="-mt-1 text-[15px] font-medium text-emerald-700 hover:underline" @click="showPhone2 = true">+ Ajouter un autre numéro</button>
+          <button v-else type="button" class="-mt-1 text-base font-medium text-emerald-700 hover:underline" @click="showPhone2 = true">+ Ajouter un autre numéro</button>
 
           <!-- Client connu : fiche résumée et son adresse habituelle -->
           <Alert v-if="known?.is_blacklisted" tone="error">Ce client est sur liste noire{{ known.blacklist_reason ? ` : ${known.blacklist_reason}` : '' }}.</Alert>
@@ -882,7 +882,7 @@ async function save() {
                   v-for="d in dayChoices"
                   :key="d.date"
                   type="button"
-                  class="rounded-full border px-4 py-2 text-[15px] first-letter:uppercase"
+                  class="rounded-full border px-4 py-2 text-base first-letter:uppercase"
                   :class="!pickDate && form.scheduled_date === d.date ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : d.disabled ? 'cursor-not-allowed border-slate-200 text-slate-400 line-through' : 'border-field text-slate-700'"
                   :disabled="d.disabled"
                   :title="!d.open ? 'Pas de livraison ce jour-là' : d.disabled ? 'Trop tôt pour qui livre' : undefined"
@@ -890,11 +890,11 @@ async function save() {
                 >
                   {{ d.label }}
                 </button>
-                <button type="button" class="rounded-full border px-4 py-2 text-[15px]" :class="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date)) ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field text-slate-700'" @click="pickDate = true">Autre date</button>
+                <button type="button" class="rounded-full border px-4 py-2 text-base" :class="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date)) ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field text-slate-700'" @click="pickDate = true">Autre date</button>
                 <input v-if="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto" type="date" :min="earliestDate ?? isoDay(0)" aria-label="Date de livraison" />
               </div>
               <p v-if="errors.scheduled_date" class="mt-2 text-sm text-red-600">{{ errors.scheduled_date }}</p>
-              <p v-else-if="dateNotice" class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[15px] text-amber-900">{{ dateNotice }}</p>
+              <p v-else-if="dateNotice" class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-base text-amber-900">{{ dateNotice }}</p>
               <p v-else-if="closedChosen" class="mt-2 text-sm text-amber-800">D'habitude, pas de livraison ce jour-là.</p>
               <p v-else-if="earliestDate && form.scheduled_date === earliestDate" class="mt-2 text-sm text-slate-500">Première date possible{{ calendar ? ` (commandes livrées le jour même jusqu'à ${calendar.cutoff.replace(':', ' h ')})` : '' }}.</p>
             </div>
@@ -998,7 +998,7 @@ async function save() {
               </div>
             </li>
           </ul>
-          <p v-else class="flex items-start gap-2 text-[15px] leading-snug text-slate-600">
+          <p v-else class="flex items-start gap-2 text-base leading-snug text-slate-600">
             <Icon name="up" :size="18" class="mt-0.5 shrink-0 text-emerald-700" />
             <span>Tapez le nom de l'article (ou son code) dans le champ ci-dessus : la liste des articles s'affiche, touchez celui que le client veut pour l'ajouter à la commande.</span>
           </p>
@@ -1021,7 +1021,7 @@ async function save() {
 
       <!-- 3. Paiement et validation -->
       <aside class="space-y-4 lg:sticky lg:top-20 lg:self-start">
-        <section class="card space-y-3 p-4 text-[15px] sm:p-5">
+        <section class="card space-y-3 p-4 text-base sm:p-5">
           <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
             <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">4</span>Paiement
           </h2>

@@ -50,7 +50,7 @@ async function save() {
     <template v-if="data">
       <Alert v-if="!data.provider_ready" tone="warning">PayDunya n'est pas prêt : ses clés ne sont pas sur le serveur. Les packs ne peuvent pas encore être payés.</Alert>
       <section class="card space-y-3 p-4">
-        <label class="flex items-center gap-3 text-[15px] font-bold">
+        <label class="flex items-center gap-3 text-base font-bold">
           <input v-model="form.paid" type="checkbox" class="h-5 w-5" />
           Commandes payantes (live, WhatsApp, boost)
           <span class="text-sm font-normal text-slate-500">(éteint : rien n'est compté)</span>

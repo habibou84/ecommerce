@@ -66,7 +66,7 @@ async function sendTest() {
 
 <template>
   <div class="max-w-xl space-y-4">
-    <h2 class="text-xl font-semibold">Mon compte</h2>
+    <h2 class="text-2xl font-semibold">Mon compte</h2>
     <Alert v-if="error">{{ error }}</Alert>
 
     <section v-if="twoFactor" class="card space-y-3 p-4 text-sm">

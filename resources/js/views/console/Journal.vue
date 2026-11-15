@@ -53,7 +53,7 @@ watch(filter, load)
 <template>
   <div class="space-y-4">
     <div>
-      <h2 class="text-xl font-semibold">Journal</h2>
+      <h2 class="text-2xl font-semibold">Journal</h2>
       <p class="text-sm text-slate-600">Les 200 dernières actions de l'équipe. Une connexion que vous ne reconnaissez pas ? Changez votre mot de passe dans Mon compte.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>

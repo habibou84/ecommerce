@@ -64,7 +64,7 @@ async function saveHome() {
   <div class="mx-auto max-w-2xl space-y-4">
     <DeliveryTabs />
     <div>
-      <h1 class="text-xl font-extrabold">Tarifs de livraison</h1>
+      <h1 class="text-2xl font-extrabold">Tarifs de livraison</h1>
       <p class="text-sm text-slate-600">Rien à remplir d'avance : quand vous changez un prix dans une commande, l'application vous propose de le retenir pour la commune ou le quartier.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
@@ -76,7 +76,7 @@ async function saveHome() {
       <h2 class="text-2xl font-extrabold leading-tight">Combien faites-vous payer la livraison dans {{ rates.home?.name }} ?</h2>
       <p class="text-slate-600">Votre prix habituel. Vous l'ajusterez commune par commune au fil des commandes, sans revenir ici.</p>
       <div class="flex items-center justify-center gap-2 rounded-2xl border-2 border-emerald-600 bg-white p-4">
-        <input v-model="base" class="w-40 bg-transparent text-center text-4xl font-black" type="number" min="0" inputmode="numeric" aria-label="Prix de livraison habituel" />
+        <input v-model="base" class="w-40 bg-transparent text-center text-3xl font-black" type="number" min="0" inputmode="numeric" aria-label="Prix de livraison habituel" />
         <span class="text-lg font-bold text-slate-500">F CFA</span>
       </div>
       <div class="grid grid-cols-4 gap-2">

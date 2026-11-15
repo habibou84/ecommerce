@@ -89,7 +89,7 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
           <div class="card p-4" :class="{ 'col-span-2': showCredit }">
             <button class="block w-full text-left" :disabled="!data.position.customers_due_count" @click="showCredit = !showCredit">
               <p class="text-sm font-medium text-slate-600">Clients : reste à payer</p>
-              <p class="whitespace-nowrap text-xl font-bold">{{ money(data.position.customers_due) }}</p>
+              <p class="whitespace-nowrap text-2xl font-bold">{{ money(data.position.customers_due) }}</p>
               <p class="text-xs text-slate-600">{{ data.position.customers_due_count }} commande{{ data.position.customers_due_count > 1 ? 's livrées, pas soldées' : ' livrée, pas soldée' }}</p>
               <p v-if="data.position.customers_due_count" class="mt-1 text-xs font-medium text-emerald-800">{{ showCredit ? 'Masquer le détail ▴' : 'Voir le détail ▾' }}</p>
             </button>
@@ -103,7 +103,7 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
           </div>
           <component :is="auth.can('couriers.manage') ? 'RouterLink' : 'div'" to="/gestion/livraisons/livreurs" class="card block p-4">
             <p class="text-sm font-medium text-slate-600">À payer à mes livreurs</p>
-            <p class="whitespace-nowrap text-xl font-bold">{{ money(data.position.couriers_to_pay) }}</p>
+            <p class="whitespace-nowrap text-2xl font-bold">{{ money(data.position.couriers_to_pay) }}</p>
             <p class="text-xs text-slate-600">Gains pas encore payés</p>
           </component>
         </div>

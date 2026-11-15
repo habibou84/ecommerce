@@ -59,4 +59,25 @@ Toutes les couleurs sont déclarées dans `resources/css/app.css` (`@theme`). Pa
 - Deux choix côte à côte (ex. « Préparer un live » / « Commandes WhatsApp ») ont la même forme : le choix retenu
   prend `border-emerald-700 bg-emerald-50` et une coche.
 - Étoiles de notation et badge premium : `yellow` (« or »).
-- Textes de 11 px au minimum.
+
+## Polices et tailles de texte
+
+Deux polices, déclarées dans `resources/css/app.css` : **Inter** pour le texte, **Plus Jakarta Sans** pour les
+titres (`h1`, `h2`, `h3`, `font-display`) et les gros chiffres (`text-2xl` et plus).
+
+Six tailles seulement, chacune avec un rôle. Pas de taille écrite à la main (`text-[15px]`) : le test
+`tests/Feature/InterfaceTypographyTest.php` les refuse.
+
+| Rôle | Taille | Classe | Pour |
+| --- | --- | --- | --- |
+| Mention | 13 px | `text-xs` | Dates, aides, badges, surtitres en capitales |
+| Texte | 14 px | `text-sm` | Listes, tableaux, boutons, menus |
+| Texte à lire | 16 px | `text-base` | Texte sur téléphone, champs de saisie, messages, explications |
+| Titre de carte | 18 px | `text-lg` | Nom d'un client, d'un produit, titre d'une carte ou d'une section |
+| Titre d'écran | 24 px | `text-2xl` | Un seul par écran, en haut ; chiffres des tuiles de statistiques |
+| Gros chiffre | 30 px | `text-3xl` | Montant ou total à lire d'un coup d'œil |
+
+- Hors échelle : les icônes et émojis (`text-xl`, `text-4xl`… restent permis pour eux seuls), l'écran diffusé
+  pendant le live (LiveDisplay, LiveShowStage, LiveOverlay) et les écrans vus de loin, dont la taille suit l'écran
+  (`text-[9vh]`, `text-[38vmin]`), la boutique en ligne, les PDF et les e-mails.
+- `text-pastille` (11 px) : uniquement pour le chiffre d'une pastille posée sur une icône, faute de place.

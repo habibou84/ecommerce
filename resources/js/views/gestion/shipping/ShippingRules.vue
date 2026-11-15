@@ -123,8 +123,8 @@ function describe(rule) {
       <section v-if="data.assignment_mode === 'auto' || data.summary.sent || data.summary.blocked.length" class="card p-4 text-sm">
         <h3 class="mb-2 font-semibold">Ces {{ data.summary.days }} derniers jours</h3>
         <div class="grid grid-cols-2 gap-2">
-          <div class="rounded-lg bg-emerald-50 p-3"><b class="block text-xl text-emerald-800">{{ data.summary.sent }}</b><span class="text-emerald-900">{{ data.summary.sent > 1 ? 'commandes confiées' : 'commande confiée' }} automatiquement à un livreur</span></div>
-          <div class="rounded-lg p-3" :class="data.summary.blocked.length ? 'bg-orange-50' : 'bg-slate-50'"><b class="block text-xl" :class="data.summary.blocked.length ? 'text-orange-800' : 'text-slate-700'">{{ data.summary.blocked.length }}</b><span :class="data.summary.blocked.length ? 'text-orange-900' : 'text-slate-600'">{{ data.summary.blocked.length > 1 ? 'commandes' : 'commande' }} sans livreur, à confier vous-même</span></div>
+          <div class="rounded-lg bg-emerald-50 p-3"><b class="block text-2xl text-emerald-800">{{ data.summary.sent }}</b><span class="text-emerald-900">{{ data.summary.sent > 1 ? 'commandes confiées' : 'commande confiée' }} automatiquement à un livreur</span></div>
+          <div class="rounded-lg p-3" :class="data.summary.blocked.length ? 'bg-orange-50' : 'bg-slate-50'"><b class="block text-2xl" :class="data.summary.blocked.length ? 'text-orange-800' : 'text-slate-700'">{{ data.summary.blocked.length }}</b><span :class="data.summary.blocked.length ? 'text-orange-900' : 'text-slate-600'">{{ data.summary.blocked.length > 1 ? 'commandes' : 'commande' }} sans livreur, à confier vous-même</span></div>
         </div>
         <ul v-if="data.summary.blocked.length" class="mt-3 divide-y divide-slate-100">
           <li v-for="o in data.summary.blocked" :key="o.id">
@@ -146,7 +146,7 @@ function describe(rule) {
                  :class="data.assignment_mode === value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
             <input type="radio" :checked="data.assignment_mode === value" class="mt-0.5 accent-emerald-700" @change="settings({ assignment_mode: value })" />
             <span>
-              <span class="block font-medium">{{ label }}<span v-if="recommended" class="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800">conseillé</span></span>
+              <span class="block font-medium">{{ label }}<span v-if="recommended" class="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">conseillé</span></span>
               <span class="text-slate-500">{{ help }}</span>
             </span>
           </label>

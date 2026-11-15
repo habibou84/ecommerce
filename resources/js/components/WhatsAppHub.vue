@@ -36,8 +36,8 @@ const tiles = computed(() => [
 <template>
   <div class="space-y-3">
     <div v-if="todo.length" class="rounded-2xl border border-ocre-200 bg-ocre-50 px-3 py-2">
-      <p class="text-[11px] font-black uppercase tracking-wide text-ocre-800">À faire</p>
-      <RouterLink v-for="t in todo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-ocre-100 py-2 text-[14px] font-bold first-of-type:border-0">
+      <p class="text-xs font-black uppercase tracking-wide text-ocre-800">À faire</p>
+      <RouterLink v-for="t in todo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-ocre-100 py-2 text-sm font-bold first-of-type:border-0">
         <Icon :name="t.icon" :size="16" class="shrink-0 text-ocre-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-ocre-700">{{ t.action }} ▸</span>
       </RouterLink>
     </div>
@@ -46,14 +46,14 @@ const tiles = computed(() => [
       <RouterLink v-for="t in tiles" :key="t.to" :to="t.to" class="flex min-h-[112px] flex-col gap-1.5 rounded-[20px] p-3.5 transition active:scale-[.98]"
                   :class="t.main ? 'bg-brand-grad text-white' : 'card hover:border-emerald-200'">
         <ColorIcon :name="t.icon" :size="40" :tile="!t.main" :class="t.main ? 'rounded-xl bg-white/90 p-1' : ''" />
-        <b class="font-display text-[15.5px] font-extrabold leading-tight">{{ t.label }}</b>
-        <span class="-mt-1 text-[13px]" :class="t.main ? 'text-emerald-50' : 'text-slate-500'">{{ t.hint }}</span>
+        <b class="font-display text-base font-extrabold leading-tight">{{ t.label }}</b>
+        <span class="-mt-1 text-sm" :class="t.main ? 'text-emerald-50' : 'text-slate-500'">{{ t.hint }}</span>
       </RouterLink>
     </div>
 
     <RouterLink v-if="canManage" to="/gestion/textes-messages" class="card flex items-center gap-3 px-3.5 py-3">
       <ColorIcon name="cloche" :size="36" />
-      <span class="min-w-0 flex-1"><b class="block text-[15px]">Textes des messages</b><span class="text-[13px] text-slate-500">Confirmation, livraison, relance… avec vos mots</span></span>
+      <span class="min-w-0 flex-1"><b class="block text-base">Textes des messages</b><span class="text-sm text-slate-500">Confirmation, livraison, relance… avec vos mots</span></span>
       <Icon name="chevron" :size="16" class="text-slate-400" />
     </RouterLink>
   </div>
