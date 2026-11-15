@@ -247,6 +247,11 @@ select.input-lg {
 .sheet-body .back-link {
     display: none;
 }
+/* Écran de Livraisons ouvert dans la fenêtre : seulement cet écran, sans la barre des autres onglets (la page
+   Livraisons de l'accueil y mène déjà ; le titre de la fenêtre dit où l'on est). */
+.sheet-body .delivery-tabs {
+    display: none;
+}
 
 /* Application livreur, mode nuit : de vrais tons sombres (jetons de la charte redéfinis), plus de filtre
    d'inversion. Textes ≥ 6,7:1, couleurs de sens éclaircies (≥ 8,6:1 sur leur fond sombre), bord des champs 3,7:1. */
