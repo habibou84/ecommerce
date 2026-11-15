@@ -499,16 +499,15 @@ async function switchTo(store) {
           <component :is="Component" :key="auth.store?.id" />
         </RouterView>
       </main>
-      <!-- Glissement : l'écran ouvert depuis un onglet, dans une fenêtre (croix, ou glisser vers le bas) -->
+      <!-- Glissement : l'écran ouvert depuis un onglet, en pleine hauteur comme le live en cours (croix noire, ou glisser vers le bas) -->
       <div v-if="sheetOpen" v-show="!fullscreenOn" class="fixed inset-0 z-30 bg-slate-900/40 transition-opacity" :style="{ opacity: Math.max(0.2, 1 - sheetDrag / 400) }" @click="closeSheet" />
-      <section v-if="sheetOpen" class="fixed inset-x-0 bottom-0 top-3 z-40 flex flex-col overflow-hidden rounded-t-[28px] bg-slate-50 shadow-2xl"
+      <section v-if="sheetOpen" class="fixed inset-0 z-40 flex flex-col overflow-hidden bg-slate-50"
                :class="[sheetDrag ? '' : 'transition-transform duration-200', { invisible: fullscreenOn }]" :style="{ transform: `translateY(${sheetDrag}px)` }" role="dialog" :aria-label="screenTitle">
-        <header class="shrink-0 bg-white px-4 pb-2 pt-2" @touchstart.passive="dragBegin($event)" @touchmove.passive="dragMove" @touchend="dragEnd">
-          <div class="mx-auto mb-2 h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
+        <header class="shrink-0 border-b border-slate-200 bg-white px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]" @touchstart.passive="dragBegin($event)" @touchmove.passive="dragMove" @touchend="dragEnd">
           <div class="flex items-center gap-2">
             <button v-if="sheetDepth > 1" type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xl font-bold" aria-label="Retour" @click="sheetBack">‹</button>
             <h2 class="min-w-0 flex-1 truncate text-[18px] font-extrabold">{{ screenTitle }}</h2>
-            <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-700" aria-label="Fermer" @click="closeSheet"><Icon name="close" :size="20" /></button>
+            <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-900 text-white" aria-label="Fermer" @click="closeSheet"><Icon name="close" :size="20" /></button>
           </div>
         </header>
         <div class="sheet-body relative min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-28" @touchstart.passive="dragBegin($event, true)" @touchmove.passive="dragMove" @touchend="dragEnd">
