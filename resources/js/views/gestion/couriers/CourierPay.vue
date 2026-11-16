@@ -123,8 +123,8 @@ const ruleLabel = (r) => (r.type === 'delivery_fee' ? 'Les frais de livraison pa
             <button class="btn-secondary px-3 py-1" @click="openPay(c)">Payer</button>
           </li>
         </ul>
-        <p class="mt-3 text-xs text-slate-500">
-          L'argent que vos livreurs ont encaissé pour vous (paiements des clients) se règle dans
+        <p class="explain-detail mt-3">
+          L'argent encaissé pour vous par vos livreurs se règle dans
           <RouterLink to="/gestion/caisse/livreurs" class="text-emerald-700 underline">Caisse → Argent chez les livreurs</RouterLink>.
         </p>
       </section>
@@ -134,11 +134,11 @@ const ruleLabel = (r) => (r.type === 'delivery_fee' ? 'Les frais de livraison pa
           <h3 class="font-semibold">Règles de paie</h3>
           <button class="btn-secondary ml-auto px-3 py-1" @click="openRule(null)">+ Règle</button>
         </div>
-        <p v-if="!data.pay_rules.length" class="text-slate-500">Exemple : 1 000 F par livraison réussie, 300 F par tentative échouée.</p>
+        <p v-if="!data.pay_rules.length" class="explain-detail">Exemple : 1 000 F par livraison réussie, 300 F par tentative échouée.</p>
         <ul class="divide-y divide-slate-100">
           <li v-for="r in data.pay_rules" :key="r.id"><button class="w-full py-2 text-left hover:text-emerald-700" @click="openRule(r)"><strong>{{ r.name }}</strong> · {{ ruleLabel(r) }}</button></li>
         </ul>
-        <p class="mt-2 text-xs text-slate-500">La règle de chaque livreur se choisit sur sa fiche, dans Mes livreurs.</p>
+        <p class="explain-detail mt-2">La règle de chaque livreur se choisit sur sa fiche, dans Mes livreurs.</p>
       </section>
     </template>
 
@@ -185,7 +185,7 @@ const ruleLabel = (r) => (r.type === 'delivery_fee' ? 'Les frais de livraison pa
         <Field id="ru-type" label="Calcul">
           <select id="ru-type" v-model="rule.type" class="input"><option value="per_delivery">Montant fixe par livraison</option><option value="per_zone">Selon la zone de livraison</option><option value="delivery_fee">La totalité des frais de livraison payés par le client</option></select>
         </Field>
-        <p v-if="rule.type === 'delivery_fee'" class="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Le livreur reçoit, pour chaque livraison réussie, les frais de livraison que le client a payés sur la commande (ex. 1 500 F pour une livraison facturée 1 500 F).</p>
+        <p v-if="rule.type === 'delivery_fee'" class="rounded-lg bg-slate-50 p-3"><b class="explain block">Le livreur garde les frais payés par le client.</b><span class="explain-detail">Pour chaque livraison réussie. Ex. : livraison facturée 1 500 F → 1 500 F pour lui.</span></p>
         <Field id="ru-amount" :label="rule.type === 'delivery_fee' ? 'Si la livraison est offerte au client' : rule.type === 'per_zone' ? 'Montant par défaut' : 'Par livraison réussie'" :hint="rule.type === 'delivery_fee' ? 'Ce que le livreur reçoit quand le client ne paie pas de frais (0 : rien).' : ''" :error="errors.amount">
           <input id="ru-amount" v-model.number="rule.amount" type="number" min="0" class="input" required />
         </Field>

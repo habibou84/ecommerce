@@ -271,7 +271,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
           <p class="px-0.5 pt-1 font-display text-base font-extrabold">Ou préparer un live</p>
           <button type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-white p-3 text-left" @click="preparing = true">
             <ColorIcon name="live" :size="34" />
-            <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Préparer un live</b><span class="text-xs text-slate-500">Ferme les commandes avec codes</span></span>
+            <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Préparer un live</b><span class="explain-detail">Ferme les commandes avec codes</span></span>
             <span class="text-sm font-extrabold text-emerald-700">Commencer ▸</span>
           </button>
         </template>

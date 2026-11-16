@@ -736,7 +736,7 @@ async function save() {
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm"><Icon name="file" :size="20" /></span>
         <span class="min-w-0 flex-1">
           <span class="block font-bold">Coller le message du client</span>
-          <span class="block text-sm text-slate-500">WhatsApp, Facebook… : numéro, nom, quartier et produits se remplissent.</span>
+          <span class="explain-detail block">Numéro, nom, quartier et articles se remplissent seuls.</span>
         </span>
         <Icon name="chevron" :size="18" class="text-slate-400 transition" :class="{ 'rotate-90': pasteOpen }" />
       </button>
@@ -754,7 +754,7 @@ async function save() {
             </button>
           </template>
         </div>
-        <p v-if="ai.enabled" class="text-xs text-slate-500">L'assistant comprend les messages mal écrits, en plusieurs fois ou en capture d'écran.</p>
+        <p v-if="ai.enabled" class="explain-detail">L'assistant comprend les messages mal écrits, en plusieurs fois ou en capture d'écran.</p>
         <AiMeter />
       </div>
     </section>
@@ -944,11 +944,14 @@ async function save() {
               <button v-if="!otherPayer" type="button" class="text-sm font-semibold text-emerald-700 hover:underline" @click="otherPayer = true">Autre cas ▾</button>
               <label class="flex items-start gap-2 pt-1">
                 <input v-model="form.expedition_prepay" type="checkbox" class="mt-1 h-4 w-4 accent-emerald-700" />
-                <span><span class="block font-medium">Payé avant le départ</span><span class="block text-xs text-slate-500">Le livreur ne part à la gare qu'une fois la commande payée.</span></span>
+                <span><span class="block font-medium">Payé avant le départ</span><span class="block explain-detail">Le livreur ne part à la gare qu'une fois la commande payée.</span></span>
               </label>
             </div>
           </template>
-          <p v-else class="text-base text-slate-600">Le client vient chercher sa commande : pas de frais de livraison.</p>
+          <div v-else>
+            <p class="explain">Pas de frais de livraison.</p>
+            <p class="explain-detail">Le client vient chercher sa commande.</p>
+          </div>
         </section>
 
         <!-- 2. Articles -->
@@ -1000,7 +1003,7 @@ async function save() {
           </ul>
           <p v-else class="flex items-start gap-2 text-base leading-snug text-slate-600">
             <Icon name="up" :size="18" class="mt-0.5 shrink-0 text-emerald-700" />
-            <span>Tapez le nom de l'article (ou son code) dans le champ ci-dessus : la liste des articles s'affiche, touchez celui que le client veut pour l'ajouter à la commande.</span>
+            <span><b class="block font-semibold text-slate-900">Tapez le nom ou le code de l'article.</b><span class="text-sm">Puis touchez-le dans la liste pour l'ajouter.</span></span>
           </p>
           <button type="button" class="text-sm text-emerald-700 hover:underline" @click="items.push({ variant_id: null, title: '', quantity: 1, unit_price: '' })">+ Article hors catalogue</button>
         </section>
@@ -1094,7 +1097,7 @@ async function save() {
               <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(30)">30 %</button>
               <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(50)">50 %</button>
             </div>
-            <p class="text-right text-xs text-slate-500">Auto : selon les articles et le réglage de la boutique.</p>
+            <p class="text-right explain-detail">Auto : selon les articles et le réglage de la boutique.</p>
           </div>
           <label v-if="!editing" class="flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 p-3">
             <input v-model="form.confirmed" type="checkbox" class="peer sr-only" />
@@ -1126,8 +1129,9 @@ async function save() {
     <Modal v-if="tariffs" :title="`Zones et tarifs de ${tariffs.name}`" @close="tariffs = null">
       <p v-if="!tariffs.zones" class="text-sm text-slate-500">Chargement…</p>
       <template v-else>
-        <p class="mb-3 text-sm text-slate-600">{{ tariffs.is_api ? 'Le prix exact est demandé à l\'entreprise pour chaque commande (poids, colis fragile) ; les tarifs ci-dessous sont indicatifs.' : 'Prix payé par le client selon la zone. Pour les modifier : Livraisons › Entreprises de livraison › Zones et tarifs.' }}</p>
-        <p v-if="!tariffs.zones.length" class="text-sm text-slate-500">Pas encore de zone : elle est proposée partout, aux frais de vos propres zones.</p>
+        <p class="explain">{{ tariffs.is_api ? 'Ces tarifs sont indicatifs.' : 'Prix payé par le client selon la zone.' }}</p>
+        <p class="explain-detail mb-3">{{ tariffs.is_api ? 'Le prix exact est demandé à l\'entreprise pour chaque commande (poids, colis fragile).' : 'Pour les modifier : Livraisons › Entreprises de livraison › Zones et tarifs.' }}</p>
+        <p v-if="!tariffs.zones.length" class="explain-detail">Pas encore de zone : elle est proposée partout, aux frais de vos propres zones.</p>
         <ul class="divide-y divide-slate-100 text-sm">
           <li v-for="z in tariffs.zones" :key="z.id" class="py-2.5">
             <div class="flex items-baseline justify-between gap-3">

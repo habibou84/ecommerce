@@ -84,8 +84,8 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
         </li>
         <li v-if="!messages.length" class="py-6 text-center text-slate-500">
           <template v-if="filter !== 'all'">Aucun message dans ce filtre.</template>
-          <template v-else-if="official.account">Aucun message envoyé pour l'instant : le premier partira à la prochaine commande.</template>
-          <template v-else>Les messages envoyés par votre numéro officiel s'afficheront ici. <RouterLink to="/gestion/whatsapp" class="font-medium text-emerald-700 underline">Connecter le numéro</RouterLink></template>
+          <template v-else-if="official.account"><b class="explain block">Aucun message envoyé pour l'instant.</b><span class="explain-detail">Le premier partira à la prochaine commande.</span></template>
+          <template v-else><b class="explain block">Votre numéro officiel n'est pas connecté.</b><span class="explain-detail">Ses messages s'afficheront ici.</span> <RouterLink to="/gestion/whatsapp" class="font-medium text-emerald-700 underline">Connecter le numéro</RouterLink></template>
         </li>
       </ul>
     </section>

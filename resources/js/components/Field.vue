@@ -13,6 +13,6 @@ defineProps({
     <label :for="id" :class="large ? 'label-lg' : 'label'">{{ label }}<slot name="after-label" /></label>
     <slot />
     <p v-if="error" class="mt-1 text-sm text-red-600">{{ error }}</p>
-    <p v-else-if="hint" class="mt-1 text-sm text-slate-500">{{ hint }}</p>
+    <p v-else-if="hint" class="explain-detail mt-1">{{ hint }}</p>
   </div>
 </template>

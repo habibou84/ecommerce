@@ -70,7 +70,10 @@ const label = (m) => (m.type === 'image' ? '📷 Photo' : m.body)
           <button class="rounded-xl bg-slate-900 px-4 text-sm font-extrabold text-white disabled:opacity-50" :disabled="busy || !body.trim()">Envoyer</button>
         </form>
       </template>
-      <p v-else class="mt-2 text-xs text-slate-500">Plus de 24 h sans message de la cliente : WhatsApp ne permet plus de lui écrire ici.</p>
+      <div v-else class="mt-2">
+        <p class="explain">Vous ne pouvez plus lui écrire ici.</p>
+        <p class="explain-detail">Elle n'a rien envoyé depuis plus de 24 h : WhatsApp bloque la réponse.</p>
+      </div>
       <p v-if="error" class="mt-1 text-sm font-bold text-red-700">{{ error }}</p>
       <div class="mt-2 flex shrink-0 justify-center gap-4 text-sm font-extrabold text-emerald-700 underline">
         <RouterLink v-if="orderId" :to="`/gestion/commandes/${orderId}`">Voir sa commande</RouterLink>

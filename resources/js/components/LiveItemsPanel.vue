@@ -258,7 +258,7 @@ async function save() {
       <!-- Sélection -->
       <div v-else class="space-y-2">
         <p v-if="!items.length" class="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">Aucun article. Cochez-les dans « Mon catalogue » ou reprenez un live passé.</p>
-        <p v-else class="text-xs text-slate-500">L'ordre donne les codes (A1, A2…). Touchez le code pour le changer.</p>
+        <p v-else class="explain-detail">L'ordre donne les codes (A1, A2…). Touchez le code pour le changer.</p>
         <div v-for="(i, index) in items" :key="i.variant_id" class="rounded-2xl border border-slate-200 p-2">
           <div class="flex items-center gap-3">
             <button type="button" class="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-600 font-black text-white" :aria-label="`Code ${codes[productKey(i)]} : changer`" @click="signing = i">

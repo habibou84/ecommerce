@@ -158,7 +158,7 @@ async function deactivate(courier) {
         <fieldset>
           <legend class="label">Où livre-t-il ?</legend>
           <PlacesPicker id="cr-places" v-model="editing.places" empty-label="Partout : aucun lieu choisi." />
-          <p class="mt-1 text-xs text-slate-500">Une commune couvre tous ses quartiers. Ses courses lui sont proposées en priorité dans ces lieux.</p>
+          <p class="mt-1 explain-detail">Une commune couvre tous ses quartiers. Ses courses lui sont proposées en priorité dans ces lieux.</p>
         </fieldset>
         <fieldset v-if="!editing.id && otherStores().length">
           <legend class="label">Travaille aussi pour</legend>
@@ -167,7 +167,7 @@ async function deactivate(courier) {
               <input v-model="editing.store_ids" type="checkbox" :value="st.id" class="accent-emerald-700" /> {{ st.name }}
             </label>
           </div>
-          <p class="mt-1 text-xs text-slate-500">Une seule application pour toutes ses livraisons ; chaque boutique garde ses lieux et sa paie pour lui.</p>
+          <p class="mt-1 explain-detail">Une seule application pour toutes ses livraisons ; chaque boutique garde ses lieux et sa paie pour lui.</p>
         </fieldset>
         <button class="btn-brand w-full" :disabled="busy">{{ editing.id ? 'Enregistrer' : 'Ajouter et créer le lien' }}</button>
       </form>

@@ -32,7 +32,8 @@ async function copyLink() {
   <section class="card space-y-4 p-4 text-sm">
     <div>
       <h3 class="font-semibold">🎓 Se former au live</h3>
-      <p class="mt-1 text-slate-600">Des vidéos d'une minute pour préparer, animer et réussir vos lives, dans l'ordre ou selon votre besoin.</p>
+      <p class="explain mt-1">Des vidéos d'une minute pour réussir vos lives.</p>
+      <p class="explain-detail">Préparer, animer, vendre : dans l'ordre ou selon votre besoin.</p>
     </div>
 
     <div v-if="current" class="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">

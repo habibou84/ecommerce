@@ -41,7 +41,8 @@ function pickOther() {
 
 <template>
   <Modal :title="`Pancarte · ${title}`" @close="emit('close')">
-    <p class="text-sm text-slate-600">La pancarte que vous montrerez à la caméra avec cet article. Les clientes écrivent ce code.</p>
+    <p class="explain">Les clientes écrivent ce code pour commander.</p>
+    <p class="explain-detail">Montrez la pancarte à la caméra avec l'article.</p>
     <div class="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Série">
       <button v-for="l in LETTERS" :key="l" type="button" role="tab" :aria-selected="letter === l" class="h-9 w-9 rounded-lg text-sm font-black"
               :class="letter === l ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'" @click="letter = l">{{ l }}</button>
@@ -52,7 +53,7 @@ function pickOther() {
               :class="c === current ? 'bg-red-600 text-white ring-4 ring-red-100' : used[c] ? 'bg-slate-800 text-slate-400' : 'border-2 border-slate-200 bg-white hover:border-red-600'"
               @click="pick(c)">{{ c }}</button>
     </div>
-    <p class="mt-2 text-xs text-slate-500">En gris foncé : déjà sur un autre article de ce live.</p>
+    <p class="mt-2 explain-detail">En gris foncé : déjà sur un autre article de ce live.</p>
     <form class="mt-4 flex items-start gap-2" @submit.prevent="pickOther">
       <label class="min-w-0 flex-1 text-sm">
         <span class="sr-only">Autre pancarte</span>

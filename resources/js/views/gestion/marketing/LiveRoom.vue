@@ -634,7 +634,7 @@ async function redo() {
           </div>
           <input v-model="quick.name" class="input mt-3" placeholder="Pseudo ou nom" maxlength="120" />
           <input v-model="quick.phone" class="input mt-2" type="tel" placeholder="Numéro WhatsApp (facultatif)" />
-          <p class="mt-1 text-xs text-slate-500">Avec un numéro, la cliente reçoit un WhatsApp qui lui demande son quartier.</p>
+          <p class="explain-detail mt-1">Avec un numéro, la cliente reçoit un WhatsApp qui lui demande son quartier.</p>
           <button class="btn-brand mt-3 w-full" :disabled="busy || !quick.code || (!quick.name && !quick.phone)">{{ quick.code ? `Réserver ${quick.code}` : 'Choisissez un code' }}</button>
         </form>
       </template>

@@ -319,8 +319,9 @@ async function addNote() {
 
         <section v-if="canConfirm && order.whatsapp_confirmation" class="card space-y-2 p-4 text-sm">
           <h3 class="font-semibold">Confirmation par WhatsApp</h3>
-          <p class="text-slate-600">
-            Le client reçoit le récapitulatif avec les boutons « Confirmer » et « Annuler » ; sa réponse met la commande à jour toute seule.
+          <p class="explain">Le client confirme ou annule d'une touche.</p>
+          <p class="explain-detail">
+            Il reçoit le récapitulatif ; sa réponse met la commande à jour toute seule.
             {{ order.whatsapp_confirmation === 'conversation' ? 'Gratuit : le client vous a écrit il y a moins de 24 h.' : 'Par le modèle approuvé (message facturé par Meta).' }}
           </p>
           <button type="button" class="btn-secondary w-full justify-start gap-2" :disabled="busy" @click="askOnWhatsApp"><Icon name="send" :size="16" />{{ waSent ? 'Renvoyer la demande' : 'Envoyer la demande de confirmation' }}</button>
@@ -433,7 +434,8 @@ async function addNote() {
       </div>
       <form v-else class="space-y-4" @submit.prevent="createPayLink">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-sm text-slate-600">Le client paie en ligne ; la commande se met à jour toute seule.</p>
+        <p class="explain">Le client paie en ligne.</p>
+        <p class="explain-detail">La commande se met à jour toute seule.</p>
         <Field id="link-amount" label="Montant (F)" :error="formErrors.amount" :hint="`Reste à payer : ${money(order.amount_due)}`">
           <input id="link-amount" v-model="form.amount" class="input" type="number" min="5" :max="order.amount_due" required />
         </Field>
