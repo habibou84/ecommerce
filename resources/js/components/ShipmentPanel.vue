@@ -300,7 +300,7 @@ async function whatsapp(s) {
       </ol>
       <p v-if="s.courier" class="text-slate-600">Livreur : <strong>{{ s.courier.name }}</strong> · <a :href="`tel:${s.courier.phone}`" class="text-emerald-700 underline">appeler</a></p>
       <CourierWhatsAppButton v-if="s.courier && !s.is_final && auth.can('couriers.manage')" :courier-id="s.courier.id" small />
-      <p v-if="s.courier && !s.is_final" class="text-xs" :class="s.courier.accepted_at ? 'text-emerald-700' : 'text-amber-700'">
+      <p v-if="s.courier && !s.is_final" class="text-sm font-semibold" :class="s.courier.accepted_at ? 'text-emerald-700' : 'text-amber-700'">
         <template v-if="s.courier.accepted_at">✓ Mission acceptée à {{ new Date(s.courier.accepted_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</template>
         <template v-else-if="s.courier.seen_at">Vue à {{ new Date(s.courier.seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}, pas encore acceptée</template>
         <template v-else-if="s.status === 'awaiting_pickup'">Pas encore vue par le livreur</template>
@@ -420,8 +420,8 @@ async function whatsapp(s) {
     <Modal v-if="modal === 'edit'" :title="`Modifier la course ${current.reference}`" @close="modal = null">
       <form class="space-y-4" @submit.prevent="saveEdit">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-xs text-slate-500">
-          {{ current.carrier_actions.edit === 'all' ? 'Avant le ramassage, tout se modifie.' : 'Le colis est déjà récupéré : seule la livraison se modifie.' }}
+        <p class="explain">{{ current.carrier_actions.edit === 'all' ? 'Avant le ramassage, tout se modifie.' : 'Colis récupéré : seule la livraison se modifie.' }}</p>
+        <p class="explain-detail">
           Pour changer le quartier, modifiez la commande : la course suivra.
         </p>
         <Field id="ce-address" label="Adresse"><input id="ce-address" v-model="edit.delivery_address" class="input" maxlength="500" /></Field>

@@ -108,7 +108,7 @@ async function save() {
       <template v-else>
         <span class="text-4xl" aria-hidden="true">📷</span>
         <b class="mt-1 text-base">Prendre la photo</b>
-        <span class="text-xs text-slate-500">Obligatoire : vos clientes commandent sur la photo</span>
+        <span class="explain-detail">Obligatoire : vos clientes commandent sur la photo</span>
       </template>
     </label>
 

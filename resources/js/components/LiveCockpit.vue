@@ -563,7 +563,7 @@ const ago = (iso) => {
         <span>{{ live.billing.orders }} commande{{ live.billing.orders > 1 ? 's' : '' }}</span>
         <span :class="live.billing.after < 0 ? 'text-amber-300' : 'text-emerald-300'">Solde après le live : {{ live.billing.after }}</span>
       </div>
-      <p v-if="live.billing.after < 0 && !live.billing.billed" class="mt-1.5 rounded-lg bg-amber-400/15 px-2 py-1 text-xs font-bold text-amber-200">⚠️ Votre solde ne couvre pas toutes les commandes : le live continue, rechargez avant le prochain.</p>
+      <p v-if="live.billing.after < 0 && !live.billing.billed" class="mt-1.5 rounded-lg bg-amber-400/15 px-2 py-1 text-sm font-bold text-amber-200">⚠️ Solde trop bas : le live continue, rechargez avant le prochain.</p>
     </div>
     <div v-if="menu" class="grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-2 text-sm font-extrabold text-slate-900">
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('share')">📤 Lien du live</button>
@@ -770,7 +770,7 @@ const ago = (iso) => {
             <div class="mt-2"><LiveMysteryEditor :live="live" dark @saved="(state) => { emit('updated', state); loadDisplay() }" /></div>
           </details>
           <div class="flex items-center gap-2 rounded-xl bg-white/5 p-3 text-sm font-bold">
-            <span class="min-w-0 flex-1">⏱ Durée prévue du live <span class="block text-xs font-normal text-slate-400">le copilote propose la dernière chance avant la fin</span></span>
+            <span class="min-w-0 flex-1">⏱ Durée prévue du live <span class="block text-sm font-normal text-slate-300">Le copilote propose la dernière chance avant la fin.</span></span>
             <select v-model.number="plan.minutes.value" class="input w-auto py-1 text-slate-900" aria-label="Durée prévue">
               <option v-for="m in [30, 45, 60, 90, 120]" :key="m" :value="m">{{ m }} min</option>
             </select>
@@ -823,7 +823,10 @@ const ago = (iso) => {
         <button v-for="[key, label] in [['all', 'Tous'], ['todo', `À répondre · ${questions.length}`]]" :key="key" type="button" :aria-pressed="messageFilter === key"
                 class="rounded-full border-[1.5px] px-3 py-1" :class="messageFilter === key ? 'border-slate-900 bg-slate-900 text-white' : 'border-field bg-white'" @click="messageFilter = key">{{ label }}</button>
       </div>
-      <p v-if="live.whatsapp === null" class="rounded-xl bg-white p-3 text-sm text-slate-600">Votre WhatsApp n'est pas connecté : les messages des clientes n'arrivent pas ici. <RouterLink to="/gestion/whatsapp" class="font-bold underline">Connecter WhatsApp</RouterLink></p>
+      <div v-if="live.whatsapp === null" class="rounded-xl bg-white p-3">
+        <p class="explain">Votre WhatsApp n'est pas connecté.</p>
+        <p class="explain-detail">Les messages des clientes n'arrivent pas ici. <RouterLink to="/gestion/whatsapp" class="font-bold text-emerald-700 underline">Connecter WhatsApp</RouterLink></p>
+      </div>
       <p v-else-if="!messages.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">{{ messageFilter === 'todo' ? 'Aucune question en attente ✓' : 'Les messages des clientes s\'afficheront ici.' }}</p>
       <article v-for="m in messages" :key="m.id" role="button" tabindex="0" class="cursor-pointer rounded-xl bg-white p-2 active:bg-slate-100" :class="needsAction(m) ? 'shadow-[inset_4px_0_0_#dc2626]' : ''" @click="openChat = m" @keydown.enter.self="openChat = m">
         <div class="flex items-center gap-2.5">

@@ -66,7 +66,7 @@ const LINES = [
           <li v-for="s in data.stores" :key="s.id" class="flex justify-between py-1.5"><span>{{ s.name }}</span><span>{{ money(s.flows_total) }} <span class="text-xs text-slate-500">dont {{ money(s.flows_cash) }} en espèces</span></span></li>
           <li class="flex justify-between py-1.5 font-semibold"><span>Total</span><span>{{ money(data.total.flows_total) }} <span class="text-xs font-normal text-slate-500">dont {{ money(data.total.flows_cash) }} en espèces</span></span></li>
         </ul>
-        <p class="text-xs text-slate-500">Le détail de chaque boutique est dans sa propre caisse (cliquez sur son nom).</p>
+        <p class="explain-detail">Le détail de chaque boutique est dans sa caisse : touchez son nom.</p>
       </section>
     </template>
   </div>

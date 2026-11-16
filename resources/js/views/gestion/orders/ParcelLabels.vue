@@ -84,7 +84,10 @@ async function found(input) {
         <div class="space-y-1 text-sm">
           <label v-for="f in data.formats" :key="f.code" class="flex items-center gap-2"><input v-model="format" type="radio" :value="f.code"> <span :class="{ 'font-bold': format === f.code }">{{ f.label }}</span></label>
         </div>
-        <p class="text-xs text-slate-500">Mini 40 × 30 : imprimante d'étiquettes (rouleau) ou feuilles d'autocollants A4 (45 par feuille). Chaque étiquette a un code unique, à votre boutique.</p>
+        <div>
+          <p class="explain-detail">Mini 40 × 30 : imprimante d'étiquettes (rouleau). A4 : feuilles de 45 autocollants.</p>
+          <p class="explain-detail">Chaque étiquette a un code unique, propre à votre boutique.</p>
+        </div>
         <button type="button" class="btn-brand w-full" :disabled="busy || !format" @click="createBatch">⬇ Imprimer les {{ quantity }} étiquettes</button>
       </section>
 

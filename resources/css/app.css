@@ -192,6 +192,14 @@
 @utility label {
     @apply mb-1 block text-sm font-semibold text-slate-700;
 }
+/* Explications (docs/LEXIQUE-INTERFACE.md) : une phrase clé en gras qui dit de quoi il s'agit,
+   puis le détail en 14 px gris foncé ; le reste dans « En savoir plus » (ExplainMore) */
+@utility explain {
+    @apply text-base leading-snug font-semibold text-slate-900;
+}
+@utility explain-detail {
+    @apply text-sm leading-relaxed text-slate-600;
+}
 @utility card {
     @apply rounded-2xl border border-slate-200 bg-white;
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -8px rgb(15 23 42 / 0.1);

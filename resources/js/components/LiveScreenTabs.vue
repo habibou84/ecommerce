@@ -485,7 +485,7 @@ watch(tab, (t) => t === 'screen' && loadLink().catch(() => {}), { immediate: tru
       <section v-if="part !== 'tv'" class="rounded-2xl border-2 border-slate-200 bg-white p-4">
         <template v-if="!part">
           <h2 class="text-lg font-extrabold">🖥️ OBS · TikTok LIVE Studio</h2>
-          <p class="text-sm text-slate-500">Sur l'ordinateur · une carte en haut à gauche, vous en dessous</p>
+          <p class="explain-detail">Sur l'ordinateur : une carte en haut à gauche, vous en dessous.</p>
         </template>
         <p v-if="studio?.online" class="mt-3 rounded-xl bg-emerald-50 p-2.5 text-base font-extrabold text-emerald-800">✅ Connecté à LIVE Studio</p>
         <div v-for="(l, i) in STUDIO_LINKS" :key="l.key" class="mt-3 flex gap-3">

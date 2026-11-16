@@ -146,8 +146,9 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
           <span class="whitespace-nowrap text-lg font-bold" :class="data.flows.total < 0 ? 'text-red-700' : 'text-emerald-800'">{{ signed(data.flows.total) }}</span>
         </div>
       </div>
-      <p class="text-xs text-slate-600">
-        Chaque somme est comptée une seule fois, le jour où vous la recevez. « Espèces » : l'argent à mettre dans le tiroir.
+      <p class="explain">Une somme compte le jour où vous la recevez.</p>
+      <p class="explain-detail">
+        « Espèces » : l'argent à mettre dans le tiroir.
         <template v-if="data?.flows.online_fees"> Frais des paiements en ligne : {{ money(data.flows.online_fees) }}.</template>
       </p>
     </section>

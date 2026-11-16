@@ -81,3 +81,17 @@ Six tailles seulement, chacune avec un rôle. Pas de taille écrite à la main (
   pendant le live (LiveDisplay, LiveShowStage, LiveOverlay) et les écrans vus de loin, dont la taille suit l'écran
   (`text-[9vh]`, `text-[38vmin]`), la boutique en ligne, les PDF et les e-mails.
 - `text-pastille` (11 px) : uniquement pour le chiffre d'une pastille posée sur une icône, faute de place.
+
+## Explications
+
+Dès la première phrase, on doit comprendre de quoi il s'agit. Une explication suit toujours le même ordre :
+
+1. **Phrase clé** : `explain` (16 px, gras, noir). Ce que c'est ou ce qui va se passer, 60 caractères au plus.
+2. **Détail** : `explain-detail` (14 px, gris foncé). Une ou deux lignes, 100 caractères au plus.
+3. **Le reste** (étapes, cas particuliers, conditions) : replié dans `ExplainMore` (« En savoir plus »).
+
+- Un choix à sélectionner : un titre court qui suffit pour choisir, puis une ligne `explain-detail` sur la conséquence.
+- Sous une carte qui a déjà un titre, une seule ligne `explain-detail` suffit souvent.
+- Jamais d'explication en `text-xs` ni en gris clair (`slate-400`, `slate-500`) : `text-xs` reste aux dates, badges et surtitres.
+- La conséquence d'abord, le comment ensuite : « Les clients peuvent encore commander. » puis « Par les codes… ».
+- Les aides sous un champ (`Field hint`) sont en `explain-detail`.

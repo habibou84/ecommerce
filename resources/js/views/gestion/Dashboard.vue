@@ -518,7 +518,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
       <ol class="list-decimal space-y-1 pl-5 text-sm text-slate-700">
         <li v-for="(tip, i) in stats.tips" :key="i">{{ tip }}</li>
       </ol>
-      <p class="text-xs text-slate-500">Tirés de vos chiffres : ventes, stock, confirmations et livraisons. Ils sont aussi dans le rapport du soir.</p>
+      <p class="explain-detail">Tirés de vos ventes, stock, confirmations et livraisons. Aussi dans le rapport du soir.</p>
     </section>
 
   </div>

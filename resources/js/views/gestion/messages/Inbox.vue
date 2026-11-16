@@ -485,7 +485,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
             <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="suggesting || aiExhausted(ai)" @click="suggest">
               <Icon name="sparkles" :size="16" class="mr-1 inline-block align-[-3px]" />{{ suggesting ? 'L\'assistant écrit…' : 'Proposer une réponse' }}
             </button>
-            <span class="hidden text-xs text-slate-500 sm:inline">Avec vos prix, votre stock et vos frais de livraison. Relisez avant d'envoyer.</span>
+            <span class="hidden explain-detail sm:inline">Avec vos prix, votre stock et vos frais de livraison. Relisez avant d'envoyer.</span>
           </div>
           <AiMeter v-if="ai.enabled" />
           <p v-if="suggestionCheck" class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">À vérifier : {{ suggestionCheck }}</p>
@@ -507,7 +507,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
           <p v-if="!current.linked && replyUntil" class="text-xs text-slate-500">
             {{ current.channel === 'whatsapp' ? 'Connexion officielle de Meta' : channelLabel(current) }} : réponse possible jusqu'au {{ replyUntil }}.
           </p>
-          <p v-else-if="enterSends" class="text-xs text-slate-400">Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
+          <p v-else-if="enterSends" class="explain-detail">Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
         </form>
         <div v-else-if="!selecting" class="space-y-2 border-t border-slate-100 p-3 text-sm text-slate-600">
           <p>

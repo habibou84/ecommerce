@@ -22,7 +22,8 @@ const OPTIONS = [
 
 <template>
   <Modal title="Terminer le live" @close="emit('close')">
-    <p class="text-base text-slate-600">Vous pouvez garder les commandes actives encore un peu, pour ceux qui regardent le replay.</p>
+    <p class="explain">Les commandes peuvent rester ouvertes après le live.</p>
+    <p class="explain-detail">Pour ceux qui regardent le replay.</p>
     <div class="mt-3 space-y-2.5">
       <button v-for="o in OPTIONS" :key="String(o.value)" type="button" class="block w-full rounded-2xl border-2 p-3.5 text-left"
               :class="choice === o.value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white'" @click="choice = o.value">
@@ -31,7 +32,10 @@ const OPTIONS = [
         <span v-if="o.value" class="ml-1.5 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-extrabold text-emerald-800">Comptées dans ce live</span>
       </button>
     </div>
-    <p class="mt-3 text-sm text-slate-500">Les clients peuvent encore écrire les codes (A1, A2…) sur WhatsApp ou commander par le lien du live. Ceux qui ont une pièce gardée peuvent toujours donner leur quartier.</p>
+    <div class="mt-3">
+      <p class="explain">Tant qu'elles sont ouvertes, les clients peuvent commander.</p>
+      <p class="explain-detail">Par les codes (A1, A2…) sur WhatsApp ou par le lien du live. Une pièce gardée peut toujours recevoir son quartier.</p>
+    </div>
     <button type="button" class="mt-4 block w-full rounded-2xl bg-slate-900 py-3 text-base font-extrabold text-white disabled:opacity-60" :disabled="busy" @click="emit('confirm', choice)">Valider</button>
     <button type="button" class="mt-2 block w-full rounded-2xl bg-slate-100 py-3 font-bold" @click="emit('close')">Annuler, je reste en live</button>
   </Modal>

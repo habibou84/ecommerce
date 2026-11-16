@@ -96,7 +96,7 @@ const chip = (on) => (on ? 'bg-violet-700 text-white' : props.dark ? 'bg-white/1
           <button v-for="[value, label] in MYSTERY_MODES" :key="value" type="button" role="radio" :aria-checked="(showSettings.mystery_mode || 'zoom') === value" class="rounded-lg py-1.5 text-xs font-extrabold" :class="chip((showSettings.mystery_mode || 'zoom') === value)" :disabled="busy" @click="saveShow({ mystery_mode: value })">{{ label }}</button>
         </div>
       </template>
-      <p v-else class="mt-1 text-xs" :class="dark ? 'text-slate-300' : 'text-violet-700'">Aucun article mystère : coche « 🎁 Mystère » sur un article (onglet Plan, ou à la préparation).</p>
+      <p v-else class="mt-1 text-sm" :class="dark ? 'text-slate-300' : 'text-violet-700'"><b>Aucun article mystère.</b> Cochez « 🎁 Mystère » sur un article (onglet Plan ou préparation).</p>
     </div>
 
     <!-- Défi du live -->
@@ -138,7 +138,7 @@ const chip = (on) => (on ? 'bg-violet-700 text-white' : props.dark ? 'bg-white/1
         <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="chip(showSettings.light)" :disabled="busy" @click="saveShow({ light: !showSettings.light })">🪶 Mode léger</button>
         <button type="button" class="rounded-full px-3 py-1 text-xs font-bold" :class="chip(showSettings.camera)" :disabled="busy" @click="saveShow({ camera: !showSettings.camera })">🎥 Mode caméra</button>
       </div>
-      <p class="mt-2 text-xs" :class="dark ? 'text-slate-400' : 'text-violet-700'">Sur la télé, touchez une fois « 🔊 Activer le son du show » pour entendre les sons.</p>
+      <p class="mt-2 text-sm" :class="dark ? 'text-slate-300' : 'text-violet-700'">Pour le son, touchez une fois « 🔊 Activer le son du show » sur la télé.</p>
     </details>
   </div>
 </template>
