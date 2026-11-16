@@ -384,7 +384,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         <LivePin :live="draft" />
         <section class="space-y-3 rounded-2xl bg-orange-50 p-4">
           <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">1</b><p class="text-base"><b>Télécharge</b> la carte (bouton ci-dessus).</p></div>
-          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">2</b><p class="text-base">Dans votre live TikTok, ouvrez <b>Fond vert</b> et choisissez la carte dans votre galerie : les clientes voient vos articles et leurs codes pendant tout le live.</p></div>
+          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">2</b><p class="text-base"><b class="block">Mettez la carte en fond vert dans votre live TikTok.</b>Ouvrez <b>Fond vert</b> et choisissez-la dans votre galerie : les clientes voient vos articles et leurs codes.</p></div>
         </section>
       </div>
       <footer class="border-t border-slate-200 p-3">

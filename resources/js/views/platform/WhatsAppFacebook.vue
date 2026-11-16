@@ -174,7 +174,7 @@ async function copyLink() {
     <div v-else class="space-y-4">
       <!-- Navigateur intégré (lien ouvert depuis WhatsApp, Facebook, Instagram…) : la connexion y échoue souvent -->
       <div v-if="embeddedBrowser" class="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        <p><b>Ouvrez cette page dans Chrome ou Safari</b> pour connecter WhatsApp : dans le navigateur de WhatsApp, Facebook ou Instagram, la connexion n'aboutit souvent pas.</p>
+        <p><b class="block">Ouvrez cette page dans Chrome ou Safari.</b>Dans le navigateur de WhatsApp, Facebook ou Instagram, la connexion n'aboutit souvent pas.</p>
         <p>Menu ⋮ (ou ⋯) › « Ouvrir dans le navigateur », ou copiez le lien et collez-le dans Chrome.</p>
         <button type="button" class="btn-secondary w-full" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien' }}</button>
       </div>

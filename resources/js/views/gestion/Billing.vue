@@ -192,8 +192,8 @@ async function cancel(value) {
         <strong>{{ KEY_STATE[data.access_key.state] ?? data.access_key.state }}</strong>
       </p>
       <p v-if="data.access_key.offered_by" class="text-slate-300">
-        Après les {{ data.access_key.free_months }} mois offerts : −{{ Math.round(data.access_key.discount_rate * 100) }} % sur votre abonnement tant que vous livrez avec {{ data.access_key.offered_by }}.
-        <template v-if="data.access_key.state === 'lapsed'"> Aucune livraison récente avec eux : confiez-leur votre prochaine livraison pour retrouver la réduction.</template>
+        Après les {{ data.access_key.free_months }} mois offerts : −{{ Math.round(data.access_key.discount_rate * 100) }} % tant que vous livrez avec {{ data.access_key.offered_by }}.
+        <template v-if="data.access_key.state === 'lapsed'"> Confiez-leur votre prochaine livraison pour retrouver la réduction.</template>
       </p>
       <p v-if="data.access_key.state === 'paused'" :class="data.access_key.premium ? 'text-slate-200' : 'text-slate-600'">Sans commande depuis 2 mois, votre carte est en pause : elle se rallume dès votre prochaine commande.</p>
       <p v-else-if="data.access_key.pause_on" class="text-slate-200">Elle reste active tant que votre boutique enregistre au moins une commande tous les 2 mois (prochaine échéance : {{ formatDate(data.access_key.pause_on) }}).</p>

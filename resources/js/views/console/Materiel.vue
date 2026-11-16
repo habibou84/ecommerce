@@ -150,7 +150,7 @@ const waveMissing = computed(() => settings.value?.wave && !data.value?.methods.
     <!-- Produits -->
     <section v-if="tab === 'products'" class="space-y-3">
       <button class="btn-brand" @click="editProduct()">Ajouter un produit</button>
-      <p v-if="!data.products.length" class="card p-6 text-center text-sm text-slate-500">Aucun produit. Ajoutez par exemple une imprimante d'étiquettes ou un pack live.</p>
+      <p v-if="!data.products.length" class="explain-detail card p-6 text-center">Aucun produit. Ajoutez par exemple une imprimante d'étiquettes ou un pack live.</p>
       <div class="grid gap-3 md:grid-cols-2">
         <article v-for="p in data.products" :key="p.id" class="card flex gap-3 p-3 text-sm" :class="p.is_active ? '' : 'opacity-60'">
           <img v-if="p.image" :src="p.image" alt="" class="h-20 w-20 shrink-0 rounded-lg object-cover" />

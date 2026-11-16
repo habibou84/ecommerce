@@ -95,3 +95,6 @@ Dès la première phrase, on doit comprendre de quoi il s'agit. Une explication 
 - Jamais d'explication en `text-xs` ni en gris clair (`slate-400`, `slate-500`) : `text-xs` reste aux dates, badges et surtitres.
 - La conséquence d'abord, le comment ensuite : « Les clients peuvent encore commander. » puis « Par les codes… ».
 - Les aides sous un champ (`Field hint`) sont en `explain-detail`.
+- Le test `tests/Feature/InterfaceExplanationsTest.php` refuse une explication en `text-xs` gris clair de 60 caractères
+  ou plus, et un paragraphe de plus de 140 caractères hors de sa phrase clé (`<b class="block">`) : le reste va dans
+  `ExplainMore`. Les écrans diffusés pendant le live ne sont pas concernés.

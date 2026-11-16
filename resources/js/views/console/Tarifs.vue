@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../components/ExplainMore.vue'
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage } from '../../lib/http'
@@ -55,7 +56,7 @@ async function save() {
           Commandes payantes (live, WhatsApp, boost)
           <span class="text-sm font-normal text-slate-500">(éteint : rien n'est compté)</span>
         </label>
-        <p class="text-sm text-slate-500">Boutique en ligne et commandes saisies à la main : toujours gratuites.</p>
+        <p class="explain-detail">Boutique en ligne et commandes saisies à la main : toujours gratuites.</p>
 
         <h3 class="pt-1 font-bold">Packs (IA incluse)</h3>
         <div v-for="i in PACKS" :key="i" class="grid grid-cols-3 gap-2">
@@ -63,7 +64,7 @@ async function save() {
           <label class="text-sm font-semibold">Prix (F)<input v-model.number="form[`pack${i}_price`]" type="number" min="0" class="input mt-1" /></label>
           <label class="text-sm font-semibold">Actions IA<input v-model.number="form[`pack${i}_ai`]" type="number" min="0" class="input mt-1" /></label>
         </div>
-        <p class="text-xs text-slate-500">Prix par commande : {{ PACKS.map((i) => `${form[`pack${i}_orders`] ? Math.round(form[`pack${i}_price`] / form[`pack${i}_orders`]) : 0} F`).join(' · ') }}. Le pack 2 est conseillé.</p>
+        <p class="explain-detail">Prix par commande : {{ PACKS.map((i) => `${form[`pack${i}_orders`] ? Math.round(form[`pack${i}_price`] / form[`pack${i}_orders`]) : 0} F`).join(' · ') }}. Le pack 2 est conseillé.</p>
 
         <h3 class="pt-1 font-bold">Illimité 30 jours</h3>
         <div class="grid grid-cols-2 gap-2">
@@ -79,7 +80,11 @@ async function save() {
           <label class="text-sm font-semibold">Minimum pour ouvrir un live (commandes)<input v-model.number="form.min_orders" type="number" min="0" class="input mt-1" /></label>
           <label class="text-sm font-semibold">Alerte quand il reste (commandes)<input v-model.number="form.alert_at" type="number" min="0" class="input mt-1" /></label>
         </div>
-        <p class="text-sm text-slate-500">Commandes d'un live retirées à la fin du live (une commande annulée ensuite reste comptée, pas une fausse), commandes WhatsApp chaque soir, boosts à chaque relecture. Un live en cours n'est jamais coupé. Recharge par PayDunya (Orange Money, MTN, Moov, Wave, carte). Offrir des commandes, de l'IA ou 30 jours : sur la fiche de la boutique.</p>
+        <div>
+          <p class="explain">Un live en cours n'est jamais coupé.</p>
+          <p class="explain-detail">Retrait du solde : à la fin du live, chaque soir pour WhatsApp, à chaque relecture pour les boosts.</p>
+          <ExplainMore>Une commande de live annulée ensuite reste comptée (pas une fausse). Recharge par PayDunya : Orange Money, MTN, Moov, Wave, carte. Offrir des commandes, de l'IA ou 30 jours : sur la fiche de la boutique.</ExplainMore>
+        </div>
         <button type="button" class="btn-brand" :disabled="busy" @click="save">{{ saved ? '✓ Enregistré' : 'Enregistrer' }}</button>
       </section>
       <section class="card p-4">

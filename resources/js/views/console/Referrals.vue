@@ -75,10 +75,10 @@ async function pay() {
 
     <section class="card space-y-3 p-4 text-sm">
       <h2 class="text-base font-semibold">Part des entreprises de livraison</h2>
-      <p class="text-slate-600">
-        Une boutique créée avec le lien d'une entreprise de l'annuaire lui rapporte une part de chaque abonnement payé, pendant la durée
-        choisie à partir du premier paiement. Le prix payé par le marchand ne change pas.
-      </p>
+      <div>
+        <p class="explain">L'entreprise qui amène une boutique touche une part de son abonnement.</p>
+        <p class="explain-detail">Pendant la durée choisie, dès le premier paiement. Le prix du marchand ne change pas.</p>
+      </div>
       <form class="flex flex-wrap items-end gap-3" @submit.prevent="saveSettings">
         <label class="block"><span class="label">Part (%)</span><input v-model="form.rate" type="number" min="0" max="50" step="0.5" class="input w-28" required /></label>
         <label class="block"><span class="label">Durée (mois)</span><input v-model="form.months" type="number" min="1" max="60" class="input w-28" required /></label>
@@ -86,7 +86,7 @@ async function pay() {
       </form>
     </section>
 
-    <p v-if="data && !data.partners.length" class="card p-6 text-sm text-slate-500">Aucune boutique parrainée pour l'instant.</p>
+    <p v-if="data && !data.partners.length" class="explain-detail card p-6">Aucune boutique parrainée pour l'instant.</p>
 
     <article v-for="p in data?.partners ?? []" :key="p.partner" class="card space-y-3 p-4 text-sm">
       <div class="flex flex-wrap items-center gap-2">

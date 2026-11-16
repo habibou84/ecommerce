@@ -84,7 +84,7 @@ async function finish() {
           <!-- Liste vide : on dit pourquoi, et quoi faire -->
           <div v-if="noAccess?.kind === 'missing'" class="space-y-1 rounded-xl bg-amber-50 p-3 text-amber-900">
             <p class="font-bold">Facebook ne nous a pas donné accès à vos {{ noAccess.names.join(', ') }}.</p>
-            <p>Il manque une autorisation dans la configuration de la connexion Facebook (chez Meta). Quand c'est ajouté, reconnectez-vous et cochez-les dans la fenêtre de Facebook.</p>
+            <p><b class="block">Il manque une autorisation chez Meta.</b>Elle se règle dans la configuration de la connexion Facebook. Ensuite, reconnectez-vous et cochez-les dans la fenêtre de Facebook.</p>
           </div>
           <div v-else-if="noAccess?.kind === 'none'" class="space-y-1 rounded-xl bg-amber-50 p-3 text-amber-900">
             <p class="font-bold">Aucun catalogue n'a été coché dans la fenêtre de Facebook.</p>

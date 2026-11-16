@@ -184,15 +184,14 @@ onBeforeUnmount(() => timer && clearInterval(timer))
     <details v-if="!compact" class="text-xs text-slate-500">
       <summary class="cursor-pointer">Connexion non officielle : parfaite pour répondre aux clients, pas pour les envois en masse. <span class="font-medium text-emerald-700 underline">En savoir plus</span></summary>
       <p class="mt-2 rounded-lg bg-amber-50 p-3 text-amber-900">
-        Gardez le téléphone allumé avec Internet de temps en temps. N'envoyez pas de messages en masse par ce moyen :
-        WhatsApp peut bloquer un numéro qui le fait. Pour les messages automatiques, utilisez le numéro officiel
-        (onglet Messages automatiques).
+        <b class="block">Pas d'envois en masse par ce moyen : WhatsApp peut bloquer le numéro.</b>
+        Gardez le téléphone allumé avec Internet. Messages automatiques : numéro officiel (onglet Messages automatiques).
       </p>
     </details>
     <p v-if="!compact && link.status === 'connected'" class="text-right">
       <button type="button" class="text-xs font-medium text-red-600 hover:underline" :disabled="busy" @click="unlink">Déconnecter ce numéro</button>
     </p>
-    <p v-else-if="link.status !== 'connected'" class="text-xs text-slate-500">
+    <p v-else-if="link.status !== 'connected'" class="explain-detail">
       Connexion non officielle, pour les conversations seulement (pas d'envois en masse).
       <RouterLink to="/gestion/whatsapp" class="font-medium text-emerald-700 underline">Réglages WhatsApp</RouterLink>
     </p>

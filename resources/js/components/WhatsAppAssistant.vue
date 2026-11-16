@@ -89,7 +89,7 @@ function warning() {
     </fieldset>
 
     <p v-if="warning()" class="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><Icon name="alert" :size="16" class="mt-0.5 shrink-0" />{{ warning() }}</p>
-    <p v-if="data.assistant.enabled && data.assistant.limit === 0" class="text-xs text-slate-500">Assistant : {{ data.assistant.credits }} actions en réserve. Rechargez dans Réglages › Abonnement.</p>
+    <p v-if="data.assistant.enabled && data.assistant.limit === 0" class="explain-detail">Assistant : {{ data.assistant.credits }} actions en réserve. Rechargez dans Réglages › Abonnement.</p>
     <p v-else-if="data.assistant.enabled && data.assistant.limit !== null" class="text-xs text-slate-500">
       Assistant ce mois-ci : {{ data.assistant.used }} / {{ data.assistant.limit }} actions<template v-if="data.assistant.credits"> (+ {{ data.assistant.credits }} en réserve)</template>.
     </p>

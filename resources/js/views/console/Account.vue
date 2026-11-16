@@ -71,7 +71,7 @@ async function sendTest() {
 
     <section v-if="twoFactor" class="card space-y-3 p-4 text-sm">
       <p class="font-semibold">Validation en deux étapes <span class="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">✓ activée</span></p>
-      <p class="text-slate-600">À chaque connexion : mot de passe, puis le code de votre application d'authentification. {{ twoFactor.recovery_left }} code(s) de secours restant(s).</p>
+      <p class="explain-detail">À chaque connexion : mot de passe, puis le code de votre application d'authentification. {{ twoFactor.recovery_left }} code(s) de secours restant(s).</p>
       <div class="flex flex-wrap gap-2">
         <RouterLink to="/console/deux-etapes?changer=1" class="btn-ghost">Changer de téléphone</RouterLink>
         <button type="button" class="btn-ghost" @click="askCodes = !askCodes; newCodes = null">Nouveaux codes de secours</button>
@@ -91,7 +91,7 @@ async function sendTest() {
     <form class="card space-y-4 p-4 text-sm" @submit.prevent="save">
       <div>
         <p class="font-semibold">Adresse e-mail</p>
-        <p class="text-slate-600">Elle reçoit l'alerte à chaque nouvelle connexion, et le code du premier accès si votre application est réinitialisée.</p>
+        <p class="explain-detail">Elle reçoit l'alerte à chaque nouvelle connexion, et le code du premier accès si votre application est réinitialisée.</p>
       </div>
       <Field id="email" label="Adresse e-mail" :error="errors.email"><input id="email" v-model="form.email" type="email" class="input" autocomplete="email" /></Field>
       <div class="flex flex-wrap items-center gap-2">

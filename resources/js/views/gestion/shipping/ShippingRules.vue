@@ -152,7 +152,7 @@ function describe(rule) {
           </label>
         </div>
         <p v-if="data.assignment_mode === 'auto'" class="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 text-sm text-slate-700">
-          <strong>Exemple :</strong> la commande d'Awa à Cocody est confirmée à 10 h → elle est confiée à Moussa (il livre Cocody), qui la voit aussitôt dans son application.
+          <strong>Exemple :</strong> commande d'Awa à Cocody confirmée à 10 h → confiée à Moussa (il livre Cocody), qui la voit aussitôt.
         </p>
 
         <div v-if="data.assignment_mode !== 'off'" class="rounded-lg bg-slate-50 p-3 text-sm">
@@ -164,7 +164,7 @@ function describe(rule) {
             <li v-if="data.assignment_mode === 'auto'">Si aucun livreur ni entreprise n'est libre, la commande n'est confiée à personne : elle reste dans <strong>« À faire livrer »</strong> et vous êtes prévenu (la raison est notée dans son historique et dans le bilan ci-dessus).</li>
             <li v-if="data.assignment_mode === 'auto'">Si le livreur refuse, elle est confiée aussitôt à un autre livreur{{ data.mission_timeout_minutes ? `, et aussi s'il ne l'accepte pas en ${data.mission_timeout_minutes} min` : '' }}.</li>
           </ol>
-          <p class="explain-detail mt-2">Un livreur choisi à la saisie de la commande passe toujours avant. Un livreur qui n'a pas encore ouvert son lien d'accès n'est jamais choisi automatiquement.</p>
+          <p class="explain-detail mt-2">Un livreur choisi à la saisie passe toujours avant. Un livreur qui n'a pas ouvert son lien d'accès n'est jamais choisi automatiquement.</p>
         </div>
       </section>
 
