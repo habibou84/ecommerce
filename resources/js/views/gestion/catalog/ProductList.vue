@@ -142,7 +142,7 @@ const SORTS = [['', 'Récents'], ['name', 'Nom (A → Z)'], ['price_asc', 'Prix 
     </div>
 
     <Alert v-if="error">{{ error }}</Alert>
-    <p v-if="collectionsError" class="text-sm text-slate-500">Les collections n'ont pas pu être chargées : le filtre par collection est masqué.</p>
+    <p v-if="collectionsError" class="explain-detail">Les collections n'ont pas pu être chargées : le filtre par collection est masqué.</p>
 
     <p v-if="loading && !products.length" class="text-sm text-slate-500">Chargement…</p>
     <div v-else-if="!products.length" class="card p-8 text-center">

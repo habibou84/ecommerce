@@ -121,7 +121,7 @@ async function copy(text, key) {
         <p v-if="c.error" class="mt-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">⚠️ {{ c.error }}</p>
         <button v-if="!ready && data.available" type="button" class="mt-3 w-full rounded-xl bg-facebook py-3 text-base font-black text-white disabled:opacity-60" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Ouverture de Facebook…' : c.connected ? '🔄 Reconnecter Facebook' : '🔗 Connecter mon Facebook' }}</button>
         <RouterLink v-else-if="!ready" to="/gestion/marketing/suivi" class="btn-brand mt-3 w-full justify-center py-3 text-base font-black">Régler le pixel</RouterLink>
-        <p class="mt-2 text-xs text-slate-500">La pub est payée à Meta, par la carte de votre compte publicitaire.</p>
+        <p class="explain-detail mt-2">La pub est payée à Meta, par la carte de votre compte publicitaire.</p>
       </section>
 
       <!-- Mes pixels vérifiés -->
@@ -133,14 +133,14 @@ async function copy(text, key) {
             <span class="block text-slate-500">{{ e.count }} cette semaine</span>
           </div>
         </div>
-        <p v-else class="mt-2 text-xs text-slate-500">Vérification indisponible pour le moment.</p>
+        <p v-else class="explain-detail mt-2">Vérification indisponible pour le moment.</p>
         <p v-if="data.pixel && !data.pixel.some((e) => e.count)" class="mt-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">Rien reçu encore : ouvrez votre boutique, regardez un produit, revenez dans une heure.</p>
       </section>
 
       <!-- Assistant : créer la pub depuis l'application -->
       <section v-if="assistant" class="rounded-2xl bg-white p-4 shadow-soft">
         <h3 class="font-display text-base font-extrabold">Nouveau boost</h3>
-        <p class="mt-0.5 text-xs text-slate-500">Un produit, plusieurs ou votre catalogue, en 4 écrans.</p>
+        <p class="explain-detail mt-0.5">Un produit, plusieurs ou votre catalogue, en 4 écrans.</p>
         <button type="button" class="mt-3 w-full rounded-xl bg-emerald-700 py-3 text-base font-black text-white" @click="wizard = { from: null }">Créer un boost</button>
       </section>
 
@@ -162,7 +162,7 @@ async function copy(text, key) {
       <!-- Booster un produit (à la main, chez Meta) -->
       <section class="rounded-2xl bg-white p-4 shadow-soft">
         <h3 class="text-base font-black">{{ assistant ? 'Ou le faire moi-même chez Meta' : 'Booster un produit' }}</h3>
-        <p class="mt-0.5 text-xs text-slate-500">Touchez un produit : lien suivi, texte et photo prêts.</p>
+        <p class="explain-detail mt-0.5">Touchez un produit : lien suivi, texte et photo prêts.</p>
         <div class="mt-2 grid grid-cols-3 gap-2">
           <button v-for="p in data.products" :key="p.id" type="button" class="overflow-hidden rounded-xl border-2 text-left" :class="picked?.id === p.id ? 'border-emerald-700' : 'border-slate-200'" @click="picked = picked?.id === p.id ? null : p">
             <img v-if="p.image" :src="p.image" alt="" class="aspect-square w-full object-cover" loading="lazy">
@@ -171,7 +171,7 @@ async function copy(text, key) {
             <span class="block px-1.5 pb-1.5 text-xs font-bold text-emerald-700">{{ p.sold ? `${p.sold} vendu${p.sold > 1 ? 's' : ''}` : 'nouveau' }}</span>
           </button>
         </div>
-        <p v-if="!data.products.length" class="mt-2 text-sm text-slate-500">Ajoutez des produits à votre catalogue pour les booster.</p>
+        <p v-if="!data.products.length" class="explain-detail mt-2">Ajoutez des produits à votre catalogue pour les booster.</p>
 
         <!-- Les 4 étapes pour booster le produit choisi -->
         <div v-if="picked" class="mt-3 space-y-2 rounded-2xl bg-emerald-50 p-3 text-sm">
@@ -214,13 +214,14 @@ async function copy(text, key) {
         <ul v-if="data.results.products.length" class="mt-2 divide-y divide-slate-100 text-sm">
           <li v-for="r in data.results.products" :key="r.id" class="flex items-center gap-2 py-2"><span class="min-w-0 flex-1 truncate font-bold">{{ r.title }}</span><span class="text-slate-500">{{ r.orders }} cmd</span><b>{{ money(r.amount) }}</b></li>
         </ul>
-        <p v-else-if="!data.results.orders" class="mt-2 text-xs text-slate-500">Aucune commande venue d'un boost pour l'instant.</p>
+        <p v-else-if="!data.results.orders" class="explain-detail mt-2">Aucune commande venue d'un boost pour l'instant.</p>
       </section>
 
       <!-- Prix -->
       <section class="rounded-2xl bg-white p-4 shadow-soft">
         <h3 class="text-base font-black">Prix</h3>
-        <p class="mt-1 text-sm text-slate-600">Connexion, pixel et liens suivis : <b>gratuits</b>. La pub : payée à Meta. Chaque commande venue d'un boost compte dans <RouterLink to="/gestion/solde" class="font-bold text-emerald-700 underline">votre solde</RouterLink>, comme une commande en live.</p>
+        <p class="explain mt-1">Connexion et suivi gratuits ; la pub est payée à Meta.</p>
+        <p class="explain-detail">Chaque commande venue d'un boost compte dans <RouterLink to="/gestion/solde" class="font-bold text-emerald-700 underline">votre solde</RouterLink>, comme une commande en live.</p>
       </section>
     </template>
 

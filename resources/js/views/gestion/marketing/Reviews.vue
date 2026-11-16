@@ -42,10 +42,10 @@ const FILTERS = [{ value: 'pending', label: 'À valider' }, { value: 'published'
 <template>
   <div class="space-y-4">
     <MarketingTabs />
-    <p class="text-sm text-slate-600">
-      Après la livraison, le client reçoit un lien pour noter les articles (message WhatsApp automatique 24 h après, ou bouton « Demander un avis » sur la commande).
-      Un avis n'apparaît sur la fiche produit qu'une fois publié.
-    </p>
+    <div>
+      <p class="explain">Après la livraison, le client note ses articles.</p>
+      <p class="explain-detail">Par un WhatsApp 24 h après, ou le bouton « Demander un avis » de la commande. Un avis s'affiche une fois publié.</p>
+    </div>
     <div class="flex flex-wrap gap-1">
       <button v-for="f in FILTERS" :key="f.value" class="rounded-full px-3 py-1 text-sm" :class="status === f.value ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-700'" @click="status = f.value; load()">
         {{ f.label }}<template v-if="f.value && counts[f.value]"> ({{ counts[f.value] }})</template>

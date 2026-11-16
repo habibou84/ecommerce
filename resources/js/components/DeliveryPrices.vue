@@ -163,7 +163,10 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
             <!-- Paiement avant l'envoi : le lien Wave de la boutique, envoyé tout seul à la cliente -->
             <div v-if="rates.expedition.prepay" class="mt-3 rounded-xl p-3" :class="rates.wave_link ? 'bg-sky-50' : 'bg-amber-50 ring-2 ring-amber-300'">
               <b class="block text-base">🌊 Votre lien de paiement Wave</b>
-              <p class="text-sm text-slate-600">Collez-le ici : il est envoyé tout seul à la cliente. Elle paie, envoie la capture du reçu, et vous validez.</p>
+              <div>
+                <p class="explain">Collez-le ici : il part tout seul à la cliente.</p>
+                <p class="explain-detail">Elle paie, envoie la capture du reçu, et vous validez.</p>
+              </div>
               <div class="mt-2 flex gap-2">
                 <input v-model="wave" type="url" @paste="onWavePaste" inputmode="url" placeholder="Collez votre lien Wave" class="min-w-0 flex-1 rounded-xl border-2 border-field px-3 py-2 text-sm" aria-label="Lien de paiement Wave">
                 <button type="button" class="shrink-0 rounded-xl bg-sky-600 px-4 font-black text-white" :disabled="busy || wave.trim() === (rates.wave_link ?? '')" @click="saveWave">{{ waveSaved ? '✓' : 'OK' }}</button>

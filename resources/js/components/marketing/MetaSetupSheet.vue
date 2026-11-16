@@ -102,7 +102,7 @@ async function finish() {
               <option v-for="c in setup.assets.catalogs" :key="c.id" :value="c.id">{{ c.name }}{{ c.products !== null ? ` (${c.products} article(s))` : '' }}</option>
             </select>
           </Field>
-          <p class="text-slate-500">Vos produits seront ajoutés à ce catalogue et relus toutes les heures ; le pixel sera relié au catalogue.</p>
+          <p class="explain-detail">Vos produits seront ajoutés à ce catalogue et relus toutes les heures ; le pixel sera relié au catalogue.</p>
           <button type="button" class="btn-brand w-full" :disabled="busy" @click="finish">{{ busy ? 'Branchement…' : 'Brancher' }}</button>
         </template>
         <p v-else-if="busy" class="text-slate-500">Chargement des pixels et catalogues…</p>

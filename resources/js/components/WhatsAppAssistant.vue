@@ -58,7 +58,10 @@ function warning() {
       <ColorIcon name="aide" :size="44" />
       <div class="min-w-0 flex-1">
         <h3 class="text-lg font-extrabold">Répondre aux questions simples</h3>
-        <p class="text-sm text-slate-600">Disponible ? Prix ? Tailles ? Frais de livraison ? L'assistant répond avec votre catalogue et votre stock. En cas de doute, il vous laisse la main.</p>
+        <div>
+          <p class="explain">L'assistant répond à vos clients à votre place.</p>
+          <p class="explain-detail">Disponible ? Prix ? Tailles ? Livraison ? En cas de doute, il vous laisse la main.</p>
+        </div>
       </div>
       <ToggleSwitch v-model="form.enabled" label="Répondre automatiquement aux questions simples" class="mt-1" />
     </div>
@@ -74,7 +77,7 @@ function warning() {
           De <input v-model="form.from" type="time" lang="fr" class="input w-28 py-1" aria-label="Heure de début" />
           à <input v-model="form.to" type="time" lang="fr" class="input w-28 py-1" aria-label="Heure de fin" />
         </p>
-        <p v-if="form.when === 'away'" class="mt-1 text-xs text-slate-500">Par exemple la nuit, quand personne ne répond.</p>
+        <p v-if="form.when === 'away'" class="explain-detail mt-1">Par exemple la nuit, quand personne ne répond.</p>
         <p v-if="errors.to || errors.from" class="mt-1 text-xs text-red-600">{{ errors.to ?? errors.from }}</p>
       </div>
       <div class="rounded-xl border border-slate-200 p-3 text-sm">

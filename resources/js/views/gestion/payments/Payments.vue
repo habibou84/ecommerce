@@ -109,9 +109,10 @@ const copy = (text) => navigator.clipboard?.writeText(text)
 
 <template>
   <div v-if="data" class="space-y-5">
-    <p class="text-sm text-slate-600">
-      Vos clients paient sur <strong>vos</strong> comptes Wave, CinetPay ou PayDunya : l'argent vous arrive directement. Le paiement à la livraison reste toujours possible.
-    </p>
+    <div>
+      <p class="explain">Vos clients paient en ligne, l'argent arrive sur vos comptes.</p>
+      <p class="explain-detail">Wave, CinetPay ou PayDunya. Le paiement à la livraison reste possible.</p>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
 
     <section class="card space-y-3 p-4">
@@ -120,10 +121,10 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <label v-for="[value, label, help] in [['off', 'Désactivé', 'Paiement à la livraison uniquement'], ['optional', 'Au choix du client', 'À la livraison ou en ligne'], ['deposit', 'Acompte exigé', 'Une partie en ligne, le reste à la livraison'], ['required', 'Paiement en ligne exigé', 'Tout en ligne à la commande']]" :key="value"
                class="flex cursor-pointer gap-2 rounded-lg border p-3 text-sm" :class="settings.online_payment === value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
           <input v-model="settings.online_payment" type="radio" :value="value" class="mt-0.5 accent-emerald-700" />
-          <span><span class="block font-medium">{{ label }}</span><span class="text-slate-500">{{ help }}</span></span>
+          <span><span class="block text-base font-semibold text-slate-900">{{ label }}</span><span class="explain-detail">{{ help }}</span></span>
         </label>
       </div>
-      <p class="text-sm text-slate-600">Acompte selon l'article ou le montant de la commande (aussi en live et sur WhatsApp) : <RouterLink to="/gestion/acompte" class="font-medium text-emerald-700 underline">Acompte</RouterLink>.</p>
+      <p class="explain-detail">Acompte selon l'article ou le montant de la commande : <RouterLink to="/gestion/acompte" class="font-medium text-emerald-700 underline">Acompte</RouterLink>.</p>
       <Field v-if="settings.online_payment === 'deposit'" id="deposit" label="Acompte (% du total)">
         <input id="deposit" v-model.number="settings.deposit_percent" type="number" min="5" max="90" class="input w-32" />
       </Field>
@@ -139,7 +140,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <h3 class="font-semibold">Comptes de paiement</h3>
         <button class="btn-secondary ml-auto px-3 py-1.5" @click="openAccount(null)">+ Compte</button>
       </div>
-      <p v-if="!data.accounts.length" class="text-sm text-slate-500">Aucun compte. Wave est le moins cher ; CinetPay et PayDunya ajoutent Orange, MTN, Moov et cartes.</p>
+      <p v-if="!data.accounts.length" class="explain-detail"><b class="explain block">Aucun compte de paiement.</b>Wave est le moins cher ; CinetPay et PayDunya ajoutent Orange, MTN, Moov et cartes.</p>
       <ul class="divide-y divide-slate-100 text-sm">
         <li v-for="a in data.accounts" :key="a.id">
           <button class="flex w-full flex-wrap items-center gap-2 py-2 text-left hover:text-emerald-700" @click="openAccount(a)">
@@ -156,7 +157,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
 
     <section v-if="data.accounts.length" class="card space-y-3 p-4 text-sm">
       <h3 class="font-semibold">Quel prestataire pour quel moyen de paiement ?</h3>
-      <p class="text-slate-500">Si le premier ne répond pas, le paiement passe au suivant.</p>
+      <p class="explain-detail">Si le premier ne répond pas, le paiement passe au suivant.</p>
       <div v-for="(label, method) in data.methods" :key="method" class="flex flex-wrap items-center gap-2">
         <span class="w-32 font-medium">{{ label }}</span>
         <select v-for="(id, index) in [...routes[method], null].slice(0, accountsFor(method).length)" :key="index" :value="id ?? ''" class="input w-auto py-1.5"

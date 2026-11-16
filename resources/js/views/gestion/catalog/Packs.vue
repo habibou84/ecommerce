@@ -126,7 +126,10 @@ async function removeOffer() {
 <template>
   <div class="space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <p class="text-sm text-slate-600">Vendez plusieurs articles ensemble : un pack fixe (« robe + sac ») ou un pack au choix (« 3 robes au choix pour 25 000 F »).</p>
+      <div>
+        <p class="explain">Vendez plusieurs articles ensemble.</p>
+        <p class="explain-detail">Un pack fixe (« robe + sac ») ou au choix (« 3 robes au choix pour 25 000 F »).</p>
+      </div>
       <div v-if="auth.can('products.manage')" class="flex shrink-0 gap-2">
         <button class="btn-brand" @click="open('fixed')">+ Pack fixe</button>
         <button class="btn-secondary" @click="open('choice')">+ Pack au choix</button>
@@ -136,7 +139,7 @@ async function removeOffer() {
 
     <section class="card">
       <h2 class="border-b border-slate-100 px-4 py-3 font-semibold">Packs fixes</h2>
-      <p v-if="!packs.length" class="p-4 text-sm text-slate-500">Aucun pack pour l'instant. Un pack sort du stock chaque article qu'il contient, avec la taille choisie par le client.</p>
+      <p v-if="!packs.length" class="explain-detail p-4"><b class="explain block">Aucun pack pour l'instant.</b>Un pack sort du stock chaque article qu'il contient.</p>
       <ul v-else class="divide-y divide-slate-100">
         <li v-for="p in packs" :key="p.id">
           <button class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50" @click="open('fixed', p)">
@@ -157,7 +160,7 @@ async function removeOffer() {
 
     <section class="card">
       <h2 class="border-b border-slate-100 px-4 py-3 font-semibold">Packs au choix</h2>
-      <p v-if="!offers.length" class="p-4 text-sm text-slate-500">Aucun pack au choix. Le prix s'applique tout seul dès que le client a assez d'articles : boutique, saisie de commande, live et WhatsApp.</p>
+      <p v-if="!offers.length" class="explain-detail p-4"><b class="explain block">Aucun pack au choix.</b>Le prix s'applique tout seul dès que le client a assez d'articles, partout.</p>
       <ul v-else class="divide-y divide-slate-100">
         <li v-for="o in offers" :key="o.id">
           <button class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50" @click="open('choice', o)">
@@ -172,7 +175,7 @@ async function removeOffer() {
       </ul>
     </section>
 
-    <p class="text-sm text-slate-500">Vente en gros (« 6 pour 30 000 F », par lot seulement) : sur la fiche de l'article, bloc « Prix de gros ». <RouterLink to="/gestion/catalogue" class="font-medium text-emerald-700 underline">Mes produits</RouterLink></p>
+    <p class="explain-detail">Vente en gros (« 6 pour 30 000 F ») : sur la fiche de l'article, bloc « Prix de gros ». <RouterLink to="/gestion/catalogue" class="font-medium text-emerald-700 underline">Mes produits</RouterLink></p>
 
     <Modal v-if="editing" :title="editing.id ? editing.title : (editing.kind === 'fixed' ? 'Nouveau pack fixe' : 'Nouveau pack au choix')" wide @close="editing = null">
       <form class="space-y-4" @submit.prevent="save">
@@ -205,7 +208,7 @@ async function removeOffer() {
               <input id="p-price" v-model="editing.price" type="number" min="1" class="input" required />
             </Field>
             <p v-if="saving_ > 0" class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">✅ Le client économise {{ money(saving_) }} ({{ money(separately) }} séparément)</p>
-            <p class="text-sm text-slate-500">📸 Photo du pack : un montage des photos des articles est fait tout seul. Vous pouvez mettre votre propre photo ensuite sur la fiche du pack.</p>
+            <p class="explain-detail">📸 La photo du pack se fait toute seule avec celles des articles. Vous pourrez la changer sur sa fiche.</p>
           </template>
 
           <template v-else>

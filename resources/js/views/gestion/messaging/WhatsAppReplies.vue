@@ -53,7 +53,10 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
       <ColorIcon name="moto" :size="44" />
       <div class="min-w-0 flex-1">
         <h2 class="text-lg font-extrabold">Prix de livraison</h2>
-        <p class="text-sm text-slate-600">« C'est combien la livraison à Yop ? » : le client reçoit le prix et les quartiers, à partir de vos tarifs.</p>
+        <div>
+          <p class="explain">Le client demande la livraison, il reçoit le prix.</p>
+          <p class="explain-detail">« C'est combien à Yop ? » : prix et quartiers, d'après vos tarifs.</p>
+        </div>
       </div>
       <RouterLink to="/gestion/livraisons/tarifs" class="btn-secondary shrink-0">Mes tarifs</RouterLink>
     </section>

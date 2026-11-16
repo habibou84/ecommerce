@@ -276,14 +276,17 @@ const META_STEPS = [
         <ColorIcon name="cloche" :size="44" />
         <div class="min-w-0 flex-1">
           <h3 class="text-lg font-extrabold">Envoyez les messages tout seuls</h3>
-          <p class="text-sm text-slate-600">Confirmation, livreur en route, livraison, avis, lien de paiement… envoyés automatiquement depuis votre numéro WhatsApp officiel.</p>
+          <div>
+            <p class="explain">Vos clients sont prévenus tout seuls sur WhatsApp.</p>
+            <p class="explain-detail">Confirmation, livreur en route, livraison, avis, lien de paiement… depuis votre numéro officiel.</p>
+          </div>
         </div>
       </div>
       <template v-if="data.embedded">
         <div class="flex flex-wrap items-center gap-3">
           <button type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Connecter mon numéro sur Meta' }}</button>
         </div>
-        <p class="text-sm text-slate-600">Connexion officielle de votre numéro WhatsApp chez Meta, avec votre compte Facebook : Meta vous guide étape par étape.</p>
+        <p class="explain-detail">Connexion officielle chez Meta, avec votre compte Facebook : Meta vous guide étape par étape.</p>
         <WhatsAppHelp />
         <p class="border-t border-slate-100 pt-3 text-xs text-slate-500">
           Vous avez déjà vos identifiants Meta ?

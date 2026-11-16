@@ -6,6 +6,7 @@ import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import MarketingTabs from '../../../components/MarketingTabs.vue'
 import MetaSetupSheet from '../../../components/marketing/MetaSetupSheet.vue'
+import ExplainMore from '../../../components/ExplainMore.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { connectFacebookAds } from '../../../lib/metaConnect'
 
@@ -101,10 +102,14 @@ async function save(extra = {}) {
 <template>
   <div class="space-y-5">
     <MarketingTabs />
-    <p class="text-sm text-slate-600">
-      Mesurez les ventes de vos publicités : la boutique envoie les visites de produits, ajouts au panier, débuts de commande et achats
-      à Facebook / Instagram, TikTok et Google Analytics. Vos publicités s'optimisent sur les vrais acheteurs.
-    </p>
+    <div>
+      <p class="explain">Mesurez ce que rapportent vos publicités.</p>
+      <p class="explain-detail">Vos pubs Facebook, Instagram et TikTok visent alors les vrais acheteurs.</p>
+      <ExplainMore>
+        La boutique envoie les visites de produits, ajouts au panier, débuts de commande et achats
+        à Facebook / Instagram, TikTok et Google Analytics.
+      </ExplainMore>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="saved" tone="success">Réglages enregistrés.</Alert>
     <Alert v-if="connected" tone="success">Pixel et catalogue branchés ✓ Meta relira votre catalogue toutes les heures.</Alert>
@@ -129,11 +134,13 @@ async function save(extra = {}) {
         </div>
       </template>
       <template v-else>
-        <p class="text-slate-600">
-          Connectez-vous avec Facebook : nous créons ou choisissons votre pixel et votre catalogue, ajoutons vos produits au catalogue
-          (mis à jour toutes les heures) et envoyons les achats par le serveur. Rien à copier-coller.
-        </p>
+        <p class="explain">Sachez quelles pubs vous font vendre.</p>
+        <p class="explain-detail">Connectez Facebook une fois : tout se règle seul, rien à copier-coller.</p>
         <button type="button" class="btn-brand" :disabled="busy" @click="connectMeta">Se connecter avec Facebook</button>
+        <ExplainMore>
+          Nous créons ou choisissons votre pixel et votre catalogue, ajoutons vos produits au catalogue
+          (mis à jour toutes les heures) et envoyons les achats par le serveur.
+        </ExplainMore>
       </template>
     </section>
 
@@ -172,11 +179,12 @@ async function save(extra = {}) {
 
     <section v-if="data?.catalog_feed_url" class="card space-y-3 p-4 text-sm">
       <h3 class="font-semibold">Catalogue Facebook, Instagram et WhatsApp</h3>
-      <p class="text-slate-600">
-        Vos produits en vente ({{ data.catalog_items }} article(s) avec photo), avec leurs prix, promotions et disponibilité, dans le format de Meta.
-        Dans le gestionnaire de catalogue de Meta (Commerce Manager) : Catalogue › Sources de données › Ajouter des articles › Flux de données › « Utiliser une URL », collez ce lien et choisissez une mise à jour toutes les heures.
-        Le même lien marche pour Google Merchant Center.
-      </p>
+      <p class="explain">Ce lien envoie vos produits en vente à Meta et Google.</p>
+      <p class="explain-detail">{{ data.catalog_items }} article(s) avec photo, avec leurs prix, promotions et disponibilité.</p>
+      <ExplainMore label="Où coller ce lien">
+        <p>Meta (Commerce Manager) : Catalogue › Sources de données › Ajouter des articles › Flux de données › « Utiliser une URL ». Choisissez une mise à jour toutes les heures.</p>
+        <p>Le même lien marche pour Google Merchant Center.</p>
+      </ExplainMore>
       <div class="flex items-center gap-2">
         <code class="min-w-0 flex-1 truncate rounded bg-slate-100 px-2 py-1">{{ data.catalog_feed_url }}</code>
         <button type="button" class="btn-secondary px-3 py-1" @click="copyFeed">{{ copied ? 'Copié ✓' : 'Copier' }}</button>

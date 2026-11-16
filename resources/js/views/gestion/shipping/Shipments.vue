@@ -37,7 +37,7 @@ watch(page, load)
     <Alert v-if="error">{{ error }}</Alert>
 
     <div class="card">
-      <p v-if="result && !result.data.length" class="p-6 text-sm text-slate-500">Aucune livraison en cours. Ouvrez une commande confirmée et cliquez sur « Faire livrer ».</p>
+      <p v-if="result && !result.data.length" class="explain-detail p-6">Aucune livraison en cours. Ouvrez une commande confirmée et cliquez sur « Faire livrer ».</p>
       <ul v-else class="divide-y divide-slate-100">
         <li v-for="s in result?.data ?? []" :key="s.id">
           <RouterLink :to="`/gestion/commandes/${s.order_id}`" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm hover:bg-slate-50">

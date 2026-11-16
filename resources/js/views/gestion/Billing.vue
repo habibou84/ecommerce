@@ -169,7 +169,10 @@ async function cancel(value) {
         <span v-else-if="sub?.status === 'past_due'" class="rounded bg-amber-100 px-2 py-0.5 text-sm text-amber-900">À renouveler avant le {{ formatDateTime(sub.grace_ends_at) }}</span>
         <span v-else-if="sub" class="text-sm text-slate-600">{{ sub.cancel_at_period_end ? 'Se termine' : 'Renouvellement' }} le {{ formatDateTime(sub.current_period_end) }} · {{ CYCLE_LABEL[sub.billing_cycle] ?? 'mensuel' }}</span>
       </div>
-      <p v-if="data.free" class="text-sm text-slate-600">Jibiat Marchand vous offre l'offre {{ data.free.plan }} : rien à payer{{ data.free.forever ? '' : ' pendant cette période' }}. Ses limites s'appliquent.</p>
+      <div v-if="data.free">
+        <p class="explain">Rien à payer{{ data.free.forever ? '' : ' pendant cette période' }} : l'offre {{ data.free.plan }} vous est offerte.</p>
+        <p class="explain-detail">Ses limites s'appliquent.</p>
+      </div>
       <p v-else-if="sub?.cancel_at_period_end" class="text-sm">Votre espace marchand passera à l'offre gratuite à l'échéance. <button class="text-emerald-700 underline" @click="cancel(false)">Garder mon abonnement</button></p>
       <p v-else-if="sub && sub.status === 'active' && !data.free" class="text-sm"><button class="text-slate-500 underline" @click="cancel(true)">Revenir à l'offre gratuite à l'échéance</button></p>
       <div class="grid gap-x-6 gap-y-2 pt-2 sm:grid-cols-2">
@@ -203,7 +206,7 @@ async function cancel(value) {
       <button v-if="!keyOpen" type="button" class="font-medium text-emerald-700 underline" @click="keyOpen = true">Vous avez une carte ou une clé d'accès ?</button>
       <form v-else class="space-y-2" @submit.prevent="redeemKey">
         <label for="key-code" class="block font-semibold">Activer une clé d'accès</label>
-        <p class="text-slate-600">Saisissez le code écrit sur la carte (ou scannez son QR code avec votre téléphone).</p>
+        <p class="explain-detail">Le code écrit sur la carte, ou scannez son QR code avec votre téléphone.</p>
         <div class="flex flex-wrap gap-2">
           <input id="key-code" v-model="keyCode" class="input w-48 font-mono uppercase tracking-widest" placeholder="ABCD-EFGH" maxlength="20" autocapitalize="characters" spellcheck="false" required />
           <button class="btn-brand" :disabled="busy">{{ busy ? 'Un instant…' : 'Activer' }}</button>

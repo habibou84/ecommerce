@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../../components/ExplainMore.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
@@ -107,11 +108,11 @@ const audienceText = (a) => a.type === 'inactive' ? `Sans commande depuis ${a.da
   <div class="space-y-4">
     <RouterLink to="/gestion/whatsapp" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← WhatsApp</RouterLink>
     <div class="flex flex-wrap items-start justify-between gap-2">
-      <p class="max-w-2xl text-sm text-slate-600">
-        Envoyez un message WhatsApp à vos anciens clients : nouvelle collection, promotion, retour d'un article.
-        Seuls les clients qui ont accepté vos offres reçoivent le message, au plus une fois par semaine, et chacun peut répondre STOP.
-        Meta facture chaque message (environ {{ money(meta.message_price) }}).
-      </p>
+      <div class="max-w-2xl">
+        <p class="explain">Écrivez sur WhatsApp à vos anciens clients.</p>
+        <p class="explain-detail">Nouvelle collection, promotion, retour d'un article. Meta facture chaque message (environ {{ money(meta.message_price) }}).</p>
+        <ExplainMore>Seuls les clients qui ont accepté vos offres le reçoivent, au plus une fois par semaine. Chacun peut répondre STOP.</ExplainMore>
+      </div>
       <button class="btn-brand" @click="edit()">Nouvelle relance</button>
     </div>
     <Alert v-if="!meta.whatsapp_ready" tone="warning">

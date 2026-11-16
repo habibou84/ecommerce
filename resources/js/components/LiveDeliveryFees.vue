@@ -16,7 +16,7 @@ const emit = defineEmits(['close', 'done'])
     </header>
     <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
       <DeliveryPrices />
-      <p class="mt-3 px-1 text-sm text-slate-600">C'est toujours ce prix qui est mis dans la commande, même si l'entreprise de livraison a un autre prix.</p>
+      <p class="explain-detail mt-3 px-1">Ce prix va toujours dans la commande, même si l'entreprise de livraison a un autre prix.</p>
     </div>
     <footer class="border-t border-slate-200 bg-white p-3">
       <button type="button" class="w-full rounded-2xl bg-emerald-700 py-3.5 text-base font-black text-white" @click="emit('done')">C'est bon ✓</button>

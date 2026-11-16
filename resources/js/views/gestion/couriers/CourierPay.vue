@@ -112,7 +112,7 @@ const ruleLabel = (r) => (r.type === 'delivery_fee' ? 'Les frais de livraison pa
           <h3 class="font-semibold">À payer aux livreurs</h3>
           <strong class="ml-auto text-base">{{ money(totalUnpaid()) }}</strong>
         </div>
-        <p v-if="!payable().length" class="text-slate-500">Aucun livreur pour l'instant. Ajoutez-en dans <RouterLink to="/gestion/livraisons/livreurs" class="text-emerald-700 underline">Mes livreurs</RouterLink>.</p>
+        <p v-if="!payable().length" class="explain-detail">Aucun livreur pour l'instant. Ajoutez-en dans <RouterLink to="/gestion/livraisons/livreurs" class="text-emerald-700 underline">Mes livreurs</RouterLink>.</p>
         <ul class="divide-y divide-slate-100">
           <li v-for="c in payable()" :key="c.id" class="flex items-center gap-3 py-2" :class="{ 'opacity-50': c.status === 'inactive' }">
             <span class="min-w-0 flex-1">

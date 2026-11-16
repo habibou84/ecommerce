@@ -152,7 +152,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
           </ol>
         </div>
         <div v-else class="space-y-2">
-          <p class="text-sm text-slate-500">Pratique quand cet écran est sur un ordinateur ou une tablette : vous scannez avec le téléphone.</p>
+          <p class="explain-detail">Pratique quand cet écran est sur un ordinateur ou une tablette : vous scannez avec le téléphone.</p>
           <button type="button" class="btn-brand" :disabled="busy || !link.available" @click="start">{{ busy ? 'Préparation…' : 'Afficher le QR code' }}</button>
         </div>
       </div>
@@ -170,7 +170,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
           <button type="button" class="btn-ghost px-2 text-sm" :disabled="busy" @click="pair">Recevoir un autre code</button>
         </div>
         <form v-else class="space-y-2" @submit.prevent="pair">
-          <p class="text-sm text-slate-500">Pratique quand cet écran est sur le téléphone lui-même : pas besoin de scanner.</p>
+          <p class="explain-detail">Pratique quand cet écran est sur le téléphone lui-même : pas besoin de scanner.</p>
           <label for="link-phone" class="block text-sm font-medium">Numéro WhatsApp de la boutique</label>
           <div class="flex flex-wrap gap-2">
             <input id="link-phone" v-model="phone" class="input max-w-xs" type="tel" inputmode="tel" autocomplete="tel" placeholder="07 00 00 00 00" required />
@@ -178,7 +178,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
           </div>
         </form>
       </div>
-      <p v-if="!link.available" class="text-xs text-slate-500">Bientôt disponible : le service n'est pas encore installé sur le serveur.</p>
+      <p v-if="!link.available" class="explain-detail">Bientôt disponible : le service n'est pas encore installé sur le serveur.</p>
     </template>
 
     <details v-if="!compact" class="text-xs text-slate-500">

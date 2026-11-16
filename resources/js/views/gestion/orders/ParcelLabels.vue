@@ -71,7 +71,10 @@ async function found(input) {
     <template v-else>
       <section class="card p-4">
         <p class="text-lg font-extrabold">Il vous reste {{ data.free }} étiquette{{ data.free > 1 ? 's' : '' }}</p>
-        <p class="text-sm text-slate-600">{{ data.used }} déjà reliée{{ data.used > 1 ? 's' : '' }} à une commande. Collez une étiquette sur le colis, puis scannez-la depuis la commande.</p>
+        <div>
+          <p class="explain">Collez une étiquette sur le colis, puis scannez-la depuis la commande.</p>
+          <p class="explain-detail">{{ data.used }} déjà reliée{{ data.used > 1 ? 's' : '' }} à une commande.</p>
+        </div>
         <div v-if="data.free + data.used" class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-emerald-500" :style="{ width: `${(data.free / (data.free + data.used)) * 100}%` }" /></div>
         <button type="button" class="btn-secondary mt-3 w-full" @click="scanning = true">📷 Scanner un colis pour ouvrir sa commande</button>
       </section>

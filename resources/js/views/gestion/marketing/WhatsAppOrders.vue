@@ -157,7 +157,7 @@ async function share() {
           <h3 class="font-extrabold">1 · Vos articles</h3>
           <button type="button" class="text-sm font-bold text-emerald-700" @click="panel = true">{{ products.length ? 'Modifier' : 'Choisir ▸' }}</button>
         </div>
-        <p v-if="!products.length" class="mt-1 text-sm text-slate-500">Dans votre catalogue, un live passé ou un nouvel article. Chacun reçoit son code.</p>
+        <p v-if="!products.length" class="explain-detail mt-1">Dans votre catalogue, un live passé ou un nouvel article. Chacun reçoit son code.</p>
         <ul class="mt-2 divide-y divide-slate-100 text-sm">
           <li v-for="p in products" :key="p.code" class="flex items-center gap-3 py-2">
             <img v-if="p.image" :src="p.image" alt="" class="h-10 w-10 rounded-lg object-cover">
@@ -211,7 +211,7 @@ async function share() {
       </section>
       <section class="card p-4">
         <h3 class="font-extrabold">Dernières commandes</h3>
-        <p v-if="!recent.length" class="mt-1 text-sm text-slate-500">Rien pour l'instant. Partagez la liste dans votre statut ou vos groupes.</p>
+        <p v-if="!recent.length" class="explain-detail mt-1">Rien pour l'instant. Partagez la liste dans votre statut ou vos groupes.</p>
         <ul class="mt-2 space-y-1.5 text-sm">
           <li v-for="r in recent" :key="r.id">
             <b>{{ r.customer_name || r.customer_phone || 'Client' }}</b> · {{ r.code }}

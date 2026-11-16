@@ -364,7 +364,7 @@ async function addNote() {
           </select>
         </Field>
         <Field id="cancel-note" label="Précision (facultatif)"><input id="cancel-note" v-model="form.note" class="input" maxlength="500" /></Field>
-        <p class="text-sm text-slate-500">Les articles réservés redeviennent disponibles.</p>
+        <p class="explain-detail">Les articles réservés redeviennent disponibles.</p>
         <button class="btn-danger w-full" :disabled="busy">Annuler la commande</button>
       </form>
     </Modal>

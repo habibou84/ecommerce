@@ -42,7 +42,10 @@ const codes = computed(() => data.value?.codes)
 
 <template>
   <div v-if="data" class="space-y-4 pb-24 sm:pb-0">
-    <p class="text-sm text-slate-600">Les commandes prises dans WhatsApp s'enregistrent toutes seules. Chaque commande confirmée compte 1 commande de votre <RouterLink to="/gestion/solde" class="font-semibold text-emerald-700 underline">solde</RouterLink>.</p>
+    <div>
+      <p class="explain">Les commandes prises dans WhatsApp s'enregistrent seules.</p>
+      <p class="explain-detail">Chaque commande confirmée compte 1 commande de votre <RouterLink to="/gestion/solde" class="font-semibold text-emerald-700 underline">solde</RouterLink>.</p>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
 
     <div class="grid gap-4 lg:grid-cols-2">
@@ -130,7 +133,7 @@ const codes = computed(() => data.value?.codes)
           <ColorIcon name="produit" :size="44" />
           <div class="min-w-0 flex-1">
             <h2 class="text-lg font-extrabold">Modèles</h2>
-            <p class="text-sm text-slate-600">Le client écrit « modèles » : il voit vos catégories, puis les photos, ajoute un ou plusieurs articles en touchant, et termine.</p>
+            <p class="explain-detail">Le client écrit « modèles » : il voit vos catégories et les photos, et ajoute ses articles d'une touche.</p>
           </div>
           <ToggleSwitch :model-value="data.models.enabled" :disabled="busy === 'models'" label="Modèles allumés" @update:model-value="save('models', '/whatsapp/models', { enabled: $event })" />
         </div>

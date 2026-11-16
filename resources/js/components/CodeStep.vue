@@ -160,7 +160,7 @@ onBeforeUnmount(() => {
 
     <!-- SMS : code secret saisi sur la page -->
     <form v-else-if="sms.available" class="space-y-4" @submit.prevent="submit">
-      <p class="text-sm text-slate-600">
+      <p class="explain-detail">
         <template v-if="sms.sent">Nous avons envoyé un code à 6 chiffres par SMS au <strong class="whitespace-nowrap">{{ state.phone }}</strong>.</template>
         <template v-else>Nous allons envoyer un code à 6 chiffres par SMS au <strong class="whitespace-nowrap">{{ state.phone }}</strong>.</template>
       </p>
