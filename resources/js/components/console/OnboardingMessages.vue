@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../ExplainMore.vue'
 import { onMounted, ref } from 'vue'
 import Alert from '../Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
@@ -81,19 +82,21 @@ function reset(key) {
         <span>{{ form.enabled ? 'Activés' : 'Arrêtés' }}</span>
       </label>
     </div>
-    <p class="text-slate-600">
-      Envoyés par le WhatsApp du support : au plus 3 messages dans les 24 h qui suivent l'inscription, puis le rappel de fin d'essai.
-      Chaque relance s'annule si le commerçant a déjà fait l'étape. Rien entre 21 h et 7 h. « STOP » arrête tout pour lui, « START » reprend.
-    </p>
+    <div>
+      <p class="explain">Jusqu'à 3 messages dans les 24 h après l'inscription.</p>
+      <p class="explain-detail">Par le WhatsApp du support, puis le rappel de fin d'essai. Rien entre 21 h et 7 h.</p>
+      <ExplainMore>Chaque relance s'annule si le commerçant a déjà fait l'étape. « STOP » arrête tout pour lui, « START » reprend.</ExplainMore>
+    </div>
     <ul class="grid gap-1 text-slate-700 sm:grid-cols-2">
       <li v-for="s in STEPS.filter((s) => !s.stat)" :key="s.key">{{ s.label }} : <strong>{{ data.stats[s.key]?.sent ?? 0 }}</strong> envoyés sur 30 jours<template v-if="data.stats[s.key]?.failed"> · {{ data.stats[s.key].failed }} en échec</template></li>
     </ul>
     <div class="rounded-lg bg-slate-50 p-3">
       <p class="font-semibold">Rappel de fin d'essai : modèle Meta</p>
-      <p class="text-slate-600">
-        Ce rappel part plusieurs jours après l'inscription : avec la connexion officielle, WhatsApp exige un modèle approuvé par Meta.
-        L'application le crée elle-même chez Meta dès que le numéro du support est connecté. Par QR code, il n'est pas nécessaire.
-      </p>
+      <div>
+        <p class="explain">Ce rappel demande un modèle approuvé par Meta.</p>
+        <p class="explain-detail">L'application le crée chez Meta dès que le numéro du support est connecté.</p>
+        <ExplainMore>Il part plusieurs jours après l'inscription : avec la connexion officielle, WhatsApp exige un modèle. Par QR code, il n'est pas nécessaire.</ExplainMore>
+      </div>
       <p class="mt-1">
         <template v-if="data.trial_template">Modèle <code>{{ data.trial_template }}</code> : <strong :class="TEMPLATE_TONE[data.trial_template_status] ?? ''">{{ TEMPLATE_STATUS[data.trial_template_status] ?? 'nom saisi à la main' }}</strong></template>
         <template v-else>Pas encore créé.</template>
@@ -103,7 +106,7 @@ function reset(key) {
     <Alert v-if="error">{{ error }}</Alert>
     <button v-if="!open" type="button" class="text-emerald-700 underline" @click="open = true">Voir et modifier les textes</button>
     <form v-else class="space-y-4" @submit.prevent="save">
-      <p class="text-xs text-slate-500">Variables remplacées automatiquement : <code>{{ VARIABLES }}</code>. *texte* s'affiche en gras dans WhatsApp.</p>
+      <p class="explain-detail">Variables remplacées automatiquement : <code>{{ VARIABLES }}</code>. *texte* s'affiche en gras dans WhatsApp.</p>
       <div v-for="s in STEPS" :key="s.key" class="space-y-1">
         <div class="flex items-baseline gap-2">
           <label :for="`ob-${s.key}`" class="font-semibold">{{ s.label }}</label>

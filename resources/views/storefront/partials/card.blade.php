@@ -24,7 +24,7 @@
             @endif
         </p>
         @if ($card['volume'] ?? false)
-            <p class="text-xs text-brand">Prix dégressif par quantité</p>
+            <p class="text-xs text-brand-text">Prix dégressif par quantité</p>
         @endif
     </div>
 </a>

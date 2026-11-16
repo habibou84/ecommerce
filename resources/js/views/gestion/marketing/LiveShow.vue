@@ -9,7 +9,7 @@ const route = useRoute()
 
 <template>
   <div class="mx-auto max-w-2xl space-y-4">
-    <RouterLink :to="`/gestion/live/${props.id}`" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Retour au live</RouterLink>
+    <RouterLink :to="`/gestion/live/${props.id}`" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Retour au live</RouterLink>
     <LiveScreenTabs :id="props.id" :initial="route.query.onglet === 'ecran' ? 'screen' : 'products'" @add="$router.push(`/gestion/live/${props.id}`)" />
   </div>
 </template>

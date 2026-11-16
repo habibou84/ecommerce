@@ -29,12 +29,13 @@ class CourierController extends Controller
 
     public function index(CourierPayroll $payroll): JsonResponse
     {
-        $couriers = Courier::with(['zones:id,name', 'payRule:id,name'])
+        $couriers = Courier::with(['places.parent', 'payRule:id,name'])
             ->withCount(['shipments as active_missions' => fn ($q) => $q->whereIn('status', ['awaiting_pickup', 'in_transit', 'out_for_delivery', 'failed', 'rescheduled', 'returning'])])
             ->orderByRaw("status = 'inactive'")->orderBy('name')->get();
 
         return response()->json([
             'data' => $couriers->map(fn (Courier $c) => $this->present($c) + ['unpaid' => $payroll->unpaid($c), 'cash_held' => $c->cashHeld()]),
+            // Zones de prix : montants des règles de paie « selon la zone »
             'zones' => DeliveryZone::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'pay_rules' => CourierPayRule::orderBy('name')->get(),
             'vehicles' => Courier::VEHICLES,
@@ -81,7 +82,7 @@ class CourierController extends Controller
             $others->each(fn ($s) => $shared->share($courier->setRelation('store', $store), $s));
         }
 
-        return response()->json(['data' => $this->present($courier->load(['zones:id,name', 'payRule:id,name'])), 'invitation_url' => $link], 201);
+        return response()->json(['data' => $this->present($courier->load(['places.parent', 'payRule:id,name'])), 'invitation_url' => $link], 201);
     }
 
     public function update(Request $request, int $courier): JsonResponse
@@ -90,7 +91,7 @@ class CourierController extends Controller
         $data = $this->validated($request, partial: true);
         $this->roster->update($model, $data);
 
-        return response()->json(['data' => $this->present($model->load(['zones:id,name', 'payRule:id,name']))]);
+        return response()->json(['data' => $this->present($model->load(['places.parent', 'payRule:id,name']))]);
     }
 
     public function reinvite(Request $request, int $courier): JsonResponse
@@ -158,8 +159,8 @@ class CourierController extends Controller
             'pay_rule_id' => ['sometimes', 'nullable', 'integer', Rule::exists('courier_pay_rules', 'id')->where('store_id', $store->id)],
             'cash_limit' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:100000000'],
             'is_available' => ['sometimes', 'boolean'],
-            'zone_ids' => ['sometimes', 'array'],
-            'zone_ids.*' => ['integer'],
+            'place_ids' => ['sometimes', 'array', 'max:100'],
+            'place_ids.*' => ['integer'],
             'note' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'store_ids' => ['sometimes', 'array'],
             'store_ids.*' => ['integer'],
@@ -170,7 +171,7 @@ class CourierController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:80'],
-            'type' => ['required', Rule::in(['per_delivery', 'per_zone'])],
+            'type' => ['required', Rule::in(CourierPayRule::TYPES)],
             'amount' => ['required', 'integer', 'min:0', 'max:10000000'],
             'zone_amounts' => ['nullable', 'array'],
             'zone_amounts.*' => ['integer', 'min:0', 'max:10000000'],
@@ -191,7 +192,8 @@ class CourierController extends Controller
             'is_available' => $c->is_available,
             'cash_limit' => $c->cash_limit,
             'pay_rule' => $c->payRule ? ['id' => $c->payRule->id, 'name' => $c->payRule->name] : null,
-            'zones' => $c->zones->map(fn ($z) => ['id' => $z->id, 'name' => $z->name])->values(),
+            // Lieux couverts (aucun : partout)
+            'places' => $c->places->map(fn ($p) => ['id' => $p->id, 'label' => $p->label()])->values(),
             'active_missions' => $c->active_missions ?? 0,
             // Dernière position pendant la tournée (si la boutique l'a activé), de moins de douze heures
             'location' => $c->last_located_at?->gt(now()->subHours(12)) && $this->currentStore()->courier_tracking

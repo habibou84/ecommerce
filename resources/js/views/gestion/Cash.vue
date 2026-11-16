@@ -1,10 +1,9 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
 import CashDrawer from '../../components/CashDrawer.vue'
 import CashFlowTable from '../../components/CashFlowTable.vue'
 import CashTabs from '../../components/CashTabs.vue'
-import RecurringExpenses from '../../components/RecurringExpenses.vue'
 import http, { errorMessage } from '../../lib/http'
 import { money } from '../../lib/format'
 import { useAuthStore } from '../../stores/auth'
@@ -25,45 +24,74 @@ async function load() {
 }
 onMounted(load)
 watch(period, load)
+
+// Total à récupérer : espèces chez les livreurs + argent chez les entreprises de livraison
+const toCollect = computed(() => (data.value ? data.value.position.couriers_cash + data.value.position.carriers_due : 0))
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-6">
     <CashTabs />
     <Alert v-if="error">{{ error }}</Alert>
 
-    <CashDrawer @changed="load" />
-    <RecurringExpenses v-if="auth.can('cash.manage') || auth.can('finance.view')" />
-
-    <!-- Où est l'argent en ce moment -->
+    <!-- 1. Où est l'argent en ce moment -->
     <section v-if="auth.can('finance.view')" class="space-y-3">
       <h2 class="text-lg font-semibold">Où est mon argent</h2>
-      <div v-if="data" class="grid grid-cols-2 gap-3">
-        <RouterLink to="/gestion/caisse/livreurs" class="card block p-4">
-          <p class="text-sm text-slate-600">Chez mes livreurs (espèces)</p>
-          <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl">{{ money(data.position.couriers_cash) }}</p>
-          <p class="text-xs text-slate-500">{{ data.position.couriers_cash_count }} livreur(s) à faire verser</p>
-        </RouterLink>
-        <component :is="auth.can('carriers.manage') ? 'RouterLink' : 'div'" to="/gestion/caisse/a-recevoir" class="card block p-4">
-          <p class="text-sm text-slate-600">Chez les entreprises de livraison</p>
-          <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl" :class="data.position.carriers_due < 0 ? 'text-red-700' : ''">{{ money(data.position.carriers_due) }}</p>
-          <p v-if="data.position.carriers_due_overdue" class="text-xs text-red-700">dont {{ money(data.position.carriers_due_overdue) }} en retard</p>
-          <p v-else class="text-xs text-slate-500">Livré, pas encore reversé</p>
-        </component>
-        <RouterLink to="/gestion/caisse/clients" class="card block p-4">
-          <p class="text-sm text-slate-600">Clients : reste à payer</p>
-          <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl">{{ money(data.position.customers_due) }}</p>
-          <p class="text-xs text-slate-500">{{ data.position.customers_due_count }} commande(s) livrée(s) pas soldée(s)</p>
-        </RouterLink>
-        <component :is="auth.can('couriers.manage') ? 'RouterLink' : 'div'" to="/gestion/livraisons/livreurs" class="card block p-4">
-          <p class="text-sm text-slate-600">À payer à mes livreurs</p>
-          <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl">{{ money(data.position.couriers_to_pay) }}</p>
-          <p class="text-xs text-slate-500">Gains et relevés pas encore payés</p>
-        </component>
-      </div>
+      <template v-if="data">
+        <div class="card overflow-hidden">
+          <div class="p-4">
+            <p class="text-sm font-medium text-slate-600">À récupérer</p>
+            <p class="whitespace-nowrap text-3xl font-bold tracking-tight">{{ money(toCollect) }}</p>
+            <p class="text-sm text-slate-600">chez vos livreurs et les entreprises de livraison</p>
+          </div>
+          <RouterLink to="/gestion/caisse/livreurs" class="flex min-h-11 items-center gap-3 border-t border-slate-100 px-4 py-3">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-800" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 20c0-4 4-6 8-6s8 2 8 6" /></svg>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block font-semibold">Chez mes livreurs</span>
+              <span class="block text-xs" :class="data.position.couriers_cash_count ? 'text-orange-800' : 'text-slate-600'">
+                <template v-if="data.position.couriers_cash_count">{{ data.position.couriers_cash_count }} livreur{{ data.position.couriers_cash_count > 1 ? 's' : '' }} à faire verser</template>
+                <template v-else>Rien à faire verser</template>
+              </span>
+            </span>
+            <span class="whitespace-nowrap font-bold">{{ money(data.position.couriers_cash) }}</span>
+            <span class="text-slate-500" aria-hidden="true">›</span>
+          </RouterLink>
+          <component :is="auth.can('carriers.manage') ? 'RouterLink' : 'div'" to="/gestion/caisse/a-recevoir" class="flex min-h-11 items-center gap-3 border-t border-slate-100 px-4 py-3">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5l8-2v18M12 9h8v12M7 9h2M7 13h2M7 17h2M15 13h2M15 17h2" /></svg>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block font-semibold">Chez les entreprises de livraison</span>
+              <span v-if="data.position.carriers_due_overdue" class="block text-xs text-red-700">dont {{ money(data.position.carriers_due_overdue) }} en retard</span>
+              <span v-else class="block text-xs text-slate-600">Livré, pas encore reversé</span>
+            </span>
+            <span class="whitespace-nowrap font-bold" :class="data.position.carriers_due < 0 ? 'text-red-700' : ''">{{ money(data.position.carriers_due) }}</span>
+            <span v-if="auth.can('carriers.manage')" class="text-slate-500" aria-hidden="true">›</span>
+          </component>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <RouterLink to="/gestion/caisse/clients" class="card block p-4">
+            <p class="text-sm font-medium text-slate-600">Clients : reste à payer</p>
+            <p class="whitespace-nowrap text-2xl font-bold">{{ money(data.position.customers_due) }}</p>
+            <p class="text-xs text-slate-600">{{ data.position.customers_due_count }} commande{{ data.position.customers_due_count > 1 ? 's livrées, pas soldées' : ' livrée, pas soldée' }}</p>
+            <p v-if="data.position.customers_due_count" class="mt-1 text-xs font-medium text-emerald-800">Voir le détail ›</p>
+          </RouterLink>
+          <component :is="auth.can('couriers.manage') ? 'RouterLink' : 'div'" to="/gestion/livraisons/livreurs" class="card block p-4">
+            <p class="text-sm font-medium text-slate-600">À payer à mes livreurs</p>
+            <p class="whitespace-nowrap text-2xl font-bold">{{ money(data.position.couriers_to_pay) }}</p>
+            <p class="text-xs text-slate-600">Gains pas encore payés</p>
+          </component>
+        </div>
+      </template>
     </section>
 
-    <!-- Entrées et sorties de la période -->
+    <!-- 2. Tiroir-caisse du jour -->
+    <CashDrawer @changed="load" />
+
+    <!-- 3. Entrées et sorties de la période -->
     <section v-if="auth.can('finance.view')" class="space-y-3">
       <h2 class="text-lg font-semibold">Entrées et sorties</h2>
       <CashFlowTable v-model:period="period" :flows="data?.flows" />

@@ -39,7 +39,7 @@ const emit = defineEmits(['claim'])
       <h3 class="flex items-center gap-2 font-semibold"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-xs text-white">2</span>Confirmez votre paiement</h3>
       <p class="text-slate-600">Une fois le paiement fait dans Wave :</p>
       <button class="w-full rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white hover:bg-emerald-800 disabled:opacity-60" :disabled="claiming" @click="emit('claim')">{{ claiming ? 'Envoi…' : 'Cliquez ici pour confirmer votre paiement' }}</button>
-      <p class="text-xs text-slate-500">Nous vérifions la réception, puis votre offre est activée.</p>
+      <p class="explain-detail">Nous vérifions la réception, puis votre offre est activée.</p>
     </section>
   </div>
 </template>

@@ -96,7 +96,7 @@ async function collected() {
     <template v-else-if="canDrop">
       <button v-if="!open" type="button" class="btn-secondary w-full" @click="open = true">Noter le dépôt à la gare</button>
       <form v-else class="space-y-2" @submit.prevent="save">
-        <p class="text-xs text-slate-500">À remplir si le colis n'est pas parti avec un livreur de l'application.</p>
+        <p class="explain-detail">À remplir si le colis n'est pas parti avec un livreur de l'application.</p>
         <label class="block font-medium">Compagnie de transport
           <select v-model="form.company" class="input mt-1" required>
             <option value="" disabled>Choisir</option>
@@ -123,7 +123,7 @@ async function collected() {
         </div>
       </form>
     </template>
-    <p v-else-if="!e.dropped_at" class="text-slate-500">Le livreur notera la compagnie, les frais et le ticket en déposant le colis.</p>
+    <p v-else-if="!e.dropped_at" class="explain-detail">Le livreur notera la compagnie, les frais et le ticket en déposant le colis.</p>
     <p v-if="!e.dropped_at && messageInfo && e.message_state !== 'sent'" class="text-xs" :class="messageInfo[1]">{{ messageInfo[0] }}</p>
 
     <Alert v-if="error">{{ error }}</Alert>

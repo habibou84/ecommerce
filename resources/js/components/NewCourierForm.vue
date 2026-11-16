@@ -40,7 +40,7 @@ async function submit() {
       <p v-if="errors.phone" class="mt-1 text-sm text-red-600">{{ errors.phone }}</p>
     </div>
     <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
-    <p class="text-xs text-slate-500">Il recevra ses courses et un lien sur WhatsApp : pas de mot de passe à créer.</p>
+    <p class="explain-detail">Il recevra ses courses et un lien sur WhatsApp : pas de mot de passe à créer.</p>
     <div class="grid grid-cols-2 gap-2">
       <button type="button" class="btn-secondary" @click="emit('cancel')">Annuler</button>
       <button class="btn-brand" :disabled="busy || !form.name.trim() || !form.phone">{{ busy ? 'Création…' : 'Créer' }}</button>

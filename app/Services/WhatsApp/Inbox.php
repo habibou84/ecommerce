@@ -191,13 +191,40 @@ class Inbox
      */
     public function fromPhone(WhatsappLink $link, string $to, string $text, string $id): ?ConversationMessage
     {
-        $text = trim($text);
-        if ($text === '' || $id === '' || self::isPlatform($to) || ConversationMessage::forStore($link->store_id)->where('provider_message_id', $id)->exists()) {
+        return $this->fromMerchantPhone($link->store_id, $to, trim($text), $id, null);
+    }
+
+    /**
+     * Message envoyé depuis l'application WhatsApp Business du téléphone, sur le numéro officiel resté dans
+     * l'application (coexistence) : Meta le renvoie en « écho ». Il apparaît dans le fil comme une réponse de l'équipe
+     * (les assistants se taisent) ; « récap » et « confirmé » y sont compris.
+     *
+     * @param  array<string, mixed>  $echo
+     */
+    public function fromBusinessApp(WhatsappAccount $account, array $echo): ?ConversationMessage
+    {
+        $body = self::readable($echo);
+
+        return $body === null ? null : $this->fromMerchantPhone($account->store_id, (string) ($echo['to'] ?? ''), trim($body), (string) ($echo['id'] ?? ''),
+            isset($echo['timestamp']) ? Carbon::createFromTimestamp((int) $echo['timestamp']) : null, ($echo['type'] ?? 'text') === 'text');
+    }
+
+    private function fromMerchantPhone(int $storeId, string $to, string $text, string $id, ?Carbon $sentAt, bool $isText = true): ?ConversationMessage
+    {
+        if ($text === '' || $id === '' || ltrim($to, '+') === '' || self::isPlatform($to) || ConversationMessage::forStore($storeId)->where('provider_message_id', $id)->exists()) {
             return null;
         }
-        $conversation = Conversation::forStore($link->store_id)->where('channel', 'whatsapp')->where('contact', '+'.ltrim($to, '+'))->first();
+        $conversation = Conversation::forStore($storeId)->where('channel', 'whatsapp')->where('contact', '+'.ltrim($to, '+'))->first();
+        if ($conversation === null) {
+            return null;
+        }
+        $message = $this->record($conversation, 'text', $text, 'sent', $id, null, $sentAt);
+        // « récap » : la commande reconstituée part au client ; « confirmé » : la commande est confirmée
+        if ($isText) {
+            rescue(fn () => app(RecapOrders::class)->fromMerchant($conversation, $text));
+        }
 
-        return $conversation ? $this->record($conversation, 'text', $text, 'sent', $id) : null;
+        return $message;
     }
 
     /**
@@ -216,6 +243,10 @@ class Inbox
         $message = $this->land($storeId, $phone, $name, 'order', $body, $providerId, $sentAt, $viaLink);
         if ($order !== null) {
             $message->conversation->forceFill(['order_id' => $order->id])->save();
+            // Assistant des ventes : commune demandée, puis récapitulatif avec « Je confirme »
+            if ($store->whatsapp_cart_flow) {
+                rescue(fn () => app(RecapOrders::class)->follow($message->conversation, $order));
+            }
         }
 
         return $message;
@@ -432,9 +463,10 @@ class Inbox
         }
     }
 
-    private function record(Conversation $conversation, string $type, string $body, string $status, ?string $providerId = null, ?User $user = null): ConversationMessage
+    private function record(Conversation $conversation, string $type, string $body, string $status, ?string $providerId = null, ?User $user = null, ?Carbon $sentAt = null): ConversationMessage
     {
-        $conversation->forceFill(['last_preview' => Str::limit($body, 197), 'last_message_at' => now()])->save();
+        $sentAt ??= now();
+        $conversation->forceFill(['last_preview' => Str::limit($body, 197), 'last_message_at' => $sentAt])->save();
 
         return $conversation->messages()->create([
             'store_id' => $conversation->store_id,
@@ -444,7 +476,7 @@ class Inbox
             'provider_message_id' => $providerId,
             'status' => $status,
             'user_id' => $user?->id,
-            'sent_at' => now(),
+            'sent_at' => $sentAt,
         ]);
     }
 

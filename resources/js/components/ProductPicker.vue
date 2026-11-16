@@ -75,7 +75,7 @@ function add(product, variant) {
           :key="v.id"
           type="button"
           class="rounded-lg border bg-white px-3 py-1.5 text-sm hover:border-emerald-600"
-          :class="choosing.track_inventory && v.available <= 0 ? 'border-slate-200 text-slate-400' : 'border-slate-300'"
+          :class="choosing.track_inventory && v.available <= 0 ? 'border-slate-200 text-slate-400' : 'border-field'"
           @click="add(choosing, v)"
         >
           {{ v.title }} · {{ money(v.price) }}

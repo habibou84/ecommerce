@@ -84,7 +84,7 @@ async function declare() {
     <!-- Un seul gros chiffre : ce qu'il reste à verser, avec le plafond -->
     <section class="rounded-xl bg-white p-4 text-center shadow-sm">
       <p class="text-sm text-slate-500">À verser au marchand</p>
-      <p class="text-4xl font-extrabold" :class="limitShare > 100 || (me?.cash_limit && cash.held > me.cash_limit) ? 'text-amber-700' : ''">{{ money(cash.held) }}</p>
+      <p class="text-3xl font-extrabold" :class="limitShare > 100 || (me?.cash_limit && cash.held > me.cash_limit) ? 'text-amber-700' : ''">{{ money(cash.held) }}</p>
       <template v-if="limitShare !== null">
         <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full" :class="cash.held > me.cash_limit ? 'bg-amber-500' : 'bg-emerald-600'" :style="{ width: limitShare + '%' }" /></div>
         <p class="mt-1 text-xs" :class="cash.held > me.cash_limit ? 'font-semibold text-amber-800' : 'text-slate-500'">
@@ -92,7 +92,7 @@ async function declare() {
         </p>
       </template>
       <button v-if="owed.length && !declaring" class="btn-brand mt-3 w-full py-3" :disabled="!offline.online" @click="startDeclare(); tab = 'cash'">💸 J'ai versé l'argent</button>
-      <p v-if="owed.length && !offline.online" class="mt-1 text-xs text-slate-500">Il faut du réseau pour déclarer un versement.</p>
+      <p v-if="owed.length && !offline.online" class="explain-detail mt-1">Il faut du réseau pour déclarer un versement.</p>
     </section>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
@@ -100,8 +100,8 @@ async function declare() {
     <section v-if="me?.today" class="rounded-xl bg-white p-4 shadow-sm">
       <p class="mb-2 text-sm font-semibold">Ma journée</p>
       <div class="grid grid-cols-3 gap-2 text-center text-sm">
-        <div class="rounded-lg bg-emerald-50 p-2"><p class="text-xl font-bold">{{ me.today.delivered }}</p><p class="text-xs text-slate-500">livrée(s)</p></div>
-        <div class="rounded-lg bg-red-50 p-2"><p class="text-xl font-bold">{{ me.today.failed }}</p><p class="text-xs text-slate-500">échec(s)</p></div>
+        <div class="rounded-lg bg-emerald-50 p-2"><p class="text-2xl font-bold">{{ me.today.delivered }}</p><p class="text-xs text-slate-500">livrée(s)</p></div>
+        <div class="rounded-lg bg-red-50 p-2"><p class="text-2xl font-bold">{{ me.today.failed }}</p><p class="text-xs text-slate-500">échec(s)</p></div>
         <div class="rounded-lg bg-slate-50 p-2"><p class="text-base font-bold">{{ money(me.today.earned) }}</p><p class="text-xs text-slate-500">ma paie</p></div>
       </div>
       <p class="mt-2 text-sm text-slate-600">Encaissé : <strong>{{ money(me.today.collected) }}</strong> · Versé : <strong>{{ money(me.today.remitted) }}</strong></p>
@@ -189,7 +189,7 @@ async function declare() {
     </section>
     <section v-if="tab === 'remittances'" class="rounded-xl bg-white p-4 shadow-sm">
       <p class="mb-1 text-sm font-semibold">Versements reçus par le marchand</p>
-      <p v-if="!cash.remittances.length" class="text-sm text-slate-500">Aucun versement enregistré pour l'instant.</p>
+      <p v-if="!cash.remittances.length" class="explain-detail">Aucun versement enregistré pour l'instant.</p>
       <ul class="divide-y divide-slate-100 text-sm">
         <li v-for="(r, i) in cash.remittances" :key="i" class="flex justify-between py-1.5">
           <span>{{ formatDateTime(r.received_at) }}</span>

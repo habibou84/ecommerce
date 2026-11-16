@@ -17,7 +17,7 @@ const low = computed(() => ai.value?.limit > 0 && ai.value.limit - ai.value.used
 <template>
   <div v-if="ai?.enabled && exhausted" class="space-y-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm">
     <p class="font-semibold text-red-800">
-      Plus d'actions IA. Recharge ton solde : commandes et IA ensemble.
+      Plus d'actions IA. Rechargez votre solde : commandes et IA ensemble.
     </p>
     <button type="button" class="btn-brand w-full sm:w-auto" @click="openRecharge()">Recharger mon solde</button>
   </div>

@@ -1,10 +1,13 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import StateBadge from './StateBadge.vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ColorIcon from './ColorIcon.vue'
 import Icon from './Icon.vue'
+import CustomerList from '../views/gestion/customers/CustomerList.vue'
 import LivePrepare from '../views/gestion/marketing/LivePrepare.vue'
 import BoostPanel from './marketing/BoostPanel.vue'
+import WhatsAppHub from './WhatsAppHub.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
 import { platformOn } from '../router'
@@ -37,38 +40,71 @@ const s = computed(() => props.stats ?? {})
 const orderTodo = computed(() => {
   const o = s.value.orders
   if (!o) return []
-  const late = (s.value.couriers?.late_returns ?? 0) + (s.value.carriers?.late_returns ?? 0)
   return [
-    { key: 'proofs', icon: '💳', count: o.waiting?.proofs ?? 0, text: `${o.waiting?.proofs} paiement(s) à valider`, action: 'Valider', to: '/gestion/commandes?alert=proof', urgent: true },
-    { key: 'confirm', icon: '⏰', count: o.to_confirm, text: `${o.to_confirm} commande(s) à confirmer`, action: 'Confirmer', to: canOpen('/gestion/confirmation') ? '/gestion/confirmation' : '/gestion/commandes?status=pending_confirmation', urgent: o.callbacks_due > 0 },
-    { key: 'unassigned', icon: '🛵', count: o.waiting?.unassigned ?? 0, text: `${o.waiting?.unassigned} colis sans livreur`, action: 'Choisir', to: '/gestion/commandes?status=to_ship', urgent: true },
-    { key: 'not_picked', icon: '📦', count: o.waiting?.not_picked ?? 0, text: `${o.waiting?.not_picked} colis pas encore ramassé(s)`, action: 'Voir', to: '/gestion/commandes?alert=not_picked', urgent: false },
-    { key: 'unhandled', icon: '⚠️', count: o.waiting?.unhandled ?? 0, text: `${o.waiting?.unhandled} problème(s) de livraison`, action: 'Traiter', to: '/gestion/commandes?alert=unhandled', urgent: true },
-    { key: 'returns', icon: '↩️', count: late, text: `${late} colis à rapporter en retard`, action: 'Voir', to: '/gestion/commandes?alert=to_bring_back', urgent: true },
+    { key: 'proofs', icon: 'cash', count: o.waiting?.proofs ?? 0, text: pl(o.waiting?.proofs, 'paiement à valider', 'paiements à valider'), action: 'Valider', to: '/gestion/commandes?alert=proof', urgent: true },
+    { key: 'confirm', icon: 'clock', count: o.to_confirm, text: pl(o.to_confirm, 'commande à confirmer', 'commandes à confirmer'), action: 'Confirmer', to: canOpen('/gestion/confirmation') ? '/gestion/confirmation' : '/gestion/commandes?status=pending_confirmation', urgent: o.callbacks_due > 0 },
   ].filter((t) => t.count > 0)
 })
+// Livraisons : ce qui attend un livreur, un ramassage, une décision ou un retour
+const deliveryTodo = computed(() => {
+  const o = s.value.orders
+  if (!o) return []
+  const late = (s.value.couriers?.late_returns ?? 0) + (s.value.carriers?.late_returns ?? 0)
+  return [
+    { key: 'unassigned', icon: 'truck', count: o.waiting?.unassigned ?? 0, text: pl(o.waiting?.unassigned, 'commande à faire livrer', 'commandes à faire livrer'), action: 'Faire livrer', to: '/gestion/commandes?status=to_ship', urgent: true },
+    { key: 'not_picked', icon: 'box', count: o.waiting?.not_picked ?? 0, text: pl(o.waiting?.not_picked, 'colis pas encore ramassé', 'colis pas encore ramassés'), action: 'Voir', to: '/gestion/commandes?alert=not_picked', urgent: false },
+    { key: 'unhandled', icon: 'alert', count: o.waiting?.unhandled ?? 0, text: pl(o.waiting?.unhandled, 'problème de livraison', 'problèmes de livraison'), action: 'Traiter', to: '/gestion/commandes?alert=unhandled', urgent: true },
+    { key: 'returns', icon: 'box', count: late, text: `${late} colis à rapporter en retard`, action: 'Voir', to: '/gestion/commandes?alert=to_bring_back', urgent: true },
+  ].filter((t) => t.count > 0)
+})
+// Raccourcis de la page Livraisons (les onglets du menu Livraisons)
+const DELIVERY_LINKS = [
+  { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
+  { to: '/gestion/livraisons/entreprises', label: 'Entreprises' },
+  { to: '/gestion/livraisons/automatisation', label: 'Automatisation' },
+  { to: '/gestion/livraisons/paie', label: 'Paie des livreurs' },
+  { to: '/gestion/livraisons/tarifs', label: 'Tarifs et zones' },
+  { to: '/gestion/livraisons/reglages', label: 'Réglages' },
+]
 const cashTodo = computed(() => [
-  ...(s.value.couriers?.late ?? []).map((x) => ({ key: `c${x.courier_id}`, icon: '🛵', text: `${x.name} garde ${money(x.held)}`, action: 'Encaisser', to: '/gestion/caisse/livreurs', urgent: x.level > 1 })),
-  ...(s.value.carriers?.overdue ?? []).map((x) => ({ key: `e${x.connection_id}`, icon: '🏢', text: `${x.carrier} vous doit ${money(x.amount)}`, action: 'Réclamer', to: '/gestion/caisse/a-recevoir', urgent: x.level > 1 })),
+  ...(s.value.couriers?.late ?? []).map((x) => ({ key: `c${x.courier_id}`, icon: 'truck', text: `${x.name} garde ${money(x.held)}`, action: 'Encaisser', to: '/gestion/caisse/livreurs', urgent: x.level > 1 })),
+  ...(s.value.carriers?.overdue ?? []).map((x) => ({ key: `e${x.connection_id}`, icon: 'cash', text: `${x.carrier} vous doit ${money(x.amount)}`, action: 'Réclamer', to: '/gestion/caisse/a-recevoir', urgent: x.level > 1 })),
 ])
 const badge = (items) => (items.length ? { n: items.length, level: items.some((i) => i.urgent) ? 'red' : 'orange' } : null)
 
+// Données WhatsApp (GET whatsapp/sales), chargées à l'arrivée sur la page WhatsApp
+const whatsapp = ref(null)
+
 // ── Pages ──
+// « 1 commande », « 3 commandes » (pas de « commande(s) »)
+const pl = (n, one, many) => `${n ?? 0} ${n > 1 ? many : one}`
+// Icône de couleur de chaque onglet (la même que dans le menu), à la place des émojis
+const PAGE_COLORS = { live: 'live', whatsapp: 'whatsapp', boost: 'promo', orders: 'panier', delivery: 'moto', cash: 'caisse', shop: 'boutique', clients: 'clients', items: 'produit', more: 'menu' }
 const PAGES = [
   { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
-    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/whatsapp', label: 'WhatsApp' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+  // WhatsApp : ce qui attend (non lus, récaps, paniers), conversations, assistants des ventes et des réponses
+  { key: 'whatsapp', name: 'WhatsApp', icon: '💬', show: () => canOpen('/gestion/whatsapp') || canOpen('/gestion/messages'),
+    badge: () => { const n = (s.value.unread_messages ?? 0) + (whatsapp.value?.todo?.recaps ?? 0) + (whatsapp.value?.todo?.carts ?? 0); return n ? { n, level: 'orange' } : null },
+    settings: [{ to: '/gestion/whatsapp', label: 'Mon numéro WhatsApp' }, { to: '/gestion/whatsapp/ventes', label: 'Assistant des ventes' }, { to: '/gestion/whatsapp/reponses', label: 'Assistant des réponses' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/marketing/relances', label: 'Relances' }] },
   // Boost : la pub Facebook et Instagram au même endroit (connexion, pixel, produits à booster, commandes venues des boosts)
   { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
     settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
   { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
-    settings: [{ to: '/gestion/livraisons', label: 'Livraisons en cours' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' }, { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' }, { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
+    settings: [{ to: '/gestion/confirmation', label: 'À confirmer' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
+  // Livraisons : juste après les commandes, avant la caisse
+  { key: 'delivery', name: 'Livraisons', icon: '🛵', show: () => canOpen('/gestion/livraisons') || canOpen('/gestion/livraisons/livreurs'), badge: () => badge(deliveryTodo.value),
+    settings: [{ to: '/gestion/livraisons/automatisation', label: 'Automatisation' }, { to: '/gestion/livraisons/paie', label: 'Paie des livreurs' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs et zones' }, { to: '/gestion/livraisons/reglages', label: 'Réglages des livraisons' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
-    settings: [{ to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' }, { to: '/gestion/statistiques', label: 'Statistiques' }, { to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
+    settings: [{ to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
   { key: 'shop', name: 'Boutique', icon: '🏪', show: () => canOpen('/gestion/boutique-en-ligne'), badge: () => (s.value.shop?.abandoned ? { n: s.value.shop.abandoned, level: 'orange' } : null),
     settings: [{ to: '/gestion/boutique-en-ligne', label: 'Apparence' }, { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus' }, { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' }] },
+  // Clients : chiffres, recherche, relances et liste, dans l'onglet (la fiche s'ouvre par-dessus)
+  { key: 'clients', name: 'Clients', icon: '👥', show: () => canOpen('/gestion/clients'), badge: () => (s.value.to_relaunch ? { n: s.value.to_relaunch, level: 'orange' } : null),
+    settings: [{ to: '/gestion/marketing/fidelite', label: 'Fidélité et parrainage' }, { to: '/gestion/marketing/avis', label: 'Avis clients' }] },
   { key: 'items', name: 'Articles', icon: '👗', show: () => canOpen('/gestion/catalogue'), badge: () => (s.value.stock && s.value.stock.out + s.value.stock.low ? { n: s.value.stock.out + s.value.stock.low, level: s.value.stock.out ? 'red' : 'orange' } : null),
     settings: [{ to: '/gestion/collections', label: 'Collections' }, { to: '/gestion/packs', label: 'Packs et prix de gros' }, { to: '/gestion/stock', label: 'Stock détaillé et mouvements' }, { to: '/gestion/stock/commandes', label: 'Fournisseurs et bons de commande' }, { to: '/gestion/catalogue/import', label: 'Importer des produits' }] },
-  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (s.value.unread_messages ? { n: s.value.unread_messages, level: 'orange' } : null), settings: [{ to: '/gestion/parametres', label: 'Informations de l\'espace marchand' }, { to: '/gestion/equipe', label: 'Équipe' }] },
+  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => null, settings: [{ to: '/gestion/parametres', label: 'Ma boutique' }, { to: '/gestion/equipe', label: 'Équipe' }] },
 ]
 const pages = computed(() => PAGES.filter((p) => p.show()))
 
@@ -104,6 +140,7 @@ watch(current, (i) => {
   const tab = bar?.children[i]
   if (bar && tab) bar.scrollTo({ left: Math.max(0, tab.offsetLeft - (bar.clientWidth - tab.offsetWidth) / 2), behavior: 'smooth' })
   if (key === 'orders') loadOrders()
+  if (key === 'whatsapp') loadWhatsapp()
   if (key === 'items') loadItems()
   if (key === 'cash') loadCash()
 }, { immediate: true })
@@ -120,6 +157,22 @@ onMounted(async () => {
   go(i, false)
   startPage = i
 })
+
+// ── Clients : filtre demandé par un lien (ex. « à relancer »), lu une fois à l'arrivée puis à chaque demande ──
+const clientsFilter = ref('')
+try {
+  clientsFilter.value = sessionStorage.getItem('jm.clients-filter') ?? ''
+  sessionStorage.removeItem('jm.clients-filter')
+} catch {
+  clientsFilter.value = ''
+}
+function onSwipeGo(e) {
+  const i = pages.value.findIndex((p) => p.key === e.detail?.page)
+  if (e.detail?.page === 'clients') clientsFilter.value = e.detail.filter ?? ''
+  if (i >= 0) go(i)
+}
+onMounted(() => window.addEventListener('jm:swipe-go', onSwipeGo))
+onBeforeUnmount(() => window.removeEventListener('jm:swipe-go', onSwipeGo))
 
 // ── Indicateur de glissement : points des pages toujours visibles, et une aide animée tant qu'on n'a jamais glissé ──
 const HINT_KEY = 'jm.swipe-hint-done'
@@ -164,7 +217,12 @@ async function loadOrders() {
   if (orders.value) return
   orders.value = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [] } }))).data.data
 }
-const tone = (o) => ({ pending_confirmation: 'bg-amber-100 text-amber-900', cancelled: 'bg-slate-100 text-slate-500', delivered: 'bg-emerald-100 text-emerald-800', completed: 'bg-emerald-100 text-emerald-800' }[o.status] ?? 'bg-sky-100 text-sky-900')
+
+// ── WhatsApp : ce qui attend et les entrées du menu (réglages WhatsApp : seulement qui gère la boutique) ──
+async function loadWhatsapp() {
+  if (whatsapp.value || !canOpen('/gestion/whatsapp')) return
+  whatsapp.value = (await http.get('/whatsapp/sales').catch(() => ({ data: { data: null } }))).data.data
+}
 
 // ── Caisse : état du tiroir et argent dehors, chargés à l'arrivée sur la page (et au retour d'une fenêtre) ──
 const drawer = ref(null)
@@ -181,13 +239,18 @@ async function loadCash() {
 watch(() => route.path, (to, from) => {
   if (to === '/gestion' && from?.startsWith('/gestion/') && page.value?.key === 'cash') loadCash()
 })
-// Chaque tuile ouvre une seule fenêtre, une seule information
+// Où est mon argent : chaque tuile ouvre une seule fenêtre, une seule information
 const moneyOut = computed(() => [
   { to: '/gestion/caisse/livreurs', label: 'Chez les livreurs', amount: position.value?.couriers_cash ?? s.value.couriers?.cash, hint: 'espèces à faire verser', show: !!(position.value || s.value.couriers) },
   { to: '/gestion/caisse/a-recevoir', label: 'Chez les entreprises', amount: position.value?.carriers_due ?? s.value.carriers?.amount, hint: position.value?.carriers_due_overdue ? `dont ${money(position.value.carriers_due_overdue)} en retard` : 'livré, pas reversé', late: !!position.value?.carriers_due_overdue, show: !!(position.value || s.value.carriers) },
-  { to: '/gestion/caisse/clients', label: 'Chez les clients', amount: position.value?.customers_due, hint: `${position.value?.customers_due_count ?? 0} commande(s) pas soldée(s)`, show: !!position.value },
-  { to: '/gestion/livraisons/livreurs', label: 'À payer aux livreurs', amount: position.value?.couriers_to_pay, hint: 'gains pas encore payés', show: !!position.value },
+  { to: '/gestion/caisse/clients', label: 'Chez les clients', amount: position.value?.customers_due, hint: `${pl(position.value?.customers_due_count, 'commande', 'commandes')} pas soldée${position.value?.customers_due_count > 1 ? 's' : ''}`, show: !!position.value },
+  { to: '/gestion/livraisons/paie', label: 'À payer aux livreurs', amount: position.value?.couriers_to_pay, hint: 'gains pas encore payés', show: !!position.value },
 ].filter((t) => t.show && canOpen(t.to)))
+const CASH_LINKS = [
+  { to: '/gestion/caisse/entrees-sorties', label: 'Entrées et sorties', hint: 'Ce qui est entré et sorti, canal par canal', color: 'billets' },
+  { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles', hint: 'Loyer, salaires… notés chaque mois', color: 'calendrier' },
+  { to: '/gestion/statistiques', label: 'Statistiques', hint: 'Bénéfice, ventes, coût par commande', color: 'stats' },
+]
 
 // ── Articles : catalogue et stock réunis ──
 const items = ref(null)
@@ -223,18 +286,14 @@ async function share() {
 
 // ── Plus : grandes icônes ──
 const PLUS = [
-  { to: '/gestion/messages', label: 'Messages', color: 'whatsapp' },
-  { to: '/gestion/clients', label: 'Clients', color: 'clients' },
-  { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
   { to: '/gestion/statistiques', label: 'Statistiques', color: 'stats' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
-  { to: '/gestion/stock/commandes', label: 'Fournisseurs', color: 'camion' },
+  { to: '/gestion/stock/commandes', label: 'Commandes fournisseurs', color: 'camion' },
   { to: '/gestion/alertes', label: 'Alertes', color: 'cloche' },
   { to: '/gestion/equipe', label: 'Équipe', color: 'profil' },
-  { to: '/gestion/mes-boutiques', label: 'Mes boutiques', color: 'boutique' },
+  { to: '/gestion/mes-boutiques', label: 'Toutes mes boutiques', color: 'boutique' },
   { to: '/gestion/demarrage', label: 'Bien démarrer', color: 'aide' },
-  { to: '/gestion/whatsapp', label: 'WhatsApp', color: 'whatsapp' },
-  { to: '/gestion/parametres', label: 'Informations', color: 'reglages' },
+  { to: '/gestion/parametres', label: 'Ma boutique', color: 'reglages' },
 ]
 const plus = computed(() => links(PLUS))
 // Réglages de chaque page, regroupés dans Plus
@@ -247,7 +306,7 @@ const sheet = ref(null)
 const ADD = [
   { to: '/gestion/commandes/nouvelle', label: '🛍️ Nouvelle commande' },
   { to: '/gestion/caisse/vente', label: '🏪 Vente au comptoir' },
-  { to: '/gestion/catalogue/nouveau', label: '📷 Nouvel article' },
+  { to: '/gestion/catalogue/nouveau', label: 'Nouveau produit' },
   { to: '/gestion/live', label: '🔴 Préparer un live' },
 ]
 const sheetLinks = computed(() => (sheet.value === 'add' ? links(ADD) : links(page.value?.settings ?? [])))
@@ -264,12 +323,12 @@ function open(to) {
     <Teleport defer to="#swipe-tabs">
       <div ref="tabs" class="flex h-full w-full items-center gap-2 overflow-x-auto pl-4 pr-20 [scrollbar-width:none]" role="tablist">
         <button v-for="(p, i) in pages" :key="p.key" type="button" role="tab" :aria-selected="i === current"
-                class="relative mt-1 shrink-0 rounded-full px-3 py-1.5 text-[13.5px] font-extrabold transition"
-                :class="i === current ? (p.badge()?.level === 'red' ? 'bg-rose-800 text-white' : 'bg-slate-900 text-white') : (p.badge()?.level === 'red' ? 'bg-rose-100 text-rose-900' : 'bg-white text-slate-600 shadow-soft')"
+                class="relative mt-1 shrink-0 rounded-full px-3 py-1.5 text-sm font-extrabold transition"
+                :class="i === current ? (p.badge()?.level === 'red' ? 'bg-red-700 text-white' : 'bg-slate-900 text-white') : (p.badge()?.level === 'red' ? 'bg-red-100 text-red-900' : 'bg-white text-slate-600 shadow-soft')"
                 @click="go(i)">
-          {{ p.icon }} {{ p.name }}
-          <span v-if="p.badge()" class="absolute -right-1.5 -top-2 min-w-[19px] rounded-full border-2 border-slate-50 px-1 text-center text-[11px] font-black leading-[15px] text-white"
-                :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-rose-600' : 'bg-amber-500'">{{ p.badge().n }}</span>
+          <span class="inline-flex items-center gap-1.5"><ColorIcon :name="PAGE_COLORS[p.key] ?? 'menu'" :size="18" :tile="false" />{{ p.name }}</span>
+          <span v-if="p.badge()" class="absolute -right-1.5 -top-2 min-w-[19px] rounded-full border-2 border-slate-50 px-1 text-center text-pastille font-black leading-[15px] text-white"
+                :class="p.badge().level === 'red' ? 'animate-[swipe-pulse_1.6s_ease-out_infinite] bg-red-600' : 'bg-amber-700'">{{ p.badge().n }}</span>
         </button>
       </div>
     </Teleport>
@@ -283,35 +342,67 @@ function open(to) {
           <LivePrepare v-if="seen.has('live') && route.path !== '/gestion/live'" />
         </template>
 
+        <!-- WHATSAPP : ce qui attend, conversations, assistants -->
+        <template v-else-if="p.key === 'whatsapp'">
+          <WhatsAppHub :data="whatsapp" :unread="s.unread_messages ?? 0" :can-manage="canOpen('/gestion/whatsapp')" :can-messages="canOpen('/gestion/messages')" />
+          <RouterLink v-if="canOpen('/gestion/whatsapp')" to="/gestion/whatsapp" class="card mt-3 flex items-center gap-3 px-3.5 py-3">
+            <ColorIcon name="whatsapp" :size="36" />
+            <span class="min-w-0 flex-1"><b class="block text-base">Mon numéro</b><span class="text-sm text-slate-500">{{ whatsapp?.account ? whatsapp.account.display_phone : 'Connecter mon numéro WhatsApp' }}</span></span>
+            <Icon name="chevron" :size="16" class="text-slate-400" />
+          </RouterLink>
+        </template>
+
         <!-- COMMANDES (+ livraisons) -->
         <template v-else-if="p.key === 'orders'">
           <div class="mb-3 grid grid-cols-2 gap-2">
-            <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center py-3 text-[15px] font-black">＋ Commande</RouterLink>
-            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center py-3 text-[15px] font-black">🏪 Comptoir</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center whitespace-nowrap px-2 py-3 text-sm font-black">＋ Nouvelle commande</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center whitespace-nowrap px-2 py-3 text-sm font-black">Vente au comptoir</RouterLink>
           </div>
-          <div class="rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
+          <div class="rounded-[22px] bg-brand-grad p-4 text-white">
             <p class="text-sm font-semibold opacity-90">Aujourd'hui</p>
-            <p class="text-[26px] font-black leading-tight">{{ s.orders?.today_count ?? 0 }} commande(s) · {{ money(s.orders?.today_amount ?? 0) }}</p>
+            <p class="text-3xl font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }}</p>
+            <p class="text-sm font-semibold opacity-90">{{ pl(s.orders?.today_count ?? 0, 'commande', 'commandes') }}</p>
           </div>
           <div v-if="orderTodo.length" class="mt-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
-            <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">⚠ À faire</p>
-            <RouterLink v-for="t in orderTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-[14px] font-bold first-of-type:border-0">
-              <span aria-hidden="true">{{ t.icon }}</span><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
+            <p class="text-xs font-black uppercase tracking-wide text-orange-800">À faire</p>
+            <RouterLink v-for="t in orderTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-sm font-bold first-of-type:border-0">
+              <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
           <div class="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
-            <RouterLink to="/gestion/commandes?status=pending_confirmation" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">À confirmer {{ s.orders?.to_confirm ?? '' }}</RouterLink>
-            <RouterLink to="/gestion/commandes?status=to_ship" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">À livrer {{ s.orders?.to_ship ?? '' }}</RouterLink>
-            <RouterLink to="/gestion/livraisons" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">🛵 En livraison</RouterLink>
-            <RouterLink to="/gestion/commandes" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-extrabold shadow-soft">Toutes</RouterLink>
+            <RouterLink to="/gestion/commandes?status=pending_confirmation" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold shadow-soft">À confirmer {{ s.orders?.to_confirm ?? '' }}</RouterLink>
+            <RouterLink to="/gestion/commandes?status=to_ship" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold shadow-soft">À livrer {{ s.orders?.to_ship ?? '' }}</RouterLink>
+            <RouterLink to="/gestion/livraisons" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold shadow-soft">En livraison</RouterLink>
+            <RouterLink to="/gestion/commandes" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold shadow-soft">Toutes</RouterLink>
           </div>
           <div class="mt-3 rounded-2xl bg-white p-1 shadow-soft">
             <p v-if="!orders" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
             <p v-else-if="!orders.length" class="p-4 text-center text-sm text-slate-500">Pas encore de commande.</p>
             <RouterLink v-for="o in orders ?? []" :key="o.id" :to="`/gestion/commandes/${o.id}`" class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0">
               <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 font-black text-slate-600">{{ (o.customer_name ?? '?').charAt(0).toUpperCase() }}</span>
-              <span class="min-w-0 flex-1"><b class="block truncate text-[14.5px]">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }} · {{ o.source_label }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template></span></span>
-              <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold" :class="tone(o)">{{ o.status_label }}</span>
+              <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }} · {{ o.source_label }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template></span></span>
+              <StateBadge :status="o.status" :label="o.status_label" class="shrink-0" />
+            </RouterLink>
+          </div>
+        </template>
+
+        <!-- LIVRAISONS : ce qui attend, colis dehors, livreurs, automatisation, paie -->
+        <template v-else-if="p.key === 'delivery'">
+          <div v-if="deliveryTodo.length" class="mb-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
+            <p class="text-xs font-black uppercase tracking-wide text-orange-800">À faire</p>
+            <RouterLink v-for="t in deliveryTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-sm font-bold first-of-type:border-0">
+              <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
+            </RouterLink>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <RouterLink to="/gestion/commandes?status=to_ship" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-lg font-black">{{ s.orders?.to_ship ?? 0 }}</b><span class="text-xs text-slate-500">à livrer</span></RouterLink>
+            <RouterLink to="/gestion/livraisons" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-lg font-black">{{ (s.couriers?.on_the_way ?? 0) + (s.carriers?.on_the_way ?? 0) }}</b><span class="text-xs text-slate-500">en route</span></RouterLink>
+            <RouterLink to="/gestion/commandes?alert=to_bring_back" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-lg font-black">{{ (s.couriers?.to_bring_back ?? 0) + (s.carriers?.to_bring_back ?? 0) }}</b><span class="text-xs text-slate-500">à rapporter</span></RouterLink>
+          </div>
+          <RouterLink v-if="canOpen('/gestion/livraisons')" to="/gestion/livraisons" class="btn-brand mt-3 w-full justify-center py-3 text-base font-black">Voir les livraisons en cours</RouterLink>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <RouterLink v-for="l in links(DELIVERY_LINKS)" :key="l.to" :to="l.to" class="flex items-center gap-2 rounded-2xl bg-white px-3 py-3 text-sm font-extrabold shadow-soft">
+              <span class="min-w-0 flex-1">{{ l.label }}</span><Icon name="chevron" :size="14" class="shrink-0 text-slate-400" />
             </RouterLink>
           </div>
         </template>
@@ -319,58 +410,54 @@ function open(to) {
         <!-- CAISSE : le tiroir d'abord, puis où est l'argent ; chaque bouton ouvre une seule fenêtre -->
         <template v-else-if="p.key === 'cash'">
           <div class="mb-3 grid grid-cols-2 gap-2">
-            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-brand justify-center py-3 text-[15px] font-black">🏪 Comptoir</RouterLink>
-            <RouterLink v-if="auth.can('cash.manage') && drawer" :to="drawer.session ? '/gestion/caisse/tiroir?faire=depense' : '/gestion/caisse/tiroir'" class="btn-secondary justify-center py-3 text-[15px] font-black">{{ drawer.session ? '🧾 Dépense' : '🔓 Ouvrir la caisse' }}</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-brand justify-center py-3 text-base font-black">Vente comptoir</RouterLink>
+            <RouterLink v-if="auth.can('cash.manage') && drawer" :to="drawer.session ? '/gestion/caisse/tiroir?faire=depense' : '/gestion/caisse/tiroir'" class="btn-secondary justify-center py-3 text-base font-black">{{ drawer.session ? 'Noter une dépense' : 'Ouvrir la caisse' }}</RouterLink>
           </div>
 
           <!-- Le tiroir : ouvert ou fermé, espèces attendues -->
-          <RouterLink v-if="canOpen('/gestion/caisse/tiroir')" to="/gestion/caisse/tiroir" class="block rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
+          <RouterLink v-if="canOpen('/gestion/caisse/tiroir')" to="/gestion/caisse/tiroir" class="block rounded-[22px] bg-brand-grad p-4 text-white">
             <span class="flex items-center justify-between text-sm font-semibold opacity-90">
-              <span>{{ !drawer ? 'Tiroir-caisse' : drawer.session ? '🟢 Caisse ouverte' : '⚪ Caisse fermée' }}</span>
-              <span aria-hidden="true">›</span>
+              <span>{{ !drawer ? 'Tiroir-caisse' : drawer.session ? 'Caisse ouverte' : 'Caisse fermée' }}</span>
+              <Icon name="chevron" :size="16" />
             </span>
             <template v-if="drawer?.session">
-              <b class="block text-[28px] font-black leading-tight">{{ money(drawer.session.expected_cash) }}</b>
-              <span class="text-sm opacity-90">en espèces dans le tiroir · {{ drawer.movements.length }} mouvement(s) · clôturer ici</span>
+              <b class="block text-3xl font-black leading-tight">{{ money(drawer.session.expected_cash) }}</b>
+              <span class="text-sm opacity-90">en espèces dans le tiroir · {{ pl(drawer.movements.length, 'mouvement', 'mouvements') }} · clôturer ici</span>
             </template>
             <template v-else>
-              <b class="block text-[22px] font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }} vendus aujourd'hui</b>
-              <span class="text-sm opacity-90">{{ drawer ? 'Ouvrez-la avec le fond de caisse avant d\'encaisser des espèces' : `${s.orders?.today_count ?? 0} commande(s)` }}</span>
+              <b class="block text-2xl font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }} vendus aujourd'hui</b>
+              <span class="text-sm opacity-90">{{ drawer ? 'Ouvrez-la avec le fond de caisse avant d\'encaisser des espèces' : pl(s.orders?.today_count ?? 0, 'commande', 'commandes') }}</span>
             </template>
           </RouterLink>
-          <div v-else class="rounded-[22px] bg-gradient-to-br from-emerald-800 to-emerald-500 p-4 text-white">
+          <div v-else class="rounded-[22px] bg-brand-grad p-4 text-white">
             <p class="text-sm font-semibold opacity-90">Ventes du jour</p>
-            <p class="text-[28px] font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }}</p>
+            <p class="text-3xl font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }}</p>
           </div>
 
           <div v-if="cashTodo.length" class="mt-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
-            <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">⚠ À encaisser</p>
-            <RouterLink v-for="t in cashTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-[14px] font-bold first-of-type:border-0">
-              <span aria-hidden="true">{{ t.icon }}</span><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
+            <p class="text-xs font-black uppercase tracking-wide text-orange-800">À encaisser</p>
+            <RouterLink v-for="t in cashTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-sm font-bold first-of-type:border-0">
+              <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
 
           <!-- Où est mon argent -->
           <template v-if="moneyOut.length">
-            <h3 class="mb-2 mt-4 px-1 text-[15px] font-black text-slate-700">Où est mon argent</h3>
+            <h3 class="mb-2 mt-4 px-1 text-base font-black text-slate-700">Où est mon argent</h3>
             <div class="grid grid-cols-2 gap-2">
               <RouterLink v-for="t in moneyOut" :key="t.to" :to="t.to" class="rounded-2xl bg-white p-3 shadow-soft">
-                <span class="block text-xs font-semibold text-slate-500">{{ t.label }}</span>
-                <b class="block whitespace-nowrap text-[19px] font-black" :class="t.amount < 0 ? 'text-red-700' : ''">{{ money(t.amount ?? 0) }}</b>
-                <span class="block truncate text-[11.5px]" :class="t.late ? 'font-bold text-red-700' : 'text-slate-500'">{{ t.hint }}</span>
+                <span class="block text-xs font-semibold text-slate-600">{{ t.label }}</span>
+                <b class="block whitespace-nowrap text-lg font-black" :class="t.amount < 0 ? 'text-red-700' : ''">{{ money(t.amount ?? 0) }}</b>
+                <span class="block truncate text-xs" :class="t.late ? 'font-bold text-red-700' : 'text-slate-500'">{{ t.hint }}</span>
               </RouterLink>
             </div>
           </template>
 
           <!-- Suivre son argent -->
           <div class="mt-3 rounded-2xl bg-white p-1 shadow-soft">
-            <RouterLink v-for="l in links([
-              { to: '/gestion/caisse/entrees-sorties', label: 'Entrées et sorties', hint: 'Ce qui est entré et sorti, canal par canal', color: 'billets' },
-              { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles', hint: 'Loyer, salaires… notés chaque mois', color: 'calendrier' },
-              { to: '/gestion/statistiques', label: 'Statistiques', hint: 'Bénéfice, ventes, coût par commande', color: 'stats' },
-            ])" :key="l.to" :to="l.to" class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0">
+            <RouterLink v-for="l in links(CASH_LINKS)" :key="l.to" :to="l.to" class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0">
               <ColorIcon :name="l.color" :size="36" />
-              <span class="min-w-0 flex-1"><b class="block text-[14.5px]">{{ l.label }}</b><span class="text-xs text-slate-500">{{ l.hint }}</span></span>
+              <span class="min-w-0 flex-1"><b class="block text-sm">{{ l.label }}</b><span class="text-xs text-slate-500">{{ l.hint }}</span></span>
               <span class="text-xl text-slate-400" aria-hidden="true">›</span>
             </RouterLink>
           </div>
@@ -378,11 +465,11 @@ function open(to) {
 
         <!-- BOUTIQUE EN LIGNE -->
         <template v-else-if="p.key === 'shop'">
-          <div class="rounded-[22px] bg-gradient-to-br from-blue-900 to-blue-500 p-4 text-white">
-            <p class="text-sm font-semibold opacity-90">Ta boutique en ligne</p>
-            <p class="truncate text-[18px] font-black">{{ shopUrl.replace(/^https?:\/\//, '') }}</p>
+          <div class="rounded-[22px] bg-brand-grad p-4 text-white">
+            <p class="text-sm font-semibold opacity-90">Votre boutique en ligne</p>
+            <p class="truncate text-lg font-black">{{ shopUrl.replace(/^https?:\/\//, '') }}</p>
             <div class="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" class="rounded-xl bg-white py-2.5 text-sm font-black text-blue-900" @click="share">{{ copied ? 'Lien copié ✓' : '🔗 Partager' }}</button>
+              <button type="button" class="rounded-xl bg-white py-2.5 text-sm font-black text-emerald-800" @click="share">{{ copied ? 'Lien copié ✓' : 'Partager' }}</button>
               <a :href="shopUrl" target="_blank" rel="noopener" class="rounded-xl bg-white/20 py-2.5 text-center text-sm font-black">Voir ▸</a>
             </div>
           </div>
@@ -394,7 +481,7 @@ function open(to) {
               { to: '/gestion/marketing/reseaux', label: 'Réseaux', hint: 'Publier un produit', color: 'partage' },
             ])" :key="l.to" :to="l.to" class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0">
               <ColorIcon :name="l.color" :size="36" />
-              <span class="min-w-0 flex-1"><b class="block text-[14.5px]">{{ l.label }}</b><span class="text-xs text-slate-500">{{ l.hint }}</span></span>
+              <span class="min-w-0 flex-1"><b class="block text-sm">{{ l.label }}</b><span class="text-xs text-slate-500">{{ l.hint }}</span></span>
               <span class="text-xl text-slate-400" aria-hidden="true">›</span>
             </RouterLink>
           </div>
@@ -406,16 +493,21 @@ function open(to) {
           <BoostPanel v-if="seen.has('boost')" />
         </template>
 
+        <!-- CLIENTS : chargés seulement une fois l'onglet affiché, et pas en double quand la page Clients est ouverte par-dessus -->
+        <template v-else-if="p.key === 'clients'">
+          <CustomerList v-if="seen.has('clients') && route.path !== '/gestion/clients'" :filter="clientsFilter" />
+        </template>
+
         <!-- ARTICLES : catalogue et stock réunis -->
         <template v-else-if="p.key === 'items'">
           <div class="mb-3 grid grid-cols-2 gap-2">
-            <RouterLink v-if="canOpen('/gestion/catalogue/nouveau')" to="/gestion/catalogue/nouveau" class="btn-brand justify-center py-3 text-[15px] font-black">📷 Nouvel article</RouterLink>
-            <RouterLink v-if="canOpen('/gestion/stock')" to="/gestion/stock" class="btn-secondary justify-center py-3 text-[15px] font-black">＋ Stock</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/catalogue/nouveau')" to="/gestion/catalogue/nouveau" class="btn-brand justify-center py-3 text-base font-black">＋ Nouveau produit</RouterLink>
+            <RouterLink v-if="canOpen('/gestion/stock')" to="/gestion/stock" class="btn-secondary justify-center py-3 text-base font-black">＋ Stock</RouterLink>
           </div>
           <input v-model="itemSearch" class="input" placeholder="🔍 Chercher un article" @input="searchItems" />
           <div class="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
             <button v-for="[v, label] in [['', 'Tout'], ['low', `⚠ Stock bas ${s.stock?.low ?? ''}`], ['out', `Épuisés ${s.stock?.out ?? ''}`]]" :key="v" type="button"
-                    class="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold" :class="itemFilter === v ? 'bg-slate-900 text-white' : (v ? 'bg-rose-50 text-rose-800' : 'bg-white shadow-soft')" @click="itemFilter = v">{{ label }}</button>
+                    class="shrink-0 rounded-full px-3 py-1.5 text-sm font-extrabold" :class="itemFilter === v ? 'bg-slate-900 text-white' : (v ? 'bg-red-50 text-red-800' : 'bg-white shadow-soft')" @click="itemFilter = v">{{ label }}</button>
           </div>
           <p v-if="!items" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
           <p v-else-if="!items.length" class="p-4 text-center text-sm text-slate-500">Aucun article.</p>
@@ -423,8 +515,8 @@ function open(to) {
             <RouterLink v-for="a in items ?? []" :key="a.id" :to="`/gestion/catalogue/${a.id}`" class="overflow-hidden rounded-2xl bg-white shadow-soft">
               <img v-if="a.thumb" :src="a.thumb" alt="" class="aspect-square w-full object-cover" loading="lazy" />
               <span v-else class="grid aspect-square w-full place-items-center bg-slate-100 text-3xl" aria-hidden="true">📷</span>
-              <span class="block p-2"><b class="block truncate text-[13.5px]">{{ a.title }}</b><span class="text-xs text-slate-500">{{ money(a.price_min ?? 0) }}</span>
-                <span class="mt-1 block w-fit rounded-full px-2 py-0.5 text-[11px] font-extrabold" :class="stockPill(a).cls">{{ stockPill(a).text }}</span></span>
+              <span class="block p-2"><b class="block truncate text-sm">{{ a.title }}</b><span class="text-xs text-slate-500">{{ money(a.price_min ?? 0) }}</span>
+                <span class="mt-1 block w-fit rounded-full px-2 py-0.5 text-xs font-extrabold" :class="stockPill(a).cls">{{ stockPill(a).text }}</span></span>
             </RouterLink>
           </div>
         </template>
@@ -433,18 +525,18 @@ function open(to) {
         <template v-else>
           <div class="grid grid-cols-3 gap-2.5">
             <a v-if="helpUrl" :href="helpUrl" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-white px-1 py-3 text-center shadow-soft transition active:scale-95">
-              <ColorIcon name="aide" :size="44" /><span class="text-[12.5px] font-semibold leading-tight text-slate-700">Aide</span>
+              <ColorIcon name="aide" :size="44" /><span class="text-xs font-semibold leading-tight text-slate-700">Aide</span>
             </a>
             <RouterLink v-for="t in plus" :key="t.to + t.label" :to="t.to" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-white px-1 py-3 text-center shadow-soft transition active:scale-95">
               <ColorIcon :name="t.color" :size="44" />
-              <span class="text-[12.5px] font-semibold leading-tight text-slate-700">{{ t.label }}</span>
-              <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-rose-600 px-1.5 text-[10px] font-black text-white">{{ s.unread_messages }} non lu(s)</span>
+              <span class="text-xs font-semibold leading-tight text-slate-700">{{ t.label }}</span>
+              <span v-if="t.to === '/gestion/messages' && s.unread_messages" class="-mt-1 rounded-full bg-red-600 px-1.5 text-xs font-black text-white">{{ s.unread_messages }} non lu{{ s.unread_messages > 1 ? 's' : '' }}</span>
             </RouterLink>
           </div>
-          <h3 class="mb-2 mt-5 px-1 text-[15px] font-black text-slate-700">⚙ Réglages</h3>
+          <h3 class="mb-2 mt-5 px-1 text-base font-black text-slate-700">Réglages</h3>
           <details v-for="g in pageSettings" :key="g.key" class="mb-2 rounded-2xl bg-white shadow-soft">
-            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-[15px] font-extrabold">{{ g.icon }} {{ g.name }}<span class="ml-auto text-slate-400" aria-hidden="true">›</span></summary>
-            <RouterLink v-for="l in g.items" :key="l.to + l.label" :to="l.to" class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-[14.5px] font-semibold">{{ l.label }}<span class="text-lg text-slate-400" aria-hidden="true">›</span></RouterLink>
+            <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-base font-extrabold"><ColorIcon :name="PAGE_COLORS[g.key] ?? 'menu'" :size="22" :tile="false" />{{ g.name }}<span class="ml-auto text-slate-400" aria-hidden="true">›</span></summary>
+            <RouterLink v-for="l in g.items" :key="l.to + l.label" :to="l.to" class="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm font-semibold">{{ l.label }}<span class="text-lg text-slate-400" aria-hidden="true">›</span></RouterLink>
           </details>
           <div class="mt-3 grid grid-cols-2 gap-2">
             <RouterLink to="/gestion/compte" class="rounded-2xl bg-white py-3 text-center text-sm font-bold shadow-soft">👤 Mon compte</RouterLink>
@@ -469,7 +561,7 @@ function open(to) {
         <span class="swipe-trail absolute right-10 top-9 h-2.5 rounded-full bg-gradient-to-r from-white/0 to-white/80" />
         <span class="swipe-hand absolute right-2 top-2 text-6xl drop-shadow-lg">👆</span>
       </div>
-      <p class="text-xl font-black leading-tight">Glissez pour passer<br>d'une page à l'autre</p>
+      <p class="text-2xl font-black leading-tight">Glissez pour passer<br>d'une page à l'autre</p>
       <p v-if="nextName" class="text-base font-extrabold opacity-90">‹ {{ page?.name }} · {{ nextName }} ›</p>
       <p class="text-sm opacity-80">Touchez pour fermer</p>
     </div>
@@ -483,8 +575,8 @@ function open(to) {
     <div v-if="sheet" class="fixed inset-0 z-30 bg-slate-900/40" @click="sheet = null" />
     <div v-if="sheet" class="fixed inset-x-0 bottom-0 z-40 rounded-t-[28px] bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]" role="dialog" :aria-label="sheet === 'add' ? 'Ajouter' : `Réglages : ${page?.name}`">
       <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200" />
-      <p class="mb-2 px-1 text-[18px] font-extrabold">{{ sheet === 'add' ? 'Ajouter' : `⚙ ${page?.name}` }}</p>
-      <button v-for="l in sheetLinks" :key="l.to + l.label" type="button" class="flex w-full items-center justify-between border-b border-slate-100 px-1 py-3.5 text-left text-[15.5px] font-bold last:border-0" @click="open(l.to)">
+      <p class="mb-2 px-1 text-lg font-extrabold">{{ sheet === 'add' ? 'Ajouter' : `⚙ ${page?.name}` }}</p>
+      <button v-for="l in sheetLinks" :key="l.to + l.label" type="button" class="flex w-full items-center justify-between border-b border-slate-100 px-1 py-3.5 text-left text-base font-bold last:border-0" @click="open(l.to)">
         {{ l.label }}<span class="text-xl text-slate-400" aria-hidden="true">›</span>
       </button>
     </div>

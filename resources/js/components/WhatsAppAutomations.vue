@@ -275,15 +275,18 @@ const META_STEPS = [
       <div class="flex items-start gap-3">
         <ColorIcon name="cloche" :size="44" />
         <div class="min-w-0 flex-1">
-          <h3 class="text-[17px] font-extrabold">Envoyez les messages tout seuls</h3>
-          <p class="text-sm text-slate-600">Confirmation, livreur en route, livraison, avis, lien de paiement… envoyés automatiquement depuis votre numéro WhatsApp officiel.</p>
+          <h3 class="text-lg font-extrabold">Envoyez les messages tout seuls</h3>
+          <div>
+            <p class="explain">Vos clients sont prévenus tout seuls sur WhatsApp.</p>
+            <p class="explain-detail">Confirmation, livreur en route, livraison, avis, lien de paiement… depuis votre numéro officiel.</p>
+          </div>
         </div>
       </div>
       <template v-if="data.embedded">
         <div class="flex flex-wrap items-center gap-3">
           <button type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Connecter mon numéro sur Meta' }}</button>
         </div>
-        <p class="text-sm text-slate-600">Connexion officielle de votre numéro WhatsApp chez Meta, avec votre compte Facebook : Meta vous guide étape par étape.</p>
+        <p class="explain-detail">Connexion officielle chez Meta, avec votre compte Facebook : Meta vous guide étape par étape.</p>
         <WhatsAppHelp />
         <p class="border-t border-slate-100 pt-3 text-xs text-slate-500">
           Vous avez déjà vos identifiants Meta ?
@@ -321,7 +324,7 @@ const META_STEPS = [
       <!-- Numéro américain proposé par Meta à la connexion : à remplacer par le numéro de la boutique -->
       <section v-if="account.meta_number" class="card space-y-2 border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <h3 class="font-semibold">Ce numéro a été fourni par Meta, ce n'est pas le vôtre</h3>
-        <p>Vos clients verraient un numéro américain, et aucun message ne part tant que Meta n'a pas approuvé son nom. Connectez plutôt votre propre numéro (+225) : il ne doit pas déjà servir dans l'application WhatsApp ordinaire.</p>
+        <p><b class="block">Vos clients verraient un numéro américain.</b>Rien ne part avant que Meta approuve son nom. Connectez plutôt votre numéro (+225), s'il ne sert pas déjà dans WhatsApp ordinaire.</p>
         <button v-if="data.embedded" type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Connecter mon propre numéro' }}</button>
       </section>
       <Alert v-if="account.last_error && account.error_help" tone="warning">
@@ -340,7 +343,7 @@ const META_STEPS = [
               <button type="button" class="min-w-0 flex-1 text-left" :aria-expanded="open === key" @click="open = open === key ? '' : key">
                 <span class="block text-sm font-semibold">{{ label(key) }}</span>
                 <span class="block text-xs text-slate-500">{{ when(key) }}</span>
-                <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium" :class="badge(key)[1]">{{ badge(key)[0] }}</span>
+                <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium" :class="badge(key)[1]">{{ badge(key)[0] }}</span>
               </button>
               <RouterLink v-if="data.events[key].manual" to="/gestion/marketing/relances" class="text-xs font-medium text-emerald-700 hover:underline">Relances</RouterLink>
               <ToggleSwitch v-else :model-value="isOn(key)" :label="label(key)" :disabled="busy === key || account.status === 'disabled'" @update:model-value="toggle(key, $event)" />

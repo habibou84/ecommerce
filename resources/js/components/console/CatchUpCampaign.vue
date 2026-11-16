@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../ExplainMore.vue'
 import { onMounted, onUnmounted, ref } from 'vue'
 import Alert from '../Alert.vue'
 import http, { errorMessage } from '../../lib/http'
@@ -50,10 +51,11 @@ const needsTemplates = () => !data.value.qr && Object.values(data.value.groups).
       <h3 class="flex-1 text-base font-semibold">Rattrapage des commerçants déjà inscrits</h3>
       <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="data.state === 'running' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'">{{ STATE[data.state] }}</span>
     </div>
-    <p class="text-slate-600">
-      Un seul message par commerçant inscrit depuis plus de 3 jours qui n'a jamais reçu les messages d'accueil, selon sa boutique.
-      Pas à ceux qui ont répondu STOP ni aux boutiques fermées. Jamais deux fois au même commerçant.
-    </p>
+    <div>
+      <p class="explain">Un message de rattrapage pour les commerçants oubliés.</p>
+      <p class="explain-detail">Inscrits depuis plus de 3 jours, sans les messages d'accueil. Jamais deux fois au même.</p>
+      <ExplainMore>Le message dépend de sa boutique. Pas à ceux qui ont répondu STOP ni aux boutiques fermées.</ExplainMore>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
 
     <ul class="divide-y divide-slate-100 rounded-lg border border-slate-200">

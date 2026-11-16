@@ -137,7 +137,7 @@ async function load() {
     live.value = (await http.get(`/lives/${props.id}`)).data.data
     // Commandes WhatsApp sans live : leur propre écran (pas de TikTok ni d'écran du live)
     if (live.value?.channel === 'whatsapp') {
-      router.replace(`/gestion/live/commandes-whatsapp/${props.id}`)
+      router.replace(`/gestion/whatsapp/commandes-codes/${props.id}`)
       return
     }
   } catch (e) {
@@ -402,7 +402,7 @@ async function redo() {
   <Teleport to="body" :disabled="!fullscreen">
   <div :class="fullscreen ? 'fixed inset-0 z-[45] overflow-y-auto overscroll-contain bg-[#0b1120]' : ''">
   <div class="space-y-4" :class="fullscreen ? 'mx-auto max-w-3xl px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-28' : ''">
-    <RouterLink v-if="!fullscreen" to="/gestion/live" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
+    <RouterLink v-if="!fullscreen" to="/gestion/live" class="back-link inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">← Tous les lives</RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
     <p v-if="!live" class="text-sm text-slate-500">Chargement…</p>
@@ -412,7 +412,7 @@ async function redo() {
       <nav v-if="live.status === 'draft'" class="grid grid-cols-2 border-b border-slate-200" role="tablist" aria-label="Live ou support">
         <button v-for="[value, label] in [['live', 'Live'], ['support', 'Support']]" :key="value" type="button" role="tab" :aria-selected="pane === value"
                 class="-mb-px border-b-[3px] py-2.5 text-base font-extrabold" :class="pane === value ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'" @click="pane = value">
-          {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-[10px] font-black text-white">● OUVERT</span>
+          {{ label }}<span v-if="value === 'live' && live.status === 'live'" class="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 align-middle text-xs font-black text-white">● OUVERT</span>
         </button>
       </nav>
 
@@ -432,9 +432,9 @@ async function redo() {
         <Modal v-if="sheet" :title="SUPPORTS.find(([k]) => k === sheet).slice(1).join(' ')" @close="sheet = null">
           <div class="space-y-3">
             <video v-if="SUPPORT_HELP[sheet].video" :key="sheet" :src="SUPPORT_HELP[sheet].video" :poster="SUPPORT_HELP[sheet].poster" class="aspect-video w-full rounded-2xl bg-slate-900" controls playsinline preload="metadata" />
-            <p class="rounded-xl bg-emerald-50 p-3 text-[15px] font-semibold text-emerald-900">{{ SUPPORT_HELP[sheet].why }}</p>
+            <p class="rounded-xl bg-emerald-50 p-3 text-base font-semibold text-emerald-900">{{ SUPPORT_HELP[sheet].why }}</p>
             <template v-if="sheet === 'pin'">
-              <ol class="space-y-2 text-[15px]">
+              <ol class="space-y-2 text-base">
                 <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white">1</span><span>Choisissez le format, puis <b>téléchargez</b> l'étiquette.</span></li>
                 <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white">2</span><span>Dans votre live TikTok, ouvrez le menu <b>Fond vert</b> et choisissez l'étiquette dans la galerie.</span></li>
               </ol>
@@ -466,11 +466,11 @@ async function redo() {
                    @feature="(itemId) => act('feature', { item_id: itemId })" @reload="load" @add="openAdding" @quick="quickOpen = true" @end="end" @share="share = true"
                    @flash="openFlash" @stop-flash="stopFlash" @big="big = $event" @cancel="(r) => act(`reservations/${r.id}/cancel`)" @mode="(m) => act('display', { mode: m })" @updated="live = $event" />
 
-      <section v-else-if="live.status === 'draft' && pane === 'live'" class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
+      <section v-else-if="live.status === 'draft' && pane === 'live'" class="overflow-hidden rounded-[24px] bg-brand-grad p-5 text-white">
         <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
-        <h2 class="mt-2 text-xl font-extrabold">{{ live.title }}</h2>
+        <h2 class="mt-2 text-lg font-extrabold">{{ live.title }}</h2>
         <p class="text-sm text-white/90">{{ live.items.length }} article{{ live.items.length > 1 ? 's' : '' }} · lancez le live au moment où vous passez à l'antenne.</p>
-        <button type="button" class="mt-4 block w-full rounded-2xl bg-white py-3 text-center text-base font-extrabold text-[#c02a4e] disabled:opacity-60" :disabled="busy" @click="start">Lancer le live</button>
+        <button type="button" class="mt-4 block w-full rounded-2xl bg-white py-3 text-center text-base font-extrabold text-emerald-700 disabled:opacity-60" :disabled="busy" @click="start">Lancer le live</button>
         <button type="button" class="mt-2 block w-full text-center text-sm text-white/90 underline" @click="share = true">Partager le lien avant de commencer</button>
       </section>
 
@@ -478,16 +478,16 @@ async function redo() {
       <template v-else-if="live.status === 'ended'">
         <!-- Commandes gardées actives après le live : jusqu'à quand, combien depuis, arrêter avant l'heure -->
         <section v-if="live.orders_until" class="rounded-[20px] border-2 border-amber-300 bg-amber-50 p-4">
-          <p class="text-[13px] font-extrabold uppercase tracking-wide text-amber-800">● Live terminé · commandes actives</p>
-          <h3 class="mt-1 text-[17px] font-black">⏳ Commandes actives jusqu'à {{ ordersUntil }}</h3>
-          <p class="mt-1 text-[14px] text-slate-700">Les clients peuvent encore écrire A1, A2… sur WhatsApp. Ces commandes comptent dans ce live<template v-if="live.billing"> : retirées du solde quand les commandes s'arrêtent</template>.</p>
-          <p class="mt-2 text-[14px]"><b>{{ live.orders_after ?? 0 }}</b> commande{{ (live.orders_after ?? 0) > 1 ? 's' : '' }} depuis la fin du live<template v-if="live.billing"> · <b>{{ live.billing.orders }}</b> en tout dans ce live</template></p>
+          <p class="text-sm font-extrabold uppercase tracking-wide text-amber-800">● Live terminé · commandes actives</p>
+          <h3 class="mt-1 text-lg font-black">⏳ Commandes actives jusqu'à {{ ordersUntil }}</h3>
+          <p class="mt-1 text-sm text-slate-700">Les clients peuvent encore écrire A1, A2… sur WhatsApp. Ces commandes comptent dans ce live<template v-if="live.billing"> (retirées du solde à l'arrêt)</template>.</p>
+          <p class="mt-2 text-sm"><b>{{ live.orders_after ?? 0 }}</b> commande{{ (live.orders_after ?? 0) > 1 ? 's' : '' }} depuis la fin du live<template v-if="live.billing"> · <b>{{ live.billing.orders }}</b> en tout dans ce live</template></p>
           <button type="button" class="mt-3 block w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-2.5 font-extrabold text-orange-800 disabled:opacity-60" :disabled="busy" @click="stopOrders">Arrêter les commandes maintenant</button>
         </section>
-        <section class="overflow-hidden rounded-[24px] bg-live-grad p-5 text-white">
+        <section class="overflow-hidden rounded-[24px] bg-brand-grad p-5 text-white">
           <span class="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-bold">TERMINÉ · {{ formatDateTime(live.ended_at) }} · {{ duration }}</span>
           <p class="mt-1 text-sm font-semibold text-white/90">{{ live.title }}</p>
-          <p class="mt-2 text-4xl font-extrabold">{{ money(live.summary.amount) }}</p>
+          <p class="mt-2 text-3xl font-extrabold">{{ money(live.summary.amount) }}</p>
           <p v-if="trend" class="text-sm text-white/90">{{ trend }}</p>
           <div class="mt-3 grid grid-cols-3 gap-2 text-xs">
             <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ live.summary.orders }}</b>commande{{ live.summary.orders > 1 ? 's' : '' }}</span>
@@ -497,12 +497,12 @@ async function redo() {
         </section>
         <!-- Solde : commandes de ce live retirées à la fermeture -->
         <section v-if="live.billing?.billed" class="rounded-[20px] border-2 border-amber-400 bg-amber-50 p-4">
-          <h3 class="font-display text-base font-extrabold">🧾 {{ live.billing.used }} commande{{ live.billing.used > 1 ? 's' : '' }} retirée{{ live.billing.used > 1 ? 's' : '' }} de ton solde</h3>
+          <h3 class="font-display text-base font-extrabold">🧾 {{ live.billing.used }} commande{{ live.billing.used > 1 ? 's' : '' }} retirée{{ live.billing.used > 1 ? 's' : '' }} de votre solde</h3>
           <p class="mt-1 text-xs text-slate-600">Une commande annulée ensuite reste comptée.</p>
           <p class="mt-2 flex justify-between border-t border-amber-200 pt-2 text-sm"><span>Solde après ce live</span><b :class="live.billing.balance < 0 ? 'text-red-700' : ''">{{ live.billing.balance }} commandes</b></p>
           <template v-if="live.billing.recharge">
-            <p class="mt-1 text-sm font-bold text-orange-900">Il faut au moins {{ live.billing.min_orders }} commandes pour ouvrir ton prochain live.</p>
-            <button type="button" class="mt-2 block w-full rounded-xl bg-slate-900 py-2.5 text-[15px] font-black text-white" @click="openRecharge()">Recharger</button>
+            <p class="mt-1 text-sm font-bold text-orange-900">Il faut au moins {{ live.billing.min_orders }} commandes pour ouvrir votre prochain live.</p>
+            <button type="button" class="mt-2 block w-full rounded-xl bg-slate-900 py-2.5 text-base font-black text-white" @click="openRecharge()">Recharger</button>
           </template>
         </section>
         <section v-if="waitingClients.length" class="card flex flex-wrap items-center gap-3 p-4">
@@ -544,7 +544,7 @@ async function redo() {
       <!-- ═══ Articles (avant le live) ═══ -->
       <section v-if="live.status === 'draft' && pane === 'live'" class="space-y-2">
         <div class="flex items-center justify-between px-0.5">
-          <h3 class="text-[17px] font-extrabold">Articles</h3>
+          <h3 class="text-lg font-extrabold">Articles</h3>
           <button type="button" class="text-sm font-semibold text-emerald-700" @click="openAdding">+ Ajouter</button>
         </div>
         <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -566,7 +566,7 @@ async function redo() {
             </div>
           </div>
         </div>
-        <p v-if="live.status === 'live'" class="px-0.5 text-sm text-slate-500">Touchez un code pour l'afficher en grand.</p>
+        <p v-if="live.status === 'live'" class="explain-detail px-0.5">Touchez un code pour l'afficher en grand.</p>
         <!-- Article mystère : caché des clientes jusqu'à sa révélation pendant le live -->
         <details class="card p-4" :open="live.items.some((i) => i.mystery)">
           <summary class="cursor-pointer font-extrabold">🎁 Article mystère <span class="font-normal text-slate-500">· optionnel</span></summary>
@@ -589,7 +589,7 @@ async function redo() {
       <!-- ═══ Clientes ═══ -->
       <section v-if="live.status === 'ended' ? showAll : live.status === 'draft' && pane === 'live' && clients.length" id="live-clientes" class="card scroll-mt-48 p-4">
         <div class="flex flex-wrap items-center gap-2">
-          <h3 class="flex-1 text-[17px] font-extrabold">Clientes</h3>
+          <h3 class="flex-1 text-lg font-extrabold">Clientes</h3>
           <div class="inline-flex rounded-lg bg-slate-100 p-1 text-xs" role="radiogroup" aria-label="Filtrer les clientes">
             <button type="button" role="radio" :aria-checked="filter === 'todo'" class="rounded-md px-2.5 py-1" :class="filter === 'todo' ? 'bg-white font-semibold shadow-sm' : 'text-slate-600'" @click="filter = 'todo'">À traiter · {{ todoCount }}</button>
             <button type="button" role="radio" :aria-checked="filter === 'all'" class="rounded-md px-2.5 py-1" :class="filter === 'all' ? 'bg-white font-semibold shadow-sm' : 'text-slate-600'" @click="filter = 'all'">Toutes · {{ clients.length }}</button>
@@ -603,18 +603,18 @@ async function redo() {
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm font-semibold">{{ c.name }}</span>
                 <span class="flex flex-wrap items-center gap-1 text-xs text-slate-500">
-                  <span v-for="(code, k) in c.codes" :key="k" class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ code }}</span>
+                  <span v-for="(code, k) in c.codes" :key="k" class="rounded bg-red-600 px-1.5 py-0.5 text-xs font-bold text-white">{{ code }}</span>
                   {{ money(c.amount) }} · {{ c.sources }}
                 </span>
               </span>
-              <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium" :class="STATUS[c.status][1]">{{ c.status === 'ordered' && c.orders.length ? c.orders.map((o) => o.reference).join(', ') : STATUS[c.status][0] }}</span>
+              <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[c.status][1]">{{ c.status === 'ordered' && c.orders.length ? c.orders.map((o) => o.reference).join(', ') : STATUS[c.status][0] }}</span>
             </button>
             <!-- Détail : chaque réservation, commande, annulation -->
             <ul v-if="openClient === c.key" class="mt-2 space-y-1 rounded-xl bg-slate-50 p-2 text-sm">
               <li v-for="r in c.list" :key="r.id" class="flex flex-wrap items-center gap-2">
-                <span class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ r.code }}</span>
+                <span class="rounded bg-red-600 px-1.5 py-0.5 text-xs font-bold text-white">{{ r.code }}</span>
                 <span class="min-w-0 flex-1 text-slate-600">{{ SOURCE[r.source] }}<template v-if="r.shipping_address"> · {{ r.shipping_address }}</template></span>
-                <span class="rounded-full px-2 py-0.5 text-[11px]" :class="STATUS[r.status][1]">{{ STATUS[r.status][0] }}</span>
+                <span class="rounded-full px-2 py-0.5 text-xs" :class="STATUS[r.status][1]">{{ STATUS[r.status][0] }}</span>
                 <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-xs font-medium text-emerald-700 underline">{{ r.order.reference }}</RouterLink>
                 <button v-if="['reserved', 'waiting'].includes(r.status)" type="button" class="text-xs font-medium text-red-600" :disabled="busy" @click="act(`reservations/${r.id}/cancel`)">Annuler</button>
               </li>
@@ -634,7 +634,7 @@ async function redo() {
           </div>
           <input v-model="quick.name" class="input mt-3" placeholder="Pseudo ou nom" maxlength="120" />
           <input v-model="quick.phone" class="input mt-2" type="tel" placeholder="Numéro WhatsApp (facultatif)" />
-          <p class="mt-1 text-xs text-slate-500">Avec un numéro, la cliente reçoit un WhatsApp qui lui demande son quartier.</p>
+          <p class="explain-detail mt-1">Avec un numéro, la cliente reçoit un WhatsApp qui lui demande son quartier.</p>
           <button class="btn-brand mt-3 w-full" :disabled="busy || !quick.code || (!quick.name && !quick.phone)">{{ quick.code ? `Réserver ${quick.code}` : 'Choisissez un code' }}</button>
         </form>
       </template>

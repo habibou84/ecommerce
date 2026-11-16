@@ -63,7 +63,10 @@ async function show(receipt) {
   <div class="space-y-4">
     <StockTabs />
     <div class="flex items-center justify-between gap-3">
-      <p class="text-sm text-slate-600">Marchandise reçue d'un fournisseur ou de fabrication : elle entre en stock et met à jour le coût moyen.</p>
+      <div>
+        <p class="explain">La marchandise reçue entre en stock.</p>
+        <p class="explain-detail">D'un fournisseur ou de fabrication ; le coût moyen se met à jour.</p>
+      </div>
       <button class="btn-brand shrink-0" @click="create">+ Réception</button>
     </div>
 

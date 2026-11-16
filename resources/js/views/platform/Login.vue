@@ -112,7 +112,7 @@ async function openStore(store) {
       <Field id="phone" label="Numéro WhatsApp de votre compte" :error="errors.phone">
         <input id="phone" v-model="form.phone" class="input" type="tel" inputmode="tel" autocomplete="tel" required autofocus />
       </Field>
-      <button class="w-full rounded-lg bg-[#25D366] py-2.5 font-semibold text-white hover:bg-[#1ebe5b] disabled:opacity-60" :disabled="busy">{{ busy ? 'Un instant…' : 'Continuer' }}</button>
+      <button class="w-full rounded-lg bg-whatsapp py-2.5 font-semibold text-white hover:bg-whatsapp-dark disabled:opacity-60" :disabled="busy">{{ busy ? 'Un instant…' : 'Continuer' }}</button>
       <p class="text-center text-sm"><button type="button" class="text-slate-600 underline" @click="whatsappMode = false">Me connecter avec mon mot de passe</button></p>
     </form>
 
@@ -125,7 +125,7 @@ async function openStore(store) {
       </Field>
       <button class="btn-brand w-full" :disabled="busy">{{ busy ? 'Connexion…' : 'Se connecter' }}</button>
       <p class="flex items-center gap-3 text-xs text-slate-400"><span class="h-px flex-1 bg-slate-200"></span>ou<span class="h-px flex-1 bg-slate-200"></span></p>
-      <button type="button" class="w-full rounded-lg border-2 border-[#25D366] py-2.5 font-semibold text-emerald-700 hover:bg-emerald-50" @click="whatsappMode = true; error = ''; errors = {}">
+      <button type="button" class="w-full rounded-lg border-2 border-whatsapp py-2.5 font-semibold text-emerald-700 hover:bg-emerald-50" @click="whatsappMode = true; error = ''; errors = {}">
         💬 Me connecter par WhatsApp
       </button>
       <p class="text-center text-sm">

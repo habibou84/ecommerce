@@ -92,7 +92,7 @@ function reset() {
 
 <template>
   <div class="mx-auto max-w-xl space-y-4">
-    <RouterLink to="/gestion/caisse" class="text-sm text-slate-600 hover:text-slate-900">← Caisse</RouterLink>
+    <RouterLink to="/gestion/caisse" class="back-link text-sm text-slate-600 hover:text-slate-900">← Caisse</RouterLink>
     <MaterielTip category="caisse" text="Imprimez vos tickets au comptoir :" />
 
     <!-- Vente enregistrée -->
@@ -137,7 +137,7 @@ function reset() {
             <span class="w-20 text-right font-medium">{{ money(l.unit_price * l.quantity) }}</span>
           </li>
         </ul>
-        <p v-else class="text-sm text-slate-500">Cherchez un produit par son nom, son SKU ou son code-barres.</p>
+        <p v-else class="explain-detail">Cherchez un produit par son nom, son SKU ou son code-barres.</p>
         <div class="flex items-baseline justify-between border-t border-slate-100 pt-3">
           <span class="text-sm text-slate-600">Total</span>
           <span class="text-2xl font-semibold">{{ money(total) }}</span>

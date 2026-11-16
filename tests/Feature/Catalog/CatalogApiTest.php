@@ -94,6 +94,18 @@ class CatalogApiTest extends TestCase
         $this->assertSame(['Collier'], array_column($this->api('GET', 'products?status=draft')->json('data'), 'title'));
         $this->assertSame(['Sac'], array_column($this->api('GET', 'products?stock=out')->json('data'), 'title'));
         $this->assertEqualsCanonicalizing(['Robe wax', 'Collier'], array_column($this->api('GET', 'products?stock=low')->json('data'), 'title'));
+
+        // Tri au choix
+        $titles = fn (string $sort) => array_column($this->api('GET', "products?sort={$sort}")->json('data'), 'title');
+        $this->assertSame(['Collier', 'Robe wax', 'Sac'], $titles('name'));
+        $this->assertSame(['Collier', 'Sac', 'Robe wax'], $titles('price_asc'));
+        $this->assertSame(['Robe wax', 'Sac', 'Collier'], $titles('price_desc'));
+        $this->api('GET', 'products?sort=hasard')->assertUnprocessable();
+
+        // Filtre « packs » : aucun pack ici, puis le Collier en devient un
+        $this->assertSame([], $this->api('GET', 'products?pack=1')->json('data'));
+        Product::where('title', 'Collier')->update(['is_bundle' => true]);
+        $this->assertSame(['Collier'], array_column($this->api('GET', 'products?pack=1')->json('data'), 'title'));
     }
 
     public function test_photos_are_uploaded_ordered_and_linked_to_variants(): void

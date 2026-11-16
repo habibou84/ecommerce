@@ -38,6 +38,7 @@ use App\Services\WhatsApp\MerchantCatchUp;
 use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\MetaHealth;
 use App\Services\WhatsApp\PlatformWhatsApp;
+use App\Services\WhatsApp\RecapOrders;
 use App\Services\WhatsApp\SignupByWhatsApp;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Artisan;
@@ -83,6 +84,8 @@ Schedule::command('shipping:zones')->dailyAt('03:40')->withoutOverlapping();
  * Missions confiées aux livreurs et toujours sans réponse après un quart d'heure : rappel à l'équipe et au livreur.
  */
 Artisan::command('couriers:remind', function (MissionResponses $responses) {
+    // D'abord les missions à passer au livreur suivant (boutiques en envoi automatique avec un délai), puis les rappels
+    $this->line($responses->passUnanswered().' mission(s) passée(s) au livreur suivant');
     $this->line($responses->remindUnanswered().' mission(s) sans réponse signalée(s)');
 })->purpose('Rappel des missions pas encore acceptées par les livreurs');
 
@@ -217,6 +220,18 @@ Artisan::command('live:expire', function (LiveSales $live) {
 })->purpose('Vente en live : pièces gardées sans quartier à temps rendues à la liste d\'attente');
 
 Schedule::command('live:expire')->everyMinute()->withoutOverlapping();
+
+Artisan::command('credits:whatsapp', function (Credits $credits) {
+    $this->line($credits->billOrders().' commande(s) WhatsApp (récap, catalogue, modèles) retirée(s) du solde');
+})->purpose('Commandes WhatsApp hors live confirmées les jours passés : retirées du solde, un jour compté par boutique');
+
+Schedule::command('credits:whatsapp')->hourly()->withoutOverlapping();
+
+Artisan::command('recap:remind', function (RecapOrders $recaps) {
+    $this->line($recaps->remind().' récap(s) WhatsApp relancé(s) ou annulé(s)');
+})->purpose('Récaps WhatsApp sans réponse : relance au bout de 2 h, annulation au bout de 24 h (stock rendu)');
+
+Schedule::command('recap:remind')->everyTenMinutes()->withoutOverlapping()->runInBackground();
 
 Artisan::command('referrals:report', function (PartnerReferrals $referrals) {
     $sent = Store::whereNotNull('referred_by')->get()->filter(fn (Store $store) => $referrals->push($store))->count();

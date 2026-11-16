@@ -1,7 +1,7 @@
 <script setup>
 const tabs = [
   { to: '/gestion/stock', label: 'Niveaux', exact: true },
-  { to: '/gestion/stock/commandes', label: 'Commandes fournisseurs' },
+  { to: '/gestion/stock/commandes', label: 'Commandes fournisseurs', short: 'Fournisseurs' },
   { to: '/gestion/stock/receptions', label: 'Réceptions' },
   { to: '/gestion/stock/transferts', label: 'Transferts' },
   { to: '/gestion/stock/inventaires', label: 'Inventaires' },
@@ -19,7 +19,7 @@ const tabs = [
       class="whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium"
       :class="(tab.exact ? $route.path === tab.to : $route.path.startsWith(tab.to)) ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-slate-600 hover:text-slate-900'"
     >
-      {{ tab.label }}
+      <span class="sm:hidden">{{ tab.short ?? tab.label }}</span><span class="hidden sm:inline">{{ tab.label }}</span>
     </RouterLink>
   </nav>
 </template>

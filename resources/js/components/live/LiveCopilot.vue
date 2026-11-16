@@ -105,7 +105,7 @@ const cards = computed(() => {
   }
   // Article jamais montré
   const never = shown.find((p) => p.remaining > 0 && !props.shownCodes.includes(p.code))
-  if (never && minutes > 15) add(40, { title: `👀 Tu n'as pas encore montré ${never.code}`, say: `Regardez celle-ci : ${never.title} !`, acts: [[`Montrer ${never.code}`, { kind: 'feature', product: never }]] })
+  if (never && minutes > 15) add(40, { title: `👀 Vous n'avez pas encore montré ${never.code}`, say: `Regardez celle-ci : ${never.title} !`, acts: [[`Montrer ${never.code}`, { kind: 'feature', product: never }]] })
   // Annoncer le mystère pour garder les gens
   if (mysteryWaiting && !state.announce_at && !state.mystery && minutes >= 2) {
     add(50, { title: '📣 Annonce l\'article mystère pour garder les gens', say: 'Restez jusqu\'au bout : un article mystère arrive dans quelques minutes !', acts: [['📣 Annoncer (5 min)', { kind: 'moment', type: 'announce' }, true]] })
@@ -118,32 +118,37 @@ const cards = computed(() => {
   if (props.withPlan && step && !state.mystery) add(45, { title: `📋 Prochaine étape : ${step.label}`, say: step.say ?? '', acts: [['Faire ▶', { kind: 'plan' }]] })
   // Les moments ne sont plus dans le plan : le copilote les propose au bon moment
   if (!state.defi && cool('defi', 20) && minutes > 10 && rush < 3 && now - lastOrder < 4 * MIN && recent.length >= 3) {
-    add(42, { title: '🎯 Lance un défi pour faire monter les commandes', say: 'Encore 5 commandes et c\'est la livraison offerte pour tout le monde !', acts: [['🎯 Défi : 5 commandes', { kind: 'moment', type: 'defi', body: { goal: 5, reward: 'delivery' } }, true]] })
+    add(42, { title: '🎯 Lancez un défi pour faire monter les commandes', say: 'Encore 5 commandes et c\'est la livraison offerte pour tout le monde !', acts: [['🎯 Défi : 5 commandes', { kind: 'moment', type: 'defi', body: { goal: 5, reward: 'delivery' } }, true]] })
   }
   if (cool('podium', 20) && current && current.remaining >= 3 && now - props.featuredSince > 2 * MIN && now - props.featuredSince < 4 * MIN) {
     add(38, { title: `🥇 Les 3 premiers sur la ${current.code}`, say: `Les 3 premiers à commander la ${current.code} ont un cadeau !`, acts: [['🥇 Lancer', { kind: 'moment', type: 'podium' }, true]] })
   }
   if (minutes > 25 && cool('wheel', 25) && recent.filter((r) => r.status === 'ordered').length >= 3) {
-    add(36, { title: '🎡 Fais tourner la roue parmi les acheteurs', say: 'Une personne qui a commandé ce soir va gagner sa livraison !', acts: [['🎡 Roue', { kind: 'moment', type: 'wheel' }, true]] })
+    add(36, { title: '🎡 Faites tourner la roue parmi les acheteurs', say: 'Une personne qui a commandé ce soir va gagner sa livraison !', acts: [['🎡 Roue', { kind: 'moment', type: 'wheel' }, true]] })
   }
   if (minutes > 20 && cool('map', 25)) {
-    add(33, { title: '🗺️ Montre d\'où viennent les commandes', say: 'Regardez, ça commande de partout ! Quel quartier va gagner ?', acts: [['🗺️ Carte', { kind: 'moment', type: 'map' }]] })
+    add(33, { title: '🗺️ Montrez d\'où viennent les commandes', say: 'Regardez, ça commande de partout ! Quel quartier va gagner ?', acts: [['🗺️ Carte', { kind: 'moment', type: 'map' }]] })
   }
   // Rappels
   if (minutes > 3 && cool('how', 5)) add(35, { title: '💬 Pense aux nouveaux arrivés', say: 'Pour commander : regardez le code de l\'article et envoyez-le au numéro de la bio.', acts: [['💬 Comment commander', { kind: 'moment', type: 'how' }]] })
   if (minutes > 8 && Math.floor(minutes / 10) % 2 === 1) add(30, { title: '🚚 Rappelle la livraison et le paiement', say: 'On vous livre partout, et vous payez à la livraison ou par Mobile Money.', acts: [] })
-  if (!C.length) add(1, { cls: 'ok', title: '👍 Tout va bien', say: current ? `Présente bien la ${current.code} : la matière, les tailles, comment la porter.` : 'Montre ton premier article pour commencer.', acts: current ? [['❤️ Cœurs', { kind: 'moment', type: 'react', body: { emoji: '❤️' } }]] : [] })
+  if (!C.length) add(1, { cls: 'ok', title: '👍 Tout va bien', say: current ? `Présentez bien la ${current.code} : la matière, les tailles, comment la porter.` : 'Montrez votre premier article pour commencer.', acts: current ? [['❤️ Cœurs', { kind: 'moment', type: 'react', body: { emoji: '❤️' } }]] : [] })
   return C.sort((a, b) => b.pr - a.pr).slice(0, 3)
 })
 </script>
 
 <template>
   <div class="space-y-2" aria-live="polite">
-    <div v-for="c in cards" :key="c.title" class="rounded-2xl border p-3" :class="c.cls === 'hot' ? 'border-red-400/70 bg-red-500/10' : c.cls === 'ok' ? 'border-emerald-400/60 bg-emerald-500/10' : 'border-white/15 bg-white/5'">
-      <p class="text-[14px] font-extrabold leading-snug">{{ c.title }}</p>
-      <p v-if="c.say" class="mt-1 text-[13px] leading-snug text-amber-200">« {{ c.say }} »</p>
-      <div v-if="c.acts.length" class="mt-2 flex flex-wrap gap-1.5">
-        <button v-for="[label, action, main] in c.acts" :key="label" type="button" class="rounded-xl px-3 py-2 text-[13px] font-extrabold" :class="main ? 'bg-amber-400 text-slate-900' : 'bg-white/15 text-white'" @click="emit('act', action)">{{ label }}</button>
+    <!-- Le premier conseil en grand, avec la phrase à dire bien visible ; les suivants un peu plus petits -->
+    <div v-for="(c, k) in cards" :key="c.title" class="rounded-2xl border" :class="[k === 0 ? 'border-2 p-3.5' : 'p-3', c.cls === 'hot' ? 'border-red-400/70 bg-red-500/10' : c.cls === 'ok' ? 'border-emerald-400/60 bg-emerald-500/10' : k === 0 ? 'border-sky-300/60 bg-sky-400/10' : 'border-white/15 bg-white/5']">
+      <p class="leading-snug font-extrabold" :class="k === 0 ? 'text-lg' : 'text-base'">{{ c.title }}</p>
+      <div v-if="c.say && k === 0" class="mt-2 rounded-xl bg-amber-400/15 p-2.5 ring-1 ring-amber-300/50">
+        <p class="text-xs font-black tracking-wider text-amber-300 uppercase">🗣 À dire</p>
+        <p class="mt-0.5 text-lg leading-snug font-extrabold text-white">« {{ c.say }} »</p>
+      </div>
+      <p v-else-if="c.say" class="mt-1 text-base leading-snug font-semibold text-amber-200">« {{ c.say }} »</p>
+      <div v-if="c.acts.length" class="mt-2.5 flex flex-wrap gap-1.5">
+        <button v-for="[label, action, main] in c.acts" :key="label" type="button" class="min-h-11 rounded-xl px-3.5 font-extrabold" :class="[main ? 'bg-amber-400 text-slate-900' : 'bg-white/15 text-white', k === 0 ? 'text-base' : 'text-sm']" @click="emit('act', action)">{{ label }}</button>
       </div>
     </div>
   </div>
