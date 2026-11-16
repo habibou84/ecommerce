@@ -172,3 +172,9 @@
 .tab-strip[data-more-left='1'][data-more-right='1'] {
   mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
 }
+
+/* Navigation par glissement : l'écran ouvert dans une fenêtre montre une seule information, sans les onglets du menu
+   (sinon chaque onglet ouvrait une fenêtre de plus, et fermer ramenait à l'onglet précédent) */
+.sheet-body .menu-tabs {
+  display: none;
+}

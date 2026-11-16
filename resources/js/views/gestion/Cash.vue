@@ -1,25 +1,18 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
 import CashDrawer from '../../components/CashDrawer.vue'
+import CashFlowTable from '../../components/CashFlowTable.vue'
 import CashTabs from '../../components/CashTabs.vue'
 import RecurringExpenses from '../../components/RecurringExpenses.vue'
 import http, { errorMessage } from '../../lib/http'
-import { formatDate, money } from '../../lib/format'
+import { money } from '../../lib/format'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
-const PERIODS = [
-  { value: 'today', label: "Aujourd'hui" },
-  { value: 'week', label: '7 jours' },
-  { value: 'month', label: 'Ce mois' },
-  { value: '30d', label: '30 jours' },
-]
-
 const period = ref('today')
 const data = ref(null)
 const error = ref('')
-const showCredit = ref(false)
 
 async function load() {
   if (!auth.can('finance.view')) return
@@ -31,13 +24,7 @@ async function load() {
   }
 }
 onMounted(load)
-
-function choose(value) {
-  period.value = value
-  load()
-}
-
-const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
+watch(period, load)
 </script>
 
 <template>
@@ -63,20 +50,11 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
           <p v-if="data.position.carriers_due_overdue" class="text-xs text-red-700">dont {{ money(data.position.carriers_due_overdue) }} en retard</p>
           <p v-else class="text-xs text-slate-500">Livré, pas encore reversé</p>
         </component>
-        <div class="card p-4" :class="{ 'col-span-2': showCredit }">
-          <button class="block w-full text-left" :disabled="!data.position.customers_due_count" @click="showCredit = !showCredit">
-            <p class="text-sm text-slate-600">Clients : reste à payer</p>
-            <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl">{{ money(data.position.customers_due) }}</p>
-            <p class="text-xs text-slate-500">{{ data.position.customers_due_count }} commande(s) livrée(s) pas soldée(s)</p>
-          </button>
-          <ul v-if="showCredit" class="mt-3 divide-y divide-slate-100 border-t border-slate-100 text-sm">
-            <li v-for="o in data.position.customers_due_orders" :key="o.id" class="flex items-center gap-2 py-1.5">
-              <RouterLink :to="`/gestion/commandes/${o.id}`" class="underline">{{ o.reference }}</RouterLink>
-              <span class="flex-1 truncate text-slate-600">{{ o.customer }} · {{ formatDate(o.completed_at) }}</span>
-              <span class="font-medium">{{ money(o.due) }}</span>
-            </li>
-          </ul>
-        </div>
+        <RouterLink to="/gestion/caisse/clients" class="card block p-4">
+          <p class="text-sm text-slate-600">Clients : reste à payer</p>
+          <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl">{{ money(data.position.customers_due) }}</p>
+          <p class="text-xs text-slate-500">{{ data.position.customers_due_count }} commande(s) livrée(s) pas soldée(s)</p>
+        </RouterLink>
         <component :is="auth.can('couriers.manage') ? 'RouterLink' : 'div'" to="/gestion/livraisons/livreurs" class="card block p-4">
           <p class="text-sm text-slate-600">À payer à mes livreurs</p>
           <p class="whitespace-nowrap text-xl font-semibold sm:text-2xl">{{ money(data.position.couriers_to_pay) }}</p>
@@ -87,45 +65,8 @@ const signed = (amount) => (amount > 0 ? '+' : '') + money(amount)
 
     <!-- Entrées et sorties de la période -->
     <section v-if="auth.can('finance.view')" class="space-y-3">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="text-lg font-semibold">Entrées et sorties</h2>
-        <div class="flex rounded-lg bg-slate-100 p-1 text-sm" role="group" aria-label="Période">
-          <button
-            v-for="p in PERIODS"
-            :key="p.value"
-            class="rounded-md px-3 py-1"
-            :class="period === p.value ? 'bg-white shadow-sm' : 'text-slate-600'"
-            @click="choose(p.value)"
-          >
-            {{ p.label }}
-          </button>
-        </div>
-      </div>
-      <div v-if="data" class="card overflow-hidden text-sm">
-        <table class="w-full">
-          <thead class="bg-slate-50 text-left text-xs text-slate-500">
-            <tr><th class="px-4 py-2">Canal</th><th class="px-2 py-2 text-right">Montant</th><th class="px-4 py-2 text-right">dont espèces</th></tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="l in data.flows.lines" :key="l.key" :class="{ 'text-slate-400': !l.count }">
-              <td class="px-4 py-2">{{ l.label }} <span v-if="l.count" class="text-xs text-slate-500">({{ l.count }})</span></td>
-              <td class="whitespace-nowrap px-2 py-2 text-right font-medium" :class="l.amount < 0 ? 'text-red-700' : ''">{{ l.amount ? signed(l.amount) : '—' }}</td>
-              <td class="whitespace-nowrap px-4 py-2 text-right">{{ l.cash ? signed(l.cash) : '—' }}</td>
-            </tr>
-          </tbody>
-          <tfoot class="border-t-2 border-slate-200 font-semibold">
-            <tr>
-              <td class="px-4 py-2">Solde de la période</td>
-              <td class="whitespace-nowrap px-2 py-2 text-right" :class="data.flows.total < 0 ? 'text-red-700' : 'text-emerald-800'">{{ signed(data.flows.total) }}</td>
-              <td class="whitespace-nowrap px-4 py-2 text-right">{{ signed(data.flows.cash) }}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      <p class="text-sm text-slate-500">
-        Chaque somme compte une fois, quand vous la recevez. « Espèces » : à mettre dans le tiroir.
-        <template v-if="data?.flows.online_fees"> Frais des paiements en ligne : {{ money(data.flows.online_fees) }}.</template>
-      </p>
+      <h2 class="text-lg font-semibold">Entrées et sorties</h2>
+      <CashFlowTable v-model:period="period" :flows="data?.flows" />
     </section>
   </div>
 </template>
