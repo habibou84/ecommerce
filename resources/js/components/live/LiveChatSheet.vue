@@ -53,24 +53,27 @@ const label = (m) => (m.type === 'image' ? '📷 Photo' : m.body)
     <div class="flex max-h-[88vh] w-full flex-col rounded-t-[24px] bg-white px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] text-slate-900" role="dialog" aria-modal="true" :aria-label="`Conversation avec ${message.name}`">
       <div class="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-slate-300" />
       <div class="flex shrink-0 items-center gap-2">
-        <b class="min-w-0 flex-1 truncate text-[17px]">💬 {{ message.name }}</b>
+        <b class="min-w-0 flex-1 truncate text-lg">💬 {{ message.name }}</b>
         <button type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100 text-lg font-black" aria-label="Fermer" @click="emit('close')">✕</button>
       </div>
       <div ref="list" class="mt-2 min-h-24 flex-1 space-y-1.5 overflow-y-auto overscroll-contain">
         <p v-if="!chat && !error" class="py-6 text-center text-sm text-slate-500">Chargement…</p>
-        <p v-for="m in chat?.messages ?? []" :key="m.id" class="max-w-[85%] rounded-xl px-2.5 py-1.5 text-[13.5px] break-words whitespace-pre-line"
+        <p v-for="m in chat?.messages ?? []" :key="m.id" class="max-w-[85%] rounded-xl px-2.5 py-1.5 text-sm break-words whitespace-pre-line"
            :class="m.direction === 'out' ? 'ml-auto bg-whatsapp-bubble' : 'bg-slate-100'">{{ label(m) }}</p>
       </div>
       <template v-if="chat?.can_reply !== false">
         <div class="mt-2 flex shrink-0 flex-wrap gap-1">
-          <button v-for="q in quick" :key="q" type="button" class="rounded-lg border-[1.5px] border-field bg-white px-2 py-1 text-left text-[11.5px] font-bold" :disabled="busy" @click="send(q)">{{ q }}</button>
+          <button v-for="q in quick" :key="q" type="button" class="rounded-lg border-[1.5px] border-field bg-white px-2 py-1 text-left text-xs font-bold" :disabled="busy" @click="send(q)">{{ q }}</button>
         </div>
         <form class="mt-2 flex shrink-0 gap-1.5" @submit.prevent="send()">
           <input v-model="body" class="input min-w-0 flex-1 py-2 text-sm" placeholder="Votre réponse…" maxlength="1000" aria-label="Votre réponse" />
           <button class="rounded-xl bg-slate-900 px-4 text-sm font-extrabold text-white disabled:opacity-50" :disabled="busy || !body.trim()">Envoyer</button>
         </form>
       </template>
-      <p v-else class="mt-2 text-xs text-slate-500">Plus de 24 h sans message de la cliente : WhatsApp ne permet plus de lui écrire ici.</p>
+      <div v-else class="mt-2">
+        <p class="explain">Vous ne pouvez plus lui écrire ici.</p>
+        <p class="explain-detail">Elle n'a rien envoyé depuis plus de 24 h : WhatsApp bloque la réponse.</p>
+      </div>
       <p v-if="error" class="mt-1 text-sm font-bold text-red-700">{{ error }}</p>
       <div class="mt-2 flex shrink-0 justify-center gap-4 text-sm font-extrabold text-emerald-700 underline">
         <RouterLink v-if="orderId" :to="`/gestion/commandes/${orderId}`">Voir sa commande</RouterLink>

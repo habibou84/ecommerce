@@ -250,8 +250,8 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
             <span class="inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide">
               <span class="h-2 w-2 animate-pulse rounded-full bg-live ring-2 ring-white" />EN DIRECT SUR VOS RÉSEAUX
             </span>
-            <h3 class="mt-3 text-xl font-extrabold leading-tight">{{ live.session.title }}<span v-if="liveMinutes" class="ml-2 text-sm font-semibold text-white/85">depuis {{ liveMinutes.replace(/^depuis /, '') }}</span></h3>
-            <p class="mt-2 text-4xl font-extrabold">{{ money(live.session.summary.amount) }}</p>
+            <h3 class="mt-3 text-lg font-extrabold leading-tight">{{ live.session.title }}<span v-if="liveMinutes" class="ml-2 text-sm font-semibold text-white/85">depuis {{ liveMinutes.replace(/^depuis /, '') }}</span></h3>
+            <p class="mt-2 text-3xl font-extrabold">{{ money(live.session.summary.amount) }}</p>
             <div class="mt-3 grid grid-cols-3 gap-2 text-xs">
               <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ live.session.summary.reservations }}</b>réservation{{ live.session.summary.reservations > 1 ? 's' : '' }}</span>
               <span class="rounded-xl bg-white/15 p-2"><b class="block text-lg">{{ live.session.summary.pending }}</b>en attente</span>
@@ -261,7 +261,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
           </template>
           <template v-else-if="live.state === 'ready'">
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />LIVE PRÊT</span>
-            <h3 class="mt-3 text-xl font-extrabold leading-tight">{{ live.session.title }}</h3>
+            <h3 class="mt-3 text-lg font-extrabold leading-tight">{{ live.session.title }}</h3>
             <p class="mt-1 text-sm text-white/90">{{ live.session.items_count }} article{{ live.session.items_count > 1 ? 's' : '' }} prêt{{ live.session.items_count > 1 ? 's' : '' }}. <b>Passez à l'antenne sur TikTok ou Facebook, puis touchez « Je suis en live ».</b></p>
             <RouterLink :to="`/gestion/live/${live.session.id}`" class="relative mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-emerald-700 active:scale-[.99]">Je suis en live</RouterLink>
             <button type="button" class="relative mt-2 block w-full text-center text-sm text-white/90 underline" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien pour WhatsApp et Facebook' }}</button>
@@ -270,13 +270,13 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
             <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tracking-wide"><Icon name="live" :size="14" />VOTRE LIVE TIKTOK, FACEBOOK…</span>
             <h3 class="mt-2 text-lg font-extrabold leading-tight">Préparez ici, vendez en live sur vos réseaux</h3>
             <!-- Où se passe quoi, en trois étapes : c'est l'explication (une suite à lire, pas des boutons) -->
-            <ol class="relative mt-3 grid grid-cols-3 gap-2 text-[13px] font-bold leading-tight">
+            <ol class="relative mt-3 grid grid-cols-3 gap-2 text-sm font-bold leading-tight">
               <li v-for="(step, i) in liveSteps" :key="step" class="flex min-w-0 items-start gap-1.5">
-                <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full border-[1.5px] border-white/85 text-[11.5px] font-extrabold" aria-hidden="true">{{ i + 1 }}</span>
+                <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full border-[1.5px] border-white/85 text-pastille font-extrabold" aria-hidden="true">{{ i + 1 }}</span>
                 <span class="min-w-0">{{ step }}</span>
               </li>
             </ol>
-            <p class="mt-2 text-[13px] font-semibold">Les clientes envoient le code (A1, A2…) sur WhatsApp : la commande se crée toute seule.</p>
+            <p class="mt-2 text-sm font-semibold">Les clientes envoient le code (A1, A2…) sur WhatsApp : la commande se crée toute seule.</p>
             <div class="relative mt-3 flex items-center gap-2">
               <RouterLink to="/gestion/live" class="flex-1 rounded-2xl bg-white py-2.5 text-center text-base font-extrabold text-emerald-700 active:scale-[.99]">Préparer un live</RouterLink>
               <RouterLink v-if="live.last" :to="`/gestion/live/${live.last.id}`" class="rounded-2xl bg-white/20 px-3 py-2 text-center text-xs font-bold leading-tight">Dernier live<span class="block text-sm">{{ money(live.last.amount) }}</span></RouterLink>
@@ -302,7 +302,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
                 <ColorIcon name="moto" :size="36" />
                 <span class="min-w-0 flex-1">
                   <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">Chez mes livreurs<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
-                  <span class="block text-xl font-extrabold group-hover:text-emerald-800">{{ money(stats.couriers.cash) }}</span>
+                  <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.couriers.cash) }}</span>
                   <span class="block text-xs text-slate-500">{{ stats.couriers.holders ? `chez ${stats.couriers.holders} livreur${stats.couriers.holders > 1 ? 's' : ''}, pas encore versé` : 'Tout a été versé.' }}</span>
                 </span>
               </RouterLink>
@@ -310,7 +310,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
                 <ColorIcon name="camion" :size="36" />
                 <span class="min-w-0 flex-1">
                   <span class="flex items-center gap-2 text-sm font-semibold text-slate-600">Chez les entreprises de livraison<Icon name="chevron" :size="15" class="ml-auto text-slate-400" /></span>
-                  <span class="block text-xl font-extrabold group-hover:text-emerald-800">{{ money(stats.carriers.amount) }}</span>
+                  <span class="block text-2xl font-extrabold group-hover:text-emerald-800">{{ money(stats.carriers.amount) }}</span>
                   <span class="block text-xs text-slate-500">{{ stats.carriers.amount ? 'courses livrées, pas encore reversées' : 'Rien en attente.' }}</span>
                 </span>
               </RouterLink>
@@ -338,7 +338,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
         <!-- Ventes du jour, par canal : on vend partout -->
         <RouterLink v-if="stats?.orders" to="/gestion/commandes" class="card block p-4 hover:border-emerald-600">
           <span class="flex items-baseline justify-between gap-2">
-            <span class="text-[16px] font-extrabold">Mes ventes du jour</span>
+            <span class="text-base font-extrabold">Mes ventes du jour</span>
             <span class="text-2xl font-extrabold">{{ money(stats.orders.today_amount) }}</span>
           </span>
           <span class="mt-0.5 flex items-center justify-between gap-2 text-sm">
@@ -358,13 +358,13 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
 
         <!-- À faire maintenant : téléphone, juste sous les ventes -->
         <section v-if="todo.length" class="lg:hidden">
-          <h3 class="mb-2 text-[17px] font-extrabold">À faire maintenant</h3>
+          <h3 class="mb-2 text-lg font-extrabold">À faire maintenant</h3>
           <div class="card">
             <p v-if="!pending.length" class="flex items-center gap-2 p-4 text-sm font-medium text-emerald-800"><ColorIcon name="livre" :size="26" :tile="false" />Tout est à jour.</p>
             <RouterLink v-for="t in (more ? pending : pendingShort)" :key="t.key" :to="t.to" class="flex items-center gap-3 border-t border-slate-100 px-4 py-3 first:border-t-0 hover:bg-slate-50">
               <ColorIcon :name="todoColor(t)" :size="40" />
               <span class="min-w-0 flex-1">
-                <span class="block text-[15px] font-semibold">{{ t.label }}</span>
+                <span class="block text-base font-semibold">{{ t.label }}</span>
                 <span v-if="t.hint" class="block text-sm" :class="t.urgent ? 'text-ocre-700' : 'text-slate-500'">{{ t.hint }}</span>
               </span>
               <span class="grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm font-bold" :class="t.urgent ? 'bg-ocre-50 text-ocre-800' : 'bg-slate-100 text-slate-800'">{{ t.count }}</span>
@@ -380,14 +380,14 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
           <div class="flex items-center gap-3">
             <ColorIcon name="boutique" :size="46" />
             <div class="min-w-0 flex-1">
-              <p class="text-[15.5px] font-bold">Ma boutique en ligne</p>
+              <p class="text-base font-bold">Ma boutique en ligne</p>
               <a :href="shop.url" target="_blank" rel="noopener" class="block truncate text-sm text-slate-500 hover:text-emerald-700">{{ shopHost }}</a>
             </div>
           </div>
           <div class="mt-3 grid grid-cols-3 gap-2 text-center">
-            <div class="rounded-2xl bg-emerald-50 py-2.5"><p class="text-xl font-extrabold text-emerald-800">{{ shop.today }}</p><p class="text-xs text-slate-600">commande{{ shop.today > 1 ? 's' : '' }} aujourd'hui</p></div>
-            <div class="rounded-2xl bg-slate-100 py-2.5"><p class="text-xl font-extrabold text-slate-800">{{ shop.month }}</p><p class="text-xs text-slate-600">ce mois-ci</p></div>
-            <RouterLink to="/gestion/paniers-abandonnes" class="rounded-2xl bg-ocre-50 py-2.5"><p class="text-xl font-extrabold text-ocre-800">{{ shop.abandoned }}</p><p class="text-xs text-slate-600">panier{{ shop.abandoned > 1 ? 's' : '' }} laissé{{ shop.abandoned > 1 ? 's' : '' }}</p></RouterLink>
+            <div class="rounded-2xl bg-emerald-50 py-2.5"><p class="text-2xl font-extrabold text-emerald-800">{{ shop.today }}</p><p class="text-xs text-slate-600">commande{{ shop.today > 1 ? 's' : '' }} aujourd'hui</p></div>
+            <div class="rounded-2xl bg-slate-100 py-2.5"><p class="text-2xl font-extrabold text-slate-800">{{ shop.month }}</p><p class="text-xs text-slate-600">ce mois-ci</p></div>
+            <RouterLink to="/gestion/paniers-abandonnes" class="rounded-2xl bg-ocre-50 py-2.5"><p class="text-2xl font-extrabold text-ocre-800">{{ shop.abandoned }}</p><p class="text-xs text-slate-600">panier{{ shop.abandoned > 1 ? 's' : '' }} laissé{{ shop.abandoned > 1 ? 's' : '' }}</p></RouterLink>
           </div>
           <div class="mt-3 flex gap-2">
             <a :href="shopShare" target="_blank" rel="noopener" class="btn-brand flex-1 justify-center"><Icon name="share" :size="17" />Partager sur WhatsApp</a>
@@ -397,11 +397,11 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
 
         <!-- De l'argent à aller chercher -->
         <section v-if="chances.length">
-          <h3 class="mb-2 text-[17px] font-extrabold">De l'argent à aller chercher</h3>
+          <h3 class="mb-2 text-lg font-extrabold">De l'argent à aller chercher</h3>
           <div class="card divide-y divide-slate-100">
             <RouterLink v-for="c in chances" :key="c.key" :to="c.to" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
               <ColorIcon :name="c.color" :size="42" />
-              <span class="min-w-0 flex-1"><span class="block text-[15px] font-semibold">{{ c.label }}</span><span class="block text-sm text-slate-500">{{ c.hint }}</span></span>
+              <span class="min-w-0 flex-1"><span class="block text-base font-semibold">{{ c.label }}</span><span class="block text-sm text-slate-500">{{ c.hint }}</span></span>
               <span v-if="c.action" class="shrink-0 rounded-xl bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-800">{{ c.action }}</span>
               <Icon v-else name="chevron" :size="16" class="text-slate-400" />
             </RouterLink>
@@ -437,7 +437,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
         <!-- Ventes des 7 derniers jours -->
         <section v-if="more && week.length" class="card p-4 sm:p-5">
           <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 class="text-[17px] font-extrabold">Cette semaine</h3>
+            <h3 class="text-lg font-extrabold">Cette semaine</h3>
             <p class="text-sm text-slate-600">Total <strong class="font-bold text-slate-900">{{ money(weekTotal) }}</strong></p>
           </div>
           <div class="relative mt-6 flex h-40 items-end gap-2 sm:gap-3" @mouseleave="activeDay = null">
@@ -479,7 +479,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
       <!-- À faire maintenant : ordinateur, en colonne à droite. Ce qui attend d'abord, bien visible ;
            les lignes à zéro regroupées dans « à jour », qu'on déplie pour tout voir -->
       <section v-if="todo.length" class="card hidden self-start p-4 sm:p-5 lg:block">
-        <h3 class="text-[17px] font-extrabold">À faire maintenant</h3>
+        <h3 class="text-lg font-extrabold">À faire maintenant</h3>
         <p v-if="!pending.length" class="mt-3 flex items-center gap-2 text-sm text-emerald-800"><ColorIcon name="livre" :size="24" :tile="false" />Tout est à jour.</p>
         <ul v-if="pending.length" class="mt-3 space-y-1.5">
           <li v-for="t in pending" :key="t.key">
@@ -518,7 +518,7 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
       <ol class="list-decimal space-y-1 pl-5 text-sm text-slate-700">
         <li v-for="(tip, i) in stats.tips" :key="i">{{ tip }}</li>
       </ol>
-      <p class="text-xs text-slate-500">Tirés de vos chiffres : ventes, stock, confirmations et livraisons. Ils sont aussi dans le rapport du soir.</p>
+      <p class="explain-detail">Tirés de vos ventes, stock, confirmations et livraisons. Aussi dans le rapport du soir.</p>
     </section>
 
   </div>

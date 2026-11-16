@@ -161,8 +161,8 @@ async function create() {
       <component :is="s.filter === null ? 'div' : 'button'" v-for="s in stats" :key="s.label" type="button"
                  class="rounded-2xl bg-white p-2.5 text-center shadow-soft" :class="s.filter !== null && filters.filter === s.filter && s.filter !== '' ? 'ring-2 ring-emerald-600' : ''"
                  @click="s.filter !== null && (filters.filter = s.filter)">
-        <b class="block text-[20px] font-black leading-tight" :class="s.tone">{{ s.value }}</b>
-        <span class="block text-[11px] font-semibold leading-tight text-slate-500">{{ s.label }}</span>
+        <b class="block text-2xl font-black leading-tight" :class="s.tone">{{ s.value }}</b>
+        <span class="block text-xs font-semibold leading-tight text-slate-500">{{ s.label }}</span>
       </component>
     </div>
 
@@ -173,9 +173,9 @@ async function create() {
 
     <!-- Filtres et étiquettes en pastilles -->
     <div class="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0" role="group" aria-label="Filtres">
-      <button v-for="[key, label] in CHIPS" :key="key" type="button" class="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold"
+      <button v-for="[key, label] in CHIPS" :key="key" type="button" class="shrink-0 rounded-full px-3 py-1.5 text-sm font-extrabold"
               :class="filters.filter === key ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 shadow-soft'" @click="pick(key)">{{ label }}</button>
-      <button v-for="t in summary?.tags ?? []" :key="t" type="button" class="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold"
+      <button v-for="t in summary?.tags ?? []" :key="t" type="button" class="shrink-0 rounded-full px-3 py-1.5 text-sm font-extrabold"
               :class="filters.tag === t ? 'bg-emerald-700 text-white' : 'bg-emerald-50 text-emerald-900'" @click="pickTag(t)"># {{ t }}</button>
     </div>
 
@@ -183,10 +183,10 @@ async function create() {
 
     <!-- À relancer : les meilleurs clients qui n'ont pas commandé depuis 30 jours -->
     <div v-if="showRelaunch" class="rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
-      <p class="text-[11px] font-black uppercase tracking-wide text-orange-800">⏰ À relancer · plus de commande depuis 30 jours</p>
+      <p class="text-xs font-black uppercase tracking-wide text-orange-800">⏰ À relancer · plus de commande depuis 30 jours</p>
       <div v-for="c in relaunchList" :key="c.id" class="flex items-center gap-2 border-t border-orange-100 py-2 first-of-type:border-0">
         <RouterLink :to="`/gestion/clients/${c.id}`" class="min-w-0 flex-1">
-          <b class="block truncate text-[14px]">{{ c.name || c.phone_display }}</b>
+          <b class="block truncate text-sm">{{ c.name || c.phone_display }}</b>
           <span class="block truncate text-xs text-slate-600">{{ money(c.total_spent) }} · {{ c.delivered_count }} livrée(s)<template v-if="c.last_order_at"> · dernière le {{ formatDate(c.last_order_at) }}</template></span>
         </RouterLink>
         <button type="button" class="shrink-0 rounded-full bg-emerald-700 px-3 py-1.5 text-xs font-black text-white disabled:opacity-60" :disabled="relaunching === c.id" @click="relaunch(c)">Relancer ▸</button>
@@ -208,12 +208,12 @@ async function create() {
         <RouterLink :to="`/gestion/clients/${c.id}`" class="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full font-black" :class="c.is_blacklisted ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'">{{ initial(c) }}</span>
           <span class="min-w-0 flex-1">
-            <b class="block truncate text-[14.5px]">{{ c.name || 'Sans nom' }}</b>
+            <b class="block truncate text-sm">{{ c.name || 'Sans nom' }}</b>
             <span class="flex flex-wrap gap-1 py-0.5 empty:hidden">
-              <span v-if="c.is_blacklisted" class="rounded-full bg-red-100 px-2 text-[11px] font-extrabold text-red-700">Liste noire</span>
-              <span v-else-if="c.is_risky" class="rounded-full bg-amber-100 px-2 text-[11px] font-extrabold text-amber-800">⚠ {{ c.refused_count }} refus</span>
-              <span v-if="c.is_loyal" class="rounded-full bg-emerald-100 px-2 text-[11px] font-extrabold text-emerald-800">⭐ Fidèle</span>
-              <span v-for="t in c.tags" :key="t" class="rounded-full bg-slate-100 px-2 text-[11px] font-bold text-slate-600">{{ t }}</span>
+              <span v-if="c.is_blacklisted" class="rounded-full bg-red-100 px-2 text-xs font-extrabold text-red-700">Liste noire</span>
+              <span v-else-if="c.is_risky" class="rounded-full bg-amber-100 px-2 text-xs font-extrabold text-amber-800">⚠ {{ c.refused_count }} refus</span>
+              <span v-if="c.is_loyal" class="rounded-full bg-emerald-100 px-2 text-xs font-extrabold text-emerald-800">⭐ Fidèle</span>
+              <span v-for="t in c.tags" :key="t" class="rounded-full bg-slate-100 px-2 text-xs font-bold text-slate-600">{{ t }}</span>
             </span>
             <span class="block truncate text-xs text-slate-500">{{ money(c.total_spent) }} · {{ c.orders_count }} cmd<template v-if="c.delivery_rate !== null"> · {{ c.delivery_rate }} % livrées</template><template v-if="c.last_order_at"> · {{ formatDate(c.last_order_at) }}</template></span>
           </span>

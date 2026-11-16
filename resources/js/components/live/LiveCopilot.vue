@@ -141,14 +141,14 @@ const cards = computed(() => {
   <div class="space-y-2" aria-live="polite">
     <!-- Le premier conseil en grand, avec la phrase à dire bien visible ; les suivants un peu plus petits -->
     <div v-for="(c, k) in cards" :key="c.title" class="rounded-2xl border" :class="[k === 0 ? 'border-2 p-3.5' : 'p-3', c.cls === 'hot' ? 'border-red-400/70 bg-red-500/10' : c.cls === 'ok' ? 'border-emerald-400/60 bg-emerald-500/10' : k === 0 ? 'border-sky-300/60 bg-sky-400/10' : 'border-white/15 bg-white/5']">
-      <p class="leading-snug font-extrabold" :class="k === 0 ? 'text-[17px]' : 'text-[15px]'">{{ c.title }}</p>
+      <p class="leading-snug font-extrabold" :class="k === 0 ? 'text-lg' : 'text-base'">{{ c.title }}</p>
       <div v-if="c.say && k === 0" class="mt-2 rounded-xl bg-amber-400/15 p-2.5 ring-1 ring-amber-300/50">
-        <p class="text-[12px] font-black tracking-wider text-amber-300 uppercase">🗣 À dire</p>
-        <p class="mt-0.5 text-[19px] leading-snug font-extrabold text-white">« {{ c.say }} »</p>
+        <p class="text-xs font-black tracking-wider text-amber-300 uppercase">🗣 À dire</p>
+        <p class="mt-0.5 text-lg leading-snug font-extrabold text-white">« {{ c.say }} »</p>
       </div>
-      <p v-else-if="c.say" class="mt-1 text-[16px] leading-snug font-semibold text-amber-200">« {{ c.say }} »</p>
+      <p v-else-if="c.say" class="mt-1 text-base leading-snug font-semibold text-amber-200">« {{ c.say }} »</p>
       <div v-if="c.acts.length" class="mt-2.5 flex flex-wrap gap-1.5">
-        <button v-for="[label, action, main] in c.acts" :key="label" type="button" class="min-h-11 rounded-xl px-3.5 font-extrabold" :class="[main ? 'bg-amber-400 text-slate-900' : 'bg-white/15 text-white', k === 0 ? 'text-[15px]' : 'text-[14px]']" @click="emit('act', action)">{{ label }}</button>
+        <button v-for="[label, action, main] in c.acts" :key="label" type="button" class="min-h-11 rounded-xl px-3.5 font-extrabold" :class="[main ? 'bg-amber-400 text-slate-900' : 'bg-white/15 text-white', k === 0 ? 'text-base' : 'text-sm']" @click="emit('act', action)">{{ label }}</button>
       </div>
     </div>
   </div>

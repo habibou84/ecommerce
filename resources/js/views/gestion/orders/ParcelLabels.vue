@@ -71,7 +71,10 @@ async function found(input) {
     <template v-else>
       <section class="card p-4">
         <p class="text-lg font-extrabold">Il vous reste {{ data.free }} étiquette{{ data.free > 1 ? 's' : '' }}</p>
-        <p class="text-sm text-slate-600">{{ data.used }} déjà reliée{{ data.used > 1 ? 's' : '' }} à une commande. Collez une étiquette sur le colis, puis scannez-la depuis la commande.</p>
+        <div>
+          <p class="explain">Collez une étiquette sur le colis, puis scannez-la depuis la commande.</p>
+          <p class="explain-detail">{{ data.used }} déjà reliée{{ data.used > 1 ? 's' : '' }} à une commande.</p>
+        </div>
         <div v-if="data.free + data.used" class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-emerald-500" :style="{ width: `${(data.free / (data.free + data.used)) * 100}%` }" /></div>
         <button type="button" class="btn-secondary mt-3 w-full" @click="scanning = true">📷 Scanner un colis pour ouvrir sa commande</button>
       </section>
@@ -84,7 +87,10 @@ async function found(input) {
         <div class="space-y-1 text-sm">
           <label v-for="f in data.formats" :key="f.code" class="flex items-center gap-2"><input v-model="format" type="radio" :value="f.code"> <span :class="{ 'font-bold': format === f.code }">{{ f.label }}</span></label>
         </div>
-        <p class="text-xs text-slate-500">Mini 40 × 30 : imprimante d'étiquettes (rouleau) ou feuilles d'autocollants A4 (45 par feuille). Chaque étiquette a un code unique, à votre boutique.</p>
+        <div>
+          <p class="explain-detail">Mini 40 × 30 : imprimante d'étiquettes (rouleau). A4 : feuilles de 45 autocollants.</p>
+          <p class="explain-detail">Chaque étiquette a un code unique, propre à votre boutique.</p>
+        </div>
         <button type="button" class="btn-brand w-full" :disabled="busy || !format" @click="createBatch">⬇ Imprimer les {{ quantity }} étiquettes</button>
       </section>
 

@@ -236,23 +236,23 @@ const card = (n) => [
   n < step.value ? 'border-[2.5px] border-emerald-500 bg-emerald-50' : n === step.value ? 'border-[3px] border-ocre-600 bg-white' : 'border border-slate-200 bg-white',
 ]
 // Étapes à venir : texte lisible (pas pâli), seul le numéro est gris
-const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full text-[18px] font-black', n < step.value ? 'bg-emerald-700 text-white' : n === step.value ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700']
+const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg font-black', n < step.value ? 'bg-emerald-700 text-white' : n === step.value ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700']
 </script>
 
 <template>
   <div class="space-y-3 pb-8">
     <Alert v-if="error">{{ error }}</Alert>
-    <div v-if="toast" class="fixed inset-x-3 top-3 z-50 mx-auto max-w-md rounded-2xl bg-slate-900 px-4 py-3 text-[15px] font-extrabold text-white shadow-2xl" role="status">
+    <div v-if="toast" class="fixed inset-x-3 top-3 z-50 mx-auto max-w-md rounded-2xl bg-slate-900 px-4 py-3 text-base font-extrabold text-white shadow-2xl" role="status">
       ✓ WhatsApp connecté<small class="block font-semibold opacity-85">{{ toast }}</small>
     </div>
 
     <!-- Live en cours : on y retourne d'abord -->
     <section v-if="current" class="rounded-[24px] bg-brand-grad p-5 text-white">
       <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-bold"><span class="h-2 w-2 animate-pulse rounded-full bg-live ring-2 ring-white" />COMMANDES OUVERTES</span>
-      <h2 class="mt-2 text-xl font-extrabold">{{ current.title }}</h2>
+      <h2 class="mt-2 text-lg font-extrabold">{{ current.title }}</h2>
       <p class="mt-1 text-3xl font-extrabold">{{ money(current.summary?.amount ?? 0) }}</p>
       <RouterLink :to="`/gestion/live/${current.id}`" class="mt-4 block rounded-2xl bg-white py-3 text-center text-base font-extrabold text-emerald-700">Revenir aux commandes du live</RouterLink>
-      <button type="button" class="mt-2 block w-full rounded-2xl border-2 border-white/70 py-2.5 text-center text-[15px] font-extrabold text-white disabled:opacity-60" :disabled="busy" @click="endLive">⏹ Terminer le live</button>
+      <button type="button" class="mt-2 block w-full rounded-2xl border-2 border-white/70 py-2.5 text-center text-base font-extrabold text-white disabled:opacity-60" :disabled="busy" @click="endLive">⏹ Terminer le live</button>
     </section>
 
     <template v-else-if="lives">
@@ -260,7 +260,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <template v-if="whatsappOpen">
         <section class="space-y-1.5 rounded-[20px] bg-emerald-700 p-4 text-white">
           <span class="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-xs font-extrabold text-emerald-700"><span class="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />COMMANDES AVEC CODES OUVERTES</span>
-          <b class="block font-display text-[28px] font-extrabold leading-tight tabular-nums">{{ money(whatsappOpen.summary?.amount ?? 0) }}</b>
+          <b class="block font-display text-3xl font-extrabold leading-tight tabular-nums">{{ money(whatsappOpen.summary?.amount ?? 0) }}</b>
           <span class="block text-sm opacity-90">{{ whatsappOpen.summary?.orders ?? 0 }} commande{{ (whatsappOpen.summary?.orders ?? 0) > 1 ? 's' : '' }}{{ whatsappOpen.closes_at ? ` · jusqu'au ${new Date(whatsappOpen.closes_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : '' }}</span>
           <div class="grid grid-cols-2 gap-2 pt-1">
             <RouterLink :to="`/gestion/whatsapp/commandes-codes/${whatsappOpen.id}`" class="rounded-xl bg-white py-2.5 text-center text-sm font-extrabold text-emerald-700">Voir les commandes</RouterLink>
@@ -271,40 +271,40 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
           <p class="px-0.5 pt-1 font-display text-base font-extrabold">Ou préparer un live</p>
           <button type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-white p-3 text-left" @click="preparing = true">
             <ColorIcon name="live" :size="34" />
-            <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Préparer un live</b><span class="text-xs text-slate-500">Ferme les commandes avec codes</span></span>
+            <span class="min-w-0 flex-1"><b class="block font-display text-base font-extrabold">Préparer un live</b><span class="explain-detail">Ferme les commandes avec codes</span></span>
             <span class="text-sm font-extrabold text-emerald-700">Commencer ▸</span>
           </button>
         </template>
       </template>
 
       <!-- Commandes avec codes sans live : rangées dans WhatsApp › Assistant des ventes -->
-      <RouterLink v-else-if="platformOn(auth, 'whatsapp_codes')" to="/gestion/whatsapp/ventes" class="flex items-center gap-2 px-0.5 text-[13px] font-semibold text-slate-600">
+      <RouterLink v-else-if="platformOn(auth, 'whatsapp_codes')" to="/gestion/whatsapp/ventes" class="flex items-center gap-2 px-0.5 text-sm font-semibold text-slate-600">
         <ColorIcon name="whatsapp" :size="20" :tile="false" /><span class="min-w-0 flex-1">Sans live, avec les codes A1, A2… : WhatsApp › Assistant des ventes</span><span class="font-extrabold text-emerald-700">▸</span>
       </RouterLink>
 
       <template v-if="showSteps">
       <div class="flex items-center gap-3 rounded-[18px] border border-slate-200 bg-white p-3.5">
         <span class="min-w-0 flex-1"><b class="block font-display text-lg font-extrabold leading-tight">Votre live en 5 étapes</b><span class="text-sm text-slate-600">Jibiat Marchand enregistre les commandes.</span></span>
-        <button type="button" class="shrink-0 rounded-full bg-emerald-50 px-3 py-2 text-[13px] font-extrabold text-emerald-700" aria-label="Voir la vidéo (1 min 30)" @click="video = true"><span aria-hidden="true">▶ 1 min 30</span></button>
+        <button type="button" class="shrink-0 rounded-full bg-emerald-50 px-3 py-2 text-sm font-extrabold text-emerald-700" aria-label="Voir la vidéo (1 min 30)" @click="video = true"><span aria-hidden="true">▶ 1 min 30</span></button>
       </div>
 
       <!-- 1 · WhatsApp -->
       <div :class="card(1)">
         <span :class="bubble(1)">{{ step > 1 ? '✓' : 1 }}</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">{{ whatsapp ? 'WhatsApp connecté' : step > 1 ? 'Sans WhatsApp' : 'Connectez votre numéro WhatsApp sur Meta' }}</b>
-          <span class="text-[13.5px] text-slate-500">{{ whatsapp ? 'Les commandes arrivent toutes seules' : 'Pour recevoir les commandes' }}</span>
+          <b class="block text-lg leading-tight">{{ whatsapp ? 'WhatsApp connecté' : step > 1 ? 'Sans WhatsApp' : 'Connectez votre numéro WhatsApp sur Meta' }}</b>
+          <span class="text-sm text-slate-500">{{ whatsapp ? 'Les commandes arrivent toutes seules' : 'Pour recevoir les commandes' }}</span>
           <template v-if="step === 1">
-            <button type="button" class="mt-2 block w-full rounded-xl bg-whatsapp py-3 text-[16px] font-black text-white" @click="connectWhatsapp">Connecter WhatsApp</button>
-            <button type="button" class="mt-2 block w-full text-center text-[13px] font-bold text-slate-500 underline" @click="skipWhatsapp">Continuer sans WhatsApp</button>
+            <button type="button" class="mt-2 block w-full rounded-xl bg-whatsapp py-3 text-base font-black text-white" @click="connectWhatsapp">Connecter WhatsApp</button>
+            <button type="button" class="mt-2 block w-full text-center text-sm font-bold text-slate-500 underline" @click="skipWhatsapp">Continuer sans WhatsApp</button>
           </template>
-          <button v-else-if="!whatsapp && auth.can('store.manage')" type="button" class="mt-1 text-[13px] font-bold text-emerald-700 underline" @click="connectWhatsapp">Connecter WhatsApp</button>
+          <button v-else-if="!whatsapp && auth.can('store.manage')" type="button" class="mt-1 text-sm font-bold text-emerald-700 underline" @click="connectWhatsapp">Connecter WhatsApp</button>
           <div v-if="number.phone" class="mt-2 flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 ring-1 ring-emerald-200">
             <div class="min-w-0 flex-1">
-              <b class="block whitespace-nowrap text-[15.5px] text-emerald-800">📱 {{ number.phone }}</b>
-              <small class="block text-[12.5px] font-bold text-emerald-700">{{ number.noCard ? 'Mode sans carte · réponses gratuites' : 'Numéro relié' }}</small>
+              <b class="block whitespace-nowrap text-base text-emerald-800">📱 {{ number.phone }}</b>
+              <small class="block text-xs font-bold text-emerald-700">{{ number.noCard ? 'Mode sans carte · réponses gratuites' : 'Numéro relié' }}</small>
             </div>
-            <button v-if="auth.can('store.manage')" type="button" class="shrink-0 text-[13px] font-black text-emerald-700 underline" @click="connectWhatsapp">Changer</button>
+            <button v-if="auth.can('store.manage')" type="button" class="shrink-0 text-sm font-black text-emerald-700 underline" @click="connectWhatsapp">Changer</button>
           </div>
         </div>
       </div>
@@ -313,44 +313,44 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <div v-if="auth.can('store.manage')" :class="card(2)">
         <span :class="bubble(2)">{{ step > 2 ? '✓' : 2 }}</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">Prix de livraison</b>
-          <span class="text-[13.5px] text-slate-500">{{ feesLine || 'Ce que paie la cliente' }}</span>
+          <b class="block text-lg leading-tight">Prix de livraison</b>
+          <span class="text-sm text-slate-500">{{ feesLine || 'Ce que paie la cliente' }}</span>
         </div>
-        <button v-if="step >= 2" type="button" class="shrink-0 text-[14px] font-black" :class="done.fees ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'fees'">{{ done.fees ? 'Modifier' : 'Voir ▸' }}</button>
+        <button v-if="step >= 2" type="button" class="shrink-0 text-sm font-black" :class="done.fees ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'fees'">{{ done.fees ? 'Modifier' : 'Voir ▸' }}</button>
       </div>
 
       <!-- 3 · Articles -->
       <div :class="card(3)">
         <span :class="bubble(3)">{{ step > 3 ? '✓' : 3 }}</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">{{ done.items ? `${products.count} article(s) · ${products.first} à ${products.last}` : 'Choisissez vos articles' }}</b>
-          <span class="text-[13.5px] text-slate-500">{{ done.items ? `${products.pieces} pièces` : noPhoto ? `📷 ${noPhoto} article(s) sans photo` : 'Dans votre catalogue, un live passé ou un nouvel article' }}</span>
+          <b class="block text-lg leading-tight">{{ done.items ? `${products.count} article(s) · ${products.first} à ${products.last}` : 'Choisissez vos articles' }}</b>
+          <span class="text-sm text-slate-500">{{ done.items ? `${products.pieces} pièces` : noPhoto ? `📷 ${noPhoto} article(s) sans photo` : 'Dans votre catalogue, un live passé ou un nouvel article' }}</span>
         </div>
-        <button v-if="step >= 3" type="button" class="shrink-0 text-[14px] font-black" :class="done.items ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'items'">{{ done.items ? 'Modifier' : 'Choisir ▸' }}</button>
+        <button v-if="step >= 3" type="button" class="shrink-0 text-sm font-black" :class="done.items ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'items'">{{ done.items ? 'Modifier' : 'Choisir ▸' }}</button>
       </div>
 
       <!-- 4 · Carte à épingler (fond vert) -->
       <div :class="card(4)">
         <span :class="bubble(4)">{{ step > 4 ? '✓' : 4 }}</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">{{ done.pin ? 'Carte prête' : 'La carte à épingler' }}</b>
-          <span class="text-[13.5px] text-slate-500">{{ done.pin ? 'En fond vert sur le live ✓' : 'À mettre en fond vert sur votre live' }}</span>
+          <b class="block text-lg leading-tight">{{ done.pin ? 'Carte prête' : 'La carte à épingler' }}</b>
+          <span class="text-sm text-slate-500">{{ done.pin ? 'En fond vert sur le live ✓' : 'À mettre en fond vert sur votre live' }}</span>
         </div>
-        <button v-if="step >= 4" type="button" class="shrink-0 text-[14px] font-black" :class="done.pin ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'pin'">{{ done.pin ? 'Revoir' : 'Ouvrir ▸' }}</button>
+        <button v-if="step >= 4" type="button" class="shrink-0 text-sm font-black" :class="done.pin ? 'text-emerald-700' : 'text-ocre-700'" @click="panel = 'pin'">{{ done.pin ? 'Revoir' : 'Ouvrir ▸' }}</button>
       </div>
 
       <!-- 5 · Commencer -->
       <div :class="card(5)">
         <span :class="bubble(5)">5</span>
         <div class="min-w-0 flex-1">
-          <b class="block text-[18px] leading-tight">Lancez votre live sur TikTok</b>
-          <span class="text-[13.5px] text-slate-500">Puis ouvrez les commandes du live ici</span>
+          <b class="block text-lg leading-tight">Lancez votre live sur TikTok</b>
+          <span class="text-sm text-slate-500">Puis ouvrez les commandes du live ici</span>
         </div>
       </div>
       <template v-if="step === 5">
-        <p v-if="billingLine" class="text-center text-[14.5px] font-extrabold" :class="billing.next === 'pay' ? 'text-slate-700' : 'text-emerald-700'">{{ billingLine }}</p>
-        <button type="button" class="block w-full rounded-2xl bg-emerald-700 py-4 text-[18px] font-black text-white hover:bg-emerald-800" :disabled="busy" @click="start">{{ startLabel }}</button>
-        <RouterLink :to="`/gestion/live/${draft.id}?onglet=support&support=tv`" class="block text-center text-[13px] font-bold text-slate-500 underline">📺 Afficher sur une télé ou TikTok LIVE Studio</RouterLink>
+        <p v-if="billingLine" class="text-center text-sm font-extrabold" :class="billing.next === 'pay' ? 'text-slate-700' : 'text-emerald-700'">{{ billingLine }}</p>
+        <button type="button" class="block w-full rounded-2xl bg-emerald-700 py-4 text-lg font-black text-white hover:bg-emerald-800" :disabled="busy" @click="start">{{ startLabel }}</button>
+        <RouterLink :to="`/gestion/live/${draft.id}?onglet=support&support=tv`" class="block text-center text-sm font-bold text-slate-500 underline">📺 Afficher sur une télé ou TikTok LIVE Studio</RouterLink>
       </template>
 
       </template>
@@ -360,7 +360,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
         <span aria-hidden="true">🧾</span>
         <RouterLink to="/gestion/solde" class="min-w-0 flex-1">
           <b class="block font-display text-base font-extrabold tabular-nums">{{ billing.month_until ? 'Illimité' : `${billing.orders} commandes` }} · ✨ {{ billing.ai }} IA</b>
-          <span class="text-[13px] text-slate-500">1 commande {{ whatsappOpen ? 'avec code' : 'du live' }} = 1 du solde</span>
+          <span class="text-sm text-slate-500">1 commande {{ whatsappOpen ? 'avec code' : 'du live' }} = 1 du solde</span>
         </RouterLink>
         <button type="button" class="shrink-0 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-extrabold text-emerald-700" @click="openRecharge()">Recharger</button>
       </div>
@@ -377,18 +377,18 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
     <!-- Étape 4 : la photo et les consignes -->
     <div v-if="panel === 'pin' && draft" class="fixed inset-0 z-50 flex flex-col bg-white" role="dialog" aria-modal="true" aria-label="La carte à épingler">
       <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-        <h2 class="text-[18px] font-black">4 · La carte à épingler</h2>
+        <h2 class="text-lg font-black">4 · La carte à épingler</h2>
         <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-lg" aria-label="Fermer" @click="panel = null">✕</button>
       </header>
       <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
         <LivePin :live="draft" />
         <section class="space-y-3 rounded-2xl bg-orange-50 p-4">
-          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">1</b><p class="text-[15px]"><b>Télécharge</b> la carte (bouton ci-dessus).</p></div>
-          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">2</b><p class="text-[15px]">Dans votre live TikTok, ouvrez <b>Fond vert</b> et choisissez la carte dans votre galerie : les clientes voient vos articles et leurs codes pendant tout le live.</p></div>
+          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">1</b><p class="text-base"><b>Télécharge</b> la carte (bouton ci-dessus).</p></div>
+          <div class="flex gap-3"><b class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ocre-600 text-sm text-white">2</b><p class="text-base"><b class="block">Mettez la carte en fond vert dans votre live TikTok.</b>Ouvrez <b>Fond vert</b> et choisissez-la dans votre galerie : les clientes voient vos articles et leurs codes.</p></div>
         </section>
       </div>
       <footer class="border-t border-slate-200 p-3">
-        <button type="button" class="w-full rounded-2xl bg-emerald-700 py-3.5 text-[16px] font-black text-white" :disabled="busy" @click="pinReady">C'est fait ✓</button>
+        <button type="button" class="w-full rounded-2xl bg-emerald-700 py-3.5 text-base font-black text-white" :disabled="busy" @click="pinReady">C'est fait ✓</button>
       </footer>
     </div>
 

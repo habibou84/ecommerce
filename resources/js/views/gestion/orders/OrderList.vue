@@ -539,7 +539,7 @@ async function exportList() {
     <!-- Téléphone et tablette : une carte par commande, groupées par jour -->
     <div class="space-y-3 lg:hidden">
       <template v-for="g in groups" :key="g.key ?? 'sans-date'">
-        <p class="flex items-baseline justify-between gap-2 px-0.5 pt-2 text-sm"><span class="truncate font-display text-[15px] font-extrabold text-slate-800">{{ g.key ? dayLabel(g.key).split(',')[0] : 'Date à fixer' }} · {{ g.count }}</span><span class="shrink-0 font-semibold text-slate-600">{{ money(g.amount) }}</span></p>
+        <p class="flex items-baseline justify-between gap-2 px-0.5 pt-2 text-sm"><span class="truncate font-display text-base font-extrabold text-slate-800">{{ g.key ? dayLabel(g.key).split(',')[0] : 'Date à fixer' }} · {{ g.count }}</span><span class="shrink-0 font-semibold text-slate-600">{{ money(g.amount) }}</span></p>
         <div v-for="o in g.orders" :key="o.id" class="card relative p-3.5" :class="{ 'ring-2 ring-emerald-600': selected.has(o.id) }">
           <!-- Mode sélection : toute la carte coche ou décoche -->
           <button v-if="selecting" type="button" class="absolute inset-0 z-10 rounded-[inherit]" :aria-label="`${selected.has(o.id) ? 'Décocher' : 'Cocher'} ${o.reference}`" :aria-pressed="selected.has(o.id)" @click="toggle(o.id)" />
@@ -568,10 +568,10 @@ async function exportList() {
           <div class="mt-3 flex gap-2">
             <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600" aria-label="Appeler"><Icon name="phone" :size="18" /></a>
             <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-600" aria-label="WhatsApp"><Icon name="whatsapp" :size="18" /></a>
-            <button v-if="mainAction(o)" type="button" class="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white" :class="mainAction(o).tone" :disabled="busy" @click="mainAction(o).run()"><Icon :name="mainAction(o).icon" :size="17" />{{ mainAction(o).label }}</button>
+            <button v-if="mainAction(o)" type="button" class="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl text-base font-semibold text-white" :class="mainAction(o).tone" :disabled="busy" @click="mainAction(o).run()"><Icon :name="mainAction(o).icon" :size="17" />{{ mainAction(o).label }}</button>
             <div v-else-if="showDeliverer(o)" class="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 pl-3 pr-1">
               <Icon name="truck" :size="17" class="shrink-0 text-emerald-700" />
-              <span class="min-w-0 flex-1 truncate text-[15px] font-semibold text-emerald-900">{{ o.deliverer }}<span v-if="o.deliverer_planned" class="font-normal text-emerald-700"> · prévu</span></span>
+              <span class="min-w-0 flex-1 truncate text-base font-semibold text-emerald-900">{{ o.deliverer }}<span v-if="o.deliverer_planned" class="font-normal text-emerald-700"> · prévu</span></span>
               <button v-if="o.deliverer_editable && canAssign" type="button" class="h-9 shrink-0 rounded-lg bg-white px-3 text-sm font-semibold text-emerald-800 shadow-sm" :disabled="busy" @click="editDeliverer(o)">Changer</button>
             </div>
           </div>
@@ -658,7 +658,7 @@ async function exportList() {
         <select v-if="statusForm.status === 'cancelled'" v-model="statusForm.reason" class="input" aria-label="Motif d'annulation">
           <option v-for="r in CANCEL_REASONS" :key="r.value" :value="r.value">{{ r.label }}</option>
         </select>
-        <p class="text-sm text-slate-500">Les autres commandes choisies restent telles quelles.</p>
+        <p class="explain-detail">Les autres commandes choisies restent telles quelles.</p>
         <button type="button" class="btn-brand w-full" :class="{ 'btn-danger': statusForm.status === 'cancelled' }" :disabled="!eligible(can.status, statusForm.status).length" @click="applyStatus">Appliquer à {{ plural(eligible(can.status, statusForm.status).length, 'commande') }}</button>
       </div>
     </Modal>

@@ -382,7 +382,7 @@ async function switchTo(store) {
           <div v-if="item.items">
             <button
               type="button"
-              class="flex w-full items-center gap-3 rounded-2xl px-2.5 py-1.5 text-[14.5px] font-semibold"
+              class="flex w-full items-center gap-3 rounded-2xl px-2.5 py-1.5 text-sm font-semibold"
               :class="isActive(item) ? 'text-emerald-800' : 'text-slate-700 hover:bg-slate-50'"
               :aria-expanded="openGroup === item.label"
               @click="toggle(item)"
@@ -390,7 +390,7 @@ async function switchTo(store) {
               <ColorIcon v-if="item.color" :name="item.color" :size="30" />
               <svg v-else viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
               {{ item.label }}
-              <span v-if="groupBadge(item) && openGroup !== item.label" class="ml-auto rounded-full bg-slate-800 px-1.5 text-[11px] font-semibold text-white">{{ groupBadge(item) }}</span>
+              <span v-if="groupBadge(item) && openGroup !== item.label" class="ml-auto rounded-full bg-slate-800 px-1.5 text-xs font-semibold text-white">{{ groupBadge(item) }}</span>
               <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400 transition" :class="[{ 'rotate-90': openGroup === item.label }, groupBadge(item) && openGroup !== item.label ? '' : 'ml-auto']" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" /></svg>
             </button>
             <div v-show="openGroup === item.label" class="mb-1 ml-[26px] space-y-0.5 border-l border-slate-200 pl-3">
@@ -403,14 +403,14 @@ async function switchTo(store) {
                 @click="menuOpen = false"
               >
                 {{ sub.label }}
-                <span v-if="badges[sub.badge]" class="ml-auto rounded-full bg-slate-800 px-1.5 text-[11px] font-semibold text-white">{{ badges[sub.badge] }}</span>
+                <span v-if="badges[sub.badge]" class="ml-auto rounded-full bg-slate-800 px-1.5 text-xs font-semibold text-white">{{ badges[sub.badge] }}</span>
               </RouterLink>
             </div>
           </div>
           <RouterLink
             v-else
             :to="item.to"
-            class="flex items-center gap-3 rounded-2xl px-2.5 py-1.5 text-[14.5px] font-semibold"
+            class="flex items-center gap-3 rounded-2xl px-2.5 py-1.5 text-sm font-semibold"
             :class="isActive(item) ? 'bg-emerald-50 text-emerald-800' : 'text-slate-700 hover:bg-slate-50'"
             @click="menuOpen = false"
           >
@@ -468,8 +468,8 @@ async function switchTo(store) {
           <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         <div class="min-w-0" :class="swipeHome ? 'hidden lg:block' : ''">
-          <h1 class="truncate text-[17px] font-bold leading-tight sm:text-xl">{{ screenTitle }}</h1>
-          <p v-if="route.path === '/gestion'" class="truncate text-[12.5px] leading-tight text-slate-500 first-letter:uppercase sm:text-sm">{{ todayLabel }}</p>
+          <h1 class="truncate text-lg font-bold leading-tight sm:text-2xl">{{ screenTitle }}</h1>
+          <p v-if="route.path === '/gestion'" class="truncate text-xs leading-tight text-slate-500 first-letter:uppercase sm:text-sm">{{ todayLabel }}</p>
         </div>
         <div class="relative ml-auto flex shrink-0 items-center gap-2" :class="swipeHome ? 'before:pointer-events-none before:absolute before:-left-8 before:inset-y-0 before:w-8 before:bg-gradient-to-r before:from-transparent before:to-slate-50 max-lg:-mr-4 max-lg:bg-slate-50 max-lg:pr-4' : ''">
           <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" :class="swipeHome ? 'max-lg:!hidden' : ''" class="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-2.5 text-sm font-semibold text-slate-700 shadow-soft sm:px-3.5" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide"><ColorIcon name="aide" :size="24" :tile="false" /><span class="hidden sm:inline">Aide</span></a>
@@ -488,7 +488,7 @@ async function switchTo(store) {
       <!-- Mode sans carte : une information calme (le live et les réponses partent), carte proposée sans insister -->
       <div v-if="auth.profile?.whatsapp_payment && auth.can('store.manage') && !noCardHidden" class="flex items-center gap-3 bg-sky-50 px-4 py-2.5 text-sky-950">
         <span class="text-2xl" aria-hidden="true">📱</span>
-        <span class="min-w-0 flex-1 text-sm"><b class="block text-[15px] leading-tight">WhatsApp en mode sans carte</b>Live et réponses : automatiques. Le reste : bouton WhatsApp sur la commande. <a :href="auth.profile.whatsapp_payment.url" target="_blank" rel="noopener" class="font-bold underline">Ajouter une carte</a></span>
+        <span class="min-w-0 flex-1 text-sm"><b class="block text-base leading-tight">WhatsApp en mode sans carte</b>Live et réponses : automatiques. Le reste : bouton WhatsApp sur la commande. <a :href="auth.profile.whatsapp_payment.url" target="_blank" rel="noopener" class="font-bold underline">Ajouter une carte</a></span>
         <button type="button" class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sky-900" aria-label="Masquer" @click="hideNoCard">✕</button>
       </div>
       <!-- Gratuité pour tous, avec le message choisi dans la console -->
@@ -515,7 +515,7 @@ async function switchTo(store) {
         <header class="shrink-0 border-b border-slate-200 bg-white px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]" @touchstart.passive="dragBegin($event)" @touchmove.passive="dragMove" @touchend="dragEnd">
           <div class="flex items-center gap-2">
             <button v-if="sheetDepth > 1" type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xl font-bold" aria-label="Retour" @click="sheetBack">‹</button>
-            <h2 class="min-w-0 flex-1 truncate text-[18px] font-extrabold">{{ screenTitle }}</h2>
+            <h2 class="min-w-0 flex-1 truncate text-lg font-extrabold">{{ screenTitle }}</h2>
             <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-900 text-white" aria-label="Fermer" @click="closeSheet"><Icon name="close" :size="20" /></button>
           </div>
         </header>
@@ -529,7 +529,7 @@ async function switchTo(store) {
     <!-- Téléphone : les gestes de tous les jours sous le pouce (onglet actif en couleur sur une pastille, comme dans Jibiat) -->
     <nav v-if="!swipeHome && !swipeOn" class="hide-on-keyboard fixed inset-x-0 bottom-0 z-10 border-t border-slate-200/70 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
       <div class="mx-auto grid h-[66px] max-w-md items-start px-1 pt-1.5" :class="canOpen('/gestion/live') ? 'grid-cols-6' : 'grid-cols-5'">
-        <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
+        <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 text-xs font-semibold" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive(tab) ? 'bg-emerald-50' : ''">
             <ColorIcon v-if="isActive(tab)" :name="bottomColor[tab.icon]" :size="26" :tile="false" />
             <Icon v-else :name="tab.icon" :size="22" />
@@ -541,18 +541,18 @@ async function switchTo(store) {
           </RouterLink>
         </div>
         <!-- Le live garde sa couleur : c'est ce qui distingue Jibiat Marchand -->
-        <RouterLink v-if="canOpen('/gestion/live')" to="/gestion/live" class="flex flex-col items-center gap-0.5 text-[11px] font-bold text-live">
+        <RouterLink v-if="canOpen('/gestion/live')" to="/gestion/live" class="flex flex-col items-center gap-0.5 text-xs font-bold text-live">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/live' }) ? 'bg-live-soft' : ''"><ColorIcon name="live" :size="26" :tile="false" /></span>Live
         </RouterLink>
-        <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="isActive({ to: '/gestion/messages' }) ? 'text-emerald-700' : 'text-slate-600'">
+        <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative flex flex-col items-center gap-0.5 text-xs font-semibold" :class="isActive({ to: '/gestion/messages' }) ? 'text-emerald-700' : 'text-slate-600'">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/messages' }) ? 'bg-emerald-50' : ''">
             <ColorIcon v-if="isActive({ to: '/gestion/messages' })" name="whatsapp" :size="26" :tile="false" />
             <Icon v-else name="messages" :size="22" />
           </span>Messages
-          <span v-if="badges.messages" class="absolute right-[calc(50%-22px)] -top-0.5 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[11px] font-bold leading-[18px] text-white ring-2 ring-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
+          <span v-if="badges.messages" class="absolute right-[calc(50%-22px)] -top-0.5 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-pastille font-bold leading-[18px] text-white ring-2 ring-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
         </RouterLink>
         <span v-else />
-        <button type="button" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="plusOpen ? 'text-emerald-700' : 'text-slate-600'" @click="plusOpen = true">
+        <button type="button" class="flex flex-col items-center gap-0.5 text-xs font-semibold" :class="plusOpen ? 'text-emerald-700' : 'text-slate-600'" @click="plusOpen = true">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="plusOpen ? 'bg-emerald-50' : ''">
             <ColorIcon v-if="plusOpen" name="menu" :size="26" :tile="false" />
             <Icon v-else name="menu" :size="22" />
@@ -566,13 +566,13 @@ async function switchTo(store) {
     <div v-if="plusOpen" class="fixed inset-x-0 bottom-0 z-40 max-h-[85vh] overflow-y-auto rounded-t-[28px] bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] lg:hidden" role="dialog" aria-label="Tout Jibiat Marchand">
       <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200" />
       <div class="mb-3 flex items-center justify-between px-1">
-        <p class="text-[19px] font-extrabold">Tout Jibiat Marchand</p>
+        <p class="text-lg font-extrabold">Tout Jibiat Marchand</p>
         <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600" aria-label="Fermer" @click="plusOpen = false"><Icon name="close" :size="18" /></button>
       </div>
       <div class="grid grid-cols-3 gap-2.5">
         <RouterLink v-for="tile in plusTiles" :key="tile.to" :to="tile.to" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-slate-50 px-1 py-3 text-center active:scale-95 transition">
           <ColorIcon :name="tile.color" :size="44" />
-          <span class="text-[12.5px] font-semibold leading-tight text-slate-700">{{ tile.label }}</span>
+          <span class="text-xs font-semibold leading-tight text-slate-700">{{ tile.label }}</span>
         </RouterLink>
       </div>
       <button type="button" class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 py-3 text-sm font-bold text-slate-700" @click="plusOpen = false; menuOpen = true">

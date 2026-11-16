@@ -144,7 +144,10 @@ async function endSession(id) {
       </section>
       <section class="card space-y-2 p-4 text-sm">
         <h3 class="font-semibold">📱 WhatsApp par QR code</h3>
-        <p class="text-slate-600">Liaison non officielle (comme WhatsApp Web) pour la boîte Messages et les lives. Coupée : la boutique ne voit que « Connecter WhatsApp avec Facebook ».</p>
+        <div>
+          <p class="explain">Liaison non officielle, comme WhatsApp Web.</p>
+          <p class="explain-detail">Pour la boîte Messages et les lives. Coupée : la boutique ne voit que « Connecter WhatsApp avec Facebook ».</p>
+        </div>
         <p>{{ store.whatsapp_qr.enabled ? 'Autorisé' : 'Coupé' }} · {{ QR_STATUS[store.whatsapp_qr.status] ?? store.whatsapp_qr.status }}</p>
         <button type="button" :class="store.whatsapp_qr.enabled ? 'btn-ghost text-red-600' : 'btn-ghost'" :disabled="busy" @click="toggleQr">
           {{ store.whatsapp_qr.enabled ? 'Couper' : 'Autoriser' }}
@@ -187,7 +190,10 @@ async function endSession(id) {
     <Modal v-if="modal === 'support'" title="Session de support" @close="modal = null">
       <form class="space-y-4" @submit.prevent="act('support', { reason: form.reason, minutes: Number(form.minutes) })">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-sm text-slate-600">Vous entrez dans l'espace marchand avec le rôle « support » (sans l'abonnement, l'équipe ni les comptes de paiement). Le propriétaire est prévenu et peut mettre fin à l'accès.</p>
+        <div>
+          <p class="explain">Vous entrez dans la boutique avec le rôle « support ».</p>
+          <p class="explain-detail">Sans l'abonnement, l'équipe ni les comptes de paiement. Le propriétaire est prévenu et peut couper l'accès.</p>
+        </div>
         <Field id="sup-reason" label="Motif (visible dans l'espace marchand)"><input id="sup-reason" v-model="form.reason" class="input" minlength="5" maxlength="255" required placeholder="ex. Aide à la configuration des zones" /></Field>
         <Field id="sup-minutes" label="Durée (minutes)"><input id="sup-minutes" v-model="form.minutes" type="number" min="5" max="240" class="input w-32" /></Field>
         <button class="btn-brand w-full" :disabled="busy">Ouvrir l'espace marchand</button>
@@ -211,7 +217,7 @@ async function endSession(id) {
     <Modal v-if="modal === 'credits'" title="Offrir au solde" @close="modal = null">
       <div class="space-y-4">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-sm text-slate-600">Ajouté au solde de la boutique : des commandes (live, WhatsApp, boost), des actions IA, ou 30 jours d'illimité.</p>
+        <p class="explain-detail">Ajouté au solde de la boutique : des commandes (live, WhatsApp, boost), des actions IA, ou 30 jours d'illimité.</p>
         <form class="grid grid-cols-2 gap-2" @submit.prevent="offerCredits({ orders: form.creditOrders || null, ai: form.creditAi || null })">
           <label class="text-sm font-semibold">Commandes<input v-model.number="form.creditOrders" type="number" min="0" max="100000" class="input mt-1" /></label>
           <label class="text-sm font-semibold">Actions IA<input v-model.number="form.creditAi" type="number" min="0" max="100000" class="input mt-1" /></label>
@@ -223,7 +229,10 @@ async function endSession(id) {
     <Modal v-if="modal === 'free'" title="Gratuit à vie" @close="modal = null">
       <form class="space-y-4" @submit.prevent="act('free', { plan: form.plan })">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-sm text-slate-600">L'espace marchand a cette offre sans payer et sans date de fin, même quand la gratuité pour tous est arrêtée. Les limites de l'offre s'appliquent.</p>
+        <div>
+          <p class="explain">Cette offre, sans payer et sans date de fin.</p>
+          <p class="explain-detail">Même quand la gratuité pour tous s'arrête. Les limites de l'offre s'appliquent.</p>
+        </div>
         <Field id="free-plan" label="Offre"><select id="free-plan" v-model="form.plan" class="input"><option v-for="(name, code) in PLAN_NAMES" :key="code" :value="code">{{ name }}</option></select></Field>
         <button class="btn-brand w-full" :disabled="busy">Offrir à vie</button>
       </form>
@@ -231,7 +240,7 @@ async function endSession(id) {
     <Modal v-if="modal === 'suspend'" title="Suspendre l'espace marchand" @close="modal = null">
       <form class="space-y-4" @submit.prevent="act('suspend', { reason: form.reason })">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-sm text-slate-600">Le site et la gestion deviennent inaccessibles ; les données sont conservées.</p>
+        <p class="explain-detail">Le site et la gestion deviennent inaccessibles ; les données sont conservées.</p>
         <Field id="susp-reason" label="Motif"><input id="susp-reason" v-model="form.reason" class="input" maxlength="255" required /></Field>
         <button class="btn-danger w-full" :disabled="busy">Suspendre</button>
       </form>

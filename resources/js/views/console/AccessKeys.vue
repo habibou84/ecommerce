@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../components/ExplainMore.vue'
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import Field from '../../components/Field.vue'
@@ -112,10 +113,11 @@ const kindLabel = (b) => ({ founder: '🏅 Membre Premium à vie', partner: `�
     <Alert v-if="error">{{ error }}</Alert>
 
     <section class="card space-y-3 p-4 text-sm">
-      <p class="text-slate-600">
-        Des cartes à QR code à distribuer : la personne scanne, crée sa boutique (ou se connecte) et la clé s'active. Une clé sert une seule fois.
-        L'assistant IA n'est dans aucune offre : ses actions viennent du solde (packs). Une carte Membre Premium à vie se met en pause après {{ data.idle_days }} jours sans commande, et se rallume à la commande suivante.
-      </p>
+      <div>
+        <p class="explain">Des cartes à QR code : la boutique s'active en un scan.</p>
+        <p class="explain-detail">La personne scanne, crée sa boutique ou se connecte. Une clé sert une seule fois.</p>
+        <ExplainMore>L'assistant IA n'est dans aucune offre : ses actions viennent du solde (packs). Une carte Membre Premium à vie se met en pause après {{ data.idle_days }} jours sans commande, et se rallume à la commande suivante.</ExplainMore>
+      </div>
       <div class="flex flex-wrap gap-2">
         <button class="btn-brand" @click="startBatch('founder')">🏅 Nouvelles cartes Membre Premium</button>
         <button class="btn-ghost" @click="startBatch('timed')">Nouvelles clés à durée</button>
@@ -124,10 +126,11 @@ const kindLabel = (b) => ({ founder: '🏅 Membre Premium à vie', partner: `�
 
     <section v-if="premium" class="card space-y-3 p-4 text-sm">
       <h3 class="font-semibold">Cartes offertes par les entreprises de livraison</h3>
-      <p class="text-slate-600">
-        Les entreprises de Jibiat offrent la carte Membre Premium à leurs meilleurs marchands (à la main ou toute seule quand le marchand remplit leurs conditions).
-        Le marchand a l'offre choisie pendant les mois offerts, puis une réduction sur son abonnement tant qu'il livre avec l'entreprise. Une carte garde la formule du jour où elle est offerte.
-      </p>
+      <div>
+        <p class="explain">Les entreprises offrent la carte Premium à leurs meilleurs marchands.</p>
+        <p class="explain-detail">L'offre pendant les mois offerts, puis une réduction tant qu'il livre avec elles.</p>
+        <ExplainMore>À la main, ou toute seule quand le marchand remplit leurs conditions. Une carte garde la formule du jour où elle est offerte.</ExplainMore>
+      </div>
       <form class="grid gap-3 sm:grid-cols-4" @submit.prevent="savePremium">
         <Field id="p-plan" label="Offre donnée" :error="premiumErrors.plan">
           <select id="p-plan" v-model="premium.plan" class="input">

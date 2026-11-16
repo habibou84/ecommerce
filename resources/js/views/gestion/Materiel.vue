@@ -100,8 +100,8 @@ const TONE = { pending: 'bg-amber-100 text-amber-900', confirmed: 'bg-sky-100 te
 <template>
   <div v-if="data" class="space-y-5" :class="count ? 'pb-20' : ''">
     <div>
-      <h2 class="text-xl font-extrabold">Matériel</h2>
-      <p class="text-sm text-slate-600">Imprimantes d'étiquettes, accessoires pour vos lives, matériel de caisse… choisis pour fonctionner avec Jibiat Marchand.</p>
+      <h2 class="text-2xl font-extrabold">Matériel</h2>
+      <p class="explain-detail">Imprimantes d'étiquettes, matériel de live et de caisse… prévus pour Jibiat Marchand.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
@@ -137,7 +137,7 @@ const TONE = { pending: 'bg-amber-100 text-amber-900', confirmed: 'bg-sky-100 te
     </template>
 
     <section v-if="data.orders.length" class="space-y-2">
-      <h3 class="text-[17px] font-extrabold">Mes commandes de matériel</h3>
+      <h3 class="text-lg font-extrabold">Mes commandes de matériel</h3>
       <article v-for="o in data.orders" :key="o.id" class="card space-y-2 p-4 text-sm">
         <div class="flex flex-wrap items-center gap-2">
           <b>{{ o.number }}</b>

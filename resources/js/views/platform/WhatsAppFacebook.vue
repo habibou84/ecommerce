@@ -165,7 +165,7 @@ async function copyLink() {
   <AuthShell title="Connectez votre numéro WhatsApp sur Meta" subtitle="Connexion officielle, avec votre compte Facebook.">
     <div v-if="handedBack" class="space-y-2 text-center">
       <p class="text-lg font-extrabold">✅ C'est fait !</p>
-      <p class="text-[15px] text-slate-700">Fermez cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
+      <p class="text-base text-slate-700">Fermez cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
     </div>
     <p v-else-if="checking" class="text-center text-sm text-slate-600">{{ returned ? 'Connexion reçue de Facebook, retour vers votre espace…' : 'Chargement…' }}</p>
     <Alert v-else-if="!back || returned || !destination || !options.appId || !options.configId" tone="error">
@@ -174,7 +174,7 @@ async function copyLink() {
     <div v-else class="space-y-4">
       <!-- Navigateur intégré (lien ouvert depuis WhatsApp, Facebook, Instagram…) : la connexion y échoue souvent -->
       <div v-if="embeddedBrowser" class="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        <p><b>Ouvrez cette page dans Chrome ou Safari</b> pour connecter WhatsApp : dans le navigateur de WhatsApp, Facebook ou Instagram, la connexion n'aboutit souvent pas.</p>
+        <p><b class="block">Ouvrez cette page dans Chrome ou Safari.</b>Dans le navigateur de WhatsApp, Facebook ou Instagram, la connexion n'aboutit souvent pas.</p>
         <p>Menu ⋮ (ou ⋯) › « Ouvrir dans le navigateur », ou copiez le lien et collez-le dans Chrome.</p>
         <button type="button" class="btn-secondary w-full" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien' }}</button>
       </div>
@@ -184,9 +184,9 @@ async function copyLink() {
         <p class="text-xs text-slate-600">{{ destination.host }}</p>
       </div>
       <p class="text-sm font-semibold text-red-700">Ce n'est pas votre espace ? Fermez cette page : quelqu'un essaie de récupérer votre WhatsApp.</p>
-      <p class="text-[15px] text-slate-700">Facebook s'ouvre et vous guide : suivez ses étapes jusqu'au bout.</p>
+      <p class="text-base text-slate-700">Facebook s'ouvre et vous guide : suivez ses étapes jusqu'au bout.</p>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
-      <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
+      <button type="button" class="btn-brand w-full py-4 text-lg font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
       <button type="button" class="btn-secondary w-full" @click="leave">Revenir</button>
       <WhatsAppHelp class="text-center" />
     </div>

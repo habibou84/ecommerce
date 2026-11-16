@@ -91,7 +91,8 @@ async function remit() {
 
     <section v-if="data?.declarations?.length" class="card border-amber-300 p-4 text-sm">
       <h3 class="mb-1 text-base font-semibold">À confirmer</h3>
-      <p class="mb-2 text-slate-600">Vos livreurs disent avoir versé cet argent. Vérifiez votre compte ou le tiroir, puis confirmez le montant réellement reçu.</p>
+      <p class="explain">Vos livreurs disent avoir versé cet argent.</p>
+      <p class="explain-detail mb-2">Vérifiez votre compte ou le tiroir, puis confirmez le montant reçu.</p>
       <ul class="divide-y divide-slate-100">
         <li v-for="d in data.declarations" :key="d.id" class="flex flex-wrap items-center gap-3 py-2">
           <span class="min-w-0 flex-1">

@@ -541,19 +541,19 @@ const ago = (iso) => {
           <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-1 text-xs font-black text-slate-900">{{ toasts[0].code }}</span>
         </span>
         <span class="min-w-0 flex-1">
-          <span class="block text-[11px] font-extrabold tracking-wider text-red-400">🎉 NOUVELLE COMMANDE<template v-if="toasts.length > 1"> · +{{ toasts.length - 1 }}</template></span>
+          <span class="block text-xs font-extrabold tracking-wider text-red-400">🎉 NOUVELLE COMMANDE<template v-if="toasts.length > 1"> · +{{ toasts.length - 1 }}</template></span>
           <span class="block truncate text-lg font-black leading-tight">{{ toasts[0].name }}</span>
           <span class="block truncate text-xs text-white/80">{{ toasts[0].code }}<template v-if="toasts[0].variant"> · {{ toasts[0].variant }}</template></span>
-          <span class="mt-1 block text-[13px] font-bold">🗣 « Merci {{ toasts[0].first || 'à toi' }} ! Bien reçu pour {{ toasts[0].code }} ! »</span>
+          <span class="mt-1 block text-sm font-bold">🗣 « Merci {{ toasts[0].first || 'à toi' }} ! Bien reçu pour {{ toasts[0].code }} ! »</span>
         </span>
       </button>
     </Teleport>
     <!-- Commandes ouvertes : durée, montant, menu ⋯, ✕ -->
     <div class="flex items-center gap-2 px-0.5 text-white">
       <span class="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-600" aria-hidden="true" />
-      <b class="whitespace-nowrap text-[13px] font-black">COMMANDES OUVERTES</b>
+      <b class="whitespace-nowrap text-sm font-black">COMMANDES OUVERTES</b>
       <span class="whitespace-nowrap text-xs font-bold text-slate-400">{{ duration }}</span>
-      <b class="ml-auto whitespace-nowrap text-[17px] font-black">{{ money(live.summary?.amount ?? 0) }}</b>
+      <b class="ml-auto whitespace-nowrap text-lg font-black">{{ money(live.summary?.amount ?? 0) }}</b>
       <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg font-black text-white" aria-label="Plus" :aria-expanded="menu" @click="menu = !menu">⋯</button>
       <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-white text-lg font-black text-slate-900" aria-label="Fermer (le live continue)" @click="emit('close')">✕</button>
     </div>
@@ -563,7 +563,7 @@ const ago = (iso) => {
         <span>{{ live.billing.orders }} commande{{ live.billing.orders > 1 ? 's' : '' }}</span>
         <span :class="live.billing.after < 0 ? 'text-amber-300' : 'text-emerald-300'">Solde après le live : {{ live.billing.after }}</span>
       </div>
-      <p v-if="live.billing.after < 0 && !live.billing.billed" class="mt-1.5 rounded-lg bg-amber-400/15 px-2 py-1 text-xs font-bold text-amber-200">⚠️ Votre solde ne couvre pas toutes les commandes : le live continue, rechargez avant le prochain.</p>
+      <p v-if="live.billing.after < 0 && !live.billing.billed" class="mt-1.5 rounded-lg bg-amber-400/15 px-2 py-1 text-sm font-bold text-amber-200">⚠️ Solde trop bas : le live continue, rechargez avant le prochain.</p>
     </div>
     <div v-if="menu" class="grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-2 text-sm font-extrabold text-slate-900">
       <button type="button" class="rounded-xl bg-slate-100 py-2.5" @click="menu = false; emit('share')">📤 Lien du live</button>
@@ -575,10 +575,10 @@ const ago = (iso) => {
     </div>
 
     <!-- Live, Commandes, Messages -->
-    <nav class="sticky top-0 z-20 grid grid-cols-3 gap-1 rounded-xl bg-[#1e2638] p-1 text-[14px] font-extrabold" role="tablist">
+    <nav class="sticky top-0 z-20 grid grid-cols-3 gap-1 rounded-xl bg-[#1e2638] p-1 text-sm font-extrabold" role="tablist">
       <button v-for="[key, label, count] in [['live', '🔴 Live', 0], ['commandes', 'Commandes', newOrders + proofs], ['messages', 'Messages', questions.length]]" :key="key" type="button" role="tab" :aria-selected="tab === key"
               class="relative rounded-lg py-2" :class="tab === key ? 'bg-white text-slate-900' : 'text-slate-400'" @click="tab = key">
-        {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-[11px] text-white">{{ count }}</span>
+        {{ label }}<span v-if="count" class="ml-1 rounded-full bg-red-600 px-1.5 text-xs text-white">{{ count }}</span>
       </button>
     </nav>
 
@@ -586,7 +586,7 @@ const ago = (iso) => {
     <section v-if="tab === 'live'" class="space-y-2.5 text-white">
       <div class="grid gap-1 rounded-xl bg-white/10 p-1" :style="{ gridTemplateColumns: `repeat(${VIEWS.length}, minmax(0, 1fr))` }" role="tablist" aria-label="Où regarder ?">
         <button v-for="[key, label] in VIEWS" :key="key" type="button" role="tab" :aria-selected="shownView === key"
-                class="relative rounded-lg py-2 text-[12.5px] font-extrabold" :class="shownView === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="view = key">
+                class="relative rounded-lg py-2 text-xs font-extrabold" :class="shownView === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="view = key">
           {{ label }}<span class="absolute top-1 right-1 h-2 w-2 rounded-full" :class="viewState(key) ? 'bg-emerald-400' : key === 'pin' ? 'bg-amber-400' : 'bg-red-500'" />
         </button>
       </div>
@@ -595,8 +595,8 @@ const ago = (iso) => {
       <template v-if="shownView !== 'pin'">
         <!-- Connecté : rien ici (le point vert de l'onglet le dit, « Gérer les écrans » est dans Plus) ; pas connecté : le bandeau rouge -->
         <div v-if="!(shownView === 'tv' ? tvOnline : studioOnline)" class="flex items-center gap-2 rounded-xl bg-red-500/15 px-3 py-2 ring-1 ring-red-400/50">
-          <b class="min-w-0 flex-1 text-[13px]">{{ shownView === 'tv' ? '📺 Télé pas connectée' : '📱 TikTok Studio pas connecté' }}</b>
-          <button type="button" class="shrink-0 rounded-lg bg-white px-3 py-1.5 text-[13px] font-black text-slate-900" @click="openConnect(shownView)">Connecter</button>
+          <b class="min-w-0 flex-1 text-sm">{{ shownView === 'tv' ? '📺 Télé pas connectée' : '📱 TikTok Studio pas connecté' }}</b>
+          <button type="button" class="shrink-0 rounded-lg bg-white px-3 py-1.5 text-sm font-black text-slate-900" @click="openConnect(shownView)">Connecter</button>
         </div>
 
         <!-- Ce que voient les clientes : toujours visible en haut pendant qu'on utilise la console -->
@@ -646,15 +646,15 @@ const ago = (iso) => {
                   <span class="absolute bottom-[27%] left-1/2 h-[16%] w-[27%] -translate-x-1/2 rounded-full bg-[#3b2415]" aria-hidden="true" />
                   <div class="absolute inset-x-2.5 top-2.5 flex items-center gap-1.5 text-white">
                     <span class="h-7 w-7 rounded-full bg-slate-300" aria-hidden="true" />
-                    <b class="truncate text-[11px]">{{ display?.store?.name }}</b>
-                    <span class="ml-auto rounded bg-[#fe2c55] px-1.5 py-0.5 text-[11px] font-black">LIVE</span>
+                    <b class="truncate text-xs">{{ display?.store?.name }}</b>
+                    <span class="ml-auto rounded bg-[#fe2c55] px-1.5 py-0.5 text-xs font-black">LIVE</span>
                   </div>
-                  <div class="absolute bottom-14 left-2.5 right-14 flex flex-col gap-1 text-[11px] text-white" aria-hidden="true">
+                  <div class="absolute bottom-14 left-2.5 right-14 flex flex-col gap-1 text-xs text-white" aria-hidden="true">
                     <span><b class="text-white/70">Awa</b> A1 svp</span>
                     <span><b class="text-white/70">Mariam</b> c'est combien ?</span>
                     <span><b class="text-white/70">Fatou</b> j'ai envoyé A1</span>
                   </div>
-                  <div class="absolute bottom-3.5 left-2.5 right-14 flex h-8 items-center rounded-full bg-black/35 pl-3 text-[11px] text-white/75" aria-hidden="true">Ajouter un commentaire…</div>
+                  <div class="absolute bottom-3.5 left-2.5 right-14 flex h-8 items-center rounded-full bg-black/35 pl-3 text-pastille text-white/75" aria-hidden="true">Ajouter un commentaire…</div>
                   <svg class="absolute bottom-4 right-3" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" /></svg>
                 </template>
                 <!-- La carte : toute la place au repos ; en haut à gauche, 55 % de large, sur le live agrandi -->
@@ -666,46 +666,46 @@ const ago = (iso) => {
 
         <!-- Copilote, Articles, Plus -->
         <div class="grid grid-cols-3 gap-1 rounded-xl bg-white/10 p-1" role="tablist" aria-label="Console du live">
-          <button v-for="[key, label] in SUBS" :key="key" type="button" role="tab" :aria-selected="sub === key" class="rounded-lg py-2 text-[12px] font-extrabold" :class="sub === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="sub = key">
-            {{ label }}<span v-if="key === 'copilot' && questions.length" class="ml-0.5 rounded-full bg-red-600 px-1 text-[11px] text-white">{{ questions.length }}</span>
+          <button v-for="[key, label] in SUBS" :key="key" type="button" role="tab" :aria-selected="sub === key" class="rounded-lg py-2 text-xs font-extrabold" :class="sub === key ? 'bg-white text-slate-900' : 'text-slate-300'" @click="sub = key">
+            {{ label }}<span v-if="key === 'copilot' && questions.length" class="ml-0.5 rounded-full bg-red-600 px-1 text-xs text-white">{{ questions.length }}</span>
           </button>
         </div>
         <p v-if="showError" class="rounded-xl bg-red-500/15 px-3 py-2 text-sm font-bold text-red-200">{{ showError }}</p>
 
         <template v-if="sub === 'copilot'">
           <!-- Le bouton pour passer à l'étape suivante du plan : juste sous le menu, au-dessus de la carte du plan -->
-          <button v-if="plan.next.value" type="button" class="w-full rounded-xl bg-amber-400 px-3 py-3 text-[14px] font-extrabold text-slate-900" :class="{ 'animate-pulse': overtime }" @click="act({ kind: 'plan' })">
+          <button v-if="plan.next.value" type="button" class="w-full rounded-xl bg-amber-400 px-3 py-3 text-sm font-extrabold text-slate-900" :class="{ 'animate-pulse': overtime }" @click="act({ kind: 'plan' })">
             {{ plan.current.value ? 'Passer à' : 'Commencer' }} : {{ plan.next.value.label.replace(/^\S+\s/, '') }} ▶
           </button>
           <!-- 1. Maintenant à l'écran : l'étape et la phrase à dire, en grand -->
           <div v-if="plan.current.value" class="rounded-2xl bg-emerald-500/15 p-3 ring-2 ring-emerald-400/60">
-            <p class="text-[12px] font-black tracking-wider text-emerald-300 uppercase">🟢 Maintenant à l'écran · étape {{ plan.currentIndex.value + 1 }} sur {{ plan.steps.value.length }}</p>
-            <p class="mt-1 text-[18px] leading-snug font-black">{{ plan.current.value.label }}</p>
-            <p class="text-[14px] font-semibold" :class="overtime ? 'text-amber-300' : 'text-slate-300'">depuis {{ stepClock }} · ≈ {{ plan.current.value.time }} conseillé</p>
-            <p v-if="overtime" class="mt-1 text-[14px] font-bold text-amber-300">⏰ C'est le moment de passer à la suite</p>
+            <p class="text-xs font-black tracking-wider text-emerald-300 uppercase">🟢 Maintenant à l'écran · étape {{ plan.currentIndex.value + 1 }} sur {{ plan.steps.value.length }}</p>
+            <p class="mt-1 text-lg leading-snug font-black">{{ plan.current.value.label }}</p>
+            <p class="text-sm font-semibold" :class="overtime ? 'text-amber-300' : 'text-slate-300'">depuis {{ stepClock }} · ≈ {{ plan.current.value.time }} conseillé</p>
+            <p v-if="overtime" class="mt-1 text-sm font-bold text-amber-300">⏰ C'est le moment de passer à la suite</p>
             <div class="mt-2 rounded-xl bg-amber-400/15 p-3 ring-1 ring-amber-300/50">
-              <p class="text-[12px] font-black tracking-wider text-amber-300 uppercase">🗣 À dire maintenant</p>
-              <p class="mt-1 text-[20px] leading-snug font-extrabold text-white">« {{ plan.current.value.say }} »</p>
+              <p class="text-xs font-black tracking-wider text-amber-300 uppercase">🗣 À dire maintenant</p>
+              <p class="mt-1 text-2xl leading-snug font-extrabold text-white">« {{ plan.current.value.say }} »</p>
             </div>
             <!-- Sorti du plan -->
             <div v-if="showOff" class="mt-2 rounded-xl bg-amber-500/15 p-2.5 ring-1 ring-amber-400/50">
-              <p class="text-[14px] font-bold text-amber-200">↪ Vous êtes sorti du plan : l'écran ne montre plus « {{ plan.current.value.label }} ».</p>
+              <p class="text-sm font-bold text-amber-200">↪ Vous êtes sorti du plan : l'écran ne montre plus « {{ plan.current.value.label }} ».</p>
               <div class="mt-1.5 flex flex-wrap gap-1.5">
-                <button type="button" class="min-h-11 rounded-lg bg-amber-400 px-3 text-[14px] font-extrabold text-slate-900" @click="applyStep(plan.current.value)">↩ Reprendre le plan</button>
-                <button v-if="adoptable" type="button" class="min-h-11 rounded-lg bg-white/15 px-3 text-[14px] font-extrabold" @click="plan.adopt(current.code)">Continuer depuis {{ current.code }}</button>
+                <button type="button" class="min-h-11 rounded-lg bg-amber-400 px-3 text-sm font-extrabold text-slate-900" @click="applyStep(plan.current.value)">↩ Reprendre le plan</button>
+                <button v-if="adoptable" type="button" class="min-h-11 rounded-lg bg-white/15 px-3 text-sm font-extrabold" @click="plan.adopt(current.code)">Continuer depuis {{ current.code }}</button>
               </div>
             </div>
           </div>
-          <p v-else-if="plan.next.value" class="rounded-2xl bg-white/5 p-3 text-[15px] font-bold text-slate-200">Le plan n'a pas encore commencé : touchez « Commencer » ci-dessus.</p>
+          <p v-else-if="plan.next.value" class="rounded-2xl bg-white/5 p-3 text-base font-bold text-slate-200">Le plan n'a pas encore commencé : touchez « Commencer » ci-dessus.</p>
 
           <!-- 2. Les conseils du copilote : le premier en grand, avec sa phrase à dire -->
-          <p class="pt-1 text-[12px] font-black tracking-wider text-slate-300 uppercase">🧭 Conseils du copilote</p>
+          <p class="pt-1 text-xs font-black tracking-wider text-slate-300 uppercase">🧭 Conseils du copilote</p>
           <LiveCopilot :live="live" :products="products" :current="current" :next="next" :state="showState" :orders="screenOrders" :with-plan="false"
                        :questions="questions.filter(isQuestion)" :now="now" :plan="plan" :last-at="moments.lastAt" :featured-since="track.since" :sold-at-feature="track.sold" :shown-codes="track.shown" @act="act" />
 
           <!-- 3. Le plan en entier : où on en est, ce qui vient ensuite, revenir ou recommencer -->
           <div class="rounded-2xl bg-violet-500/15 p-3 ring-1 ring-violet-400/30">
-            <div class="flex items-center gap-2 text-[12px] font-black tracking-wider text-violet-200 uppercase">
+            <div class="flex items-center gap-2 text-xs font-black tracking-wider text-violet-200 uppercase">
               <span>📋 Plan du live<template v-if="plan.current.value"> · étape {{ plan.currentIndex.value + 1 }} sur {{ plan.steps.value.length }}</template></span>
               <span class="ml-auto font-bold tracking-normal normal-case text-slate-300">{{ planLeft }}</span>
             </div>
@@ -713,17 +713,17 @@ const ago = (iso) => {
               <i v-for="step in plan.steps.value" :key="step.key" class="h-2 flex-1 rounded-full" :class="step === plan.current.value ? 'bg-emerald-400' : step.done ? 'bg-amber-400' : 'bg-white/15'" />
             </div>
             <template v-if="plan.next.value">
-              <p class="mt-2.5 text-[12px] font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
-              <p class="text-[15px] font-bold">{{ plan.next.value.label }}</p>
+              <p class="mt-2.5 text-xs font-black tracking-wider text-violet-200 uppercase">⏭ Ensuite</p>
+              <p class="text-base font-bold">{{ plan.next.value.label }}</p>
             </template>
-            <p v-else class="mt-2.5 text-[15px] font-bold text-emerald-300">✓ Plan terminé : bravo !</p>
-            <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px] font-bold text-violet-200">
+            <p v-else class="mt-2.5 text-base font-bold text-emerald-300">✓ Plan terminé : bravo !</p>
+            <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-bold text-violet-200">
               <button v-if="plan.current.value" type="button" class="min-h-11 underline" @click="backStep">◀ Étape précédente</button>
               <button v-if="plan.current.value || plan.steps.value.some((x) => x.done)" type="button" class="min-h-11 underline" @click="restartPlan">↺ Recommencer le plan</button>
               <details class="w-full">
                 <summary class="min-h-11 cursor-pointer py-2">Voir tout le plan</summary>
                 <ol class="mt-1 space-y-0.5 font-normal">
-                  <li v-for="(step, k) in plan.steps.value" :key="step.key" class="flex items-center gap-2 rounded-lg px-2 py-1 text-[14px]" :class="step === plan.current.value ? 'bg-emerald-500/15 font-bold text-white' : step.done ? 'text-slate-500 line-through' : step === plan.next.value ? 'bg-white/10 font-bold text-white' : 'text-slate-300'">
+                  <li v-for="(step, k) in plan.steps.value" :key="step.key" class="flex items-center gap-2 rounded-lg px-2 py-1 text-sm" :class="step === plan.current.value ? 'bg-emerald-500/15 font-bold text-white' : step.done ? 'text-slate-500 line-through' : step === plan.next.value ? 'bg-white/10 font-bold text-white' : 'text-slate-300'">
                     <span class="w-4 text-center">{{ step === plan.current.value ? '🟢' : step.done ? '✓' : step === plan.next.value ? '⏭' : k + 1 }}</span>{{ step.label }}
                   </li>
                 </ol>
@@ -735,9 +735,9 @@ const ago = (iso) => {
         <template v-else-if="sub === 'articles'">
           <div class="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Que montrer à l'écran ?">
             <button v-for="[value, label] in MODES" :key="value" type="button" role="radio" :aria-checked="screenMode === value" :disabled="busy"
-                    class="rounded-lg px-1 py-2 text-[11.5px] font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>
+                    class="rounded-lg px-1 py-2 text-xs font-extrabold" :class="screenMode === value ? 'bg-white text-slate-900' : 'bg-white/10 text-slate-300'" @click="emit('mode', value)">{{ label }}</button>
           </div>
-          <p class="pt-1 text-[11px] font-extrabold tracking-wider text-slate-400 uppercase">Touchez un article pour le montrer · {{ soldPieces }} pièce{{ soldPieces > 1 ? 's' : '' }} vendue{{ soldPieces > 1 ? 's' : '' }}</p>
+          <p class="pt-1 text-xs font-extrabold tracking-wider text-slate-400 uppercase">Touchez un article pour le montrer · {{ soldPieces }} pièce{{ soldPieces > 1 ? 's' : '' }} vendue{{ soldPieces > 1 ? 's' : '' }}</p>
           <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
             <button v-for="p in products" :key="p.code" type="button" :disabled="busy || (p.mystery && !p.revealed)"
                     class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="current?.code === p.code ? 'border-red-600' : 'border-transparent'" @click="current?.code === p.code ? (screenMode !== 'product' && emit('mode', 'product')) : show(p)">
@@ -745,9 +745,9 @@ const ago = (iso) => {
               <span class="absolute top-1 left-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
               <span v-if="p.mystery && !p.revealed" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-xs font-black text-violet-700">🎁 MYSTÈRE</span>
               <span v-else-if="!p.remaining" class="absolute inset-x-0 top-0 grid h-16 place-items-center text-sm font-black text-red-600">VENDU</span>
-              <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-[11px] font-black text-white">BIENTÔT</span>
-              <span class="block truncate px-1.5 pt-0.5 text-[11px] font-bold">{{ p.title }}</span>
-              <span class="block px-1.5 pb-1 text-[11px] text-slate-500"><b class="text-slate-900">{{ p.remaining }}</b> / {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} att.</template></span>
+              <span v-else-if="almostGone(p)" class="absolute top-1 right-1 rounded-full bg-red-600 px-1.5 text-xs font-black text-white">BIENTÔT</span>
+              <span class="block truncate px-1.5 pt-0.5 text-xs font-bold">{{ p.title }}</span>
+              <span class="block px-1.5 pb-1 text-xs text-slate-500"><b class="text-slate-900">{{ p.remaining }}</b> / {{ p.quantity }}<template v-if="p.waiting"> · {{ p.waiting }} att.</template></span>
             </button>
             <button type="button" class="grid min-h-24 place-items-center rounded-xl border-2 border-dashed border-white/30 text-xs font-extrabold text-slate-300" @click="emit('add')">＋ Ajouter</button>
           </div>
@@ -761,16 +761,16 @@ const ago = (iso) => {
         <template v-else>
           <!-- Plus : les écrans reliés, tous les moments, musique, thème, modes ; article mystère ; durée prévue -->
           <div v-if="cardsOn" class="flex flex-wrap gap-1.5">
-            <button type="button" class="min-h-11 flex-1 rounded-xl bg-white/10 px-3 text-[14px] font-extrabold" @click="openConnect('tv', tvOnline)">📺 Télé : {{ tvOnline ? 'gérer' : 'connecter' }}</button>
-            <button type="button" class="min-h-11 flex-1 rounded-xl bg-white/10 px-3 text-[14px] font-extrabold" @click="openConnect('studio', studioOnline)">📱 TikTok Studio : {{ studioOnline ? 'gérer' : 'connecter' }}</button>
+            <button type="button" class="min-h-11 flex-1 rounded-xl bg-white/10 px-3 text-sm font-extrabold" @click="openConnect('tv', tvOnline)">📺 Télé : {{ tvOnline ? 'gérer' : 'connecter' }}</button>
+            <button type="button" class="min-h-11 flex-1 rounded-xl bg-white/10 px-3 text-sm font-extrabold" @click="openConnect('studio', studioOnline)">📱 TikTok Studio : {{ studioOnline ? 'gérer' : 'connecter' }}</button>
           </div>
           <LiveShowRemote :id="live.id" dark no-reactions :settings="display?.live?.show?.settings" :state="showState" :has-mystery="hasMystery" @changed="loadDisplay" @launched="(t) => { moments.add(t); if (t === 'reveal') emit('reload') }" />
           <details class="rounded-xl bg-white/5 p-3" :open="!products.some((p) => p.mystery)">
-            <summary class="cursor-pointer text-[13px] font-extrabold">🎁 Choisir l'article mystère et ses indices</summary>
+            <summary class="cursor-pointer text-sm font-extrabold">🎁 Choisir l'article mystère et ses indices</summary>
             <div class="mt-2"><LiveMysteryEditor :live="live" dark @saved="(state) => { emit('updated', state); loadDisplay() }" /></div>
           </details>
-          <div class="flex items-center gap-2 rounded-xl bg-white/5 p-3 text-[13px] font-bold">
-            <span class="min-w-0 flex-1">⏱ Durée prévue du live <span class="block text-[11.5px] font-normal text-slate-400">le copilote propose la dernière chance avant la fin</span></span>
+          <div class="flex items-center gap-2 rounded-xl bg-white/5 p-3 text-sm font-bold">
+            <span class="min-w-0 flex-1">⏱ Durée prévue du live <span class="block text-sm font-normal text-slate-300">Le copilote propose la dernière chance avant la fin.</span></span>
             <select v-model.number="plan.minutes.value" class="input w-auto py-1 text-slate-900" aria-label="Durée prévue">
               <option v-for="m in [30, 45, 60, 90, 120]" :key="m" :value="m">{{ m }} min</option>
             </select>
@@ -780,8 +780,8 @@ const ago = (iso) => {
         <!-- En bas, sous le pouce : l'article à l'écran et Suivant ; les réactions ; les sons et la musique de l'écran -->
         <div class="sticky bottom-0 z-10 -mx-1 space-y-1.5 border-t border-white/10 bg-[#0b1120] px-1 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))]">
           <div class="flex items-center gap-2 rounded-xl bg-white/10 px-2.5 py-1.5">
-            <b class="text-xl font-black text-amber-300">{{ current?.code ?? '—' }}</b>
-            <span class="min-w-0 flex-1 truncate text-[12px] text-slate-300">{{ current ? `${sinceFeature} · ${current.sold - track.sold} vente${current.sold - track.sold > 1 ? 's' : ''} · ${current.remaining} pièce${current.remaining > 1 ? 's' : ''}` : 'Aucun article à l\'écran' }}</span>
+            <b class="text-lg font-black text-amber-300">{{ current?.code ?? '—' }}</b>
+            <span class="min-w-0 flex-1 truncate text-xs text-slate-300">{{ current ? `${sinceFeature} · ${current.sold - track.sold} vente${current.sold - track.sold > 1 ? 's' : ''} · ${current.remaining} pièce${current.remaining > 1 ? 's' : ''}` : 'Aucun article à l\'écran' }}</span>
             <button type="button" class="shrink-0 rounded-xl bg-red-600 px-4 py-2 text-sm font-extrabold disabled:opacity-50" :disabled="busy || !(current ? next : showable[0])" @click="show(current ? next : showable[0])">{{ current ? 'Suivant' : 'Commencer' }} ▶</button>
           </div>
           <div class="grid grid-cols-7 gap-1">
@@ -795,14 +795,14 @@ const ago = (iso) => {
       <!-- Étiquette à épingler : à jour, ou ce qui a changé et la nouvelle -->
       <template v-else>
         <div v-if="pinStale" class="rounded-xl bg-amber-500/15 p-3 ring-1 ring-amber-400/60">
-          <b class="block text-[14px] text-amber-200">⚠ {{ pinShared ? 'Étiquette à refaire' : 'Étiquette pas encore en fond vert' }}</b>
+          <b class="block text-sm text-amber-200">⚠ {{ pinShared ? 'Étiquette à refaire' : 'Étiquette pas encore en fond vert' }}</b>
           <template v-if="changes.length">
-            <span class="block text-[12.5px] text-amber-100">Depuis la dernière<template v-if="pinTime"> ({{ pinTime }})</template> :</span>
-            <span v-for="c in changes" :key="c" class="block text-[13px] font-bold">{{ c }}</span>
+            <span class="block text-xs text-amber-100">Depuis la dernière<template v-if="pinTime"> ({{ pinTime }})</template> :</span>
+            <span v-for="c in changes" :key="c" class="block text-sm font-bold">{{ c }}</span>
           </template>
-          <span class="mt-1 block text-[12.5px] text-amber-100">Voici la nouvelle : téléchargez-la, puis dans votre live TikTok ouvrez <b>Fond vert</b> et choisissez-la.</span>
+          <span class="mt-1 block text-xs text-amber-100">Voici la nouvelle : téléchargez-la, puis dans votre live TikTok ouvrez <b>Fond vert</b> et choisissez-la.</span>
         </div>
-        <p v-else class="rounded-xl bg-emerald-500/15 px-3 py-2 text-[13px] font-extrabold text-emerald-300">✓ Étiquette à jour · {{ pinCount }} article{{ pinCount > 1 ? 's' : '' }}<template v-if="pinTime"> · faite à {{ pinTime }}</template></p>
+        <p v-else class="rounded-xl bg-emerald-500/15 px-3 py-2 text-sm font-extrabold text-emerald-300">✓ Étiquette à jour · {{ pinCount }} article{{ pinCount > 1 ? 's' : '' }}<template v-if="pinTime"> · faite à {{ pinTime }}</template></p>
         <div class="rounded-xl bg-white p-3 text-slate-900"><LivePin :live="live" bare @shared="(sig) => emit('pin-shared', sig)" /></div>
         <!-- Sans écrans : les articles à toucher -->
         <template v-if="!cardsOn">
@@ -810,7 +810,7 @@ const ago = (iso) => {
             <button v-for="p in showable" :key="p.code" type="button" :disabled="busy" class="relative overflow-hidden rounded-xl border-[3px] bg-white text-left text-slate-900" :class="current?.code === p.code ? 'border-red-600' : 'border-transparent'" @click="show(p)">
               <span class="block h-16 bg-slate-100"><img v-if="p.image" :src="p.image" alt="" class="h-full w-full object-cover" loading="lazy" /></span>
               <span class="absolute top-1 left-1 rounded-md bg-slate-900 px-1.5 text-xs font-black text-white">{{ p.code }}</span>
-              <span class="block truncate px-1.5 py-0.5 text-[11px] font-bold">{{ p.title }}</span>
+              <span class="block truncate px-1.5 py-0.5 text-xs font-bold">{{ p.title }}</span>
             </button>
           </div>
         </template>
@@ -823,23 +823,26 @@ const ago = (iso) => {
         <button v-for="[key, label] in [['all', 'Tous'], ['todo', `À répondre · ${questions.length}`]]" :key="key" type="button" :aria-pressed="messageFilter === key"
                 class="rounded-full border-[1.5px] px-3 py-1" :class="messageFilter === key ? 'border-slate-900 bg-slate-900 text-white' : 'border-field bg-white'" @click="messageFilter = key">{{ label }}</button>
       </div>
-      <p v-if="live.whatsapp === null" class="rounded-xl bg-white p-3 text-sm text-slate-600">Votre WhatsApp n'est pas connecté : les messages des clientes n'arrivent pas ici. <RouterLink to="/gestion/whatsapp" class="font-bold underline">Connecter WhatsApp</RouterLink></p>
+      <div v-if="live.whatsapp === null" class="rounded-xl bg-white p-3">
+        <p class="explain">Votre WhatsApp n'est pas connecté.</p>
+        <p class="explain-detail">Les messages des clientes n'arrivent pas ici. <RouterLink to="/gestion/whatsapp" class="font-bold text-emerald-700 underline">Connecter WhatsApp</RouterLink></p>
+      </div>
       <p v-else-if="!messages.length" class="rounded-xl bg-white p-4 text-center text-sm text-slate-500">{{ messageFilter === 'todo' ? 'Aucune question en attente ✓' : 'Les messages des clientes s\'afficheront ici.' }}</p>
       <article v-for="m in messages" :key="m.id" role="button" tabindex="0" class="cursor-pointer rounded-xl bg-white p-2 active:bg-slate-100" :class="needsAction(m) ? 'shadow-[inset_4px_0_0_#dc2626]' : ''" @click="openChat = m" @keydown.enter.self="openChat = m">
         <div class="flex items-center gap-2.5">
           <span v-if="m.codes.length && byCode[m.codes[0]]" class="relative h-10 w-10 shrink-0">
             <img v-if="byCode[m.codes[0]].image" :src="byCode[m.codes[0]].image" alt="" class="h-10 w-10 rounded-lg object-cover" />
-            <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[11px] leading-tight font-black">{{ m.codes[0] }}</span>
+            <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-xs leading-tight font-black">{{ m.codes[0] }}</span>
           </span>
           <span v-else class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-lg">{{ m.type === 'image' ? '📷' : '💬' }}</span>
           <div class="min-w-0 flex-1">
-            <p class="text-[13px] font-extrabold"><span v-if="needsAction(m)" class="text-red-600">● </span>{{ m.name }}</p>
+            <p class="text-sm font-extrabold"><span v-if="needsAction(m)" class="text-red-600">● </span>{{ m.name }}</p>
             <p class="text-xs break-words text-slate-600">
               {{ m.type === 'image' ? '📷 capture' + (m.codes.length ? ` · lue : ${m.codes.join(', ')}` : '') : `« ${m.body} »` }}
-              <span v-if="messageState(m)" class="ml-1 inline-block rounded-full border-[1.5px] border-slate-900 px-1.5 text-[11px] font-black" :class="messageState(m) === 'COMMANDÉ' ? 'bg-slate-900 text-white' : ''">{{ messageState(m) }}</span>
+              <span v-if="messageState(m)" class="ml-1 inline-block rounded-full border-[1.5px] border-slate-900 px-1.5 text-xs font-black" :class="messageState(m) === 'COMMANDÉ' ? 'bg-slate-900 text-white' : ''">{{ messageState(m) }}</span>
             </p>
           </div>
-          <span class="shrink-0 self-start text-[11px] text-slate-400">{{ ago(m.created_at) }}</span>
+          <span class="shrink-0 self-start text-xs text-slate-400">{{ ago(m.created_at) }}</span>
           <span class="shrink-0 text-xl font-black text-slate-300" aria-hidden="true">›</span>
         </div>
         <div v-if="m.place_check && needsAction(m)" class="mt-1.5 pl-12" @click.stop>
@@ -852,7 +855,7 @@ const ago = (iso) => {
           </span>
           <form v-else class="space-y-1.5" @submit.prevent="sendReply(m)">
             <div class="flex flex-wrap gap-1">
-              <button v-for="q in QUICK" :key="q" type="button" class="rounded-lg border-[1.5px] border-field bg-white px-2 py-1 text-left text-[11px] font-bold" :disabled="replying.busy" @click="sendReply(m, q)">{{ q }}</button>
+              <button v-for="q in QUICK" :key="q" type="button" class="rounded-lg border-[1.5px] border-field bg-white px-2 py-1 text-left text-xs font-bold" :disabled="replying.busy" @click="sendReply(m, q)">{{ q }}</button>
             </div>
             <div class="flex gap-1.5">
               <input v-model="replying.body" class="input min-w-0 flex-1 py-1.5 text-sm" placeholder="Votre réponse…" maxlength="1000" />
@@ -867,9 +870,9 @@ const ago = (iso) => {
     <!-- ═══ Commandes ═══ -->
     <section v-else class="space-y-1.5">
       <div class="grid grid-cols-3 gap-1 rounded-xl bg-white p-2 text-center">
-        <span><b class="block text-lg font-black">{{ live.summary.orders }}</b><span class="text-[11px] font-bold text-slate-500">commande{{ live.summary.orders > 1 ? 's' : '' }}</span></span>
-        <span><b class="block text-lg font-black">{{ money(live.summary.amount) }}</b><span class="text-[11px] font-bold text-slate-500">montant</span></span>
-        <span><b class="block text-lg font-black">{{ keptCount }}</b><span class="text-[11px] font-bold text-slate-500">quartier{{ keptCount > 1 ? 's' : '' }} attendu{{ keptCount > 1 ? 's' : '' }}</span></span>
+        <span><b class="block text-lg font-black">{{ live.summary.orders }}</b><span class="text-xs font-bold text-slate-500">commande{{ live.summary.orders > 1 ? 's' : '' }}</span></span>
+        <span><b class="block text-lg font-black">{{ money(live.summary.amount) }}</b><span class="text-xs font-bold text-slate-500">montant</span></span>
+        <span><b class="block text-lg font-black">{{ keptCount }}</b><span class="text-xs font-bold text-slate-500">quartier{{ keptCount > 1 ? 's' : '' }} attendu{{ keptCount > 1 ? 's' : '' }}</span></span>
       </div>
       <button type="button" class="w-full rounded-xl border-[1.5px] border-slate-900 bg-white py-2 text-sm font-extrabold" @click="emit('quick')">+ Réservation vue dans les commentaires</button>
       <p v-if="retryError" class="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{{ retryError }}</p>
@@ -878,10 +881,10 @@ const ago = (iso) => {
         <span class="relative h-10 w-10 shrink-0">
           <img v-if="byCode[r.code]?.image" :src="byCode[r.code].image" alt="" class="h-10 w-10 rounded-lg object-cover" :class="{ grayscale: r.status === 'waiting' }" />
           <span v-else class="block h-10 w-10 rounded-lg bg-slate-100" />
-          <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-[11px] leading-tight font-black">{{ r.code }}</span>
+          <span class="absolute -bottom-1 -left-1 rounded border-2 border-slate-900 bg-white px-0.5 text-xs leading-tight font-black">{{ r.code }}</span>
         </span>
         <div class="min-w-0 flex-1">
-          <p class="truncate text-[13px] font-extrabold">
+          <p class="truncate text-sm font-extrabold">
             {{ r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente' }}
             <template v-if="r.order"> · {{ money(r.unit_price) }} · {{ ORDER_STATE[r.order.status] ?? 'commande créée' }}</template>
             <template v-else-if="r.status === 'reserved' && r.shipping_place_id"> · <span class="text-red-600">commande pas créée ⚠️</span></template>
@@ -897,12 +900,12 @@ const ago = (iso) => {
           </p>
         </div>
         <span class="flex shrink-0 flex-col items-end gap-0.5 self-start">
-          <span class="text-[11px] text-slate-400">{{ ago(r.created_at) }}</span>
-          <button v-if="r.status === 'reserved' && r.shipping_place_id" type="button" class="text-[11px] font-bold text-red-700 underline" :disabled="retrying" @click.stop="retryOrder(r)">🔁 Créer la commande</button>
-          <button v-else-if="r.status === 'reserved'" type="button" class="text-[11px] font-bold underline" @click.stop="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
-          <RouterLink v-if="r.order?.proof" @click.stop :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
-          <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-[11px] font-bold underline" @click.stop>{{ r.order.reference }}</RouterLink>
-          <button v-else type="button" class="text-[11px] font-bold text-slate-500 underline" :disabled="busy" @click.stop="emit('cancel', r)">Annuler</button>
+          <span class="text-xs text-slate-400">{{ ago(r.created_at) }}</span>
+          <button v-if="r.status === 'reserved' && r.shipping_place_id" type="button" class="text-xs font-bold text-red-700 underline" :disabled="retrying" @click.stop="retryOrder(r)">🔁 Créer la commande</button>
+          <button v-else-if="r.status === 'reserved'" type="button" class="text-xs font-bold underline" @click.stop="openPlace(r.id, r.customer_name || phoneDisplay(r.customer_phone) || 'Cliente')">Choisir le quartier</button>
+          <RouterLink v-if="r.order?.proof" @click.stop :to="`/gestion/commandes/${r.order.id}`" class="rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-black text-emerald-950">💳 Reçu à vérifier</RouterLink>
+          <RouterLink v-if="r.order" :to="`/gestion/commandes/${r.order.id}`" class="text-xs font-bold underline" @click.stop>{{ r.order.reference }}</RouterLink>
+          <button v-else type="button" class="text-xs font-bold text-slate-500 underline" :disabled="busy" @click.stop="emit('cancel', r)">Annuler</button>
         </span>
         <span class="shrink-0 text-xl font-black text-slate-300" aria-hidden="true">›</span>
       </article>
@@ -924,14 +927,14 @@ const ago = (iso) => {
         </div>
         <template v-else>
           <div class="flex items-center gap-2">
-            <b class="min-w-0 flex-1 text-[18px]">{{ managing ? CONNECT[connecting].manage : CONNECT[connecting].title }}</b>
+            <b class="min-w-0 flex-1 text-lg">{{ managing ? CONNECT[connecting].manage : CONNECT[connecting].title }}</b>
             <button type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100" aria-label="Fermer" @click="connecting = null">✕</button>
           </div>
-          <p v-if="managing" class="mt-1 text-[14px] text-slate-600">{{ CONNECT[connecting].manageWhy }}</p>
-          <p v-if="!managing" class="mt-1 text-[14px] text-slate-600">{{ CONNECT[connecting].why }}</p>
+          <p v-if="managing" class="mt-1 text-sm text-slate-600">{{ CONNECT[connecting].manageWhy }}</p>
+          <p v-if="!managing" class="mt-1 text-sm text-slate-600">{{ CONNECT[connecting].why }}</p>
           <video v-if="!managing" :key="connecting" :src="CONNECT[connecting].video" :poster="CONNECT[connecting].poster" class="mt-2 aspect-video w-full rounded-2xl bg-slate-900" controls playsinline preload="metadata" />
           <div class="mt-2"><LiveScreenTabs :id="live.id" screen-only :part="connecting" :no-phone="connecting === 'studio'" @add="connecting = null" /></div>
-          <p v-if="!managing" class="mt-2 flex items-center justify-center gap-2 text-[13px] font-bold text-slate-500"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-200 border-t-sky-700" />En attente {{ connecting === 'tv' ? 'de la télé' : 'de LIVE Studio' }}…</p>
+          <p v-if="!managing" class="mt-2 flex items-center justify-center gap-2 text-sm font-bold text-slate-500"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-200 border-t-sky-700" />En attente {{ connecting === 'tv' ? 'de la télé' : 'de LIVE Studio' }}…</p>
         </template>
       </div>
     </div>

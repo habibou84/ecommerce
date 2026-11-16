@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../components/ExplainMore.vue'
 import { computed, onMounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage } from '../../lib/http'
@@ -81,12 +82,12 @@ const removeTest = (store) => saveTests(data.value.test_stores.filter((s) => s.i
 <template>
   <div class="space-y-5">
     <div>
-      <h1 class="text-xl font-semibold">Fonctions</h1>
-      <p class="mt-1 text-sm text-slate-600">
-        <b>Masquée</b> : invisible pour les marchands, le serveur refuse les appels. <b>Test</b> : seulement pour les boutiques de test ci-dessous
-        (par exemple pour la vérification de Meta). <b>Active</b> : pour tout le monde, dans la limite de l'offre. Masquer ne supprime rien : les
-        connexions sont mises en pause. Chaque changement est noté dans le Journal.
-      </p>
+      <h1 class="text-2xl font-semibold">Fonctions</h1>
+      <div class="mt-1">
+        <p class="explain">Trois états pour chaque fonction.</p>
+        <p class="explain-detail"><b>Masquée</b> : invisible, le serveur refuse. <b>Test</b> : boutiques de test ci-dessous. <b>Active</b> : pour tous, selon l'offre.</p>
+        <ExplainMore>Le mode Test sert par exemple à la vérification de Meta. Masquer ne supprime rien : les connexions sont mises en pause. Chaque changement est noté dans le Journal.</ExplainMore>
+      </div>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="saved" tone="success">{{ saved }}</Alert>

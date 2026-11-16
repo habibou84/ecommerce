@@ -111,7 +111,7 @@ async function deactivate(courier) {
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
     <div v-if="data" class="card">
-      <p v-if="!data.data.length" class="p-6 text-sm text-slate-500">Aucun livreur. Ajoutez-en un : il reçoit ses courses et son accès sur WhatsApp, sans mot de passe.</p>
+      <p v-if="!data.data.length" class="explain-detail p-6">Aucun livreur. Ajoutez-en un : il reçoit ses courses et son accès sur WhatsApp, sans mot de passe.</p>
       <ul class="divide-y divide-slate-100">
         <li v-for="c in data.data" :key="c.id" class="flex flex-wrap items-center gap-3 px-4 py-3 text-sm" :class="{ 'opacity-50': c.status === 'inactive' }">
           <span class="min-w-0 flex-1">
@@ -158,7 +158,7 @@ async function deactivate(courier) {
         <fieldset>
           <legend class="label">Où livre-t-il ?</legend>
           <PlacesPicker id="cr-places" v-model="editing.places" empty-label="Partout : aucun lieu choisi." />
-          <p class="mt-1 text-xs text-slate-500">Une commune couvre tous ses quartiers. Ses courses lui sont proposées en priorité dans ces lieux.</p>
+          <p class="mt-1 explain-detail">Une commune couvre tous ses quartiers. Ses courses lui sont proposées en priorité dans ces lieux.</p>
         </fieldset>
         <fieldset v-if="!editing.id && otherStores().length">
           <legend class="label">Travaille aussi pour</legend>
@@ -167,7 +167,7 @@ async function deactivate(courier) {
               <input v-model="editing.store_ids" type="checkbox" :value="st.id" class="accent-emerald-700" /> {{ st.name }}
             </label>
           </div>
-          <p class="mt-1 text-xs text-slate-500">Une seule application pour toutes ses livraisons ; chaque boutique garde ses lieux et sa paie pour lui.</p>
+          <p class="mt-1 explain-detail">Une seule application pour toutes ses livraisons ; chaque boutique garde ses lieux et sa paie pour lui.</p>
         </fieldset>
         <button class="btn-brand w-full" :disabled="busy">{{ editing.id ? 'Enregistrer' : 'Ajouter et créer le lien' }}</button>
       </form>

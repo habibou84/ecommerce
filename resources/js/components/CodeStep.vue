@@ -155,12 +155,12 @@ onBeforeUnmount(() => {
       <button v-if="sms.available" type="button" class="mx-auto block text-sm text-slate-600 underline" :disabled="busy" @click="sendSms">
         Pas de WhatsApp sur ce numéro ? Recevoir un code par SMS
       </button>
-      <p v-else class="text-center text-xs text-slate-500">Pas de WhatsApp sur ce numéro ? Utilisez un numéro qui a WhatsApp, ou contactez-nous.</p>
+      <p v-else class="explain-detail text-center">Pas de WhatsApp sur ce numéro ? Utilisez un numéro qui a WhatsApp, ou contactez-nous.</p>
     </div>
 
     <!-- SMS : code secret saisi sur la page -->
     <form v-else-if="sms.available" class="space-y-4" @submit.prevent="submit">
-      <p class="text-sm text-slate-600">
+      <p class="explain-detail">
         <template v-if="sms.sent">Nous avons envoyé un code à 6 chiffres par SMS au <strong class="whitespace-nowrap">{{ state.phone }}</strong>.</template>
         <template v-else>Nous allons envoyer un code à 6 chiffres par SMS au <strong class="whitespace-nowrap">{{ state.phone }}</strong>.</template>
       </p>

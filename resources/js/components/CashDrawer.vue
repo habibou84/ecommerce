@@ -99,7 +99,10 @@ function gap(difference) {
 
     <!-- Tiroir fermé -->
     <div v-if="!register.session" class="card space-y-3 p-4">
-      <p class="text-sm text-slate-600">Le tiroir est fermé. Ouvrez-le avec le fond de caisse (la monnaie que vous mettez dans le tiroir au départ) avant d'encaisser des espèces.</p>
+      <div>
+        <p class="explain">Ouvrez le tiroir avant d'encaisser des espèces.</p>
+        <p class="explain-detail">Indiquez le fond de caisse : la monnaie que vous y mettez au départ.</p>
+      </div>
       <form v-if="canHold" class="flex items-end gap-2" @submit.prevent="openRegister">
         <Field id="cd-float" label="Fond de caisse (monnaie de départ)" class="flex-1"><input id="cd-float" v-model.number="openingFloat" type="number" min="0" class="input" /></Field>
         <button class="btn-brand">Ouvrir la caisse</button>
@@ -145,7 +148,7 @@ function gap(difference) {
 
       <div v-if="canHold" class="space-y-1.5 border-t border-slate-100 pt-4">
         <button class="btn-secondary w-full" @click="startClose">Clôturer la journée</button>
-        <p class="text-center text-xs text-slate-600">Le soir : comptez les espèces du tiroir et comparez-les au montant attendu.</p>
+        <p class="explain-detail text-center">Le soir : comptez les espèces du tiroir et comparez-les au montant attendu.</p>
       </div>
     </div>
 

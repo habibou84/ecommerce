@@ -42,7 +42,10 @@ const codes = computed(() => data.value?.codes)
 
 <template>
   <div v-if="data" class="space-y-4 pb-24 sm:pb-0">
-    <p class="text-sm text-slate-600">Les commandes prises dans WhatsApp s'enregistrent toutes seules. Chaque commande confirmée compte 1 commande de votre <RouterLink to="/gestion/solde" class="font-semibold text-emerald-700 underline">solde</RouterLink>.</p>
+    <div>
+      <p class="explain">Les commandes prises dans WhatsApp s'enregistrent seules.</p>
+      <p class="explain-detail">Chaque commande confirmée compte 1 commande de votre <RouterLink to="/gestion/solde" class="font-semibold text-emerald-700 underline">solde</RouterLink>.</p>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
 
     <div class="grid gap-4 lg:grid-cols-2">
@@ -51,7 +54,7 @@ const codes = computed(() => data.value?.codes)
         <div class="flex items-start gap-3">
           <ColorIcon name="livre" :size="44" />
           <div class="min-w-0 flex-1">
-            <h2 class="text-[17px] font-extrabold">Récap</h2>
+            <h2 class="text-lg font-extrabold">Récap</h2>
             <p class="text-sm text-slate-600">La commande s'enregistre toute seule à partir de votre conversation WhatsApp.</p>
           </div>
           <ToggleSwitch :model-value="data.recap.enabled" :disabled="busy === 'recap'" label="Récap allumé" @update:model-value="save('recap', '/whatsapp/recap', { enabled: $event })" />
@@ -62,19 +65,19 @@ const codes = computed(() => data.value?.codes)
           <ol class="space-y-3">
             <li class="flex gap-3">
               <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white" aria-hidden="true">1</span>
-              <span class="min-w-0 text-sm text-slate-700"><b class="block text-[15px] text-slate-900">Votre client vous écrit sur WhatsApp</b>Vous discutez normalement, depuis votre téléphone.</span>
+              <span class="min-w-0 text-sm text-slate-700"><b class="block text-base text-slate-900">Votre client vous écrit sur WhatsApp</b>Vous discutez normalement, depuis votre téléphone.</span>
             </li>
             <li class="flex gap-3">
               <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white" aria-hidden="true">2</span>
               <span class="min-w-0 text-sm text-slate-700">
-                <b class="block text-[15px] text-slate-900">Dès qu'il vous a dit ce qu'il commande, écrivez « récap »</b>
+                <b class="block text-base text-slate-900">Dès qu'il vous a dit ce qu'il commande, écrivez « récap »</b>
                 C'est-à-dire l'article, la taille ou la couleur, la quantité, et si possible sa commune et son quartier.
                 L'application relit la conversation et prépare la commande. S'il manque la taille ou la commune, elle les demande au client.
               </span>
             </li>
             <li class="flex gap-3">
               <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-black text-white" aria-hidden="true">3</span>
-              <span class="min-w-0 text-sm text-slate-700"><b class="block text-[15px] text-slate-900">Le client reçoit le récapitulatif</b>Articles, prix, frais de livraison, total, et un bouton « Je confirme ». Il touche le bouton : la commande est enregistrée comme confirmée.</span>
+              <span class="min-w-0 text-sm text-slate-700"><b class="block text-base text-slate-900">Le client reçoit le récapitulatif</b>Articles, prix, frais de livraison, total, et un bouton « Je confirme ». Il touche le bouton : la commande est enregistrée comme confirmée.</span>
             </li>
           </ol>
 
@@ -84,11 +87,11 @@ const codes = computed(() => data.value?.codes)
             <p class="w-fit max-w-[85%] rounded-xl rounded-tl-sm bg-white px-3 py-1.5 shadow-soft"><b>Client :</b> Bonsoir, la robe wax rouge vous avez en M ?</p>
             <p class="ml-auto w-fit max-w-[85%] rounded-xl rounded-tr-sm bg-emerald-100 px-3 py-1.5"><b>Vous :</b> Oui ma chérie, 15 000 F.</p>
             <p class="w-fit max-w-[85%] rounded-xl rounded-tl-sm bg-white px-3 py-1.5 shadow-soft"><b>Client :</b> Ok, je prends une. Je suis à Cocody Angré.</p>
-            <p class="flex items-start gap-1.5 px-1 text-[13px] font-semibold text-emerald-800"><Icon name="check" :size="15" class="mt-0.5 shrink-0" />Le client a donné l'article, la taille, la quantité et le lieu : c'est le moment.</p>
+            <p class="flex items-start gap-1.5 px-1 text-sm font-semibold text-emerald-800"><Icon name="check" :size="15" class="mt-0.5 shrink-0" />Le client a donné l'article, la taille, la quantité et le lieu : c'est le moment.</p>
             <p class="ml-auto w-fit rounded-xl rounded-tr-sm bg-emerald-100 px-3 py-1.5 font-bold"><b>Vous :</b> récap</p>
             <div class="w-fit max-w-[90%] rounded-xl rounded-tl-sm bg-white px-3 py-2 shadow-soft">
               <p><b>Le client reçoit :</b> Robe wax rouge, taille M · Livraison Cocody Angré : 1 500 F · <b>Total : 16 500 F</b></p>
-              <span class="mt-1.5 inline-block rounded-lg border border-emerald-200 px-3 py-1 text-[13px] font-bold text-emerald-800">Je confirme</span>
+              <span class="mt-1.5 inline-block rounded-lg border border-emerald-200 px-3 py-1 text-sm font-bold text-emerald-800">Je confirme</span>
             </div>
           </figure>
         </div>
@@ -129,8 +132,8 @@ const codes = computed(() => data.value?.codes)
         <div class="flex items-start gap-3">
           <ColorIcon name="produit" :size="44" />
           <div class="min-w-0 flex-1">
-            <h2 class="text-[17px] font-extrabold">Modèles</h2>
-            <p class="text-sm text-slate-600">Le client écrit « modèles » : il voit vos catégories, puis les photos, ajoute un ou plusieurs articles en touchant, et termine.</p>
+            <h2 class="text-lg font-extrabold">Modèles</h2>
+            <p class="explain-detail">Le client écrit « modèles » : il voit vos catégories et les photos, et ajoute ses articles d'une touche.</p>
           </div>
           <ToggleSwitch :model-value="data.models.enabled" :disabled="busy === 'models'" label="Modèles allumés" @update:model-value="save('models', '/whatsapp/models', { enabled: $event })" />
         </div>
@@ -141,7 +144,7 @@ const codes = computed(() => data.value?.codes)
       <section v-if="codes" class="card flex flex-wrap items-center gap-3 p-4 sm:p-5">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] bg-slate-100 font-display text-sm font-extrabold text-slate-700" aria-hidden="true">A1</span>
         <span class="min-w-0 flex-1">
-          <b class="block text-[17px] font-extrabold">Commandes avec codes</b>
+          <b class="block text-lg font-extrabold">Commandes avec codes</b>
           <span class="text-sm text-slate-600">Sans live : vos clients envoient le code A1, A2… et la commande s'enregistre.{{ codes?.status === 'live' ? ' Ouvertes en ce moment.' : '' }}</span>
         </span>
         <RouterLink :to="codes.id ? `/gestion/whatsapp/commandes-codes/${codes.id}` : '/gestion/whatsapp/commandes-codes'" class="btn-brand">{{ codes?.status === 'live' ? 'Voir les commandes' : 'Ouvrir les commandes' }}</RouterLink>
@@ -152,12 +155,12 @@ const codes = computed(() => data.value?.codes)
 
     <!-- Dernières commandes WhatsApp (récap, catalogue, modèles) -->
     <section id="commandes" class="card p-4 sm:p-5">
-      <h2 class="text-[17px] font-extrabold">Commandes WhatsApp récentes</h2>
+      <h2 class="text-lg font-extrabold">Commandes WhatsApp récentes</h2>
       <ul class="mt-2 divide-y divide-slate-100">
         <li v-for="o in data.orders" :key="o.id">
           <RouterLink :to="`/gestion/commandes/${o.id}`" class="flex items-center gap-3 py-2.5">
             <span class="min-w-0 flex-1">
-              <b class="block truncate text-[15px]">{{ o.customer ?? o.reference }}</b>
+              <b class="block truncate text-base">{{ o.customer ?? o.reference }}</b>
               <span class="text-xs text-slate-500">{{ o.reference }} · {{ ORIGINS[o.channel] ?? o.channel }} · {{ money(o.total) }}</span>
             </span>
             <StateBadge :status="o.status" :label="o.status_label" class="shrink-0" />

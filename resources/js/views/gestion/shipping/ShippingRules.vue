@@ -15,15 +15,15 @@ const errors = ref({})
 
 // Les trois façons de faire livrer une commande confirmée, dites simplement
 const MODES = [
-  ['off', 'Je choisis le livreur moi-même', 'Pour chaque commande, vous appuyez sur « Faire livrer » et vous choisissez un de vos livreurs ou une entreprise de livraison.', false],
-  ['suggest', 'Le livreur m\'est proposé, je confirme', 'En appuyant sur « Faire livrer », le livreur le mieux placé est déjà choisi. Vous confirmez, ou vous en prenez un autre. Rien n\'est confié sans vous.', true],
-  ['auto', 'Le livreur est choisi automatiquement', 'Dès que la commande est confirmée, elle est confiée à un de vos livreurs, qui la reçoit tout de suite dans son application. Si aucun livreur n\'est libre, elle est confiée à une entreprise de livraison. Vous n\'avez rien à faire.', false],
+  ['off', 'Je choisis moi-même', 'Vous choisissez le livreur à chaque commande, avec « Faire livrer ».', false],
+  ['suggest', 'On me propose, je confirme', 'Le livreur le mieux placé est déjà choisi : vous validez ou en prenez un autre.', true],
+  ['auto', 'Automatique', 'Dès la confirmation, la commande part chez un livreur libre. Rien à faire.', false],
 ]
 
 // Entre plusieurs livreurs qui conviennent
 const DISPATCH = [
-  ['nearest', 'Le plus proche', 'Celui qui livre ce quartier ou cette commune d\'abord, puis le moins occupé.'],
-  ['round_robin', 'Chacun son tour', 'Les courses tournent entre vos livreurs : celui qui n\'en a pas reçu depuis le plus longtemps passe en premier.'],
+  ['nearest', 'Le plus proche', 'Celui qui livre ce quartier d\'abord, puis le moins occupé.'],
+  ['round_robin', 'Chacun son tour', 'Les courses tournent entre vos livreurs.'],
 ]
 // Livreur choisi automatiquement : délai sans acceptation avant de confier la course à un autre (null : prévenir seulement)
 const TIMEOUTS = [[null, 'Me prévenir seulement (après 15 min)'], [10, 'La confier à un autre livreur après 10 min'], [15, 'La confier à un autre livreur après 15 min'], [30, 'La confier à un autre livreur après 30 min'], [60, 'La confier à un autre livreur après 1 h']]
@@ -123,8 +123,8 @@ function describe(rule) {
       <section v-if="data.assignment_mode === 'auto' || data.summary.sent || data.summary.blocked.length" class="card p-4 text-sm">
         <h3 class="mb-2 font-semibold">Ces {{ data.summary.days }} derniers jours</h3>
         <div class="grid grid-cols-2 gap-2">
-          <div class="rounded-lg bg-emerald-50 p-3"><b class="block text-xl text-emerald-800">{{ data.summary.sent }}</b><span class="text-emerald-900">{{ data.summary.sent > 1 ? 'commandes confiées' : 'commande confiée' }} automatiquement à un livreur</span></div>
-          <div class="rounded-lg p-3" :class="data.summary.blocked.length ? 'bg-orange-50' : 'bg-slate-50'"><b class="block text-xl" :class="data.summary.blocked.length ? 'text-orange-800' : 'text-slate-700'">{{ data.summary.blocked.length }}</b><span :class="data.summary.blocked.length ? 'text-orange-900' : 'text-slate-600'">{{ data.summary.blocked.length > 1 ? 'commandes' : 'commande' }} sans livreur, à confier vous-même</span></div>
+          <div class="rounded-lg bg-emerald-50 p-3"><b class="block text-2xl text-emerald-800">{{ data.summary.sent }}</b><span class="text-emerald-900">{{ data.summary.sent > 1 ? 'commandes confiées' : 'commande confiée' }} automatiquement à un livreur</span></div>
+          <div class="rounded-lg p-3" :class="data.summary.blocked.length ? 'bg-orange-50' : 'bg-slate-50'"><b class="block text-2xl" :class="data.summary.blocked.length ? 'text-orange-800' : 'text-slate-700'">{{ data.summary.blocked.length }}</b><span :class="data.summary.blocked.length ? 'text-orange-900' : 'text-slate-600'">{{ data.summary.blocked.length > 1 ? 'commandes' : 'commande' }} sans livreur, à confier vous-même</span></div>
         </div>
         <ul v-if="data.summary.blocked.length" class="mt-3 divide-y divide-slate-100">
           <li v-for="o in data.summary.blocked" :key="o.id">
@@ -146,13 +146,13 @@ function describe(rule) {
                  :class="data.assignment_mode === value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
             <input type="radio" :checked="data.assignment_mode === value" class="mt-0.5 accent-emerald-700" @change="settings({ assignment_mode: value })" />
             <span>
-              <span class="block font-medium">{{ label }}<span v-if="recommended" class="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800">conseillé</span></span>
-              <span class="text-slate-500">{{ help }}</span>
+              <span class="block text-base font-semibold text-slate-900">{{ label }}<span v-if="recommended" class="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">conseillé</span></span>
+              <span class="explain-detail">{{ help }}</span>
             </span>
           </label>
         </div>
         <p v-if="data.assignment_mode === 'auto'" class="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 text-sm text-slate-700">
-          <strong>Exemple :</strong> la commande d'Awa à Cocody est confirmée à 10 h → elle est confiée à Moussa (il livre Cocody), qui la voit aussitôt dans son application.
+          <strong>Exemple :</strong> commande d'Awa à Cocody confirmée à 10 h → confiée à Moussa (il livre Cocody), qui la voit aussitôt.
         </p>
 
         <div v-if="data.assignment_mode !== 'off'" class="rounded-lg bg-slate-50 p-3 text-sm">
@@ -164,7 +164,7 @@ function describe(rule) {
             <li v-if="data.assignment_mode === 'auto'">Si aucun livreur ni entreprise n'est libre, la commande n'est confiée à personne : elle reste dans <strong>« À faire livrer »</strong> et vous êtes prévenu (la raison est notée dans son historique et dans le bilan ci-dessus).</li>
             <li v-if="data.assignment_mode === 'auto'">Si le livreur refuse, elle est confiée aussitôt à un autre livreur{{ data.mission_timeout_minutes ? `, et aussi s'il ne l'accepte pas en ${data.mission_timeout_minutes} min` : '' }}.</li>
           </ol>
-          <p class="mt-2 text-slate-500">Un livreur choisi à la saisie de la commande passe toujours avant. Un livreur qui n'a pas encore ouvert son lien d'accès n'est jamais choisi automatiquement.</p>
+          <p class="explain-detail mt-2">Un livreur choisi à la saisie passe toujours avant. Un livreur qui n'a pas ouvert son lien d'accès n'est jamais choisi automatiquement.</p>
         </div>
       </section>
 
@@ -175,13 +175,14 @@ function describe(rule) {
             <label v-for="[value, label, help] in DISPATCH" :key="value" class="flex cursor-pointer gap-2 rounded-lg border p-3 text-sm"
                    :class="data.courier_dispatch === value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'">
               <input type="radio" :checked="data.courier_dispatch === value" class="mt-0.5 accent-emerald-700" @change="settings({ courier_dispatch: value })" />
-              <span><span class="block font-medium">{{ label }}</span><span class="text-slate-500">{{ help }}</span></span>
+              <span><span class="block text-base font-semibold text-slate-900">{{ label }}</span><span class="explain-detail">{{ help }}</span></span>
             </label>
           </div>
         </div>
         <div v-if="data.assignment_mode === 'auto'">
           <h3 class="mb-1 font-semibold">Si le livreur n'accepte pas la course</h3>
-          <p class="mb-2 text-sm text-slate-500">Le livreur accepte ou refuse la course dans son application. S'il la refuse, elle est confiée aussitôt à un autre livreur. S'il ne répond pas :</p>
+          <p class="explain">S'il refuse, la course part aussitôt à un autre livreur.</p>
+          <p class="explain-detail mb-2">S'il ne répond pas :</p>
           <select class="input max-w-md" :value="data.mission_timeout_minutes ?? ''" @change="settings({ mission_timeout_minutes: $event.target.value === '' ? null : Number($event.target.value) })">
             <option v-for="[value, label] in TIMEOUTS" :key="String(value)" :value="value ?? ''">{{ label }}</option>
           </select>
@@ -193,7 +194,8 @@ function describe(rule) {
           <h3 class="font-semibold">Cas particuliers <span class="font-normal text-slate-500">(facultatif)</span></h3>
           <button class="btn-secondary ml-auto px-3 py-1.5" @click="open()">+ Cas</button>
         </div>
-        <p class="mb-3 text-sm text-slate-500">Pour certaines commandes, imposer qui livre. Les cas sont vérifiés de haut en bas : le premier qui correspond décide.</p>
+        <p class="explain">Pour certaines commandes, imposez qui livre.</p>
+        <p class="explain-detail mb-3">Le premier cas de la liste qui correspond décide.</p>
         <ol class="divide-y divide-slate-100 text-sm">
           <li v-for="(r, i) in data.data" :key="r.id" class="flex items-center gap-3 py-2" :class="{ 'opacity-50': !r.is_active }">
             <span class="w-6 text-center text-slate-400">{{ i + 1 }}</span>
@@ -206,7 +208,7 @@ function describe(rule) {
           </li>
         </ol>
         <div v-if="!data.data.length">
-          <p class="py-1 text-sm text-slate-500">Aucun cas particulier : le choix suit les étapes ci-dessus. Exemples à ajouter en un clic :</p>
+          <p class="explain-detail py-1">Aucun cas particulier : le choix suit les étapes ci-dessus. À ajouter en un clic :</p>
           <div class="mt-2 flex flex-wrap gap-2">
             <button v-for="t in TEMPLATES" :key="t.name" class="rounded-full border border-slate-200 px-3 py-1 text-sm hover:border-emerald-600 hover:text-emerald-700" @click="open(null, t)">{{ t.text }}</button>
           </div>

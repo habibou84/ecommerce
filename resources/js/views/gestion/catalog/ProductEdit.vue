@@ -601,11 +601,11 @@ const margin = computed(() => {
             </label>
           </div>
         </div>
-        <p v-if="!images.length && !pendingFiles.length" class="text-sm text-slate-500">La première photo est la photo principale. Prenez-les à la lumière du jour, sur fond uni.</p>
+        <p v-if="!images.length && !pendingFiles.length" class="explain-detail">La première photo est la photo principale. Prenez-les à la lumière du jour, sur fond uni.</p>
         <div class="grid grid-cols-3 gap-3 sm:grid-cols-5">
           <div v-for="(image, index) in images" :key="image.id" class="group relative">
             <img :src="image.urls.thumb" :alt="image.alt" class="aspect-square w-full rounded-lg border border-slate-200 object-cover" />
-            <span v-if="index === 0" class="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-[11px] font-medium">Principale</span>
+            <span v-if="index === 0" class="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-xs font-medium">Principale</span>
             <template v-if="canEdit">
               <button type="button" class="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-base font-bold text-red-600 shadow ring-1 ring-slate-200" aria-label="Retirer cette photo" title="Retirer cette photo" @click="removeImage(image)">✕</button>
               <div class="mt-1 flex justify-center gap-1 text-xs">
@@ -626,7 +626,7 @@ const margin = computed(() => {
         <div class="flex items-start justify-between gap-3">
           <div>
             <h2 class="font-semibold">Prix et variantes</h2>
-            <p class="text-sm text-slate-500">Tailles, couleurs, pointures… Chaque variante a son prix, son stock et sa photo.</p>
+            <p class="explain-detail">Tailles, couleurs, pointures… Chaque variante a son prix, son stock et sa photo.</p>
           </div>
           <label class="flex shrink-0 items-center gap-2 text-sm">
             <input v-model="hasVariants" type="checkbox" class="h-4 w-4 accent-emerald-700" />
@@ -748,7 +748,7 @@ const margin = computed(() => {
               </div>
             </div>
           </div>
-          <p v-else class="text-sm text-slate-500">Ajoutez une option et ses valeurs : les variantes apparaissent ici.</p>
+          <p v-else class="explain-detail">Ajoutez une option et ses valeurs : les variantes apparaissent ici.</p>
         </template>
       </section>
 
@@ -814,7 +814,7 @@ const margin = computed(() => {
             <label class="flex flex-wrap items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" value="fixed" /> Un montant fixe par pièce
               <input v-if="form.deposit_type === 'fixed'" v-model="form.deposit_value" type="number" min="1" class="input w-28 py-1" aria-label="Montant" /><span v-if="form.deposit_type === 'fixed'">F</span>
             </label>
-            <p class="text-xs text-slate-500">Demandé en boutique en ligne, en live et sur WhatsApp. Pour toute la boutique : <RouterLink to="/gestion/acompte" class="font-medium text-emerald-700 underline">Acompte</RouterLink>.</p>
+            <p class="explain-detail">Demandé en boutique en ligne, en live et sur WhatsApp. Pour toute la boutique : <RouterLink to="/gestion/acompte" class="font-medium text-emerald-700 underline">Acompte</RouterLink>.</p>
           </div>
         </div>
       </section>
@@ -827,7 +827,7 @@ const margin = computed(() => {
       <section v-if="props.id" class="card space-y-3 p-4 sm:p-6">
         <div>
           <h2 class="font-semibold">Prix de gros</h2>
-          <p class="text-sm text-slate-500">Ex. 6 pour 30 000 F, tailles mélangées. Au-delà, le même prix à la pièce continue.</p>
+          <p class="explain-detail">Ex. 6 pour 30 000 F, tailles mélangées. Au-delà, le même prix à la pièce continue.</p>
         </div>
         <Alert v-if="tiersErrors.form">{{ tiersErrors.form }}</Alert>
         <div v-for="(t, i) in tiers" :key="i" class="flex flex-wrap items-center gap-2 text-sm">
@@ -846,11 +846,11 @@ const margin = computed(() => {
           <p class="text-sm font-medium">Comment je vends cet article</p>
           <label class="flex items-start gap-2 text-sm">
             <input v-model="sale.mode" type="radio" value="piece" class="mt-1" />
-            <span><b>À la pièce et en gros</b><br /><span class="text-slate-500">Le client prend la quantité qu'il veut.</span></span>
+            <span><b>À la pièce et en gros</b><span class="explain-detail block">Le client prend la quantité qu'il veut.</span></span>
           </label>
           <label class="flex items-start gap-2 text-sm">
             <input v-model="sale.mode" type="radio" value="lot" class="mt-1" />
-            <span><b>Par lot seulement</b><br /><span class="text-slate-500">Lot de <input v-model="sale.sale_lot" type="number" min="2" class="input inline-block w-20 py-1" aria-label="Pièces par lot" @focus="sale.mode = 'lot'" /> pièces : par 6, 12, 18…</span></span>
+            <span><b>Par lot seulement</b><span class="explain-detail block">Lot de <input v-model="sale.sale_lot" type="number" min="2" class="input inline-block w-20 py-1" aria-label="Pièces par lot" @focus="sale.mode = 'lot'" /> pièces : par 6, 12, 18…</span></span>
           </label>
           <label class="flex flex-wrap items-center gap-2 text-sm">
             <span>Minimum par commande</span>
@@ -884,7 +884,7 @@ const margin = computed(() => {
     <section v-if="otherStores.length" class="card space-y-3 p-4 sm:p-6">
       <div>
         <h2 class="font-semibold">Dans vos autres boutiques</h2>
-        <p class="text-sm text-slate-500">Photos, variantes et prix copiés ; stock à zéro.</p>
+        <p class="explain-detail">Photos, variantes et prix copiés ; stock à zéro.</p>
       </div>
       <Alert v-if="copied" tone="success">{{ copied }}</Alert>
       <ul class="divide-y divide-slate-100 text-sm">
@@ -927,7 +927,7 @@ const margin = computed(() => {
     <Modal v-if="share" title="Partager le produit" @close="share = null">
       <div class="space-y-3 text-sm">
         <img :src="share.image_url" alt="Image de partage" class="w-full rounded-lg border border-slate-200" width="1080" height="1080" />
-        <p class="text-slate-600">Image prête pour un statut WhatsApp, Facebook ou TikTok. Le lien court mène à la fiche du produit ({{ share.clicks }} visite(s)).</p>
+        <p class="explain-detail">Image prête pour un statut WhatsApp, Facebook ou TikTok. Le lien mène au produit ({{ share.clicks }} visite(s)).</p>
         <div class="flex gap-2">
           <input class="input text-xs" :value="share.url" readonly @focus="$event.target.select()" />
           <button type="button" class="btn-secondary shrink-0" @click="copyShare(share.url)">{{ shareCopied ? 'Copié ✓' : 'Copier' }}</button>

@@ -66,7 +66,10 @@ const total = computed(() => items.value.filter((i) => i.is_active).reduce((sum,
     <div class="card p-4">
       <p class="text-sm font-medium text-slate-600">Chaque mois, vous dépensez</p>
       <p class="whitespace-nowrap text-3xl font-bold tracking-tight">{{ money(total) }}</p>
-      <p class="mt-1 text-sm text-slate-600">Loyer, salaires, internet, publicité… Ces dépenses sont notées automatiquement chaque mois, le jour choisi, dans vos dépenses et votre bénéfice.</p>
+      <div class="mt-1">
+        <p class="explain">Notées toutes seules chaque mois, au jour choisi.</p>
+        <p class="explain-detail">Loyer, salaires, internet, publicité… comptés dans vos dépenses et votre bénéfice.</p>
+      </div>
     </div>
 
     <div class="flex items-center justify-between gap-2">
@@ -87,7 +90,7 @@ const total = computed(() => items.value.filter((i) => i.is_active).reduce((sum,
         </component>
       </li>
     </ul>
-    <p v-else class="card p-4 text-sm text-slate-600">Aucune dépense mensuelle. Ajoutez votre loyer, vos salaires… ils seront notés tout seuls chaque mois.</p>
+    <p v-else class="card explain-detail p-4"><b class="explain block">Aucune dépense mensuelle.</b>Ajoutez loyer, salaires… ils seront notés tout seuls chaque mois.</p>
     <p v-if="items.some((i) => !i.is_active)" class="text-xs text-slate-600">Les dépenses en pause ne sont pas comptées dans le total.</p>
 
     <Modal v-if="form.open" :title="form.id ? 'Dépense mensuelle' : 'Nouvelle dépense mensuelle'" @close="form.open = false">

@@ -29,7 +29,7 @@ const tokens = (n) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} M` : n >=
       <select v-model="month" class="input w-auto" aria-label="Mois" @change="load">
         <option v-for="m in data?.months ?? []" :key="m" :value="m">{{ monthLabel(m) }}</option>
       </select>
-      <p class="text-sm text-slate-500">Coût estimé au prix public des modèles, 1 $ = {{ data?.usd_rate }} F. La facture Anthropic fait foi.</p>
+      <p class="explain-detail">Coût estimé au prix public des modèles, 1 $ = {{ data?.usd_rate }} F. La facture Anthropic fait foi.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
 
@@ -65,7 +65,7 @@ const tokens = (n) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} M` : n >=
           </tbody>
         </table>
       </div>
-      <p class="text-xs text-slate-500">En rouge : l'IA coûte plus de 30 % du prix mensuel de l'offre de l'espace marchand.</p>
+      <p class="explain-detail">En rouge : l'IA coûte plus de 30 % du prix mensuel de l'offre de l'espace marchand.</p>
     </template>
   </div>
 </template>

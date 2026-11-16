@@ -194,12 +194,12 @@ async function save() {
 <template>
   <div class="fixed inset-0 z-50 flex flex-col bg-white" role="dialog" aria-modal="true" aria-label="Choisissez vos articles">
     <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-      <h2 class="text-[18px] font-black">{{ tab === 'new' ? 'Nouvel article' : 'Choisissez vos articles' }}</h2>
+      <h2 class="text-lg font-black">{{ tab === 'new' ? 'Nouvel article' : 'Choisissez vos articles' }}</h2>
       <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-lg" aria-label="Fermer" @click="emit('close')">✕</button>
     </header>
     <nav v-if="tab !== 'new'" class="grid grid-cols-3 gap-1.5 px-4 pt-3" role="tablist">
       <button v-for="[value, label] in [['catalog', 'Mon catalogue'], ['past', 'Un live passé'], ['selection', `Ma sélection (${items.length})`]]" :key="value" type="button" role="tab" :aria-selected="tab === value"
-              class="rounded-xl py-2 text-[13px] font-extrabold" :class="tab === value ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'" @click="tab = value">{{ label }}</button>
+              class="rounded-xl py-2 text-sm font-extrabold" :class="tab === value ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'" @click="tab = value">{{ label }}</button>
     </nav>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
@@ -212,7 +212,7 @@ async function save() {
       <div v-else-if="tab === 'catalog'" class="space-y-3">
         <button type="button" class="flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-3 text-left" @click="tab = 'new'">
           <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-700 text-2xl text-white">＋</span>
-          <span class="min-w-0 flex-1"><b class="block text-[15px] text-emerald-900">Nouvel article</b><span class="text-xs text-emerald-800">Pas encore au catalogue ? Prends la photo, l'IA remplit la fiche.</span></span>
+          <span class="min-w-0 flex-1"><b class="block text-base text-emerald-900">Nouvel article</b><span class="text-xs text-emerald-800">Pas encore au catalogue ? Prends la photo, l'IA remplit la fiche.</span></span>
         </button>
         <input v-model="search" class="input" placeholder="🔍 Chercher un article" @input="find" />
         <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200">
@@ -252,17 +252,17 @@ async function save() {
           <span class="min-w-0 flex-1"><b class="block first-letter:uppercase">{{ day(l.started_at ?? l.ended_at) }}</b><span class="text-sm text-slate-500">{{ l.items_count }} article(s) · {{ l.summary?.orders ?? 0 }} commande(s) · {{ money(l.summary?.amount ?? 0) }}</span></span>
           <button type="button" class="btn-brand shrink-0 px-3 py-2 text-sm" :disabled="loading === l.id" @click="reuse(l)">{{ loading === l.id ? '…' : 'Reprendre' }}</button>
         </div>
-        <p v-if="past.length" class="text-sm text-slate-500">« Reprendre » remet les mêmes articles et prix.</p>
+        <p v-if="past.length" class="explain-detail">« Reprendre » remet les mêmes articles et prix.</p>
       </div>
 
       <!-- Sélection -->
       <div v-else class="space-y-2">
         <p v-if="!items.length" class="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">Aucun article. Cochez-les dans « Mon catalogue » ou reprenez un live passé.</p>
-        <p v-else class="text-xs text-slate-500">L'ordre donne les codes (A1, A2…). Touchez le code pour le changer.</p>
+        <p v-else class="explain-detail">L'ordre donne les codes (A1, A2…). Touchez le code pour le changer.</p>
         <div v-for="(i, index) in items" :key="i.variant_id" class="rounded-2xl border border-slate-200 p-2">
           <div class="flex items-center gap-3">
             <button type="button" class="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-600 font-black text-white" :aria-label="`Code ${codes[productKey(i)]} : changer`" @click="signing = i">
-              {{ codes[productKey(i)] }}<span class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-[11px] text-red-600 shadow">✎</span>
+              {{ codes[productKey(i)] }}<span class="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-white text-pastille text-red-600 shadow">✎</span>
             </button>
             <img v-if="i.image" :src="i.image" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover" />
             <label v-else class="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-xl border-2 border-dashed border-red-300 bg-red-50 text-lg" :aria-label="`Ajouter la photo de ${i.title.split(' — ')[0]}`">
@@ -290,10 +290,10 @@ async function save() {
     </div>
 
     <footer v-if="tab !== 'new'" class="border-t border-slate-200 p-3">
-      <button v-if="withoutPhoto" type="button" class="w-full rounded-xl bg-red-50 py-3.5 text-[15px] font-black text-red-700" @click="tab = 'selection'">
+      <button v-if="withoutPhoto" type="button" class="w-full rounded-xl bg-red-50 py-3.5 text-base font-black text-red-700" @click="tab = 'selection'">
         📷 Ajoutez la photo de {{ withoutPhoto }} article(s) pour valider
       </button>
-      <button v-else type="button" class="btn-brand w-full justify-center py-3.5 text-[16px] font-black" :disabled="busy || !items.length" @click="save">
+      <button v-else type="button" class="btn-brand w-full justify-center py-3.5 text-base font-black" :disabled="busy || !items.length" @click="save">
         {{ busy ? 'Enregistrement…' : `Valider · ${items.length} article(s), ${pieces} pièces` }}
       </button>
     </footer>

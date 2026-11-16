@@ -128,16 +128,16 @@ const canMessages = computed(() => auth.can('orders.manage') || auth.can('orders
       <div class="flex items-center gap-3">
         <ColorIcon name="whatsapp" :size="44" />
         <div class="min-w-0 flex-1">
-          <h2 class="text-[17px] font-extrabold">Mon numéro</h2>
+          <h2 class="text-lg font-extrabold">Mon numéro</h2>
           <p class="text-sm text-slate-500">{{ official.account ? `${official.account.display_phone ?? ''}${official.account.verified_name ? ` · « ${official.account.verified_name} »` : ''}` : 'Aucun numéro WhatsApp connecté' }}</p>
         </div>
       </div>
       <!-- Retour de Facebook : connexion en cours, puis résultat -->
       <div v-if="finishing" class="mt-3 flex items-center gap-3 rounded-xl bg-sky-50 p-4 text-sky-950" role="status">
         <span class="h-6 w-6 shrink-0 animate-spin rounded-full border-[3px] border-sky-200 border-t-sky-700" aria-hidden="true" />
-        <span class="text-[15px] font-bold">Connexion de votre WhatsApp en cours…<span class="block text-sm font-normal">Quelques secondes : ne fermez pas la page.</span></span>
+        <span class="text-base font-bold">Connexion de votre WhatsApp en cours…<span class="block text-sm font-normal">Quelques secondes : ne fermez pas la page.</span></span>
       </div>
-      <div v-else-if="finished" class="mt-3 rounded-xl bg-emerald-50 p-4 text-[15px] font-bold text-emerald-900" role="status">{{ finished }}
+      <div v-else-if="finished" class="mt-3 rounded-xl bg-emerald-50 p-4 text-base font-bold text-emerald-900" role="status">{{ finished }}
         <ul v-if="warnings.length" class="mt-1 list-disc space-y-1 pl-5 text-sm font-normal text-ocre-900"><li v-for="w in warnings" :key="w">{{ w }}</li></ul>
       </div>
       <p v-if="error" class="mt-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">{{ error }}</p>

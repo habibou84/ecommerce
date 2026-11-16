@@ -736,7 +736,7 @@ async function save() {
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm"><Icon name="file" :size="20" /></span>
         <span class="min-w-0 flex-1">
           <span class="block font-bold">Coller le message du client</span>
-          <span class="block text-sm text-slate-500">WhatsApp, Facebook… : numéro, nom, quartier et produits se remplissent.</span>
+          <span class="explain-detail block">Numéro, nom, quartier et articles se remplissent seuls.</span>
         </span>
         <Icon name="chevron" :size="18" class="text-slate-400 transition" :class="{ 'rotate-90': pasteOpen }" />
       </button>
@@ -754,13 +754,13 @@ async function save() {
             </button>
           </template>
         </div>
-        <p v-if="ai.enabled" class="text-xs text-slate-500">L'assistant comprend les messages mal écrits, en plusieurs fois ou en capture d'écran.</p>
+        <p v-if="ai.enabled" class="explain-detail">L'assistant comprend les messages mal écrits, en plusieurs fois ou en capture d'écran.</p>
         <AiMeter />
       </div>
     </section>
     <Alert v-if="parseInfo" tone="info">{{ parseInfo }}</Alert>
     <!-- Ce qui manque, après un appui sur « Créer la commande » -->
-    <div v-if="missingNotice" data-missing-notice class="sticky top-[4.5rem] z-20 flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-3 text-[15px] font-medium text-amber-900 shadow" role="alert">
+    <div v-if="missingNotice" data-missing-notice class="sticky top-[4.5rem] z-20 flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-3 text-base font-medium text-amber-900 shadow" role="alert">
       <Icon name="alert" :size="20" class="shrink-0" />{{ missingNotice }} pour {{ editing ? 'enregistrer' : 'créer la commande' }}.
     </div>
 
@@ -780,7 +780,7 @@ async function save() {
                 v-for="s in SOURCES"
                 :key="s.value"
                 type="button"
-                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-[15px] font-semibold"
+                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-base font-semibold"
                 :class="form.source === s.value ? 'border-2 border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:border-field'"
                 :aria-pressed="form.source === s.value"
                 @click="form.source = s.value"
@@ -805,7 +805,7 @@ async function save() {
               <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-field px-3 text-sm font-medium text-slate-600 hover:bg-slate-50" @click="removePhone2"><Icon name="close" :size="18" />Retirer</button>
             </div>
           </Field>
-          <button v-else type="button" class="-mt-1 text-[15px] font-medium text-emerald-700 hover:underline" @click="showPhone2 = true">+ Ajouter un autre numéro</button>
+          <button v-else type="button" class="-mt-1 text-base font-medium text-emerald-700 hover:underline" @click="showPhone2 = true">+ Ajouter un autre numéro</button>
 
           <!-- Client connu : fiche résumée et son adresse habituelle -->
           <Alert v-if="known?.is_blacklisted" tone="error">Ce client est sur liste noire{{ known.blacklist_reason ? ` : ${known.blacklist_reason}` : '' }}.</Alert>
@@ -882,7 +882,7 @@ async function save() {
                   v-for="d in dayChoices"
                   :key="d.date"
                   type="button"
-                  class="rounded-full border px-4 py-2 text-[15px] first-letter:uppercase"
+                  class="rounded-full border px-4 py-2 text-base first-letter:uppercase"
                   :class="!pickDate && form.scheduled_date === d.date ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : d.disabled ? 'cursor-not-allowed border-slate-200 text-slate-400 line-through' : 'border-field text-slate-700'"
                   :disabled="d.disabled"
                   :title="!d.open ? 'Pas de livraison ce jour-là' : d.disabled ? 'Trop tôt pour qui livre' : undefined"
@@ -890,11 +890,11 @@ async function save() {
                 >
                   {{ d.label }}
                 </button>
-                <button type="button" class="rounded-full border px-4 py-2 text-[15px]" :class="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date)) ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field text-slate-700'" @click="pickDate = true">Autre date</button>
+                <button type="button" class="rounded-full border px-4 py-2 text-base" :class="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date)) ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field text-slate-700'" @click="pickDate = true">Autre date</button>
                 <input v-if="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto" type="date" :min="earliestDate ?? isoDay(0)" aria-label="Date de livraison" />
               </div>
               <p v-if="errors.scheduled_date" class="mt-2 text-sm text-red-600">{{ errors.scheduled_date }}</p>
-              <p v-else-if="dateNotice" class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[15px] text-amber-900">{{ dateNotice }}</p>
+              <p v-else-if="dateNotice" class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-base text-amber-900">{{ dateNotice }}</p>
               <p v-else-if="closedChosen" class="mt-2 text-sm text-amber-800">D'habitude, pas de livraison ce jour-là.</p>
               <p v-else-if="earliestDate && form.scheduled_date === earliestDate" class="mt-2 text-sm text-slate-500">Première date possible{{ calendar ? ` (commandes livrées le jour même jusqu'à ${calendar.cutoff.replace(':', ' h ')})` : '' }}.</p>
             </div>
@@ -933,7 +933,7 @@ async function save() {
             <!-- Expédition : prix convenu (livraison + expédition), qui paie les frais d'expédition, paiement avant le départ -->
             <div v-if="expedition" class="space-y-2 rounded-xl border border-sky-200 bg-sky-50/60 p-3">
               <p class="font-semibold text-sky-900">📦 Expédition vers {{ expedition.city }}</p>
-              <p class="text-sm text-slate-600">Prix convenu avec le client pour la livraison et l'expédition : ci-dessus (« Modifier » pour le changer).</p>
+              <p class="explain-detail">Prix de livraison et d'expédition convenu : ci-dessus (« Modifier » pour le changer).</p>
               <p class="pt-1 text-sm font-semibold text-slate-700">Qui paie les frais d'expédition (la compagnie de transport) ?</p>
               <template v-for="[value, label, hint] in PAYERS" :key="value">
                 <label v-if="value === 'included' || otherPayer || form.expedition_payer === value" class="flex items-start gap-2 rounded-lg bg-white px-3 py-2">
@@ -944,11 +944,14 @@ async function save() {
               <button v-if="!otherPayer" type="button" class="text-sm font-semibold text-emerald-700 hover:underline" @click="otherPayer = true">Autre cas ▾</button>
               <label class="flex items-start gap-2 pt-1">
                 <input v-model="form.expedition_prepay" type="checkbox" class="mt-1 h-4 w-4 accent-emerald-700" />
-                <span><span class="block font-medium">Payé avant le départ</span><span class="block text-xs text-slate-500">Le livreur ne part à la gare qu'une fois la commande payée.</span></span>
+                <span><span class="block font-medium">Payé avant le départ</span><span class="block explain-detail">Le livreur ne part à la gare qu'une fois la commande payée.</span></span>
               </label>
             </div>
           </template>
-          <p v-else class="text-base text-slate-600">Le client vient chercher sa commande : pas de frais de livraison.</p>
+          <div v-else>
+            <p class="explain">Pas de frais de livraison.</p>
+            <p class="explain-detail">Le client vient chercher sa commande.</p>
+          </div>
         </section>
 
         <!-- 2. Articles -->
@@ -998,9 +1001,9 @@ async function save() {
               </div>
             </li>
           </ul>
-          <p v-else class="flex items-start gap-2 text-[15px] leading-snug text-slate-600">
+          <p v-else class="flex items-start gap-2 text-base leading-snug text-slate-600">
             <Icon name="up" :size="18" class="mt-0.5 shrink-0 text-emerald-700" />
-            <span>Tapez le nom de l'article (ou son code) dans le champ ci-dessus : la liste des articles s'affiche, touchez celui que le client veut pour l'ajouter à la commande.</span>
+            <span><b class="block font-semibold text-slate-900">Tapez le nom ou le code de l'article.</b><span class="text-sm">Puis touchez-le dans la liste pour l'ajouter.</span></span>
           </p>
           <button type="button" class="text-sm text-emerald-700 hover:underline" @click="items.push({ variant_id: null, title: '', quantity: 1, unit_price: '' })">+ Article hors catalogue</button>
         </section>
@@ -1021,7 +1024,7 @@ async function save() {
 
       <!-- 3. Paiement et validation -->
       <aside class="space-y-4 lg:sticky lg:top-20 lg:self-start">
-        <section class="card space-y-3 p-4 text-[15px] sm:p-5">
+        <section class="card space-y-3 p-4 text-base sm:p-5">
           <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
             <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">4</span>Paiement
           </h2>
@@ -1094,7 +1097,7 @@ async function save() {
               <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(30)">30 %</button>
               <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(50)">50 %</button>
             </div>
-            <p class="text-right text-xs text-slate-500">Auto : selon les articles et le réglage de la boutique.</p>
+            <p class="text-right explain-detail">Auto : selon les articles et le réglage de la boutique.</p>
           </div>
           <label v-if="!editing" class="flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 p-3">
             <input v-model="form.confirmed" type="checkbox" class="peer sr-only" />
@@ -1126,8 +1129,9 @@ async function save() {
     <Modal v-if="tariffs" :title="`Zones et tarifs de ${tariffs.name}`" @close="tariffs = null">
       <p v-if="!tariffs.zones" class="text-sm text-slate-500">Chargement…</p>
       <template v-else>
-        <p class="mb-3 text-sm text-slate-600">{{ tariffs.is_api ? 'Le prix exact est demandé à l\'entreprise pour chaque commande (poids, colis fragile) ; les tarifs ci-dessous sont indicatifs.' : 'Prix payé par le client selon la zone. Pour les modifier : Livraisons › Entreprises de livraison › Zones et tarifs.' }}</p>
-        <p v-if="!tariffs.zones.length" class="text-sm text-slate-500">Pas encore de zone : elle est proposée partout, aux frais de vos propres zones.</p>
+        <p class="explain">{{ tariffs.is_api ? 'Ces tarifs sont indicatifs.' : 'Prix payé par le client selon la zone.' }}</p>
+        <p class="explain-detail mb-3">{{ tariffs.is_api ? 'Le prix exact est demandé à l\'entreprise pour chaque commande (poids, colis fragile).' : 'Pour les modifier : Livraisons › Entreprises de livraison › Zones et tarifs.' }}</p>
+        <p v-if="!tariffs.zones.length" class="explain-detail">Pas encore de zone : elle est proposée partout, aux frais de vos propres zones.</p>
         <ul class="divide-y divide-slate-100 text-sm">
           <li v-for="z in tariffs.zones" :key="z.id" class="py-2.5">
             <div class="flex items-baseline justify-between gap-3">

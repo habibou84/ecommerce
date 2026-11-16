@@ -175,7 +175,7 @@ async function separate(store) {
     <form class="card space-y-4 p-4 sm:p-6" @submit.prevent="create">
       <div>
         <h2 class="font-semibold">Créer une autre boutique</h2>
-        <p class="text-sm text-slate-600">
+        <p class="explain-detail">
           Même compte, sans inscription.
           <template v-if="data.next_address">Même adresse, comprise dans votre offre {{ group.plan }}.</template>
           <template v-else>Sa propre adresse, avec l'essai gratuit.</template>

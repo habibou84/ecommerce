@@ -59,4 +59,42 @@ Toutes les couleurs sont déclarées dans `resources/css/app.css` (`@theme`). Pa
 - Deux choix côte à côte (ex. « Préparer un live » / « Commandes WhatsApp ») ont la même forme : le choix retenu
   prend `border-emerald-700 bg-emerald-50` et une coche.
 - Étoiles de notation et badge premium : `yellow` (« or »).
-- Textes de 11 px au minimum.
+
+## Polices et tailles de texte
+
+Deux polices, déclarées dans `resources/css/app.css` : **Inter** pour le texte, **Plus Jakarta Sans** pour les
+titres (`h1`, `h2`, `h3`, `font-display`) et les gros chiffres (`text-2xl` et plus).
+
+Six tailles seulement, chacune avec un rôle. Pas de taille écrite à la main (`text-[15px]`) : le test
+`tests/Feature/InterfaceTypographyTest.php` les refuse.
+
+| Rôle | Taille | Classe | Pour |
+| --- | --- | --- | --- |
+| Mention | 13 px | `text-xs` | Dates, aides, badges, surtitres en capitales |
+| Texte | 14 px | `text-sm` | Listes, tableaux, boutons, menus |
+| Texte à lire | 16 px | `text-base` | Texte sur téléphone, champs de saisie, messages, explications |
+| Titre de carte | 18 px | `text-lg` | Nom d'un client, d'un produit, titre d'une carte ou d'une section |
+| Titre d'écran | 24 px | `text-2xl` | Un seul par écran, en haut ; chiffres des tuiles de statistiques |
+| Gros chiffre | 30 px | `text-3xl` | Montant ou total à lire d'un coup d'œil |
+
+- Hors échelle : les icônes et émojis (`text-xl`, `text-4xl`… restent permis pour eux seuls), l'écran diffusé
+  pendant le live (LiveDisplay, LiveShowStage, LiveOverlay) et les écrans vus de loin, dont la taille suit l'écran
+  (`text-[9vh]`, `text-[38vmin]`), la boutique en ligne, les PDF et les e-mails.
+- `text-pastille` (11 px) : uniquement pour le chiffre d'une pastille posée sur une icône, faute de place.
+
+## Explications
+
+Dès la première phrase, on doit comprendre de quoi il s'agit. Une explication suit toujours le même ordre :
+
+1. **Phrase clé** : `explain` (16 px, gras, noir). Ce que c'est ou ce qui va se passer, 60 caractères au plus.
+2. **Détail** : `explain-detail` (14 px, gris foncé). Une ou deux lignes, 100 caractères au plus.
+3. **Le reste** (étapes, cas particuliers, conditions) : replié dans `ExplainMore` (« En savoir plus »).
+
+- Un choix à sélectionner : un titre court qui suffit pour choisir, puis une ligne `explain-detail` sur la conséquence.
+- Sous une carte qui a déjà un titre, une seule ligne `explain-detail` suffit souvent.
+- Jamais d'explication en `text-xs` ni en gris clair (`slate-400`, `slate-500`) : `text-xs` reste aux dates, badges et surtitres.
+- La conséquence d'abord, le comment ensuite : « Les clients peuvent encore commander. » puis « Par les codes… ».
+- Les aides sous un champ (`Field hint`) sont en `explain-detail`.
+- Le test `tests/Feature/InterfaceExplanationsTest.php` refuse une explication en `text-xs` gris clair de 60 caractères
+  ou plus, et un paragraphe de plus de 140 caractères hors de sa phrase clé (`<b class="block">`) : le reste va dans
+  `ExplainMore`. Les écrans diffusés pendant le live ne sont pas concernés.
