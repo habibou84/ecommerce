@@ -291,7 +291,7 @@ async function step(status) {
                  @input="typeDigit(i, $event)" @keydown.backspace="backDigit(i, $event)" />
         </div>
         <p v-if="errors.code" class="mt-1 text-sm text-red-600">{{ errors.code }}</p>
-        <p v-else-if="noNetwork" class="mt-1 text-xs text-slate-500">Sans réseau, le code sera vérifié à l'envoi : demandez bien le bon code au client.</p>
+        <p v-else-if="noNetwork" class="explain-detail mt-1">Sans réseau, le code sera vérifié à l'envoi : demandez bien le bon code au client.</p>
       </div>
       <div v-if="mission.door_payment && !paidAtDoor && !noNetwork" class="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm">
         <template v-if="!door">

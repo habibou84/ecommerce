@@ -71,7 +71,10 @@ const stateOf = (s) => (s.done ? 'done' : s.skipped ? 'skipped' : 'todo')
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 class="text-lg font-semibold sm:text-2xl">Bien démarrer avec Jibiat Marchand</h2>
-          <p class="text-sm text-slate-600">Quelques réglages, une étape à la fois, pour que {{ auth.store?.name }} tourne au mieux. Vous pouvez passer une étape et y revenir quand vous voulez.</p>
+          <div>
+            <p class="explain">Quelques réglages, une étape à la fois.</p>
+            <p class="explain-detail">Pour que {{ auth.store?.name }} tourne au mieux. Passez une étape et revenez-y quand vous voulez.</p>
+          </div>
         </div>
         <p v-if="guide" class="text-sm font-semibold tabular-nums text-emerald-800">{{ guide.done }} sur {{ guide.total }} étapes essentielles faites</p>
       </div>
@@ -121,7 +124,7 @@ const stateOf = (s) => (s.done ? 'done' : s.skipped ? 'skipped' : 'todo')
           <button v-if="!step.done && !step.skipped" type="button" class="btn-ghost" :disabled="busy" @click="setSkipped(true)">Passer pour l'instant</button>
           <button v-if="step.skipped" type="button" class="btn-ghost" :disabled="busy" @click="setSkipped(false)">Reprendre cette étape</button>
         </div>
-        <p v-if="!step.done" class="mt-2 text-xs text-slate-500">L'étape se coche toute seule une fois le réglage fait.</p>
+        <p v-if="!step.done" class="explain-detail mt-2">L'étape se coche toute seule une fois le réglage fait.</p>
 
         <div class="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
           <button type="button" class="btn-secondary px-3 py-1.5" :disabled="index <= 0" @click="go(-1)">← Précédente</button>

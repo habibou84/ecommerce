@@ -97,7 +97,7 @@ async function savePayout() {
       <p class="text-sm text-slate-600">
         Ce que l'entreprise a encaissé pour vous, moins son tarif, et qu'elle ne vous a pas encore reversé.
       </p>
-      <p v-if="balances && !balances.data.length" class="card p-6 text-sm text-slate-500">Aucune entreprise de livraison connectée.</p>
+      <p v-if="balances && !balances.data.length" class="explain-detail card p-6">Aucune entreprise de livraison connectée.</p>
       <article v-for="c in balances?.data ?? []" :key="c.connection_id" class="card text-sm">
         <div class="flex flex-wrap items-center gap-3 px-4 py-3">
           <button class="flex flex-1 flex-wrap items-center gap-3 text-left" :disabled="!c.count" @click="toggle(c)">

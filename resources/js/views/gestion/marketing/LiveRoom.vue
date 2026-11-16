@@ -566,7 +566,7 @@ async function redo() {
             </div>
           </div>
         </div>
-        <p v-if="live.status === 'live'" class="px-0.5 text-sm text-slate-500">Touchez un code pour l'afficher en grand.</p>
+        <p v-if="live.status === 'live'" class="explain-detail px-0.5">Touchez un code pour l'afficher en grand.</p>
         <!-- Article mystère : caché des clientes jusqu'à sa révélation pendant le live -->
         <details class="card p-4" :open="live.items.some((i) => i.mystery)">
           <summary class="cursor-pointer font-extrabold">🎁 Article mystère <span class="font-normal text-slate-500">· optionnel</span></summary>

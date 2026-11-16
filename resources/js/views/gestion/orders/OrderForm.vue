@@ -933,7 +933,7 @@ async function save() {
             <!-- Expédition : prix convenu (livraison + expédition), qui paie les frais d'expédition, paiement avant le départ -->
             <div v-if="expedition" class="space-y-2 rounded-xl border border-sky-200 bg-sky-50/60 p-3">
               <p class="font-semibold text-sky-900">📦 Expédition vers {{ expedition.city }}</p>
-              <p class="text-sm text-slate-600">Prix convenu avec le client pour la livraison et l'expédition : ci-dessus (« Modifier » pour le changer).</p>
+              <p class="explain-detail">Prix de livraison et d'expédition convenu : ci-dessus (« Modifier » pour le changer).</p>
               <p class="pt-1 text-sm font-semibold text-slate-700">Qui paie les frais d'expédition (la compagnie de transport) ?</p>
               <template v-for="[value, label, hint] in PAYERS" :key="value">
                 <label v-if="value === 'included' || otherPayer || form.expedition_payer === value" class="flex items-start gap-2 rounded-lg bg-white px-3 py-2">

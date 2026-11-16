@@ -74,7 +74,7 @@ async function removeAccount() {
       <p class="text-lg font-semibold">{{ me?.name ?? auth.profile?.courier?.name }}</p>
       <p class="text-sm text-slate-500">{{ phoneDisplay(auth.user?.phone) }}</p>
       <p v-if="me" class="mt-2 text-sm">{{ me.is_available ? '● Disponible' : '○ Indisponible' }} <span class="text-slate-500">· à changer en haut de l'écran</span></p>
-      <p v-if="me?.tracking" class="mt-1 text-sm text-slate-600">📍 Votre position est partagée avec le marchand quand vous êtes disponible et que l'application est ouverte.</p>
+      <p v-if="me?.tracking" class="explain-detail mt-1">📍 Votre position est partagée avec le marchand quand vous êtes disponible, application ouverte.</p>
     </section>
 
     <section v-if="me?.stores?.length" class="rounded-xl bg-white p-4 shadow-sm">

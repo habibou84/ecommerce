@@ -54,7 +54,10 @@ async function save(key, url, body) {
       <ColorIcon name="produit" :size="44" />
       <div class="min-w-0 flex-1">
         <h2 class="text-lg font-extrabold">Catalogue WhatsApp</h2>
-        <p class="text-sm text-slate-600">Vos clients remplissent un panier dans WhatsApp ; il devient une commande « À confirmer ». {{ c.orders_last_30_days }} panier(s) en 30 jours.</p>
+        <div>
+          <p class="explain">Vos clients remplissent un panier dans WhatsApp.</p>
+          <p class="explain-detail">Il devient une commande « À confirmer ». {{ c.orders_last_30_days }} panier(s) en 30 jours.</p>
+        </div>
       </div>
     </div>
 
@@ -80,7 +83,7 @@ async function save(key, url, body) {
         </span>
       </li>
     </ol>
-    <p v-if="c.meta && !number" class="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">Les étapes 2 et 3 se vérifient avec votre numéro WhatsApp officiel connecté (en haut de l'accueil WhatsApp).</p>
+    <p v-if="c.meta && !number" class="explain-detail rounded-xl bg-slate-50 p-3">Les étapes 2 et 3 demandent votre numéro WhatsApp officiel connecté.</p>
 
     <div class="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
       <span class="min-w-0 flex-1 text-sm"><b class="block text-base">Après un panier</b>Demander la commune, puis envoyer le récap avec « Je confirme »</span>

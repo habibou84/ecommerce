@@ -658,7 +658,7 @@ async function exportList() {
         <select v-if="statusForm.status === 'cancelled'" v-model="statusForm.reason" class="input" aria-label="Motif d'annulation">
           <option v-for="r in CANCEL_REASONS" :key="r.value" :value="r.value">{{ r.label }}</option>
         </select>
-        <p class="text-sm text-slate-500">Les autres commandes choisies restent telles quelles.</p>
+        <p class="explain-detail">Les autres commandes choisies restent telles quelles.</p>
         <button type="button" class="btn-brand w-full" :class="{ 'btn-danger': statusForm.status === 'cancelled' }" :disabled="!eligible(can.status, statusForm.status).length" @click="applyStatus">Appliquer à {{ plural(eligible(can.status, statusForm.status).length, 'commande') }}</button>
       </div>
     </Modal>

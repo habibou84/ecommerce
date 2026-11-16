@@ -51,7 +51,7 @@ const STATUS = { paid: 'payé', offered: 'offert', pending: 'en attente' }
         </div>
         <p v-if="credits.data.month_until" class="text-sm font-bold text-emerald-700">♾️ Illimité jusqu'au {{ new Date(credits.data.month_until).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) }}</p>
         <p v-else-if="credits.data.low" class="rounded-xl bg-ocre-50 p-2.5 text-sm font-bold text-ocre-800">⚠️ Plus que {{ credits.data.orders }} commandes : rechargez avant votre prochain live.</p>
-        <p v-if="!credits.data.paid" class="text-sm text-slate-500">Pour l'instant, rien n'est compté : tout est gratuit.</p>
+        <p v-if="!credits.data.paid" class="explain-detail">Pour l'instant, rien n'est compté : tout est gratuit.</p>
       </section>
 
       <section class="card p-4">

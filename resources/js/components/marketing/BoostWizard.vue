@@ -258,7 +258,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
       <!-- 3. Public -->
       <section v-if="step === 2" class="space-y-3">
         <h3 class="font-display text-base font-extrabold">Qui voit la pub ?</h3>
-        <p class="text-xs text-slate-500">Là où vous livrez. Rien de coché : toute la Côte d'Ivoire.</p>
+        <p class="explain-detail">Là où vous livrez. Rien de coché : toute la Côte d'Ivoire.</p>
         <div class="flex flex-wrap gap-1.5">
           <button v-for="z in setup.zones" :key="z.key" type="button" class="rounded-full border-2 px-3 py-1.5 text-sm font-bold" :class="zones.includes(z.key) ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="toggleZone(z.key)">{{ z.name }}</button>
         </div>
@@ -285,7 +285,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
               <p class="truncate p-1.5 text-xs font-bold">{{ p.title }}</p>
             </div>
           </div>
-          <p v-else class="bg-slate-50 p-3 text-xs text-slate-500">Chacun voit des produits différents de votre catalogue.</p>
+          <p v-else class="explain-detail bg-slate-50 p-3">Chacun voit des produits différents de votre catalogue.</p>
         </div>
         <div class="flex items-center justify-between gap-2">
           <label class="text-sm font-bold" for="boost-text">Texte de la pub</label>
@@ -295,7 +295,7 @@ const preview = computed(() => chosen.value[0]?.image ?? null)
           <button v-for="(v, k) in versions" :key="k" type="button" class="flex-1 rounded-lg border-2 py-1.5 text-xs font-bold" :class="message === v ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-200'" @click="message = v; edited = true">Version {{ k + 1 }}</button>
         </div>
         <textarea id="boost-text" v-model="message" rows="3" maxlength="600" class="input" @input="edited = true" />
-        <p v-if="versions.length" class="text-xs text-slate-500">3 versions pour 1 action IA. Touchez une version, puis corrigez si besoin.</p>
+        <p v-if="versions.length" class="explain-detail">3 versions pour 1 action IA. Touchez une version, puis corrigez si besoin.</p>
 
         <div v-if="setup.ad_accounts.filter((a) => a.usable).length > 1 || setup.pages.length > 1" class="grid gap-2 sm:grid-cols-2">
           <label class="text-sm font-bold">Compte publicitaire

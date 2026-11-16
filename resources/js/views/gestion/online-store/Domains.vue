@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../../components/ExplainMore.vue'
 import { onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
@@ -54,7 +55,11 @@ const copy = (t) => navigator.clipboard?.writeText(t)
 <template>
   <div class="space-y-5">
     <OnlineStoreTabs />
-    <p class="text-sm text-slate-600">Votre boutique est toujours à <strong>{{ data?.subdomain?.replace(/^https?:\/\//, '') }}</strong>. Ajoutez votre propre nom de domaine (ex. www.maboutique.ci) : le site y sera servi, avec un certificat de sécurité (https) automatique. La gestion reste sur l'adresse Jibiat Marchand.</p>
+    <div>
+      <p class="explain">Ajoutez votre propre nom de domaine.</p>
+      <p class="explain-detail">Ex. www.maboutique.ci, avec https automatique. Votre boutique reste aussi à <strong>{{ data?.subdomain?.replace(/^https?:\/\//, '') }}</strong>.</p>
+      <ExplainMore>La gestion reste sur l'adresse Jibiat Marchand.</ExplainMore>
+    </div>
     <Alert v-if="data?.hosted_by" tone="info">Cette boutique est une page de {{ data.hosted_by }} : ajoutez votre nom de domaine à {{ data.hosted_by }}, il servira aussi cette page ({{ data.subdomain.replace(/^https?:\/\//, '') }}).</Alert>
     <Alert v-else-if="data && !data.available" tone="warning">Le domaine personnalisé est compris dans l'offre Pro. <RouterLink to="/gestion/abonnement" class="underline">Voir les offres</RouterLink></Alert>
     <Alert v-if="error">{{ error }}</Alert>
@@ -79,7 +84,8 @@ const copy = (t) => navigator.clipboard?.writeText(t)
       <p v-if="d.last_error" class="text-amber-800">{{ d.last_error }}</p>
       <p v-if="d.last_checked_at" class="text-xs text-slate-500">Dernière vérification : {{ formatDateTime(d.last_checked_at) }}</p>
       <div v-if="!d.verified">
-        <p class="mb-2 text-slate-600">Chez votre registraire (là où vous avez acheté le domaine), ajoutez ces enregistrements DNS puis cliquez sur « Vérifier » :</p>
+        <p class="explain">Ajoutez ces enregistrements, puis touchez « Vérifier ».</p>
+        <p class="explain-detail mb-2">À faire chez votre registraire, là où vous avez acheté le domaine.</p>
         <div class="overflow-x-auto">
           <table class="w-full text-left">
             <thead class="text-xs text-slate-500"><tr><th class="py-1 pr-3">Type</th><th class="pr-3">Nom</th><th class="pr-3">Valeur</th><th>Rôle</th></tr></thead>
