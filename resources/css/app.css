@@ -265,6 +265,11 @@ select.input-lg {
 .sheet-body .delivery-tabs {
     display: none;
 }
+/* Même chose pour la Caisse : un bouton de la page Caisse = une fenêtre, fermer ramène à l'accueil
+   (sinon chaque onglet ouvrait une fenêtre de plus, et fermer ramenait à l'onglet précédent) */
+.sheet-body .cash-tabs {
+    display: none;
+}
 
 /* Application livreur, mode nuit : de vrais tons sombres (jetons de la charte redéfinis), plus de filtre
    d'inversion. Textes ≥ 6,7:1, couleurs de sens éclaircies (≥ 8,6:1 sur leur fond sombre), bord des champs 3,7:1. */

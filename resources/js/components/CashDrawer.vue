@@ -9,6 +9,9 @@ import { PAYMENT_METHODS } from '../lib/orders'
 import { useAuthStore } from '../stores/auth'
 
 // Tiroir-caisse : ouverture (fond de caisse), dépenses, retraits et apports, clôture avec comptage
+// heading : false dans l'écran « Tiroir-caisse », dont la fenêtre porte déjà le titre
+// start : 'depense' ouvre tout de suite le formulaire de dépense (bouton « Dépense » de l'accueil)
+const props = defineProps({ heading: { type: Boolean, default: true }, start: { type: String, default: '' } })
 const emit = defineEmits(['changed'])
 const auth = useAuthStore()
 const canHold = computed(() => auth.can('cash.manage'))
@@ -30,7 +33,10 @@ async function load() {
     error.value = errorMessage(e)
   }
 }
-onMounted(load)
+onMounted(async () => {
+  await load()
+  if (props.start === 'depense' && register.value?.session && canHold.value) startMove('expense')
+})
 
 async function refresh() {
   await load()
@@ -94,7 +100,7 @@ function gap(difference) {
 
 <template>
   <section v-if="register" class="space-y-3">
-    <h2 class="text-lg font-semibold">Tiroir-caisse du jour</h2>
+    <h2 v-if="heading" class="text-lg font-semibold">Tiroir-caisse du jour</h2>
     <Alert v-if="error">{{ error }}</Alert>
 
     <!-- Tiroir fermé -->
