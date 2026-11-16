@@ -64,8 +64,11 @@ async function saveHome() {
   <div class="mx-auto max-w-2xl space-y-4">
     <DeliveryTabs />
     <div>
-      <h1 class="text-xl font-extrabold">Tarifs de livraison</h1>
-      <p class="text-sm text-slate-600">Rien à remplir d'avance : quand vous changez un prix dans une commande, l'application vous propose de le retenir pour la commune ou le quartier.</p>
+      <h1 class="text-2xl font-extrabold">Tarifs de livraison</h1>
+      <div>
+        <p class="explain">Rien à remplir d'avance.</p>
+        <p class="explain-detail">Quand vous changez un prix dans une commande, l'application propose de le retenir pour la commune ou le quartier.</p>
+      </div>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
@@ -74,9 +77,9 @@ async function saveHome() {
     <section v-if="start && rates" class="card space-y-4 border-emerald-300 p-5">
       <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Livraison</p>
       <h2 class="text-2xl font-extrabold leading-tight">Combien faites-vous payer la livraison dans {{ rates.home?.name }} ?</h2>
-      <p class="text-slate-600">Votre prix habituel. Vous l'ajusterez commune par commune au fil des commandes, sans revenir ici.</p>
+      <p class="explain-detail">Votre prix habituel. Vous l'ajusterez commune par commune au fil des commandes.</p>
       <div class="flex items-center justify-center gap-2 rounded-2xl border-2 border-emerald-600 bg-white p-4">
-        <input v-model="base" class="w-40 bg-transparent text-center text-4xl font-black outline-none" type="number" min="0" inputmode="numeric" aria-label="Prix de livraison habituel" />
+        <input v-model="base" class="w-40 bg-transparent text-center text-3xl font-black" type="number" min="0" inputmode="numeric" aria-label="Prix de livraison habituel" />
         <span class="text-lg font-bold text-slate-500">F CFA</span>
       </div>
       <div class="grid grid-cols-4 gap-2">
@@ -100,7 +103,7 @@ async function saveHome() {
             <option v-for="c in cities" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
           <button type="button" class="btn-secondary px-3 py-1.5" :disabled="busy" @click="saveHome">Enregistrer</button>
-          <p class="w-full text-xs text-slate-500">Les autres villes passent alors en expédition.</p>
+          <p class="explain-detail w-full">Les autres villes passent alors en expédition.</p>
         </div>
       </section>
 

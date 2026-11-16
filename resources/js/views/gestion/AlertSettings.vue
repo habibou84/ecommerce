@@ -65,9 +65,10 @@ function toggle(key) {
   <div class="mx-auto max-w-3xl space-y-4">
     <div>
       <h2 class="text-lg font-semibold">Alertes sur les commandes, l'argent et les colis</h2>
-      <p class="text-sm text-slate-600">
-        Elles arrivent dans la cloche et sur le téléphone des personnes qui gèrent les commandes et les livraisons. Une seule alerte regroupée pour plusieurs commandes ; un appui ouvre la liste déjà filtrée.
-      </p>
+      <div>
+        <p class="explain">Les alertes arrivent dans la cloche et sur le téléphone.</p>
+        <p class="explain-detail">De ceux qui gèrent commandes et livraisons. Une alerte regroupe plusieurs commandes ; un appui ouvre la liste.</p>
+      </div>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
 
@@ -101,7 +102,7 @@ function toggle(key) {
               </select>
               <template v-if="a.key === 'cutoff'"> Aujourd'hui : {{ hourLabel(settings.cutoff_time) }} (<RouterLink to="/gestion/livraisons/zones" class="text-emerald-700 underline">changer</RouterLink>).</template>
             </p>
-            <p v-if="a.escalate && settings[a.key].on" class="mt-0.5 text-xs text-slate-500">Toujours en attente après trois fois ce délai : le propriétaire est prévenu.</p>
+            <p v-if="a.escalate && settings[a.key].on" class="explain-detail mt-0.5">Toujours en attente après trois fois ce délai : le propriétaire est prévenu.</p>
           </div>
           <button type="button" role="switch" :aria-checked="settings[a.key].on" :aria-label="a.title" class="relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition" :class="settings[a.key].on ? 'bg-emerald-600' : 'bg-slate-300'" @click="toggle(a.key)">
             <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition" :class="settings[a.key].on ? 'left-[22px]' : 'left-0.5'" />

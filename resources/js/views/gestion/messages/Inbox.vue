@@ -395,8 +395,8 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
             </div>
             <div class="mt-0.5 flex items-center gap-2">
               <span class="truncate text-xs" :class="c.unread ? 'text-slate-800' : 'text-slate-500'"><Icon v-if="drafts[c.id] && String(c.id) !== id" name="file" :size="12" class="mr-0.5 inline-block align-[-1px] text-amber-600" />{{ c.preview }}</span>
-              <span v-if="c.order" class="ml-auto shrink-0 rounded bg-slate-100 px-1.5 text-[11px] text-slate-600">{{ c.order.reference }}</span>
-              <span v-if="c.unread" class="shrink-0 rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white" :class="{ 'ml-auto': !c.order }">{{ c.unread }}</span>
+              <span v-if="c.order" class="ml-auto shrink-0 rounded bg-slate-100 px-1.5 text-xs text-slate-600">{{ c.order.reference }}</span>
+              <span v-if="c.unread" class="shrink-0 rounded-full bg-emerald-700 px-1.5 text-xs font-semibold text-white" :class="{ 'ml-auto': !c.order }">{{ c.unread }}</span>
             </div>
           </RouterLink>
           <button v-if="listPage < listLastPage" type="button" class="w-full p-3 text-sm font-medium text-emerald-700 hover:bg-slate-50" @click="loadList(true)">Voir plus de conversations</button>
@@ -448,7 +448,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
                 @keydown.space.prevent="toggleMessage(row.message)"
               >
                 <span v-if="selecting && row.message.direction === 'in'" class="mb-1 flex items-center gap-1.5 text-xs font-medium" :class="selected.includes(row.message.id) ? 'text-emerald-700' : 'text-slate-400'">
-                  <span class="grid h-4 w-4 place-items-center rounded border" :class="selected.includes(row.message.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'">{{ selected.includes(row.message.id) ? '✓' : '' }}</span>
+                  <span class="grid h-4 w-4 place-items-center rounded border" :class="selected.includes(row.message.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-field'">{{ selected.includes(row.message.id) ? '✓' : '' }}</span>
                   {{ selected.includes(row.message.id) ? 'Dans la commande' : 'Ajouter à la commande' }}
                 </span>
                 <p class="whitespace-pre-wrap break-words">
@@ -457,7 +457,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
                     <template v-else>{{ part }}</template>
                   </template>
                 </p>
-                <p class="mt-1 text-right text-[11px] text-slate-500" :title="formatDateTime(row.message.sent_at)">
+                <p class="mt-1 text-right text-xs text-slate-500" :title="formatDateTime(row.message.sent_at)">
                   <span v-if="row.message.by">{{ row.message.by }} · </span>{{ hour(row.message.sent_at) }}
                   <span v-if="row.message.direction === 'out' && statusIcon[row.message.status]" :class="row.message.status === 'read' ? 'text-sky-600' : row.message.status === 'failed' ? 'text-red-600' : ''" :aria-label="STATUS_LABEL[row.message.status]">{{ statusIcon[row.message.status] }}</span>
                 </p>
@@ -485,7 +485,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
             <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="suggesting || aiExhausted(ai)" @click="suggest">
               <Icon name="sparkles" :size="16" class="mr-1 inline-block align-[-3px]" />{{ suggesting ? 'L\'assistant écrit…' : 'Proposer une réponse' }}
             </button>
-            <span class="hidden text-xs text-slate-500 sm:inline">Avec vos prix, votre stock et vos frais de livraison. Relisez avant d'envoyer.</span>
+            <span class="hidden explain-detail sm:inline">Avec vos prix, votre stock et vos frais de livraison. Relisez avant d'envoyer.</span>
           </div>
           <AiMeter v-if="ai.enabled" />
           <p v-if="suggestionCheck" class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">À vérifier : {{ suggestionCheck }}</p>
@@ -507,7 +507,7 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
           <p v-if="!current.linked && replyUntil" class="text-xs text-slate-500">
             {{ current.channel === 'whatsapp' ? 'Connexion officielle de Meta' : channelLabel(current) }} : réponse possible jusqu'au {{ replyUntil }}.
           </p>
-          <p v-else-if="enterSends" class="text-xs text-slate-400">Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
+          <p v-else-if="enterSends" class="explain-detail">Entrée pour envoyer, Maj + Entrée pour aller à la ligne.</p>
         </form>
         <div v-else-if="!selecting" class="space-y-2 border-t border-slate-100 p-3 text-sm text-slate-600">
           <p>

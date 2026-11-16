@@ -121,7 +121,10 @@ const copy = (text) => navigator.clipboard?.writeText(text)
 
     <section class="card space-y-3 p-4">
       <h3 class="font-semibold">Livraison offerte</h3>
-      <p class="text-sm text-slate-600">Offrez la livraison dès un montant d'achat : le panier affiche « Plus que … pour la livraison offerte ». Laissez vide pour désactiver.</p>
+      <div>
+        <p class="explain">Offrez la livraison dès un montant d'achat.</p>
+        <p class="explain-detail">Le panier affiche « Plus que … pour la livraison offerte ». Laissez vide pour désactiver.</p>
+      </div>
       <div class="flex flex-wrap items-end gap-3">
         <Field id="free-shipping" label="Dès (F)"><input id="free-shipping" v-model="freeShipping" type="number" min="0" step="500" class="input w-40" placeholder="ex. 30000" /></Field>
         <button class="btn-brand" @click="saveFreeShipping">Enregistrer</button>
@@ -133,7 +136,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
       <div class="mb-3 flex items-center">
         <div>
           <h3 class="font-semibold"><Icon name="bolt" :size="18" class="mr-1 inline-block align-[-3px]" />Ventes flash</h3>
-          <p class="text-sm text-slate-500">Prix barré et compte à rebours sur les produits visés, sans code.</p>
+          <p class="explain-detail">Prix barré et compte à rebours sur les produits visés, sans code.</p>
         </div>
         <button class="btn-secondary ml-auto px-3 py-1.5" @click="open('flash')">+ Vente flash</button>
       </div>
@@ -154,7 +157,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
       <div class="mb-3 flex items-center">
         <div>
           <h3 class="font-semibold"><Icon name="tag" :size="18" class="mr-1 inline-block align-[-3px]" />Codes promo</h3>
-          <p class="text-sm text-slate-500">Le client saisit le code au panier ; vous pouvez aussi l'appliquer à une commande saisie à la main.</p>
+          <p class="explain-detail">Le client saisit le code au panier ; vous pouvez aussi l'appliquer à une commande saisie à la main.</p>
         </div>
         <button class="btn-secondary ml-auto px-3 py-1.5" @click="open('code')">+ Code promo</button>
       </div>
@@ -171,7 +174,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
       </ul>
     </section>
 
-    <p class="text-sm text-slate-500">Prix par quantité (« 3 pour 25 000 F ») : sur la fiche de chaque produit, dans le catalogue.</p>
+    <p class="explain-detail">Prix par quantité (« 3 pour 25 000 F ») : sur la fiche de chaque produit, dans le catalogue.</p>
 
     <Modal v-if="editing" :title="editing.id ? 'Modifier la promotion' : editing.kind === 'flash' ? 'Nouvelle vente flash' : 'Nouveau code promo'" @close="editing = null">
       <form class="space-y-4" @submit.prevent="save">

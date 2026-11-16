@@ -54,14 +54,14 @@ async function redo(live) {
 
     <template v-if="stats">
       <div class="grid grid-cols-3 gap-2">
-        <div class="card p-3 text-center"><b class="block text-xl font-black">{{ stats.lives }}</b><span class="text-xs text-slate-500">lives</span></div>
-        <div class="card p-3 text-center"><b class="block text-xl font-black">{{ stats.orders }}</b><span class="text-xs text-slate-500">commandes</span></div>
-        <div class="card p-3 text-center"><b class="block text-xl font-black">{{ short(stats.amount) }}</b><span class="text-xs text-slate-500">vendus</span></div>
+        <div class="card p-3 text-center"><b class="block text-2xl font-black">{{ stats.lives }}</b><span class="text-xs text-slate-500">lives</span></div>
+        <div class="card p-3 text-center"><b class="block text-2xl font-black">{{ stats.orders }}</b><span class="text-xs text-slate-500">commandes</span></div>
+        <div class="card p-3 text-center"><b class="block text-2xl font-black">{{ short(stats.amount) }}</b><span class="text-xs text-slate-500">vendus</span></div>
       </div>
       <div class="grid grid-cols-3 gap-2">
-        <div class="card p-3 text-center"><b class="block text-xl font-black">{{ stats.orders_per_live }}</b><span class="text-xs text-slate-500">commandes / live</span></div>
+        <div class="card p-3 text-center"><b class="block text-2xl font-black">{{ stats.orders_per_live }}</b><span class="text-xs text-slate-500">commandes / live</span></div>
         <div class="card min-w-0 p-3 text-center"><b class="block truncate text-base font-black" :title="stats.best_product?.title">{{ stats.best_product?.title ?? '—' }}</b><span class="text-xs text-slate-500">le plus commandé</span></div>
-        <div class="card p-3 text-center"><b class="block text-xl font-black">{{ stats.best_hour != null ? `${stats.best_hour} h` : '—' }}</b><span class="text-xs text-slate-500">meilleure heure</span></div>
+        <div class="card p-3 text-center"><b class="block text-2xl font-black">{{ stats.best_hour != null ? `${stats.best_hour} h` : '—' }}</b><span class="text-xs text-slate-500">meilleure heure</span></div>
       </div>
     </template>
 

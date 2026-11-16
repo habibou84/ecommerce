@@ -70,7 +70,7 @@ async function destroy() {
 
     <div class="card">
       <div v-if="!pages.length" class="space-y-3 p-4 text-sm">
-        <p class="text-slate-500">Aucune page pour l'instant. Commencez par :</p>
+        <p class="explain-detail">Aucune page pour l'instant. Commencez par :</p>
         <div class="flex flex-wrap gap-2">
           <button v-for="s in suggestions" :key="s.title" class="btn-secondary px-3 py-1.5" @click="open(null, s)">+ {{ s.title }}</button>
         </div>

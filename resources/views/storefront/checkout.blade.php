@@ -101,7 +101,7 @@
                 <dl class="mt-3 space-y-2 border-t border-slate-200 pt-3 text-sm">
                     <div class="flex justify-between"><dt>Sous-total</dt><dd>@money($summary['subtotal'])</dd></div>
                     @if ($summary['discount']['amount'] ?? 0)
-                        <div class="flex justify-between text-brand"><dt>Remise ({{ $summary['discount']['code'] }})</dt><dd>− @money($summary['discount']['amount'])</dd></div>
+                        <div class="flex justify-between text-brand-text"><dt>Remise ({{ $summary['discount']['code'] }})</dt><dd>− @money($summary['discount']['amount'])</dd></div>
                     @endif
                     <div class="flex justify-between gap-4"><dt>Livraison</dt><dd data-fee class="text-right text-slate-500">Choisissez votre quartier</dd></div>
                     <p data-eta class="text-xs text-slate-500" hidden></p>

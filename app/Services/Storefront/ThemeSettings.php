@@ -130,18 +130,55 @@ class ThemeSettings
 
     /**
      * Variables CSS du thème (couleur principale, texte lisible dessus, fond, police).
+     * Contrastes calculés comme WCAG 2.2 : texte des boutons blanc ou foncé selon le meilleur contraste, et
+     * une version foncée de la couleur (au moins 4,5:1 sur le fond et sur le blanc) pour les liens, prix et remises.
      */
     private function css(array $settings): string
     {
         $primary = $settings['primary_color'];
         [$r, $g, $b] = sscanf($primary, '#%02x%02x%02x');
-        $contrast = (0.299 * $r + 0.587 * $g + 0.114 * $b) > 160 ? '#111827' : '#ffffff';
+        $contrast = self::contrast($primary, '#ffffff') >= self::contrast($primary, '#111827') ? '#ffffff' : '#111827';
+        $text = self::readableOn($primary, [$settings['background_color'], '#ffffff']);
         $font = match ($settings['font']) {
             'serif' => "Georgia, 'Times New Roman', serif",
             'rounded' => "ui-rounded, 'SF Pro Rounded', 'Segoe UI', system-ui, sans-serif",
             default => "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
         };
 
-        return "--brand: {$primary}; --brand-contrast: {$contrast}; --brand-soft: rgba({$r}, {$g}, {$b}, 0.08); --page-bg: {$settings['background_color']}; --heading-font: {$font};";
+        return "--brand: {$primary}; --brand-contrast: {$contrast}; --brand-text: {$text}; --brand-soft: rgba({$r}, {$g}, {$b}, 0.08); --page-bg: {$settings['background_color']}; --heading-font: {$font};";
+    }
+
+    /** Rapport de contraste WCAG entre deux couleurs #rrggbb. */
+    public static function contrast(string $a, string $b): float
+    {
+        [$la, $lb] = [self::luminance($a), self::luminance($b)];
+
+        return (max($la, $lb) + 0.05) / (min($la, $lb) + 0.05);
+    }
+
+    /** La couleur, assombrie si besoin jusqu'à 4,5:1 sur chacun des fonds (texte en couleur de la boutique). */
+    public static function readableOn(string $color, array $backgrounds): string
+    {
+        [$r, $g, $b] = sscanf($color, '#%02x%02x%02x');
+        for ($step = 0; $step <= 20; $step++) {
+            $k = 1 - $step * 0.05;
+            $hex = sprintf('#%02x%02x%02x', (int) round($r * $k), (int) round($g * $k), (int) round($b * $k));
+            if (collect($backgrounds)->every(fn (string $bg) => self::contrast($hex, $bg) >= 4.5)) {
+                return $hex;
+            }
+        }
+
+        return '#111827';
+    }
+
+    private static function luminance(string $hex): float
+    {
+        $channels = array_map(function (int $v): float {
+            $c = $v / 255;
+
+            return $c <= 0.04045 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
+        }, sscanf($hex, '#%02x%02x%02x'));
+
+        return 0.2126 * $channels[0] + 0.7152 * $channels[1] + 0.0722 * $channels[2];
     }
 }

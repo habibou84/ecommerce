@@ -509,6 +509,13 @@ class PlatformWhatsApp
                 'provider_message_id' => $message['id'] ?? null, 'status' => 'received', 'sent_at' => $sentAt,
             ]);
         });
+        // Bouton « Confirmer » d'un récap envoyé par la boutique (commande prise dans une conversation WhatsApp)
+        $touched = $message['interactive']['button_reply']['id'] ?? null;
+        if (is_string($touched) && str_starts_with($touched, 'recap:')) {
+            rescue(fn () => app(RecapOrders::class)->fromOwner('+'.ltrim($from, '+'), $touched));
+
+            return $saved;
+        }
         // « STOP » / « START » : messages automatiques arrêtés ou repris, confirmé dans la conversation
         if ($keyword !== null) {
             rescue(fn () => $this->sendAutomatic('+'.ltrim($from, '+'), $keyword), report: false);

@@ -142,7 +142,10 @@ const editingTotal = computed(() => (editing.value?.items ?? []).reduce((s, i) =
   <div class="space-y-4">
     <StockTabs />
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <p class="text-sm text-slate-600">Préparez vos commandes aux fournisseurs, envoyez-les par WhatsApp, puis réceptionnez la marchandise : elle entre en stock.</p>
+      <div>
+        <p class="explain">Commandez à vos fournisseurs par WhatsApp.</p>
+        <p class="explain-detail">Puis réceptionnez la marchandise : elle entre en stock.</p>
+      </div>
       <div class="flex gap-2">
         <button class="btn-secondary" @click="editSupplier()">+ Fournisseur</button>
         <button class="btn-brand" @click="edit()">+ Bon de commande</button>

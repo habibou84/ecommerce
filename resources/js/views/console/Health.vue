@@ -34,7 +34,7 @@ const BACKUP = {
 <template>
   <div class="space-y-4">
     <div class="flex items-center gap-3">
-      <h2 class="text-xl font-semibold">Santé de la plateforme</h2>
+      <h2 class="text-2xl font-semibold">Santé de la plateforme</h2>
       <button class="btn-ghost ml-auto" @click="load">Actualiser</button>
     </div>
     <Alert v-if="error">{{ error }}</Alert>

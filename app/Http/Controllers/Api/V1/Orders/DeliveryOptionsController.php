@@ -45,7 +45,7 @@ class DeliveryOptionsController extends Controller
         $fragile = $variants->contains(fn (ProductVariant $v) => $v->product?->is_fragile);
 
         // Livreurs actifs, et ceux créés mais pas encore connectés (ils verront la course en ouvrant leur lien)
-        $couriers = Courier::whereIn('status', ['active', 'invited'])->with('zones:id')
+        $couriers = Courier::whereIn('status', ['active', 'invited'])->with('places:id')
             ->withCount(['shipments as active_missions' => fn ($q) => $q->whereIn('status', ['awaiting_pickup', 'in_transit', 'out_for_delivery'])])
             ->orderBy('name')->get()
             ->map(fn (Courier $c) => [
@@ -53,10 +53,11 @@ class DeliveryOptionsController extends Controller
                 'name' => $c->name,
                 'is_available' => $c->is_available,
                 'active_missions' => $c->active_missions,
-                'covers_zone' => $zone !== null && $c->zones->contains('id', $zone->id),
+                'covers_zone' => $c->coversPlace($place),
+                'all_zones' => $c->places->isEmpty(),
                 'connected' => $c->status === 'active',
             ])
-            ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['active_missions']])->values();
+            ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['all_zones'] ? 1 : 0, $c['active_missions']])->values();
 
         $connections = CarrierConnection::where('status', 'active')->withCount(['zones' => fn ($q) => $q->where('is_active', true)])->get()->keyBy('id');
         $carriers = array_map(fn (array $q) => [

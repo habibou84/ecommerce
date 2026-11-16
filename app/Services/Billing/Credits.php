@@ -3,29 +3,36 @@
 namespace App\Services\Billing;
 
 use App\Enums\CancelReason;
+use App\Enums\Permission;
 use App\Exceptions\BusinessRuleException;
 use App\Models\AiUsage;
 use App\Models\Boost;
 use App\Models\LiveReservation;
 use App\Models\LiveSession;
 use App\Models\LiveSessionBill;
+use App\Models\Order;
+use App\Models\OrderCreditBill;
 use App\Models\PlatformSetting;
 use App\Models\Store;
 use App\Models\SubscriptionInvoice;
 use App\Models\User;
+use App\Notifications\CreditsNotice;
+use App\Services\Accounts\TeamNotifier;
+use App\Services\Ai\Assistant;
 use App\Services\Live\LiveSales;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Solde unique de la boutique : des commandes et des actions IA, achetés ensemble. Payantes : les commandes prises en
- * live ou par WhatsApp, et celles venues d'un boost Meta (1 commande chacune, réglable). Gratuites : la boutique en
- * ligne et la saisie à la main. Deux façons de recharger : un pack (commandes + IA incluse) ou l'illimité 30 jours
+ * live ou par WhatsApp (récap du marchand, panier du catalogue WhatsApp, modèles), et celles venues d'un boost Meta
+ * (1 commande chacune, réglable). Gratuites : la boutique en ligne et la saisie à la main. Deux façons de recharger : un pack (commandes + IA incluse) ou l'illimité 30 jours
  * (IA incluse). Des commandes et des actions IA sont offertes au départ. Tant que « commandes payantes » est éteint
  * dans la console, rien n'est compté.
  *
  * Les commandes d'un live sont retirées à la fin du live (même annulées ensuite, sauf les fausses), celles des
- * commandes WhatsApp chaque soir, celles des boosts à chaque relecture. Le solde peut passer sous zéro après un gros
+ * commandes WhatsApp chaque soir (hors live : seulement les confirmées, sauf les fausses), celles des boosts à chaque
+ * relecture. Le solde peut passer sous zéro après un gros
  * live : le live suivant attend alors une recharge ; un live en cours n'est jamais coupé.
  */
 class Credits
@@ -291,6 +298,81 @@ class Credits
     }
 
     /**
+     * « récap » du marchand : refusé quand les commandes sont comptées et que le solde est vide (un récap déjà envoyé
+     * reste confirmable, même sous zéro).
+     */
+    public function canRecap(Store $store): bool
+    {
+        return ! $this->counting($store) || (int) $store->fresh()->order_credits > 0;
+    }
+
+    /**
+     * Commandes WhatsApp hors live (récap, catalogue, modèles) confirmées les jours passés (heure de la boutique) :
+     * retirées du solde, un jour compté par boutique. Les fausses (faux numéro, fraude, doublon) annulées avant ne
+     * comptent pas. Alerte quand le solde passe sous le seuil. Renvoie le nombre de commandes retirées.
+     */
+    public function billOrders(): int
+    {
+        $fake = [CancelReason::WrongNumber->value, CancelReason::Fraud->value, CancelReason::Duplicate->value];
+        $total = 0;
+        $storeIds = Order::withoutGlobalScopes()->where('credit_due', true)->whereNull('credit_billed_at')->whereNotNull('confirmed_at')
+            ->distinct()->pluck('store_id');
+        foreach ($storeIds as $storeId) {
+            $total += DB::transaction(function () use ($storeId, $fake) {
+                $store = Store::whereKey($storeId)->lockForUpdate()->first();
+                if ($store === null) {
+                    return 0;
+                }
+                $tz = $store->timezone ?: config('app.timezone');
+                $today = now($tz)->startOfDay();
+                $orders = Order::withoutGlobalScopes()->where('store_id', $store->id)->where('credit_due', true)->whereNull('credit_billed_at')
+                    ->where('confirmed_at', '<', $today->copy()->utc())->get(['id', 'confirmed_at', 'cancel_reason', 'credit_channel']);
+                if ($orders->isEmpty()) {
+                    return 0;
+                }
+                [$false, $counted] = $orders->partition(fn (Order $o) => $o->cancel_reason !== null && in_array($o->cancel_reason->value, $fake, true));
+                $before = (int) $store->order_credits;
+                foreach ($counted->groupBy(fn (Order $o) => $o->confirmed_at->copy()->setTimezone($tz)->toDateString()) as $day => $group) {
+                    $bill = OrderCreditBill::forStore($store->id)->firstOrNew(['store_id' => $store->id, 'day' => $day]);
+                    $detail = $bill->detail ?? [];
+                    foreach ($group->countBy('credit_channel') as $channel => $count) {
+                        $detail[$channel] = ($detail[$channel] ?? 0) + $count;
+                    }
+                    $bill->fill(['orders' => (int) $bill->orders + $group->count(), 'amount' => (int) $bill->amount + $group->count(), 'detail' => $detail])->save();
+                }
+                $this->debit($store, $counted->count());
+                Order::withoutGlobalScopes()->whereIn('id', $counted->pluck('id'))->update(['credit_billed_at' => now()]);
+                Order::withoutGlobalScopes()->whereIn('id', $false->pluck('id'))->update(['credit_due' => false, 'credit_billed_at' => now()]);
+                $this->alertLow($store, $before, $before - $counted->count());
+
+                return $counted->count();
+            });
+        }
+
+        return $total;
+    }
+
+    /**
+     * Solde passé sous le seuil d'alerte (ou à zéro) : l'équipe est prévenue, une fois par passage.
+     */
+    private function alertLow(Store $store, int $before, int $after): void
+    {
+        $at = $this->settings()['alert_at'];
+        if ($before === $after || $this->coveredUntil($store) !== null) {
+            return;
+        }
+        $title = match (true) {
+            $before > 0 && $after <= 0 => 'Ton solde de commandes est à zéro',
+            $before > $at && $after <= $at => "Il te reste {$after} commande".($after > 1 ? 's' : '').' dans ton solde',
+            default => null,
+        };
+        if ($title !== null) {
+            DB::afterCommit(fn () => app(TeamNotifier::class)->notify($store, Permission::BillingManage->value,
+                new CreditsNotice($store->id, $title, 'Recharge pour continuer à envoyer des récaps et prendre des commandes WhatsApp.')));
+        }
+    }
+
+    /**
      * Ce que voit la boutique : solde, packs et illimité, ce qui a été utilisé ce mois-ci, paiements.
      *
      * @return array<string, mixed>
@@ -310,9 +392,10 @@ class Credits
             ->latest('billed_at')->get(['id', 'title', 'started_at', 'billed_amount'])
             ->map(fn (LiveSession $l) => ['kind' => 'live', 'label' => $l->title ?: 'Live', 'at' => $l->started_at?->toIso8601String(), 'orders' => -(int) $l->billed_amount]);
         $whatsapp = (int) LiveSessionBill::forStore($store->id)->where('day', '>=', $since->toDateString())->sum('amount');
+        $whatsappOrders = (int) OrderCreditBill::forStore($store->id)->where('day', '>=', $since->toDateString())->sum('amount');
         $boosts = Boost::forStore($store->id)->where('credits_used', '>', 0)->where('updated_at', '>=', $since)->get(['id', 'name', 'credits_used'])
             ->map(fn (Boost $b) => ['kind' => 'boost', 'label' => $b->name, 'at' => null, 'orders' => -(int) $b->credits_used]);
-        $ai = AiUsage::where('store_id', $store->id)->where('succeeded', true)->where('created_at', '>=', $since)->count();
+        $ai = AiUsage::where('store_id', $store->id)->where('succeeded', true)->whereNotIn('feature', Assistant::INCLUDED)->where('created_at', '>=', $since)->count();
 
         return [
             'paid' => $s['paid'],
@@ -329,6 +412,7 @@ class Credits
             'usage' => [
                 'lives' => $lives->values()->all(),
                 'whatsapp' => $whatsapp,
+                'whatsapp_orders' => $whatsappOrders,
                 'boosts' => $boosts->values()->all(),
                 'ai' => $ai,
             ],

@@ -21,6 +21,9 @@ use Throwable;
  */
 class Assistant
 {
+    /** Actions comprises dans le prix d'une commande (« récap » WhatsApp) : ni comptées dans le quota, ni prises au solde */
+    public const INCLUDED = ['whatsapp_recap'];
+
     public function __construct(
         private readonly AiClient $client,
         private readonly PlanLimits $limits,
@@ -55,7 +58,7 @@ class Assistant
      */
     public function run(Store $store, ?User $user, string $feature, string $system, array $content, array $schema, int $maxTokens = 8000): array
     {
-        $this->ensureAvailable($store);
+        $this->ensureAvailable($store, in_array($feature, self::INCLUDED, true));
 
         try {
             $result = $this->client->json($system, $content, $schema, $maxTokens);
@@ -120,10 +123,13 @@ class Assistant
         return ['type' => 'image', 'source' => ['type' => 'base64', 'mediaType' => 'image/jpeg', 'data' => base64_encode((string) $image->toJpeg(80))]];
     }
 
-    private function ensureAvailable(Store $store): void
+    private function ensureAvailable(Store $store, bool $included = false): void
     {
         if (! $this->enabled($store)) {
             throw new BusinessRuleException('L\'assistant IA n\'est pas encore activé sur la plateforme.');
+        }
+        if ($included) {
+            return;
         }
         $limit = $this->limit($store);
         // Quota de l'offre épuisé : les actions IA du solde prennent le relais
@@ -153,7 +159,7 @@ class Assistant
     private function record(Store $store, ?User $user, string $feature, int $input, int $output, bool $succeeded): void
     {
         // Action réussie au-delà du quota de l'offre : prise sur les actions achetées
-        if ($succeeded && $this->overQuota($store, $this->limit($store))) {
+        if ($succeeded && ! in_array($feature, self::INCLUDED, true) && $this->overQuota($store, $this->limit($store))) {
             Store::whereKey($store->id)->where('ai_credits', '>', 0)->decrement('ai_credits');
         }
         AiUsage::create([

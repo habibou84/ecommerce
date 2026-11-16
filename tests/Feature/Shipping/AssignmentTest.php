@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\ShipmentStatus;
 use App\Models\CarrierConnection;
 use App\Models\Courier;
+use App\Models\CourierAssignment;
 use App\Models\CourierPayRule;
 use App\Models\DeliveryZone;
 use App\Models\Order;
@@ -13,10 +14,13 @@ use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Couriers\MissionResponses;
 use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
 use App\Services\Shipping\DeliveryAdvisor;
 use App\Services\Shipping\ShipmentDesk;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class AssignmentTest extends TestCase
@@ -39,7 +43,8 @@ class AssignmentTest extends TestCase
 
         $rule = CourierPayRule::create(['store_id' => $this->store->id, 'name' => 'Course', 'type' => 'per_delivery', 'amount' => 1500]);
         $this->koffi = Courier::create(['store_id' => $this->store->id, 'name' => 'Koffi', 'phone' => '+2250102030405', 'status' => 'active', 'is_available' => true, 'pay_rule_id' => $rule->id]);
-        $this->koffi->zones()->attach($this->zone()->id);
+        // Koffi livre à Cocody (et donc à Angré, quartier de Cocody)
+        $this->koffi->places()->attach(Place::whereNull('store_id')->where('type', 'commune')->where('name', 'Cocody')->value('id'), ['store_id' => $this->store->id]);
         $this->moto = CarrierConnection::findOrFail($this->storeApi($this->store, 'POST', 'carriers/manual', ['name' => 'Moto Express', 'phone' => '0708091011'])->assertCreated()->json('data.id'));
     }
 
@@ -102,6 +107,152 @@ class AssignmentTest extends TestCase
         $this->assertSame([OrderStatus::Confirmed, 0], [$other->status, $other->shipments->count()]);
     }
 
+    private function placeId(string $name): int
+    {
+        return (int) Place::whereNull('store_id')->where('name', $name)->value('id');
+    }
+
+    public function test_couriers_and_special_cases_use_real_places(): void
+    {
+        // Ali livre à Yopougon seulement : pas proposé pour Angré (Cocody), même si Koffi est indisponible
+        $this->koffi->update(['is_available' => false]);
+        $ali = $this->storeApi($this->store, 'POST', 'couriers', ['name' => 'Ali', 'phone' => '0102030499', 'place_ids' => [$this->placeId('Yopougon')]])
+            ->assertCreated()->assertJsonPath('data.places.0.label', 'Yopougon')->json('data.id');
+        Courier::whereKey($ali)->update(['status' => 'active', 'is_available' => true]);
+        $angre = $this->order();
+        $this->assertSame(['carrier', 'Moto Express'], array_values(array_intersect_key(app(DeliveryAdvisor::class)->suggest($angre), array_flip(['type', 'name']))));
+
+        // Lieux d'un autre ou inconnus refusés en silence ; un quartier se choisit aussi (« Angré, Cocody »)
+        $this->storeApi($this->store, 'PATCH', "couriers/{$ali}", ['place_ids' => [$this->placeId('Angré'), 999999]])->assertOk()
+            ->assertJsonPath('data.places', [['id' => $this->placeId('Angré'), 'label' => 'Angré, Cocody']]);
+        $this->assertSame('Ali', app(DeliveryAdvisor::class)->suggest($angre->fresh())['name']);
+
+        // Cas particulier par lieu : Cocody couvre Angré ; Yopougon ne le couvre pas
+        $yop = $this->storeApi($this->store, 'POST', 'shipping-rules', ['name' => 'Yopougon', 'action' => 'carrier', 'carrier_connection_id' => $this->moto->id, 'conditions' => ['place_ids' => [$this->placeId('Yopougon')]]])
+            ->assertCreated()->assertJsonPath('data.places.0.label', 'Yopougon');
+        $this->assertSame('Ali', app(DeliveryAdvisor::class)->suggest($angre->fresh())['name']);
+        $this->storeApi($this->store, 'POST', 'shipping-rules', ['name' => 'Cocody', 'action' => 'carrier', 'carrier_connection_id' => $this->moto->id, 'conditions' => ['place_ids' => [$this->placeId('Cocody')]]])->assertCreated();
+        $this->assertSame('Règle « Cocody »', app(DeliveryAdvisor::class)->suggest($angre->fresh())['reason']);
+        $this->storeApi($this->store, 'GET', 'shipping-rules')->assertOk()->assertJsonPath('data.0.places.0.label', 'Yopougon')->assertJsonMissingPath('zones');
+
+        // Choix en un toucher : la ville de la boutique puis ses communes
+        $home = $this->storeApi($this->store, 'GET', 'places', ['home' => 1])->assertOk()->json('data');
+        $this->assertSame(['city', 'Abidjan'], [$home[0]['type'], $home[0]['name']]);
+        $this->assertContains('Cocody', array_column($home, 'name'));
+        $this->assertSame(['commune'], array_values(array_unique(array_column(array_slice($home, 1), 'type'))));
+    }
+
+    private function deliverer(Order $order): ?string
+    {
+        $shipment = $order->fresh('shipments.courier')->shipments->first(fn ($s) => ! $s->status->isFinal());
+
+        return $shipment?->courier?->name ?? $shipment?->connection?->name;
+    }
+
+    public function test_round_robin_between_couriers(): void
+    {
+        // Ali livre partout, Koffi livre Cocody : « le plus proche » donne toujours Koffi pour Angré
+        Courier::create(['store_id' => $this->store->id, 'name' => 'Ali', 'phone' => '+2250102030499', 'status' => 'active', 'is_available' => true]);
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto'])->assertOk()->assertJsonPath('courier_dispatch', 'nearest');
+        $this->assertSame(['Koffi', 'Koffi'], [$this->deliverer($this->order()), $this->deliverer($this->order())]);
+
+        // « Chacun son tour » : Ali (jamais servi) puis Koffi puis Ali
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['courier_dispatch' => 'round_robin'])->assertOk()->assertJsonPath('courier_dispatch', 'round_robin');
+        $this->travel(1)->minutes();
+        $first = $this->deliverer($this->order());
+        $this->travel(1)->minutes();
+        $second = $this->deliverer($this->order());
+        $this->travel(1)->minutes();
+        $third = $this->deliverer($this->order());
+        $this->assertSame(['Ali', 'Koffi', 'Ali'], [$first, $second, $third]);
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['courier_dispatch' => 'au_hasard'])->assertStatus(422);
+    }
+
+    public function test_unanswered_mission_passes_to_the_next_courier(): void
+    {
+        Courier::create(['store_id' => $this->store->id, 'name' => 'Ali', 'phone' => '+2250102030499', 'status' => 'active', 'is_available' => true]);
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto', 'mission_timeout_minutes' => 7])->assertStatus(422);
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto', 'mission_timeout_minutes' => 15])->assertOk()->assertJsonPath('mission_timeout_minutes', 15);
+
+        $order = $this->order();
+        $accepted = $this->order();
+        $this->assertSame(['Koffi', 'Koffi'], [$this->deliverer($order), $this->deliverer($accepted)]);
+        app(MissionResponses::class)->accept($accepted->fresh('shipments')->shipments->sole(), $this->koffi);
+
+        // Avant le délai : rien ; après : la course non acceptée passe à Ali, celle acceptée reste
+        $this->travel(10)->minutes();
+        $this->assertSame(0, app(MissionResponses::class)->passUnanswered());
+        $this->travel(6)->minutes();
+        $this->assertSame(1, app(MissionResponses::class)->passUnanswered());
+        $this->assertSame(['Ali', 'Koffi'], [$this->deliverer($order), $this->deliverer($accepted)]);
+        $this->assertSame('Pas de réponse en 15 min', CourierAssignment::where('courier_id', $this->koffi->id)->where('status', 'declined')->sole()->decline_reason);
+
+        // Sans délai choisi : on prévient seulement
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['mission_timeout_minutes' => null])->assertOk()->assertJsonPath('mission_timeout_minutes', null);
+        $this->order();
+        $this->travel(2)->hours();
+        $this->assertSame(0, app(MissionResponses::class)->passUnanswered());
+    }
+
+    public function test_summary_of_automatic_sending(): void
+    {
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto'])->assertOk();
+        $this->order();
+
+        // Personne pour livrer : la commande attend, la raison est notée et la commande apparaît dans le bilan
+        $this->koffi->update(['is_available' => false]);
+        $this->moto->update(['status' => 'disabled']);
+        $blocked = $this->order()->fresh('events');
+        $this->assertTrue($blocked->events->contains(fn ($e) => $e->type === 'auto_assignment_failed' && $e->data['error'] === DeliveryAdvisor::NOBODY));
+
+        $summary = $this->storeApi($this->store, 'GET', 'shipping-rules')->assertOk()->json('summary');
+        $this->assertSame([7, 1, 1], [$summary['days'], $summary['sent'], $summary['failed']]);
+        $this->assertSame([[$blocked->id, 'Fatou', DeliveryAdvisor::NOBODY]], array_map(fn ($o) => [$o['id'], $o['customer'], $o['reason']], $summary['blocked']));
+
+        // Une fois confiée à la main, elle n'est plus bloquée
+        $this->koffi->update(['is_available' => true]);
+        $this->storeApi($this->store, 'POST', "orders/{$blocked->id}/shipments", ['courier_id' => $this->koffi->id])->assertCreated();
+        $this->storeApi($this->store, 'GET', 'shipping-rules')->assertJsonCount(0, 'summary.blocked');
+
+        // Un cas « je choisis moi-même » n'est pas un échec
+        $this->storeApi($this->store, 'POST', 'shipping-rules', ['name' => 'À la main', 'action' => 'manual'])->assertCreated();
+        $manual = $this->order()->fresh('events');
+        $this->assertFalse($manual->events->contains(fn ($e) => $e->type === 'auto_assignment_failed'));
+    }
+
+    public function test_old_zones_become_places(): void
+    {
+        // Données d'avant : Koffi couvrait la zone « Abidjan », un cas visait cette zone
+        $this->koffi->places()->detach();
+        DB::table('courier_zones')->insert(['courier_id' => $this->koffi->id, 'delivery_zone_id' => $this->zone()->id]);
+        $rule = DB::table('shipping_rules')->insertGetId(['store_id' => $this->store->id, 'name' => 'Abidjan', 'action' => 'own_courier', 'priority' => 1, 'is_active' => true,
+            'conditions' => json_encode(['delivery_zone_ids' => [$this->zone()->id], 'is_fragile' => true]), 'created_at' => now(), 'updated_at' => now()]);
+
+        Schema::drop('courier_places');
+        (require database_path('migrations/2027_02_14_000001_create_courier_places.php'))->up();
+
+        $abidjan = $this->zone()->places()->value('places.id');
+        $this->assertSame([$abidjan], $this->koffi->fresh()->places->pluck('id')->all());
+        $this->assertSame(['is_fragile' => true, 'place_ids' => [$abidjan]], json_decode(DB::table('shipping_rules')->where('id', $rule)->value('conditions'), true));
+    }
+
+    public function test_courier_without_zones_covers_every_zone(): void
+    {
+        $this->storeApi($this->store, 'PATCH', 'shipping-rules', ['assignment_mode' => 'auto'])->assertOk();
+        // Koffi (lieu choisi) indisponible ; Ali n'a aucun lieu : il livre partout, il est choisi
+        $this->koffi->update(['is_available' => false]);
+        $ali = Courier::create(['store_id' => $this->store->id, 'name' => 'Ali', 'phone' => '+2250102030499', 'status' => 'active', 'is_available' => true]);
+
+        $order = $this->order()->fresh('shipments');
+        $this->assertSame($ali->id, $order->shipments->sole()->courier_id);
+
+        // Les deux disponibles : le livreur du quartier passe avant celui qui couvre tout
+        $this->koffi->update(['is_available' => true]);
+        $this->assertSame('Koffi', app(DeliveryAdvisor::class)->suggest($this->order())['name'] ?? null);
+        $options = app(DeliveryAdvisor::class)->options($this->order());
+        $this->assertSame([['Koffi', true, false], ['Ali', true, true]], array_map(fn ($c) => [$c['name'], $c['covers_zone'], $c['all_zones']], $options['couriers']));
+    }
+
     public function test_delivery_chosen_when_the_order_is_entered(): void
     {
         $angre = Place::whereNull('store_id')->where('name', 'Angré')->value('id');
@@ -152,6 +303,38 @@ class AssignmentTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors('planned_courier_id');
         $this->koffi->update(['status' => 'inactive']);
         $this->storeApi($this->store, 'POST', 'orders', $payload + ['planned_courier_id' => $this->koffi->id])->assertStatus(422)->assertJsonValidationErrors('planned_courier_id');
+    }
+
+    public function test_delivery_chosen_after_confirmation_sends_the_course(): void
+    {
+        // Commande déjà confirmée, sans livreur : on le choisit en modifiant la commande, la course part tout de suite
+        $order = $this->order();
+        $this->assertCount(0, $order->shipments);
+        $this->storeApi($this->store, 'PUT', "orders/{$order->id}", ['planned_courier_id' => $this->koffi->id])->assertOk();
+        $order = Order::with(['shipments', 'events'])->findOrFail($order->id);
+        $this->assertSame($this->koffi->id, $order->shipments->sole()->courier_id);
+        $this->assertTrue($order->events->contains(fn ($e) => $e->type === 'auto_assigned' && $e->data['to'] === 'Koffi'));
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.assignment_error', null);
+        // Course partie : l'accueil ne la compte plus « à faire livrer », comme l'onglet de la liste
+        $this->storeApi($this->store, 'GET', 'dashboard')->assertJsonPath('data.orders.to_ship', 0);
+        $this->storeApi($this->store, 'GET', 'orders')->assertJsonPath('counts.to_ship', 0);
+    }
+
+    public function test_failed_course_is_shown_with_its_reason(): void
+    {
+        // Livreur choisi à la saisie puis désactivé avant la confirmation : l'envoi échoue, la fiche le dit
+        $id = $this->storeApi($this->store, 'POST', 'orders', [
+            'source' => 'whatsapp', 'customer_phone' => '0506070809', 'delivery_method' => 'delivery',
+            'shipping_place_id' => Place::whereNull('store_id')->where('name', 'Angré')->value('id'),
+            'items' => [['variant_id' => $this->vase->variants[0]->id, 'quantity' => 1]], 'planned_courier_id' => $this->koffi->id,
+        ])->assertCreated()->json('data.id');
+        $this->koffi->update(['status' => 'inactive']);
+        $this->storeApi($this->store, 'POST', "orders/{$id}/confirmations", ['outcome' => 'confirmed', 'channel' => 'call'])->assertOk();
+
+        $this->assertCount(0, Order::findOrFail($id)->shipments);
+        $this->storeApi($this->store, 'GET', "orders/{$id}")
+            ->assertJsonPath('data.assignment_error.to', 'Koffi')
+            ->assertJsonPath('data.assignment_error.error', 'Ce livreur est désactivé.');
     }
 
     public function test_history_stats(): void

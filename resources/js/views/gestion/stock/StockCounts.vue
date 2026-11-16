@@ -35,7 +35,10 @@ async function start() {
   <div class="space-y-4">
     <StockTabs />
     <div class="card space-y-3 p-4">
-      <p class="text-sm text-slate-600">Comptez ce qui est réellement en rayon. À la validation, les quantités comptées remplacent le stock ; les articles non comptés ne changent pas.</p>
+      <div>
+        <p class="explain">Comptez ce qui est vraiment en rayon.</p>
+        <p class="explain-detail">À la validation, les quantités comptées remplacent le stock ; le reste ne change pas.</p>
+      </div>
       <div class="flex flex-wrap gap-2">
         <select v-model="locationId" class="input w-auto">
           <option v-for="l in locations" :key="l.id" :value="l.id">{{ l.name }}</option>

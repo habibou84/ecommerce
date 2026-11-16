@@ -43,6 +43,8 @@ class Order extends Model
             'expedition_dropped_at' => 'datetime',
             'payment_proof_at' => 'datetime',
             'confirmed_at' => 'datetime',
+            'credit_due' => 'boolean',
+            'credit_billed_at' => 'datetime',
             'callback_at' => 'datetime',
             'shipped_at' => 'datetime',
             'completed_at' => 'datetime',

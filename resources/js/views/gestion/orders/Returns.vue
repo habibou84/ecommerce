@@ -30,9 +30,9 @@ const FILTERS = [{ value: 'pending', label: 'À récupérer' }, { value: 'receiv
 <template>
   <div class="space-y-4">
     <div class="flex items-center gap-2">
-      <RouterLink to="/gestion/commandes" class="text-sm text-slate-500">← Commandes</RouterLink>
+      <RouterLink to="/gestion/commandes" class="back-link text-sm text-slate-500">← Commandes</RouterLink>
     </div>
-    <p class="text-sm text-slate-600">Un retour ou un échange se crée depuis la commande livrée (bouton « Retour / échange »).</p>
+    <p class="explain-detail">Un retour ou un échange se crée depuis la commande livrée : bouton « Retour / échange ».</p>
     <div class="flex flex-wrap gap-1">
       <button v-for="f in FILTERS" :key="f.value" class="rounded-full px-3 py-1 text-sm" :class="status === f.value ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-700'" @click="status = f.value; load()">
         {{ f.label }}<template v-if="f.value === 'pending' && counts.pending"> ({{ counts.pending }})</template>

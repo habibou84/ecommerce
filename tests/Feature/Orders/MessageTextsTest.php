@@ -28,7 +28,7 @@ class MessageTextsTest extends TestCase
     {
         // Sans commande : aperçu sur une commande d'exemple
         $list = $this->storeApi($this->store, 'GET', 'message-texts')->assertOk()->json('data');
-        $this->assertCount(8, $list['messages']);
+        $this->assertCount(9, $list['messages']);
         $this->assertStringStartsWith('Bonjour Awa, votre commande', collect($list['messages'])->firstWhere('key', 'confirmed')['preview']);
 
         $robe = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Robe wax', 'variants' => [['price' => 15000, 'on_hand' => 5]]]);

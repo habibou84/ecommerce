@@ -31,6 +31,12 @@ class Boost extends Model
         ];
     }
 
+    /** Un boost « pas créé » ou terminé, sans dépense, commande ni crédit retiré, peut être supprimé sans rien perdre */
+    public function isDeletable(): bool
+    {
+        return in_array($this->status, ['failed', 'ended'], true) && ! $this->spend && ! $this->orders && ! $this->credits_used;
+    }
+
     /** Marque des liens de la pub, reprise dans la commande */
     public function tag(): string
     {
