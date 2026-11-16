@@ -480,7 +480,7 @@ async function redo() {
         <section v-if="live.orders_until" class="rounded-[20px] border-2 border-amber-300 bg-amber-50 p-4">
           <p class="text-sm font-extrabold uppercase tracking-wide text-amber-800">● Live terminé · commandes actives</p>
           <h3 class="mt-1 text-lg font-black">⏳ Commandes actives jusqu'à {{ ordersUntil }}</h3>
-          <p class="mt-1 text-sm text-slate-700">Les clients peuvent encore écrire A1, A2… sur WhatsApp. Ces commandes comptent dans ce live<template v-if="live.billing"> : retirées du solde quand les commandes s'arrêtent</template>.</p>
+          <p class="mt-1 text-sm text-slate-700">Les clients peuvent encore écrire A1, A2… sur WhatsApp. Ces commandes comptent dans ce live<template v-if="live.billing"> (retirées du solde à l'arrêt)</template>.</p>
           <p class="mt-2 text-sm"><b>{{ live.orders_after ?? 0 }}</b> commande{{ (live.orders_after ?? 0) > 1 ? 's' : '' }} depuis la fin du live<template v-if="live.billing"> · <b>{{ live.billing.orders }}</b> en tout dans ce live</template></p>
           <button type="button" class="mt-3 block w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-2.5 font-extrabold text-orange-800 disabled:opacity-60" :disabled="busy" @click="stopOrders">Arrêter les commandes maintenant</button>
         </section>

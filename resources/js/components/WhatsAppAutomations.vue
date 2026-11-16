@@ -324,7 +324,7 @@ const META_STEPS = [
       <!-- Numéro américain proposé par Meta à la connexion : à remplacer par le numéro de la boutique -->
       <section v-if="account.meta_number" class="card space-y-2 border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <h3 class="font-semibold">Ce numéro a été fourni par Meta, ce n'est pas le vôtre</h3>
-        <p>Vos clients verraient un numéro américain, et aucun message ne part tant que Meta n'a pas approuvé son nom. Connectez plutôt votre propre numéro (+225) : il ne doit pas déjà servir dans l'application WhatsApp ordinaire.</p>
+        <p><b class="block">Vos clients verraient un numéro américain.</b>Rien ne part avant que Meta approuve son nom. Connectez plutôt votre numéro (+225), s'il ne sert pas déjà dans WhatsApp ordinaire.</p>
         <button v-if="data.embedded" type="button" class="btn-brand" :disabled="connecting" @click="connectFacebook">{{ connecting ? 'Connexion…' : 'Connecter mon propre numéro' }}</button>
       </section>
       <Alert v-if="account.last_error && account.error_help" tone="warning">

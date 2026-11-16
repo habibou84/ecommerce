@@ -171,7 +171,7 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
                 <input v-model="wave" type="url" @paste="onWavePaste" inputmode="url" placeholder="Collez votre lien Wave" class="min-w-0 flex-1 rounded-xl border-2 border-field px-3 py-2 text-sm" aria-label="Lien de paiement Wave">
                 <button type="button" class="shrink-0 rounded-xl bg-sky-600 px-4 font-black text-white" :disabled="busy || wave.trim() === (rates.wave_link ?? '')" @click="saveWave">{{ waveSaved ? '✓' : 'OK' }}</button>
               </div>
-              <p class="mt-1 text-xs text-slate-500">Sur l'accueil de Wave : <b>Envoi de lien</b> › <b>Partager</b> sans taper de somme › <b>Copier</b>, puis collez ici.</p>
+              <p class="explain-detail mt-1">Sur l'accueil de Wave : <b>Envoi de lien</b> › <b>Partager</b> sans taper de somme › <b>Copier</b>, puis collez ici.</p>
             </div>
           </section>
         </template>

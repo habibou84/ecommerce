@@ -243,7 +243,7 @@ async function removeOffer() {
               </template>
             </div>
             <label class="flex items-center gap-2 text-sm"><input v-model="editing.is_active" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Actif</label>
-            <p class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Le prix du pack s'applique tout seul dès que le client a {{ editing.quantity || 'X' }} articles de la sélection : en boutique, en saisie de commande, en live et sur WhatsApp.</p>
+            <p class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Le prix du pack s'applique tout seul dès {{ editing.quantity || 'X' }} articles de la sélection, partout : boutique, commande, live, WhatsApp.</p>
           </template>
         </fieldset>
         <div class="flex items-center gap-2">
