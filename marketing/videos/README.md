@@ -13,6 +13,8 @@ autres et se termine par l'inscription (site **jibiat-marchand.com** ou **« Ins
 | 5. Confirmation des commandes (file « À confirmer », boutons WhatsApp, alertes, acompte) | `sources/pub12` | `sources/video12` | 69 s |
 | 6. Caisse et vrai bénéfice (où est l'argent, dépenses, bénéfice réel, canaux, rapport du soir) | `sources/pub13` | `sources/video13` | 67 s |
 
+Textes de publication (titres, légendes, hashtags, commentaire à épingler) : [`publications.md`](publications.md).
+
 ## Identité sonore (à mettre dans **chaque** vidéo)
 
 Tout est synthétisé par `son/identite.py` (aucun son extérieur, aucun droit à payer) :
