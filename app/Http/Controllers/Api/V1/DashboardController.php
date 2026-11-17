@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\OrderSource;
 use App\Enums\OrderStatus;
 use App\Enums\Permission;
-use App\Enums\ShipmentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\Conversation;
@@ -16,6 +15,7 @@ use App\Models\Order;
 use App\Models\WhatsappAccount;
 use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
+use App\Services\Orders\OrderListing;
 use App\Services\Reports\DailyAdvice;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\OutsideStock;
@@ -48,9 +48,7 @@ class DashboardController extends Controller
                 'to_confirm' => Order::where('status', OrderStatus::PendingConfirmation->value)->count(),
                 'callbacks_due' => Order::where('status', OrderStatus::PendingConfirmation->value)->where('callback_at', '<=', now())->count(),
                 // À faire livrer : même règle que l'onglet de la liste (confirmées sans course en cours)
-                'to_ship' => Order::whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])
-                    ->whereDoesntHave('shipments', fn ($q) => $q->whereNotIn('status', array_map(fn (ShipmentStatus $s) => $s->value, array_filter(ShipmentStatus::cases(), fn (ShipmentStatus $s) => $s->isFinal()))))
-                    ->count(),
+                'to_ship' => OrderListing::toShip(Order::query())->count(),
                 // Files des alertes : sans livreur, pas ramassées, problèmes de livraison sans suite
                 'waiting' => OrderAlerts::counts(),
                 'month_revenue' => (int) (clone $month)->sum('total'),

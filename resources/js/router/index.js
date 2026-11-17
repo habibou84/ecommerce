@@ -80,7 +80,9 @@ const storeRoutes = [
       { path: 'stock/journal', component: () => import('../views/gestion/stock/StockMovements.vue'), meta: { title: 'Stock', permission: 'stock.manage' } },
       { path: 'stock/emplacements', component: () => import('../views/gestion/stock/StockLocations.vue'), meta: { title: 'Stock', permission: 'stock.manage' } },
       // Livraisons : qui livre et comment (les anciennes adresses « expeditions » et « livreurs » redirigent ici)
-      { path: 'livraisons', component: () => import('../views/gestion/shipping/Shipments.vue'), meta: { title: 'Livraisons en cours', permission: 'shipments.manage' } },
+      // Les livraisons en cours se suivent dans la liste des commandes (onglets À ramasser, En route) :
+      // l'ancienne adresse y mène ; le menu Livraisons garde le reste (livreurs, entreprises, automatisation…)
+      { path: 'livraisons', redirect: '/gestion/commandes?status=shipped' },
       { path: 'livraisons/livreurs', component: () => import('../views/gestion/couriers/Couriers.vue'), meta: { title: 'Mes livreurs', permission: 'couriers.manage' } },
       { path: 'livraisons/entreprises', component: () => import('../views/gestion/shipping/Carriers.vue'), meta: { title: 'Entreprises de livraison', permission: 'carriers.manage' } },
       { path: 'livraisons/tarifs', component: () => import('../views/gestion/DeliveryRates.vue'), meta: { title: 'Tarifs et zones', permission: 'store.manage' } },
@@ -89,7 +91,7 @@ const storeRoutes = [
       { path: 'livraisons/qui-livre-quoi', redirect: '/gestion/livraisons/automatisation' },
       { path: 'livraisons/paie', component: () => import('../views/gestion/couriers/CourierPay.vue'), meta: { title: 'Paie des livreurs', permission: 'couriers.manage' } },
       { path: 'livraisons/reglages', component: () => import('../views/gestion/shipping/DeliverySettings.vue'), meta: { title: 'Réglages des livraisons', permission: 'couriers.manage' } },
-      { path: 'expeditions', redirect: '/gestion/livraisons' },
+      { path: 'expeditions', redirect: '/gestion/commandes?status=shipped' },
       { path: 'expeditions/transporteurs', redirect: '/gestion/livraisons/entreprises' },
       { path: 'expeditions/regles', redirect: '/gestion/livraisons/automatisation' },
       { path: 'expeditions/reversements', redirect: '/gestion/caisse/a-recevoir' },
