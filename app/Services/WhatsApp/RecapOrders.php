@@ -218,6 +218,9 @@ class RecapOrders
         }
 
         $draft = $this->read($store, $conversation, $precision);
+        if ($draft['items'] === [] && count($draft['choices']) >= 2) {
+            return $this->askPick($conversation, $draft);
+        }
         if ($draft['items'] === []) {
             $this->tell($store, null, 'Récap : aucun article reconnu', "Je n'ai reconnu aucun article dans la discussion avec {$name}. Rien n'a été envoyé au client. Écrivez par exemple : « récap 2 robes wax M Angré ».");
 
@@ -240,7 +243,9 @@ class RecapOrders
             ->whereNotIn('type', ['auto', 'template'])->where('sent_at', '>=', now()->subDay())
             ->latest('sent_at')->latest('id')->limit(self::HISTORY)->get(['direction', 'body'])->reverse()
             ->filter(fn (ConversationMessage $m) => self::recapText((string) $m->body) === null);
-        $transcript = $messages->map(fn (ConversationMessage $m) => ($m->direction === 'in' ? 'Client : ' : 'Boutique : ').$m->body)->implode("\n");
+        $transcript = $messages->map(fn (ConversationMessage $m) => ($m->direction === 'in' ? 'Client : ' : 'Boutique : ').$m->body)->implode("\n")
+            // Ce que la boutique a écrit après « récap » compte d'abord : l'IA le lit aussi
+            .($precision !== '' ? "\nPrécision de la boutique (prioritaire) : {$precision}" : '');
         $said = $this->parser->parse($store, $messages->pluck('body')->implode("\n"));
 
         $items = $own['items'] ?? [];
@@ -256,6 +261,12 @@ class RecapOrders
         if ($items === []) {
             $items = $said['items'];
         }
+        // Aucun article retenu mais plusieurs aussi proches : le client choisira (précisions d'abord, puis ses messages)
+        $choices = [];
+        if ($items === []) {
+            $choices = $precision !== '' ? $this->parser->choices($store, $precision) : [];
+            $choices = $choices ?: $this->parser->choices($store, $messages->where('direction', 'in')->pluck('body')->implode("\n"));
+        }
         $place = $own['place']['id'] ?? $ai['place']['id'] ?? $said['place']['id'] ?? null;
 
         return [
@@ -268,6 +279,7 @@ class RecapOrders
             'place' => $place,
             'address' => $own['address'] ?? $ai['address'] ?? $said['address'] ?? null,
             'name' => $own['customer_name'] ?? $ai['customer_name'] ?? null,
+            'choices' => $choices,
         ];
     }
 
@@ -422,11 +434,55 @@ class RecapOrders
     }
 
     /**
+     * Plusieurs articles aussi proches (« sticker muraux carré » : multicolore ou noir ?) : le client choisit dans une
+     * liste (numéro officiel), sinon par un numéro à taper ; puis le récap continue (taille, commune…).
+     *
+     * @param  array<string, mixed>  $state
+     */
+    private function askPick(Conversation $conversation, array $state): bool
+    {
+        $choices = array_slice($state['choices'], 0, 10);
+        $state['picking'] = array_combine(range(1, count($choices)), array_column($choices, 'product_id'));
+        Cache::put(self::stateKey($conversation), $state, now()->addHours(12));
+        $text = "🧾 *VOTRE COMMANDE*\n\nLequel voulez-vous ?";
+        $rows = array_map(fn (array $c) => ['id' => 'recap:pick:'.$c['product_id'], 'title' => Str::limit($c['title'], 24, '…'), 'description' => Str::limit($c['title'], 72, '…')], $choices);
+        $sent = $this->inbox->officialFor($conversation) !== null && rescue(fn () => $this->inbox->replyRich($conversation, $text.' (choix)',
+            fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendList($account, $to, $text, 'Choisir', 'Articles', $rows)), null, false) !== null;
+        if (! $sent) {
+            $this->text($conversation, $text."\n\n".collect($choices)->map(fn (array $c, int $i) => '*'.($i + 1).'* '.$c['title'])->implode("\n")."\n\n👉 Écrivez *le numéro* de l'article.");
+        }
+        $this->outcome = ['sent' => true, 'message' => 'Plusieurs articles possibles : on demande au client lequel ('.collect($choices)->pluck('title')->implode(', ').').'];
+
+        return true;
+    }
+
+    private function pick(Conversation $conversation, int $productId): bool
+    {
+        $state = Cache::get(self::stateKey($conversation));
+        if (! is_array($state) || ! in_array($productId, $state['picking'] ?? [], true)) {
+            return false;
+        }
+        $product = Product::forStore($conversation->store_id)->find($productId);
+        if ($product === null) {
+            return false;
+        }
+        $state['items'] = [['product_id' => $product->id, 'title' => $product->title, 'variant_id' => null, 'quantity' => 1]];
+        unset($state['picking']);
+        Cache::put(self::stateKey($conversation), $state, now()->addHours(12));
+
+        return $this->proceed($conversation);
+    }
+
+    /**
      * Taille touchée par le client : « recap:var:0:12 ».
      */
     public function onReply(Conversation $conversation, string $payload): bool
     {
         $parts = explode(':', $payload);
+        // Article choisi parmi les proches : « recap:pick:12 »
+        if (($parts[0] ?? '') === 'recap' && ($parts[1] ?? '') === 'pick' && ctype_digit($parts[2] ?? '')) {
+            return $this->pick($conversation, (int) $parts[2]) || true;
+        }
         if (($parts[0] ?? '') !== 'recap' || ($parts[1] ?? '') !== 'var' || ! ctype_digit($parts[2] ?? '') || ! ctype_digit($parts[3] ?? '')) {
             return false;
         }
@@ -440,6 +496,12 @@ class RecapOrders
     public function answer(Conversation $conversation, string $text): bool
     {
         $state = Cache::get(self::stateKey($conversation));
+        // Article à choisir : numéro de la liste tapé
+        if (is_array($state) && isset($state['picking'])) {
+            $clean = self::words($text);
+
+            return ctype_digit($clean) && isset($state['picking'][(int) $clean]) && $this->pick($conversation, (int) $state['picking'][(int) $clean]);
+        }
         if (! is_array($state) || ! isset($state['asking'])) {
             return false;
         }
