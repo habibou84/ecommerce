@@ -56,6 +56,7 @@ const SHORT = { order_confirmation: 'Demande de confirmation', courier_on_the_wa
         <div>
           <p class="explain">Le client demande la livraison, il reçoit le prix.</p>
           <p class="explain-detail">« C'est combien à Yop ? » : prix et quartiers, d'après vos tarifs.</p>
+          <p v-if="sales.delivery && !sales.delivery.checked" class="mt-1 text-sm font-semibold text-ocre-800">Vos tarifs n'ont pas encore été vérifiés : le client recevrait ceux enregistrés aujourd'hui.</p>
         </div>
       </div>
       <RouterLink to="/gestion/livraisons/tarifs" class="btn-secondary shrink-0">Mes tarifs</RouterLink>

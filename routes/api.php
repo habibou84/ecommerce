@@ -729,6 +729,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('delivery-zones/{zone}', [DeliveryController::class, 'updateZone'])->whereNumber('zone')->name('zones.update');
                 Route::delete('delivery-zones/{zone}', [DeliveryController::class, 'destroyZone'])->whereNumber('zone')->name('zones.destroy');
                 Route::put('delivery-rates', [DeliveryRatesController::class, 'update'])->name('delivery-rates.update');
+                Route::post('delivery-rates/checked', [DeliveryRatesController::class, 'confirm'])->name('delivery-rates.checked');
                 Route::delete('delivery-rates/places/{place}', [DeliveryRatesController::class, 'forget'])->whereNumber('place')->name('delivery-rates.forget');
             });
 

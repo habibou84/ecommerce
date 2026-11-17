@@ -202,6 +202,25 @@ class WhatsAppSalesTest extends TestCase
         $this->assertStringContainsString("WhatsApp n'a pas transmis le détail du panier", $this->lastIncoming()->body);
     }
 
+    public function test_delivery_rates_are_to_check_until_the_shop_confirms_or_changes_them(): void
+    {
+        // Nouvelle boutique : le prix posé d'office (Abidjan 1 500 F) part dans chaque récap, à vérifier
+        $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertOk()
+            ->assertJsonPath('data.todo.rates', true)->assertJsonPath('data.delivery.checked', false)
+            ->assertJsonPath('data.delivery.city', 'Abidjan')->assertJsonPath('data.delivery.base_fee', 1500)->assertJsonPath('data.delivery.specific', 0);
+        $this->storeApi($this->store, 'GET', 'delivery-rates')->assertJsonPath('data.checked_at', null);
+
+        // « Mes tarifs sont justes »
+        $this->storeApi($this->store, 'POST', 'delivery-rates/checked')->assertOk();
+        $this->assertNotNull($this->storeApi($this->store, 'GET', 'delivery-rates')->json('data.checked_at'));
+        $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertJsonPath('data.todo.rates', false)->assertJsonPath('data.delivery.checked', true);
+
+        // Un prix changé compte aussi comme vérifié
+        $this->store->forceFill(['delivery_rates_checked_at' => null])->save();
+        $this->storeApi($this->store, 'PUT', 'delivery-rates', ['base_fee' => 2000])->assertOk();
+        $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertJsonPath('data.delivery.checked', true)->assertJsonPath('data.delivery.base_fee', 2000);
+    }
+
     public function test_auto_replies_are_off_by_default_and_warn_for_a_linked_number(): void
     {
         Queue::fake();

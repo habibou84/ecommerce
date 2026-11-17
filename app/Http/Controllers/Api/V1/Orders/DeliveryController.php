@@ -119,6 +119,7 @@ class DeliveryController extends Controller
 
             return $zone;
         });
+        app(DeliveryRates::class)->checked($this->currentStore());
 
         return response()->json(['data' => $this->present($zone->load('places.parent'))], 201);
     }
@@ -132,6 +133,7 @@ class DeliveryController extends Controller
                 $this->syncPlaces($model, $request->input('place_ids', []));
             }
         });
+        app(DeliveryRates::class)->checked($this->currentStore());
 
         return response()->json(['data' => $this->present($model->load('places.parent'))]);
     }
@@ -139,6 +141,7 @@ class DeliveryController extends Controller
     public function destroyZone(int $zone): JsonResponse
     {
         DeliveryZone::findOrFail($zone)->delete();
+        app(DeliveryRates::class)->checked($this->currentStore());
 
         return response()->json(['message' => 'Zone supprimée.']);
     }
