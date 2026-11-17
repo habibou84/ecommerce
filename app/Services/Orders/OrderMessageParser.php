@@ -232,7 +232,7 @@ class OrderMessageParser
     {
         return Product::forStore($store->id)->where('status', ProductStatus::Active->value)
             ->with(['variants' => fn ($q) => $q->where('is_active', true)->with(['option1', 'option2', 'option3'])])
-            ->limit(1000)->get();
+            ->orderBy('id')->limit(1000)->get();
     }
 
     /**
