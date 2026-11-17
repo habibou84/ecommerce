@@ -5,7 +5,7 @@ import Icon from './Icon.vue'
 
 /**
  * Cœur du menu WhatsApp, le même sur ordinateur (accueil WhatsApp) et sur téléphone (onglet WhatsApp de l'accueil) :
- * ce qui attend (messages non lus, récaps sans réponse, paniers à confirmer), puis les grandes entrées du menu.
+ * ce qui attend (messages non lus, récaps et paniers à confirmer, ouverts dans Messages), puis les grandes entrées du menu.
  * `data` : GET /whatsapp/sales (null pour qui ne gère pas WhatsApp : seulement les conversations).
  */
 const props = defineProps({
@@ -21,8 +21,8 @@ const todo = computed(() => {
   const t = props.data?.todo ?? {}
   return [
     props.canMessages && unreadCount.value > 0 && { key: 'unread', icon: 'whatsapp', text: pl(unreadCount.value, 'message non lu', 'messages non lus'), action: 'Ouvrir', to: '/gestion/messages' },
-    t.recaps > 0 && { key: 'recaps', icon: 'clock', text: pl(t.recaps, 'récap sans réponse', 'récaps sans réponse'), action: 'Voir', to: '/gestion/whatsapp/ventes#commandes' },
-    t.carts > 0 && { key: 'carts', icon: 'orders', text: pl(t.carts, 'panier du catalogue à confirmer', 'paniers du catalogue à confirmer'), action: 'Confirmer', to: '/gestion/confirmation' },
+    t.recaps > 0 && { key: 'recaps', icon: 'clock', text: pl(t.recaps, 'récap à confirmer', 'récaps à confirmer'), action: 'Voir', to: props.canMessages ? '/gestion/messages?filtre=a-confirmer' : '/gestion/confirmation' },
+    t.carts > 0 && { key: 'carts', icon: 'orders', text: pl(t.carts, 'panier du catalogue à confirmer', 'paniers du catalogue à confirmer'), action: 'Confirmer', to: props.canMessages ? '/gestion/messages?filtre=a-confirmer' : '/gestion/confirmation' },
   ].filter(Boolean)
 })
 const tiles = computed(() => [

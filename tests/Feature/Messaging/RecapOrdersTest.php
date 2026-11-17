@@ -178,6 +178,8 @@ class RecapOrdersTest extends TestCase
         [$recap] = $this->sent();
         $order = Order::sole();
         $this->assertSame([OrderStatus::PendingConfirmation, 'recap', 'whatsapp'], [$order->status, $order->credit_channel, $order->source->value]);
+        $this->storeApi($this->store, 'GET', 'conversations?filter=pending')->assertJsonCount(1, 'data');
+        $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertJsonPath('data.todo.recaps', 1);
         $this->assertSame($this->variant('M'), $order->items->sole()->variant_id);
         $this->assertSame('Angré', Place::find($order->shipping_place_id)->name);
         $this->assertSame($order->id, Conversation::sole()->order_id);
@@ -196,6 +198,10 @@ class RecapOrdersTest extends TestCase
         $this->assertStringContainsString('🎉 *COMMANDE CONFIRMÉE !*', collect($this->sent())->pluck('text.body')->filter()->implode("\n"));
         $this->assertSame('✅ Commande '.$order->reference().' confirmée', collect($this->notices())->last());
         $this->assertSame(20, $this->store->fresh()->order_credits);
+        // Confirmée : plus rien « à confirmer », ni dans Messages ni sur l'accueil WhatsApp
+        $this->storeApi($this->store, 'GET', 'conversations?filter=pending')->assertJsonCount(0, 'data');
+        $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertJsonPath('data.todo.recaps', 0);
+        $this->storeApi($this->store, 'GET', 'conversations')->assertJsonPath('data.0.order.status', 'confirmed');
     }
 
     public function test_the_size_then_the_commune_are_asked_before_the_recap(): void
