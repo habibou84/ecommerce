@@ -24,6 +24,7 @@ use App\Services\Accounts\TeamNotifier;
 use App\Services\Ai\Assistant;
 use App\Services\Billing\Credits;
 use App\Services\Live\LiveCheckout;
+use App\Services\Live\LiveImages;
 use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDrafter;
@@ -72,6 +73,9 @@ class RecapOrders
     /** Mots du marchand qui confirment la commande à sa place (« ok » seul est trop courant) */
     private const CONFIRM_WORDS = ['confirme', 'confirmee', 'ok confirme', 'ok confirmee', 'c est confirme', 'cest confirme', 'commande confirmee',
         'c est confirme merci', 'confirme merci', 'confirmee merci'];
+
+    /** Articles proches proposés en photo à « Lequel voulez-vous ? » */
+    private const PICK_PHOTOS = 5;
 
     /** Messages relus pour reconstituer la commande */
     private const HISTORY = 40;
@@ -434,24 +438,36 @@ class RecapOrders
     }
 
     /**
-     * Plusieurs articles aussi proches (« sticker muraux carré » : multicolore ou noir ?) : le client choisit dans une
-     * liste (numéro officiel), sinon par un numéro à taper ; puis le récap continue (taille, commune…).
+     * Plusieurs articles aussi proches (« sticker muraux carré » : multicolore ou noir ?) : une photo par article avec
+     * son numéro et son prix ; le client touche « Je prends » (numéro officiel) ou écrit le numéro ; puis le récap
+     * continue (taille, commune…).
      *
      * @param  array<string, mixed>  $state
      */
     private function askPick(Conversation $conversation, array $state): bool
     {
-        $choices = array_slice($state['choices'], 0, 10);
+        $choices = array_slice($state['choices'], 0, self::PICK_PHOTOS);
         $state['picking'] = array_combine(range(1, count($choices)), array_column($choices, 'product_id'));
         Cache::put(self::stateKey($conversation), $state, now()->addHours(12));
-        $text = "🧾 *VOTRE COMMANDE*\n\nLequel voulez-vous ?";
-        $rows = array_map(fn (array $c) => ['id' => 'recap:pick:'.$c['product_id'], 'title' => Str::limit($c['title'], 24, '…'), 'description' => Str::limit($c['title'], 72, '…')], $choices);
-        $sent = $this->inbox->officialFor($conversation) !== null && rescue(fn () => $this->inbox->replyRich($conversation, $text.' (choix)',
-            fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendList($account, $to, $text, 'Choisir', 'Articles', $rows)), null, false) !== null;
-        if (! $sent) {
-            $this->text($conversation, $text."\n\n".collect($choices)->map(fn (array $c, int $i) => '*'.($i + 1).'* '.$c['title'])->implode("\n")."\n\n👉 Écrivez *le numéro* de l'article.");
+        $products = Product::forStore($conversation->store_id)->with(['images', 'variants' => fn ($q) => $q->where('is_active', true)->with('image')])
+            ->whereIn('id', array_column($choices, 'product_id'))->get()->keyBy('id');
+        $official = $this->inbox->officialFor($conversation) !== null;
+        $this->text($conversation, "🧾 *VOTRE COMMANDE*\n\nNous avons plusieurs articles proches. *Lequel voulez-vous ?*\n".($official ? '👇 Touchez « Je prends » sous la bonne photo.' : '👇 Répondez avec le numéro de la bonne photo.'));
+        // Une photo par article, avec son numéro et son prix : « Je prends » (numéro officiel), sinon le numéro à écrire
+        foreach ($choices as $i => $choice) {
+            $product = $products->get($choice['product_id']);
+            $prices = $product?->variants->pluck('price')->filter()->unique()->sort()->values() ?? collect();
+            $caption = '*'.($i + 1).'* '.$choice['title'].($prices->isEmpty() ? '' : "\n💰 ".($prices->count() > 1 ? 'À partir de ' : '').Money::format((int) $prices->first()));
+            $variant = $product?->variants->first(fn (ProductVariant $v) => $v->image_id) ?? $product?->variants->first();
+            $image = $variant ? rescue(fn () => app(LiveImages::class)->variant($variant), null, false) : null;
+            $sent = $official && rescue(fn () => $this->inbox->replyRich($conversation, $caption,
+                fn (WhatsAppCloud $cloud, $account, string $to) => $cloud->sendButtons($account, $to, $caption, ['recap:pick:'.$choice['product_id'] => '🛍️ Je prends'], $image)), null, false) !== null;
+            if (! $sent) {
+                $caption .= "\n👉 Pour le prendre, écrivez *".($i + 1).'*';
+                app(LiveCheckout::class)->picture($conversation, $image, $caption) || $this->text($conversation, $caption);
+            }
         }
-        $this->outcome = ['sent' => true, 'message' => 'Plusieurs articles possibles : on demande au client lequel ('.collect($choices)->pluck('title')->implode(', ').').'];
+        $this->outcome = ['sent' => true, 'message' => 'Plusieurs articles possibles : on demande au client lequel, photos à l\'appui ('.collect($choices)->pluck('title')->implode(', ').').'];
 
         return true;
     }
