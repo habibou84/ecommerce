@@ -25,6 +25,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Couriers\CourierMorning;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
 use App\Services\Orders\ParcelLabels;
@@ -32,6 +33,7 @@ use App\Services\Places\Places;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -523,6 +525,27 @@ class CourierTest extends TestCase
         $this->step($next, ['status' => 'in_transit'])->assertOk();
         $this->storeApi($this->store, 'GET', "courier/missions/{$next->id}")->assertJsonPath('data.acceptance', 'accepted');
         $this->storeApi($this->store, 'POST', "courier/missions/{$next->id}/decline", ['reason' => 'Trop loin'])->assertStatus(422);
+    }
+
+    public function test_a_course_received_today_for_a_past_date_is_for_today_not_late(): void
+    {
+        [$courier, $user] = $this->onboardCourier();
+        $order = $this->order();
+        $order->forceFill(['scheduled_date' => today()->subDays(3)])->save();
+        $this->store->forceFill(['assignment_mode' => 'auto', 'mission_timeout_minutes' => 15])->save();
+        $shipment = $this->assign($order, $courier);
+
+        // Confiée aujourd'hui : à faire aujourd'hui, avec l'heure limite pour répondre
+        $this->asCourier($user);
+        $mission = $this->storeApi($this->store, 'GET', 'courier/missions')->assertOk()->json('data.0');
+        $this->assertSame([today()->subDays(3)->toDateString(), today()->toDateString()], [$mission['scheduled_date'], $mission['handed_on']]);
+        $this->assertSame(now()->addMinutes(15)->format('H:i'), Carbon::parse($mission['answer_by'])->format('H:i'));
+        $this->assertFalse(CourierMorning::isLate($shipment->fresh('order'), now()));
+
+        // Acceptée : plus d'heure limite. Toujours pas livrée le lendemain : là, elle est en retard pour lui
+        $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/accept")->assertOk()->assertJsonPath('data.answer_by', null);
+        $this->travel(1)->days();
+        $this->assertTrue(CourierMorning::isLate($shipment->fresh('order'), now()->subDay()));
     }
 
     public function test_unanswered_missions_are_reminded_once(): void
