@@ -10,10 +10,12 @@ const tabs = computed(() => [
   ...(auth.can('carriers.manage') ? [{ to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises', short: 'Entreprises' }] : []),
   ...(auth.can('finance.view') || auth.can('cash.manage') ? [{ to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles', short: 'Dépenses' }] : []),
 ])
+// Sur téléphone (fenêtre par-dessus l'accueil), ces onglets sont masqués : un écran = une information,
+// on revient à l'accueil en fermant (voir .sheet-body .cash-tabs dans app.css)
 </script>
 
 <template>
-  <nav v-tab-strip class="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">
+  <nav v-tab-strip class="cash-tabs -mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0">
     <RouterLink
       v-for="tab in tabs"
       :key="tab.to"
