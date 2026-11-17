@@ -82,7 +82,8 @@ class OrderMessageParser
     /**
      * Produits du catalogue cités : tous les mots significatifs du nom présents (pluriel accepté dans les deux sens :
      * « sticker » retrouve « Stickers »). À défaut, au moins 2 mots du nom, dont le premier ou la moitié du nom (où
-     * qu'ils soient) : retenu seulement s'il n'y a pas deux produits aussi proches (voir choices()).
+     * qu'ils soient) : retenu seulement s'il n'y a pas deux produits aussi proches (voir choices()). À défaut encore, le
+     * premier mot du nom seul (« un Stickers ») : retenu s'il n'y a qu'un produit de ce nom.
      * Quantité lue juste avant le nom (« 2 robes », « deux sacs ») ou après (« x2 »). Variante retenue si toutes
      * ses valeurs d'options apparaissent dans le message (« taille M », « rouge »).
      *
@@ -157,6 +158,12 @@ class OrderMessageParser
             $best = $partial->max('matched');
             $ties = $partial->where('matched', $best)->values();
             $matches = $ties->count() === 1 ? $ties : collect();
+            // Un seul mot cité, le premier du nom (« Je veux un Stickers » pour « Stickers muraux carrés… ») : retenu s'il
+            // n'y a qu'un produit de ce nom, sinon proposé au choix ; mot d'au moins 4 lettres (pas « sac », « lot »)
+            if ($partial->isEmpty()) {
+                $ties = $candidates->filter(fn ($c) => mb_strlen($c['tokens'][0]) >= 4 && ! is_numeric($c['tokens'][0]) && $found($c['tokens'][0]))->values();
+                $matches = $ties->count() === 1 ? $ties : collect();
+            }
         }
 
         return [$normalized, $words, $matches, $ties];
