@@ -303,6 +303,17 @@ class Inbox
      */
     public function reply(Conversation $conversation, string $text, User $user): ConversationMessage
     {
+        $message = $this->send($conversation, $text, $user);
+        // « récap » et « confirmé » écrits depuis l'application : comme depuis le téléphone de la boutique
+        if ($conversation->channel === 'whatsapp' && (RecapOrders::recapText($text) !== null || RecapOrders::confirms($text))) {
+            rescue(fn () => app(RecapOrders::class)->fromMerchant($conversation, $text));
+        }
+
+        return $message;
+    }
+
+    private function send(Conversation $conversation, string $text, User $user): ConversationMessage
+    {
         if (self::isPlatform($conversation->contact)) {
             throw new BusinessRuleException('Les échanges avec le support Jibiat Marchand restent sur le téléphone du propriétaire.', 'body');
         }
