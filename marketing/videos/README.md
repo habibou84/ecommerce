@@ -17,19 +17,19 @@ Tout est synthétisé par `son/identite.py` (aucun son extérieur, aucun droit �
 
 Couleur **« liquide »** : sons ronds et graves (gouttes, bulles, « bloup » d'envoi de message), **jamais d'aigus**.
 
-- **Musique de fond** `son/musique-boucle.wav` : boucle de 8 mesures, 104 BPM, ré majeur (Dmaj9 – A – Bm7 – Gmaj7),
-  piano électrique qui ondule, basse « log drum » qui glisse (amapiano), percussions en gouttes d'eau, motif de la
-  marque joué en gouttes ; filtrée au-dessus de 4,5 kHz. Baissée automatiquement sous la voix.
+- **Musique de fond** `son/musique-de-fond.mp3` : « The Upward Curve » (54 s, 126 BPM), morceau fourni par Jibiat
+  Marchand, à utiliser dans **toutes** les vidéos. Le mixage le garde en stéréo, le baisse sous la voix et, pour une
+  vidéo plus longue que lui, le reboucle sur un nombre entier de mesures (reprise après les deux premières mesures).
+  Sans ce fichier, `identite.py` retombe sur une boucle synthétisée de secours.
 - **Logo sonore** `son/logo-sonore.wav` : quatre gouttes montantes ré – fa# – la – ré sur un accord chaud.
 - **Effets** `son/effets/` (tous des gouttes ou des bulles, sous 1 kHz environ) : `pop` (bloup d'envoi, apparition),
   `tap` (toucher), `key` (frappe), `whoosh` / `whoosh_soft` (clapotis de transition), `ding` (double bloup de
   notification), `cash` / `coin` (gouttes en cascade), `success` (trois gouttes qui montent), `vibrate` (vibration
   grave), `stamp` (choc sourd), `error` (goutte qui descend), `shutter` (photo), `shimmer` (bulles qui remontent),
   `tick` (chiffres), `ring` (sonnerie grave).
-- Aperçu à écouter : `son/apercu-musique-et-logo.mp3`.
 
 ```bash
-python3 son/identite.py generer son/            # régénère musique, logo et effets (toujours identiques)
+python3 son/identite.py generer son/            # régénère le logo sonore et les effets (toujours identiques)
 python3 son/identite.py mixer VOIX.mp3 son/evenements/4-vente-en-live.json MIX.wav DUREE TEMPS_DU_LOGO
 ffmpeg -i video-sans-son.mp4 -i MIX.wav -map 0:v -map 1:a -c:v copy -af loudnorm=I=-14:TP=-1.5:LRA=11 \
   -c:a aac -b:a 192k -ar 48000 -shortest -movflags +faststart video-finale.mp4

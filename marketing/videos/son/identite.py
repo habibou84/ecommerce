@@ -256,7 +256,9 @@ def sfx_all():
 def write_wav(path, x, stereo=True):
     x = np.clip(x, -1, 1)
     data = (x * 32767).astype('<i2')
-    if stereo:
+    if x.ndim == 2:
+        stereo = True
+    elif stereo:
         data = np.repeat(data[:, None], 2, axis=1)
     with wave.open(str(path), 'wb') as w:
         w.setnchannels(2 if stereo else 1)
@@ -265,9 +267,49 @@ def write_wav(path, x, stereo=True):
         w.writeframes(data.tobytes())
 
 
-def read_audio(path):
-    raw = subprocess.run(['ffmpeg', '-loglevel', 'error', '-i', str(path), '-f', 's16le', '-ac', '1', '-ar', str(SR), '-'], capture_output=True, check=True).stdout
-    return np.frombuffer(raw, '<i2').astype(np.float64) / 32768
+def read_audio(path, channels=1):
+    raw = subprocess.run(['ffmpeg', '-loglevel', 'error', '-i', str(path), '-f', 's16le', '-ac', str(channels), '-ar', str(SR), '-'], capture_output=True, check=True).stdout
+    x = np.frombuffer(raw, '<i2').astype(np.float64) / 32768
+    return x if channels == 1 else x.reshape(-1, channels)
+
+
+MUSIC_FILE = Path(__file__).with_name('musique-de-fond.mp3')  # « The Upward Curve », fourni par Jibiat Marchand
+
+
+def beat_period(mono):
+    """Durée d'un temps (s), par autocorrélation de l'enveloppe des attaques (entre 70 et 160 BPM)."""
+    hop = 512
+    n = len(mono) // hop
+    e = np.sqrt(np.mean(mono[: n * hop].reshape(n, hop) ** 2, axis=1))
+    on = np.maximum(0, np.diff(e))
+    on = on - on.mean()
+    ac = np.correlate(on, on, 'full')[len(on) - 1:]
+    lo, hi = int(60 / 160 * SR / hop), int(60 / 70 * SR / hop)
+    lag = lo + int(np.argmax(ac[lo:hi]))
+    return lag * hop / SR
+
+
+def track_music(duration, fade_in=0.6, fade_out=2.0):
+    """Le morceau fourni, en stéréo, rebouclé sur un nombre entier de mesures quand la vidéo est plus longue."""
+    x = read_audio(MUSIC_FILE, 2)
+    n = int(duration * SR)
+    if len(x) < n:
+        beat = beat_period(x.mean(axis=1))
+        bars = int((len(x) / SR - 9) // (4 * beat))  # on reboucle avant la fin du morceau (qui s'éteint)
+        loop = int(round(bars * 4 * beat * SR))
+        start = int(round(2 * 4 * beat * SR))  # reprise après les deux premières mesures
+        xf = int(0.35 * SR)
+        out = x[: start + loop].copy()
+        while len(out) < n:
+            seg = x[start: start + loop].copy()
+            w = np.linspace(0, 1, xf)[:, None]
+            out[-xf:] = out[-xf:] * np.cos(w * np.pi / 2) + x[start - xf: start] * np.sin(w * np.pi / 2)
+            out = np.concatenate([out, seg])
+        x = out
+    x = x[:n].copy()
+    t = np.arange(len(x)) / SR
+    x *= (np.clip(t / fade_in, 0, 1) * np.clip((duration - t) / fade_out, 0, 1))[:, None]
+    return x
 
 
 def generate(folder):
@@ -287,8 +329,12 @@ def mix(voice_path, events_path, out_path, duration, logo_at=None):
     voice = np.zeros(n)
     v = read_audio(voice_path)
     voice[: min(n, len(v))] = v[:n]
-    # Musique : fond constant, baissée quand la voix parle (enveloppe lissée de la voix)
-    m = music(duration)
+    # Musique : le morceau fourni s'il est là (stéréo), sinon la boucle synthétisée ; baissée quand la voix parle
+    if MUSIC_FILE.exists():
+        m = track_music(duration)
+        m = np.pad(m, ((0, max(0, n - len(m))), (0, 0)))[:n]
+    else:
+        m = np.repeat(music(duration)[:n, None], 2, axis=1)
     m = m / np.max(np.abs(m))
     # Enveloppe de la voix par blocs de 10 ms, montée rapide et retour lent, puis ramenée à l'échelle des échantillons
     blk = SR // 100
@@ -303,18 +349,19 @@ def mix(voice_path, events_path, out_path, duration, logo_at=None):
         sm[i] = acc
     duck = np.interp(np.arange(n), np.arange(nb) * blk, sm)
     music_gain = 0.20 * (1 - 0.6 * duck)
-    if logo_at is not None:  # la musique s'efface sous le logo sonore
+    if logo_at is not None:  # la musique s'efface un peu sous le logo sonore
         t = t_axis(duration)[:n]
-        music_gain *= np.clip(1 - (t - float(logo_at)) / 0.6, 0.25, 1)
-    out = voice * 0.92 + m * music_gain
+        music_gain *= np.clip(1 - (t - float(logo_at)) / 0.6, 0.45, 1)
+    mono = voice * 0.92
     fx = sfx_all()
     for ev in json.loads(Path(events_path).read_text()):
         at, name = ev[0], ev[1]
         gain = ev[2] if len(ev) > 2 else 1.0
-        place(out, 0.3 * gain * fx[name], at)
+        place(mono, 0.3 * gain * fx[name], at)
     if logo_at is not None:
         logo = sonic_logo()
-        place(out, 0.5 * logo / np.max(np.abs(logo)), float(logo_at))
+        place(mono, 0.5 * logo / np.max(np.abs(logo)), float(logo_at))
+    out = mono[:, None] + m * music_gain[:, None]
     peak = np.max(np.abs(out))
     if peak > 0.97:
         out = np.tanh(out / peak * 1.2) / np.tanh(1.2) * 0.97
