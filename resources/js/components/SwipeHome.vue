@@ -219,8 +219,10 @@ async function loadOrders() {
 }
 
 // ── WhatsApp : ce qui attend et les entrées du menu (réglages WhatsApp : seulement qui gère la boutique) ──
+// Rechargées à chaque arrivée sur la page et au retour d'une fenêtre (une commande confirmée entre-temps n'est plus
+// « à confirmer »)
 async function loadWhatsapp() {
-  if (whatsapp.value || !canOpen('/gestion/whatsapp')) return
+  if (!canOpen('/gestion/whatsapp')) return
   whatsapp.value = (await http.get('/whatsapp/sales').catch(() => ({ data: { data: null } }))).data.data
 }
 
@@ -238,6 +240,7 @@ async function loadCash() {
 // Fermer une fenêtre de la caisse (tiroir ouvert ou clôturé, livreur encaissé…) : les chiffres de la page se mettent à jour
 watch(() => route.path, (to, from) => {
   if (to === '/gestion' && from?.startsWith('/gestion/') && page.value?.key === 'cash') loadCash()
+  if (to === '/gestion' && from?.startsWith('/gestion/') && page.value?.key === 'whatsapp') loadWhatsapp()
 })
 // Où est mon argent : chaque tuile ouvre une seule fenêtre, une seule information
 const moneyOut = computed(() => [
