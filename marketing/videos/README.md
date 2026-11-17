@@ -15,12 +15,17 @@ autres et se termine par l'inscription (site **jibiat-marchand.com** ou **« Ins
 
 Tout est synthétisé par `son/identite.py` (aucun son extérieur, aucun droit à payer) :
 
-- **Musique de fond** `son/musique-boucle.wav` : boucle de 8 mesures, afro-pop léger, 112 BPM, ré majeur
-  (I – V – vi – IV), kalimba, marimba (motif de la marque), basse, percussions. Baissée automatiquement sous la voix.
-- **Logo sonore** `son/logo-sonore.wav` : ré – fa# – la – ré en kalimba puis cloche, posé sur l'apparition du logo.
-- **Effets** `son/effets/` : `pop` (bulle, apparition), `tap` (toucher), `key` (frappe), `whoosh` / `whoosh_soft`
-  (transition), `ding` (notification), `cash` / `coin` (argent), `success` (confirmé), `vibrate` (réservation),
-  `stamp` (tampon), `error` (problème), `shutter` (photo), `shimmer` (mise en valeur), `tick` (chiffres), `ring`.
+Couleur **« liquide »** : sons ronds et graves (gouttes, bulles, « bloup » d'envoi de message), **jamais d'aigus**.
+
+- **Musique de fond** `son/musique-boucle.wav` : boucle de 8 mesures, 104 BPM, ré majeur (Dmaj9 – A – Bm7 – Gmaj7),
+  piano électrique qui ondule, basse « log drum » qui glisse (amapiano), percussions en gouttes d'eau, motif de la
+  marque joué en gouttes ; filtrée au-dessus de 4,5 kHz. Baissée automatiquement sous la voix.
+- **Logo sonore** `son/logo-sonore.wav` : quatre gouttes montantes ré – fa# – la – ré sur un accord chaud.
+- **Effets** `son/effets/` (tous des gouttes ou des bulles, sous 1 kHz environ) : `pop` (bloup d'envoi, apparition),
+  `tap` (toucher), `key` (frappe), `whoosh` / `whoosh_soft` (clapotis de transition), `ding` (double bloup de
+  notification), `cash` / `coin` (gouttes en cascade), `success` (trois gouttes qui montent), `vibrate` (vibration
+  grave), `stamp` (choc sourd), `error` (goutte qui descend), `shutter` (photo), `shimmer` (bulles qui remontent),
+  `tick` (chiffres), `ring` (sonnerie grave).
 - Aperçu à écouter : `son/apercu-musique-et-logo.mp3`.
 
 ```bash
