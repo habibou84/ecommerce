@@ -146,7 +146,7 @@ class CourierAppController extends Controller
         $courier = $this->couriers($request)->firstWhere('id', $mission->courier_id);
         SharedCouriers::within($mission->order->store, fn () => $this->responses->decline($mission, $courier, $data['reason']));
 
-        return response()->json(['message' => 'Mission refusée : le marchand est prévenu.']);
+        return response()->json(['message' => 'Course refusée : le marchand est prévenu.']);
     }
 
     /**
@@ -443,6 +443,23 @@ class CourierAppController extends Controller
             // Réponse du livreur : à accepter tant qu'il n'a ni accepté ni récupéré le colis
             'acceptance' => isset($this->assignments[$s->id]) ? ($this->assignments[$s->id]->accepted_at ? 'accepted' : 'pending') : null,
             'assigned_at' => isset($this->assignments[$s->id]) ? $this->assignments[$s->id]->assigned_at->toIso8601String() : null,
+            // Jour où la course lui a été confiée : une course reçue aujourd'hui pour une date passée est à faire
+            // aujourd'hui, elle n'est pas « en retard » pour lui (le retard est celui de la boutique)
+            'handed_on' => ($this->assignments[$s->id]->assigned_at ?? $s->requested_at)?->toDateString(),
+            // Envoi automatique avec délai : sans réponse avant cette heure, la course passe au livreur suivant
+            'answer_by' => $this->answerBy($s),
         ];
+    }
+
+    private function answerBy(Shipment $s): ?string
+    {
+        $assignment = $this->assignments[$s->id] ?? null;
+        $store = $s->order->store;
+        if ($assignment === null || $assignment->accepted_at !== null || $s->status->value !== 'awaiting_pickup'
+            || $store->assignment_mode !== 'auto' || ! $store->mission_timeout_minutes) {
+            return null;
+        }
+
+        return $assignment->assigned_at->copy()->addMinutes($store->mission_timeout_minutes)->toIso8601String();
     }
 }

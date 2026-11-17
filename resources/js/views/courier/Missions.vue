@@ -8,7 +8,7 @@ import http, { errorMessage } from '../../lib/http'
 import { newMissionAlert } from '../../lib/alertSound'
 import { cachedGet, loadMissions, offline, savedRoute, saveRoute, sendStep } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
-import { autoOrder, currentPosition, dueDay, isLate, isLater, itineraryUrl, routeOrder, shortDay, tomorrow } from '../../lib/route'
+import { autoOrder, clock, currentPosition, dayLabel, dueDay, isLate, isLater, itineraryUrl, routeOrder, shortDay, tomorrow } from '../../lib/route'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -57,8 +57,8 @@ function scanned(input) {
 
 const FINAL = ['delivered', 'returned', 'cancelled', 'lost']
 // À accepter : nouvelles missions pas encore acceptées (ni colis récupéré)
-const offers = computed(() => (missions.value ?? []).filter((m) => m.acceptance === 'pending' && m.status === 'awaiting_pickup'))
-const active = computed(() => byStore((missions.value ?? []).filter((m) => !FINAL.includes(m.status) && !offers.value.includes(m))))
+const offers = computed(() => byStore((missions.value ?? []).filter((m) => m.acceptance === 'pending' && m.status === 'awaiting_pickup')))
+const active = computed(() => byStore((missions.value ?? []).filter((m) => !FINAL.includes(m.status) && !(m.acceptance === 'pending' && m.status === 'awaiting_pickup'))))
 // Tournée d'aujourd'hui (les colis à rapporter à la boutique restent à la fin), puis les missions reportées à plus tard
 const stops = computed(() => {
   const today = active.value.filter((m) => !isLater(m))
@@ -97,7 +97,7 @@ async function accept(m) {
   error.value = ''
   try {
     await http.post(`/courier/missions/${m.id}/accept`)
-    notice.value = `Mission ${m.reference} acceptée ✓`
+    notice.value = `Course ${m.reference} acceptée ✓`
     await load()
   } catch (e) {
     error.value = errorMessage(e)
@@ -110,7 +110,7 @@ async function decline() {
   error.value = ''
   try {
     await http.post(`/courier/missions/${declining.value.id}/decline`, { reason: reason.value })
-    notice.value = 'Mission refusée : le marchand est prévenu.'
+    notice.value = 'Course refusée : le marchand est prévenu.'
     declining.value = null
     reason.value = ''
     await load()
@@ -189,11 +189,12 @@ function saveOrder() {
     </div>
 
     <section v-for="m in offers" :key="`offer-${m.id}`" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 shadow-sm">
-      <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">🔔 Nouvelle mission</p>
+      <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">🔔 Nouvelle course à accepter</p>
       <RouterLink :to="`/livreur/missions/${m.id}`" class="block">
         <p class="font-semibold">{{ m.expedition_city ? `📦 Gare · vers ${m.expedition_city}` : m.place || 'Quartier ?' }}<template v-if="m.address && !m.expedition_city"> · {{ m.address }}</template></p>
         <p class="text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }} · {{ money(m.cod_amount) }} à encaisser</p>
-        <p v-if="dueDay(m)" class="text-sm font-semibold" :class="isLate(m) ? 'text-red-700' : 'text-slate-700'">{{ isLate(m) ? 'En retard · prévue ' : 'Prévue ' }}{{ shortDay(dueDay(m)) }}</p>
+        <p class="text-sm font-semibold" :class="isLate(m) ? 'text-red-700' : 'text-slate-700'">{{ isLate(m) ? `En retard · prévue ${shortDay(dueDay(m))}` : `À livrer : ${dayLabel(m)}` }}</p>
+        <p v-if="m.answer_by" class="text-xs text-amber-800">Répondez avant {{ clock(m.answer_by) }}, sinon elle sera confiée à un autre livreur.</p>
       </RouterLink>
       <template v-if="declining?.id === m.id">
         <div class="flex flex-wrap gap-2">
@@ -228,7 +229,7 @@ function saveOrder() {
     </section>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
-    <p v-if="missions && !stops.length && !offers.length" class="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm">Aucune livraison pour aujourd'hui. Les nouvelles missions apparaissent ici.</p>
+    <p v-if="missions && !stops.length && !offers.length" class="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm">Aucune livraison pour aujourd'hui. Les nouvelles courses apparaissent ici.</p>
     <template v-for="(m, i) in shown" :key="m.id">
       <h2 v-if="startsArea(shown, i)" class="pt-1 text-sm font-semibold text-slate-500">{{ m.status === 'returning' ? 'À rapporter' : m.commune || 'Autres quartiers' }}</h2>
       <div class="flex gap-3 rounded-xl bg-white p-4 shadow-sm active:bg-slate-50" :class="{ 'cursor-pointer': !editing }" @click="!editing && router.push(`/livreur/missions/${m.id}`)">

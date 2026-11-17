@@ -50,7 +50,7 @@ class CourierDesk
     public function update(Shipment $shipment, Courier $courier, string $step, array $data, ?UploadedFile $photo = null): Shipment
     {
         if ($shipment->courier_id !== $courier->id || ! $shipment->isOwnCourier()) {
-            throw new BusinessRuleException('Cette mission ne vous est pas confiée.');
+            throw new BusinessRuleException('Cette course ne vous est pas confiée.');
         }
         if (! in_array($step, self::nextSteps($shipment), true)) {
             throw new BusinessRuleException('Étape impossible pour cette livraison.', 'status');

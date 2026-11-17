@@ -6,7 +6,7 @@ import Alert from '../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { loadMission, offline, sendStep, shrinkPhoto } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
-import { dueDay, isLate, isLater, shortDay } from '../../lib/route'
+import { clock, dayLabel, dueDay, isLate, isLater, shortDay } from '../../lib/route'
 
 const props = defineProps({ id: { type: String, required: true } })
 const mission = ref(null)
@@ -221,7 +221,8 @@ async function step(status) {
 
     <Alert v-if="error">{{ error }}</Alert>
     <section v-if="mission.acceptance === 'pending' && mission.status === 'awaiting_pickup'" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
-      <p class="font-semibold text-amber-900">🔔 Nouvelle mission : acceptez-la ou refusez-la</p>
+      <p class="font-semibold text-amber-900">🔔 Nouvelle course : acceptez-la ou refusez-la</p>
+      <p class="text-sm text-amber-900">À livrer : <strong>{{ isLate(mission) ? `en retard, prévue ${shortDay(dueDay(mission))}` : dayLabel(mission) }}</strong><template v-if="mission.answer_by"> · répondez avant {{ clock(mission.answer_by) }}, sinon elle sera confiée à un autre livreur</template></p>
       <template v-if="declining">
         <input v-model="declineReason" class="input" maxlength="255" placeholder="Motif (trop loin, trop de colis…)" />
         <div class="grid grid-cols-2 gap-2">

@@ -3,10 +3,12 @@
 namespace App\Services\Couriers;
 
 use App\Models\Courier;
+use App\Models\CourierAssignment;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Notifications\CourierDayPlan;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Jibiat\Socle\Money;
 
@@ -34,6 +36,21 @@ class CourierMorning
         })->values();
     }
 
+    /**
+     * En retard pour le livreur : le jour de la course (report ou date de la commande) et le jour où elle lui a été
+     * confiée sont tous deux passés.
+     */
+    public static function isLate(Shipment $s, mixed $handedAt): bool
+    {
+        $day = $s->status->value === 'rescheduled' && $s->rescheduled_to ? $s->rescheduled_to : $s->order?->scheduled_date;
+        if ($day === null || $s->status->value === 'returning') {
+            return false;
+        }
+        $handed = $handedAt ? Carbon::parse($handedAt)->startOfDay() : null;
+
+        return $day->lt(today()) && ($handed === null || $handed->lt(today()));
+    }
+
     /** @return int nombre de livreurs prévenus (un seul message par personne, toutes ses boutiques réunies) */
     public function send(): int
     {
@@ -53,7 +70,10 @@ class CourierMorning
             if ($today->isEmpty()) {
                 continue;
             }
-            $late = $today->filter(fn (Shipment $s) => ($s->order?->scheduled_date?->lt(today()) ?? false))->count();
+            // En retard pour lui : date passée alors que la course lui était déjà confiée (reçue aujourd'hui, elle est du jour)
+            $handed = CourierAssignment::withoutGlobalScope(StoreScope::class)->whereIn('shipment_id', $today->pluck('id'))
+                ->where('status', 'assigned')->pluck('assigned_at', 'shipment_id');
+            $late = $today->filter(fn (Shipment $s) => self::isLate($s, $handed[$s->id] ?? $s->requested_at))->count();
             $cash = (int) $today->sum('cod_amount');
             $communes = $today->map(fn (Shipment $s) => $s->order?->place
                 ? ($s->order->place->type === 'neighborhood' ? $s->order->place->parent?->name : $s->order->place->name) : null)

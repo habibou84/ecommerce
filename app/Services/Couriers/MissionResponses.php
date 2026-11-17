@@ -71,7 +71,7 @@ class MissionResponses
     {
         $assignment = $this->ownAssignment($shipment, $courier);
         if ($shipment->status !== ShipmentStatus::AwaitingPickup) {
-            throw new BusinessRuleException('Le colis est déjà récupéré : la mission ne peut plus être refusée.');
+            throw new BusinessRuleException('Le colis est déjà récupéré : la course ne peut plus être refusée.');
         }
 
         $assignment->forceFill(['status' => 'declined', 'declined_at' => now(), 'completed_at' => now(), 'decline_reason' => $reason, 'seen_at' => $assignment->seen_at ?? now()])->save();
@@ -128,7 +128,7 @@ class MissionResponses
             $assignment->forceFill(['reminded_at' => now()])->save();
             $this->team->notify($shipment->store, Permission::ShipmentsManage->value, new MissionResponse($shipment, 'Course pas encore acceptée',
                 $assignment->courier->name.($assignment->seen_at ? ' l\'a vue sans répondre' : ' ne l\'a pas encore vue').' · confiez-la à un autre livreur si besoin'));
-            $assignment->courier->user?->notify(new MissionResponse($shipment, 'Mission en attente de votre réponse', 'Acceptez-la ou refusez-la', '/livreur/missions/'.$shipment->id));
+            $assignment->courier->user?->notify(new MissionResponse($shipment, 'Course en attente de votre réponse', 'Acceptez-la ou refusez-la', '/livreur/missions/'.$shipment->id));
         }
 
         return $late->count();
@@ -137,9 +137,9 @@ class MissionResponses
     private function ownAssignment(Shipment $shipment, Courier $courier): CourierAssignment
     {
         if ($shipment->courier_id !== $courier->id) {
-            throw new BusinessRuleException('Cette mission ne vous est pas confiée.');
+            throw new BusinessRuleException('Cette course ne vous est pas confiée.');
         }
 
-        return $this->current($shipment) ?? throw new BusinessRuleException('Cette mission ne vous est plus confiée.');
+        return $this->current($shipment) ?? throw new BusinessRuleException('Cette course ne vous est plus confiée.');
     }
 }
