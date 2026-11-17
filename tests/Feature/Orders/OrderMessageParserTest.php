@@ -51,10 +51,13 @@ class OrderMessageParserTest extends TestCase
 
         $items = $parser->parse($store, 'Bonsoir je veux 2 robes wax')['items'];
         $this->assertSame([[$evasee->id, 2]], array_map(fn ($i) => [$i['product_id'], $i['quantity']], $items));
-        // Un seul mot cité, ou deux produits aussi proches : rien n'est deviné
-        $this->assertSame([], $parser->parse($store, 'je veux une robe')['items']);
+        // Le premier mot du nom seul : retenu quand c'est la seule robe de la boutique
+        $this->assertSame([$evasee->id], array_column($parser->parse($store, 'je veux une robe')['items'], 'product_id'));
+        // Deux produits aussi proches : rien n'est deviné, les deux sont proposés au choix
         $writer->save($store, null, ['title' => 'Robe wax droite', 'variants' => [['price' => 14000]]]);
         $this->assertSame([], $parser->parse($store, 'je veux 2 robes wax')['items']);
+        $this->assertSame([], $parser->parse($store, 'je veux une robe')['items']);
+        $this->assertCount(2, $parser->choices($store, 'je veux une robe'));
         $this->assertSame('Robe wax droite', $parser->parse($store, 'je veux la robe wax droite')['items'][0]['title']);
     }
 

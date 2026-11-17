@@ -483,6 +483,14 @@ class RecapOrdersTest extends TestCase
         $this->assertSame(['Sticker muraux carré multicolore', 'Sticker muraux carré noir'], array_column($parser->choices($similar, 'sticker muraux carré'), 'title'));
         $this->assertSame(['Sticker muraux carré noir'], $titles($similar, 'sticker muraux carré noir'));
         $this->assertSame([], $parser->choices($similar, 'sticker muraux carré noir'));
+
+        // Le premier mot du nom seul : retenu s'il n'y a qu'un produit de ce nom, sinon proposé au choix
+        $this->assertSame(['Stickers muraux carrés roses et dorés pour salon'], $titles($make(['Stickers muraux carrés roses et dorés pour salon', 'Robe wax']), 'Je veux un Stickers Adjamé latin'));
+        $this->assertSame([], $titles($similar, 'Je veux un Stickers Adjamé latin'));
+        $this->assertSame(['Sticker muraux carré multicolore', 'Sticker muraux carré noir'], array_column($parser->choices($similar, 'Je veux un Stickers Adjamé latin'), 'title'));
+        // Un mot du nom qui n'en est pas le premier, ou trop court, ne suffit pas
+        $this->assertSame([], $titles($make(['Stickers muraux carrés roses']), 'je veux du rose'));
+        $this->assertSame([], $titles($make(['Sac à main']), 'un sac'));
     }
 
     public function test_the_customer_picks_between_similar_articles_then_the_recap_goes_on(): void
