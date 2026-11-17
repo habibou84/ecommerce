@@ -80,8 +80,9 @@ class OrderMessageParser
     }
 
     /**
-     * Produits du catalogue cités : tous les mots significatifs du nom présents (pluriel accepté).
-     * Un nom à moitié cité n'est retenu que s'il désigne un seul produit.
+     * Produits du catalogue cités : tous les mots significatifs du nom présents (pluriel accepté dans les deux sens :
+     * « sticker » retrouve « Stickers »). À défaut, au moins 2 mots du nom, dont le premier ou la moitié du nom (où
+     * qu'ils soient) : retenu seulement s'il n'y a pas deux produits aussi proches (voir choices()).
      * Quantité lue juste avant le nom (« 2 robes », « deux sacs ») ou après (« x2 »). Variante retenue si toutes
      * ses valeurs d'options apparaissent dans le message (« taille M », « rouge »).
      *
@@ -89,27 +90,7 @@ class OrderMessageParser
      */
     public function items(Store $store, string $text): array
     {
-        $normalized = ' '.PlaceMatcher::normalize($text).' ';
-        $words = array_flip(explode(' ', trim($normalized)));
-
-        $products = $this->catalog[$store->id] ?? $this->products($store);
-
-        $found = fn (string $t) => isset($words[$t]) || isset($words[$t.'s']) || isset($words[$t.'x']);
-        $candidates = $products->map(function (Product $product) use ($found) {
-            $tokens = array_values(array_filter(explode(' ', PlaceMatcher::normalize($product->title)), fn ($t) => mb_strlen($t) >= 2 && ! in_array($t, self::STOPWORDS, true)));
-
-            return ['product' => $product, 'tokens' => $tokens, 'matched' => count(array_filter($tokens, $found))];
-        })->filter(fn ($c) => $c['tokens'] !== []);
-
-        // Tous les mots du nom cités ; à défaut, le seul produit dont le premier mot et au moins un autre sont cités
-        // (« robe wax » pour « Robe wax évasée »), s'il n'y en a pas deux aussi proches
-        $matches = $candidates->filter(fn ($c) => $c['matched'] === count($c['tokens']));
-        if ($matches->isEmpty()) {
-            $partial = $candidates->filter(fn ($c) => $c['matched'] >= 2 && $found($c['tokens'][0]));
-            $best = $partial->max('matched');
-            $partial = $partial->where('matched', $best);
-            $matches = $partial->count() === 1 ? $partial : collect();
-        }
+        [$normalized, $words, $matches] = $this->rank($store, $text);
 
         $items = [];
         foreach ($matches as ['product' => $product, 'tokens' => $tokens]) {
@@ -121,7 +102,7 @@ class OrderMessageParser
                 'variant_id' => $variant?->id,
                 'variant_title' => $variant && ! $variant->is_default ? $variant->title : null,
                 'needs_variant' => $variant === null,
-                'quantity' => $this->quantityNear($normalized, $tokens[0]),
+                'quantity' => $this->quantityNear($normalized, $this->firstCited($tokens, $words)),
                 'unit_price' => $variant?->price ?? $product->price_min,
             ];
         }
@@ -130,6 +111,91 @@ class OrderMessageParser
         usort($items, fn ($a, $b) => mb_strlen($b['title']) <=> mb_strlen($a['title']));
 
         return array_slice($items, 0, 10);
+    }
+
+    /**
+     * Plusieurs produits aussi proches du texte (« sticker muraux carré » pour « … carré multicolore » et « … carré
+     * noir ») : ceux entre lesquels choisir, quand items() n'en retient aucun. Vide s'il n'y a pas d'hésitation.
+     *
+     * @return list<array{product_id: int, title: string}>
+     */
+    public function choices(Store $store, string $text): array
+    {
+        [, , $matches, $ties] = $this->rank($store, $text);
+
+        return $matches->isNotEmpty() ? [] : $ties->take(10)->map(fn ($c) => ['product_id' => $c['product']->id, 'title' => $c['product']->title])->values()->all();
+    }
+
+    /**
+     * Produits retenus, et produits à égalité quand aucun ne se détache.
+     *
+     * @return array{0: string, 1: array<string, int>, 2: Collection<int, array<string, mixed>>, 3: Collection<int, array<string, mixed>>}
+     */
+    private function rank(Store $store, string $text): array
+    {
+        $normalized = ' '.PlaceMatcher::normalize($text).' ';
+        $words = array_flip(explode(' ', trim($normalized)));
+        $stems = array_flip(array_map(fn ($w) => self::stem((string) $w), array_keys($words)));
+
+        $products = $this->catalog[$store->id] ?? $this->products($store);
+
+        $found = fn (string $t) => isset($words[$t]) || isset($words[$t.'s']) || isset($words[$t.'x']) || isset($stems[self::stem($t)]);
+        $candidates = $products->map(function (Product $product) use ($found) {
+            $tokens = array_values(array_filter(explode(' ', PlaceMatcher::normalize($product->title)), fn ($t) => mb_strlen($t) >= 2 && ! in_array($t, self::STOPWORDS, true)));
+
+            return ['product' => $product, 'tokens' => $tokens, 'matched' => count(array_filter($tokens, $found))];
+        })->filter(fn ($c) => $c['tokens'] !== []);
+
+        // Tous les mots du nom cités ; à défaut, le seul produit dont au moins 2 mots et la moitié du nom sont cités
+        // (« robe wax » pour « Robe wax évasée », « sticker muraux carré » pour « Lot de 6 stickers muraux carrés »)
+        $matches = $candidates->filter(fn ($c) => $c['matched'] === count($c['tokens']));
+        $ties = collect();
+        if ($matches->isEmpty()) {
+            // Début du nom cité (« sticker muraux carré » pour « Sticker muraux carré multicolore – 30 x 30 cm… »), ou
+            // la moitié du nom où que ce soit (« Lot de 6 stickers muraux carrés »)
+            $partial = $candidates->filter(fn ($c) => $c['matched'] >= 2 && ($found($c['tokens'][0]) || count($c['tokens']) <= $c['matched'] * 2));
+            $best = $partial->max('matched');
+            $ties = $partial->where('matched', $best)->values();
+            $matches = $ties->count() === 1 ? $ties : collect();
+        }
+
+        return [$normalized, $words, $matches, $ties];
+    }
+
+    /** Mot sans son pluriel (« stickers », « carres », « muraux » → « sticker », « carre », « mural ») */
+    private static function stem(string $word): string
+    {
+        if (mb_strlen($word) <= 3) {
+            return $word;
+        }
+        if (str_ends_with($word, 'aux')) {
+            return mb_substr($word, 0, -3).'al';
+        }
+
+        return rtrim($word, 'sx');
+    }
+
+    /**
+     * Premier mot du nom cité dans le message (pour lire la quantité juste avant) ; sinon le premier mot du nom.
+     *
+     * @param  list<string>  $tokens
+     * @param  array<string, int>  $words
+     */
+    private function firstCited(array $tokens, array $words): string
+    {
+        foreach ($tokens as $t) {
+            if (isset($words[$t]) || isset($words[$t.'s']) || isset($words[$t.'x'])) {
+                return $t;
+            }
+            $stem = self::stem($t);
+            foreach (array_keys($words) as $w) {
+                if (self::stem((string) $w) === $stem) {
+                    return (string) $w;
+                }
+            }
+        }
+
+        return $tokens[0];
     }
 
     /**
@@ -166,7 +232,7 @@ class OrderMessageParser
     {
         return Product::forStore($store->id)->where('status', ProductStatus::Active->value)
             ->with(['variants' => fn ($q) => $q->where('is_active', true)->with(['option1', 'option2', 'option3'])])
-            ->limit(1000)->get();
+            ->orderBy('id')->limit(1000)->get();
     }
 
     /**
