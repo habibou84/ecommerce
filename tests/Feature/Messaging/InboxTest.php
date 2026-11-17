@@ -5,6 +5,7 @@ namespace Tests\Feature\Messaging;
 use App\Enums\Role;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
+use App\Models\Order;
 use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
@@ -201,6 +202,11 @@ class InboxTest extends TestCase
         $this->assertStringStartsWith('🤖 Bonjour Fatou, merci pour votre commande #1001 chez Awa Mode', $detail->json('data.messages.1.body'));
         $this->assertStringEndsWith('[Confirmer] [Annuler]', $detail->json('data.messages.1.body'));
         $this->storeApi($this->store, 'GET', 'conversations?filter=without_order')->assertJsonCount(0, 'data');
+        // Liste : la commande avec son statut, et le filtre « À confirmer »
+        $this->storeApi($this->store, 'GET', 'conversations?filter=pending')->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.order.status', 'pending_confirmation')->assertJsonPath('data.0.order.status_label', 'À confirmer')
+            ->assertJsonPath('data.0.order.total', (int) Order::findOrFail($order->json('data.id'))->total);
+        $detail->assertJsonPath('data.customer.orders', 1);
 
         // Nouveau message après la commande : seul lui est proposé pour la commande suivante
         $this->travel(2)->minutes();

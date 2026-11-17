@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Messaging;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
@@ -63,11 +64,13 @@ class ConversationController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $request->validate(['filter' => ['nullable', 'in:all,unread,without_order'], 'q' => ['nullable', 'string', 'max:60']]);
+        $request->validate(['filter' => ['nullable', 'in:all,unread,pending,without_order'], 'q' => ['nullable', 'string', 'max:60']]);
 
         $query = $this->visible()->whereNotNull('last_inbound_at')->with('order.store')
             ->when($request->input('filter') === 'unread', fn ($q) => $q->where('unread_count', '>', 0))
             ->when($request->input('filter') === 'without_order', fn ($q) => $q->whereNull('order_id'))
+            // Commande de la conversation qui attend la confirmation du client
+            ->when($request->input('filter') === 'pending', fn ($q) => $q->whereHas('order', fn ($o) => $o->where('status', OrderStatus::PendingConfirmation->value)))
             ->when($request->filled('q'), function ($q) use ($request) {
                 $term = trim((string) $request->input('q'));
                 $digits = preg_replace('/\D/', '', $term);
@@ -231,7 +234,8 @@ class ConversationController extends Controller
             'preview' => $c->last_preview,
             'last_message_at' => $c->last_message_at?->toIso8601String(),
             'unread' => $c->unread_count,
-            'order' => $c->order ? ['id' => $c->order->id, 'reference' => $c->order->reference()] : null,
+            'order' => $c->order ? ['id' => $c->order->id, 'reference' => $c->order->reference(), 'status' => $c->order->status->value,
+                'status_label' => $c->order->status->label(), 'total' => (int) $c->order->total] : null,
         ];
     }
 
@@ -250,7 +254,8 @@ class ConversationController extends Controller
         $hints = array_flip(app(OrderMessageParser::class)->orderHints($c->store, $recent->pluck('body', 'id')->map(fn ($b) => (string) $b)->all()));
 
         return $this->summary($c) + [
-            'customer' => $c->customer ? ['id' => $c->customer->id, 'name' => $c->customer->name] : null,
+            'customer' => $c->customer ? ['id' => $c->customer->id, 'name' => $c->customer->name, 'orders' => (int) $c->customer->orders_count,
+                'spent' => (int) $c->customer->total_spent] : null,
             'linked' => $linked,
             'can_reply' => $linked || $c->canReply(),
             'reply_until' => $linked ? null : $c->last_inbound_at?->addHours(Conversation::REPLY_WINDOW_HOURS)->toIso8601String(),

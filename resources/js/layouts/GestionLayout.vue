@@ -149,6 +149,15 @@ async function refreshBadges() {
     // pastille seulement : une erreur passagère ne gêne pas la page
   }
 }
+// Application installée : le nombre de messages non lus aussi sur son icône (téléphones qui le permettent)
+watch(() => badges.value.messages, (count) => {
+  try {
+    const done = count > 0 ? navigator.setAppBadge?.(count) : navigator.clearAppBadge?.()
+    done?.catch?.(() => {})
+  } catch {
+    // pastille de l'icône non prise en charge
+  }
+})
 onMounted(() => {
   registerDevice()
   refreshBadges()
