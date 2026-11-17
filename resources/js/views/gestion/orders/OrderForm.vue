@@ -15,6 +15,7 @@ import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
 import { SOURCES, SOURCE_ICONS } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
+import { platformOn } from '../../../router'
 
 const props = defineProps({ id: { type: String, default: null } })
 const router = useRouter()
@@ -71,10 +72,11 @@ onMounted(async () => {
     const { data } = await http.get(`/orders/${props.id}`)
     const o = data.data
     original.value = deliverySignature(o)
+    paidBefore.value = Math.max(0, (o.amount_paid ?? 0) - (o.amount_refunded ?? 0))
     Object.assign(form, {
       customer_phone: o.customer_phone_display, customer_name: o.customer_name ?? '', delivery_method: o.delivery_method,
       shipping_phone2: o.shipping_phone2 ?? '', shipping_address: joinAddress(o.shipping_address, o.shipping_landmark), shipping_landmark: '',
-      scheduled_date: o.scheduled_date ?? '', discount_total: o.discount_total, discount_code: o.discount_code ?? '', deposit_required: o.deposit_required ?? '',
+      scheduled_date: o.scheduled_date ?? '', discount_total: o.discount_total, discount_code: o.discount_code ?? '', deposit_required: o.upfront?.deposit_manual ? o.deposit_required ?? '' : '',
       customer_note: o.customer_note ?? '', internal_note: o.internal_note ?? '',
       expedition_payer: o.expedition?.payer ?? 'arrival', expedition_prepay: o.expedition?.prepay ?? null,
     })
@@ -136,6 +138,8 @@ async function fromConversation(id) {
 
 // Prix du moment (vente flash, prix par quantité) et code promo, recalculés par le serveur ; un prix modifié à la main est gardé
 const promo = ref(null)
+// Acompte « Auto » : acompte des articles et règle de la boutique, renvoyés avec les prix
+const depositRule = ref(null)
 let pricingTimer
 async function reprice() {
   const lines = items.value.map((i) => ({ variant_id: i.variant_id ?? null, quantity: Number(i.quantity) || 1, unit_price: i.unit_price === '' ? null : Number(i.unit_price) }))
@@ -148,6 +152,7 @@ async function reprice() {
       Object.assign(item, { unit_price: line.unit_price, line_total: line.total, compare_at: line.compare_at, volume: line.volume, flash: line.flash })
     })
     promo.value = data.data.discount
+    depositRule.value = data.data.deposit ?? null
   } catch {
     promo.value = null
   }
@@ -418,7 +423,7 @@ const showDeposit = ref(false)
 const depositTouched = ref(false)
 function setDeposit(percent) {
   depositTouched.value = true
-  form.deposit_required = percent === null ? '' : Math.ceil((total.value * percent) / 100 / 100) * 100
+  form.deposit_required = percent === null ? '' : Math.min(total.value, Math.ceil((total.value * percent) / 100 / 100) * 100)
 }
 // « Coller un message » depuis l'accueil (?coller=1) : la zone du message est ouverte d'emblée
 const pasteOpen = ref(route.query.coller === '1')
@@ -439,6 +444,23 @@ const PAY_METHODS = [['wave', 'Wave'], ['orange_money', 'Orange Money'], ['mtn_m
 const paid = reactive({ mode: 'none', amount: '', method: 'wave', reference: '' })
 const due = computed(() => (paid.mode === 'all' ? 0 : paid.mode === 'part' ? Math.max(0, total.value - Number(paid.amount || 0)) : total.value))
 
+// Acompte : « Auto » (même calcul que le serveur, OrderDesk::autoDeposit) ou montant saisi, jamais plus que le total
+const paidBefore = ref(0)
+const autoDeposit = computed(() => {
+  const r = depositRule.value
+  if (!r) return null
+  const t = total.value
+  const ruleApplies = r.percent > 0 && (r.mode === 'always' || (r.mode === 'above' && r.min_total !== null && t >= r.min_total))
+  const deposit = Math.max(r.items, ruleApplies ? Math.round((t * Math.min(100, r.percent)) / 100) : 0)
+  return deposit > 0 ? Math.min(t, Math.ceil(deposit / 100) * 100) : 0
+})
+const depositAuto = computed(() => form.deposit_required === '' || form.deposit_required === null)
+const depositAmount = computed(() => (depositAuto.value ? autoDeposit.value ?? 0 : Math.max(0, Number(form.deposit_required) || 0)))
+const depositTooHigh = computed(() => !depositAuto.value && Number(form.deposit_required) > total.value)
+// Déjà reçu : avant cette modification, plus ce qui est noté à la saisie
+const paidSoFar = computed(() => paidBefore.value + (editing.value ? 0 : total.value - due.value))
+const depositLeft = computed(() => Math.max(0, depositAmount.value - paidSoFar.value))
+
 // Ce qui manque encore : le bouton le dit au lieu d'être grisé sans explication
 const missing = computed(() => {
   if (!editing.value && form.customer_phone.replace(/\D/g, '').length < 8) return { text: 'Indiquez le téléphone du client', field: 'customer_phone', target: '#phone' }
@@ -447,6 +469,7 @@ const missing = computed(() => {
   if (items.value.some((i) => !i.variant_id && !String(i.title ?? '').trim())) return { text: 'Donnez un nom à l\'article hors catalogue', field: 'items', target: '[data-untitled]' }
   if (form.delivery_method === 'delivery' && !form.scheduled_date) return { text: 'Choisissez la date de livraison', field: 'scheduled_date', target: '#delivery-date' }
   if (chosenCarrier.value && !chosenCarrier.value.covered) return { text: `${chosenCarrier.value.name} ne livre pas ce quartier`, field: 'shipping_place_id', target: '#place' }
+  if (depositTooHigh.value) return { text: `Baissez l'acompte : il dépasse le total (${money(total.value)})`, field: 'deposit_required', target: '#deposit' }
   return null
 })
 const blocker = computed(() => missing.value?.text ?? '')
@@ -623,6 +646,36 @@ async function offerCarrierSync(saved) {
 // Après l'enregistrement : petit résumé et la suite
 const done = ref(null)
 const printing = ref(false)
+
+// Acompte demandé : le réclamer tout de suite, depuis la fenêtre « Commande enregistrée »
+const depositDone = reactive({ link: null, paying: false, amount: '', method: 'wave', reference: '', busy: false, error: '', received: false })
+const doneDeposit = computed(() => (done.value && !done.value.expedition?.prepay ? done.value.upfront?.deposit_due ?? 0 : 0))
+const canPayLink = computed(() => platformOn(auth, 'online_payment'))
+// Remis à zéro pour chaque nouvelle commande enregistrée (pas quand la même est relue après un paiement)
+watch(() => done.value?.id, () => Object.assign(depositDone, { link: null, paying: false, amount: doneDeposit.value || '', method: 'wave', reference: '', busy: false, error: '', received: false }))
+async function sendDepositLink() {
+  Object.assign(depositDone, { busy: true, error: '' })
+  try {
+    depositDone.link = (await http.post(`/orders/${done.value.id}/payment-links`, { amount: doneDeposit.value })).data.data
+  } catch (e) {
+    depositDone.error = errorMessage(e)
+  } finally {
+    depositDone.busy = false
+  }
+}
+async function recordDeposit() {
+  Object.assign(depositDone, { busy: true, error: '' })
+  try {
+    await http.post(`/orders/${done.value.id}/payments`, { amount: Number(depositDone.amount), method: depositDone.method, reference: depositDone.reference || null, kind: 'deposit' })
+    const fresh = (await http.get(`/orders/${done.value.id}`)).data.data
+    done.value = fresh
+    depositDone.received = true
+  } catch (e) {
+    depositDone.error = errorMessage(e)
+  } finally {
+    depositDone.busy = false
+  }
+}
 function clearCustomer() {
   Object.assign(form, { customer_phone: '', customer_name: '', shipping_phone2: '', shipping_address: '', shipping_landmark: '', customer_note: '' })
   place.value = null
@@ -1086,18 +1139,28 @@ async function save() {
             </p>
           </div>
 
-          <button v-if="!showDeposit && !form.deposit_required" type="button" class="text-emerald-700 hover:underline" @click="showDeposit = true">+ Demander un acompte</button>
+          <button v-if="!showDeposit && depositAuto && !autoDeposit" type="button" class="text-emerald-700 hover:underline" @click="showDeposit = true">+ Demander un acompte</button>
           <div v-else class="space-y-1.5">
             <div class="flex items-center justify-between gap-2">
               <label for="deposit" class="text-slate-600">Acompte exigé (F)</label>
-              <input id="deposit" v-model="form.deposit_required" type="number" min="0" class="input w-32 py-1 text-right" placeholder="auto" @input="depositTouched = true" />
+              <input id="deposit" v-model="form.deposit_required" type="number" min="0" :max="total" class="input w-32 py-1 text-right" :class="{ 'border-red-500': depositTooHigh }"
+                     :placeholder="autoDeposit ? `auto : ${autoDeposit}` : 'auto'" :aria-invalid="depositTooHigh" @input="depositTouched = true" />
             </div>
             <div class="flex flex-wrap justify-end gap-1.5 text-xs font-bold">
-              <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(null)">Auto</button>
+              <button type="button" class="rounded-full border px-2.5 py-1" :class="depositAuto ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-field'" @click="setDeposit(null)">Auto{{ autoDeposit ? ` · ${money(autoDeposit)}` : '' }}</button>
               <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(30)">30 %</button>
               <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(50)">50 %</button>
             </div>
-            <p class="text-right explain-detail">Auto : selon les articles et le réglage de la boutique.</p>
+            <p v-if="depositTooHigh || errors.deposit_required" class="text-right text-xs font-semibold text-red-600" role="alert">{{ depositTooHigh ? `L'acompte ne peut pas dépasser le total de la commande (${money(total)}).` : errors.deposit_required }}</p>
+            <p v-else-if="depositAuto && autoDeposit === 0" class="text-right explain-detail">Auto : pas d'acompte pour ces articles (réglage de la boutique).</p>
+            <p v-else-if="depositAuto && autoDeposit === null" class="text-right explain-detail">Auto : selon les articles et le réglage de la boutique.</p>
+            <!-- Ce que l'acompte veut dire pour cette commande -->
+            <div v-if="!depositTooHigh && depositAmount > 0" class="rounded-lg px-3 py-2 text-sm font-semibold" :class="depositLeft === 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'">
+              <p v-if="depositLeft === 0">✅ Acompte de {{ money(depositAmount) }} déjà couvert par ce qui a été payé.</p>
+              <p v-else-if="paidSoFar > 0">⏳ Il manque {{ money(depositLeft) }} d'acompte (sur {{ money(depositAmount) }}).</p>
+              <p v-else>⏳ Acompte à recevoir : {{ money(depositAmount) }} · reste à la livraison : {{ money(Math.max(0, total - depositAmount)) }}</p>
+              <p v-if="depositLeft > 0 && depositRule?.blocks !== false" class="mt-0.5 text-xs font-normal">La commande attend l'acompte avant de partir chez le livreur.</p>
+            </div>
           </div>
           <label v-if="!editing" class="flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 p-3">
             <input v-model="form.confirmed" type="checkbox" class="peer sr-only" />
@@ -1158,6 +1221,38 @@ async function save() {
         </p>
         <p class="mt-1 text-base font-bold text-slate-900">{{ done.amount_due > 0 ? `À encaisser : ${money(done.amount_due)}` : `Total ${money(done.total)} · déjà payé ✅` }}</p>
       </div>
+      <!-- Acompte demandé : le lien au client, ou noter qu'il est reçu -->
+      <div v-if="doneDeposit > 0" class="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        <div>
+          <p class="text-base font-bold">⏳ Acompte à recevoir : {{ money(doneDeposit) }}</p>
+          <p>Reste à la livraison : {{ money(Math.max(0, done.amount_due - doneDeposit)) }}<template v-if="done.upfront?.blocking"> · la commande attend l'acompte avant de partir chez le livreur</template>.</p>
+        </div>
+        <Alert v-if="depositDone.error">{{ depositDone.error }}</Alert>
+        <template v-if="depositDone.link">
+          <p class="font-semibold">✅ Lien de {{ money(depositDone.link.amount) }} créé<template v-if="depositDone.link.sent_by_whatsapp"> et envoyé au client par votre WhatsApp</template>.</p>
+          <input class="input text-xs" :value="depositDone.link.url" readonly aria-label="Lien de paiement" @focus="$event.target.select()" />
+          <a v-if="!depositDone.link.sent_by_whatsapp" :href="depositDone.link.whatsapp_url" target="_blank" rel="noopener" class="btn-brand w-full"><Icon name="whatsapp" :size="16" />Envoyer par WhatsApp</a>
+        </template>
+        <form v-else-if="depositDone.paying" class="space-y-2" @submit.prevent="recordDeposit">
+          <div class="flex items-center justify-between gap-2">
+            <label for="deposit-received" class="font-semibold">Montant reçu (F)</label>
+            <input id="deposit-received" v-model="depositDone.amount" type="number" min="1" :max="done.amount_due" required class="input w-32 py-1 text-right" />
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="[value, label] in PAY_METHODS" :key="value" type="button" class="rounded-full border bg-white px-3 py-1 text-sm" :class="depositDone.method === value ? 'border-2 border-emerald-700 font-bold text-emerald-900' : 'border-field'" @click="depositDone.method = value">{{ label }}</button>
+          </div>
+          <input v-model.trim="depositDone.reference" class="input py-1.5 text-sm" maxlength="100" placeholder="N° de transaction (facultatif)" aria-label="N° de transaction" />
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" class="btn-secondary" :disabled="depositDone.busy" @click="depositDone.paying = false">Retour</button>
+            <button class="btn-brand" :disabled="depositDone.busy || !(Number(depositDone.amount) > 0)">{{ depositDone.busy ? 'Enregistrement…' : 'Enregistrer' }}</button>
+          </div>
+        </form>
+        <div v-else class="grid grid-cols-2 gap-2">
+          <button v-if="canPayLink && done.customer_phone" type="button" class="btn-brand" :disabled="depositDone.busy" @click="sendDepositLink">📲 {{ depositDone.busy ? 'Création…' : 'Envoyer le lien d\'acompte' }}</button>
+          <button type="button" class="btn-secondary" :class="{ 'col-span-2': !(canPayLink && done.customer_phone) }" :disabled="depositDone.busy" @click="depositDone.paying = true">Acompte reçu</button>
+        </div>
+      </div>
+      <p v-else-if="depositDone.received" class="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">✅ Acompte reçu<template v-if="done.status === 'confirmed'"> : la commande est confirmée</template>.</p>
       <button type="button" class="btn-primary w-full" @click="again(false)">+ Enregistrer une nouvelle commande</button>
       <div class="grid grid-cols-2 gap-2">
         <button type="button" class="btn-secondary" title="Mêmes articles et même livraison, pour une autre cliente" @click="again(true)">⧉ Dupliquer</button>
