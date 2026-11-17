@@ -19,6 +19,7 @@ use App\Services\Messaging\AutoReplier;
 use App\Services\Social\MetaSocial;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Jibiat\Socle\PhoneNumber;
 use RuntimeException;
@@ -382,11 +383,11 @@ class Inbox
     {
         $link = $this->linkFor($conversation);
         if ($link !== null) {
-            return $this->record($conversation, 'auto', '📷 '.$caption, 'queued', $this->bridge->send($link, $conversation->contact, $caption, slow: true, image: $image));
+            return $this->record($conversation, 'auto', $caption, 'queued', $this->bridge->send($link, $conversation->contact, $caption, slow: true, image: $image), media: ['media_url' => $image]);
         }
         $account = $this->officialFor($conversation) ?? throw new BusinessRuleException('Aucun WhatsApp connecté ne permet d\'envoyer une image à ce client.');
 
-        return $this->record($conversation, 'auto', '📷 '.$caption, 'sent', $this->cloud->sendImage($account, $conversation->contact, $image, $caption));
+        return $this->record($conversation, 'auto', $caption, 'sent', $this->cloud->sendImage($account, $conversation->contact, $image, $caption), media: ['media_url' => $image]);
     }
 
     /**
@@ -402,7 +403,35 @@ class Inbox
             return null;
         }
 
-        return $this->record($conversation, 'auto', $preview, 'sent', $send($this->cloud, $account, $conversation->contact));
+        $this->cloud->lastMessage = null;
+        $id = $send($this->cloud, $account, $conversation->contact);
+        [$body, $media] = self::shown($this->cloud->lastMessage, $preview);
+
+        return $this->record($conversation, 'auto', $body, 'sent', $id, media: $media);
+    }
+
+    /**
+     * Ce que le client a vu d'un message riche : texte, photo et choix (boutons ou lignes de la liste) ; le résumé
+     * seul si le message n'est pas lisible.
+     *
+     * @param  array<string, mixed>|null  $sent
+     * @return array{0: string, 1: array{media_url?: string, options?: array<string, mixed>}}
+     */
+    private static function shown(?array $sent, string $preview): array
+    {
+        $interactive = $sent['interactive'] ?? null;
+        if (($sent['type'] ?? null) === 'image') {
+            return [(string) ($sent['image']['caption'] ?? $preview), array_filter(['media_url' => $sent['image']['link'] ?? null])];
+        }
+        if (! is_array($interactive) || ! isset($interactive['body']['text'])) {
+            return [$preview, []];
+        }
+        $options = $interactive['type'] === 'list'
+            ? ['button' => $interactive['action']['button'] ?? null, 'rows' => collect($interactive['action']['sections'] ?? [])->flatMap(fn ($s) => $s['rows'] ?? [])
+                ->map(fn ($r) => array_filter(['title' => $r['title'] ?? '', 'description' => $r['description'] ?? null]))->values()->all()]
+            : ['buttons' => collect($interactive['action']['buttons'] ?? [])->map(fn ($b) => (string) ($b['reply']['title'] ?? ''))->values()->all()];
+
+        return [(string) $interactive['body']['text'], array_filter(['media_url' => $interactive['header']['image']['link'] ?? null, 'options' => array_filter($options)])];
     }
 
     /**
@@ -443,6 +472,30 @@ class Inbox
     }
 
     /**
+     * Photo reçue d'un client, en octets : lue chez Meta (numéro officiel) ou au service du WhatsApp relié, puis
+     * gardée 30 jours pour Conversations ; null si elle n'est plus disponible.
+     */
+    public function photo(Conversation $conversation, ConversationMessage $message): ?string
+    {
+        if ($message->direction !== 'in' || $message->type !== 'image') {
+            return null;
+        }
+        $path = "conversation-photos/{$message->store_id}/{$message->id}";
+        $disk = Storage::disk('local');
+        if ($disk->exists($path)) {
+            return $disk->get($path);
+        }
+        $bytes = $conversation->via_link
+            ? (($link = $this->linkFor($conversation)) && $message->provider_message_id ? $this->bridge->image($link, $message->provider_message_id) : null)
+            : (($account = WhatsappAccount::forStore($message->store_id)->first()) && $message->media_id ? $this->cloud->image($account, $message->media_id) : null);
+        if ($bytes !== null && $message->sent_at->gt(now()->subDays(30))) {
+            $disk->put($path, $bytes);
+        }
+
+        return $bytes;
+    }
+
+    /**
      * WhatsApp relié (QR code ou numéro) par lequel répondre, sans limite de 24 h : celui de la boutique s'il est
      * connecté. Seule exception : le client a écrit en dernier à un autre numéro, celui de la connexion officielle de
      * Meta ; la réponse part alors de ce numéro-là, pour ne pas venir d'un numéro qu'il ne connaît pas.
@@ -474,7 +527,10 @@ class Inbox
         }
     }
 
-    private function record(Conversation $conversation, string $type, string $body, string $status, ?string $providerId = null, ?User $user = null, ?Carbon $sentAt = null): ConversationMessage
+    /**
+     * @param  array{media_url?: string, options?: array<string, mixed>}  $media
+     */
+    private function record(Conversation $conversation, string $type, string $body, string $status, ?string $providerId = null, ?User $user = null, ?Carbon $sentAt = null, array $media = []): ConversationMessage
     {
         $sentAt ??= now();
         $conversation->forceFill(['last_preview' => Str::limit($body, 197), 'last_message_at' => $sentAt])->save();
@@ -488,7 +544,7 @@ class Inbox
             'status' => $status,
             'user_id' => $user?->id,
             'sent_at' => $sentAt,
-        ]);
+        ] + $media);
     }
 
     /**

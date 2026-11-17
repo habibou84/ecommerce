@@ -3,6 +3,7 @@ import AiMeter from '../../../components/AiMeter.vue'
 import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import NetworkMark from '../../../components/NetworkMark.vue'
 import Icon from '../../../components/Icon.vue'
+import MessagePhoto from '../../../components/MessagePhoto.vue'
 import WhatsAppLink from '../../../components/WhatsAppLink.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import Alert from '../../../components/Alert.vue'
@@ -478,12 +479,25 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
                   <span class="grid h-4 w-4 place-items-center rounded border" :class="selected.includes(row.message.id) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-field'">{{ selected.includes(row.message.id) ? '✓' : '' }}</span>
                   {{ selected.includes(row.message.id) ? 'Dans la commande' : 'Ajouter à la commande' }}
                 </span>
+                <!-- Photo envoyée au client, ou reçue de lui -->
+                <MessagePhoto v-if="row.message.media_url" :key="row.message.media_url" :src="row.message.media_url" alt="Photo envoyée" />
+                <MessagePhoto v-else-if="row.message.photo" :key="`p${row.message.id}`" :path="`/conversations/${current.id}/messages/${row.message.id}/photo`" alt="Photo du client" />
                 <p class="whitespace-pre-wrap break-words">
                   <template v-for="(part, i) in linkify(row.message.body ?? '')" :key="i">
                     <a v-if="i % 2" :href="part" target="_blank" rel="noopener" class="text-emerald-700 underline">{{ part }}</a>
                     <template v-else>{{ part }}</template>
                   </template>
                 </p>
+                <!-- Choix proposés au client : boutons, ou lignes d'une liste -->
+                <div v-if="row.message.options?.buttons" class="mt-2 flex flex-wrap gap-1.5">
+                  <span v-for="b in row.message.options.buttons" :key="b" class="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">{{ b }}</span>
+                </div>
+                <div v-else-if="row.message.options?.rows" class="mt-2 rounded-xl bg-white/70 p-2 text-xs ring-1 ring-emerald-200">
+                  <p class="mb-1 font-semibold text-emerald-800">☰ {{ row.message.options.button || 'Choisir' }}</p>
+                  <ol class="space-y-0.5">
+                    <li v-for="(r, i) in row.message.options.rows" :key="i"><b>{{ r.title }}</b><span v-if="r.description" class="text-slate-500"> · {{ r.description }}</span></li>
+                  </ol>
+                </div>
                 <p class="mt-1 text-right text-xs text-slate-500" :title="formatDateTime(row.message.sent_at)">
                   <span v-if="row.message.by">{{ row.message.by }} · </span>{{ hour(row.message.sent_at) }}
                   <span v-if="row.message.direction === 'out' && statusIcon[row.message.status]" :class="row.message.status === 'read' ? 'text-sky-600' : row.message.status === 'failed' ? 'text-red-600' : ''" :aria-label="STATUS_LABEL[row.message.status]">{{ statusIcon[row.message.status] }}</span>

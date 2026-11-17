@@ -9,6 +9,7 @@ use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\Order;
 use App\Models\OrderCreditBill;
+use App\Models\OutboundMessage;
 use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
@@ -492,18 +493,32 @@ class RecapOrdersTest extends TestCase
         $this->client('Bonjour, le sticker muraux carré, je suis à Angré');
         $this->sent();
 
+        // La demande de confirmation automatique est allumée : elle ne double pas le récap
+        $this->account->forceFill(['status' => 'active', 'automations' => ['order_confirmation' => true]])->save();
         $this->merchant('récap');
-        [$list] = $this->sent();
+        [$intro, $first, $second] = $this->sent();
         $this->assertSame(0, Order::count());
-        $this->assertStringContainsString('Lequel voulez-vous ?', $list['interactive']['body']['text']);
-        $rows = collect($list['interactive']['action']['sections'][0]['rows']);
-        $this->assertSame(['recap:pick:'.$color->id, 'Sticker muraux carré multicolore'], [$rows->first()['id'], $rows->first()['description']]);
+        $this->assertStringContainsString('Lequel voulez-vous ?', $intro['text']['body']);
+        // Une photo par article, avec son numéro, son prix et « Je prends »
+        $this->assertStringContainsString('/live/', $first['interactive']['header']['image']['link']);
+        $this->assertSame("*1* Sticker muraux carré multicolore\n💰 5 000 F", str_replace("\u{202F}", ' ', $first['interactive']['body']['text']));
+        $this->assertSame(['recap:pick:'.$color->id, '🛍️ Je prends'], [$first['interactive']['action']['buttons'][0]['reply']['id'], $first['interactive']['action']['buttons'][0]['reply']['title']]);
+        $this->assertStringStartsWith('*2* Sticker muraux carré noir', $second['interactive']['body']['text']);
 
-        $this->tap('recap:pick:'.$color->id, 'Sticker muraux carré…', 'list_reply');
+        // Dans Conversations : la photo et le bouton proposés au client
+        $shown = ConversationMessage::query()->where('direction', 'out')->latest('id')->first();
+        $this->assertStringStartsWith('*2* Sticker muraux carré noir', $shown->body);
+        $this->assertStringContainsString('/live/', $shown->media_url);
+        $this->assertSame(['buttons' => ['🛍️ Je prends']], $shown->options);
+
+        $this->tap('recap:pick:'.$color->id, '🛍️ Je prends');
         [$recap] = $this->sent();
         $order = Order::sole();
         $this->assertSame('Sticker muraux carré multicolore', $order->items->sole()->title);
         $this->assertSame("live:confirm:{$order->id}", $recap['interactive']['action']['buttons'][0]['reply']['id']);
+        // Un seul message à confirmer : pas de « Demande de confirmation » en plus du récap
+        $this->assertSame([], $this->sent());
+        $this->assertFalse(OutboundMessage::query()->where('event', 'order_confirmation')->exists());
     }
 
     public function test_the_shop_precisions_are_given_to_the_assistant(): void
