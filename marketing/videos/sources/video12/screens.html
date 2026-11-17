@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=540">
+<title>File de confirmation</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 540px; height: 960px; overflow: hidden; background: #f5f7f4; }
+  body { font-family: Inter, sans-serif; color: #0f172a; -webkit-font-smoothing: antialiased; }
+  img.e { width: 1.15em; height: 1.15em; vertical-align: -0.22em; margin: 0 .03em; display: inline; }
+  .status { height: 34px; display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 700; }
+  .gh { background: linear-gradient(140deg, #13a058, #065f46); color: #fff; padding: 6px 22px 16px; }
+  .gh small { opacity: .85; font-size: 14px; } .gh h1 { font-size: 27px; letter-spacing: -.5px; display: flex; align-items: center; gap: 10px; }
+  .gh h1 span { background: #fbbf24; color: #0f172a; border-radius: 999px; font-size: 17px; padding: 2px 11px; }
+  .gh p { font-size: 13.5px; opacity: .9; margin-top: 2px; }
+  #list { position: absolute; left: 0; right: 0; top: 146px; bottom: 0; }
+  .c { position: absolute; left: 14px; right: 14px; background: #fff; border-radius: 16px; padding: 11px 14px; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 18px -10px rgba(15,23,42,.2); border-left: 5px solid #fbbf24; opacity: 0; }
+  .c .top { display: flex; justify-content: space-between; font-size: 16px; } .c .top b { font-size: 17px; }
+  .c .ad { color: #64748b; font-size: 13.5px; margin-top: 1px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; min-height: 0; }
+  .tg { border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-weight: 800; }
+  .tg.w { background: #e0f2fe; color: #075985; } .tg.ok { background: #dcfce7; color: #166534; } .tg.am { background: #fef3c7; color: #92400e; }
+  .tg.rd { background: #fee2e2; color: #991b1b; } .tg.vi { background: #ede9fe; color: #5b21b6; }
+  .acts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+  .b { border-radius: 11px; padding: 8px 11px; font-size: 14px; font-weight: 800; background: #f1f5f9; color: #334155; }
+  .b.call { background: #0f172a; color: #fff; } .b.wa { background: #25d366; color: #052e16; } .b.okb { background: #047857; color: #fff; }
+  .b.hit { outline: 3px solid #f59e0b; transform: scale(1.06); }
+  .c.done { border-left-color: #22c55e; background: #f0fdf4; } .c.bad { border-left-color: #ef4444; background: #fef2f2; }
+  #tap { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; background: rgba(255,255,255,.5); border: 4px solid rgba(15,138,99,.95); opacity: 0; z-index: 50; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="z" style="zoom:1.38;position:absolute;left:0;top:0;width:391px;height:696px;overflow:hidden">
+  <div class="gh"><div class="status"><span>14:02</span><span>📶 🔋</span></div><small>Awa Mode · Commandes</small>
+    <h1>À confirmer <span id="count">5</span></h1><p>Appelez ou écrivez à chaque client avant de faire livrer.</p></div>
+  <div id="list">
+    <div class="c" id="c0"><div class="top"><span><b>N° 1042</b> · Fatou Koné</span><b>16 500 F</b></div><div class="ad">📍 Angré, Cocody · Robe wax rouge · M</div>
+      <div class="tags"><span class="tg w" id="t0">💬 Demande envoyée sur WhatsApp</span></div></div>
+    <div class="c" id="c1"><div class="top"><span><b>N° 1043</b> · Kouassi Yao</span><b>23 500 F</b></div><div class="ad">📍 Zone 4, Marcory · Ensemble bazin · L</div>
+      <div class="tags"><span class="tg am" id="t1" style="display:none">⏰ À rappeler à 17 h</span></div>
+      <div class="acts" id="a1"><span class="b call" id="bCall">📞 Appeler</span><span class="b wa" id="bWa">💬 WhatsApp</span><span class="b okb">✓ Confirmée</span><span class="b" id="bNo">Injoignable</span><span class="b" id="bCb">Rappeler dans 3 h</span><span class="b">Modifier</span><span class="b">Refusée</span><span class="b" id="bWr">Faux numéro</span></div></div>
+    <div class="c" id="c2"><div class="top"><span><b>N° 1044</b> · Mariam Sylla</span><b>12 000 F</b></div><div class="ad">📍 Siporex, Yopougon · Sac à main</div>
+      <div class="tags"><span class="tg am" id="t2">Doublon ?</span><span class="tg w" style="background:#f1f5f9;color:#475569">même numéro · N° 1039 en cours</span></div></div>
+    <div class="c" id="c3"><div class="top"><span><b>N° 1045</b> · Ibrahim T.</span><b>9 000 F</b></div><div class="ad">📍 Abobo · Chemise wax</div>
+      <div class="tags"><span class="tg rd" id="t3" style="opacity:0">⛔ Client sur liste noire : 3 colis refusés</span></div></div>
+    <div class="c" id="c4"><div class="top"><span><b>N° 1046</b> · Aminata Diallo</span><b>45 000 F</b></div><div class="ad">📍 Riviera, Cocody · Tenue de cérémonie</div>
+      <div class="tags"><span class="tg vi" id="t4" style="opacity:0">💳 Acompte demandé : 13 500 F</span><span class="tg ok" id="t5" style="opacity:0">✓ Acompte reçu</span></div></div>
+  </div>
+</div>
+<div id="tap"></div>
+<script>
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+const back = x => { x = clamp(x); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const $ = id => document.getElementById(id);
+const EMOJI = /\p{Extended_Pictographic}️?/gu;
+function fix(img) { if (img.dataset.r) return; img.dataset.r = 1; img.src = img.src.includes('-fe0f.png') ? img.src.replace('-fe0f.png', '.png') : img.src.replace('.png', '-fe0f.png'); }
+const emo = s => s.replace(EMOJI, e => `<img class="e" src="../video7/emoji64/${[...e].map(c => c.codePointAt(0).toString(16)).join('-')}.png" onerror="fix(this)" alt="">`);
+(function emojify(root) { const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (w.nextNode()) if (/\p{Extended_Pictographic}/u.test(w.currentNode.nodeValue)) nodes.push(w.currentNode);
+  nodes.forEach(n => { const s = document.createElement('span'); s.innerHTML = emo(n.nodeValue.replace(/&/g, '&amp;').replace(/</g, '&lt;')); n.replaceWith(...s.childNodes); }); })(document.body);
+function tap(el, t0, t) { if (!el || t < t0 || t > t0 + 0.55) return; const r = el.getBoundingClientRect(), k = (t - t0) / 0.55, T = $('tap');
+  T.style.left = (r.left + r.width / 2) + 'px'; T.style.top = (r.top + r.height / 2) + 'px'; T.style.opacity = k < .25 ? k / .25 : 1 - (k - .25) / .75; T.style.transform = `scale(${k < .25 ? 1 - k : .75 + (k - .25) * .6})`; }
+const pulse = (el, s, a, b) => { el.style.transform = s >= a && s < b ? `scale(${1 + 0.12 * Math.abs(Math.sin((s - a) * 5))})` : ''; el.style.boxShadow = s >= a && s < b ? '0 0 0 4px rgba(245,158,11,.35)' : ''; };
+let last0 = '';
+// Temps local : 0 → 8 la file arrive · 8 → 12 la cliente a confirmé (N° 1042) · 12 → 22 appeler, écrire, noter le résultat
+// (N° 1043) · 22 → 34 alertes (doublon, liste noire) et acompte
+window.render = function (s) {
+  $('tap').style.opacity = 0;
+  // Hauteurs : la carte 1043 est dépliée (boutons) entre 12 et 21,5
+  const open = clamp((s - 11.6) / 0.4) * (1 - clamp((s - 21.3) / 0.4));
+  const gone = ease((s - 10.2) / 0.5);  // la carte 1042 confirmée quitte la file
+  $('a1').style.display = open > 0.02 ? 'flex' : 'none'; $('a1').style.opacity = open;
+  let y = 12;
+  [0, 1, 2, 3, 4].forEach(i => { const el = $('c' + i), k = (s - 0.3 - i * 0.35) / 0.4;
+    el.style.opacity = clamp(k * 1.5) * (i === 0 ? 1 - gone : 1);
+    el.style.top = y + 'px'; el.style.transform = i === 0 ? `translateX(${gone * 460}px)` : `translateY(${(1 - ease(k)) * 30}px)`;
+    y += (el.offsetHeight + 10) * (i === 0 ? 1 - gone : 1); });
+  // N° 1042 : confirmée par la cliente
+  const conf = s >= 8.4; $('c0').classList.toggle('done', conf);
+  const h0 = conf ? '✅ Confirmée par la cliente sur WhatsApp' : '💬 Demande envoyée sur WhatsApp';
+  if (last0 !== h0) { last0 = h0; $('t0').innerHTML = emo(h0); $('t0').className = 'tg ' + (conf ? 'ok' : 'w'); }
+  if (conf) $('t0').style.transform = `scale(${1 + 0.15 * (1 - ease((s - 8.4) / 0.5))})`;
+  $('count').textContent = s >= 10.4 ? 4 : 5;
+  // N° 1043 : appeler, écrire, noter le résultat
+  [['bCall', 12.6, 13.5], ['bWa', 13.6, 14.6], ['bNo', 15.4, 16.3], ['bCb', 16.4, 17.6], ['bWr', 17.7, 18.8]].forEach(([id, a, b]) => $(id).classList.toggle('hit', s >= a && s < b));
+  tap($('bCall'), 12.5, s); tap($('bWa'), 13.5, s); tap($('bCb'), 19.2, s);
+  $('bCb').classList.toggle('hit', (s >= 16.4 && s < 17.6) || (s >= 19.3 && s < 20));
+  $('t1').style.display = s >= 19.8 ? 'inline-block' : 'none'; if (s >= 19.8) $('t1').style.transform = `scale(${0.7 + 0.3 * back((s - 19.8) / 0.35)})`;
+  // Alertes et acompte
+  pulse($('t2'), s, 22.4, 24.4);
+  [['t3', 24.6], ['t4', 28.4], ['t5', 30.2]].forEach(([id, a]) => { const k = (s - a) / 0.35, el = $(id); el.style.opacity = clamp(k * 1.5); el.style.transform = `scale(${s < a ? .7 : .7 + .3 * back(k)})`; });
+  $('c3').classList.toggle('bad', s >= 24.6); pulse($('t3'), s, 25.0, 27.0);
+  $('c4').classList.toggle('done', s >= 30.2);
+};
+if (!location.hash.includes('capture')) { const st = performance.now(); (function loop(n) { render(((n - st) / 1000) % 34); requestAnimationFrame(loop); })(st); }
+</script>
+</body>
+</html>

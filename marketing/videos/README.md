@@ -10,6 +10,7 @@ autres et se termine par l'inscription (site **jibiat-marchand.com** ou **« Ins
 | 2. Commande seule par « modèles » | `sources/pub7` | `sources/video7` | 62 s |
 | 3. Vos livreurs (zones, affectation automatique, caisse) | `sources/pub9` | `sources/video9` | 76 s |
 | 4. Vente en live (écran du live, copilote, animations, commandes, bilan) | `sources/pub11` | `sources/video11` + `sources/video10/client.html` | 74 s |
+| 5. Confirmation des commandes (file « À confirmer », boutons WhatsApp, alertes, acompte) | `sources/pub12` | `sources/video12` | 69 s |
 
 ## Identité sonore (à mettre dans **chaque** vidéo)
 
