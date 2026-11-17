@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=540">
+<title>Couverture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 540px; height: 960px; overflow: hidden; background: #04100b; }
+  body { font-family: Inter, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; position: relative; }
+  img.e { width: 1.1em; height: 1.1em; vertical-align: -0.18em; }
+  .g1 { position: absolute; width: 620px; height: 620px; border-radius: 50%; filter: blur(70px); background: rgba(19,160,88,.55); left: -160px; top: -180px; }
+  .g2 { position: absolute; width: 520px; height: 520px; border-radius: 50%; filter: blur(70px); background: rgba(132,204,22,.28); right: -200px; bottom: -120px; }
+  .brand { position: absolute; left: 0; right: 0; top: 34px; display: flex; justify-content: center; align-items: center; gap: 10px; font-size: 21px; font-weight: 800; }
+  .brand img { width: 38px; height: 38px; border-radius: 10px; background: #fff; padding: 3px; }
+  .kicker { position: absolute; left: 0; right: 0; top: 98px; text-align: center; }
+  .kicker span { display: inline-block; background: #fbbf24; color: #0f172a; font-weight: 900; font-size: 17px; letter-spacing: 1px; text-transform: uppercase; padding: 6px 16px; border-radius: 999px; }
+  h1 { position: absolute; left: 26px; right: 26px; top: 148px; text-align: center; font-size: 53px; line-height: 1.04; font-weight: 900; letter-spacing: -1.5px; text-shadow: 0 6px 30px rgba(0,0,0,.5); }
+  h1 em { font-style: normal; background: linear-gradient(100deg, #4ade80, #bef264); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .phone { position: absolute; left: 50%; top: 420px; width: 372px; margin-left: -186px; height: 640px; border-radius: 46px; background: #0b0f0d; padding: 9px; transform: rotate(-4deg);
+    box-shadow: 0 0 0 1.5px rgba(255,255,255,.14), 0 40px 90px rgba(0,0,0,.7), 0 0 80px rgba(34,197,94,.3); }
+  .phone img { width: 100%; border-radius: 38px; display: block; }
+  .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; background: linear-gradient(transparent, #04100b 75%); }
+</style></head>
+<body>
+<div class="g1"></div><div class="g2"></div>
+<div class="brand"><img src="logo.png">Jibiat Marchand</div>
+<div class="kicker"><span id="k"></span></div>
+<h1 id="h"></h1>
+<div class="phone"><img id="p"></div>
+<div class="fade"></div>
+<script>
+const C = {
+  1: ['Commandes WhatsApp', 'Écrivez <em>« récap »</em>, la commande est prise'],
+  2: ['Commandes WhatsApp', 'Vos clients commandent <em>tout seuls</em>'],
+  3: ['Vos livreurs', 'Chaque commande part chez <em>le bon livreur</em>'],
+  4: ['Vente en live', 'Le <em>copilote</em> de vos lives'],
+  5: ['Confirmation', 'Fini les colis <em>qui reviennent</em>'],
+  6: ['Caisse et bénéfice', 'Où est <em>votre argent</em> ?'],
+};
+const n = new URLSearchParams(location.search).get('n') || '1';
+document.getElementById('k').textContent = C[n][0];
+document.getElementById('h').innerHTML = C[n][1];
+document.getElementById('p').src = `ecran-${n}.png`;
+window.done = false; const im = document.getElementById('p'); im.onload = () => window.done = true; im.onerror = () => window.done = true;
+</script>
+</body></html>

@@ -5,7 +5,7 @@ de sons extérieure, donc aucun droit à payer). Et mixage d'une vidéo : voix o
 + effets placés aux instants donnés.
 
     python3 identite.py generer DOSSIER                 # musique-boucle.wav, logo-sonore.wav, effets/*.wav
-    python3 identite.py mixer VOIX.mp3 EVENEMENTS.json SORTIE.wav DUREE [TEMPS_LOGO]
+    python3 identite.py mixer VOIX.mp3 EVENEMENTS.json SORTIE.wav DUREE [TEMPS_LOGO] [SECONDES_DE_COUVERTURE]
 
 EVENEMENTS.json : [[secondes, "nom_de_l_effet", gain], ...] (gain facultatif, 1 par défaut).
 """
@@ -323,12 +323,16 @@ def generate(folder):
         write_wav(folder / 'effets' / f'{name}.wav', sig)
 
 
-def mix(voice_path, events_path, out_path, duration, logo_at=None):
+def mix(voice_path, events_path, out_path, duration, logo_at=None, offset=0):
+    """offset : secondes de couverture (miniature) avant le début ; la voix, les effets et le logo sont décalés d'autant."""
     duration = float(duration)
+    offset = float(offset)
+    logo_at = None if logo_at in (None, '', '-') else float(logo_at) + offset
     n = int(duration * SR)
     voice = np.zeros(n)
     v = read_audio(voice_path)
-    voice[: min(n, len(v))] = v[:n]
+    o = int(offset * SR)
+    voice[o: o + min(n - o, len(v))] = v[: n - o]
     # Musique : le morceau fourni s'il est là (stéréo), sinon la boucle synthétisée ; baissée quand la voix parle
     if MUSIC_FILE.exists():
         m = track_music(duration)
@@ -354,10 +358,12 @@ def mix(voice_path, events_path, out_path, duration, logo_at=None):
         music_gain *= np.clip(1 - (t - float(logo_at)) / 0.6, 0.45, 1)
     mono = voice * 0.92
     fx = sfx_all()
+    if offset > 0:  # passage de la couverture à la vidéo
+        place(mono, 0.3 * fx['whoosh'], offset - 0.15)
     for ev in json.loads(Path(events_path).read_text()):
         at, name = ev[0], ev[1]
         gain = ev[2] if len(ev) > 2 else 1.0
-        place(mono, 0.3 * gain * fx[name], at)
+        place(mono, 0.3 * gain * fx[name], at + offset)
     if logo_at is not None:
         logo = sonic_logo()
         place(mono, 0.5 * logo / np.max(np.abs(logo)), float(logo_at))

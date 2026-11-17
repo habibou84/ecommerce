@@ -41,6 +41,17 @@ Réglages du mixage (dans `mix`) : voix à 0,92 ; musique à 0,20 dans les silen
 effets à 0,3 × leur gain ; volume final normalisé à −14 LUFS (niveau des réseaux sociaux). Le fichier d'événements
 liste `[secondes, "effet", gain]`.
 
+## Couverture (miniature) au début de chaque vidéo
+
+Chaque vidéo commence par **1 seconde de couverture** : logo, étiquette jaune (le thème), gros titre, écran clé de la
+fonctionnalité dans un téléphone penché. La même image sert de miniature sur les réseaux.
+
+- Modèle : `couvertures/index.html?n=NUMERO` (titres dans la table `C`). L'écran clé est une image de la vidéo
+  recadrée sur le téléphone : `ffmpeg -ss T -i video.mp4 -frames:v 1 -vf crop=720:1256:180:452 couvertures/ecran-N.png`.
+- Rendu : `node couvertures/rendre.js http://127.0.0.1:8765/couvertures/index.html couvertures N…` (PNG 1080 × 1920).
+- `couvertures/ajouter.sh N NOM VOIX TEMPS_DU_LOGO` colle la couverture au début et refait le mixage avec
+  1 s de décalage (dernier argument de `identite.py mixer`) : la musique démarre sur la couverture, puis la voix.
+
 ## Fabriquer une nouvelle vidéo de la série
 
 1. **Vérifier la fonctionnalité dans le code** (`docs/PLAN.md`, écrans Vue, services) : textes et libellés réels.

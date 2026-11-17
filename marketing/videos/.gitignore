@@ -3,3 +3,5 @@ sources/*/frames/
 sources/*/tail/
 sources/*/test/
 *.mp4
+couvertures/ecran-*.png
+couvertures/couverture-*.png
