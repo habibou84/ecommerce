@@ -432,6 +432,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('conversations/unread', [ConversationController::class, 'unread'])->name('conversations.unread');
                 Route::get('conversations/{conversation}', [ConversationController::class, 'show'])->whereNumber('conversation')->name('conversations.show');
                 Route::get('conversations/{conversation}/messages', [ConversationController::class, 'older'])->whereNumber('conversation')->name('conversations.older');
+                Route::get('conversations/{conversation}/messages/{message}/photo', [ConversationController::class, 'photo'])->whereNumber(['conversation', 'message'])->middleware('throttle:120,1')->name('conversations.photo');
                 Route::post('conversations/{conversation}/messages', [ConversationController::class, 'reply'])->whereNumber('conversation')->name('conversations.reply');
                 Route::post('conversations/{conversation}/recap', [ConversationController::class, 'recap'])->whereNumber('conversation')->middleware('throttle:20,1')->name('conversations.recap');
                 Route::post('conversations/{conversation}/recap/confirm', [ConversationController::class, 'confirmRecap'])->whereNumber('conversation')->middleware('throttle:20,1')->name('conversations.recap.confirm');

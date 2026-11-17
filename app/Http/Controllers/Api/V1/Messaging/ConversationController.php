@@ -17,6 +17,7 @@ use App\Services\WhatsApp\RecapOrders;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Jibiat\Socle\PhoneNumber;
 
 /**
@@ -119,6 +120,20 @@ class ConversationController extends Controller
         ]]);
     }
 
+    /**
+     * Photo envoyée par le client, affichée dans le fil.
+     */
+    public function photo(int $conversation, int $message): Response
+    {
+        $model = $this->visible()->findOrFail($conversation);
+        $bytes = $this->inbox->photo($model, $model->messages()->findOrFail($message));
+        abort_if($bytes === null, 404, 'Cette photo n\'est plus disponible chez WhatsApp.');
+        $type = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes) ?: 'image/jpeg';
+        abort_unless(str_starts_with($type, 'image/'), 404);
+
+        return response($bytes, 200, ['Content-Type' => $type, 'Cache-Control' => 'private, max-age=86400']);
+    }
+
     public function reply(Request $request, int $conversation): JsonResponse
     {
         $data = $request->validate(['body' => ['required', 'string', 'max:4000']], [], ['body' => 'message']);
@@ -170,6 +185,11 @@ class ConversationController extends Controller
             'direction' => $m->direction,
             'type' => $m->type,
             'body' => $m->body,
+            // Photo envoyée par la boutique (adresse publique), ou reçue du client (lue à la demande)
+            'media_url' => $m->media_url,
+            'photo' => $m->direction === 'in' && $m->type === 'image',
+            // Choix proposés au client : boutons, ou lignes d'une liste
+            'options' => $m->options,
             'order_hint' => $orderHint,
             'status' => $m->status,
             'error' => $m->error,
