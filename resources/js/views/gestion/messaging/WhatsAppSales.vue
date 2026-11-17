@@ -37,6 +37,25 @@ async function save(key, url, body) {
   }
 }
 const ORIGINS = { recap: 'Récap', catalog: 'Catalogue', models: 'Modèles' }
+// Frais de livraison envoyés par le récap et les assistants : « Ils sont justes » quand la boutique les a relus
+async function ratesChecked() {
+  busy.value = 'rates'
+  error.value = ''
+  try {
+    await http.post('/delivery-rates/checked')
+    data.value.delivery.checked = true
+    data.value.todo.rates = false
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = ''
+  }
+}
+const ratesLine = computed(() => {
+  const d = data.value?.delivery
+  if (!d || d.base_fee == null) return 'Aucun prix de livraison enregistré.'
+  return `${d.city ?? 'Votre ville'} : ${money(d.base_fee)}${d.specific ? `, et ${d.specific} prix à part` : ' partout'}`
+})
 const codes = computed(() => data.value?.codes)
 </script>
 
@@ -47,6 +66,23 @@ const codes = computed(() => data.value?.codes)
       <p class="explain-detail">Chaque commande confirmée compte 1 commande de votre <RouterLink to="/gestion/solde" class="font-semibold text-emerald-700 underline">solde</RouterLink>.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
+
+    <!-- Frais de livraison : le récap et les assistants les envoient aux clients tels qu'ils sont enregistrés -->
+    <section v-if="data.delivery && !data.delivery.checked" class="flex flex-col gap-3 rounded-2xl border border-ocre-200 bg-ocre-50 p-4 sm:flex-row sm:items-center">
+      <ColorIcon name="moto" :size="44" />
+      <div class="min-w-0 flex-1">
+        <p class="explain">Vérifiez vos frais de livraison.</p>
+        <p class="explain-detail">Le récap et les assistants envoient ces prix à vos clients. Aujourd'hui : {{ ratesLine }}.</p>
+      </div>
+      <div class="flex shrink-0 flex-wrap gap-2">
+        <RouterLink to="/gestion/livraisons/tarifs" class="btn-brand px-3 py-1.5 text-sm">Vérifier mes tarifs</RouterLink>
+        <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="busy === 'rates'" @click="ratesChecked">Ils sont justes</button>
+      </div>
+    </section>
+    <p v-else-if="data.delivery" class="flex flex-wrap items-center gap-x-2 text-sm text-slate-700">
+      <Icon name="truck" :size="16" class="text-emerald-700" />Frais envoyés aux clients : {{ ratesLine }}.
+      <RouterLink to="/gestion/livraisons/tarifs" class="font-semibold text-emerald-700 underline">Modifier</RouterLink>
+    </p>
 
     <div class="grid gap-4 lg:grid-cols-2">
       <!-- Récap : le marchand écrit « récap » depuis son téléphone quand le client a donné sa commande -->

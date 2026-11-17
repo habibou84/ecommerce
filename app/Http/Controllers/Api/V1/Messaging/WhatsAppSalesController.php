@@ -16,6 +16,7 @@ use App\Services\Ai\Assistant;
 use App\Services\Marketing\CatalogFeed;
 use App\Services\Marketing\MetaAds;
 use App\Services\Messaging\AutoReplier;
+use App\Services\Places\DeliveryRates;
 use App\Services\Platform\Features;
 use App\Services\WhatsApp\CatalogOrders;
 use App\Services\WhatsApp\RecapOrders;
@@ -59,8 +60,11 @@ class WhatsAppSalesController extends Controller
                 'waiting' => $waiting,
                 'confirmed_last_30_days' => Order::query()->where('credit_channel', 'recap')->whereNotNull('confirmed_at')->where('confirmed_at', '>=', now()->subDays(30))->count(),
             ],
+            // Tarifs de livraison envoyés par le récap et les assistants : à vérifier tant que la boutique ne l'a pas fait
+            'delivery' => app(DeliveryRates::class)->summary($store),
             // Ce qui attend, pour l'accueil WhatsApp et l'onglet WhatsApp du téléphone
             'todo' => [
+                'rates' => $store->delivery_rates_checked_at === null,
                 'unread' => (int) Conversation::query()->where('channel', 'whatsapp')->sum('unread_count'),
                 'recaps' => $waiting,
                 'carts' => Order::query()->where('credit_channel', 'catalog')->where('status', OrderStatus::PendingConfirmation->value)->count(),

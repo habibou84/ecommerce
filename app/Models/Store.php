@@ -71,6 +71,7 @@ class Store extends Model
             'deposit_min_total' => 'integer',
             'deposit_rule_percent' => 'integer',
             'closed_at' => 'datetime',
+            'delivery_rates_checked_at' => 'datetime',
             'free_shipping_above' => 'integer',
             'expedition_fee' => 'integer',
             'expedition_prepay' => 'boolean',

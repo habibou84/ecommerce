@@ -385,7 +385,7 @@ class RecapOrdersTest extends TestCase
         $this->client('La robe wax M pour Angré');
         $this->merchant('récap');
         $data = $this->storeApi($this->store, 'GET', 'whatsapp/sales')->assertOk()->json('data');
-        $this->assertSame(['unread' => 1, 'recaps' => 1, 'carts' => 0], $data['todo']);
+        $this->assertSame(['rates' => true, 'unread' => 1, 'recaps' => 1, 'carts' => 0], $data['todo']);
         $this->assertSame(['recap'], array_column($data['orders'], 'channel'));
         $this->assertNotNull($data['phone_message_at']);
         $this->assertSame(['enabled' => true, 'remind_hours' => 2, 'expire_hours' => 24, 'waiting' => 1, 'confirmed_last_30_days' => 0], $data['recap']);
