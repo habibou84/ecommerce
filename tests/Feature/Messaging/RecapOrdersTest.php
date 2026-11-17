@@ -19,6 +19,7 @@ use App\Services\Ai\Assistant;
 use App\Services\Billing\Credits;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
+use App\Services\Orders\OrderMessageParser;
 use App\Services\Places\Places;
 use App\Services\Platform\Features;
 use App\Services\WhatsApp\RecapOrders;
@@ -452,6 +453,68 @@ class RecapOrdersTest extends TestCase
         $this->assertStringContainsString("dans l'application", $order->confirmations()->sole()->note);
         $this->assertStringContainsString('COMMANDE CONFIRMÉE', collect($this->sent())->pluck('text.body')->filter()->implode("\n"));
         $this->storeApi($this->store, 'POST', "conversations/{$id}/recap/confirm")->assertStatus(422);
+    }
+
+    public function test_article_names_are_read_with_plurals_extra_words_and_similar_articles(): void
+    {
+        $parser = app(OrderMessageParser::class);
+        $writer = app(CatalogWriter::class);
+        $make = function (array $titles) use ($writer) {
+            $store = $this->createStore();
+            foreach ($titles as $t) {
+                $writer->save($store, null, ['title' => $t, 'variants' => [['price' => 5000, 'on_hand' => 10]]]);
+            }
+
+            return $store;
+        };
+        $titles = fn (Store $store, string $text) => array_column($parser->items($store, $text), 'title');
+
+        // Pluriel dans le nom, mots avant le nom, inscriptions après le nom
+        $this->assertSame(['Stickers muraux carrés multicolores'], $titles($make(['Stickers muraux carrés multicolores']), 'sticker muraux carré'));
+        $this->assertSame(['Lot de 6 sticker muraux carré multicolore'], $titles($make(['Lot de 6 sticker muraux carré multicolore']), 'sticker muraux carré'));
+        $this->assertSame(['Sticker muraux carré multicolore – 30 x 30 cm, autocollant'], $titles($make(['Sticker muraux carré multicolore – 30 x 30 cm, autocollant']), 'sticker muraux carré'));
+        $this->assertSame(['Sticker muraux carré multicolore'], $titles($make(['Sticker muraux carré multicolore', 'Sticker muraux rond multicolore']), '2 stickers muraux carrés'));
+        $this->assertSame(2, $parser->items($make(['Sticker muraux carré multicolore']), '2 stickers muraux carrés')[0]['quantity']);
+
+        // Deux articles aussi proches : aucun retenu, les deux proposés au choix
+        $similar = $make(['Sticker muraux carré multicolore', 'Sticker muraux carré noir']);
+        $this->assertSame([], $titles($similar, 'sticker muraux carré'));
+        $this->assertSame(['Sticker muraux carré multicolore', 'Sticker muraux carré noir'], array_column($parser->choices($similar, 'sticker muraux carré'), 'title'));
+        $this->assertSame(['Sticker muraux carré noir'], $titles($similar, 'sticker muraux carré noir'));
+        $this->assertSame([], $parser->choices($similar, 'sticker muraux carré noir'));
+    }
+
+    public function test_the_customer_picks_between_similar_articles_then_the_recap_goes_on(): void
+    {
+        $writer = app(CatalogWriter::class);
+        $color = $writer->save($this->store, null, ['title' => 'Sticker muraux carré multicolore', 'variants' => [['price' => 5000, 'on_hand' => 10]]]);
+        $writer->save($this->store, null, ['title' => 'Sticker muraux carré noir', 'variants' => [['price' => 4500, 'on_hand' => 10]]]);
+        $this->client('Bonjour, le sticker muraux carré, je suis à Angré');
+        $this->sent();
+
+        $this->merchant('récap');
+        [$list] = $this->sent();
+        $this->assertSame(0, Order::count());
+        $this->assertStringContainsString('Lequel voulez-vous ?', $list['interactive']['body']['text']);
+        $rows = collect($list['interactive']['action']['sections'][0]['rows']);
+        $this->assertSame(['recap:pick:'.$color->id, 'Sticker muraux carré multicolore'], [$rows->first()['id'], $rows->first()['description']]);
+
+        $this->tap('recap:pick:'.$color->id, 'Sticker muraux carré…', 'list_reply');
+        [$recap] = $this->sent();
+        $order = Order::sole();
+        $this->assertSame('Sticker muraux carré multicolore', $order->items->sole()->title);
+        $this->assertSame("live:confirm:{$order->id}", $recap['interactive']['action']['buttons'][0]['reply']['id']);
+    }
+
+    public function test_the_shop_precisions_are_given_to_the_assistant(): void
+    {
+        $ai = (new FakeAiClient)->respond(['phone' => null, 'phone2' => null, 'customer_name' => null, 'place' => 'Angré', 'address' => null, 'landmark' => null,
+            'amount' => null, 'note' => null, 'items' => [['code' => 'V'.$this->variant('S'), 'title' => 'Robe wax S', 'quantity' => 1]]]);
+        $this->app->instance(AiClient::class, $ai);
+        $this->client('Je prends celle-là');
+        $this->merchant('récap la petite pour Angré');
+        $this->assertStringContainsString('Précision de la boutique (prioritaire) : la petite pour Angré', collect($ai->calls[0]['content'])->last()['text']);
+        $this->assertSame($this->variant('S'), Order::sole()->items->sole()->variant_id);
     }
 
     public function test_whatsapp_orders_outside_live_are_counted_in_the_evening(): void
