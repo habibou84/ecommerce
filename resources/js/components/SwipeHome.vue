@@ -10,6 +10,7 @@ import BoostPanel from './marketing/BoostPanel.vue'
 import WhatsAppHub from './WhatsAppHub.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
+import { ORDER_TABS, tabCount, tabLink } from '../lib/orders'
 import { platformOn } from '../router'
 import { boot } from '../lib/boot'
 import { useAuthStore } from '../stores/auth'
@@ -93,7 +94,7 @@ const PAGES = [
   { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
     settings: [{ to: '/gestion/confirmation', label: 'À confirmer' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   // Livraisons : juste après les commandes, avant la caisse
-  { key: 'delivery', name: 'Livraisons', icon: '🛵', show: () => canOpen('/gestion/livraisons') || canOpen('/gestion/livraisons/livreurs'), badge: () => badge(deliveryTodo.value),
+  { key: 'delivery', name: 'Livraisons', icon: '🛵', show: () => DELIVERY_LINKS.some((l) => canOpen(l.to)), badge: () => badge(deliveryTodo.value),
     settings: [{ to: '/gestion/livraisons/automatisation', label: 'Automatisation' }, { to: '/gestion/livraisons/paie', label: 'Paie des livreurs' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs et zones' }, { to: '/gestion/livraisons/reglages', label: 'Réglages des livraisons' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
     settings: [{ to: '/gestion/paiements', label: 'Paiement en ligne' }, { to: '/gestion/acompte', label: 'Acompte' }, { to: '/gestion/alertes', label: 'Alertes (délais)' }] },
@@ -213,10 +214,16 @@ watch(current, (i) => {
 
 // ── Commandes : les dernières, chargées une fois à l'arrivée sur la page ──
 const orders = ref(null)
-async function loadOrders() {
-  if (orders.value) return
-  orders.value = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [] } }))).data.data
+// Chiffres des onglets : ceux de la liste des commandes (même calcul, mêmes noms)
+const orderCounts = ref(null)
+async function loadOrders(force = false) {
+  if (orders.value && !force) return
+  const data = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [], counts: null } }))).data
+  orders.value = data.data
+  orderCounts.value = data.counts ?? orderCounts.value
 }
+// Retour à l'accueil après une action dans la liste : chiffres à jour
+watch(() => route.path, (path) => { if (path === '/gestion' && orders.value) loadOrders(true) })
 
 // ── WhatsApp : ce qui attend et les entrées du menu (réglages WhatsApp : seulement qui gère la boutique) ──
 // Rechargées à chaque arrivée sur la page et au retour d'une fenêtre (une commande confirmée entre-temps n'est plus
@@ -372,11 +379,13 @@ function open(to) {
               <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
+          <!-- Onglets d'état : les mêmes que la liste des commandes, qui s'ouvre sur l'onglet touché -->
           <div class="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
-            <RouterLink to="/gestion/commandes?status=pending_confirmation" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold shadow-soft">À confirmer {{ s.orders?.to_confirm ?? '' }}</RouterLink>
-            <RouterLink to="/gestion/commandes?status=to_ship" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold shadow-soft">À livrer {{ s.orders?.to_ship ?? '' }}</RouterLink>
-            <RouterLink to="/gestion/livraisons" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold shadow-soft">En livraison</RouterLink>
-            <RouterLink to="/gestion/commandes" class="shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold shadow-soft">Toutes</RouterLink>
+            <RouterLink v-for="tab in ORDER_TABS" :key="tab.value" :to="tabLink(tab.value)"
+                        class="shrink-0 rounded-full px-3 py-1.5 text-sm font-extrabold shadow-soft"
+                        :class="tab.alert && orderCounts?.late ? 'bg-rose-100 text-rose-900' : 'bg-white'">
+              {{ tab.label }}<span v-if="orderCounts" class="ml-1 opacity-70">{{ tabCount(orderCounts, tab.value) }}</span>
+            </RouterLink>
           </div>
           <div class="mt-3 rounded-2xl bg-white p-1 shadow-soft">
             <p v-if="!orders" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
@@ -399,10 +408,10 @@ function open(to) {
           </div>
           <div class="grid grid-cols-3 gap-2">
             <RouterLink to="/gestion/commandes?status=to_ship" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-lg font-black">{{ s.orders?.to_ship ?? 0 }}</b><span class="text-xs text-slate-500">à livrer</span></RouterLink>
-            <RouterLink to="/gestion/livraisons" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-lg font-black">{{ (s.couriers?.on_the_way ?? 0) + (s.carriers?.on_the_way ?? 0) }}</b><span class="text-xs text-slate-500">en route</span></RouterLink>
+            <RouterLink to="/gestion/commandes?status=shipped" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-lg font-black">{{ (s.couriers?.on_the_way ?? 0) + (s.carriers?.on_the_way ?? 0) }}</b><span class="text-xs text-slate-500">en route</span></RouterLink>
             <RouterLink to="/gestion/commandes?alert=to_bring_back" class="rounded-2xl bg-white p-3 text-center shadow-soft"><b class="block text-lg font-black">{{ (s.couriers?.to_bring_back ?? 0) + (s.carriers?.to_bring_back ?? 0) }}</b><span class="text-xs text-slate-500">à rapporter</span></RouterLink>
           </div>
-          <RouterLink v-if="canOpen('/gestion/livraisons')" to="/gestion/livraisons" class="btn-brand mt-3 w-full justify-center py-3 text-base font-black">Voir les livraisons en cours</RouterLink>
+          <RouterLink v-if="canOpen('/gestion/commandes')" to="/gestion/commandes?status=shipped" class="btn-brand mt-3 w-full justify-center py-3 text-base font-black">Voir les commandes en route</RouterLink>
           <div class="mt-3 grid grid-cols-2 gap-2">
             <RouterLink v-for="l in links(DELIVERY_LINKS)" :key="l.to" :to="l.to" class="flex items-center gap-2 rounded-2xl bg-white px-3 py-3 text-sm font-extrabold shadow-soft">
               <span class="min-w-0 flex-1">{{ l.label }}</span><Icon name="chevron" :size="14" class="shrink-0 text-slate-400" />

@@ -180,15 +180,24 @@ class OrderListing
     {
         return match ($status) {
             null, '' => $query,
-            // À faire livrer : confirmées sans course en cours ; Chez le livreur : course demandée, pas encore partie
-            'to_ship' => $query->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->whereDoesntHave('shipments', $this->activeShipment(...)),
-            'at_courier' => $query->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->whereHas('shipments', $this->activeShipment(...)),
+            // À faire livrer : confirmées sans course en cours ; À ramasser : course demandée, colis pas encore ramassé
+            'to_ship' => self::toShip($query),
+            'at_courier' => $query->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->whereHas('shipments', self::activeShipment(...)),
             'late' => $this->late($query),
             default => $query->where('status', $status),
         };
     }
 
-    private function activeShipment(Builder $q): void
+    /**
+     * À faire livrer : confirmées ou en préparation, sans course en cours. Même calcul pour l'onglet de la liste,
+     * l'accueil et le point du jour, pour que les chiffres se correspondent.
+     */
+    public static function toShip(Builder $query): Builder
+    {
+        return $query->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->whereDoesntHave('shipments', self::activeShipment(...));
+    }
+
+    private static function activeShipment(Builder $q): void
     {
         $q->whereNotIn('status', array_map(fn (ShipmentStatus $s) => $s->value, array_filter(ShipmentStatus::cases(), fn (ShipmentStatus $s) => $s->isFinal())));
     }
@@ -254,6 +263,10 @@ class OrderListing
             // « Modifier » le livreur depuis la liste : choix pas encore envoyé, ou course de mon livreur pas encore partie
             'deliverer_key' => $this->delivererKey($order, $shipment),
             'shipment_id' => $shipment && ! $shipment->status->isFinal() ? $shipment->id : null,
+            // Course en cours : son état et le numéro de suivi, visibles dans la liste (onglets À ramasser, En route)
+            'shipment_status' => $shipment && ! $shipment->status->isFinal() ? $shipment->status->value : null,
+            'shipment_status_label' => $shipment && ! $shipment->status->isFinal() ? $shipment->status->label() : null,
+            'tracking_code' => $shipment && ! $shipment->status->isFinal() ? $shipment->carrier_tracking_code : null,
             'deliverer_editable' => $deliverer !== null && $order->delivery_method === 'delivery' && (
                 ($shipment === null && in_array($order->status, [OrderStatus::PendingConfirmation, OrderStatus::Confirmed, OrderStatus::Processing], true))
                 || ($shipment !== null && $shipment->isOwnCourier() && ! $shipment->status->isFinal()
