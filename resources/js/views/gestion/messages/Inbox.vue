@@ -186,6 +186,32 @@ function saveDraft(id, text) {
   }
 }
 
+// Récap : « Envoyer le récap » (la commande part au client, sans le mot) et « Confirmer la commande » (le client a
+// dit oui par écrit) ; le résultat s'affiche sous les boutons
+const recapBusy = ref('')
+const recapResult = ref(null)
+async function recapAction(kind) {
+  if (recapBusy.value) return
+  recapBusy.value = kind
+  recapResult.value = null
+  try {
+    const { data } = await http.post(`/conversations/${props.id}/${kind === 'confirm' ? 'recap/confirm' : 'recap'}`)
+    applyRecap(data)
+  } catch (e) {
+    if (e.response?.data?.result) applyRecap(e.response.data)
+    else recapResult.value = { sent: false, message: errorMessage(e) }
+  } finally {
+    recapBusy.value = ''
+  }
+}
+function applyRecap(data) {
+  recapResult.value = data.result
+  const older = current.value.messages.filter((m) => m.id < (data.data.messages[0]?.id ?? 0))
+  current.value = { ...data.data, messages: [...older, ...data.data.messages], has_more: older.length ? current.value.has_more : data.data.has_more }
+  scrollDown()
+  loadList()
+}
+
 async function send(text = reply.value) {
   if (!text.trim() || sending.value) return
   sending.value = true
@@ -245,6 +271,7 @@ onBeforeUnmount(() => {
 })
 watch(() => props.id, (id, previous) => {
   saveDraft(previous, reply.value)
+  recapResult.value = null
   selecting.value = false
   selected.value = []
   reply.value = drafts[id] ?? ''
@@ -489,6 +516,17 @@ const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
           </div>
           <AiMeter v-if="ai.enabled" />
           <p v-if="suggestionCheck" class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">À vérifier : {{ suggestionCheck }}</p>
+          <!-- Récap : la commande part au client sans écrire le mot ; confirmer quand il a dit oui par écrit -->
+          <div v-if="current.recap" class="flex flex-wrap items-center gap-2">
+            <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="!!recapBusy" @click="recapAction('send')">
+              <Icon name="receipt" :size="16" class="mr-1 inline-block align-[-3px]" />{{ recapBusy === 'send' ? 'Préparation…' : 'Envoyer le récap' }}
+            </button>
+            <button v-if="current.recap.pending" type="button" class="btn-brand px-3 py-1.5 text-sm" :disabled="!!recapBusy" @click="recapAction('confirm')">
+              <Icon name="check" :size="16" class="mr-1 inline-block align-[-3px]" />{{ recapBusy === 'confirm' ? 'Confirmation…' : `Confirmer la commande ${current.recap.pending.reference}` }}
+            </button>
+            <span class="hidden explain-detail sm:inline">{{ current.recap.pending ? 'Le client a dit oui par écrit ? Confirmez à sa place.' : 'Quand le client a dit ce qu\'il commande.' }}</span>
+          </div>
+          <p v-if="recapResult" class="rounded-lg px-3 py-2 text-sm" :class="recapResult.sent ? 'bg-emerald-50 text-emerald-900' : 'bg-ocre-50 text-ocre-900'" role="status">{{ recapResult.message }}</p>
           <div class="flex items-end gap-2">
             <textarea
               ref="input"

@@ -117,6 +117,7 @@ const codes = computed(() => data.value?.codes)
         <details class="text-sm">
           <summary class="cursor-pointer font-semibold text-emerald-700">Plus de détails</summary>
           <ul class="mt-2 list-disc space-y-1.5 pl-5 text-slate-600">
+            <li><b>Depuis l'application :</b> dans Conversations, touchez « Envoyer le récap » (le client ne voit pas le mot), puis « Confirmer la commande » s'il dit oui par écrit. Écrire « récap » ou « confirmé » marche aussi.</li>
             <li><b>Le client commande plusieurs articles :</b> écrivez « récap » une fois qu'il a tout donné. S'il en ajoute un après, écrivez « récap » à nouveau : la même commande est mise à jour.</li>
             <li><b>La conversation est confuse</b> (plusieurs articles discutés, changement d'avis) : écrivez ce qu'il a vraiment choisi après le mot, par exemple « récap 2 robes wax M Angré ». Ce que vous écrivez passe avant le reste.</li>
             <li><b>Le client hésite encore entre plusieurs articles :</b> attendez qu'il ait choisi. Sans article reconnu, rien n'est envoyé au client et vous êtes prévenu.</li>
