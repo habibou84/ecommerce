@@ -28,6 +28,7 @@ use App\Services\Promotions\Pricing;
 use App\Services\WhatsApp\DeliveryFeesOnWhatsApp;
 use App\Services\WhatsApp\Inbox;
 use App\Services\WhatsApp\ModelsOnWhatsApp;
+use App\Services\WhatsApp\RecapOrders;
 use App\Services\WhatsApp\WhatsAppBridge;
 use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Support\Collection;
@@ -717,6 +718,10 @@ class LiveSales
         if ($payload !== null && str_starts_with($payload, 'models:')) {
             return app(ModelsOnWhatsApp::class)->onReply($conversation, $payload);
         }
+        // Récap envoyé par la boutique : taille touchée par le client
+        if ($payload !== null && str_starts_with($payload, 'recap:')) {
+            return app(RecapOrders::class)->onReply($conversation, $payload);
+        }
         // Prix de livraison : liste des communes, une commune touchée (pour voir, sans changer l'adresse)
         if ($payload !== null && str_starts_with($payload, 'fees:')) {
             return app(DeliveryFeesOnWhatsApp::class)->onReply($conversation, $payload);
@@ -760,13 +765,18 @@ class LiveSales
         if ($session !== null && ($this->takeCodes($conversation, $session, (string) $message->body) || $this->chooseOption($conversation, (string) $message->body))) {
             return true;
         }
+        // Récap envoyé par la boutique : taille tapée (numéro ou valeur)
+        if (app(RecapOrders::class)->answer($conversation, (string) $message->body)) {
+            return true;
+        }
         // Modèles de la boutique : « modèles », « vous avez quoi ? », ou réponse tapée (numéro, taille, quantité)
         if ($models->fromText($conversation, (string) $message->body)) {
             return true;
         }
 
         $order = $this->complete($conversation->store, PhoneNumber::normalize($conversation->contact), $message->body)
-            ?? $models->complete($conversation, (string) $message->body);
+            ?? $models->complete($conversation, (string) $message->body)
+            ?? app(RecapOrders::class)->complete($conversation, (string) $message->body);
         // Récapitulatif : prix de la livraison, total, et confirmer / ajouter / changer l'adresse / annuler
         if ($order !== null) {
             app(LiveCheckout::class)->recap($conversation, $order);

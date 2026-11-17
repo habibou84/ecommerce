@@ -3,6 +3,7 @@ import AiMeter from '../../../components/AiMeter.vue'
 import { aiExhausted, countAiAction } from '../../../lib/aiQuota'
 import Icon from '../../../components/Icon.vue'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { usePageTitle } from '../../../lib/pageTitle'
 import { RouterLink, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import BundleEditor from '../../../components/BundleEditor.vue'
@@ -57,6 +58,7 @@ const form = reactive({
   tags: [],
 })
 const product = ref(null) // fiche chargée (photos, adresse publique)
+usePageTitle(() => product.value?.title || '')
 const hasVariants = ref(false)
 const isBundle = ref(false) // pack : contenu modifié dans l'écran Packs quand il a des tailles
 const options = ref([{ name: 'Taille', values: [] }])
@@ -515,18 +517,6 @@ async function copyShare(text) {
 
 // Menu ⋯ (Dupliquer, Supprimer)
 const menu = ref(false)
-// Clavier ouvert au téléphone : la bande « Enregistrer » se cache pour ne pas couvrir le champ
-const typing = ref(false)
-let blurTimer
-const isTyping = (el) => window.innerWidth < 1024 && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'file', 'button', 'submit'].includes(el.type)))
-function onFocus(event) {
-  clearTimeout(blurTimer)
-  if (isTyping(event.target)) typing.value = true
-}
-function onBlur() {
-  blurTimer = setTimeout(() => (typing.value = false), 150)
-}
-
 const variantError = (index, field) => errors.value[`variants.${index}.${field}`]
 const margin = computed(() => {
   const price = num(simple.price)
@@ -538,9 +528,9 @@ const margin = computed(() => {
 <template>
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
 
-  <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save" @focusin="onFocus" @focusout="onBlur">
+  <form v-else class="space-y-5 pb-40 lg:pb-24" @submit.prevent="save">
     <div class="flex flex-wrap items-center gap-2">
-      <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
+      <RouterLink to="/gestion/catalogue" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
       <a v-if="product && form.status === 'active' && form.is_visible_online" :href="product.url" target="_blank" class="ml-auto text-sm text-slate-500 hover:text-emerald-700">Voir sur le site ↗</a>
       <button v-if="product && form.status === 'active' && form.is_visible_online" type="button" class="btn-secondary px-3 py-1.5" :disabled="sharing" @click="openShare"><Icon name="share" :size="16" class="mr-1 inline-block align-[-3px]" />Partager</button>
       <button v-if="product && form.status === 'active' && form.is_visible_online && auth.can('store.manage') && platformOn(auth, 'social_meta|social_tiktok')" type="button" class="btn-secondary px-3 py-1.5" @click="publishing = true"><Icon name="megaphone" :size="16" class="mr-1 inline-block align-[-3px]" />Publier sur les réseaux</button>
@@ -582,7 +572,8 @@ const margin = computed(() => {
       <Alert v-if="aiNotice" tone="success">{{ aiNotice }}</Alert>
     </section>
 
-    <fieldset :disabled="!canEdit" class="space-y-5">
+    <!-- Téléphone : la photo d'abord (on part de la photo, comme pour un article du live), puis le nom -->
+    <fieldset :disabled="!canEdit" class="flex flex-col gap-5">
       <section class="card space-y-4 p-4 sm:p-6">
         <Field id="title" label="Nom du produit" :error="errors.title">
           <input id="title" v-model="form.title" class="input" maxlength="255" placeholder="Robe wax évasée" required />
@@ -595,7 +586,7 @@ const margin = computed(() => {
         </Field>
       </section>
 
-      <section class="card space-y-3 p-4 sm:p-6">
+      <section class="card space-y-3 p-4 max-sm:order-first sm:p-6">
         <div class="flex items-center justify-between">
           <h2 class="font-semibold">Photos</h2>
           <div v-if="canEdit" class="flex gap-2">
@@ -610,11 +601,11 @@ const margin = computed(() => {
             </label>
           </div>
         </div>
-        <p v-if="!images.length && !pendingFiles.length" class="text-sm text-slate-500">La première photo est la photo principale. Prenez-les à la lumière du jour, sur fond uni.</p>
+        <p v-if="!images.length && !pendingFiles.length" class="explain-detail">La première photo est la photo principale. Prenez-les à la lumière du jour, sur fond uni.</p>
         <div class="grid grid-cols-3 gap-3 sm:grid-cols-5">
           <div v-for="(image, index) in images" :key="image.id" class="group relative">
             <img :src="image.urls.thumb" :alt="image.alt" class="aspect-square w-full rounded-lg border border-slate-200 object-cover" />
-            <span v-if="index === 0" class="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-[10px] font-medium">Principale</span>
+            <span v-if="index === 0" class="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-xs font-medium">Principale</span>
             <template v-if="canEdit">
               <button type="button" class="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-base font-bold text-red-600 shadow ring-1 ring-slate-200" aria-label="Retirer cette photo" title="Retirer cette photo" @click="removeImage(image)">✕</button>
               <div class="mt-1 flex justify-center gap-1 text-xs">
@@ -624,7 +615,7 @@ const margin = computed(() => {
             </template>
           </div>
           <div v-for="(pending, index) in pendingFiles" :key="pending.url" class="relative">
-            <img :src="pending.url" alt="" class="aspect-square w-full rounded-lg border border-dashed border-slate-300 object-cover opacity-80" />
+            <img :src="pending.url" alt="" class="aspect-square w-full rounded-lg border border-dashed border-field object-cover opacity-80" />
             <button type="button" class="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-base font-bold text-red-600 shadow ring-1 ring-slate-200" aria-label="Retirer cette photo" title="Retirer cette photo" @click="removePending(index)">✕</button>
             <p class="mt-1 text-center text-xs leading-tight text-slate-500">Envoyée à l'enregistrement</p>
           </div>
@@ -635,7 +626,7 @@ const margin = computed(() => {
         <div class="flex items-start justify-between gap-3">
           <div>
             <h2 class="font-semibold">Prix et variantes</h2>
-            <p class="text-sm text-slate-500">Tailles, couleurs, pointures… Chaque variante a son prix, son stock et sa photo.</p>
+            <p class="explain-detail">Tailles, couleurs, pointures… Chaque variante a son prix, son stock et sa photo.</p>
           </div>
           <label class="flex shrink-0 items-center gap-2 text-sm">
             <input v-model="hasVariants" type="checkbox" class="h-4 w-4 accent-emerald-700" />
@@ -757,7 +748,7 @@ const margin = computed(() => {
               </div>
             </div>
           </div>
-          <p v-else class="text-sm text-slate-500">Ajoutez une option et ses valeurs : les variantes apparaissent ici.</p>
+          <p v-else class="explain-detail">Ajoutez une option et ses valeurs : les variantes apparaissent ici.</p>
         </template>
       </section>
 
@@ -823,7 +814,7 @@ const margin = computed(() => {
             <label class="flex flex-wrap items-center gap-2 text-sm"><input v-model="form.deposit_type" type="radio" value="fixed" /> Un montant fixe par pièce
               <input v-if="form.deposit_type === 'fixed'" v-model="form.deposit_value" type="number" min="1" class="input w-28 py-1" aria-label="Montant" /><span v-if="form.deposit_type === 'fixed'">F</span>
             </label>
-            <p class="text-xs text-slate-500">Demandé en boutique en ligne, en live et sur WhatsApp. Pour toute la boutique : <RouterLink to="/gestion/acompte" class="font-medium text-emerald-700 underline">Acompte</RouterLink>.</p>
+            <p class="explain-detail">Demandé en boutique en ligne, en live et sur WhatsApp. Pour toute la boutique : <RouterLink to="/gestion/acompte" class="font-medium text-emerald-700 underline">Acompte</RouterLink>.</p>
           </div>
         </div>
       </section>
@@ -836,7 +827,7 @@ const margin = computed(() => {
       <section v-if="props.id" class="card space-y-3 p-4 sm:p-6">
         <div>
           <h2 class="font-semibold">Prix de gros</h2>
-          <p class="text-sm text-slate-500">Ex. 6 pour 30 000 F, tailles mélangées. Au-delà, le même prix à la pièce continue.</p>
+          <p class="explain-detail">Ex. 6 pour 30 000 F, tailles mélangées. Au-delà, le même prix à la pièce continue.</p>
         </div>
         <Alert v-if="tiersErrors.form">{{ tiersErrors.form }}</Alert>
         <div v-for="(t, i) in tiers" :key="i" class="flex flex-wrap items-center gap-2 text-sm">
@@ -855,11 +846,11 @@ const margin = computed(() => {
           <p class="text-sm font-medium">Comment je vends cet article</p>
           <label class="flex items-start gap-2 text-sm">
             <input v-model="sale.mode" type="radio" value="piece" class="mt-1" />
-            <span><b>À la pièce et en gros</b><br /><span class="text-slate-500">Le client prend la quantité qu'il veut.</span></span>
+            <span><b>À la pièce et en gros</b><span class="explain-detail block">Le client prend la quantité qu'il veut.</span></span>
           </label>
           <label class="flex items-start gap-2 text-sm">
             <input v-model="sale.mode" type="radio" value="lot" class="mt-1" />
-            <span><b>Par lot seulement</b><br /><span class="text-slate-500">Lot de <input v-model="sale.sale_lot" type="number" min="2" class="input inline-block w-20 py-1" aria-label="Pièces par lot" @focus="sale.mode = 'lot'" /> pièces : par 6, 12, 18…</span></span>
+            <span><b>Par lot seulement</b><span class="explain-detail block">Lot de <input v-model="sale.sale_lot" type="number" min="2" class="input inline-block w-20 py-1" aria-label="Pièces par lot" @focus="sale.mode = 'lot'" /> pièces : par 6, 12, 18…</span></span>
           </label>
           <label class="flex flex-wrap items-center gap-2 text-sm">
             <span>Minimum par commande</span>
@@ -893,7 +884,7 @@ const margin = computed(() => {
     <section v-if="otherStores.length" class="card space-y-3 p-4 sm:p-6">
       <div>
         <h2 class="font-semibold">Dans vos autres boutiques</h2>
-        <p class="text-sm text-slate-500">Photos, variantes et prix copiés ; stock à zéro.</p>
+        <p class="explain-detail">Photos, variantes et prix copiés ; stock à zéro.</p>
       </div>
       <Alert v-if="copied" tone="success">{{ copied }}</Alert>
       <ul class="divide-y divide-slate-100 text-sm">
@@ -925,7 +916,7 @@ const margin = computed(() => {
     </div>
 
     <!-- Bande « Enregistrer » : cachée pendant la saisie au téléphone (clavier ouvert) -->
-    <div v-if="canEdit && !typing" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur lg:bottom-0 lg:left-64">
+    <div v-if="canEdit" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur lg:bottom-0 lg:left-64">
       <div class="mx-auto flex max-w-5xl items-center gap-2">
         <span v-if="hasVariants" class="text-sm text-slate-500">{{ variantRows.filter((r) => r.include).length }} variante(s)</span>
         <button class="btn-brand ml-auto" :disabled="saving || uploading">{{ saving ? 'Enregistrement…' : uploading ? 'Envoi des photos…' : 'Enregistrer' }}</button>
@@ -936,7 +927,7 @@ const margin = computed(() => {
     <Modal v-if="share" title="Partager le produit" @close="share = null">
       <div class="space-y-3 text-sm">
         <img :src="share.image_url" alt="Image de partage" class="w-full rounded-lg border border-slate-200" width="1080" height="1080" />
-        <p class="text-slate-600">Image prête pour un statut WhatsApp, Facebook ou TikTok. Le lien court mène à la fiche du produit ({{ share.clicks }} visite(s)).</p>
+        <p class="explain-detail">Image prête pour un statut WhatsApp, Facebook ou TikTok. Le lien mène au produit ({{ share.clicks }} visite(s)).</p>
         <div class="flex gap-2">
           <input class="input text-xs" :value="share.url" readonly @focus="$event.target.select()" />
           <button type="button" class="btn-secondary shrink-0" @click="copyShare(share.url)">{{ shareCopied ? 'Copié ✓' : 'Copier' }}</button>

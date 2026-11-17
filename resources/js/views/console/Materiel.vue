@@ -102,10 +102,10 @@ const waveMissing = computed(() => settings.value?.wave && !data.value?.methods.
       <span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="data.settings.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'">{{ data.settings.enabled ? 'Proposé aux marchands' : 'Fermé' }}</span>
     </div>
     <div class="grid gap-3 sm:grid-cols-4">
-      <div class="card p-3"><p class="text-xs text-slate-500">Commandes en cours</p><p class="text-xl font-bold">{{ data.totals.open }}</p></div>
-      <div class="card p-3"><p class="text-xs text-slate-500">Paiements Wave à vérifier</p><p class="text-xl font-bold" :class="data.totals.to_check ? 'text-amber-700' : ''">{{ data.totals.to_check }}</p></div>
-      <div class="card p-3"><p class="text-xs text-slate-500">Ventes livrées</p><p class="text-xl font-bold">{{ money(data.totals.sales) }}</p></div>
-      <div class="card p-3"><p class="text-xs text-slate-500">Ce que ça vous a rapporté</p><p class="text-xl font-bold text-emerald-700">{{ money(data.totals.earnings) }}</p></div>
+      <div class="card p-3"><p class="text-xs text-slate-500">Commandes en cours</p><p class="text-2xl font-bold">{{ data.totals.open }}</p></div>
+      <div class="card p-3"><p class="text-xs text-slate-500">Paiements Wave à vérifier</p><p class="text-2xl font-bold" :class="data.totals.to_check ? 'text-amber-700' : ''">{{ data.totals.to_check }}</p></div>
+      <div class="card p-3"><p class="text-xs text-slate-500">Ventes livrées</p><p class="text-2xl font-bold">{{ money(data.totals.sales) }}</p></div>
+      <div class="card p-3"><p class="text-xs text-slate-500">Ce que ça vous a rapporté</p><p class="text-2xl font-bold text-emerald-700">{{ money(data.totals.earnings) }}</p></div>
     </div>
     <div class="flex gap-1 rounded-lg bg-slate-100 p-1 text-sm sm:w-fit">
       <button v-for="[key, label] in [['orders', 'Commandes'], ['products', 'Produits'], ['settings', 'Réglages']]" :key="key" class="rounded-md px-4 py-1.5" :class="tab === key ? 'bg-white font-semibold shadow-sm' : ''" @click="tab = key">{{ label }}</button>
@@ -150,7 +150,7 @@ const waveMissing = computed(() => settings.value?.wave && !data.value?.methods.
     <!-- Produits -->
     <section v-if="tab === 'products'" class="space-y-3">
       <button class="btn-brand" @click="editProduct()">Ajouter un produit</button>
-      <p v-if="!data.products.length" class="card p-6 text-center text-sm text-slate-500">Aucun produit. Ajoutez par exemple une imprimante d'étiquettes ou un pack live.</p>
+      <p v-if="!data.products.length" class="explain-detail card p-6 text-center">Aucun produit. Ajoutez par exemple une imprimante d'étiquettes ou un pack live.</p>
       <div class="grid gap-3 md:grid-cols-2">
         <article v-for="p in data.products" :key="p.id" class="card flex gap-3 p-3 text-sm" :class="p.is_active ? '' : 'opacity-60'">
           <img v-if="p.image" :src="p.image" alt="" class="h-20 w-20 shrink-0 rounded-lg object-cover" />

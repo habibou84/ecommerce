@@ -21,7 +21,7 @@ class ProductController extends Controller
     public function __construct(private readonly CatalogWriter $writer) {}
 
     /**
-     * Liste du catalogue : recherche (nom, SKU, code-barres), statut, collection, stock bas ou épuisé.
+     * Liste du catalogue : recherche (nom, SKU, code-barres), statut, collection, stock bas ou épuisé, packs, tri.
      */
     public function index(Request $request, StockLevels $levels): JsonResponse
     {
@@ -30,6 +30,8 @@ class ProductController extends Controller
             'status' => ['nullable', 'in:draft,active,archived'],
             'collection_id' => ['nullable', 'integer'],
             'stock' => ['nullable', 'in:low,out'],
+            'pack' => ['nullable', 'in:1'],
+            'sort' => ['nullable', 'in:recent,name,price_asc,price_desc'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -42,9 +44,18 @@ class ProductController extends Controller
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('collection_id'), fn ($q, $id) => $q->whereHas('collections', fn ($c) => $c->whereKey($id)))
             ->when($request->query('stock'), fn ($q, $filter) => $q->whereIn('id', $levels->productIdsWithStockIssue($store, $filter)))
+            ->when($request->query('pack'), fn ($q) => $q->where('is_bundle', true))
             ->withCount('variants')
-            ->with(['images' => fn ($q) => $q->orderBy('position')->limit(1)])
-            ->latest('updated_at');
+            ->with(['images' => fn ($q) => $q->orderBy('position')->limit(1)]);
+
+        // Tri au choix (les plus récemment modifiés d'abord par défaut) ; `id` départage les égalités entre pages
+        match ($request->query('sort')) {
+            'name' => $query->orderByRaw('lower(title)'),
+            'price_asc' => $query->orderByRaw('price_min asc nulls last'),
+            'price_desc' => $query->orderByRaw('price_max desc nulls last'),
+            default => $query->latest('updated_at'),
+        };
+        $query->orderBy('id');
 
         $page = $query->paginate($request->integer('per_page', 30));
         $totals = $levels->totalsByProduct($store, $page->getCollection()->pluck('id')->all());

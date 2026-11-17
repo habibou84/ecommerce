@@ -11,5 +11,5 @@ const MARKS = {
 </script>
 
 <template>
-  <span class="inline-grid h-5 w-5 shrink-0 place-items-center rounded-md align-[-4px] text-[10px] font-bold lowercase leading-none text-white" :class="(MARKS[network] ?? MARKS.whatsapp)[1]" aria-hidden="true">{{ (MARKS[network] ?? MARKS.whatsapp)[0] }}</span>
+  <span class="inline-grid h-5 w-5 shrink-0 place-items-center rounded-md align-[-4px] text-pastille font-bold lowercase leading-none text-white" :class="(MARKS[network] ?? MARKS.whatsapp)[1]" aria-hidden="true">{{ (MARKS[network] ?? MARKS.whatsapp)[0] }}</span>
 </template>

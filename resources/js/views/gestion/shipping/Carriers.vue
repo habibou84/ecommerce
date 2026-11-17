@@ -246,8 +246,8 @@ const copy = (text) => navigator.clipboard?.writeText(text)
     <Alert v-if="error && !modal">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
-    <p v-if="carriers && !carriers.length" class="card p-6 text-sm text-slate-500">
-      Aucune entreprise connectée. Choisissez-en une ci-dessous : « Connecter ».
+    <p v-if="carriers && !carriers.length" class="card explain-detail p-6">
+      <b class="explain block">Aucune entreprise connectée.</b>Choisissez-en une ci-dessous : « Connecter ».
     </p>
 
     <article v-for="c in carriers ?? []" :key="c.id" class="card space-y-3 p-4 text-sm">
@@ -267,11 +267,11 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         </p>
         <p v-if="c.webhook_auto">✓ Statuts reçus en direct (webhook créé automatiquement)<template v-if="c.last_synced_at"> · dernière synchronisation {{ formatDateTime(c.last_synced_at) }}</template></p>
         <div v-else class="rounded bg-amber-50 p-2 text-amber-900">
-          Pour recevoir les statuts en direct, déclarez cette adresse dans Delivery App (Profil › Intégrations › Webhooks) puis collez le secret :
+          <b class="block">Recevez les statuts en direct.</b>Déclarez cette adresse dans Delivery App (Profil › Intégrations › Webhooks), puis collez le secret :
           <code class="block break-all py-1">{{ c.webhook_url }}</code>
           <button class="underline" @click="copy(c.webhook_url)">Copier</button>
           <input class="input mt-2" placeholder="Secret whsec_…" @change="save(c, { webhook_secret: $event.target.value })" />
-          <span class="text-xs">En attendant, les statuts sont relus toutes les 10 minutes.</span>
+          <span class="text-sm">En attendant, les statuts sont relus toutes les 10 minutes.</span>
         </div>
       </div>
 
@@ -302,8 +302,8 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <p class="text-sm text-slate-600">Elles livrent avec Jibiat : leurs résultats sur 90 jours.</p>
       </div>
       <p v-if="directory === null" class="text-sm text-slate-500">Chargement de l'annuaire…</p>
-      <p v-else-if="!directoryAvailable" class="card p-4 text-sm text-slate-500">Annuaire indisponible. Connectez-vous avec une clé API (« + Entreprise »).</p>
-      <p v-else-if="!directory.length" class="card p-4 text-sm text-slate-500">Aucune entreprise dans l'annuaire pour l'instant.</p>
+      <p v-else-if="!directoryAvailable" class="explain-detail card p-4">Annuaire indisponible. Connectez-vous avec une clé API (« + Entreprise »).</p>
+      <p v-else-if="!directory.length" class="explain-detail card p-4">Aucune entreprise dans l'annuaire pour l'instant.</p>
       <template v-else>
       <p v-if="partner && !partner.connected" class="rounded-lg bg-sky-50 p-3 text-sm text-sky-900">
         Connectez <strong>{{ partner.name }}</strong> en un clic.
@@ -326,7 +326,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
             <div class="rounded-lg bg-slate-50 p-2"><dt class="text-xs text-slate-500">Délai moyen</dt><dd class="font-semibold">{{ hours(d.stats.average_delivery_hours) }}</dd></div>
             <div class="rounded-lg bg-slate-50 p-2"><dt class="text-xs text-slate-500">Dès</dt><dd class="font-semibold">{{ money(d.price_from) }}</dd></div>
           </dl>
-          <p class="text-xs text-slate-500">{{ d.stats.deliveries_90d }} colis livrés en 90 jours<template v-if="d.stats.success_rate === null"> · chiffres affichés dès 20 courses</template><template v-if="d.accepts === 'request'"> · ouverture de compte sur demande</template></p>
+          <p class="explain-detail">{{ d.stats.deliveries_90d }} colis livrés en 90 jours<template v-if="d.stats.success_rate === null"> · chiffres affichés dès 20 courses</template><template v-if="d.accepts === 'request'"> · ouverture de compte sur demande</template></p>
           <span v-if="d.connected" class="mt-auto rounded-lg bg-emerald-50 py-2 text-center font-medium text-emerald-800">✓ Déjà connectée</span>
           <button v-else class="btn-brand mt-auto" :disabled="connecting === d.slug || busy" @click="connectFromDirectory(d)">{{ connecting === d.slug ? 'Ouverture…' : 'Connecter' }}</button>
         </article>
@@ -382,7 +382,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
             <span class="text-slate-500">F</span>
             <button v-if="current.driver !== 'delivery_app'" type="button" class="btn-ghost px-2 text-red-600" :aria-label="`Supprimer ${z.label}`" @click="removeZone(z)"><Icon name="close" :size="16" /></button>
           </li>
-          <li v-if="!zones.zones.length" class="px-3 py-3 text-slate-500">Pas encore de zone : sans grille, l'entreprise est proposée partout, aux frais de vos propres zones.</li>
+          <li v-if="!zones.zones.length" class="explain-detail px-3 py-3">Pas encore de zone : l'entreprise est proposée partout, aux frais de vos propres zones.</li>
         </ul>
         <form v-if="current.driver !== 'delivery_app'" class="mb-5 flex flex-wrap gap-2" @submit.prevent="addZone">
           <input v-model="newZone.name" class="input min-w-0 flex-1" placeholder="Zone (ex. Cocody, Yopougon…)" required maxlength="120" />
@@ -433,7 +433,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
             </tr>
           </tbody>
         </table>
-        <p class="mt-3 text-xs text-slate-500">Le stock de l'entreprise fait foi : corrigez un écart par un ajustement sur l'emplacement de l'entrepôt.</p>
+        <p class="explain-detail mt-3">Le stock de l'entreprise fait foi : corrigez un écart par un ajustement sur l'emplacement de l'entrepôt.</p>
       </template>
     </Modal>
   </div>

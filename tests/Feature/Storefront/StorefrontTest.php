@@ -264,6 +264,16 @@ class StorefrontTest extends TestCase
         $themes->activate($this->store->refresh(), 'marche');
         $this->get($this->storeUrl($this->store))->assertOk()
             ->assertSee('cards-rounded')->assertSee('--brand: #c2410c', false)->assertSee('La mode wax');
+
+        // Couleur trop claire : texte foncé sur les boutons, version assombrie (4,5:1) pour les liens et les prix
+        $themes->update($this->store->refresh(), ['primary_color' => '#facc15']);
+        $page = $this->get($this->storeUrl($this->store))->assertOk()->assertSee('--brand-contrast: #111827', false);
+        preg_match('/--brand-text: (#[0-9a-f]{6})/', $page->getContent(), $m);
+        $this->assertGreaterThanOrEqual(4.5, ThemeSettings::contrast($m[1], '#ffffff'));
+        $this->assertGreaterThanOrEqual(4.5, ThemeSettings::contrast($m[1], '#fffbf5'));
+        // Vert vif : texte foncé sur les boutons (le blanc n'aurait que 2,3:1)
+        $themes->update($this->store->refresh(), ['primary_color' => '#22c55e']);
+        $this->get($this->storeUrl($this->store))->assertSee('--brand-contrast: #111827', false);
     }
 
     public function test_preproduction_is_never_indexed(): void

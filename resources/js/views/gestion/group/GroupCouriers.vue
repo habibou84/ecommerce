@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../../components/ExplainMore.vue'
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Modal from '../../../components/Modal.vue'
@@ -71,10 +72,11 @@ function submit() {
     <GroupTabs />
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
-    <p class="text-sm text-slate-600">
-      Un livreur peut travailler pour plusieurs de vos boutiques : son application réunit toutes ses livraisons, il verse ses espèces en une fois
-      et sa paie se règle en une fois. Chaque boutique garde ses zones et sa règle de paie pour lui (modifiables dans Livraisons › Mes livreurs).
-    </p>
+    <div>
+      <p class="explain">Un livreur peut travailler pour plusieurs de vos boutiques.</p>
+      <p class="explain-detail">Une seule application, un seul versement d'espèces, une seule paie.</p>
+      <ExplainMore>Chaque boutique garde ses zones et sa règle de paie pour lui (Livraisons › Mes livreurs).</ExplainMore>
+    </div>
 
     <template v-if="data">
       <p v-if="!data.people.length" class="card p-6 text-center text-sm text-slate-500">Aucun livreur pour l'instant. Ajoutez-en dans Livraisons › Mes livreurs.</p>
@@ -110,7 +112,8 @@ function submit() {
     <Modal v-if="modal" :title="modal.kind === 'remit' ? `Versement de ${modal.person.name}` : `Paie de ${modal.person.name}`" @close="modal = null">
       <form class="space-y-3 text-sm" @submit.prevent="submit">
         <template v-if="modal.kind === 'remit'">
-          <p class="text-slate-600">Attendu : <strong>{{ money(modal.person.cash_held) }}</strong> pour {{ modal.person.stores.filter((l) => l.cash_held).length }} boutique(s). Le montant reçu est réparti entre elles ; un manquant est réparti de la même façon.</p>
+          <p class="explain">Attendu : {{ money(modal.person.cash_held) }} pour {{ modal.person.stores.filter((l) => l.cash_held).length }} boutique(s).</p>
+          <p class="explain-detail">Le montant reçu, ou ce qui manque, est réparti entre elles.</p>
           <label class="block">Montant reçu<input v-model="form.received_amount" type="number" min="0" class="input mt-1" required /></label>
         </template>
         <p v-else class="text-slate-600">Un relevé payé est créé dans chaque boutique pour un total de <strong>{{ money(modal.person.unpaid) }}</strong>.</p>

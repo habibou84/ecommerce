@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Messaging;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
@@ -13,9 +14,11 @@ use App\Services\Orders\OrderMessageParser;
 use App\Services\Platform\Features;
 use App\Services\WhatsApp\Inbox;
 use App\Services\WhatsApp\MetaHealth;
+use App\Services\WhatsApp\RecapOrders;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Jibiat\Socle\PhoneNumber;
 
 /**
@@ -61,11 +64,13 @@ class ConversationController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $request->validate(['filter' => ['nullable', 'in:all,unread,without_order'], 'q' => ['nullable', 'string', 'max:60']]);
+        $request->validate(['filter' => ['nullable', 'in:all,unread,pending,without_order'], 'q' => ['nullable', 'string', 'max:60']]);
 
         $query = $this->visible()->whereNotNull('last_inbound_at')->with('order.store')
             ->when($request->input('filter') === 'unread', fn ($q) => $q->where('unread_count', '>', 0))
             ->when($request->input('filter') === 'without_order', fn ($q) => $q->whereNull('order_id'))
+            // Commande de la conversation qui attend la confirmation du client
+            ->when($request->input('filter') === 'pending', fn ($q) => $q->whereHas('order', fn ($o) => $o->where('status', OrderStatus::PendingConfirmation->value)))
             ->when($request->filled('q'), function ($q) use ($request) {
                 $term = trim((string) $request->input('q'));
                 $digits = preg_replace('/\D/', '', $term);
@@ -118,6 +123,20 @@ class ConversationController extends Controller
         ]]);
     }
 
+    /**
+     * Photo envoyée par le client, affichée dans le fil.
+     */
+    public function photo(int $conversation, int $message): Response
+    {
+        $model = $this->visible()->findOrFail($conversation);
+        $bytes = $this->inbox->photo($model, $model->messages()->findOrFail($message));
+        abort_if($bytes === null, 404, 'Cette photo n\'est plus disponible chez WhatsApp.');
+        $type = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes) ?: 'image/jpeg';
+        abort_unless(str_starts_with($type, 'image/'), 404);
+
+        return response($bytes, 200, ['Content-Type' => $type, 'Cache-Control' => 'private, max-age=86400']);
+    }
+
     public function reply(Request $request, int $conversation): JsonResponse
     {
         $data = $request->validate(['body' => ['required', 'string', 'max:4000']], [], ['body' => 'message']);
@@ -125,6 +144,30 @@ class ConversationController extends Controller
         $this->inbox->reply($model, trim($data['body']), $request->user());
 
         return response()->json(['data' => $this->detail($model->fresh(['order.store', 'customer']))], 201);
+    }
+
+    /**
+     * Bouton « Envoyer le récap » : la commande est préparée à partir de la conversation et le récapitulatif part au
+     * client (ou ce qui manque lui est demandé). Le résultat est rendu à l'écran.
+     */
+    public function recap(int $conversation, RecapOrders $recaps): JsonResponse
+    {
+        $model = $this->visible()->where('channel', 'whatsapp')->findOrFail($conversation);
+        $result = $recaps->recapFromApp($model);
+
+        return response()->json(['data' => $this->detail($model->fresh(['order.store', 'customer'])), 'result' => $result], $result['sent'] ? 200 : 422);
+    }
+
+    /**
+     * Bouton « Confirmer la commande » : la commande récap qui attend le client passe confirmée (le client a dit oui
+     * par écrit), et le client reçoit la confirmation.
+     */
+    public function confirmRecap(Request $request, int $conversation, RecapOrders $recaps): JsonResponse
+    {
+        $model = $this->visible()->where('channel', 'whatsapp')->findOrFail($conversation);
+        $result = $recaps->confirmFromApp($model, $request->user());
+
+        return response()->json(['data' => $this->detail($model->fresh(['order.store', 'customer'])), 'result' => $result], $result['sent'] ? 200 : 422);
     }
 
     /**
@@ -145,6 +188,11 @@ class ConversationController extends Controller
             'direction' => $m->direction,
             'type' => $m->type,
             'body' => $m->body,
+            // Photo envoyée par la boutique (adresse publique), ou reçue du client (lue à la demande)
+            'media_url' => $m->media_url,
+            'photo' => $m->direction === 'in' && $m->type === 'image',
+            // Choix proposés au client : boutons, ou lignes d'une liste
+            'options' => $m->options,
             'order_hint' => $orderHint,
             'status' => $m->status,
             'error' => $m->error,
@@ -186,7 +234,8 @@ class ConversationController extends Controller
             'preview' => $c->last_preview,
             'last_message_at' => $c->last_message_at?->toIso8601String(),
             'unread' => $c->unread_count,
-            'order' => $c->order ? ['id' => $c->order->id, 'reference' => $c->order->reference()] : null,
+            'order' => $c->order ? ['id' => $c->order->id, 'reference' => $c->order->reference(), 'status' => $c->order->status->value,
+                'status_label' => $c->order->status->label(), 'total' => (int) $c->order->total] : null,
         ];
     }
 
@@ -205,11 +254,14 @@ class ConversationController extends Controller
         $hints = array_flip(app(OrderMessageParser::class)->orderHints($c->store, $recent->pluck('body', 'id')->map(fn ($b) => (string) $b)->all()));
 
         return $this->summary($c) + [
-            'customer' => $c->customer ? ['id' => $c->customer->id, 'name' => $c->customer->name] : null,
+            'customer' => $c->customer ? ['id' => $c->customer->id, 'name' => $c->customer->name, 'orders' => (int) $c->customer->orders_count,
+                'spent' => (int) $c->customer->total_spent] : null,
             'linked' => $linked,
             'can_reply' => $linked || $c->canReply(),
             'reply_until' => $linked ? null : $c->last_inbound_at?->addHours(Conversation::REPLY_WINDOW_HOURS)->toIso8601String(),
             'has_more' => $page->count() > self::PAGE,
+            // Récap : boutons « Envoyer le récap » (WhatsApp, récap allumé) et « Confirmer la commande » (récap en attente)
+            'recap' => $c->channel === 'whatsapp' && $c->store?->whatsapp_recap ? ['pending' => RecapOrders::pendingFor($c)] : null,
             'messages' => $messages->map(fn (ConversationMessage $m) => $this->message($m, isset($hints[$m->id]))),
             // Ce que le client a écrit depuis la dernière commande créée ici : texte proposé à l'analyse
             'order_text' => $messages->filter(fn (ConversationMessage $m) => $m->direction === 'in' && ($since === null || $m->sent_at->gt($since)))

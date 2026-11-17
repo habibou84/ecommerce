@@ -432,11 +432,16 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('conversations/unread', [ConversationController::class, 'unread'])->name('conversations.unread');
                 Route::get('conversations/{conversation}', [ConversationController::class, 'show'])->whereNumber('conversation')->name('conversations.show');
                 Route::get('conversations/{conversation}/messages', [ConversationController::class, 'older'])->whereNumber('conversation')->name('conversations.older');
+                Route::get('conversations/{conversation}/messages/{message}/photo', [ConversationController::class, 'photo'])->whereNumber(['conversation', 'message'])->middleware('throttle:120,1')->name('conversations.photo');
                 Route::post('conversations/{conversation}/messages', [ConversationController::class, 'reply'])->whereNumber('conversation')->name('conversations.reply');
+                Route::post('conversations/{conversation}/recap', [ConversationController::class, 'recap'])->whereNumber('conversation')->middleware('throttle:20,1')->name('conversations.recap');
+                Route::post('conversations/{conversation}/recap/confirm', [ConversationController::class, 'confirmRecap'])->whereNumber('conversation')->middleware('throttle:20,1')->name('conversations.recap.confirm');
                 Route::post('conversations/{conversation}/suggest', [ConversationController::class, 'suggest'])->whereNumber('conversation')->middleware('throttle:30,1')->name('conversations.suggest');
             });
             Route::middleware('permission:'.Permission::CustomersView->value)->group(function () {
                 Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
+                Route::get('customers/summary', [CustomerController::class, 'summary'])->name('customers.summary');
+                Route::get('customers/{customer}/relaunch', [CustomerController::class, 'relaunch'])->whereNumber('customer')->name('customers.relaunch');
                 Route::get('customers/{customer}', [CustomerController::class, 'show'])->whereNumber('customer')->name('customers.show');
                 Route::get('customers/elsewhere', [CustomerController::class, 'elsewhere'])->name('customers.elsewhere');
             });
@@ -532,6 +537,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                     Route::get('marketing/boosts', [BoostAdsController::class, 'index'])->name('boosts.index');
                     Route::post('marketing/boosts', [BoostAdsController::class, 'store'])->middleware('throttle:10,1')->name('boosts.store');
                     Route::post('marketing/boosts/{boost}/action', [BoostAdsController::class, 'action'])->whereNumber('boost')->middleware('throttle:20,1')->name('boosts.action');
+                    Route::delete('marketing/boosts/failed', [BoostAdsController::class, 'clearFailed'])->middleware('throttle:20,1')->name('boosts.clear-failed');
+                    Route::delete('marketing/boosts/{boost}', [BoostAdsController::class, 'destroy'])->whereNumber('boost')->middleware('throttle:20,1')->name('boosts.destroy');
                 });
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
@@ -593,6 +600,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('whatsapp/sales', [WhatsAppSalesController::class, 'show'])->name('whatsapp.sales.show');
                 Route::put('whatsapp/sales', [WhatsAppSalesController::class, 'update'])->name('whatsapp.sales.update');
                 Route::put('whatsapp/models', [WhatsAppSalesController::class, 'models'])->name('whatsapp.models.update');
+                Route::put('whatsapp/recap', [WhatsAppSalesController::class, 'recap'])->name('whatsapp.recap.update');
+                Route::put('whatsapp/cart-flow', [WhatsAppSalesController::class, 'cartFlow'])->name('whatsapp.cart-flow.update');
+                Route::put('whatsapp/catalog/visible', [WhatsAppSalesController::class, 'catalogVisible'])->middleware('throttle:10,1')->name('whatsapp.catalog.visible');
                 // Connexion WhatsApp depuis l'application installée : la fenêtre Facebook dépose son résultat ici
                 Route::post('whatsapp/connect-session', [WhatsAppConnectSessionController::class, 'register'])->middleware('throttle:20,1')->name('whatsapp.connect-session.register');
                 Route::get('whatsapp/connect-session/{key}', [WhatsAppConnectSessionController::class, 'show'])->where('key', '[A-Za-z0-9]{32,64}')->middleware('throttle:120,1')->name('whatsapp.connect-session.show');
@@ -719,6 +729,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('delivery-zones/{zone}', [DeliveryController::class, 'updateZone'])->whereNumber('zone')->name('zones.update');
                 Route::delete('delivery-zones/{zone}', [DeliveryController::class, 'destroyZone'])->whereNumber('zone')->name('zones.destroy');
                 Route::put('delivery-rates', [DeliveryRatesController::class, 'update'])->name('delivery-rates.update');
+                Route::post('delivery-rates/checked', [DeliveryRatesController::class, 'confirm'])->name('delivery-rates.checked');
                 Route::delete('delivery-rates/places/{place}', [DeliveryRatesController::class, 'forget'])->whereNumber('place')->name('delivery-rates.forget');
             });
 

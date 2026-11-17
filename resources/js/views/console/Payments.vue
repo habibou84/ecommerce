@@ -163,7 +163,10 @@ async function removeQr() {
 
     <section class="card p-4 text-sm">
       <h3 class="mb-1 text-base font-semibold">Paiements Wave à valider</h3>
-      <p class="mb-3 text-slate-600">Vérifiez dans Wave que le montant est arrivé depuis ce numéro, puis confirmez. Vous êtes connecté : pas besoin du code.</p>
+      <div class="mb-3">
+        <p class="explain">Vérifiez dans Wave que le montant est arrivé, puis confirmez.</p>
+        <p class="explain-detail">Depuis ce numéro. Vous êtes connecté : pas besoin du code.</p>
+      </div>
       <p v-if="pending && !pending.data.length" class="text-slate-500">Aucun paiement en attente.</p>
       <ul v-else-if="pending" class="divide-y divide-slate-100">
         <li v-for="i in pending.data" :key="i.id" class="flex flex-wrap items-center gap-3 py-3">
@@ -204,7 +207,7 @@ async function removeQr() {
         </label>
         <div class="space-y-2">
           <p class="font-medium">QR code Wave</p>
-          <p class="text-xs text-slate-500">Affiché aux e-commerçants sur ordinateur : ils le scannent avec Wave sur leur téléphone.</p>
+          <p class="explain-detail">Affiché aux e-commerçants sur ordinateur : ils le scannent avec Wave sur leur téléphone.</p>
           <div class="flex flex-wrap items-center gap-4">
             <img v-if="settings.wave_qr_url" :src="settings.wave_qr_url" alt="QR code Wave" class="h-32 w-32 rounded-lg object-contain ring-1 ring-slate-200" />
             <label class="btn-ghost cursor-pointer">{{ settings.wave_qr_url ? 'Remplacer' : 'Ajouter le QR code' }}<input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" @change="uploadQr" /></label>
@@ -215,9 +218,7 @@ async function removeQr() {
           <label>E-mail du validateur<input v-model="form.validator_email" type="email" class="input mt-1" placeholder="paiements@…" /></label>
           <label>Téléphone du validateur<input v-model="form.validator_phone" type="tel" class="input mt-1" placeholder="07 00 00 00 00" /></label>
         </div>
-        <p class="text-xs text-slate-500">
-          À chaque paiement, un e-mail part d'abord ; s'il ne part pas (ou sans adresse), un SMS est envoyé. Les paiements apparaissent aussi ici.
-        </p>
+        <p class="explain-detail">Un e-mail part à chaque paiement, sinon un SMS. Les paiements apparaissent aussi ici.</p>
         <label class="block max-w-xs">Code de validation
           <PasswordInput v-model="form.validator_pin" inputmode="numeric" autocomplete="new-password" class="input mt-1" :placeholder="settings.pin_set ? 'Déjà défini : laisser vide pour le garder' : 'Au moins 4 chiffres'" />
           <span class="text-xs text-slate-500">Demandé quand vous validez depuis le lien reçu par e-mail ou SMS.</span>
@@ -253,7 +254,7 @@ async function removeQr() {
     <section v-if="settings" class="card space-y-4 p-4 text-sm">
       <div>
         <h3 class="text-base font-semibold">Envoi des e-mails</h3>
-        <p class="text-slate-600">Alertes de paiement et code de connexion à la console partent de votre compte Gmail.</p>
+        <p class="explain-detail">Alertes de paiement et code de connexion à la console partent de votre compte Gmail.</p>
       </div>
       <Alert v-if="gmailNotice" :tone="gmailNotice.tone">{{ gmailNotice.text }}</Alert>
 
@@ -264,7 +265,7 @@ async function removeQr() {
       </div>
 
       <template v-else>
-        <p v-if="gmail.configured" class="text-slate-600">Dernière étape : autorisez l'envoi d'e-mails depuis votre compte Gmail.</p>
+        <p v-if="gmail.configured" class="explain-detail">Dernière étape : autorisez l'envoi d'e-mails depuis votre compte Gmail.</p>
         <button v-if="gmail.configured" class="btn-brand" type="button" @click="connectGmail">Se connecter avec Google</button>
 
         <details class="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200" :open="!gmail.configured">
@@ -288,7 +289,7 @@ async function removeQr() {
 
       <details class="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
         <summary class="cursor-pointer font-medium text-slate-600">Autre serveur d'e-mail (SMTP, avancé)</summary>
-        <p class="mt-2 text-xs text-slate-600">Utilisé seulement si Gmail n'est pas connecté.</p>
+        <p class="explain-detail mt-2">Utilisé seulement si Gmail n'est pas connecté.</p>
         <div class="mt-2 grid max-w-xl gap-3 sm:grid-cols-[1fr_6rem]">
           <label>Serveur<input v-model="mail.host" class="input mt-1" placeholder="smtp.exemple.com" /></label>
           <label>Port<input v-model.number="mail.port" type="number" class="input mt-1" /></label>

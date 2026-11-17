@@ -92,7 +92,7 @@ async function done() {
         <button type="button" class="text-slate-600 hover:underline" @click="recovery = !recovery; code = ''">{{ recovery ? 'Utiliser l\'application' : 'Téléphone perdu ? Code de secours' }}</button>
         <button type="button" class="text-slate-600 hover:underline" @click="totpStep = null">Retour</button>
       </div>
-      <p v-if="recovery" class="text-xs text-slate-500">Plus aucun code de secours ? Un autre administrateur peut réinitialiser votre application (Équipe).</p>
+      <p v-if="recovery" class="explain-detail">Plus aucun code de secours ? Un autre administrateur peut réinitialiser votre application (Équipe).</p>
     </form>
     <form v-else-if="emailStep" class="space-y-4" @submit.prevent="verifyEmail">
       <Field id="code" label="Code reçu par e-mail" :error="errors.code" hint="6 chiffres, valable 10 minutes. Regardez aussi dans les spams.">

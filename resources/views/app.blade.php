@@ -14,7 +14,8 @@
         <meta name="apple-mobile-web-app-capable" content="yes">
     @elseif (request()->is('gestion*') && isset($boot['store']))
         {{-- Gestion installable sur l'écran d'accueil (Android : « Installer l'application » ; iPhone : Partager › Sur l'écran d'accueil) --}}
-        <link rel="manifest" href="/gestion/manifest.webmanifest">
+        {{-- Messages ouvert directement : son icône à part (l'application change de manifeste en passant d'un écran à l'autre) --}}
+        <link rel="manifest" href="{{ request()->is('gestion/messages*') ? '/gestion/messages/manifest.webmanifest' : '/gestion/manifest.webmanifest' }}">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-title" content="{{ \Illuminate\Support\Str::limit($boot['store']['name'], 12, '') }}">

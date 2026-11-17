@@ -47,7 +47,7 @@ class DashboardController extends Controller
                     ->where('status', '!=', OrderStatus::Cancelled->value)->sum('total'),
                 'to_confirm' => Order::where('status', OrderStatus::PendingConfirmation->value)->count(),
                 'callbacks_due' => Order::where('status', OrderStatus::PendingConfirmation->value)->where('callback_at', '<=', now())->count(),
-                // Même calcul que l'onglet « À faire livrer » de la liste (sans les commandes déjà chez le livreur)
+                // À faire livrer : même règle que l'onglet de la liste (confirmées sans course en cours)
                 'to_ship' => OrderListing::toShip(Order::query())->count(),
                 // Files des alertes : sans livreur, pas ramassées, problèmes de livraison sans suite
                 'waiting' => OrderAlerts::counts(),

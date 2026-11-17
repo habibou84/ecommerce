@@ -17,7 +17,7 @@ watch(q, (value) => {
 
 <template>
   <div class="max-w-3xl space-y-4">
-    <h2 class="text-xl font-semibold">Utilisateurs</h2>
+    <h2 class="text-2xl font-semibold">Utilisateurs</h2>
     <input v-model="q" type="search" class="input" placeholder="Numéro, nom ou e-mail (3 caractères au moins)" autofocus />
     <p v-if="results && !results.length" class="text-sm text-slate-500">Personne ne correspond.</p>
     <section v-if="results?.length" class="card divide-y divide-slate-100 text-sm">

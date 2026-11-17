@@ -223,12 +223,10 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
     <section v-if="account?.sms" class="card flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
       <div>
         <p class="font-semibold">SMS de vérification envoyés (payants)</p>
-        <p class="text-slate-600">
-          Ce mois : <strong>{{ account.sms.month }}</strong> · mois dernier : {{ account.sms.last_month }}.
-          <span v-if="!account.sms.ready" class="text-amber-700">Les SMS sont simulés sur ce serveur (aucun envoi réel).</span>
-          <span v-else-if="account.connected">Numéro relié : les inscriptions et connexions passent par WhatsApp, aucun SMS sauf si le secours est activé.</span>
-          <span v-else class="text-amber-700">Sans numéro relié, chaque vérification de numéro part par SMS.</span>
-        </p>
+        <p class="explain-detail">Ce mois : <strong>{{ account.sms.month }}</strong> · mois dernier : {{ account.sms.last_month }}.</p>
+        <p v-if="!account.sms.ready" class="explain-detail text-amber-700">SMS simulés sur ce serveur : aucun envoi réel.</p>
+        <p v-else-if="account.connected" class="explain-detail">Numéro relié : les vérifications passent par WhatsApp, pas de SMS sauf secours.</p>
+        <p v-else class="explain-detail text-amber-700">Sans numéro relié, chaque vérification part par SMS.</p>
       </div>
       <label class="flex items-center gap-2">
         <input type="checkbox" class="h-4 w-4 accent-emerald-700" :checked="account.sms.fallback" :disabled="busy" @change="setSmsFallback($event.target.checked)" />
@@ -238,10 +236,10 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
 
     <section v-if="account && !account.connected" class="card max-w-2xl space-y-4 p-4 text-sm">
       <h3 class="text-base font-semibold">Recevoir les messages WhatsApp du support ici</h3>
-      <p class="text-slate-600">
-        Reliez le numéro WhatsApp de Jibiat Marchand. Les messages des clients arrivent dans la console et vous répondez depuis l'ordinateur.
-        Ce numéro reçoit aussi les <strong>messages de vérification</strong> des inscriptions et connexions : tant qu'il est relié, aucun SMS n'est envoyé.
-      </p>
+      <div>
+        <p class="explain">Reliez le numéro WhatsApp de Jibiat Marchand.</p>
+        <p class="explain-detail">Vous répondez aux clients depuis la console. Tant qu'il est relié, les codes de vérification partent par WhatsApp, pas par SMS.</p>
+      </div>
 
       <!-- Par QR code (comme WhatsApp Web) : disponible tout de suite -->
       <div class="space-y-3 rounded-lg border border-emerald-200 p-3">
@@ -270,7 +268,10 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
           </div>
           <div v-else class="space-y-2">
             <div v-if="live?.code" class="space-y-2">
-              <p class="text-slate-600">Code à saisir sur le téléphone (« Appareils connectés » › « Connecter un appareil » › « Connecter avec le numéro de téléphone à la place ») :</p>
+              <div>
+                <p class="explain">Saisissez ce code sur le téléphone.</p>
+                <p class="explain-detail">« Appareils connectés » › « Connecter un appareil » › « Connecter avec le numéro de téléphone à la place ».</p>
+              </div>
               <p class="select-all font-mono text-3xl font-bold tracking-widest text-emerald-800">{{ live.code }}</p>
               <button type="button" class="btn-ghost px-2" :disabled="busy" @click="pair">Recevoir un autre code</button>
             </div>
@@ -279,7 +280,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
               <button class="btn-brand" :disabled="busy || !pairPhone.trim()">{{ busy ? 'Demande…' : 'Obtenir le code' }}</button>
             </form>
           </div>
-          <p class="text-xs text-slate-500">Connexion non officielle : le téléphone doit rester allumé avec Internet de temps en temps. Pas d'envois en masse par ce moyen.</p>
+          <p class="explain-detail">Connexion non officielle : le téléphone doit rester allumé avec Internet de temps en temps. Pas d'envois en masse par ce moyen.</p>
         </template>
         <Alert v-else tone="warning">Le service WhatsApp par QR code n'est pas installé sur le serveur (mise à jour du serveur à relancer).</Alert>
       </div>
@@ -297,7 +298,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
           <li>Un code s'affiche ou arrive dans WhatsApp Business sur le téléphone : validez-le, puis acceptez de partager l'historique si vous le souhaitez.</li>
         </ol>
         <button class="btn-brand" :disabled="busy" @click="connect">{{ busy ? 'Connexion…' : 'Connecter avec Facebook' }}</button>
-        <p class="text-xs text-slate-500">L'application WhatsApp Business doit être à jour sur le téléphone. Si Meta ne propose pas de garder l'application pour ce numéro, décochez la case : le numéro ne fonctionnera alors plus que dans la console.</p>
+        <p class="explain-detail">WhatsApp Business doit être à jour sur le téléphone. Sinon, décochez la case : le numéro ne marchera plus que dans la console.</p>
       </template>
       <Alert v-else tone="warning">La connexion avec Facebook n'est pas encore activée sur le serveur (application Meta de la plateforme).</Alert>
 
@@ -334,7 +335,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
           <button class="btn-brand" :disabled="busy">{{ busy ? 'Vérification auprès de Meta…' : 'Vérifier et connecter' }}</button>
           <button type="button" class="btn-ghost" @click="manualOpen = false">Annuler</button>
         </div>
-        <p class="text-xs text-slate-500">Les identifiants sont vérifiés auprès de Meta avant d'être gardés ; le jeton et le code secret sont chiffrés et ne sont plus jamais affichés.</p>
+        <p class="explain-detail">Identifiants vérifiés chez Meta avant d'être gardés ; jeton et code secret chiffrés, jamais réaffichés.</p>
       </form>
     </section>
 
@@ -360,7 +361,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
               <button class="w-full px-3 py-2 text-left hover:bg-slate-50" :class="current?.id === c.id ? 'bg-emerald-50' : ''" @click="open(c)">
                 <span class="flex items-center gap-2"><span class="flex-1 truncate font-medium">{{ c.contact_name ?? c.contact }}</span>
                   <span v-if="c.help_requested" class="rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">Aide demandée</span>
-                  <span v-if="c.unread_count" class="rounded-full bg-emerald-600 px-1.5 text-xs text-white">{{ c.unread_count }}</span></span>
+                  <span v-if="c.unread_count" class="rounded-full bg-emerald-700 px-1.5 text-xs text-white">{{ c.unread_count }}</span></span>
                 <span class="block truncate text-slate-500">{{ c.last_preview }}</span>
                 <span class="block text-xs text-slate-400">{{ formatDateTime(c.last_message_at) }}</span>
               </button>
@@ -383,7 +384,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
             <div v-for="m in current.messages" :key="m.id" class="flex" :class="m.direction === 'out' ? 'justify-end' : ''">
               <div class="max-w-[80%] whitespace-pre-line rounded-xl px-3 py-2" :class="m.direction === 'out' ? 'bg-emerald-100' : 'bg-white ring-1 ring-slate-200'">
                 {{ m.body }}
-                <span class="mt-1 block text-right text-[11px] text-slate-500">
+                <span class="mt-1 block text-right text-xs text-slate-500">
                   <template v-if="m.author">{{ m.author }} · </template>{{ formatDateTime(m.sent_at) }}<template v-if="m.direction === 'out' && STATUS[m.status]"> · {{ STATUS[m.status] }}</template>
                 </span>
                 <span v-if="m.error" class="block text-xs text-red-700">{{ m.error }}</span>
@@ -394,7 +395,7 @@ const title = computed(() => current.value ? (current.value.contact_name ? `${cu
             <textarea v-model="reply" rows="2" class="input flex-1" placeholder="Votre réponse" @keydown.enter.exact.prevent="send" />
             <button class="btn-brand self-end" :disabled="busy || !reply.trim()">Envoyer</button>
           </form>
-          <p v-else class="border-t border-slate-100 p-3 text-xs text-slate-500">Plus de 24 h depuis le dernier message du client : WhatsApp n'autorise plus de réponse libre. Répondez depuis le téléphone.</p>
+          <p v-else class="explain-detail border-t border-slate-100 p-3">Plus de 24 h sans message du client : WhatsApp bloque la réponse. Répondez depuis le téléphone.</p>
         </section>
         <p v-else class="hidden self-center text-center text-sm text-slate-500 md:block">Choisissez une conversation.</p>
       </div>

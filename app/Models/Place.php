@@ -54,6 +54,16 @@ class Place extends Model
     }
 
     /**
+     * Le lieu et ceux qui le contiennent : quartier, commune, ville (du plus précis au plus large).
+     *
+     * @return list<int>
+     */
+    public function lineageIds(): array
+    {
+        return array_values(array_filter([$this->id, $this->parent_id, $this->parent?->parent_id]));
+    }
+
+    /**
      * « Angré, Cocody » (quartier, commune).
      */
     public function label(): string

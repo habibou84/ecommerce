@@ -97,9 +97,10 @@ async function destroy() {
   <div class="space-y-4">
     <DeliveryTabs />
     <div class="flex items-center justify-between gap-3">
-      <p class="text-sm text-slate-600">
-        Frais de livraison facturés aux clients selon le quartier. Un quartier prend la zone qui le contient, sinon celle de sa commune, sinon celle de sa ville.
-      </p>
+      <div>
+        <p class="explain">Frais de livraison facturés aux clients selon le quartier.</p>
+        <p class="explain-detail">Un quartier prend sa zone, sinon celle de sa commune, sinon celle de sa ville.</p>
+      </div>
       <button class="btn-brand shrink-0" @click="open(null)">+ Zone</button>
     </div>
 
@@ -118,7 +119,7 @@ async function destroy() {
       <div>
         <p class="mb-1.5 text-sm font-medium">Jours sans livraison</p>
         <div class="flex flex-wrap gap-2">
-          <button v-for="[day, label] in WEEKDAYS" :key="day" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="calendar.closed_weekdays.includes(day) ? 'border-red-300 bg-red-50 font-semibold text-red-800 line-through' : 'border-slate-300'" :aria-pressed="calendar.closed_weekdays.includes(day)" @click="toggleWeekday(day)">{{ label }}</button>
+          <button v-for="[day, label] in WEEKDAYS" :key="day" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="calendar.closed_weekdays.includes(day) ? 'border-red-300 bg-red-50 font-semibold text-red-800 line-through' : 'border-field'" :aria-pressed="calendar.closed_weekdays.includes(day)" @click="toggleWeekday(day)">{{ label }}</button>
         </div>
       </div>
       <div>
@@ -169,7 +170,7 @@ async function destroy() {
               {{ p.label }} <button type="button" class="text-slate-400 hover:text-red-600" @click="editing.places.splice(i, 1)">✕</button>
             </span>
           </div>
-          <p class="mt-1 text-xs text-slate-500">Un lieu ne peut appartenir qu'à une zone : l'ajouter ici le retire de l'autre.</p>
+          <p class="explain-detail mt-1">Un lieu ne peut appartenir qu'à une zone : l'ajouter ici le retire de l'autre.</p>
         </div>
         <label class="flex items-center gap-2 text-sm"><input v-model="editing.is_active" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Active</label>
         <div class="flex gap-2">

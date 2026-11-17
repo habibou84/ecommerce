@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../../components/ExplainMore.vue'
 import { onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import http, { errorMessage } from '../../../lib/http'
@@ -63,11 +64,14 @@ async function save() {
 
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-slate-600">
-      Adaptez à votre façon de parler les messages envoyés à vos clients depuis votre WhatsApp (boutons de la commande) et la demande de confirmation automatique.
-      Les mots entre accolades sont remplacés par les informations de la commande ; une ligne dont l'information est vide (ex. rien à payer) disparaît.
-      Les modèles WhatsApp de Meta (messages automatiques hors conversation) ne se modifient pas ici : Meta doit les approuver.
-    </p>
+    <div>
+      <p class="explain">Écrivez les messages à vos clients à votre façon.</p>
+      <p class="explain-detail">Les mots entre accolades sont remplacés par les informations de la commande.</p>
+      <ExplainMore>
+        <p>Ce sont les messages des boutons de la commande et la demande de confirmation automatique. Une ligne dont l'information est vide (ex. rien à payer) disparaît.</p>
+        <p>Les modèles WhatsApp de Meta (messages hors conversation) ne se modifient pas ici : Meta doit les approuver.</p>
+      </ExplainMore>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="saved" tone="success">Textes enregistrés.</Alert>
 
