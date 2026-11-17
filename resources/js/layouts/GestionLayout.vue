@@ -193,10 +193,18 @@ const sheetOpen = computed(() => swipeOn.value && route.path !== '/gestion')
 const swipeHome = computed(() => auth.profile?.features?.swipe_nav === true && (route.path === '/gestion' || sheetOpen.value))
 // Écrans ouverts l'un après l'autre dans la fenêtre : flèche retour tant qu'il y en a plus d'un
 const sheetDepth = ref(0)
+// Place de l'accueil dans l'historique quand la fenêtre s'est ouverte : la croix y revient d'un coup, même après
+// plusieurs écrans (une conversation, puis une autre…)
+let homePosition = null
 watch(() => route.path, (to, from) => {
-  if (!sheetOpen.value) sheetDepth.value = 0
-  else if (from === '/gestion' || !from) sheetDepth.value = 1
-  else sheetDepth.value += 1
+  if (!sheetOpen.value) {
+    sheetDepth.value = 0
+    homePosition = null
+  } else if (from === '/gestion' || !from) {
+    sheetDepth.value = 1
+    const position = window.history.state?.position
+    homePosition = from === '/gestion' && Number.isInteger(position) ? position - 1 : null
+  } else sheetDepth.value += 1
 }, { immediate: true })
 // Lien direct vers la liste des clients (notification, favori) : l'onglet Clients de l'accueil, pas une fenêtre par-dessus
 watch([swipeOn, () => route.path], ([on, path]) => {
@@ -236,22 +244,27 @@ function hideNoCard() {
 // Fermer : retour à l'écran d'où l'on vient (liste, live…) ; sans écran précédent (lien, notification), l'accueil
 function closeSheet() {
   sheetDrag.value = 0
-  if (window.history.state?.back) {
-    sheetDepth.value = Math.max(0, sheetDepth.value - 2)
-    router.back()
-  } else {
-    router.push('/gestion')
-  }
+  const position = window.history.state?.position
+  const steps = homePosition !== null && Number.isInteger(position) ? homePosition - position : 0
+  if (steps < 0) router.go(steps)
+  else router.replace('/gestion')
 }
 function sheetBack() {
   sheetDepth.value = Math.max(0, sheetDepth.value - 2)
   router.back()
 }
-// Glisser vers le bas : depuis la poignée, ou depuis le contenu quand il est déjà tout en haut
+// Glisser vers le bas : depuis la poignée, ou depuis le contenu quand il est déjà tout en haut. Pas depuis un écran qui
+// a son propre défilement (Messages : on remonte dans la discussion sans fermer la fenêtre)
 const sheetDrag = ref(0)
 let dragStart = null
+function scrolledInside(target, box) {
+  for (let el = target; el && el !== box; el = el.parentElement) {
+    if (el.scrollTop > 0 && el.scrollHeight > el.clientHeight) return true
+  }
+  return false
+}
 function dragBegin(e, fromContent = false) {
-  if (fromContent && e.currentTarget.scrollTop > 0) return
+  if (fromContent && (route.meta.noSheetDrag || e.currentTarget.scrollTop > 0 || scrolledInside(e.target, e.currentTarget))) return
   dragStart = e.touches[0].clientY
 }
 function dragMove(e) {
