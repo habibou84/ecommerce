@@ -10,6 +10,7 @@ import Alert from '../../../components/Alert.vue'
 import { install, isIos, promptInstall } from '../../../lib/install'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime } from '../../../lib/format'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../../stores/auth'
 
 // Boîte « Messages » : conversations WhatsApp, Messenger et Instagram des clients, réponses, et commande créée depuis la conversation.
@@ -17,6 +18,7 @@ import { useAuthStore } from '../../../stores/auth'
 // les actions de vente derrière le bouton +, et sur grand écran le client et sa commande dans une colonne à droite.
 const props = defineProps({ id: { type: String, default: null } })
 const auth = useAuthStore()
+const router = useRouter()
 
 const conversations = ref([])
 const connected = ref(true)
@@ -357,6 +359,12 @@ function toggleMessage(m) {
   if (!selecting.value || m.direction !== 'in') return
   selected.value = selected.value.includes(m.id) ? selected.value.filter((id) => id !== m.id) : [...selected.value, m.id]
 }
+// Retour à la liste : on revient en arrière quand on vient d'elle (l'historique ne s'allonge pas à chaque
+// conversation), sinon on la remplace
+function backToList() {
+  if (window.history.state?.back === '/gestion/messages') router.back()
+  else router.replace('/gestion/messages')
+}
 const linkify = (text) => text.split(/(https?:\/\/\S+)/g)
 // Mise en forme de WhatsApp : *gras* (les messages automatiques s'en servent)
 const boldParts = (text) => text.split(/\*([^*\n]+)\*/g)
@@ -545,6 +553,7 @@ function hideInstallTip() {
             v-for="c in conversations"
             :key="c.id"
             :to="`/gestion/messages/${c.id}`"
+            :replace="!!id"
             class="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50"
             :class="{ 'bg-emerald-50 hover:bg-emerald-50': String(c.id) === id }"
           >
@@ -578,7 +587,7 @@ function hideInstallTip() {
       <!-- Discussion : plein écran sur téléphone, un seul en-tête -->
       <section v-if="current" class="fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col bg-slate-100 lg:relative lg:inset-auto lg:z-auto">
         <header class="flex shrink-0 items-center gap-1 bg-emerald-800 px-1.5 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-white lg:px-3">
-          <RouterLink to="/gestion/messages" class="grid h-10 w-9 shrink-0 place-items-center rounded-full hover:bg-white/10 lg:hidden" aria-label="Retour aux conversations"><Icon name="back" :size="22" /></RouterLink>
+          <button type="button" class="grid h-10 w-9 shrink-0 place-items-center rounded-full hover:bg-white/10 lg:hidden" aria-label="Retour aux conversations" @click="backToList"><Icon name="back" :size="22" /></button>
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold" :class="avatarTone(current)" aria-hidden="true">{{ initials(current) }}</span>
           <div class="ml-1.5 min-w-0 flex-1 leading-tight">
             <p class="truncate text-base font-bold">{{ current.name || current.phone_display }}</p>
