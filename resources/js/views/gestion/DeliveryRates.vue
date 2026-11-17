@@ -72,6 +72,14 @@ async function saveHome() {
     </div>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
+    <!-- Jamais vérifiés : le récap et les assistants WhatsApp envoient ces prix aux clients -->
+    <div v-if="rates && !rates.checked_at && !start" class="flex flex-col gap-3 rounded-2xl border border-ocre-200 bg-ocre-50 p-4 sm:flex-row sm:items-center">
+      <div class="min-w-0 flex-1">
+        <p class="explain">Ces prix partent chez vos clients.</p>
+        <p class="explain-detail">Le récap et les assistants WhatsApp les envoient tels quels. Corrigez-les, ou dites qu'ils sont justes.</p>
+      </div>
+      <button type="button" class="btn-brand shrink-0 px-3 py-1.5 text-sm" :disabled="busy" @click="run(() => http.post('/delivery-rates/checked'), 'Tarifs vérifiés.')">Mes tarifs sont justes</button>
+    </div>
 
     <!-- Question du guide de démarrage -->
     <section v-if="start && rates" class="card space-y-4 border-emerald-300 p-5">

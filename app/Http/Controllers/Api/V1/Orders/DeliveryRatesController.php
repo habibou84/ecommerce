@@ -31,6 +31,8 @@ class DeliveryRatesController extends Controller
             'free_shipping_above' => $store->free_shipping_above,
             'wave_link' => $store->wave_link,
             'companies' => $this->rates->companies(),
+            // Tarifs relus ou changés par la boutique : le récap et les assistants envoient ces prix aux clients
+            'checked_at' => $store->fresh()->delivery_rates_checked_at?->toIso8601String(),
         ]]);
     }
 
@@ -65,6 +67,7 @@ class DeliveryRatesController extends Controller
         } else {
             $this->rates->remember($store, Place::visibleTo($store->id)->with('parent.parent')->findOrFail($data['place_id']), $data['fee']);
         }
+        $this->rates->checked($store);
 
         return $this->show();
     }
@@ -76,6 +79,7 @@ class DeliveryRatesController extends Controller
     {
         $store = $this->currentStore();
         $this->rates->forget($store, Place::visibleTo($store->id)->findOrFail($place));
+        $this->rates->checked($store);
 
         return $this->show();
     }
@@ -113,6 +117,17 @@ class DeliveryRatesController extends Controller
         if (isset($data['base_fee'])) {
             $this->rates->setBase($store->fresh(), $data['base_fee']);
         }
+        $this->rates->checked($store);
+
+        return $this->show();
+    }
+
+    /**
+     * « Mes tarifs sont justes » : la boutique a relu ses prix de livraison sans rien changer.
+     */
+    public function confirm(): JsonResponse
+    {
+        $this->rates->checked($this->currentStore());
 
         return $this->show();
     }

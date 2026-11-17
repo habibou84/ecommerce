@@ -20,6 +20,7 @@ const unreadCount = computed(() => props.data?.todo?.unread ?? props.unread)
 const todo = computed(() => {
   const t = props.data?.todo ?? {}
   return [
+    props.canManage && t.rates && { key: 'rates', icon: 'truck', text: 'Frais de livraison à vérifier', action: 'Vérifier', to: '/gestion/livraisons/tarifs' },
     props.canMessages && unreadCount.value > 0 && { key: 'unread', icon: 'whatsapp', text: pl(unreadCount.value, 'message non lu', 'messages non lus'), action: 'Ouvrir', to: '/gestion/messages' },
     t.recaps > 0 && { key: 'recaps', icon: 'clock', text: pl(t.recaps, 'récap à confirmer', 'récaps à confirmer'), action: 'Voir', to: props.canMessages ? '/gestion/messages?filtre=a-confirmer' : '/gestion/confirmation' },
     t.carts > 0 && { key: 'carts', icon: 'orders', text: pl(t.carts, 'panier du catalogue à confirmer', 'paniers du catalogue à confirmer'), action: 'Confirmer', to: props.canMessages ? '/gestion/messages?filtre=a-confirmer' : '/gestion/confirmation' },
