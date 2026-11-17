@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=540">
+<title>Commande WhatsApp simulée</title>
+<style>
+  :root {
+    --chat-bg: #efe6dc; --in: #ffffff; --out: #d9fdd3; --ink: #111b21; --muted: #667781;
+    --head: #0f7a5c; --link: #0a8f6a; --brand1: #13a058; --brand2: #065f46;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 540px; height: 960px; overflow: hidden; background: #000; }
+  body { font-family: Inter, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  img.e { width: 1.2em; height: 1.2em; vertical-align: -0.24em; margin: 0 .04em; display: inline; }
+  #phone { position: absolute; inset: 0; background: var(--chat-bg); overflow: hidden; }
+  .status { height: 30px; background: #0b664d; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-size: 13px; font-weight: 600; }
+  .head { height: 62px; background: var(--head); color: #fff; display: flex; align-items: center; gap: 12px; padding: 0 14px; }
+  .head .back { font-size: 24px; opacity: .9; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(140deg, #f59e0b, #d4500f); display: grid; place-items: center; font-weight: 800; font-size: 18px; }
+  .head .name { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 6px; }
+  .tick { width: 15px; height: 15px; border-radius: 50%; background: #25d366; display: inline-grid; place-items: center; font-size: 10px; color: #fff; }
+  .head .sub { font-size: 12.5px; opacity: .85; }
+  #viewport { position: absolute; top: 92px; bottom: 64px; left: 0; right: 0; overflow: hidden;
+    background-image: radial-gradient(rgba(0,0,0,.035) 1.2px, transparent 1.3px); background-size: 18px 18px; }
+  #scroller { position: absolute; left: 0; right: 0; top: 0; padding: 12px 12px 14px; will-change: transform; }
+  .chip { margin: 4px auto 12px; width: max-content; background: #fff; color: var(--muted); font-size: 12px; padding: 5px 12px; border-radius: 8px; box-shadow: 0 1px 1px rgba(0,0,0,.08); }
+  .row { display: flex; margin: 3px 0; }
+  .row.out { justify-content: flex-end; }
+  .bubble { max-width: 80%; background: var(--in); border-radius: 10px; padding: 7px 10px 6px; font-size: 15.5px; line-height: 1.38;
+    box-shadow: 0 1px 1px rgba(0,0,0,.1); position: relative; transform-origin: bottom left; }
+  .out .bubble { background: var(--out); transform-origin: bottom right; }
+  .bubble .meta { float: right; margin: 6px 0 -4px 10px; font-size: 11px; color: var(--muted); }
+  .out .meta::after { content: ' ✓✓'; color: #53bdeb; letter-spacing: -3px; padding-right: 3px; }
+  .bubble.media { padding: 4px; width: 300px; }
+  .bubble.media .cap { padding: 6px 6px 2px; }
+  .bubble.media > img, .bubble.media > .pic { display: block; width: 100%; border-radius: 7px; }
+  .btns { margin: 7px -10px -6px; border-top: 1px solid #e9edef; }
+  .media .btns { margin: 6px -4px -4px; }
+  .btn { text-align: center; color: var(--link); font-weight: 600; font-size: 15px; padding: 10px 6px; border-bottom: 1px solid #e9edef; position: relative; }
+  .btn:last-child { border-bottom: 0; }
+  .btn.hit { background: #e7f6f0; }
+  .typing { width: 64px; height: 36px; display: flex; align-items: center; justify-content: center; gap: 4px; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: #9aa5ab; display: block; }
+  .inputbar { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: transparent; }
+  .field { flex: 1; height: 46px; background: #fff; border-radius: 23px; display: flex; align-items: center; padding: 0 18px; font-size: 16px; color: var(--muted); box-shadow: 0 1px 1px rgba(0,0,0,.08); }
+  .field.typed { color: var(--ink); }
+  .caret { display: inline-block; width: 2px; height: 20px; background: var(--link); margin-left: 1px; vertical-align: -4px; }
+  .send { width: 46px; height: 46px; border-radius: 50%; background: #0f8a63; color: #fff; display: grid; place-items: center; font-size: 19px; }
+  /* Liste WhatsApp (feuille du bas) */
+  #dim { position: absolute; inset: 0; background: rgba(0,0,0,.45); opacity: 0; }
+  #sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 18px 18px 0 0; padding: 10px 0 18px; transform: translateY(100%); }
+  #sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: #d1d7db; margin: 0 auto 10px; }
+  #sheet h3 { text-align: center; font-size: 17px; padding: 4px 0 12px; border-bottom: 1px solid #e9edef; }
+  #sheet .opt { display: flex; align-items: center; justify-content: space-between; padding: 12px 22px; border-bottom: 1px solid #f0f2f3; }
+  #sheet .opt b { display: block; font-size: 16px; font-weight: 600; }
+  #sheet .opt small { color: var(--muted); font-size: 13px; }
+  #sheet .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #8696a0; }
+  #sheet .opt.on .radio { border: 7px solid #0f8a63; }
+  #sheet .opt.on { background: #f0faf6; }
+  #tap { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255,255,255,.55); border: 3px solid rgba(15,138,99,.9); opacity: 0; pointer-events: none; z-index: 50; }
+  /* Écran du marchand */
+  #merchant { position: absolute; inset: 0; background: #f5f7f4; transform: translateX(100%); z-index: 40; }
+  .m-head { background: linear-gradient(140deg, var(--brand1), var(--brand2)); color: #fff; padding: 46px 22px 22px; }
+  .m-head small { opacity: .85; font-size: 13px; }
+  .m-head h1 { font-size: 26px; margin-top: 2px; }
+  .m-tabs { display: flex; gap: 8px; padding: 16px 18px 6px; }
+  .m-tabs span { font-size: 13.5px; font-weight: 600; padding: 7px 12px; border-radius: 999px; background: #fff; color: #4b5866; box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+  .m-tabs span.on { background: #065f46; color: #fff; }
+  .card { margin: 12px 18px; background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 20px -8px rgba(15,23,42,.12); }
+  .card .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .card .ref { font-weight: 800; font-size: 17px; }
+  .card .amt { font-weight: 800; font-size: 18px; }
+  .card .who { color: #4b5866; font-size: 14px; margin-top: 4px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; margin-right: 6px; padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+  .pill.ok { background: #dcfce7; color: #166534; }
+  .pill.src { background: #e0f2fe; color: #075985; }
+  .card.new { outline: 3px solid #13a058; }
+  .card.old { opacity: .55; }
+  .line { display: flex; gap: 10px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #eef1ef; font-size: 14px; }
+  .line .pic { width: 46px; border-radius: 8px; }
+  #notif { position: absolute; left: 12px; right: 12px; top: 10px; background: rgba(255,255,255,.97); border-radius: 18px; padding: 12px 14px; display: flex; gap: 12px; align-items: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25); transform: translateY(-140%); z-index: 60; }
+  #notif .ic { width: 42px; height: 42px; border-radius: 11px; background: linear-gradient(140deg, var(--brand1), var(--brand2)); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 18px; flex: none; }
+  #notif b { font-size: 14.5px; }
+  #notif p { font-size: 14px; color: #33414f; line-height: 1.3; }
+  #notif small { color: #8a96a3; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="phone">
+  <div class="status"><span>23:04</span><span>📶 🔋 82 %</span></div>
+  <div class="head">
+    <span class="back">←</span>
+    <div class="avatar">A</div>
+    <div><div class="name">Awa Mode <span class="tick">✓</span></div><div class="sub">Compte professionnel</div></div>
+  </div>
+  <div id="viewport"><div id="scroller"><div class="chip">Aujourd'hui</div></div></div>
+  <div class="inputbar"><div class="field" id="field">Message</div><div class="send">➤</div></div>
+  <div id="dim"></div>
+  <div id="sheet"><div class="grab"></div><h3 id="sheetTitle"></h3><div id="sheetRows"></div></div>
+</div>
+
+<div id="merchant">
+  <div class="m-head"><small>Jibiat Marchand · Awa Mode</small><h1>Commandes</h1></div>
+  <div class="m-tabs"><span>À confirmer</span><span class="on">Confirmées</span><span>Expédiées</span></div>
+  <div class="card new" id="newCard">
+    <div class="top"><span class="ref">N° 1042</span><span class="amt">17 000 F</span></div>
+    <div class="who">Fatou Koné · Niangon, Yopougon · à l'instant</div>
+    <span class="pill ok">✅ Confirmée par la cliente</span><span class="pill src">💬 WhatsApp</span>
+    <div class="line"><span id="thumb"></span><span><b>Robe Awa wax · M</b><br><span style="color:#667781">1 × 15 000 F · livraison 2 000 F</span></span></div>
+  </div>
+  <div class="card old">
+    <div class="top"><span class="ref">N° 1041</span><span class="amt">23 500 F</span></div>
+    <div class="who">Aminata Diallo · Angré, Cocody · 22:41</div>
+    <span class="pill ok">✅ Confirmée par la cliente</span><span class="pill src">💬 WhatsApp</span>
+  </div>
+  <div class="card old">
+    <div class="top"><span class="ref">N° 1040</span><span class="amt">12 000 F</span></div>
+    <div class="who">Kouassi Yao · Zone 4, Marcory · 21:58</div>
+    <span class="pill ok">✅ Confirmée par la cliente</span><span class="pill src">🌐 Boutique en ligne</span>
+  </div>
+</div>
+<div id="notif"><div class="ic">J</div><div><b>Nouvelle commande · N° 1042</b> <small>· maintenant</small>
+  <p>Fatou K. · 17 000 F · Yopougon<br>✅ Déjà confirmée sur WhatsApp</p></div></div>
+<div id="tap"></div>
+
+<script>
+// ——— Visuels des articles (à remplacer par de vraies photos : mettre une URL d'image dans PHOTOS) ———
+const PHOTOS = { robe: null, ensemble: null };
+function dress(c1, c2, c3, bg) {
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <defs><pattern id="w" width="36" height="36" patternUnits="userSpaceOnUse"><rect width="36" height="36" fill="${c1}"/>
+  <circle cx="18" cy="18" r="11" fill="${c2}"/><circle cx="18" cy="18" r="5" fill="${c3}"/><circle cx="0" cy="0" r="6" fill="${c3}"/><circle cx="36" cy="36" r="6" fill="${c3}"/></pattern>
+  <linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${bg}"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs>
+  <rect width="300" height="300" fill="url(#g)"/>
+  <path d="M125 40 h50 l8 28 q28 8 30 40 l-22 10 l-6 -20 l-2 30 l50 140 h-166 l50 -140 l-2 -30 l-6 20 l-22 -10 q2 -32 30 -40 z" fill="url(#w)" stroke="rgba(0,0,0,.15)" stroke-width="2"/>
+  <path d="M125 40 q25 22 50 0" fill="none" stroke="rgba(0,0,0,.2)" stroke-width="3"/></svg>`);
+}
+const IMG = {
+  robe: PHOTOS.robe || dress('#f97316', '#1d4ed8', '#facc15', '#ffe2cc'),
+  ensemble: PHOTOS.ensemble || dress('#7c3aed', '#f5f3ff', '#c026d3', '#ede9fe'),
+};
+document.getElementById('thumb').innerHTML = `<img class="pic" src="${IMG.robe}" style="width:46px;border-radius:8px">`;
+
+// ——— Mise en forme WhatsApp : *gras*, _italique_, ~barré~ ———
+const fmt = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+  .replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/_([^_\n]+)_/g, '<i>$1</i>').replace(/~([^~\n]+)~/g, '<s>$1</s>').replace(/\n/g, '<br>');
+
+// ——— Déroulé (secondes). Textes repris des messages réels de l'application ———
+const M = [
+  { t: 1.7, out: true, text: 'modèles', type: 1.0, time: '23:04' },
+  { t: 2.9, text: "Bonjour 👋 Voici nos catégories :\n\n*1* Robes · 12 modèles\n*2* Ensembles · 8 modèles\n*3* Sacs & accessoires · 15 modèles\n*4* ✨ Nouveautés\n\n👉 Écrivez *le numéro* de la catégorie." },
+  { t: 5.0, out: true, text: '1', type: 0.5 },
+  { t: 6.0, img: 'ensemble', text: '*Ensemble Bazin Lila* · 22 000 F\nTailles : S · M · L', btns: ['🛍️ Je prends'] },
+  { t: 6.9, img: 'robe', text: '*Robe Awa wax* · 15 000 F ~18 000 F~\nTailles : S · M · L', btns: ['🛍️ Je prends'], id: 'take' },
+  { t: 9.0, out: true, text: '🛍️ Je prends', tap: 'take-0', tapT: 8.6 },
+  { t: 9.8, text: 'Super choix 😍 *Robe Awa wax*\nQuelle taille ?', btns: ['S', 'M', 'L'], id: 'size' },
+  { t: 11.4, out: true, text: 'M', tap: 'size-1', tapT: 11.0 },
+  { t: 12.2, text: "✅ *C'est noté !*\nRobe Awa wax · M · 15 000 F\n_Le prix final (gros, pack) est sur le récapitulatif._" },
+  { t: 13.0, text: "📍 *DERNIÈRE ÉTAPE : L'ADRESSE*\n\n👇 Touchez *« Choisir ma commune »* ci-dessous", btns: ['☰ Choisir ma commune'], id: 'commune' },
+  { t: 16.6, out: true, text: 'Yopougon' },
+  { t: 17.4, text: '📍 *Yopougon* · livraison 2 000 F\n\n👇 Touchez *« Choisir mon quartier »*', btns: ['☰ Choisir mon quartier'], id: 'quartier' },
+  { t: 20.9, out: true, text: 'Niangon' },
+  { t: 22.0, recap: true, text: "🧾 *COMMANDE N° 1042*\n🛵 Livraison (Niangon, Yopougon) : 2 000 F\n💰 *Total à payer : 17 000 F*\n🎁 Vous économisez 3 000 F\n📷 _Vérifiez les photos avant de confirmer_\n_Paiement à la livraison_\n\n👇 *Touchez « Je confirme » pour valider*",
+    btns: ['✅ Je confirme', "Changer l'adresse", 'Ajouter un article'], id: 'recap' },
+  { t: 27.4, out: true, text: '✅ Je confirme', tap: 'recap-0', tapT: 27.0 },
+  { t: 28.3, text: '🎉 *COMMANDE CONFIRMÉE !*\n\nMerci Fatou 🙏\n🧾 N° 1042\n💰 *17 000 F* à payer à la livraison\n🛵 Niangon, Yopougon : le livreur vous appelle avant de passer.' },
+];
+const SHEETS = [
+  { open: 14.2, pick: 15.6, close: 16.2, after: 'commune', title: 'Communes livrées', choice: 1, rows: [
+    ['Cocody', 'Livraison 1 500 F · sous 24 h'], ['Yopougon', 'Livraison 2 000 F · sous 24 h'], ['Marcory', 'Livraison 1 500 F · sous 24 h'],
+    ['Abobo', 'Livraison 2 000 F · sous 24 h'], ['Plateau', 'Livraison 1 500 F · sous 24 h'], ['Autre commune…', 'Écrivez-la simplement'], ['🚚 Autre ville', 'Expédition dès 3 000 F']] },
+  { open: 18.5, pick: 19.9, close: 20.5, after: 'quartier', title: 'Quartiers de Yopougon', choice: 1, rows: [
+    ['Siporex', 'Livraison 2 000 F'], ['Niangon', 'Livraison 2 000 F'], ['Maroc', 'Livraison 2 000 F'], ['Selmer', 'Livraison 2 000 F'],
+    ['Toits Rouges', 'Livraison 2 000 F'], ['Autre quartier…', 'Écrivez-le simplement']] },
+];
+const MERCHANT = 30.6, NOTIF = 31.4, END = 37;
+
+// ——— Construction des bulles ———
+const scroller = document.getElementById('scroller');
+M.forEach((m, i) => {
+  if (!m.out) {  // « en train d'écrire » avant chaque réponse de la boutique
+    const ty = document.createElement('div'); ty.className = 'row'; ty.style.display = 'none';
+    ty.innerHTML = '<div class="bubble typing"><i></i><i></i><i></i></div>'; scroller.appendChild(ty); m.typingEl = ty;
+  }
+  const row = document.createElement('div'); row.className = 'row' + (m.out ? ' out' : ''); row.style.display = 'none';
+  const time = m.time || '23:0' + Math.min(9, 4 + Math.floor(m.t / 6));
+  const btns = m.btns ? `<div class="btns">${m.btns.map((b, j) => `<div class="btn" id="${m.id}-${j}">${b}</div>`).join('')}</div>` : '';
+  let body;
+  if (m.img) body = `<div class="bubble media"><img src="${IMG[m.img]}"><div class="cap">${fmt(m.text)}<span class="meta">${time}</span></div>${btns}</div>`;
+  else if (m.recap) body = `<div class="bubble media">${recapCard()}<div class="cap">${fmt(m.text)}<span class="meta">${time}</span></div>${btns}</div>`;
+  else body = `<div class="bubble">${fmt(m.text)}<span class="meta">${time}</span>${btns}</div>`;
+  row.innerHTML = body; scroller.appendChild(row); m.el = row;
+});
+function recapCard() {  // image du récapitulatif envoyée par l'application (miniature, prix, livraison, total)
+  return `<div class="pic" style="background:#fff;border:1px solid #eef1ef;padding:12px 12px 10px;font-size:13.5px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:15px">Awa Mode</b><span style="color:#667781">Commande N° 1042</span></div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+      <img src="${IMG.robe}" style="width:64px;height:64px;border-radius:8px;object-fit:cover">
+      <div style="flex:1"><b>Robe Awa wax</b><br><span style="color:#667781">Taille M · 1 pièce</span></div>
+      <div style="text-align:right"><b>15 000 F</b><br><s style="color:#9aa5ab">18 000 F</s></div></div>
+    <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:8px;border-top:1px dashed #d8dee2"><span>🛵 Niangon, Yopougon</span><b>2 000 F</b></div>
+    <div style="display:flex;justify-content:space-between;margin-top:8px;padding:9px 11px;border-radius:9px;background:linear-gradient(140deg,#13a058,#065f46);color:#fff;font-size:15px"><b>Total</b><b>17 000 F</b></div></div>`;
+}
+
+// ——— Emoji en images (Noto, Apache 2.0) : la police en couleur ne s'affiche pas partout ———
+const EMOJI = /\p{Extended_Pictographic}\uFE0F?/gu;
+function fix(img) {  // fichier nommé avec ou sans le sélecteur FE0F
+  if (img.dataset.r) return; img.dataset.r = 1;
+  img.src = img.src.includes('-fe0f.png') ? img.src.replace('-fe0f.png', '.png') : img.src.replace('.png', '-fe0f.png');
+}
+function emojify(root) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (w.nextNode()) if (/\p{Extended_Pictographic}/u.test(w.currentNode.nodeValue)) nodes.push(w.currentNode);
+  nodes.forEach(n => { const span = document.createElement('span');
+    span.innerHTML = n.nodeValue.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(EMOJI, e => {
+      const code = [...e].map(c => c.codePointAt(0).toString(16)).join('-');
+      return `<img class="e" src="emoji64/${code}.png" onerror="fix(this)" alt="">`; });
+    n.replaceWith(...span.childNodes); });
+}
+emojify(document.body);
+const _sheetRows = document.getElementById('sheetRows');
+new MutationObserver(() => { if (_sheetRows.querySelector('img.e') === null) emojify(_sheetRows); }).observe(_sheetRows, { childList: true });
+
+// ——— Rendu à l'instant t (déterministe, sauf le défilement lissé) ———
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+const back = x => { x = clamp(x); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+let scroll = 0, lastT = 0;
+const viewport = document.getElementById('viewport'), field = document.getElementById('field');
+const sheet = document.getElementById('sheet'), dim = document.getElementById('dim'), tapEl = document.getElementById('tap');
+
+function tapAt(el, t0, t) {
+  if (!el || t < t0 || t > t0 + 0.6) return false;
+  const r = el.getBoundingClientRect(), k = (t - t0) / 0.6;
+  tapEl.style.left = (r.left + r.width / 2) + 'px'; tapEl.style.top = (r.top + r.height / 2) + 'px';
+  tapEl.style.opacity = k < 0.25 ? k / 0.25 : 1 - (k - 0.25) / 0.75;
+  tapEl.style.transform = `scale(${k < 0.25 ? 1 - k : 0.75 + (k - 0.25) * 0.6})`;
+  return true;
+}
+
+window.render = function (t) {
+  const dt = Math.max(0, t - lastT); lastT = t;
+  // Bulles et indicateur d'écriture
+  M.forEach(m => {
+    if (m.typingEl) m.typingEl.style.display = t >= m.t - 0.8 && t < m.t ? 'flex' : 'none';
+    if (m.typingEl && m.typingEl.style.display === 'flex')
+      m.typingEl.querySelectorAll('i').forEach((d, j) => d.style.transform = `translateY(${-3 * Math.max(0, Math.sin((t * 7) - j * 0.9))}px)`);
+    const on = t >= m.t; m.el.style.display = on ? 'flex' : 'none';
+    if (on) { const k = (t - m.t) / 0.28; const b = m.el.firstElementChild; b.style.transform = `scale(${0.85 + 0.15 * back(k)})`; b.style.opacity = clamp(k * 1.6); }
+  });
+  // Champ de saisie du client
+  const typing = M.find(m => m.out && m.type && t >= m.t - m.type - 0.25 && t < m.t);
+  if (typing) {
+    const n = Math.ceil(typing.text.length * clamp((t - (typing.t - typing.type - 0.25)) / typing.type));
+    field.className = 'field typed'; field.innerHTML = typing.text.slice(0, n) + '<span class="caret"></span>';
+  } else { field.className = 'field'; field.textContent = 'Message'; }
+  // Défilement vers la dernière bulle, lissé
+  const target = Math.max(0, scroller.scrollHeight - viewport.clientHeight);
+  scroll += (target - scroll) * (1 - Math.exp(-dt * 9)); if (dt === 0 || dt > 1) scroll = target;
+  scroller.style.transform = `translateY(${-scroll}px)`;
+  // Boutons touchés
+  document.querySelectorAll('.btn.hit').forEach(b => b.classList.remove('hit'));
+  let tapped = false;
+  M.forEach(m => { if (m.tap && t >= m.tapT && t < m.tapT + 0.5) { document.getElementById(m.tap).classList.add('hit'); } if (m.tap) tapped = tapAt(document.getElementById(m.tap), m.tapT, t) || tapped; });
+  // Listes (communes, quartiers)
+  const s = SHEETS.find(s => t >= s.open - 0.75 && t < s.close + 0.35);
+  if (s) {
+    const btn = document.getElementById(s.after + '-0');
+    if (t < s.open) { btn.classList.toggle('hit', t > s.open - 0.4); tapped = tapAt(btn, s.open - 0.6, t) || tapped; }
+    if (document.getElementById('sheetTitle').textContent !== s.title) {
+      document.getElementById('sheetTitle').textContent = s.title;
+      document.getElementById('sheetRows').innerHTML = s.rows.map(([a, b], j) => `<div class="opt" id="opt-${j}"><div><b>${a}</b><small>${b}</small></div><span class="radio"></span></div>`).join('');
+    }
+    const k = t < s.close ? ease((t - s.open) / 0.35) : 1 - ease((t - s.close) / 0.3);
+    sheet.style.transform = `translateY(${(1 - clamp(k)) * 100}%)`; dim.style.opacity = clamp(k);
+    document.querySelectorAll('#sheet .opt').forEach((o, j) => o.classList.toggle('on', j === s.choice && t >= s.pick + 0.15));
+    if (t >= s.pick - 0.2) tapped = tapAt(document.getElementById('opt-' + s.choice), s.pick - 0.2, t) || tapped;
+  } else { sheet.style.transform = 'translateY(100%)'; dim.style.opacity = 0; }
+  if (!tapped) tapEl.style.opacity = 0;
+  // Écran du marchand et notification
+  document.getElementById('merchant').style.transform = `translateX(${(1 - ease((t - MERCHANT) / 0.5)) * 100}%)`;
+  const nk = t < NOTIF + 4 ? back((t - NOTIF) / 0.45) : 1 - ease((t - NOTIF - 4) / 0.4);
+  document.getElementById('notif').style.transform = `translateY(${(1 - nk) * -140}%)`;
+  document.getElementById('newCard').style.outlineColor = `rgba(19,160,88,${0.35 + 0.65 * Math.abs(Math.sin((t - NOTIF) * 2.4))})`;
+};
+window.DURATION = END;
+
+// Aperçu dans un navigateur : lecture en boucle (désactivée pendant l'enregistrement)
+if (!location.hash.includes('capture')) {
+  let start = performance.now();
+  (function loop(now) { let t = (now - start) / 1000; if (t > END) { start = now; t = 0; lastT = 0; } render(t); requestAnimationFrame(loop); })(start);
+}
+</script>
+</body>
+</html>

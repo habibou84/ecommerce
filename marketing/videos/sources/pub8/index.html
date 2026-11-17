@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=540">
+<title>Publicité récap WhatsApp</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 540px; height: 960px; overflow: hidden; background: #04100b; }
+  body { font-family: Inter, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
+  img.e { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin: 0 .03em; display: inline; }
+  #bg { position: absolute; inset: 0; background: #04100b; }
+  .glow { position: absolute; border-radius: 50%; filter: blur(60px); }
+  #g1 { width: 520px; height: 520px; background: rgba(19,160,88,.45); left: -120px; top: -120px; }
+  #g2 { width: 460px; height: 460px; background: rgba(132,204,22,.22); right: -160px; bottom: -80px; }
+  #red { position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, rgba(220,38,38,.38), rgba(60,0,0,.25) 60%, transparent); opacity: 0; }
+  .layer { position: absolute; inset: 0; opacity: 0; }
+  .hl { color: #4ade80; }
+  .hl2 { background: linear-gradient(100deg, #4ade80, #bef264); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .bad { color: #f87171; }
+  .head { position: absolute; left: 28px; right: 28px; top: 70px; text-align: center; font-weight: 800; font-size: 37px; line-height: 1.12; letter-spacing: -0.5px; }
+  .sub { position: absolute; left: 30px; right: 30px; text-align: center; font-size: 19px; font-weight: 600; color: #c7d2cc; }
+  .w { display: inline-block; opacity: 0; }
+  /* Téléphone */
+  .phone { position: absolute; left: 120px; top: 300px; width: 300px; height: 521px; border-radius: 40px; background: #0b0f0d; padding: 8px;
+    box-shadow: 0 0 0 1.5px rgba(255,255,255,.12), 0 30px 80px rgba(0,0,0,.6), 0 0 60px rgba(34,197,94,.18); }
+  .screen { position: relative; width: 284px; height: 505px; border-radius: 33px; overflow: hidden; background: #fff; }
+  .notch { position: absolute; top: 7px; left: 50%; width: 82px; height: 20px; margin-left: -41px; background: #0b0f0d; border-radius: 12px; z-index: 30; }
+  .tag { position: absolute; left: 0; right: 0; top: 262px; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #e7efe9; }
+  .tag img.logo { width: 22px; height: 22px; border-radius: 5px; background: #fff; padding: 1px; }
+  .tag span.light { color: #9fb3a8; font-weight: 500; }
+  /* Écran verrouillé */
+  .lock { position: absolute; inset: 0; background: linear-gradient(170deg, #1e1b4b, #0f172a 55%, #052e1f); color: #fff; }
+  .lock .clock { text-align: center; font-size: 62px; font-weight: 300; margin-top: 46px; letter-spacing: -1px; }
+  .lock .date { text-align: center; font-size: 14px; opacity: .8; }
+  .notif { position: absolute; left: 10px; right: 10px; background: rgba(255,255,255,.93); color: #111; border-radius: 16px; padding: 9px 11px; display: flex; gap: 9px; align-items: center; font-size: 12px; line-height: 1.3; }
+  .notif img.logo { width: 30px; height: 30px; border-radius: 8px; background: #fff; flex: none; box-shadow: 0 0 0 1px #e5e7eb; }
+  .notif b { font-size: 12.5px; }
+  .notif small { color: #6b7280; float: right; }
+  /* Liste des discussions */
+  .list { position: absolute; inset: 0; background: #fff; color: #111; }
+  .list .top { background: #0f7a5c; color: #fff; padding: 34px 14px 10px; font-weight: 700; font-size: 17px; display: flex; justify-content: space-between; }
+  .list .badge { background: #ef4444; color: #fff; border-radius: 999px; padding: 1px 9px; font-size: 13px; }
+  .chat { position: absolute; left: 0; right: 0; height: 58px; display: flex; gap: 10px; align-items: center; padding: 0 12px; border-bottom: 1px solid #f1f5f9; background: #fff; }
+  .chat .av { width: 38px; height: 38px; border-radius: 50%; flex: none; display: grid; place-items: center; color: #fff; font-weight: 700; }
+  .chat .txt { flex: 1; min-width: 0; font-size: 13px; }
+  .chat .txt b { display: block; font-size: 14px; }
+  .chat .txt span { color: #4b5563; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .chat .n { background: #22c55e; color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; min-width: 20px; height: 20px; display: grid; place-items: center; padding: 0 5px; }
+  .quote { position: absolute; background: #fff; color: #111; font-weight: 700; font-size: 23px; padding: 12px 18px; border-radius: 20px 20px 20px 4px; box-shadow: 0 12px 40px rgba(0,0,0,.45); white-space: nowrap; }
+  .loss { position: absolute; left: 0; right: 0; top: 520px; text-align: center; font-size: 54px; font-weight: 900; color: #f87171; text-shadow: 0 6px 30px rgba(0,0,0,.6); }
+  /* Démonstration */
+  iframe { position: absolute; left: 0; top: 0; width: 540px; height: 960px; border: 0; transform-origin: 0 0; transform: scale(0.526); }
+  .step { position: absolute; left: 24px; right: 24px; top: 52px; text-align: center; font-weight: 800; font-size: 35px; line-height: 1.12; letter-spacing: -0.5px; opacity: 0; }
+  .num { display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(140deg, #22c55e, #065f46); font-size: 22px; margin-right: 8px; vertical-align: 4px; }
+  .pills { position: absolute; left: 0; right: 0; top: 208px; display: flex; justify-content: center; gap: 10px; }
+  .pill { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 7px 14px; font-weight: 700; font-size: 16px; opacity: 0; }
+  /* Autres fonctionnalités */
+  .grid { position: absolute; left: 34px; right: 34px; top: 270px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .tile { height: 160px; border-radius: 22px; background: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.04)); border: 1px solid rgba(255,255,255,.14);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; font-weight: 800; font-size: 19px; text-align: center; opacity: 0; }
+  .tile .ic { font-size: 50px; line-height: 1; }
+  /* Fin */
+  .bigLogo { position: absolute; left: 50%; top: 210px; width: 170px; height: 170px; margin-left: -85px; border-radius: 40px; background: #fff; padding: 16px; box-shadow: 0 0 80px rgba(74,222,128,.45); }
+  .brand { position: absolute; left: 0; right: 0; top: 405px; text-align: center; font-size: 46px; font-weight: 900; letter-spacing: -1px; }
+  .slogan { position: absolute; left: 30px; right: 30px; top: 475px; text-align: center; font-size: 27px; font-weight: 700; line-height: 1.2; color: #e2e8e4; }
+  .cta { position: absolute; left: 60px; right: 60px; top: 600px; height: 66px; border-radius: 18px; background: linear-gradient(140deg, #22c55e, #15803d); display: grid; place-items: center; font-size: 22px; font-weight: 800; box-shadow: 0 12px 40px rgba(34,197,94,.4); }
+  .url { position: absolute; left: 0; right: 0; top: 690px; text-align: center; font-size: 30px; font-weight: 800; }
+  /* Démonstration : téléphone plus grand pour lire la discussion */
+  #demoPhone { left: 90px; top: 226px; width: 360px; height: 628px; border-radius: 46px; }
+  #demoPhone .screen { width: 344px; height: 612px; border-radius: 39px; }
+  #demoPhone iframe { transform: scale(0.637); }
+  #C .tag { top: 196px; }
+  #C .pills { top: 152px; }
+  /* Sous-titres */
+  #subs { position: absolute; left: 20px; right: 20px; top: 866px; text-align: center; }
+  #subs span { display: inline-block; background: rgba(0,0,0,.62); padding: 7px 14px; border-radius: 12px; font-size: 21px; font-weight: 700; line-height: 1.25; }
+  /* Récap : accroche */
+  .bigword { position: absolute; left: 0; right: 0; top: 430px; display: flex; justify-content: center; }
+  .bigword .bub { background: #d9fdd3; color: #0b1a14; font-size: 76px; font-weight: 900; padding: 18px 40px 22px; border-radius: 34px 34px 8px 34px; box-shadow: 0 0 90px rgba(74,222,128,.55), 0 20px 50px rgba(0,0,0,.5); letter-spacing: -1px; }
+  .bigword .caret { display: inline-block; width: 6px; height: 64px; background: #0f8a63; margin-left: 4px; vertical-align: -6px; }
+  .bigword .ticks { font-size: 22px; color: #53bdeb; font-weight: 700; margin-left: 10px; letter-spacing: -6px; }
+  /* Récap : problème (cahier) */
+  .note { position: absolute; left: 70px; right: 70px; top: 280px; height: 470px; background: #fffdf3; border-radius: 18px; color: #1f2937; padding: 26px 26px 0 56px; box-shadow: 0 30px 70px rgba(0,0,0,.55);
+    background-image: repeating-linear-gradient(#fffdf3 0 43px, #c7d7ee 43px 44px); transform: rotate(-2deg); }
+  .note::before { content: ''; position: absolute; left: 40px; top: 0; bottom: 0; width: 2px; background: #f4a3a3; }
+  .note .ln { height: 44px; line-height: 44px; font-size: 22px; font-weight: 600; font-family: 'Segoe Print', 'Comic Sans MS', Inter, sans-serif; opacity: 0; white-space: nowrap; }
+  .note .q { color: #dc2626; font-weight: 900; }
+  .stamp { position: absolute; left: 0; right: 0; top: 520px; display: flex; justify-content: center; }
+  .stamp div { border: 6px solid #ef4444; color: #ef4444; font-size: 40px; font-weight: 900; padding: 8px 22px; border-radius: 14px; background: rgba(20,0,0,.55); transform: rotate(-8deg); letter-spacing: 1px; }
+  /* Récap : démonstration */
+  #ring { position: absolute; border: 4px solid #4ade80; border-radius: 16px; box-shadow: 0 0 30px rgba(74,222,128,.8); opacity: 0; pointer-events: none; z-index: 20; }
+  #scan { position: absolute; left: 0; right: 0; height: 120px; background: linear-gradient(180deg, transparent, rgba(74,222,128,.35), transparent); opacity: 0; z-index: 15; }
+  #ask { position: absolute; left: 22px; top: 560px; width: 250px; background: #fff; color: #111; border-radius: 16px 16px 16px 4px; padding: 10px 14px; font-size: 16px; line-height: 1.3; box-shadow: 0 16px 40px rgba(0,0,0,.5); opacity: 0; z-index: 25; }
+  #ask small { display: block; margin-top: 6px; color: #15803d; font-weight: 700; font-size: 12.5px; }
+  #ask2 { position: absolute; right: 22px; top: 650px; width: 230px; background: #fff; color: #111; border-radius: 16px 16px 16px 4px; padding: 10px 14px; font-size: 16px; line-height: 1.3; box-shadow: 0 16px 40px rgba(0,0,0,.5); opacity: 0; z-index: 25; }
+  .flip { transform-origin: 50% 50%; }
+  /* Fin : deux façons de s'inscrire */
+  #F .bigLogo { top: 130px; width: 150px; height: 150px; margin-left: -75px; border-radius: 36px; }
+  #F .brand { top: 298px; font-size: 44px; } #F .slogan { top: 360px; font-size: 25px; }
+  #F .cta { top: 458px; height: 60px; font-size: 21px; } #F .url { top: 532px; font-size: 28px; }
+  .wa { position: absolute; left: 36px; right: 36px; top: 600px; border-radius: 22px; background: rgba(37,211,102,.12); border: 2px solid rgba(37,211,102,.55); padding: 14px 16px 16px; text-align: center; opacity: 0; }
+  .wa .or { font-size: 15px; color: #a7f3d0; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .wa .send { font-size: 21px; font-weight: 700; margin-top: 6px; } .wa .send b { background: #25d366; color: #052e16; padding: 2px 10px; border-radius: 8px; }
+  .wa .wanum { font-size: 36px; font-weight: 900; margin-top: 8px; letter-spacing: .5px; } .wa .wanum span { opacity: .25; }
+</style>
+</head>
+<body>
+<div id="bg"><div class="glow" id="g1"></div><div class="glow" id="g2"></div><div id="red"></div></div>
+
+<!-- A. Accroche -->
+<div class="layer" id="A">
+  <div class="head" id="hook0">Vous vendez <span class="hl2">sur WhatsApp ?</span></div>
+  <div class="head" id="hookHead"></div>
+  <div class="bigword"><div class="bub" id="bigBub"><span id="bigTxt"></span><span class="caret" id="bigCaret"></span><span class="ticks" id="bigTicks">✓✓</span></div></div>
+</div>
+
+<!-- B. Problème -->
+<div class="layer" id="B">
+  <div class="head" id="probHead1">Après chaque discussion, <span class="bad">tout recopier…</span></div>
+  <div class="head" id="probHead2">Une seule erreur, <span class="bad">un colis qui revient</span></div>
+  <div class="note" id="note">
+    <div class="ln" data-t="7.65">Fatou · robe wax rouge</div>
+    <div class="ln" data-t="8.40">taille M <span class="q">ou L ??</span></div>
+    <div class="ln" data-t="9.00">Angré <span class="q">ou Riviera ?</span></div>
+    <div class="ln" data-t="9.80">livraison 1 500 <span class="q">ou 2 000 ?</span></div>
+    <div class="ln" data-t="10.5">total : 16 500 <span class="q">17 000 ?</span></div>
+    <div class="ln" data-t="10.9">Aminata · 2 sacs… <span class="q">quartier ?</span></div>
+  </div>
+  <div class="stamp" id="stamp"><div>📦 RETOUR</div></div>
+</div>
+
+<!-- C/D. Démonstration -->
+<div class="layer" id="C">
+  <div id="steps"></div>
+  <div class="pills"><div class="pill" id="p1">✍️ Rien à recopier</div><div class="pill" id="p2">🎯 Aucune erreur</div></div>
+  <div class="tag" id="tag1">💬 Votre WhatsApp <span class="light">· vous discutez avec Fatou</span></div>
+  <div class="tag" id="tag2" style="opacity:0">📱 Le téléphone de votre client</div>
+  <div class="tag" id="tag3" style="opacity:0"><img class="logo" src="logo.png"> Jibiat Marchand <span class="light">· vu par vous</span></div>
+  <div class="phone flip" id="demoPhone"><div class="screen"><div class="notch"></div>
+    <iframe id="mChat" src="../video8/merchant.html#capture"></iframe>
+    <iframe id="cChat" src="../video8/client.html#capture" style="visibility:hidden"></iframe>
+    <div id="scan"></div></div></div>
+  <div id="ring"></div>
+  <div id="ask">📏 Quelle taille voulez-vous ?<br><b>S · M · L</b><small>✨ demandé automatiquement</small></div>
+  <div id="ask2">📍 Choisissez votre commune et votre quartier</div>
+</div>
+
+<!-- E. Les autres fonctionnalités -->
+<div class="layer" id="E">
+  <div class="head" id="moreHead1">Et ce n'est <span class="hl2">pas tout</span></div>
+  <div class="head" id="moreHead2" style="opacity:0">Tout au <span class="hl2">même endroit</span></div>
+  <div class="grid">
+    <div class="tile" data-t="41.92"><span class="ic">🌐</span>Boutique en ligne</div>
+    <div class="tile" data-t="43.0"><span class="ic">🔴</span>Vente en live</div>
+    <div class="tile" data-t="44.0"><span class="ic">🛵</span>Vos livreurs</div>
+    <div class="tile" data-t="44.96"><span class="ic">🚚</span>Entreprises de livraison</div>
+    <div class="tile" data-t="46.24"><span class="ic">💰</span>Caisse</div>
+    <div class="tile" data-t="46.92"><span class="ic">📊</span>Stock et statistiques</div>
+  </div>
+</div>
+
+<!-- F. Appel à l'action -->
+<div class="layer" id="F">
+  <img class="bigLogo" id="bigLogo" src="logo.png">
+  <div class="brand" id="brand">Jibiat Marchand</div>
+  <div class="slogan" id="slogan">Toute votre boutique<br><span class="hl2">dans votre téléphone</span></div>
+  <div class="cta" id="cta">Créez la vôtre gratuitement</div>
+  <div class="url" id="url">jibiat-marchand.com</div>
+  <div class="wa" id="wa"><div class="or">ou sur WhatsApp</div><div class="send">Envoyez <b>Inscription</b> au</div><div class="wanum" id="waNum"><span>+225</span> <span>07</span> <span>03</span> <span>68</span> <span>68</span> <span>76</span></div></div>
+</div>
+
+<div id="subs"><span></span></div>
+
+<script>
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+const back = x => { x = clamp(x); const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const $ = id => document.getElementById(id);
+const lerpKeys = (keys, t) => { if (t <= keys[0][0]) return keys[0][1]; for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) { const [a, va] = keys[i - 1], [b, vb] = keys[i]; return va + (vb - va) * (t - a) / (b - a); } return keys[keys.length - 1][1]; };
+const pop = (el, t, t0, d = 0.35) => { const k = (t - t0) / d; el.style.opacity = clamp(k * 1.5); el.style.transform = `scale(${t < t0 ? 0.8 : 0.8 + 0.2 * back(k)})`; };
+const fadeIn = (el, t, t0, d = 0.3, dy = 14) => { const k = ease((t - t0) / d); el.style.opacity = k; el.style.transform = `translateY(${(1 - k) * dy}px)`; };
+const win = (t, a, b, f = 0.3) => clamp(Math.min((t - a) / f, (b - t) / f));
+
+// ——— Calage sur la voix off (transcription mot à mot) ———
+const SCENES = { A: [0, 4.98], B: [4.98, 13.95], C: [13.95, 40.84], E: [40.84, 49.66], F: [49.66, 65.96] };
+const END = 65.96;
+const SUBS = [
+  [0, 'Vous vendez sur WhatsApp ?'], [1.47, 'Un seul mot suffit pour enregistrer la commande :'], [3.88, '« récap ».'],
+  [5.04, 'Après chaque discussion,'], [6.24, 'il faut tout recopier :'], [7.65, 'l\'article, la taille, le quartier,'], [9.8, 'le prix de la livraison…'],
+  [11.24, 'Et une seule erreur,'], [12.37, 'c\'est un colis qui revient.'],
+  [13.96, 'Avec Jibiat Marchand,'], [15.12, 'vous discutez normalement avec votre client,'], [17.36, 'depuis votre téléphone.'],
+  [18.76, 'Dès qu\'il vous a dit ce qu\'il veut,'], [20.24, 'vous écrivez simplement : « récap ».'], [22.5, 'L\'application relit la conversation'],
+  [24.32, 'et prépare la commande.'], [25.72, 'S\'il manque la taille ou le quartier,'], [27.48, 'elle les demande au client.'],
+  [28.88, 'Votre client reçoit le récapitulatif :'], [31.09, 'l\'article, la livraison, le total…'], [33.6, 'Il touche « Je confirme », et c\'est fait.'],
+  [36.04, 'La commande est enregistrée,'], [37.52, 'déjà confirmée.'], [38.72, 'Rien à recopier.'], [39.8, 'Aucune erreur.'],
+  [40.84, 'Et ce n\'est pas tout :'], [41.92, 'boutique en ligne, vente en live,'], [43.88, 'vos livreurs ou une entreprise de livraison,'],
+  [46.24, 'caisse, stock et statistiques.'], [48.37, 'Tout est au même endroit.'], [49.68, 'Jibiat Marchand :'],
+  [50.72, 'toute votre boutique dans votre téléphone.'], [52.96, 'Créez la vôtre gratuitement'], [54.48, 'sur jibiat-marchand.com…'], [57.0, 'ou envoyez « Inscription » sur WhatsApp'], [59.76, 'au 07 03 68 68 76'], [64.76, ''],
+];
+const FLIP = 28.85;  // passage au téléphone du client
+// Temps des deux discussions simulées (video8) en fonction du temps de la publicité
+const MCHAT = [[13.95, 0], [18.7, 5.6], [20.9, 5.75], [21.8, 6.6], [24.9, 7.6], [25.4, 8.6], [28.85, 11]];
+const CCHAT = [[28.85, 0], [29.9, 1.0], [33.9, 3.9], [34.35, 4.3], [35.5, 5.7], [36.0, 6.2], [36.4, 8.0], [37.0, 8.8], [40.84, 12.6]];
+const STEPS = [
+  [13.95, 18.75, '<span class="num">1</span>Vous discutez <span class="hl2">normalement</span>'],
+  [18.75, 22.5, '<span class="num">2</span>Vous écrivez <span class="hl2">« récap »</span>'],
+  [22.5, 25.7, 'L\'application <span class="hl2">prépare la commande</span> ✨'],
+  [25.7, 28.85, 'Il manque une info ? <span class="hl2">Elle la demande</span>'],
+  [28.85, 33.6, '<span class="num">3</span>Votre client reçoit <span class="hl2">le récapitulatif</span>'],
+  [33.6, 36.04, '<span class="num">4</span>Il touche <span class="hl2">« Je confirme »</span>'],
+  [36.04, 40.84, 'Commande enregistrée, <span class="hl2">déjà confirmée</span>'],
+];
+
+// ——— Construction ———
+const hookWords = [['Un', 1.47], ['seul', 1.6], ['mot', 1.84], ['pour', 2.4], ['<span class="hl2">enregistrer</span>', 2.56], ['<span class="hl2">la</span>', 3.04], ['<span class="hl2">commande</span>', 3.2]];
+$('hookHead').innerHTML = hookWords.map(([w], i) => `<span class="w" id="hw${i}">${w}</span>`).join(' ');
+$('steps').innerHTML = STEPS.map(([, , h], i) => `<div class="step" id="st${i}">${h}</div>`).join('');
+
+const EMOJI = /\p{Extended_Pictographic}️?/gu;
+function fix(img) { if (img.dataset.r) return; img.dataset.r = 1; img.src = img.src.includes('-fe0f.png') ? img.src.replace('-fe0f.png', '.png') : img.src.replace('.png', '-fe0f.png'); }
+function emojiHtml(s) { return s.replace(EMOJI, e => `<img class="e" src="../video7/emoji64/${[...e].map(c => c.codePointAt(0).toString(16)).join('-')}.png" onerror="fix(this)" alt="">`); }
+function emojify(root) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (w.nextNode()) if (/\p{Extended_Pictographic}/u.test(w.currentNode.nodeValue)) nodes.push(w.currentNode);
+  nodes.forEach(n => { const s = document.createElement('span'); s.innerHTML = emojiHtml(n.nodeValue.replace(/&/g, '&amp;').replace(/</g, '&lt;')); n.replaceWith(...s.childNodes); });
+}
+emojify(document.body);
+
+// ——— Rendu ———
+let lastSub = null;
+const SCALE = 0.637;
+window.render = function (t) {
+  for (const [id, [a, b]] of Object.entries(SCENES)) { const el = $(id); const v = id === 'A' && t < 0.5 ? 1 : win(t, a, b, 0.25); el.style.opacity = v; el.style.display = v > 0 ? 'block' : 'none'; }
+  $('g1').style.transform = `translate(${Math.sin(t * 0.35) * 40}px, ${Math.cos(t * 0.3) * 30}px)`;
+  $('g2').style.transform = `translate(${Math.cos(t * 0.27) * 40}px, ${Math.sin(t * 0.33) * 30}px)`;
+  $('red').style.opacity = 0.9 * win(t, 11.1, 13.95, 0.6);
+
+  // A. Accroche : le mot « récap » tapé en grand
+  if (t < 5.3) {
+    const h0 = clamp(1 - (t - 1.3) / 0.2); $('hook0').style.opacity = h0; $('hook0').style.transform = `scale(${1 + 0.04 * clamp(t / 1.3)})`;
+    hookWords.forEach(([, s], i) => fadeIn($('hw' + i), t, s, 0.25, 12));
+    const word = 'récap', k = clamp((t - 3.55) / 0.6);
+    $('bigTxt').textContent = word.slice(0, Math.ceil(word.length * k));
+    $('bigCaret').style.display = t < 4.3 && Math.floor(t * 3) % 2 === 0 || (t > 3.55 && t < 4.2) ? 'inline-block' : 'none';
+    $('bigTicks').style.opacity = clamp((t - 4.3) / 0.2);
+    const b = $('bigBub'); b.style.opacity = clamp((t - 3.3) / 0.25); b.style.transform = `scale(${t < 4.25 ? 0.9 + 0.1 * ease((t - 3.3) / 0.3) : 1 + 0.06 * Math.sin(clamp((t - 4.25) / 0.4) * Math.PI)})`;
+  }
+  // B. Problème
+  if (t > 4.5 && t < 14.3) {
+    document.querySelectorAll('#note .ln').forEach(el => { const s = +el.dataset.t; const k = ease((t - s) / 0.3); el.style.opacity = k; el.style.transform = `translateX(${(1 - k) * -14}px)`; });
+    fadeIn($('note'), t, 5.0, 0.4, 40); $('note').style.transform += ' rotate(-2deg)';
+    const h1 = win(t, 5.04, 11.2, 0.25), h2 = win(t, 11.24, 14.2, 0.25);
+    $('probHead1').style.opacity = h1; $('probHead2').style.opacity = h2;
+    $('note').style.filter = `brightness(${1 - clamp((t - 11.24) / 0.5) * 0.45})`;
+    const sk = (t - 12.6) / 0.3; $('stamp').style.opacity = clamp(sk * 2); $('stamp').style.transform = `scale(${t < 12.6 ? 1.8 : 1.8 - 0.8 * ease(sk)})`;
+  }
+  // C/D. Démonstration
+  if (t > 13.6 && t < 41.2) {
+    const mw = $('mChat').contentWindow, cw = $('cChat').contentWindow;
+    if (mw && mw.render && t < FLIP + 0.3) mw.render(lerpKeys(MCHAT, t));
+    if (cw && cw.render && t > FLIP - 0.3) cw.render(lerpKeys(CCHAT, t));
+    STEPS.forEach(([a, b], i) => { const v = win(t, a, b, 0.22); const el = $('st' + i); el.style.opacity = v; el.style.transform = `translateY(${(1 - v) * 14}px)`; });
+    $('tag1').style.opacity = win(t, 13.95, FLIP, 0.2); $('tag2').style.opacity = win(t, FLIP, 36.3, 0.2); $('tag3').style.opacity = clamp((t - 36.3) / 0.3);
+    // Retournement du téléphone : vue du marchand → vue du client
+    const f = (t - (FLIP - 0.25)) / 0.5, phone = $('demoPhone');
+    const sx = f > 0 && f < 1 ? Math.abs(Math.cos(f * Math.PI)) : 1;
+    $('mChat').style.visibility = f < 0.5 ? 'visible' : 'hidden'; $('cChat').style.visibility = f >= 0.5 ? 'visible' : 'hidden';
+    phone.style.transform = `translateY(${(1 - ease((t - 13.95) / 0.6)) * 80}px) scaleX(${Math.max(0.02, sx)})`;
+    // Halo autour du « récap » envoyé
+    const ring = $('ring'); ring.style.opacity = 0;
+    if (t > 21.7 && t < 24.6 && mw && mw.document) {
+      const row = [...mw.document.querySelectorAll('.row.out')].find(r => r.style.display !== 'none' && r.textContent.trim().startsWith('récap'));
+      if (row) { const r = row.firstElementChild.getBoundingClientRect(), p = $('mChat').getBoundingClientRect();
+        ring.style.left = (p.left + r.left * SCALE - 8) + 'px'; ring.style.top = (p.top + r.top * SCALE - 8) + 'px';
+        ring.style.width = (r.width * SCALE + 16) + 'px'; ring.style.height = (r.height * SCALE + 16) + 'px';
+        ring.style.opacity = win(t, 21.8, 24.6, 0.2) * (0.75 + 0.25 * Math.sin(t * 9)); }
+    }
+    // Relecture de la conversation
+    const sc = win(t, 22.5, 25.3, 0.2); $('scan').style.opacity = sc; $('scan').style.top = (60 + ((t - 22.5) % 1.2) / 1.2 * 480) + 'px';
+    // Ce que l'application demande s'il manque une information
+    const a1 = win(t, 25.9, 28.7, 0.25), a2 = win(t, 26.8, 28.7, 0.25);
+    $('ask').style.opacity = a1; $('ask').style.transform = `scale(${0.85 + 0.15 * a1}) rotate(-3deg)`;
+    $('ask2').style.opacity = a2; $('ask2').style.transform = `scale(${0.85 + 0.15 * a2}) rotate(2deg)`;
+    pop($('p1'), t, 38.72); pop($('p2'), t, 39.8);
+  }
+  // E. Les autres fonctionnalités
+  if (t > 40.3 && t < 50) {
+    $('moreHead1').style.opacity = win(t, 40.84, 48.3, 0.25); $('moreHead2').style.opacity = clamp((t - 48.37) / 0.3);
+    document.querySelectorAll('.tile').forEach(el => { pop(el, t, +el.dataset.t, 0.35);
+      if (t > 48.37) el.style.boxShadow = `0 0 ${30 * clamp((t - 48.37) / 0.4)}px rgba(74,222,128,.35)`; });
+  }
+  // F. Appel à l'action
+  if (t > 49.3) {
+    pop($('bigLogo'), t, 49.68, 0.45); fadeIn($('brand'), t, 49.8, 0.35); fadeIn($('slogan'), t, 50.72, 0.35);
+    pop($('cta'), t, 52.96, 0.4); fadeIn($('url'), t, 54.48, 0.35); pop($('wa'), t, 57.0, 0.45);
+    [6.96, 7.84, 8.64, 9.48, 10.28].forEach((d, i) => $('waNum').children[i + 1].style.opacity = t >= 52.96 + d - 0.1 ? 1 : 0.25); $('waNum').children[0].style.opacity = t >= 59.76 ? 1 : 0.25;
+    if (t > 64.26) $('wa').style.transform = `scale(${1 + 0.03 * Math.sin((t - 64.26) * 5)})`;
+    if (t > 53.46 && t < 56.96) $('cta').style.transform = `scale(${1 + 0.035 * Math.sin((t - 53.46) * 5)})`;
+  }
+  // Sous-titres
+  let cur = ''; for (const [s, txt] of SUBS) if (t >= s) cur = txt;
+  if (cur !== lastSub) { lastSub = cur; $('subs').firstElementChild.innerHTML = emojiHtml(cur); $('subs').style.display = cur ? 'block' : 'none'; }
+};
+window.DURATION = END;
+window.ready = () => ['mChat', 'cChat'].every(id => $(id).contentWindow && $(id).contentWindow.render);
+
+if (!location.hash.includes('capture')) {
+  const audio = new Audio('voix-fin.mp3');
+  document.addEventListener('click', () => { audio.currentTime = 0; audio.play(); });
+  (function loop() { render(audio.paused ? 0 : audio.currentTime); requestAnimationFrame(loop); })();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+sources/video7/emoji64/
+sources/*/frames/
+sources/*/tail/
+sources/*/test/
+*.mp4

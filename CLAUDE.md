@@ -32,3 +32,7 @@ Si PostgreSQL ou Redis sont arrêtés : `service postgresql start; service redis
 - Un nouveau champ ou statut de Jibiat doit d'abord être compris ici (un statut inconnu ne doit rien casser).
 - Un changement de socle se fait dans son dépôt, puis `composer update habibou84/socle` ici et dans Jibiat.
 - Une fonctionnalité qui touche les deux applications : socle d'abord, puis Jibiat, puis Jibiat Marchand.
+
+## Vidéos publicitaires
+Série de vidéos et identité sonore (musique, logo sonore, effets) : `marketing/videos/README.md`. Toute nouvelle
+vidéo reprend la même musique, les mêmes effets et la même fin (site + « Inscription » sur WhatsApp).

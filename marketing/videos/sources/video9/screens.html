@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=540">
+<title>Écrans livreurs</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 540px; height: 960px; overflow: hidden; background: #f5f7f4; }
+  body { font-family: Inter, sans-serif; color: #0f172a; -webkit-font-smoothing: antialiased; }
+  img.e { width: 1.2em; height: 1.2em; vertical-align: -0.24em; margin: 0 .04em; display: inline; }
+  .scr { position: absolute; inset: 0; background: #f5f7f4; display: none; overflow: hidden; }
+  .status { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 15px; font-weight: 700; }
+  .gh { background: linear-gradient(140deg, #13a058, #065f46); color: #fff; padding: 8px 24px 22px; }
+  .gh small { opacity: .85; font-size: 15px; }
+  .gh h1 { font-size: 30px; margin-top: 2px; letter-spacing: -.5px; }
+  .card { margin: 14px 20px; background: #fff; border-radius: 20px; padding: 18px; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 20px -8px rgba(15,23,42,.14); }
+  .row { display: flex; justify-content: space-between; align-items: center; }
+  .muted { color: #64748b; }
+  .big { font-size: 22px; font-weight: 800; }
+  .pill { display: inline-flex; gap: 5px; align-items: center; padding: 5px 11px; border-radius: 999px; font-size: 14px; font-weight: 700; }
+  .ok { background: #dcfce7; color: #166534; } .warn { background: #ffedd5; color: #9a3412; } .info { background: #e0f2fe; color: #075985; }
+  .opt { display: flex; gap: 14px; align-items: center; padding: 14px; border: 2px solid #e2e8f0; border-radius: 16px; margin-top: 10px; background: #fff; }
+  .opt.on { border-color: #13a058; background: #f0fdf4; }
+  .opt .ic { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; background: #f1f5f9; flex: none; }
+  .opt b { font-size: 18px; } .opt .muted { font-size: 14.5px; }
+  .btn { height: 62px; border-radius: 16px; background: #047857; color: #fff; font-weight: 800; font-size: 21px; display: grid; place-items: center; margin: 16px 20px; }
+  .btn.hit { background: #065f46; transform: scale(.98); }
+  .toast { position: absolute; left: 30px; right: 30px; bottom: 40px; background: #0f172a; color: #fff; border-radius: 16px; padding: 16px; font-size: 18px; font-weight: 700; text-align: center; opacity: 0; }
+  /* Application livreur */
+  .ch { background: #0f172a; color: #fff; padding: 8px 22px 18px; }
+  .ch .row b { font-size: 24px; }
+  .money { background: rgba(255,255,255,.1); border-radius: 14px; padding: 10px 14px; margin-top: 12px; display: flex; justify-content: space-between; font-size: 16px; }
+  .money b { font-size: 20px; color: #fbbf24; }
+  .notif { position: absolute; left: 14px; right: 14px; top: 40px; background: #fff; border-radius: 22px; padding: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.3); border: 2px solid #f59e0b; z-index: 5; }
+  .notif .t { font-size: 19px; font-weight: 800; color: #b45309; }
+  .notif .two { display: flex; gap: 10px; margin-top: 12px; }
+  .notif .two div { flex: 1; height: 52px; border-radius: 14px; display: grid; place-items: center; font-weight: 800; font-size: 18px; }
+  .acc { background: #047857; color: #fff; } .ref { background: #f1f5f9; color: #475569; }
+  .acc.hit { background: #065f46; transform: scale(.97); }
+  .grp { margin: 16px 22px 4px; font-size: 14px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
+  .stop { display: flex; gap: 14px; align-items: center; margin: 8px 18px; background: #fff; border-radius: 16px; padding: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
+  .stop .n { width: 38px; height: 38px; border-radius: 50%; background: #0f172a; color: #fff; display: grid; place-items: center; font-weight: 800; flex: none; }
+  .stop.new { outline: 3px solid #13a058; }
+  .stop .call { width: 44px; height: 44px; border-radius: 50%; background: #dcfce7; display: grid; place-items: center; font-size: 20px; flex: none; }
+  .stop b { font-size: 17px; } .stop .muted { font-size: 14px; }
+  .itin { position: absolute; left: 20px; right: 20px; bottom: 26px; height: 60px; border-radius: 16px; background: #1d4ed8; color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 20px; }
+  /* WhatsApp du client */
+  .wa { background: #efe6dc; }
+  .wah { background: #0f7a5c; color: #fff; display: flex; align-items: center; gap: 12px; padding: 4px 16px 14px; }
+  .wah .av { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(140deg, #f59e0b, #d4500f); display: grid; place-items: center; font-weight: 800; font-size: 19px; }
+  .bub { margin: 12px 14px; max-width: 86%; background: #fff; border-radius: 12px; padding: 12px 14px 8px; font-size: 19px; line-height: 1.4; box-shadow: 0 1px 1px rgba(0,0,0,.1); }
+  .bub.out { margin-left: auto; background: #d9fdd3; }
+  .bub .btns { margin: 10px -14px -8px; border-top: 1px solid #e9edef; }
+  .bub .btns div { text-align: center; color: #0a8f6a; font-weight: 700; padding: 12px; border-bottom: 1px solid #e9edef; }
+  .bub .btns div:last-child { border-bottom: 0; }
+  .bub .btns div.hit { background: #e7f6f0; }
+  /* Livraison */
+  .codebox { display: flex; gap: 12px; justify-content: center; margin-top: 12px; }
+  .codebox div { width: 64px; height: 76px; border-radius: 16px; border: 3px solid #cbd5e1; display: grid; place-items: center; font-size: 36px; font-weight: 800; background: #fff; }
+  .codebox div.f { border-color: #13a058; background: #f0fdf4; }
+  .photo { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
+  .photo .ph { width: 86px; height: 86px; border-radius: 14px; background: #e2e8f0; display: grid; place-items: center; font-size: 34px; overflow: hidden; }
+  .pay { display: flex; gap: 10px; margin-top: 10px; }
+  .pay div { flex: 1; height: 58px; border-radius: 14px; border: 2px solid #e2e8f0; display: grid; place-items: center; font-weight: 800; font-size: 17px; background: #fff; }
+  .pay div.on { border-color: #13a058; background: #f0fdf4; color: #065f46; }
+  .qr { position: absolute; inset: 0; background: rgba(15,23,42,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; opacity: 0; }
+  .qr .box { background: #fff; border-radius: 26px; padding: 22px; }
+  .qr p { margin-top: 18px; font-size: 22px; font-weight: 800; text-align: center; }
+  .qr .wait { font-size: 17px; font-weight: 600; opacity: .8; }
+  .done { position: absolute; inset: 0; background: #047857; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; }
+  .done .chk { width: 130px; height: 130px; border-radius: 50%; background: #fff; color: #047857; display: grid; place-items: center; font-size: 80px; font-weight: 900; }
+  .done h2 { font-size: 40px; margin-top: 22px; }
+  .done p { font-size: 19px; opacity: .9; margin-top: 8px; text-align: center; line-height: 1.4; }
+  /* Caisse */
+  .gauge { height: 14px; border-radius: 7px; background: #e2e8f0; overflow: hidden; margin-top: 10px; }
+  .gauge div { height: 100%; border-radius: 7px; background: linear-gradient(90deg, #22c55e, #f59e0b); }
+  .vers { border: 2px solid #13a058; }
+  #tap { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; background: rgba(255,255,255,.5); border: 4px solid rgba(15,138,99,.95); opacity: 0; z-index: 50; pointer-events: none; }
+  .btn, .pay div, .itin, .notif .two div, .toast { display: flex !important; align-items: center; justify-content: center; gap: 8px; }
+  .qr { background: rgba(15,23,42,.97); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; min-height: 34px; }
+  .chip { padding: 6px 12px; border-radius: 999px; background: #ecfdf5; color: #065f46; font-weight: 700; font-size: 15px; border: 1.5px solid #a7f3d0; opacity: 0; }
+  .mode { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 2px solid #e2e8f0; border-radius: 14px; margin-top: 8px; font-size: 16px; }
+  .mode .rd { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #94a3b8; flex: none; }
+  .mode.on { border-color: #13a058; background: #f0fdf4; } .mode.on .rd { border: 7px solid #13a058; }
+  .mode b { display: block; font-size: 17px; } .mode span { color: #64748b; font-size: 13.5px; }
+  .ord { margin: 10px 16px; background: #fff; border-radius: 16px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 18px -10px rgba(15,23,42,.2); opacity: 0; }
+  .ord .top { display: flex; justify-content: space-between; font-size: 16px; } .ord .top b { font-size: 17px; }
+  .ord .who { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 15.5px; font-weight: 700; min-height: 30px; }
+  .ord .who .arrow { color: #13a058; font-size: 20px; }
+  .ord.glow { outline: 3px solid #13a058; }
+  .auto { display: inline-flex; align-items: center; gap: 4px; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 3px 9px; font-size: 13px; font-weight: 800; }
+  .warnline { color: #b45309; font-size: 14.5px; font-weight: 700; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div id="z" style="zoom:1.2;position:absolute;left:0;top:0;width:450px;height:800px;overflow:hidden">
+
+<!-- 1. Fiche commande : qui livre ? -->
+<!-- 0. Mes livreurs : zones et mode automatique -->
+<div class="scr" id="s0">
+  <div class="gh"><div class="status" style="padding:0"><span>08:30</span><span>📶 🔋</span></div><small>Awa Mode · Livraison</small><h1>Mes livreurs</h1></div>
+  <div class="card" style="padding:14px 18px"><div class="row"><b style="font-size:19px">🛵 Moussa Traoré</b><span class="pill ok">Disponible</span></div>
+    <div class="chips"><span class="chip" data-t="-13.4">Cocody</span><span class="chip" data-t="-13.2">Riviera</span><span class="chip" data-t="-13.0">Angré</span></div></div>
+  <div class="card" style="padding:14px 18px"><div class="row"><b style="font-size:19px">🛵 Ibrahim Koné</b><span class="pill ok">Disponible</span></div>
+    <div class="chips"><span class="chip" data-t="-12.2">Yopougon</span><span class="chip" data-t="-12.0">Abobo</span></div></div>
+  <div class="card" style="padding:14px 18px"><div class="row"><b style="font-size:19px">🛵 Yao N'Guessan</b><span class="pill ok">Disponible</span></div>
+    <div class="chips"><span class="chip" data-t="-11.2">Marcory</span><span class="chip" data-t="-11.0">Koumassi</span><span class="chip" data-t="-10.8">Cocody</span></div></div>
+  <div class="card" id="modes" style="opacity:0;padding:14px 16px"><b style="font-size:17px">Quand une commande est confirmée, qui la livre ?</b>
+    <div class="mode"><span class="rd"></span><div><b>Je choisis moi-même</b><span>« Faire livrer » à chaque commande</span></div></div>
+    <div class="mode"><span class="rd"></span><div><b>On me propose, je confirme</b></div></div>
+    <div class="mode" id="mAuto"><span class="rd"></span><div><b>⚡ Automatique</b><span>Dès la confirmation, la commande part chez un livreur libre</span></div></div></div>
+</div>
+
+<!-- A. Les commandes partent toutes seules -->
+<div class="scr" id="sa">
+  <div class="gh"><div class="status" style="padding:0"><span>10:12</span><span>📶 🔋</span></div><small>Awa Mode · Commandes</small><h1>⚡ Livraison automatique</h1></div>
+  <div class="ord" id="o0"><div class="top"><span><b>N° 1042</b> · Fatou K.</span><b>16 500 F</b></div><div class="muted" style="font-size:14.5px">📍 Angré, Cocody · <span class="pill ok" style="padding:2px 8px;font-size:12.5px">✅ Confirmée</span></div><div class="who"></div></div>
+  <div class="ord" id="o1"><div class="top"><span><b>N° 1043</b> · Aminata D.</span><b>23 500 F</b></div><div class="muted" style="font-size:14.5px">📍 Siporex, Yopougon · <span class="pill ok" style="padding:2px 8px;font-size:12.5px">✅ Confirmée</span></div><div class="who"></div></div>
+  <div class="ord" id="o2"><div class="top"><span><b>N° 1044</b> · Kouassi Y.</span><b>12 000 F</b></div><div class="muted" style="font-size:14.5px">📍 Zone 4, Marcory · <span class="pill ok" style="padding:2px 8px;font-size:12.5px">✅ Confirmée</span></div><div class="who"></div></div>
+  <div class="ord" id="o3"><div class="top"><span><b>N° 1045</b> · Mariam S.</span><b>9 000 F</b></div><div class="muted" style="font-size:14.5px">📍 Riviera, Cocody · <span class="pill ok" style="padding:2px 8px;font-size:12.5px">✅ Confirmée</span></div><div class="who"></div><div class="warnline" id="w3" style="display:none">⏳ Moussa ne répond pas (15 min) : on passe à un autre livreur</div></div>
+</div>
+
+<div class="scr" id="s1">
+  <div class="gh"><div class="status" style="padding:0"><span>10:12</span><span>📶 🔋</span></div><small>Awa Mode · Commandes</small><h1>Commande N° 1042</h1></div>
+  <div class="card">
+    <div class="row"><b style="font-size:20px">Fatou Koné</b><span class="big">16 500 F</span></div>
+    <div class="muted" style="margin-top:4px;font-size:16px">📍 Angré 8e tranche, Cocody · Robe wax rouge · M</div>
+    <div style="margin-top:10px"><span class="pill ok">✅ Confirmée</span> <span class="pill info">💵 À la livraison</span></div>
+  </div>
+  <div style="margin:18px 22px 0;font-size:20px;font-weight:800">Qui livre ?</div>
+  <div style="margin:0 20px">
+    <div class="opt" id="o1"><div class="ic">🛵</div><div style="flex:1"><b>Moussa Traoré</b><div class="muted">Couvre Cocody · disponible · 3 colis</div></div><span class="pill ok">Conseillé</span></div>
+    <div class="opt"><div class="ic">🛵</div><div style="flex:1"><b>Ibrahim Koné</b><div class="muted">Couvre Yopougon, Abobo</div></div></div>
+    <div class="opt"><div class="ic">🚚</div><div style="flex:1"><b>Livraison Express CI</b><div class="muted">1 500 F · 94 % réussies · 2 h</div></div></div>
+  </div>
+  <div class="btn" id="b1">🛵 Faire livrer</div>
+  <div class="toast" id="t1">✓ Confié à Moussa Traoré</div>
+</div>
+
+<!-- 2. Application du livreur : nouvelle mission et tournée -->
+<div class="scr" id="s2">
+  <div class="ch"><div class="status" style="padding:0"><span>10:12</span><span>📶 🔋</span></div>
+    <div class="row"><b>Ma tournée</b><span style="opacity:.8">Moussa · 🛵</span></div>
+    <div class="money"><span>À verser à la boutique</span><b id="cash2">32 000 F</b></div></div>
+  <div class="notif" id="n2"><div class="t">🔔 Nouvelle mission</div>
+    <div style="font-size:18px;margin-top:6px"><b>Fatou Koné</b> · Angré, Cocody<br><span class="muted">À encaisser : <b style="color:#0f172a">16 500 F</b></span></div>
+    <div class="two"><div class="ref">✕ Refuser</div><div class="acc" id="a2">✓ Accepter</div></div></div>
+  <div style="margin:16px 22px 0;font-size:17px;font-weight:700" class="muted"><span id="nstops">4</span> arrêts aujourd'hui · 2 livrées</div>
+  <div class="grp">Cocody</div>
+  <div class="stop" id="st0" style="display:none"><div class="n">1</div><div style="flex:1"><b>Fatou Koné</b><div class="muted">Angré 8e tranche · 16 500 F</div></div><div class="call">📞</div></div>
+  <div class="stop"><div class="n" id="nb1">1</div><div style="flex:1"><b>Aminata Diallo</b><div class="muted">Riviera 2 · 23 500 F</div></div><div class="call">📞</div></div>
+  <div class="grp">Marcory</div>
+  <div class="stop"><div class="n" id="nb2">2</div><div style="flex:1"><b>Kouassi Yao</b><div class="muted">Zone 4 · 12 000 F</div></div><div class="call">📞</div></div>
+  <div class="stop"><div class="n" id="nb3">3</div><div style="flex:1"><b>Mariam Sylla</b><div class="muted">Biétry · 9 000 F</div></div><div class="call">📞</div></div>
+  <div class="itin">🗺️ Itinéraire</div>
+</div>
+
+<!-- 3. WhatsApp du client : le livreur arrive -->
+<div class="scr wa" id="s3">
+  <div class="wah"><div style="width:100%"><div class="status" style="padding:0;color:#fff"><span>10:31</span><span>📶 🔋</span></div>
+    <div style="display:flex;gap:12px;align-items:center"><span style="font-size:24px">←</span><div class="av">A</div><div><b style="font-size:19px">Awa Mode</b><div style="font-size:14px;opacity:.85">Compte professionnel</div></div></div></div></div>
+  <div class="bub" id="m3" style="opacity:0">🛵 <b>Votre livreur arrive !</b><br><br>👤 Moussa Traoré<br>📞 07 00 00 00 03<br>💰 À payer : <b>16 500 F</b><br><br>Vous êtes disponible ?
+    <div class="btns"><div id="w1">✅ J'attends</div><div>❌ Pas disponible</div></div></div>
+  <div class="bub out" id="r3" style="opacity:0;width:max-content">✅ J'attends</div>
+</div>
+
+<!-- 4. Livraison : code, photo, paiement -->
+<div class="scr" id="s4">
+  <div class="ch"><div class="status" style="padding:0"><span>10:38</span><span>📶 🔋</span></div>
+    <div class="row"><b>Livraison</b><span style="opacity:.8">N° 1042</span></div>
+    <div style="margin-top:8px;font-size:17px;color:#86efac">✓ Le client vous attend</div></div>
+  <div class="card"><div class="row"><b style="font-size:20px">Fatou Koné</b><span class="big">16 500 F</span></div><div class="muted" style="font-size:15px">à encaisser auprès du client</div></div>
+  <div class="card"><b style="font-size:18px">Code donné par le client</b>
+    <div class="codebox"><div id="c0"></div><div id="c1"></div><div id="c2"></div><div id="c3"></div></div></div>
+  <div class="card"><b style="font-size:18px">Photo du colis remis</b>
+    <div class="photo"><div class="ph" id="ph">📷</div><span class="muted" id="phl" style="font-size:16px">Toucher pour prendre la photo</span></div></div>
+  <div class="card"><b style="font-size:18px">Payé en</b>
+    <div class="pay"><div id="pe">💵 Espèces</div><div id="pm">📱 Mobile money</div></div></div>
+  <div class="qr" id="qr"><div class="box" id="qrbox"></div><p>Scannez pour payer<br>16 500 F</p><div class="wait" id="qw">En attente du paiement…</div></div>
+  <div class="done" id="dn"><div class="chk">✓</div><h2>Livré</h2><p>Code vérifié · photo enregistrée<br>16 500 F payés par mobile money</p></div>
+</div>
+
+<!-- 5. Caisse du marchand -->
+<div class="scr" id="s5">
+  <div class="gh"><div class="status" style="padding:0"><span>18:05</span><span>📶 🔋</span></div><small>Awa Mode · Caisse</small><h1>Argent chez les livreurs</h1></div>
+  <div class="card">
+    <div class="row"><b style="font-size:20px">🛵 Moussa Traoré</b><span class="big" id="mc">0 F</span></div>
+    <div class="muted" style="font-size:15px;margin-top:4px">à verser · plafond 50 000 F</div>
+    <div class="gauge"><div id="g5" style="width:0%"></div></div>
+    <div style="margin-top:10px;font-size:15px" class="muted">Aujourd'hui : <b style="color:#0f172a">6 livrées</b> · 1 échec · <b style="color:#0f172a">16 500 F</b> par mobile money</div>
+  </div>
+  <div class="card" style="padding:14px 18px"><div class="row"><b style="font-size:18px">🛵 Ibrahim Koné</b><b style="font-size:18px">12 000 F</b></div></div>
+  <div class="card vers" id="v5" style="opacity:0">
+    <div style="font-size:15px;font-weight:800;color:#047857">💸 VERSEMENT DÉCLARÉ</div>
+    <div style="font-size:18px;margin-top:6px">Moussa a versé <b>48 500 F</b> par Wave<br><span class="muted" style="font-size:15px">Réf. WV-7K2Q9 · reçu en photo</span></div>
+    <div class="btn" id="b5" style="margin:12px 0 0;height:54px;font-size:18px">✓ Confirmer la réception</div>
+  </div>
+  <div class="card" id="p5" style="opacity:0">
+    <div class="row"><b style="font-size:18px">💰 Paie de Moussa aujourd'hui</b><b style="font-size:20px;color:#047857">6 300 F</b></div>
+    <div class="muted" style="font-size:15px;margin-top:4px">6 livraisons × 1 000 F + 1 tentative × 300 F</div>
+  </div>
+</div>
+
+</div>
+<div id="tap"></div>
+<script>
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+const back = x => { x = clamp(x); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const $ = id => document.getElementById(id);
+const F = n => Math.round(n).toLocaleString('fr-FR').replace(/ | /g, ' ') + ' F';
+// Faux QR code (motif fixe)
+(() => { let h = '<svg width="230" height="230" viewBox="0 0 29 29" shape-rendering="crispEdges">'; let x = 7;
+  for (let i = 0; i < 29; i++) for (let j = 0; j < 29; j++) { x = (x * 1103515245 + 12345) % 2147483648; const f = (a, b) => i >= a && i < a + 7 && j >= b && j < b + 7;
+    const fin = f(0, 0) || f(0, 22) || f(22, 0); const on = fin ? (i % 22 === 0 || i % 22 === 6 || j % 22 === 0 || j % 22 === 6 || (i % 22 >= 2 && i % 22 <= 4 && j % 22 >= 2 && j % 22 <= 4)) : x % 3 === 0;
+    if (on) h += `<rect x="${j}" y="${i}" width="1" height="1" fill="#0f172a"/>`; } $('qrbox').innerHTML = h + '</svg>'; })();
+// Emoji en images
+const EMOJI = /\p{Extended_Pictographic}️?/gu;
+function fix(img) { if (img.dataset.r) return; img.dataset.r = 1; img.src = img.src.includes('-fe0f.png') ? img.src.replace('-fe0f.png', '.png') : img.src.replace('.png', '-fe0f.png'); }
+(function emojify(root) { const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (w.nextNode()) if (/\p{Extended_Pictographic}/u.test(w.currentNode.nodeValue)) nodes.push(w.currentNode);
+  nodes.forEach(n => { const s = document.createElement('span'); s.innerHTML = n.nodeValue.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(EMOJI, e => `<img class="e" src="../video7/emoji64/${[...e].map(c => c.codePointAt(0).toString(16)).join('-')}.png" onerror="fix(this)" alt="">`); n.replaceWith(...s.childNodes); }); })(document.body);
+
+function tap(el, t0, t) { if (!el || t < t0 || t > t0 + 0.55) return false; const r = el.getBoundingClientRect(), k = (t - t0) / 0.55, T = $('tap');
+  T.style.left = (r.left + r.width / 2) + 'px'; T.style.top = (r.top + r.height / 2) + 'px'; T.style.opacity = k < .25 ? k / .25 : 1 - (k - .25) / .75; T.style.transform = `scale(${k < .25 ? 1 - k : .75 + (k - .25) * .6})`; return true; }
+
+// Écrans (temps local s) : 1 commande 0–4 · 2 livreur 4–9 · 3 client 9–12 · 4 livraison 12–19 · 5 caisse 19+
+function emojifyLate() { document.querySelectorAll('#sa .who').forEach(w => { if (/\p{Extended_Pictographic}/u.test(w.innerHTML) && !w.querySelector('img.e')) {
+  const t = w.innerHTML.replace(/\p{Extended_Pictographic}\uFE0F?/gu, e => `<img class="e" src="../video7/emoji64/${[...e].map(c => c.codePointAt(0).toString(16)).join('-')}.png" onerror="fix(this)" alt="">`); w.innerHTML = t; } }); }
+const RANGES = [['s0', -15, -7], ['sa', -7, 4], ['s1', 99, 99], ['s2', 4, 9], ['s3', 9, 12], ['s4', 12, 19], ['s5', 19, 99]];
+window.render = function (s) {
+  RANGES.forEach(([id, a, b]) => $(id).style.display = s >= a && s < b ? 'block' : 'none');
+  let tapped = false;
+  // 0 : zones des livreurs, puis « Automatique »
+  document.querySelectorAll('#s0 .chip').forEach(el => { const k = (s - +el.dataset.t) / 0.3; el.style.opacity = clamp(k * 1.5); el.style.transform = `scale(${s < +el.dataset.t ? .6 : .6 + .4 * back(k)})`; });
+  const mk0 = (s - -10.2) / 0.35; $('modes').style.opacity = clamp(mk0 * 1.5); $('modes').style.transform = `translateY(${(1 - ease(mk0)) * 30}px)`;
+  $('mAuto').classList.toggle('on', s >= -8.6); tapped = tap($('mAuto'), -8.8, s) || tapped;
+  // A : les commandes confirmées partent chez le bon livreur
+  const ORD = [[-6.6, -5.8, 'Moussa', null], [-5.0, -4.2, 'Ibrahim', null], [-3.4, -2.6, 'Yao', null], [-1.9, -1.2, 'Moussa', 'Yao']];
+  ORD.forEach(([a, b, who, then], i) => { const el = $('o' + i), k = (s - a) / 0.3; el.style.opacity = clamp(k * 1.5); el.style.transform = `translateX(${(1 - ease(k)) * 40}px)`;
+    const w = el.querySelector('.who'); let name = s >= b ? who : null; const swap = then && s >= 1.4;
+    if (swap) name = then;
+    w.innerHTML = name ? `<span class="arrow">➜</span> 🛵 ${name} <span class="auto">⚡ automatique</span>` : (s >= a ? '<span class="muted" style="font-weight:600">Recherche du livreur…</span>' : '');
+    el.classList.toggle('glow', name !== null && s - (swap ? 1.4 : b) < 0.8 && s >= b);
+    if (then) { const wl = $('w3'); wl.style.display = s >= 0.2 && s < 1.4 ? 'block' : 'none'; }
+  });
+  emojifyLate();
+  // 1
+  $('o1').classList.toggle('on', s >= 1.6); $('b1').classList.toggle('hit', s >= 2.8 && s < 3.2);
+  tapped = tap($('o1'), 1.4, s) || tap($('b1'), 2.7, s) || tapped;
+  $('t1').style.opacity = clamp((s - 3.1) / 0.2); $('t1').style.transform = `translateY(${(1 - ease((s - 3.1) / 0.3)) * 20}px)`;
+  // 2
+  const nk = s < 6.2 ? back((s - 4.4) / 0.4) : 1 - ease((s - 6.2) / 0.35); $('n2').style.transform = `translateY(${(1 - nk) * -130}%)`;
+  $('a2').classList.toggle('hit', s >= 6.0 && s < 6.3); tapped = tap($('a2'), 5.9, s) || tapped;
+  const added = s >= 6.4; $('st0').style.display = added ? 'flex' : 'none'; $('nstops').textContent = added ? 5 : 4;
+  ['nb1', 'nb2', 'nb3'].forEach((id, i) => $(id).textContent = i + 1 + (added ? 1 : 0));
+  if (added) { const k = ease((s - 6.4) / 0.35); $('st0').style.opacity = k; $('st0').classList.toggle('new', true); }
+  // 3
+  const mk = (s - 9.4) / 0.35; $('m3').style.opacity = clamp(mk * 1.5); $('m3').style.transform = `scale(${s < 9.4 ? .85 : .85 + .15 * back(mk)})`; $('m3').style.transformOrigin = 'top left';
+  $('w1').classList.toggle('hit', s >= 10.9 && s < 11.3); tapped = tap($('w1'), 10.8, s) || tapped; $('r3').style.opacity = clamp((s - 11.3) / 0.2);
+  // 4 : code, photo, mobile money, livré
+  '4719'.split('').forEach((d, i) => { const on = s >= 12.6 + i * 0.32; $('c' + i).textContent = on ? d : ''; $('c' + i).classList.toggle('f', on); });
+  const ph = s >= 14.4; $('ph').innerHTML = ph ? '<div style="width:100%;height:100%;background:linear-gradient(140deg,#dc2626,#7f1d1d);display:grid;place-items:center;color:#fff;font-size:30px">📦</div>' : '📷';
+  if (ph && !$('ph').dataset.e) { $('ph').dataset.e = 1; }
+  $('phl').textContent = ph ? '✓ Photo enregistrée' : 'Toucher pour prendre la photo'; $('phl').style.color = ph ? '#047857' : '';
+  tapped = tap($('ph'), 14.0, s) || tapped;
+  $('pm').classList.toggle('on', s >= 15.3); tapped = tap($('pm'), 15.1, s) || tapped;
+  $('qr').style.opacity = s < 17.6 ? clamp((s - 15.5) / 0.3) : 1 - clamp((s - 17.6) / 0.25);
+  $('qw').textContent = s >= 17.0 ? '✓ Paiement reçu' : 'En attente du paiement…'; $('qw').style.color = s >= 17.0 ? '#86efac' : '';
+  const dk = (s - 17.7) / 0.4; $('dn').style.opacity = clamp(dk * 2); $('dn').querySelector('.chk').style.transform = `scale(${s < 17.7 ? .5 : .5 + .5 * back(dk)})`;
+  // 5 : caisse
+  const c = ease((s - 19.4) / 1.2) * 48500; $('mc').textContent = F(c); $('g5').style.width = (c / 50000 * 100) + '%';
+  const v = (s - 21.6) / 0.35; $('v5').style.opacity = clamp(v * 1.5); $('v5').style.transform = `translateY(${(1 - ease(v)) * 30}px)`;
+  $('b5').classList.toggle('hit', s >= 23.6 && s < 24); tapped = tap($('b5'), 23.5, s) || tapped;
+  if (s >= 24.0) { $('b5').textContent = '✓ Reçu · écart 0 F'; $('b5').style.background = '#dcfce7'; $('b5').style.color = '#166534'; $('mc').textContent = F(Math.max(0, 48500 * (1 - ease((s - 24) / 0.6)))); $('g5').style.width = (48500 * (1 - ease((s - 24) / 0.6)) / 50000 * 100) + '%'; }
+  else { $('b5').textContent = '✓ Confirmer la réception'; $('b5').style.background = ''; $('b5').style.color = ''; }
+  const p = (s - 25.2) / 0.35; $('p5').style.opacity = clamp(p * 1.5); $('p5').style.transform = `translateY(${(1 - ease(p)) * 30}px)`;
+  if (!tapped) $('tap').style.opacity = 0;
+};
+if (!location.hash.includes('capture')) { const st = performance.now(); (function loop(n) { render(((n - st) / 1000) % 28); requestAnimationFrame(loop); })(st); }
+</script>
+</body>
+</html>

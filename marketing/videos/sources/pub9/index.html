@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=540">
+<title>Publicité vos livreurs</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 540px; height: 960px; overflow: hidden; background: #04100b; }
+  body { font-family: Inter, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
+  img.e { width: 1.15em; height: 1.15em; vertical-align: -0.2em; margin: 0 .03em; display: inline; }
+  #bg { position: absolute; inset: 0; background: #04100b; }
+  .glow { position: absolute; border-radius: 50%; filter: blur(60px); }
+  #g1 { width: 520px; height: 520px; background: rgba(19,160,88,.45); left: -120px; top: -120px; }
+  #g2 { width: 460px; height: 460px; background: rgba(132,204,22,.22); right: -160px; bottom: -80px; }
+  #red { position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, rgba(220,38,38,.38), rgba(60,0,0,.25) 60%, transparent); opacity: 0; }
+  .layer { position: absolute; inset: 0; opacity: 0; }
+  .hl { color: #4ade80; }
+  .hl2 { background: linear-gradient(100deg, #4ade80, #bef264); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .bad { color: #f87171; }
+  .head { position: absolute; left: 28px; right: 28px; top: 70px; text-align: center; font-weight: 800; font-size: 37px; line-height: 1.12; letter-spacing: -0.5px; }
+  .sub { position: absolute; left: 30px; right: 30px; text-align: center; font-size: 19px; font-weight: 600; color: #c7d2cc; }
+  .w { display: inline-block; opacity: 0; }
+  /* Téléphone */
+  .phone { position: absolute; left: 120px; top: 300px; width: 300px; height: 521px; border-radius: 40px; background: #0b0f0d; padding: 8px;
+    box-shadow: 0 0 0 1.5px rgba(255,255,255,.12), 0 30px 80px rgba(0,0,0,.6), 0 0 60px rgba(34,197,94,.18); }
+  .screen { position: relative; width: 284px; height: 505px; border-radius: 33px; overflow: hidden; background: #fff; }
+  .notch { position: absolute; top: 7px; left: 50%; width: 82px; height: 20px; margin-left: -41px; background: #0b0f0d; border-radius: 12px; z-index: 30; }
+  .tag { position: absolute; left: 0; right: 0; top: 262px; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #e7efe9; }
+  .tag img.logo { width: 22px; height: 22px; border-radius: 5px; background: #fff; padding: 1px; }
+  .tag span.light { color: #9fb3a8; font-weight: 500; }
+  /* Écran verrouillé */
+  .lock { position: absolute; inset: 0; background: linear-gradient(170deg, #1e1b4b, #0f172a 55%, #052e1f); color: #fff; }
+  .lock .clock { text-align: center; font-size: 62px; font-weight: 300; margin-top: 46px; letter-spacing: -1px; }
+  .lock .date { text-align: center; font-size: 14px; opacity: .8; }
+  .notif { position: absolute; left: 10px; right: 10px; background: rgba(255,255,255,.93); color: #111; border-radius: 16px; padding: 9px 11px; display: flex; gap: 9px; align-items: center; font-size: 12px; line-height: 1.3; }
+  .notif img.logo { width: 30px; height: 30px; border-radius: 8px; background: #fff; flex: none; box-shadow: 0 0 0 1px #e5e7eb; }
+  .notif b { font-size: 12.5px; }
+  .notif small { color: #6b7280; float: right; }
+  /* Liste des discussions */
+  .list { position: absolute; inset: 0; background: #fff; color: #111; }
+  .list .top { background: #0f7a5c; color: #fff; padding: 34px 14px 10px; font-weight: 700; font-size: 17px; display: flex; justify-content: space-between; }
+  .list .badge { background: #ef4444; color: #fff; border-radius: 999px; padding: 1px 9px; font-size: 13px; }
+  .chat { position: absolute; left: 0; right: 0; height: 58px; display: flex; gap: 10px; align-items: center; padding: 0 12px; border-bottom: 1px solid #f1f5f9; background: #fff; }
+  .chat .av { width: 38px; height: 38px; border-radius: 50%; flex: none; display: grid; place-items: center; color: #fff; font-weight: 700; }
+  .chat .txt { flex: 1; min-width: 0; font-size: 13px; }
+  .chat .txt b { display: block; font-size: 14px; }
+  .chat .txt span { color: #4b5563; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .chat .n { background: #22c55e; color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; min-width: 20px; height: 20px; display: grid; place-items: center; padding: 0 5px; }
+  .quote { position: absolute; background: #fff; color: #111; font-weight: 700; font-size: 23px; padding: 12px 18px; border-radius: 20px 20px 20px 4px; box-shadow: 0 12px 40px rgba(0,0,0,.45); white-space: nowrap; }
+  .loss { position: absolute; left: 0; right: 0; top: 520px; text-align: center; font-size: 54px; font-weight: 900; color: #f87171; text-shadow: 0 6px 30px rgba(0,0,0,.6); }
+  /* Démonstration */
+  iframe { position: absolute; left: 0; top: 0; width: 540px; height: 960px; border: 0; transform-origin: 0 0; transform: scale(0.526); }
+  .step { position: absolute; left: 24px; right: 24px; top: 52px; text-align: center; font-weight: 800; font-size: 35px; line-height: 1.12; letter-spacing: -0.5px; opacity: 0; }
+  .num { display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(140deg, #22c55e, #065f46); font-size: 22px; margin-right: 8px; vertical-align: 4px; }
+  .pills { position: absolute; left: 0; right: 0; top: 208px; display: flex; justify-content: center; gap: 10px; }
+  .pill { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 7px 14px; font-weight: 700; font-size: 16px; opacity: 0; }
+  /* Autres fonctionnalités */
+  .grid { position: absolute; left: 34px; right: 34px; top: 270px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .tile { height: 160px; border-radius: 22px; background: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.04)); border: 1px solid rgba(255,255,255,.14);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; font-weight: 800; font-size: 19px; text-align: center; opacity: 0; }
+  .tile .ic { font-size: 50px; line-height: 1; }
+  /* Fin */
+  .bigLogo { position: absolute; left: 50%; top: 210px; width: 170px; height: 170px; margin-left: -85px; border-radius: 40px; background: #fff; padding: 16px; box-shadow: 0 0 80px rgba(74,222,128,.45); }
+  .brand { position: absolute; left: 0; right: 0; top: 405px; text-align: center; font-size: 46px; font-weight: 900; letter-spacing: -1px; }
+  .slogan { position: absolute; left: 30px; right: 30px; top: 475px; text-align: center; font-size: 27px; font-weight: 700; line-height: 1.2; color: #e2e8e4; }
+  .cta { position: absolute; left: 60px; right: 60px; top: 600px; height: 66px; border-radius: 18px; background: linear-gradient(140deg, #22c55e, #15803d); display: grid; place-items: center; font-size: 22px; font-weight: 800; box-shadow: 0 12px 40px rgba(34,197,94,.4); }
+  .url { position: absolute; left: 0; right: 0; top: 690px; text-align: center; font-size: 30px; font-weight: 800; }
+  /* Démonstration : téléphone plus grand pour lire la discussion */
+  #demoPhone { left: 90px; top: 226px; width: 360px; height: 628px; border-radius: 46px; }
+  #demoPhone .screen { width: 344px; height: 612px; border-radius: 39px; }
+  #demoPhone iframe { transform: scale(0.637); }
+  #C .tag { top: 196px; }
+  #C .pills { top: 152px; }
+  /* Sous-titres */
+  #subs { position: absolute; left: 20px; right: 20px; top: 866px; text-align: center; }
+  #subs span { display: inline-block; background: rgba(0,0,0,.62); padding: 7px 14px; border-radius: 12px; font-size: 21px; font-weight: 700; line-height: 1.25; }
+  /* Livreurs : accroche */
+  .riders { position: absolute; left: 40px; right: 40px; top: 330px; display: flex; flex-direction: column; gap: 16px; }
+  .rider { display: flex; align-items: center; gap: 16px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 22px; padding: 16px 20px; opacity: 0; }
+  .rider .av { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; font-size: 30px; background: rgba(255,255,255,.12); flex: none; }
+  .rider b { font-size: 22px; } .rider .muted2 { color: #a7b8ae; font-size: 15px; }
+  .rider .amt { margin-left: auto; font-size: 30px; font-weight: 900; color: #fbbf24; }
+  /* Livreurs : problème */
+  .pain { position: absolute; left: 44px; right: 44px; display: flex; align-items: center; gap: 18px; background: #fff; color: #111; border-radius: 22px; padding: 18px 20px; box-shadow: 0 20px 50px rgba(0,0,0,.5); opacity: 0; }
+  .pain .ic { font-size: 44px; } .pain b { font-size: 23px; display: block; } .pain span { color: #64748b; font-size: 16px; }
+  .pain .x { white-space: nowrap; margin-left: auto; font-size: 30px; font-weight: 900; color: #dc2626; }
+  /* Fin : deux façons de s'inscrire */
+  #F .bigLogo { top: 130px; width: 150px; height: 150px; margin-left: -75px; border-radius: 36px; }
+  #F .brand { top: 298px; font-size: 44px; } #F .slogan { top: 360px; font-size: 25px; }
+  #F .cta { top: 458px; height: 60px; font-size: 21px; } #F .url { top: 532px; font-size: 28px; }
+  .wa { position: absolute; left: 36px; right: 36px; top: 600px; border-radius: 22px; background: rgba(37,211,102,.12); border: 2px solid rgba(37,211,102,.55); padding: 14px 16px 16px; text-align: center; opacity: 0; }
+  .wa .or { font-size: 15px; color: #a7f3d0; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .wa .send { font-size: 21px; font-weight: 700; margin-top: 6px; } .wa .send b { background: #25d366; color: #052e16; padding: 2px 10px; border-radius: 8px; }
+  .wa .wanum { font-size: 36px; font-weight: 900; margin-top: 8px; letter-spacing: .5px; } .wa .wanum span { opacity: .25; }
+</style>
+</head>
+<body>
+<div id="bg"><div class="glow" id="g1"></div><div class="glow" id="g2"></div><div id="red"></div></div>
+
+<!-- A. Accroche -->
+<div class="layer" id="A">
+  <div class="head" id="h1">Vos livreurs <span class="hl2">encaissent votre argent</span>…</div>
+  <div class="head" id="h2" style="opacity:0">Combien chacun a <span class="hl2">dans la poche</span> ?</div>
+  <div class="riders">
+    <div class="rider" data-t="0.6"><div class="av">🛵</div><div><b>Moussa</b><div class="muted2">6 colis aujourd'hui</div></div><div class="amt" data-v="48500">? F</div></div>
+    <div class="rider" data-t="1.0"><div class="av">🛵</div><div><b>Ibrahim</b><div class="muted2">4 colis aujourd'hui</div></div><div class="amt" data-v="12000">? F</div></div>
+    <div class="rider" data-t="1.4"><div class="av">🛵</div><div><b>Yao</b><div class="muted2">5 colis aujourd'hui</div></div><div class="amt" data-v="31000">? F</div></div>
+  </div>
+</div>
+
+<!-- B. Problème -->
+<div class="layer" id="B">
+  <div class="head" id="ph1">Chaque jour, <span class="bad">la même galère</span></div>
+  <div class="pain" id="pn0" style="top:300px"><div class="ic">📞</div><div><b>« Tu es où ? »</b><span>des appels toute la journée</span></div><div class="x" id="calls">×1</div></div>
+  <div class="pain" id="pn1" style="top:450px"><div class="ic">📦</div><div><b>« C'est livré ! »</b><span>vraiment ? personne n'a vérifié</span></div><div class="x">?</div></div>
+  <div class="pain" id="pn2" style="top:600px"><div class="ic">🧮</div><div><b>Les comptes du soir</b><span>48 500 ? 45 000 ? il manque…</span></div><div class="x">− 3 500 F</div></div>
+</div>
+
+<!-- C/D. Démonstration -->
+<div class="layer" id="C">
+  <div id="steps"></div>
+  <div class="pills"><div class="pill" id="p1">📦 Chaque colis suivi</div><div class="pill" id="p2">💰 Des comptes justes</div></div>
+  <div class="tag" id="tg0"><img class="logo" src="logo.png"> Jibiat Marchand <span class="light">· vu par vous</span></div>
+  <div class="tag" id="tg1" style="opacity:0">🛵 Application du livreur</div>
+  <div class="tag" id="tg2" style="opacity:0">📱 Le téléphone de votre client</div>
+  <div class="tag" id="tg3" style="opacity:0"><img class="logo" src="logo.png"> Jibiat Marchand <span class="light">· la caisse</span></div>
+  <div class="phone" id="demoPhone"><div class="screen"><div class="notch"></div><iframe id="scr" src="../video9/screens.html#capture"></iframe></div></div>
+</div>
+
+<!-- E. Les autres fonctionnalités -->
+<div class="layer" id="E">
+  <div class="head" id="moreHead1">Et ce n'est <span class="hl2">pas tout</span></div>
+  <div class="head" id="moreHead2" style="opacity:0">Tout au <span class="hl2">même endroit</span></div>
+  <div class="grid">
+    <div class="tile" data-t="51.76"><span class="ic">💬</span>Commandes WhatsApp (récap)</div>
+    <div class="tile" data-t="53.4"><span class="ic">🌐</span>Boutique en ligne</div>
+    <div class="tile" data-t="54.32"><span class="ic">🔴</span>Vente en live</div>
+    <div class="tile" data-t="55.36"><span class="ic">🚚</span>Entreprises de livraison</div>
+    <div class="tile" data-t="56.68"><span class="ic">📦</span>Stock</div>
+    <div class="tile" data-t="57.04"><span class="ic">📊</span>Statistiques</div>
+  </div>
+</div>
+
+<!-- F. Appel à l'action -->
+<div class="layer" id="F">
+  <img class="bigLogo" id="bigLogo" src="logo.png">
+  <div class="brand" id="brand">Jibiat Marchand</div>
+  <div class="slogan" id="slogan">Toute votre boutique<br><span class="hl2">dans votre téléphone</span></div>
+  <div class="cta" id="cta">Créez la vôtre gratuitement</div>
+  <div class="url" id="url">jibiat-marchand.com</div>
+  <div class="wa" id="wa"><div class="or">ou sur WhatsApp</div><div class="send">Envoyez <b>Inscription</b> au</div><div class="wanum" id="waNum"><span>+225</span> <span>07</span> <span>03</span> <span>68</span> <span>68</span> <span>76</span></div></div>
+</div>
+
+<div id="subs"><span></span></div>
+
+<script>
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+const back = x => { x = clamp(x); const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const $ = id => document.getElementById(id);
+const lerpKeys = (keys, t) => { if (t <= keys[0][0]) return keys[0][1]; for (let i = 1; i < keys.length; i++) if (t <= keys[i][0]) { const [a, va] = keys[i - 1], [b, vb] = keys[i]; return va + (vb - va) * (t - a) / (b - a); } return keys[keys.length - 1][1]; };
+const pop = (el, t, t0, d = 0.35) => { const k = (t - t0) / d; el.style.opacity = clamp(k * 1.5); el.style.transform = `scale(${t < t0 ? 0.8 : 0.8 + 0.2 * back(k)})`; };
+const fadeIn = (el, t, t0, d = 0.3, dy = 14) => { const k = ease((t - t0) / d); el.style.opacity = k; el.style.transform = `translateY(${(1 - k) * dy}px)`; };
+const win = (t, a, b, f = 0.3) => clamp(Math.min((t - a) / f, (b - t) / f));
+const F = n => Math.round(n).toLocaleString('fr-FR').replace(/ | /g, ' ') + ' F';
+
+// ——— Calage sur la voix off (transcription mot à mot) ———
+const SCENES = { A: [0, 4.92], B: [4.92, 12.75], C: [12.75, 50.66], E: [50.66, 59.42], F: [59.42, 75.68] };
+const END = 75.68;
+const SUBS = [
+  [0, 'Vos livreurs encaissent votre argent…'], [2.24, 'Mais savez-vous combien chacun a dans la poche ?'],
+  [4.93, 'Des appels toute la journée'], [6.24, 'pour savoir où sont les colis…'], [7.96, 'des livraisons « faites »'], [9.12, 'que personne n\'a vérifiées…'],
+  [10.76, 'et des comptes à refaire chaque soir.'], [12.8, 'Avec Jibiat Marchand,'], [14.04, 'vous dites une seule fois qui livre quelle zone :'],
+  [16.6, 'Moussa à Cocody,'], [17.96, 'Ibrahim à Yopougon,'], [19.44, 'Yao à Marcory.'], [20.88, 'Ensuite, c\'est automatique :'],
+  [22.53, 'dès qu\'une commande est confirmée,'], [24.0, 'elle part toute seule chez le bon livreur.'], [26.04, 'S\'il refuse, ou s\'il ne répond pas,'],
+  [27.92, 'elle passe à un autre.'], [29.16, 'Votre livreur reçoit la mission sur son téléphone,'], [31.48, 'avec sa tournée du jour.'],
+  [32.84, 'Votre client est prévenu qu\'il arrive.'], [34.83, 'À la porte, le livreur saisit le code du client,'], [37.44, 'prend une photo…'],
+  [38.44, 'et encaisse, en espèces'], [40.0, 'ou par mobile money avec un QR code.'], [42.4, 'Vous, vous savez exactement'],
+  [44.08, 'combien chaque livreur doit vous verser.'], [45.92, 'Et sa paie se calcule toute seule.'], [47.84, 'Fini les colis perdus'],
+  [49.0, 'et les comptes qui ne tombent pas juste.'], [50.68, 'Et ce n\'est pas tout :'], [51.76, 'commandes WhatsApp avec récap, boutique en ligne,'],
+  [54.32, 'vente en live, entreprises de livraison,'], [56.68, 'stock et statistiques.'], [58.08, 'Tout est au même endroit.'], [59.44, 'Jibiat Marchand :'],
+  [60.56, 'toute votre boutique dans votre téléphone.'], [62.68, 'Créez la vôtre gratuitement'], [64.2, 'sur jibiat-marchand.com…'], [66.72, 'ou envoyez « Inscription » sur WhatsApp'], [69.48, 'au 07 03 68 68 76'], [74.48, ''],
+];
+// Temps local des écrans (video9/screens.html) : 1 commande · 2 livreur · 3 client · 4 livraison · 5 caisse
+const SCR = [[12.75, -15], [16.7, -13.45], [18.1, -12.15], [19.6, -11.15], [20.9, -10.2], [21.7, -8.8], [22.5, -8.0], [22.55, -6.95], [22.8, -6.6],
+  [24.6, -5.8], [25.0, -5.0], [25.5, -4.2], [25.7, -3.4], [26.0, -2.6], [26.1, -1.9], [26.4, -1.2], [27.1, 0.2], [28.3, 1.4], [29.1, 3.9],
+  [29.15, 4.0], [29.4, 4.4], [30.4, 5.9], [31.0, 6.5], [32.8, 8.95], [32.85, 9.0], [33.1, 9.4], [34.2, 10.85], [34.82, 11.95], [34.83, 12.0],
+  [36.2, 12.6], [37.3, 13.65], [37.8, 14.4], [40.4, 15.15], [41.4, 16.2], [42.0, 17.0], [42.4, 17.7], [42.88, 18.95], [42.9, 19.0], [43.3, 19.4],
+  [44.5, 20.6], [44.9, 21.6], [45.5, 23.5], [45.9, 24.1], [46.2, 25.2], [50.66, 27.5]];
+const STEPS = [
+  [12.75, 20.88, '<span class="num">1</span>Chaque livreur, <span class="hl2">sa zone</span>'],
+  [20.88, 22.5, '<span class="num">2</span>Vous choisissez <span class="hl2">Automatique</span> ⚡'],
+  [22.5, 26.0, 'Chaque commande part <span class="hl2">toute seule</span>'],
+  [26.0, 29.1, 'Pas de réponse ? <span class="hl2">Un autre la prend</span>'],
+  [29.1, 32.82, '<span class="num">3</span>Votre livreur reçoit <span class="hl2">sa mission</span>'],
+  [32.82, 34.83, 'Votre client est <span class="hl2">prévenu</span>'],
+  [34.83, 38.5, '<span class="num">4</span>Code du client <span class="hl2">+ photo</span>'],
+  [38.5, 42.9, 'Espèces ou <span class="hl2">mobile money</span>'],
+  [42.9, 45.92, 'Vous savez <span class="hl2">qui vous doit combien</span>'],
+  [45.92, 47.84, 'Sa paie se calcule <span class="hl2">toute seule</span>'],
+  [47.84, 50.66, 'Fini les colis perdus <span class="hl2">et les comptes faux</span>'],
+];
+const TAGS = [['tg0', 12.75, 29.1], ['tg1', 29.1, 32.82], ['tg2', 32.82, 34.83], ['tg1', 34.83, 42.9], ['tg3', 42.9, 50.66]];
+
+$('steps').innerHTML = STEPS.map(([, , h], i) => `<div class="step" id="st${i}">${h}</div>`).join('');
+const EMOJI = /\p{Extended_Pictographic}️?/gu;
+function fix(img) { if (img.dataset.r) return; img.dataset.r = 1; img.src = img.src.includes('-fe0f.png') ? img.src.replace('-fe0f.png', '.png') : img.src.replace('.png', '-fe0f.png'); }
+function emojiHtml(s) { return s.replace(EMOJI, e => `<img class="e" src="../video7/emoji64/${[...e].map(c => c.codePointAt(0).toString(16)).join('-')}.png" onerror="fix(this)" alt="">`); }
+(function emojify(root) { const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (w.nextNode()) if (/\p{Extended_Pictographic}/u.test(w.currentNode.nodeValue)) nodes.push(w.currentNode);
+  nodes.forEach(n => { const s = document.createElement('span'); s.innerHTML = emojiHtml(n.nodeValue.replace(/&/g, '&amp;').replace(/</g, '&lt;')); n.replaceWith(...s.childNodes); }); })(document.body);
+
+let lastSub = null;
+window.render = function (t) {
+  for (const [id, [a, b]] of Object.entries(SCENES)) { const el = $(id); const v = id === 'A' && t < 0.5 ? 1 : win(t, a, b, 0.25); el.style.opacity = v; el.style.display = v > 0 ? 'block' : 'none'; }
+  $('g1').style.transform = `translate(${Math.sin(t * 0.35) * 40}px, ${Math.cos(t * 0.3) * 30}px)`;
+  $('g2').style.transform = `translate(${Math.cos(t * 0.27) * 40}px, ${Math.sin(t * 0.33) * 30}px)`;
+  $('red').style.opacity = 0.9 * win(t, 4.92, 12.75, 0.6);
+
+  // A. Accroche : trois livreurs, des montants inconnus
+  if (t < 5.3) {
+    const a = clamp(1 - (t - 2.2) / 0.25); $('h1').style.opacity = a; $('h2').style.opacity = clamp((t - 2.24) / 0.25);
+    document.querySelectorAll('.rider').forEach((el, i) => { pop(el, t, +el.dataset.t, 0.4);
+      const amt = el.querySelector('.amt'); const k = (t - 3.0 - i * 0.2);
+      amt.textContent = k > 0 && k < 1.2 ? F(Math.floor((Math.sin(t * 37 + i) * 0.5 + 0.5) * 60000 / 500) * 500) : (k >= 1.2 ? '? F' : '? F'); });
+  }
+  // B. Problème
+  if (t > 4.5 && t < 13.1) {
+    $('ph1').style.opacity = win(t, 4.93, 12.75, 0.25);
+    [[5.0, 0], [8.0, 1], [10.8, 2]].forEach(([s, i]) => pop($('pn' + i), t, s, 0.4));
+    $('calls').textContent = '×' + Math.min(12, 1 + Math.floor(clamp((t - 5.1) / 2.6) * 11));
+    if (t > 12.0) $('pn2').style.transform += ` rotate(${Math.sin((t - 12.0) * 30) * 1.5 * clamp(1 - (t - 12.0) / 0.6)}deg)`;
+  }
+  // C/D. Démonstration
+  if (t > 12.4 && t < 51) {
+    const w = $('scr').contentWindow; if (w && w.render) w.render(lerpKeys(SCR, t));
+    STEPS.forEach(([a, b], i) => { const v = win(t, a, b, 0.2); const el = $('st' + i); el.style.opacity = v; el.style.transform = `translateY(${(1 - v) * 14}px)`; });
+    const op = {}; TAGS.forEach(([id, a, b]) => op[id] = Math.max(op[id] || 0, win(t, a, b, 0.2))); Object.entries(op).forEach(([id, v]) => $(id).style.opacity = v);
+    $('demoPhone').style.transform = `translateY(${(1 - ease((t - 12.75) / 0.6)) * 80}px)`;
+    pop($('p1'), t, 48.3); pop($('p2'), t, 49.2);
+  }
+  // E. Les autres fonctionnalités
+  if (t > 50.1 && t < 60) {
+    $('moreHead1').style.opacity = win(t, 50.68, 58.0, 0.25); $('moreHead2').style.opacity = clamp((t - 58.08) / 0.3);
+    document.querySelectorAll('.tile').forEach(el => { pop(el, t, +el.dataset.t, 0.35);
+      if (t > 58.08) el.style.boxShadow = `0 0 ${30 * clamp((t - 58.08) / 0.4)}px rgba(74,222,128,.35)`; });
+  }
+  // F. Appel à l'action
+  if (t > 59.0) {
+    pop($('bigLogo'), t, 59.44, 0.45); fadeIn($('brand'), t, 59.6, 0.35); fadeIn($('slogan'), t, 60.56, 0.35);
+    pop($('cta'), t, 62.68, 0.4); fadeIn($('url'), t, 64.2, 0.35); pop($('wa'), t, 66.72, 0.45);
+    [6.96, 7.84, 8.64, 9.48, 10.28].forEach((d, i) => $('waNum').children[i + 1].style.opacity = t >= 62.68 + d - 0.1 ? 1 : 0.25); $('waNum').children[0].style.opacity = t >= 69.48 ? 1 : 0.25;
+    if (t > 73.98) $('wa').style.transform = `scale(${1 + 0.03 * Math.sin((t - 73.98) * 5)})`;
+    if (t > 63.18 && t < 66.68) $('cta').style.transform = `scale(${1 + 0.035 * Math.sin((t - 63.18) * 5)})`;
+  }
+  let cur = ''; for (const [s, txt] of SUBS) if (t >= s) cur = txt;
+  if (cur !== lastSub) { lastSub = cur; $('subs').firstElementChild.innerHTML = emojiHtml(cur); $('subs').style.display = cur ? 'block' : 'none'; }
+};
+window.DURATION = END;
+window.ready = () => !!($('scr').contentWindow && $('scr').contentWindow.render);
+if (!location.hash.includes('capture')) {
+  const audio = new Audio('voix-fin.mp3');
+  document.addEventListener('click', () => { audio.currentTime = 0; audio.play(); });
+  (function loop() { render(audio.paused ? 0 : audio.currentTime); requestAnimationFrame(loop); })();
+}
+</script>
+</body>
+</html>
