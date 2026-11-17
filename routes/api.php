@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Console\ConsoleCreditsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleFeaturesController;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
+use App\Http\Controllers\Api\V1\Console\ConsoleHelpController;
 use App\Http\Controllers\Api\V1\Console\ConsoleMaterielController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\Api\V1\DomainController;
 use App\Http\Controllers\Api\V1\Finance\CashOverviewController;
 use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
+use App\Http\Controllers\Api\V1\HelpController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\BoostAdsController;
 use App\Http\Controllers\Api\V1\Marketing\BoostController;
@@ -204,6 +206,17 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('materiel/products/{product}/image', [ConsoleMaterielController::class, 'image'])->whereNumber('product')->name('materiel.products.image');
             Route::post('materiel/orders/{order}/status', [ConsoleMaterielController::class, 'advance'])->whereNumber('order')->name('materiel.orders.status');
             Route::post('materiel/orders/{order}/paid', [ConsoleMaterielController::class, 'paid'])->whereNumber('order')->name('materiel.orders.paid');
+            // Centre d'aide : fiches, images, vidéo, recherches sans réponse
+            Route::get('help', [ConsoleHelpController::class, 'index'])->name('help');
+            Route::post('help', [ConsoleHelpController::class, 'store'])->name('help.store');
+            Route::post('help/defaults', [ConsoleHelpController::class, 'defaults'])->name('help.defaults');
+            Route::put('help/{article}', [ConsoleHelpController::class, 'update'])->whereNumber('article')->name('help.update');
+            Route::delete('help/{article}', [ConsoleHelpController::class, 'destroy'])->whereNumber('article')->name('help.destroy');
+            Route::post('help/{article}/image', [ConsoleHelpController::class, 'image'])->whereNumber('article')->name('help.image');
+            Route::delete('help/{article}/images/{index}', [ConsoleHelpController::class, 'removeImage'])->whereNumber(['article', 'index'])->name('help.image.remove');
+            Route::post('help/{article}/video', [ConsoleHelpController::class, 'video'])->whereNumber('article')->name('help.video');
+            Route::delete('help/{article}/video', [ConsoleHelpController::class, 'removeVideo'])->whereNumber('article')->name('help.video.remove');
+            Route::delete('help/misses/{miss}', [ConsoleHelpController::class, 'dismissMiss'])->whereNumber('miss')->name('help.misses.dismiss');
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
             Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
@@ -291,6 +304,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
             // Guide de démarrage pas à pas (étapes selon le rôle de chacun)
             Route::get('setup-guide', [SetupGuideController::class, 'show'])->name('setup-guide.show');
             Route::put('setup-guide/{step}', [SetupGuideController::class, 'skip'])->where('step', '[a-z_]+')->name('setup-guide.skip');
+            // Centre d'aide : fiches, recherche, avis
+            Route::get('help', [HelpController::class, 'index'])->middleware('throttle:60,1')->name('help');
+            Route::get('help/{slug}', [HelpController::class, 'show'])->where('slug', '[a-z0-9-]+')->name('help.show');
+            Route::post('help/{slug}/vote', [HelpController::class, 'vote'])->where('slug', '[a-z0-9-]+')->name('help.vote');
             // La boutique met fin à un accès du support de la plateforme
             Route::post('support-sessions/{session}/end', SupportSessionController::class)->whereNumber('session')
                 ->middleware('permission:'.Permission::TeamManage->value)->name('support.end');

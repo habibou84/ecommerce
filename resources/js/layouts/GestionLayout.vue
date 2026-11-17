@@ -67,6 +67,7 @@ const groups = [
   ] },
   { label: 'Réglages', color: 'reglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
     { to: '/gestion/demarrage', label: 'Bien démarrer' },
+    { to: '/gestion/aide', label: 'Aide' },
     { to: '/gestion/parametres', label: 'Informations de l\'espace marchand' },
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/alertes', label: 'Alertes' },
@@ -243,6 +244,7 @@ const PLUS_TILES = [
   { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés', color: 'panier' },
   { to: '/gestion/confirmation', label: 'À confirmer', color: 'telephone' },
   { to: '/gestion/demarrage', label: 'Bien démarrer', color: 'aide' },
+  { to: '/gestion/aide', label: 'Aide', color: 'aide' },
 ]
 const plusTiles = computed(() => PLUS_TILES.filter((tile) => canOpen(tile.to)))
 watch(() => route.path, () => { plusOpen.value = false })
@@ -254,7 +256,6 @@ async function endSupport() {
   await http.post(`/support-sessions/${support.value.id}/end`)
   await auth.fetch()
 }
-const helpUrl = computed(() => `https://wa.me/${String(boot.supportWhatsapp ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide pour mon espace marchand ${auth.store?.name ?? ''} (${boot.store?.slug ?? ''}).`)}`)
 
 async function logout() {
   await unregisterDevice()
@@ -437,7 +438,7 @@ async function switchTo(store) {
           <p v-if="route.path === '/gestion'" class="truncate text-[12.5px] leading-tight text-slate-500 first-letter:uppercase sm:text-sm">{{ todayLabel }}</p>
         </div>
         <div class="relative ml-auto flex shrink-0 items-center gap-2" :class="swipeHome ? 'before:pointer-events-none before:absolute before:-left-8 before:inset-y-0 before:w-8 before:bg-gradient-to-r before:from-transparent before:to-slate-50 max-lg:-mr-4 max-lg:bg-slate-50 max-lg:pr-4' : ''">
-          <a v-if="boot.supportWhatsapp" :href="helpUrl" target="_blank" rel="noopener" :class="swipeHome ? 'max-lg:!hidden' : ''" class="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-2.5 text-sm font-semibold text-slate-700 shadow-soft sm:px-3.5" title="Écrire au support Jibiat Marchand sur WhatsApp" aria-label="Aide"><ColorIcon name="aide" :size="24" :tile="false" /><span class="hidden sm:inline">Aide</span></a>
+          <RouterLink to="/gestion/aide" :class="swipeHome ? 'max-lg:!hidden' : ''" class="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-2.5 text-sm font-semibold text-slate-700 shadow-soft sm:px-3.5" title="Aide : fiches, vidéos, support" aria-label="Aide"><ColorIcon name="aide" :size="24" :tile="false" /><span class="hidden sm:inline">Aide</span></RouterLink>
           <CreditsMeter :class="swipeHome ? 'max-lg:!hidden' : ''" />
           <span class="rounded-full bg-white shadow-soft"><NotificationBell /></span>
         </div>

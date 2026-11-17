@@ -20,6 +20,7 @@ const nav = [
   { to: '/console/offres', label: 'Offres' },
   { to: '/console/tarifs', label: 'Tarifs' },
   { to: '/console/fonctions', label: 'Fonctions' },
+  { to: '/console/aide', label: 'Centre d\'aide' },
   { to: '/console/materiel', label: 'Matériel' },
   { to: '/console/cles', label: 'Clés d\'accès' },
   { to: '/console/ia', label: 'Assistant IA' },
