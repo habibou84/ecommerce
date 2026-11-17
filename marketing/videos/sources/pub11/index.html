@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=540">
-<title>Publicité vente en live</title>
+<title>Publicité live avec copilote</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 540px; height: 960px; overflow: hidden; background: #04100b; }
@@ -103,14 +103,13 @@
 <div class="layer" id="C">
   <div id="steps"></div>
   <div class="tag" id="tg0">🔴 Votre live <span class="light">· vu par vos clientes</span></div>
+  <div class="tag" id="tgS" style="opacity:0">📺 L'écran du live <span class="light">· télé ou TikTok LIVE Studio</span></div>
   <div class="tag" id="tg1" style="opacity:0">💬 Le WhatsApp de votre cliente</div>
-  <div class="tag" id="tg2" style="opacity:0">📱 Votre téléphone <span class="light">· pendant le live</span></div>
+  <div class="tag" id="tg2" style="opacity:0">📱 Votre téléphone <span class="light">· le copilote</span></div>
   <div class="tag" id="tg3" style="opacity:0"><img class="logo" src="logo.png"> Jibiat Marchand <span class="light">· bilan du live</span></div>
   <div class="phone" id="demoPhone"><div class="screen"><div class="notch"></div>
-    <iframe id="scr" src="../video10/screens.html#capture"></iframe>
+    <iframe id="scr" src="../video11/screens.html#capture"></iframe>
     <iframe id="cli" src="../video10/client.html#capture" style="visibility:hidden"></iframe></div></div>
-  <div class="quote" id="q0" style="left:26px;top:330px">« Qui a pris la rouge ? » 🤷🏾‍♀️</div>
-  <div class="quote" id="q1" style="left:150px;top:470px">📞 37 clientes à rappeler…</div>
 </div>
 
 <!-- E. Les autres fonctionnalités -->
@@ -118,12 +117,12 @@
   <div class="head" id="moreHead1">Et ce n'est <span class="hl2">pas tout</span></div>
   <div class="head" id="moreHead2" style="opacity:0">Tout au <span class="hl2">même endroit</span></div>
   <div class="grid">
-    <div class="tile" data-t="48.35"><span class="ic">💬</span>Récap WhatsApp</div>
-    <div class="tile" data-t="49.4"><span class="ic">🌐</span>Boutique en ligne</div>
-    <div class="tile" data-t="50.48"><span class="ic">🛵</span>Vos livreurs</div>
-    <div class="tile" data-t="51.44"><span class="ic">🚚</span>Entreprises de livraison</div>
-    <div class="tile" data-t="52.64"><span class="ic">💰</span>Caisse</div>
-    <div class="tile" data-t="53.24"><span class="ic">📊</span>Statistiques</div>
+    <div class="tile" data-t="50.83"><span class="ic">💬</span>Récap WhatsApp</div>
+    <div class="tile" data-t="51.88"><span class="ic">🌐</span>Boutique en ligne</div>
+    <div class="tile" data-t="52.8"><span class="ic">🛵</span>Vos livreurs</div>
+    <div class="tile" data-t="53.92"><span class="ic">🚚</span>Entreprises de livraison</div>
+    <div class="tile" data-t="55.12"><span class="ic">💰</span>Caisse</div>
+    <div class="tile" data-t="55.68"><span class="ic">📊</span>Statistiques</div>
   </div>
 </div>
 
@@ -150,48 +149,44 @@ const fadeIn = (el, t, t0, d = 0.3, dy = 14) => { const k = ease((t - t0) / d); 
 const win = (t, a, b, f = 0.3) => clamp(Math.min((t - a) / f, (b - t) / f));
 
 // ——— Calage sur la voix off (transcription mot à mot) ———
-const SCENES = { C: [0, 47.22], E: [47.22, 55.54], F: [55.54, 70.8] };
-const END = 70.8;
-const FLIP1 = 22.45, FLIP2 = 32.36;  // live → WhatsApp de la cliente → téléphone de la vendeuse
+const SCENES = { C: [0, 49.7], E: [49.7, 58.3], F: [58.3, 74] };
+const END = 74;
+const FLIPS = [20.6, 31.3, 36.75, 44.25], CLI_IN = 36.75, CLI_OUT = 44.25;
 const SUBS = [
-  [0, 'Vous vendez en live sur TikTok ?'], [1.95, 'Et si chaque « je prends »'], [3.55, 'devenait une vraie commande… toute seule ?'],
-  [6.1, 'Les commentaires défilent trop vite…'], [7.88, 'on ne sait plus qui a pris quoi…'], [9.64, 'et après le live, il faut rappeler tout le monde.'],
-  [11.96, 'Des heures de travail, et des ventes perdues.'], [14.68, 'Avec Jibiat Marchand,'], [15.88, 'chaque article du live reçoit un code :'],
-  [18.19, 'A1, A2, A3.'], [20.2, 'Il s\'affiche en grand dans votre live.'], [22.44, 'Votre cliente envoie simplement'],
-  [23.92, '« A1 » et sa taille sur WhatsApp :'], [26.05, 'la pièce lui est réservée tout de suite.'], [28.12, 'Elle choisit son quartier,'],
-  [29.4, 'voit le prix de la livraison,'], [30.72, 'et confirme d\'un geste.'], [32.36, 'Vous, pendant le live,'],
-  [33.52, 'votre téléphone vibre à chaque réservation,'], [35.88, 'et vous voyez ce qui reste.'], [37.24, 'La pièce est partie ?'],
-  [38.43, 'Les suivantes passent en liste d\'attente.'], [40.48, 'Et à la fin, le bilan :'], [42.16, 'combien vous avez vendu,'],
-  [43.32, 'et votre meilleur article.'], [45.0, 'Plus aucune vente perdue dans les commentaires.'], [47.24, 'Et ce n\'est pas tout :'],
-  [48.35, 'récap WhatsApp, boutique en ligne,'], [50.32, 'vos livreurs ou une entreprise de livraison,'], [52.64, 'caisse et statistiques.'],
-  [54.21, 'Tout est au même endroit.'], [55.56, 'Jibiat Marchand :'], [56.64, 'toute votre boutique dans votre téléphone.'],
-  [58.92, 'Créez la vôtre gratuitement'], [60.4, 'sur jibiat-marchand.com…'], [62.6, 'ou envoyez « Inscription » sur WhatsApp'],
-  [65.24, 'au 07 03 68 68 76'], [69.6, ''],
+  [0, 'Faire un live, c\'est tout gérer en même temps :'], [2.43, 'montrer les articles, parler,'], [4.28, 'répondre, noter les commandes…'],
+  [6.28, 'Et si vous aviez un copilote ?'], [8.16, 'Avec Jibiat Marchand,'], [9.52, 'chaque article reçoit un code,'], [11.08, 'et s\'affiche en grand dans votre live :'],
+  [13.15, 'sur une télé derrière vous,'], [14.4, 'ou directement dans TikTok LIVE Studio.'], [16.72, 'Un article à la fois,'], [17.92, 'en défilement,'], [18.76, 'ou toute la vitrine.'],
+  [20.24, 'Sur votre téléphone,'], [21.32, 'le copilote vous guide pas à pas :'], [23.3, 'quel article montrer maintenant,'], [24.8, 'et quoi dire.'],
+  [25.89, '« Il n\'en reste que deux :'], [27.23, 'envoyez A1 maintenant ! »'], [29.12, 'D\'un geste, vous lancez'], [30.24, 'une animation à l\'écran :'],
+  [31.76, 'vente flash, défi,'], [33.36, 'roue, article mystère…'], [35.16, 'avec la musique qui monte.'], [36.8, 'Vos clientes envoient le code sur WhatsApp :'],
+  [39.17, 'la pièce est réservée,'], [40.36, 'la livraison calculée,'], [41.64, 'la commande confirmée.'], [43.2, 'Toute seule.'],
+  [44.2, 'Et à la fin, le bilan vous montre'], [45.92, 'ce qui a fait vendre.'], [47.12, 'Un live qui vend plus,'], [48.48, 'sans rien oublier.'],
+  [49.72, 'Et ce n\'est pas tout :'], [50.83, 'récap WhatsApp, boutique en ligne,'], [52.8, 'vos livreurs ou une entreprise de livraison,'], [55.12, 'caisse et statistiques.'],
+  [56.76, 'Tout est au même endroit.'], [58.32, 'Jibiat Marchand :'], [59.52, 'toute votre boutique dans votre téléphone.'], [61.84, 'Créez la vôtre gratuitement'],
+  [63.28, 'sur jibiat-marchand.com…'], [65.48, 'ou envoyez « Inscription » sur WhatsApp'], [68.16, 'au 07 03 68 68 76'], [72.8, ''],
 ];
 // Temps local des écrans du live (video10/screens.html) et de la discussion (video10/client.html)
-const SCR = [[0, -12], [14.6, -0.6], [17.2, 0.0], [18.75, 4.15], [19.35, 5.55], [20.3, 6.8], [22.4, 8.9], [32.36, 10.0], [34.3, 12.0], [35.3, 13.6],
-  [37.2, 13.85], [37.5, 13.95], [38.9, 15.2], [39.6, 15.9], [40.45, 16.6], [40.5, 20.0], [41.4, 20.2], [42.7, 21.3], [43.8, 21.85], [44.4, 22.4],
-  [45.0, 23.0], [45.6, 23.6], [47.22, 25.2]];
-const CLI = [[22.45, 0], [23.6, 0.75], [24.35, 1.4], [26.6, 2.5], [27.4, 3.5], [28.2, 4.6], [28.8, 5.7], [29.05, 6.1], [29.15, 6.4], [29.35, 7.1],
-  [29.55, 8.1], [29.85, 9.2], [30.0, 9.6], [30.1, 9.9], [30.3, 10.7], [31.0, 13.2], [31.2, 13.6], [31.6, 14.4], [32.4, 15.0]];
+const SCR = [[0, -12], [8.04, -0.4], [8.05, 0], [17.6, 3.45], [17.61, 3.5], [19.0, 6.49], [19.01, 6.5], [20.59, 9.2], [20.6, 10.0], [21.2, 10.4], [24.6, 12.2], [25.2, 14.0],
+  [25.9, 15.2], [28.9, 19.8], [29.3, 20.5], [30.4, 21.6], [31.29, 21.99], [31.3, 22.3], [32.59, 25.0], [32.6, 25.1], [33.29, 27.6], [33.3, 27.7], [33.94, 30.2], [33.95, 30.3],
+  [34.6, 31.0], [36.75, 34.3], [44.24, 34.31], [44.25, 34.5], [45.5, 35.6], [45.9, 36.4], [49.7, 40.2]];
+const CLI = [[36.75, 0.6], [37.9, 1.4], [39.3, 2.5], [39.9, 3.5], [40.3, 4.6], [40.7, 5.7], [40.9, 6.4], [41.1, 7.1], [41.3, 8.1], [41.6, 9.2], [41.75, 9.9], [41.9, 10.7],
+  [42.5, 13.2], [42.7, 13.6], [43.1, 14.4], [44.25, 15.2]];
 const STEPS = [
-  [0, 1.9, 'Vous vendez <span class="hl2">en live</span> ?'],
-  [1.9, 6.05, 'Et si chaque « je prends » <span class="hl2">devenait une commande</span> ?'],
-  [6.05, 9.6, 'Les commentaires <span class="bad">défilent trop vite</span>'],
-  [9.6, 11.9, '<span class="bad">Rappeler tout le monde</span> après le live'],
-  [11.9, 14.66, 'Des heures de travail, <span class="bad">des ventes perdues</span>'],
-  [14.66, 20.2, '<span class="num">1</span>Chaque article a <span class="hl2">son code</span>'],
-  [20.2, 22.45, 'Le code s\'affiche <span class="hl2">en grand</span> dans le live'],
-  [22.45, 26.6, '<span class="num">2</span>La cliente envoie <span class="hl2">« A1 M »</span>'],
-  [26.6, 28.2, '<span class="hl2">Réservé</span> tout de suite ✅'],
-  [28.2, 30.9, 'Son quartier, <span class="hl2">la livraison affichée</span>'],
-  [30.9, 32.36, 'Elle confirme <span class="hl2">d\'un geste</span>'],
-  [32.36, 37.3, '<span class="num">3</span>Vous voyez <span class="hl2">chaque réservation</span>'],
-  [37.3, 40.48, 'Plus de pièce ? <span class="hl2">Liste d\'attente</span>'],
-  [40.48, 45.0, '<span class="num">4</span>Le bilan <span class="hl2">de votre live</span>'],
-  [45.0, 47.22, 'Plus aucune vente <span class="hl2">perdue</span>'],
+  [0, 6.2, 'En live, <span class="bad">tout gérer en même temps</span>'],
+  [6.2, 8.05, 'Et si vous aviez <span class="hl2">un copilote</span> ?'],
+  [8.05, 13.0, '<span class="num">1</span>Chaque article a <span class="hl2">son code</span>'],
+  [13.0, 16.7, 'Sur la télé ou dans <span class="hl2">TikTok LIVE Studio</span>'],
+  [16.7, 17.6, 'Un article <span class="hl2">à la fois</span>'], [17.6, 19.0, 'En <span class="hl2">défilement</span>'], [19.0, 20.6, 'Ou toute <span class="hl2">la vitrine</span>'],
+  [20.6, 25.8, '<span class="num">2</span>Le copilote <span class="hl2">vous guide</span>'],
+  [25.8, 29.1, 'Il vous dit <span class="hl2">quoi dire</span> 🗣'],
+  [29.1, 31.3, 'D\'un geste, <span class="hl2">une animation</span>'],
+  [31.3, 32.6, '⚡ <span class="hl2">Vente flash</span>'], [32.6, 33.3, '🎯 <span class="hl2">Défi</span>'], [33.3, 33.95, '🎡 <span class="hl2">Roue</span>'],
+  [33.95, 35.1, '🎁 <span class="hl2">Article mystère</span>'], [35.1, 36.75, '🎵 La musique <span class="hl2">qui monte</span>'],
+  [36.75, 44.25, '<span class="num">3</span>Les commandes arrivent <span class="hl2">toutes seules</span>'],
+  [44.25, 47.1, '<span class="num">4</span>Le bilan : <span class="hl2">ce qui a fait vendre</span>'],
+  [47.1, 49.7, 'Un live qui <span class="hl2">vend plus</span>, sans rien oublier'],
 ];
-const TAGS = [['tg0', 0, FLIP1], ['tg1', FLIP1, FLIP2], ['tg2', FLIP2, 40.48], ['tg3', 40.48, 47.22]];
+const TAGS = [['tg0', 0, 8.05], ['tgS', 8.05, 20.6], ['tg2', 20.6, 31.3], ['tgS', 31.3, 36.75], ['tg1', 36.75, 44.25], ['tg3', 44.25, 49.7]];
 
 $('steps').innerHTML = STEPS.map(([, , h], i) => `<div class="step" id="st${i}">${h}</div>`).join('');
 const EMOJI = /\p{Extended_Pictographic}(️|‍\p{Extended_Pictographic}|\p{Emoji_Modifier})*/gu;
@@ -206,36 +201,33 @@ window.render = function (t) {
   for (const [id, [a, b]] of Object.entries(SCENES)) { const el = $(id); const v = id === 'C' && t < 0.5 ? 1 : win(t, a, b, 0.25); el.style.opacity = v; el.style.display = v > 0 ? 'block' : 'none'; }
   $('g1').style.transform = `translate(${Math.sin(t * 0.35) * 40}px, ${Math.cos(t * 0.3) * 30}px)`;
   $('g2').style.transform = `translate(${Math.cos(t * 0.27) * 40}px, ${Math.sin(t * 0.33) * 30}px)`;
-  $('red').style.opacity = 0.9 * win(t, 6.0, 14.66, 0.6);
+  $('red').style.opacity = 0.9 * win(t, 0, 8.05, 0.6);
 
-  if (t < 47.6) {
+  if (t < 50.1) {
     const sw = $('scr').contentWindow, cw = $('cli').contentWindow;
-    if (sw && sw.render && (t < FLIP1 + 0.3 || t > FLIP2 - 0.3)) sw.render(lerpKeys(SCR, t));
-    if (cw && cw.render && t > FLIP1 - 0.3 && t < FLIP2 + 0.3) cw.render(lerpKeys(CLI, t));
-    STEPS.forEach(([a, b], i) => { const v = i === 0 && t < 0.3 ? 1 : win(t, a, b, 0.2); const el = $('st' + i); el.style.opacity = v; el.style.transform = `translateY(${(1 - v) * 14}px)`; });
+    if (sw && sw.render && (t < CLI_IN + 0.3 || t > CLI_OUT - 0.3)) sw.render(lerpKeys(SCR, t));
+    if (cw && cw.render && t > CLI_IN - 0.3 && t < CLI_OUT + 0.3) cw.render(lerpKeys(CLI, t));
+    STEPS.forEach(([a, b], i) => { const v = i === 0 && t < 0.3 ? 1 : win(t, a, b, 0.15); const el = $('st' + i); el.style.opacity = v; el.style.transform = `translateY(${(1 - v) * 14}px)`; });
     const op = {}; TAGS.forEach(([id, a, b]) => op[id] = Math.max(op[id] || 0, id === 'tg0' && t < 0.3 ? 1 : win(t, a, b, 0.2))); Object.entries(op).forEach(([id, v]) => $(id).style.opacity = v);
-    // Retournements du téléphone entre le live, la cliente et la vendeuse
-    let sx = 1, showCli = t >= FLIP1 && t < FLIP2;
-    for (const F0 of [FLIP1, FLIP2]) { const f = (t - (F0 - 0.25)) / 0.5; if (f > 0 && f < 1) { sx = Math.abs(Math.cos(f * Math.PI)); showCli = F0 === FLIP1 ? f >= 0.5 : f < 0.5; } }
+    // Le téléphone se retourne à chaque changement de point de vue
+    let sx = 1; for (const F0 of FLIPS) { const f = (t - (F0 - 0.25)) / 0.5; if (f > 0 && f < 1) sx = Math.abs(Math.cos(f * Math.PI)); }
+    const showCli = t >= CLI_IN && t < CLI_OUT;
     $('scr').style.visibility = showCli ? 'hidden' : 'visible'; $('cli').style.visibility = showCli ? 'visible' : 'hidden';
     $('demoPhone').style.transform = `scaleX(${Math.max(0.02, sx)})`;
-    // Problème : deux bulles par-dessus le live
-    [[7.9, 9.6, 'q0', -4], [9.8, 14.4, 'q1', 3]].forEach(([a, b, id, r]) => { const el = $(id), k = (t - a) / 0.35;
-      el.style.opacity = clamp(k * 2) * (1 - clamp((t - b) / 0.3)); el.style.transform = `rotate(${r}deg) scale(${t < a ? .6 : .6 + .4 * back(k)})`; });
   }
-  // E. Les autres fonctionnalités
-  if (t > 46.7 && t < 56) {
-    $('moreHead1').style.opacity = win(t, 47.24, 54.15, 0.25); $('moreHead2').style.opacity = clamp((t - 54.21) / 0.3);
+
+  if (t > 49.2 && t < 58.8) {
+    $('moreHead1').style.opacity = win(t, 49.72, 56.7, 0.25); $('moreHead2').style.opacity = clamp((t - 56.76) / 0.3);
     document.querySelectorAll('.tile').forEach(el => { pop(el, t, +el.dataset.t, 0.35);
-      if (t > 54.21) el.style.boxShadow = `0 0 ${30 * clamp((t - 54.21) / 0.4)}px rgba(74,222,128,.35)`; });
+      if (t > 56.76) el.style.boxShadow = `0 0 ${30 * clamp((t - 56.76) / 0.4)}px rgba(74,222,128,.35)`; });
   }
   // F. Appel à l'action
-  if (t > 55.1) {
-    pop($('bigLogo'), t, 55.56, 0.45); fadeIn($('brand'), t, 55.7, 0.35); fadeIn($('slogan'), t, 56.64, 0.35);
-    pop($('cta'), t, 58.92, 0.4); fadeIn($('url'), t, 60.4, 0.35); pop($('wa'), t, 62.6, 0.45);
-    [65.36, 66.2, 66.96, 67.72, 68.48].forEach((d, i) => $('waNum').children[i + 1].style.opacity = t >= d - 0.1 ? 1 : 0.25); $('waNum').children[0].style.opacity = t >= 65.2 ? 1 : 0.25;
-    if (t > 59.4 && t < 62.6) $('cta').style.transform = `scale(${1 + 0.035 * Math.sin((t - 59.4) * 5)})`;
-    if (t > 69.3) $('wa').style.transform = `scale(${1 + 0.03 * Math.sin((t - 69.3) * 5)})`;
+  if (t > 57.9) {
+    pop($('bigLogo'), t, 58.32, 0.45); fadeIn($('brand'), t, 58.46, 0.35); fadeIn($('slogan'), t, 59.52, 0.35);
+    pop($('cta'), t, 61.84, 0.4); fadeIn($('url'), t, 63.28, 0.35); pop($('wa'), t, 65.48, 0.45);
+    [68.32, 69.12, 69.84, 70.64, 71.44].forEach((d, i) => $('waNum').children[i + 1].style.opacity = t >= d - 0.1 ? 1 : 0.25); $('waNum').children[0].style.opacity = t >= 68.16 ? 1 : 0.25;
+    if (t > 62.3 && t < 65.4) $('cta').style.transform = `scale(${1 + 0.035 * Math.sin((t - 62.3) * 5)})`;
+    if (t > 72.5) $('wa').style.transform = `scale(${1 + 0.03 * Math.sin((t - 72.5) * 5)})`;
   }
   let cur = ''; for (const [s, txt] of SUBS) if (t >= s) cur = txt;
   if (cur !== lastSub) { lastSub = cur; $('subs').firstElementChild.innerHTML = emojiHtml(cur); $('subs').style.display = cur ? 'block' : 'none'; }

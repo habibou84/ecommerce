@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=540">
+<title>Écrans du live</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 540px; height: 960px; overflow: hidden; background: #000; }
+  body { font-family: Inter, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
+  img.e { width: 1.15em; height: 1.15em; vertical-align: -0.22em; margin: 0 .03em; display: inline; }
+  .scr { position: absolute; inset: 0; display: none; overflow: hidden; }
+  .status { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 15px; font-weight: 700; position: relative; z-index: 3; }
+  /* Le live vu par les clientes */
+  .stage { position: absolute; inset: 0; background: radial-gradient(circle at 50% 38%, #7c2d12 0%, #431407 45%, #1c0a05 100%); }
+  .rack { position: absolute; left: 0; right: 0; top: 130px; display: flex; justify-content: center; gap: 18px; opacity: .55; }
+  .rack img { width: 120px; height: 160px; object-fit: cover; border-radius: 12px; }
+  .seller { position: absolute; left: 50%; top: 210px; transform: translateX(-50%); line-height: 0; filter: drop-shadow(0 20px 40px rgba(0,0,0,.6)); }
+  .livehead { position: absolute; left: 16px; right: 16px; top: 44px; display: flex; align-items: center; gap: 10px; z-index: 3; }
+  .livehead .av { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(140deg, #f59e0b, #d4500f); display: grid; place-items: center; font-weight: 800; font-size: 19px; border: 2px solid #fff; }
+  .livehead b { font-size: 17px; } .livehead small { display: block; font-size: 13px; opacity: .8; }
+  .badge { margin-left: auto; background: #ef4444; border-radius: 6px; padding: 4px 10px; font-weight: 900; font-size: 14px; letter-spacing: .5px; }
+  .viewers { background: rgba(0,0,0,.4); border-radius: 6px; padding: 4px 10px; font-weight: 700; font-size: 14px; }
+  .card { position: absolute; left: 18px; right: 18px; top: 520px; height: 230px; background: #fff; color: #111; border-radius: 26px; display: flex; gap: 16px; padding: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.5); z-index: 2; }
+  .card img { width: 150px; height: 198px; object-fit: cover; border-radius: 16px; flex: none; }
+  .card .code { font-size: 96px; font-weight: 900; line-height: .95; letter-spacing: -3px; }
+  .card .name { font-size: 20px; font-weight: 800; margin-top: 4px; }
+  .card .send { margin-top: 10px; background: #111; color: #fff; border-radius: 12px; padding: 8px 10px; font-size: 17px; font-weight: 800; text-align: center; }
+  .card .tel { margin-top: 6px; font-size: 19px; font-weight: 900; text-align: center; letter-spacing: .5px; }
+  .comments { position: absolute; left: 16px; width: 330px; bottom: 26px; height: 190px; overflow: hidden; z-index: 4; }
+  .cm { position: absolute; left: 0; display: flex; gap: 8px; align-items: center; font-size: 17px; background: rgba(0,0,0,.35); border-radius: 18px; padding: 6px 12px 6px 6px; white-space: nowrap; }
+  .cm .a { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; flex: none; }
+  .cm b { opacity: .75; font-size: 14px; }
+  .hearts { position: absolute; right: 22px; bottom: 120px; width: 60px; height: 400px; z-index: 4; }
+  .hearts span { position: absolute; font-size: 30px; }
+  /* Écran de la vendeuse */
+  .dark { background: #0b0b0c; }
+  .bar { display: flex; gap: 10px; align-items: center; padding: 10px 18px 14px; border-bottom: 1px solid #222; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: #ef4444; }
+  .bar b { font-size: 17px; } .bar .k { margin-left: auto; text-align: right; font-size: 14px; color: #a3a3a3; } .bar .k b { color: #fff; font-size: 19px; display: block; }
+  .shown { margin: 16px; border-radius: 22px; background: #171717; padding: 16px; display: flex; gap: 16px; position: relative; overflow: hidden; }
+  .shown img { width: 160px; height: 210px; object-fit: cover; border-radius: 16px; flex: none; }
+  .shown .code { font-size: 64px; font-weight: 900; line-height: 1; }
+  .shown .left { font-size: 30px; font-weight: 900; margin-top: 10px; } .shown .left small { font-size: 16px; color: #a3a3a3; font-weight: 600; display: block; }
+  .sizes { display: flex; gap: 8px; margin-top: 12px; } .sizes span { border: 1.5px solid #404040; border-radius: 10px; padding: 6px 10px; font-weight: 800; font-size: 16px; } .sizes span.z { color: #525252; border-color: #262626; text-decoration: line-through; }
+  .sold { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-10deg); border: 6px solid #ef4444; color: #ef4444; font-size: 58px; font-weight: 900; padding: 4px 22px; border-radius: 14px; background: rgba(11,11,12,.85); opacity: 0; letter-spacing: 3px; }
+  .resa { margin: 0 16px; }
+  .resa h3 { font-size: 15px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 1px; margin: 6px 4px 8px; }
+  .rr { display: flex; align-items: center; gap: 12px; background: #171717; border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; font-size: 17px; }
+  .rr .c { background: #fff; color: #000; font-weight: 900; border-radius: 8px; padding: 2px 8px; }
+  .rr .st { margin-left: auto; font-size: 14px; font-weight: 800; color: #4ade80; }
+  .rr.wait .st { color: #fbbf24; }
+  .banner { position: absolute; left: 12px; right: 12px; top: 40px; background: #ef4444; color: #fff; border-radius: 18px; padding: 14px 16px; font-size: 19px; font-weight: 800; z-index: 9; box-shadow: 0 16px 40px rgba(0,0,0,.5); }
+  .banner small { display: block; font-size: 15px; font-weight: 600; opacity: .9; margin-top: 2px; }
+  /* Bilan */
+  .light { background: #f5f7f4; color: #0f172a; }
+  .gh { background: linear-gradient(140deg, #13a058, #065f46); color: #fff; padding: 6px 24px 22px; }
+  .gh small { opacity: .85; font-size: 15px; } .gh h1 { font-size: 46px; margin-top: 6px; letter-spacing: -1px; } .gh p { font-size: 18px; opacity: .9; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px; }
+  .tile { background: #fff; border-radius: 18px; padding: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 18px -10px rgba(15,23,42,.2); opacity: 0; }
+  .tile b { display: block; font-size: 30px; } .tile span { color: #64748b; font-size: 15px; }
+  .wide { margin: 0 16px 12px; background: #fff; border-radius: 18px; padding: 16px; display: flex; gap: 14px; align-items: center; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 18px -10px rgba(15,23,42,.2); opacity: 0; }
+  .wide #bimg { width: 64px; height: 76px; border-radius: 12px; object-fit: cover; }
+  .wide b { font-size: 18px; } .wide .m { color: #64748b; font-size: 15px; }
+  .btnw { margin: 4px 16px; height: 60px; border-radius: 16px; background: #047857; color: #fff; font-weight: 800; font-size: 19px; display: flex; align-items: center; justify-content: center; gap: 8px; opacity: 0; }
+  /* Vitrine, animations du show, musique */
+  .grid { position: absolute; left: 18px; right: 18px; top: 440px; background: #fff; border-radius: 26px; padding: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; box-shadow: 0 20px 50px rgba(0,0,0,.5); z-index: 2; opacity: 0; }
+  .grid div { position: relative; } .grid img { width: 100%; height: 132px; object-fit: cover; border-radius: 14px; display: block; }
+  .grid span { position: absolute; left: 6px; top: 6px; background: #111; color: #fff; font-weight: 900; font-size: 17px; border-radius: 8px; padding: 1px 8px; }
+  .fx { position: absolute; left: 22px; right: 22px; top: 136px; border-radius: 24px; padding: 16px; z-index: 6; opacity: 0; text-align: center; color: #fff; box-shadow: 0 20px 50px rgba(0,0,0,.55); }
+  #fxflash { background: linear-gradient(135deg, #dc2626, #f59e0b); display: flex; gap: 14px; align-items: center; text-align: left; }
+  #fxflash #fimg { width: 96px; height: 120px; object-fit: cover; border-radius: 14px; }
+  #fxflash .t { font-size: 25px; font-weight: 900; letter-spacing: .5px; } #fxflash .c { font-size: 62px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+  #fxdefi { background: linear-gradient(135deg, #4c1d95, #7c3aed); } #fxdefi .t { font-size: 23px; font-weight: 900; }
+  #fxdefi .dbar { height: 26px; border-radius: 13px; background: rgba(255,255,255,.25); margin-top: 12px; overflow: hidden; } #fxdefi .dbar div { height: 100%; background: #fbbf24; border-radius: 13px; }
+  #fxdefi .n { font-size: 30px; font-weight: 900; margin-top: 8px; }
+  #fxwheel { background: linear-gradient(135deg, #0f766e, #0ea5e9); } #fxwheel .t { font-size: 23px; font-weight: 900; margin-bottom: 8px; }
+  #fxmyst { background: linear-gradient(135deg, #1e1b4b, #be185d); } #fxmyst .t { font-size: 24px; font-weight: 900; } #fxmyst .g { font-size: 92px; line-height: 1.1; display: inline-block; }
+  #rain { position: absolute; inset: 0; z-index: 7; pointer-events: none; overflow: hidden; } #rain span { position: absolute; font-size: 34px; opacity: 0; }
+  #music { position: absolute; left: 16px; top: 96px; z-index: 8; display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,.55); border-radius: 999px; padding: 6px 14px 6px 10px; font-size: 14px; font-weight: 800; opacity: 0; }
+  #music .bars { display: flex; gap: 3px; align-items: flex-end; height: 18px; } #music .bars i { width: 4px; background: #4ade80; border-radius: 2px; display: block; }
+  /* Cockpit du live : le copilote */
+  .ck { padding: 0 14px; }
+  .mini { display: flex; gap: 12px; align-items: center; background: #171717; border-radius: 18px; padding: 10px; margin-top: 10px; }
+  .mini #simg { width: 54px; height: 70px; border-radius: 10px; object-fit: cover; } .mini b { font-size: 17px; } .mini small { display: block; color: #a3a3a3; font-size: 13px; margin-top: 2px; }
+  .mini .ok { margin-left: auto; text-align: right; font-size: 12.5px; font-weight: 800; color: #4ade80; line-height: 1.5; }
+  .tabs { display: flex; gap: 8px; margin-top: 12px; } .tabs span { flex: 1; text-align: center; padding: 9px 0; border-radius: 12px; background: #171717; font-weight: 800; font-size: 15px; color: #a3a3a3; } .tabs span.on { background: #fff; color: #0b0b0c; }
+  .plan { margin-top: 12px; border-radius: 18px; background: #171717; padding: 12px 14px; opacity: 0; }
+  .plan .l { font-size: 11.5px; font-weight: 900; letter-spacing: 1px; color: #a3a3a3; text-transform: uppercase; }
+  .plan .r { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 800; margin-top: 2px; }
+  .plan .go { background: rgba(255,255,255,.15); border-radius: 10px; padding: 6px 10px; font-size: 13.5px; white-space: nowrap; }
+  .adv { margin-top: 10px; border-radius: 18px; border: 2px solid rgba(248,113,113,.7); background: rgba(239,68,68,.1); padding: 12px 14px; opacity: 0; }
+  .adv .ti { font-size: 19px; font-weight: 900; }
+  .say { margin-top: 8px; border-radius: 12px; background: rgba(251,191,36,.15); box-shadow: inset 0 0 0 1px rgba(252,211,77,.5); padding: 9px 11px; }
+  .say .h { font-size: 11.5px; font-weight: 900; letter-spacing: 1px; color: #fcd34d; } .say p { font-size: 18px; font-weight: 800; line-height: 1.25; margin-top: 2px; }
+  .acts { display: flex; gap: 8px; margin-top: 10px; } .acts span { border-radius: 12px; padding: 10px 13px; font-weight: 800; font-size: 15.5px; background: rgba(255,255,255,.15); } .acts span.main { background: #fbbf24; color: #0f172a; } .acts span.hit { transform: scale(.95); filter: brightness(1.25); }
+  .adv2 { margin-top: 8px; border-radius: 16px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.05); padding: 10px 14px; font-size: 15px; font-weight: 800; opacity: 0; } .adv2 em { display: block; font-style: normal; color: #fde68a; font-weight: 600; font-size: 14px; margin-top: 2px; }
+  .dock { position: absolute; left: 0; right: 0; bottom: 0; background: #171717; border-top: 1px solid #262626; padding: 10px 12px 14px; display: flex; gap: 8px; align-items: center; font-weight: 800; font-size: 14.5px; }
+  .dock span { background: #262626; border-radius: 12px; padding: 9px 11px; } .dock .nx { background: #fff; color: #0b0b0c; }
+  .toast2 { position: absolute; left: 30px; right: 30px; bottom: 84px; background: #fbbf24; color: #0f172a; border-radius: 14px; padding: 12px; font-weight: 900; font-size: 16px; text-align: center; opacity: 0; }
+  #tap { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; background: rgba(255,255,255,.5); border: 4px solid rgba(251,191,36,.95); opacity: 0; z-index: 50; pointer-events: none; }
+  .why { margin: 0 16px 12px; background: #fff; border-radius: 18px; padding: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 18px -10px rgba(15,23,42,.2); opacity: 0; }
+  .why .h { font-size: 15px; font-weight: 900; color: #047857; } .why .r { display: flex; justify-content: space-between; font-size: 17px; font-weight: 700; margin-top: 8px; } .why .r b { color: #047857; }
+</style>
+</head>
+<body>
+<div id="z" style="zoom:1.2;position:absolute;left:0;top:0;width:450px;height:800px;overflow:hidden">
+
+<!-- 1. Le live vu par les clientes (aussi en « déluge » de commentaires) -->
+<div class="scr" id="s1">
+  <div class="stage"></div>
+  <div class="rack" id="rack"></div>
+  <div class="seller"><svg width="300" height="420" viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="gw" width="30" height="30" patternUnits="userSpaceOnUse"><rect width="30" height="30" fill="#f59e0b"/><circle cx="15" cy="15" r="8" fill="#065f46"/><circle cx="15" cy="15" r="3.5" fill="#fde68a"/></pattern><pattern id="bw" width="34" height="34" patternUnits="userSpaceOnUse"><rect width="34" height="34" fill="#16a34a"/><circle cx="17" cy="17" r="9" fill="#fef3c7"/><circle cx="17" cy="17" r="4" fill="#dc2626"/></pattern></defs>
+<path d="M40 420 Q48 300 150 290 Q252 300 260 420 Z" fill="url(#bw)"/>
+<rect x="128" y="250" width="44" height="50" rx="16" fill="#6b3f23"/>
+<ellipse cx="150" cy="200" rx="62" ry="74" fill="#7a4a2a"/>
+<path d="M78 170 Q70 70 150 62 Q236 58 226 170 Q206 120 150 122 Q96 120 78 170 Z" fill="url(#gw)"/>
+<path d="M150 62 Q196 22 238 52 Q214 74 196 82 Z" fill="url(#gw)"/>
+<ellipse cx="126" cy="205" rx="7" ry="9" fill="#1f130b"/><ellipse cx="174" cy="205" rx="7" ry="9" fill="#1f130b"/>
+<path d="M126 240 Q150 262 174 240" stroke="#3b1d0e" stroke-width="7" fill="none" stroke-linecap="round"/>
+<circle cx="86" cy="215" r="7" fill="#fbbf24"/><circle cx="214" cy="215" r="7" fill="#fbbf24"/></svg></div>
+  <div class="status"><span>21:04</span><span>📶 🔋</span></div>
+  <div class="livehead"><div class="av">A</div><div><b>Awa Mode</b><small>Nouvelle collection 🔥</small></div><span class="badge">LIVE</span><span class="viewers" id="vw">👁 1,2 k</span></div>
+  <div class="card" id="card"><img id="cimg"><div style="flex:1;min-width:0"><div class="code" id="ccode">A1</div><div class="name" id="cname">Robe wax rouge</div><div class="send" id="csend">Envoie A1 + ta taille</div><div class="tel">07 00 00 00 01</div></div></div>
+  <div class="grid" id="grid"></div>
+  <div id="music"><span class="bars"><i></i><i></i><i></i><i></i></span>🎶 C'est à qui est à</div>
+  <div class="fx" id="fxflash"><img id="fimg"><div><div class="t">⚡ VENTE FLASH · A1</div><div class="c" id="chrono">02:00</div></div></div>
+  <div class="fx" id="fxdefi"><div class="t">🎯 DÉFI : 5 commandes = livraison offerte</div><div class="dbar"><div id="defibar"></div></div><div class="n" id="defin">3 / 5</div></div>
+  <div class="fx" id="fxwheel"><div class="t">🎡 La roue des acheteuses</div><div id="wheel" style="display:inline-block"></div></div>
+  <div class="fx" id="fxmyst"><div class="t">🎁 ARTICLE MYSTÈRE</div><span class="g" id="gift">🎁</span><div style="font-size:17px;font-weight:800">Indice 1/3 · devinez en commentaire !</div></div>
+  <div id="rain"></div>
+  <div class="comments" id="cms"></div>
+  <div class="hearts" id="hearts"></div>
+</div>
+
+<!-- 2. Cockpit du live sur le téléphone de la vendeuse : le copilote -->
+<div class="scr dark" id="s2">
+  <div class="status"><span>21:06</span><span>📶 🔋</span></div>
+  <div class="bar"><span class="dot" id="dot"></span><b>EN DIRECT · 42:10</b><div class="k"><b>22</b>commandes</div><div class="k"><b>397 500 F</b>vendu</div></div>
+  <div class="ck">
+    <div class="mini"><img id="simg"><div><b>À l'écran : A1</b><small>Robe wax rouge · 2 restantes</small></div><div class="ok">📺 Télé ✓<br>📱 TikTok Studio ✓</div></div>
+    <div class="tabs"><span class="on">🧭 Copilote</span><span>📦 Articles</span><span>⚙️ Plus</span></div>
+    <div class="plan" id="plan"><div class="l">Maintenant à l'écran · 2:10</div><div class="r"><span>📦 A1 en grand · Robe wax rouge</span></div>
+      <div class="l" style="margin-top:10px">Ensuite</div><div class="r"><span>📦 A2 en grand · Ensemble bazin</span><span class="go">Passer à A2 ▶</span></div></div>
+    <div class="adv" id="adv"><div class="ti">🔥 Plus que 2 A1 !</div>
+      <div class="say"><div class="h">🗣 À DIRE</div><p>« Il n'en reste que 2, après c'est fini. Envoyez A1 maintenant ! »</p></div>
+      <div class="acts"><span>🥇 Les 3 premiers</span><span class="main" id="bflash">⚡ Vente flash</span></div></div>
+    <div class="adv2" id="adv2">🎯 Lancez un défi pour faire monter les commandes<em>« Encore 5 commandes et c'est la livraison offerte ! »</em></div>
+  </div>
+  <div class="toast2" id="toast2">⚡ Vente flash lancée à l'écran</div>
+  <div class="dock"><span class="nx">A1 · Suivant ▶</span><span>❤️</span><span>🔥</span><span>🎁</span><span>🔊 Sons</span><span>🎵 Musique</span></div>
+</div>
+
+<!-- 3. Bilan du live -->
+<div class="scr light" id="s3">
+  <div class="gh"><div class="status" style="padding:0"><span>22:16</span><span>📶 🔋</span></div><small>Live terminé · 1 h 12</small><h1 id="tot">0 F</h1><p>vendus pendant le live</p></div>
+  <div class="grid2"><div class="tile" data-t="1.0"><b>23</b><span>commandes</span></div><div class="tile" data-t="1.2"><b>48</b><span>pièces vendues</span></div></div>
+  <div class="wide" data-t="1.8"><img id="bimg"><div><div class="m">🏆 Article le plus commandé</div><b>A1 · Robe wax rouge</b><div class="m">9 commandes</div></div></div>
+  <div class="why" id="why"><div class="h">✨ CE QUI A FAIT VENDRE</div>
+    <div class="r"><span>⚡ Vente flash sur A1</span><b>+ 6 commandes</b></div>
+    <div class="r"><span>🎯 Défi « livraison offerte »</span><b>+ 4 commandes</b></div>
+    <div class="r"><span>🎁 Article mystère</span><b>+ 3 commandes</b></div></div>
+</div>
+</div>
+<div id="tap"></div>
+
+<script>
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+const back = x => { x = clamp(x); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const $ = id => document.getElementById(id);
+const F = n => Math.round(n).toLocaleString('fr-FR').replace(/ | /g, ' ') + ' F';
+function dress(c1, c2, c3, bg) {
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><defs><pattern id="w" width="36" height="36" patternUnits="userSpaceOnUse"><rect width="36" height="36" fill="${c1}"/><circle cx="18" cy="18" r="11" fill="${c2}"/><circle cx="18" cy="18" r="5" fill="${c3}"/><circle cx="0" cy="0" r="6" fill="${c3}"/><circle cx="36" cy="36" r="6" fill="${c3}"/></pattern><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${bg}"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs><rect width="300" height="400" fill="url(#g)"/><g transform="translate(0,40)"><path d="M125 40 h50 l8 28 q28 8 30 40 l-22 10 l-6 -20 l-2 30 l50 180 h-166 l50 -180 l-2 -30 l-6 20 l-22 -10 q2 -32 30 -40 z" fill="url(#w)" stroke="rgba(0,0,0,.15)" stroke-width="2"/></g></svg>`);
+}
+const ART = [['A1', 'Robe wax rouge', dress('#dc2626', '#1d4ed8', '#facc15', '#fee2e2')], ['A2', 'Ensemble bazin', dress('#7c3aed', '#f5f3ff', '#c026d3', '#ede9fe')], ['A3', 'Robe pagne jaune', dress('#eab308', '#065f46', '#f97316', '#fef9c3')]];
+$('rack').innerHTML = ART.map(a => `<img src="${a[2]}">`).join('');
+$('simg').src = ART[0][2]; $('bimg').src = ART[0][2];
+// Commentaires du live
+const NAMES = [['Fatou', '#ec4899'], ['Aminata', '#8b5cf6'], ['Mariam', '#0ea5e9'], ['Kady', '#f97316'], ['Bintou', '#22c55e'], ['Awa', '#eab308'], ['Salimata', '#14b8a6'], ['Nadia', '#ef4444']];
+const FLOOD = ['je prends 😍', 'moi aussi !!', 'taille M ?', "c'est combien", 'je prends la rouge', 'moi 🙋🏾‍♀️', 'L dispo ?', 'je prends !!', 'réserve moi stp', 'M pour moi', 'et la jaune ?', 'je prends 2'];
+const CALM = ['A1 M 🙏', 'A2 L', 'A1 S', 'A3 !!', 'A1 L', 'A2 M 😍', 'A3 M', 'A1 M'];
+const EMOJI = /\p{Extended_Pictographic}(️|‍\p{Extended_Pictographic}|\p{Emoji_Modifier})*/gu;
+function fix(img) { if (img.dataset.r) return; img.dataset.r = 1; img.src = img.src.includes('-fe0f.png') ? img.src.replace('-fe0f.png', '.png') : img.src.replace('.png', '-fe0f.png'); }
+const emo = s => s.replace(EMOJI, e => `<img class="e" src="../video7/emoji64/${[...e].map(c => c.codePointAt(0).toString(16)).join('-')}.png" onerror="fix(this)" alt="">`);
+const N = 40;
+$('cms').innerHTML = Array.from({ length: N }, (_, i) => `<div class="cm" id="cm${i}"><span class="a" style="background:${NAMES[i % 8][1]}">${NAMES[i % 8][0][0]}</span><b>${NAMES[i % 8][0]}</b> <span class="tx"></span></div>`).join('');
+$('hearts').innerHTML = Array.from({ length: 10 }, (_, i) => `<span id="h${i}">${emo(['❤️', '🔥', '😍', '💖'][i % 4])}</span>`).join('');
+(function emojify(root) { const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (w.nextNode()) if (/\p{Extended_Pictographic}/u.test(w.currentNode.nodeValue)) nodes.push(w.currentNode);
+  nodes.forEach(n => { const s = document.createElement('span'); s.innerHTML = emo(n.nodeValue.replace(/&/g, '&amp;').replace(/</g, '&lt;')); n.replaceWith(...s.childNodes); }); })(document.body);
+
+// Vitrine, roue, pluie d'émojis
+$('grid').innerHTML = [0, 1, 2, 0, 1, 2].map((k, i) => `<div><img src="${ART[k][2]}"><span>A${i + 1}</span></div>`).join('');
+$('fimg').src = ART[0][2]; $('cimg').src = ART[0][2];
+$('wheel').innerHTML = `<svg width="170" height="170" viewBox="-85 -85 170 170"><g id="wg">${['#f59e0b', '#ef4444', '#22c55e', '#8b5cf6', '#f59e0b', '#ef4444', '#22c55e', '#8b5cf6'].map((c, i) => { const a0 = i * Math.PI / 4, a1 = (i + 1) * Math.PI / 4; return `<path d="M0 0 L${80 * Math.cos(a0)} ${80 * Math.sin(a0)} A80 80 0 0 1 ${80 * Math.cos(a1)} ${80 * Math.sin(a1)} Z" fill="${c}" stroke="#fff" stroke-width="2"/>`; }).join('')}</g><circle r="12" fill="#fff"/><path d="M0 -84 l-9 -14 h18 z" fill="#fff"/></svg>`;
+$('rain').innerHTML = Array.from({ length: 16 }, (_, i) => `<span id="rn${i}">${emo(['🎁', '❤️', '🔥', '😍'][i % 4])}</span>`).join('');
+function tap(el, t0, t) { if (!el || t < t0 || t > t0 + 0.55) return false; const r = el.getBoundingClientRect(), k = (t - t0) / 0.55, T = $('tap');
+  T.style.left = (r.left + r.width / 2) + 'px'; T.style.top = (r.top + r.height / 2) + 'px'; T.style.opacity = k < .25 ? k / .25 : 1 - (k - .25) / .75; T.style.transform = `scale(${k < .25 ? 1 - k : .75 + (k - .25) * .6})`; return true; }
+const box = (id, s, a, b) => { const el = $(id), k = (s - a) / 0.35, out = clamp((s - b) / 0.25); el.style.opacity = clamp(k * 1.6) * (1 - out); el.style.transform = `scale(${s < a ? .8 : .8 + .2 * back(k)})`; };
+
+// Temps local : live (déluge) −12 → 0 · écran du live (un article, défilement, vitrine) 0 → 10 ·
+// copilote 10 → 22 · animations et musique 22 → 34 · bilan 34 → …
+window.render = function (s) {
+  const live = s < 10 || (s >= 22 && s < 34);
+  $('s1').style.display = live ? 'block' : 'none'; $('s2').style.display = s >= 10 && s < 22 ? 'block' : 'none'; $('s3').style.display = s >= 34 ? 'block' : 'none';
+  $('tap').style.opacity = 0;
+  if (live) {
+    const flood = s < 0, speed = flood ? 3.2 + clamp((s + 12) / 8) * 4 : 1.5;
+    const base = flood ? (s + 12) * speed : (s * speed) + 400;
+    $('cms').style.bottom = flood ? '26px' : '258px'; $('cms').style.height = flood ? '190px' : '150px'; $('hearts').style.bottom = flood ? '120px' : '250px'; $('hearts').style.height = flood ? '400px' : '230px';
+    for (let i = 0; i < N; i++) $('cm' + i).style.display = 'none';
+    const vit = s >= 6.5 && s < 10;
+    for (let j = 0; j < (flood ? 6 : 4); j++) { const line = Math.floor(base) - j; if (line < 0 || vit) continue; const k = base - line; const el = $('cm' + (line % N));
+      el.style.display = 'flex'; el.style.bottom = (k * 34) + 'px'; el.style.opacity = clamp(Math.min(k * 3, ((flood ? 6 : 4) - k) / 1.5));
+      const txt = flood ? FLOOD[line % FLOOD.length] : CALM[line % CALM.length]; const tx = el.querySelector('.tx'); if (tx.dataset.v !== txt) { tx.dataset.v = txt; tx.innerHTML = emo(txt); }
+      const nm = NAMES[(line * 3) % 8]; const av = el.querySelector('.a'); av.style.background = nm[1]; av.textContent = nm[0][0]; el.querySelector('b').textContent = nm[0]; }
+    for (let i = 0; i < 10; i++) { const h = $('h' + i), ph = ((s * (flood ? 0.9 : 0.5) + i * 0.37) % 2.4) / 2.4; h.style.bottom = (ph * 380) + 'px'; h.style.left = (Math.sin(i * 7 + s * 2) * 14 + 14) + 'px'; h.style.opacity = vit ? 0 : 1 - ph; }
+    $('vw').innerHTML = emo('👁 ' + (1.2 + clamp((s + 12) / 40) * 1.6).toFixed(1).replace('.', ',') + ' k');
+    // Un article (0 → 3,5), défilement (3,5 → 6,5), vitrine (6,5 → 10), puis A1 pendant les animations
+    let idx = 0, pk = s - 0.2;
+    if (s >= 3.5 && s < 6.5) { idx = Math.floor((s - 3.5) / 1.0) % 3; pk = (s - 3.5) % 1.0; }
+    const a = ART[idx], c = $('card');
+    if ($('ccode').textContent !== a[0]) { $('ccode').textContent = a[0]; $('cname').textContent = a[1]; $('csend').textContent = `Envoie ${a[0]} + ta taille`; $('cimg').src = a[2]; }
+    const ck = (s - 0.2) / 0.4; c.style.opacity = flood ? 0 : clamp(ck * 1.5) * (vit ? 1 - clamp((s - 6.5) / 0.25) : 1);
+    c.style.transform = s >= 3.5 && s < 6.5 ? `translateX(${(1 - ease(pk / 0.3)) * 60}px)` : `translateY(${(1 - ease(ck)) * 60}px)`;
+    $('ccode').style.transform = `scale(${0.8 + 0.2 * back(pk / 0.35)})`;
+    const g = $('grid'), gk = (s - 6.6) / 0.4; g.style.opacity = vit ? clamp(gk * 1.5) : 0; g.style.transform = `translateY(${(1 - ease(gk)) * 50}px)`;
+    [...g.children].forEach((d, i) => d.style.transform = `scale(${s < 6.8 + i * 0.12 ? 0.7 : 0.7 + 0.3 * back((s - 6.8 - i * 0.12) / 0.3)})`);
+    // Animations du show et musique
+    box('fxflash', s, 22.3, 25.0); box('fxdefi', s, 25.1, 27.6); box('fxwheel', s, 27.7, 30.2); box('fxmyst', s, 30.3, 34.5);
+    const left = Math.max(0, 120 - Math.floor((s - 22.3) * 6)); $('chrono').textContent = `0${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    if (s >= 22.3 && s < 25.2) $('fxflash').style.transform += ` rotate(${Math.sin(s * 9) * 1.2}deg)`;
+    const dn = s < 26.2 ? 3 : 4; $('defin').textContent = `${dn} / 5`; $('defibar').style.width = (60 + 20 * ease((s - 26.2) / 0.4)) + '%';
+    const ang = 1500 * ease((s - 27.9) / 2.2); const wg = document.getElementById('wg'); if (wg) wg.setAttribute('transform', `rotate(${ang})`);
+    $('gift').style.transform = `rotate(${Math.sin(s * 14) * 9}deg) scale(${1 + 0.08 * Math.sin(s * 7)})`;
+    for (let i = 0; i < 16; i++) { const el = $('rn' + i), ph = (((s - 31) * 0.55 + i * 0.137) % 1 + 1) % 1; el.style.left = ((i * 53) % 420) + 'px'; el.style.top = (ph * 820 - 40) + 'px'; el.style.opacity = s >= 31 && s < 34.5 ? 0.95 : 0; }
+    const mu = $('music'), mk = clamp((s - 22.0) / 0.3); mu.style.opacity = s >= 22 ? mk : 0; mu.style.transform = `scale(${1 + (s > 31.5 ? 0.12 * Math.abs(Math.sin(s * 5)) : 0)})`;
+    [...mu.querySelectorAll('i')].forEach((b, i) => b.style.height = (5 + (8 + 5 * clamp((s - 30) / 3)) * Math.abs(Math.sin(s * (6 + i) + i))) + 'px');
+  } else if (s < 22) {
+    const t = s - 10;
+    $('dot').style.opacity = 0.4 + 0.6 * Math.abs(Math.sin(t * 3));
+    [['plan', 0.4], ['adv', 2.2], ['adv2', 4.0]].forEach(([id, a]) => { const k = (t - a) / 0.4, el = $(id); el.style.opacity = clamp(k * 1.5); el.style.transform = `translateY(${(1 - ease(k)) * 26}px)`; });
+    const say = document.querySelector('#adv .say'); say.style.transform = `scale(${t > 5.2 && t < 9.8 ? 1 + 0.025 * Math.abs(Math.sin((t - 5.2) * 3)) : 1})`; say.style.boxShadow = t > 5.2 && t < 9.8 ? 'inset 0 0 0 2px #fcd34d, 0 0 26px rgba(252,211,77,.45)' : '';
+    $('bflash').classList.toggle('hit', t >= 10.6 && t < 11.0); tap($('bflash'), 10.5, s - 10 + 0 === t ? t : t);
+    const tk = (t - 10.9) / 0.3; $('toast2').style.opacity = clamp(tk * 1.5); $('toast2').style.transform = `translateY(${(1 - ease(tk)) * 16}px)`;
+  } else {
+    const t = s - 34;
+    $('tot').textContent = F(ease(t / 1.2) * 412500);
+    document.querySelectorAll('#s3 .tile, #s3 .wide').forEach(el => { const k = (t - +el.dataset.t) / 0.35; el.style.opacity = clamp(k * 1.5); el.style.transform = `translateY(${(1 - ease(k)) * 24}px)`; });
+    const w = (t - 2.4) / 0.4; $('why').style.opacity = clamp(w * 1.5); $('why').style.transform = `translateY(${(1 - ease(w)) * 24}px) scale(${t > 3.2 ? 1 + 0.02 * Math.abs(Math.sin((t - 3.2) * 3)) : 1})`;
+  }
+};
+if (!location.hash.includes('capture')) { const st = performance.now(); (function loop(n) { render(((n - st) / 1000) % 52 - 12); requestAnimationFrame(loop); })(st); }
+</script>
+</body>
+</html>
