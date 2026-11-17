@@ -10,7 +10,7 @@ import Alert from '../../../components/Alert.vue'
 import { install, isIos, promptInstall } from '../../../lib/install'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
 import { formatDateTime } from '../../../lib/format'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../../stores/auth'
 
 // Boîte « Messages » : conversations WhatsApp, Messenger et Instagram des clients, réponses, et commande créée depuis la conversation.
@@ -19,6 +19,7 @@ import { useAuthStore } from '../../../stores/auth'
 const props = defineProps({ id: { type: String, default: null } })
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 const conversations = ref([])
 const connected = ref(true)
@@ -26,7 +27,9 @@ const linked = ref(true)
 const listLoaded = ref(false)
 const listPage = ref(1)
 const listLastPage = ref(1)
-const filter = ref('all')
+// Filtre ouvert par un lien (« récaps à confirmer » de l'accueil WhatsApp : ?filtre=a-confirmer)
+const FILTER_LINKS = { 'a-confirmer': 'pending', 'non-lues': 'unread', 'sans-commande': 'without_order' }
+const filter = ref(FILTER_LINKS[String(route.query.filtre ?? '')] ?? 'all')
 const search = ref('')
 
 const current = ref(null)
@@ -298,6 +301,9 @@ let draftTimer
 watch(reply, (text) => {
   clearTimeout(draftTimer)
   draftTimer = setTimeout(() => saveDraft(props.id, text), 500)
+})
+watch(() => route.query.filtre, (f) => {
+  if (FILTER_LINKS[String(f ?? '')]) filter.value = FILTER_LINKS[String(f)]
 })
 let searchTimer
 watch([filter, search], () => {

@@ -101,7 +101,7 @@ const codes = computed(() => data.value?.codes)
           <li><b>Pas de réponse au bout de {{ data.recap.remind_hours }} h ?</b> On relance le client.</li>
           <li><b>Toujours rien au bout de {{ data.recap.expire_hours }} h ?</b> La commande est annulée et l'article remis en stock. Rien n'est compté.</li>
         </ul>
-        <RouterLink v-if="data.recap.waiting" to="/gestion/whatsapp/ventes#commandes" class="flex items-center gap-2 rounded-xl bg-ocre-50 p-3 text-sm font-semibold text-ocre-800">
+        <RouterLink v-if="data.recap.waiting" to="/gestion/messages?filtre=a-confirmer" class="flex items-center gap-2 rounded-xl bg-ocre-50 p-3 text-sm font-semibold text-ocre-800">
           <Icon name="clock" :size="16" class="shrink-0" />
           <span class="min-w-0 flex-1">{{ data.recap.waiting }} {{ data.recap.waiting > 1 ? "clients n'ont pas encore confirmé" : "client n'a pas encore confirmé" }}</span>
           <span class="font-black">Voir ▸</span>
