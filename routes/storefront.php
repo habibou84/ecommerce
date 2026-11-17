@@ -73,6 +73,34 @@ Route::middleware('zone:store,custom_domain')->group(function () {
                 ['src' => '/brand/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'],
                 ['src' => '/brand/icon-maskable-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
             ],
+            // Appui long sur l'icône : les écrans de tous les jours
+            'shortcuts' => [
+                ['name' => 'Messages', 'url' => '/gestion/messages', 'icons' => [['src' => '/brand/messages-192.png', 'sizes' => '192x192', 'type' => 'image/png']]],
+                ['name' => 'Nouvelle commande', 'url' => '/gestion/commandes/nouvelle'],
+                ['name' => 'Préparer un live', 'url' => '/gestion/live'],
+            ],
+        ])->header('Content-Type', 'application/manifest+json');
+    })->middleware('zone:store');
+
+    // Messages : icône à part sur l'écran d'accueil, qui ouvre directement les conversations
+    Route::get('/gestion/messages/manifest.webmanifest', function (Tenancy $tenancy) {
+        $store = $tenancy->store();
+
+        return response()->json([
+            'id' => '/gestion/messages',
+            'name' => 'Messages · '.$store->name,
+            'short_name' => 'Messages',
+            'start_url' => '/gestion/messages',
+            'scope' => '/gestion',
+            'display' => 'standalone',
+            'background_color' => '#ffffff',
+            'theme_color' => '#01653a',
+            'lang' => 'fr',
+            'icons' => [
+                ['src' => '/brand/messages-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'],
+                ['src' => '/brand/messages-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'],
+                ['src' => '/brand/messages-maskable-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'],
+            ],
         ])->header('Content-Type', 'application/manifest+json');
     })->middleware('zone:store');
 

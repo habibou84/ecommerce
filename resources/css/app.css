@@ -156,6 +156,13 @@
 @utility shadow-soft {
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px -8px rgb(15 23 42 / 0.12);
 }
+@utility chat-wall {
+    /* Fond d'une discussion (Messages) : petits points discrets, comme le papier peint de WhatsApp sans le copier */
+    background-color: var(--color-slate-100);
+    background-image: radial-gradient(var(--color-slate-200) 1.2px, transparent 1.3px);
+    background-size: 14px 14px;
+}
+
 @utility bg-brand-grad {
     /* Dégradé calme (700 → 900) : le vert vif 400-500 reste aux petits éléments */
     background-color: var(--color-emerald-800);
