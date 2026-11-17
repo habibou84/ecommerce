@@ -17,6 +17,7 @@ use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\SupportConversation;
 use App\Models\User;
+use App\Models\WhatsappAccount;
 use App\Notifications\RecapNotice;
 use App\Services\Accounts\StoreRoles;
 use App\Services\Accounts\TeamNotifier;
@@ -53,6 +54,9 @@ use Throwable;
  * Payante : une fois confirmée, la commande compte 1 commande du solde (retirée le soir) ; solde vide, un nouveau
  * récap n'envoie rien au client. Un nouveau « récap » met à jour la commande encore à confirmer.
  *
+ * Depuis l'application aussi : « récap » et « confirmé » écrits dans Conversations, ou les boutons « Envoyer le récap »
+ * et « Confirmer la commande » (le résultat s'affiche à l'écran, sans notification).
+ *
  * Le même parcours sert après un panier du catalogue WhatsApp (follow) : commune demandée, puis récapitulatif.
  */
 class RecapOrders
@@ -71,6 +75,12 @@ class RecapOrders
 
     /** Messages relus pour reconstituer la commande */
     private const HISTORY = 40;
+
+    /** Demandé depuis l'application (bouton) : ce qui s'est passé est rendu à l'écran, sans notification */
+    private bool $fromApp = false;
+
+    /** @var array{sent: bool, message: string}|null */
+    private ?array $outcome = null;
 
     public function __construct(
         private readonly Inbox $inbox,
@@ -121,6 +131,60 @@ class RecapOrders
     }
 
     /**
+     * Bouton « Envoyer le récap » dans Conversations : même chose que le mot « récap », sans que le client voie le
+     * mot ; renvoie ce qui s'est passé (récap parti, question posée au client, ou pourquoi rien n'est parti).
+     *
+     * @return array{sent: bool, message: string}
+     */
+    public function recapFromApp(Conversation $conversation): array
+    {
+        [$this->fromApp, $this->outcome] = [true, null];
+        try {
+            if (! $this->store($conversation)->whatsapp_recap) {
+                return ['sent' => false, 'message' => 'Le récap est éteint : rallumez-le dans WhatsApp › Assistant des ventes.'];
+            }
+            $this->recap($conversation);
+
+            return $this->outcome ?? ['sent' => false, 'message' => 'Le récap n\'a pas pu partir.'];
+        } finally {
+            $this->fromApp = false;
+        }
+    }
+
+    /**
+     * Bouton « Confirmer la commande » dans Conversations : la commande récap à confirmer de ce client passe confirmée.
+     *
+     * @return array{sent: bool, message: string}
+     */
+    public function confirmFromApp(Conversation $conversation, User $user): array
+    {
+        $order = self::openOrder($conversation->store_id, PhoneNumber::normalize($conversation->contact), pendingOnly: true);
+        if ($order === null) {
+            return ['sent' => false, 'message' => 'Aucune commande récap à confirmer pour ce client.'];
+        }
+        [$this->fromApp, $this->outcome] = [true, null];
+        try {
+            $this->confirmByMerchant($order, $conversation, 'dans l\'application', $user);
+        } finally {
+            $this->fromApp = false;
+        }
+
+        return ['sent' => true, 'message' => 'Commande '.$order->reference().' confirmée : le client a reçu la confirmation.'];
+    }
+
+    /**
+     * Commande récap de cette conversation qui attend la réponse du client (bouton « Confirmer la commande »).
+     *
+     * @return array{id: int, reference: string, total: int}|null
+     */
+    public static function pendingFor(Conversation $conversation): ?array
+    {
+        $order = $conversation->channel === 'whatsapp' ? self::openOrder($conversation->store_id, PhoneNumber::normalize($conversation->contact), pendingOnly: true) : null;
+
+        return $order ? ['id' => $order->id, 'reference' => $order->reference(), 'total' => (int) $order->total] : null;
+    }
+
+    /**
      * « récap » : la commande est reconstituée, ce qui manque est demandé au client, puis le récapitulatif part.
      */
     public function recap(Conversation $conversation, string $precision = ''): bool
@@ -132,7 +196,11 @@ class RecapOrders
             return false;
         }
         if ($this->inbox->linkFor($conversation) === null && $this->inbox->officialFor($conversation) === null) {
-            $this->tell($store, null, 'Récap non envoyé', "{$name} n'a pas écrit depuis plus de 24 h : WhatsApp n'autorise plus l'envoi du récap. Il partira quand il vous réécrira.");
+            // Pas de numéro connecté, ou client silencieux depuis plus de 24 h (règle de WhatsApp)
+            $connected = WhatsappAccount::forStore($store->id)->where('status', '!=', 'disabled')->exists();
+            $this->tell($store, null, 'Récap non envoyé', $connected
+                ? "{$name} n'a pas écrit depuis plus de 24 h : WhatsApp n'autorise plus l'envoi du récap. Il partira quand il vous réécrira."
+                : 'Votre numéro WhatsApp n\'est pas connecté : connectez-le dans WhatsApp › Accueil pour envoyer le récap.', $connected ? null : '/gestion/whatsapp');
 
             return true;
         }
@@ -309,6 +377,7 @@ class RecapOrders
         if (! $sent) {
             $this->text($conversation, $text."\n\n".$values->map(fn (ProductVariant $v, int $i) => '*'.($i + 1).'* '.$v->title)->implode("\n")."\n\n👉 Écrivez *le numéro* (ou la taille).");
         }
+        $this->outcome = ['sent' => true, 'message' => "On demande au client la taille de {$product->title} ; le récap partira dès qu'il aura choisi."];
 
         return true;
     }
@@ -540,6 +609,12 @@ class RecapOrders
      */
     private function tell(Store $store, ?Order $order, string $title, string $body, ?string $url = null, bool $confirmButton = false): void
     {
+        // Depuis l'application : la personne voit le résultat à l'écran, pas besoin de la prévenir
+        if ($this->fromApp) {
+            $this->outcome ??= ['sent' => ! str_contains($title, 'non envoyé') && ! str_contains($title, 'aucun article'), 'message' => $body];
+
+            return;
+        }
         rescue(fn () => app(TeamNotifier::class)->notify($store, Permission::OrdersConfirm->value,
             new RecapNotice($store->id, $title, $body, $url ?? ($order ? '/gestion/commandes/'.$order->id : '/gestion/messages'))), report: false);
         $phone = $store->owner?->phone;

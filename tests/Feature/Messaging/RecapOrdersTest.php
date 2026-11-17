@@ -406,6 +406,54 @@ class RecapOrdersTest extends TestCase
         $this->assertTrue($after['visible'] && $after['cart']);
     }
 
+    public function test_recap_and_confirme_typed_in_the_app_work_like_from_the_phone(): void
+    {
+        $this->client('La robe wax M pour Angré svp');
+        $this->sent();
+        $id = Conversation::sole()->id;
+
+        $this->storeApi($this->store, 'POST', "conversations/{$id}/messages", ['body' => 'récap'])->assertCreated()
+            ->assertJsonPath('data.recap.pending.reference', fn ($ref) => is_string($ref));
+        $order = Order::sole();
+        $this->assertSame('recap', $order->credit_channel);
+        $sent = $this->sent();
+        $this->assertSame('récap', $sent[0]['text']['body']);
+        $this->assertSame("live:confirm:{$order->id}", $sent[1]['interactive']['action']['buttons'][0]['reply']['id']);
+
+        $this->storeApi($this->store, 'POST', "conversations/{$id}/messages", ['body' => 'Confirmé'])->assertCreated()->assertJsonPath('data.recap.pending', null);
+        $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
+    }
+
+    public function test_the_app_buttons_send_the_recap_and_confirm_without_the_word(): void
+    {
+        $this->client('Bonsoir, vous livrez à Yopougon ?');
+        $this->sent();
+        $id = Conversation::sole()->id;
+
+        // Aucun article : rien ne part, la raison est à l'écran
+        $this->storeApi($this->store, 'POST', "conversations/{$id}/recap")->assertStatus(422)
+            ->assertJsonPath('result.sent', false)->assertJsonPath('result.message', fn ($m) => str_contains($m, 'aucun article'));
+        $this->assertSame([], $this->sent());
+        $this->assertSame([], $this->notices());
+
+        // Article donné : le récap part sans le mot « récap »
+        $this->client('Ok je prends la robe wax M, je suis à Angré');
+        $this->sent();
+        $response = $this->storeApi($this->store, 'POST', "conversations/{$id}/recap")->assertOk()->assertJsonPath('result.sent', true);
+        $order = Order::sole();
+        $response->assertJsonPath('data.recap.pending.id', $order->id);
+        $sent = $this->sent();
+        $this->assertCount(1, $sent);
+        $this->assertSame("live:confirm:{$order->id}", $sent[0]['interactive']['action']['buttons'][0]['reply']['id']);
+
+        // « Confirmer la commande » : confirmée par la boutique, le client reçoit la confirmation
+        $this->storeApi($this->store, 'POST', "conversations/{$id}/recap/confirm")->assertOk()->assertJsonPath('data.recap.pending', null);
+        $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
+        $this->assertStringContainsString("dans l'application", $order->confirmations()->sole()->note);
+        $this->assertStringContainsString('COMMANDE CONFIRMÉE', collect($this->sent())->pluck('text.body')->filter()->implode("\n"));
+        $this->storeApi($this->store, 'POST', "conversations/{$id}/recap/confirm")->assertStatus(422);
+    }
+
     public function test_whatsapp_orders_outside_live_are_counted_in_the_evening(): void
     {
         $credits = app(Credits::class);

@@ -13,6 +13,7 @@ use App\Services\Orders\OrderMessageParser;
 use App\Services\Platform\Features;
 use App\Services\WhatsApp\Inbox;
 use App\Services\WhatsApp\MetaHealth;
+use App\Services\WhatsApp\RecapOrders;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -128,6 +129,30 @@ class ConversationController extends Controller
     }
 
     /**
+     * Bouton « Envoyer le récap » : la commande est préparée à partir de la conversation et le récapitulatif part au
+     * client (ou ce qui manque lui est demandé). Le résultat est rendu à l'écran.
+     */
+    public function recap(int $conversation, RecapOrders $recaps): JsonResponse
+    {
+        $model = $this->visible()->where('channel', 'whatsapp')->findOrFail($conversation);
+        $result = $recaps->recapFromApp($model);
+
+        return response()->json(['data' => $this->detail($model->fresh(['order.store', 'customer'])), 'result' => $result], $result['sent'] ? 200 : 422);
+    }
+
+    /**
+     * Bouton « Confirmer la commande » : la commande récap qui attend le client passe confirmée (le client a dit oui
+     * par écrit), et le client reçoit la confirmation.
+     */
+    public function confirmRecap(Request $request, int $conversation, RecapOrders $recaps): JsonResponse
+    {
+        $model = $this->visible()->where('channel', 'whatsapp')->findOrFail($conversation);
+        $result = $recaps->confirmFromApp($model, $request->user());
+
+        return response()->json(['data' => $this->detail($model->fresh(['order.store', 'customer'])), 'result' => $result], $result['sent'] ? 200 : 422);
+    }
+
+    /**
      * Réponse proposée par l'assistant IA (jamais envoyée sans le marchand).
      */
     public function suggest(Request $request, int $conversation, ReplySuggester $suggester): JsonResponse
@@ -210,6 +235,8 @@ class ConversationController extends Controller
             'can_reply' => $linked || $c->canReply(),
             'reply_until' => $linked ? null : $c->last_inbound_at?->addHours(Conversation::REPLY_WINDOW_HOURS)->toIso8601String(),
             'has_more' => $page->count() > self::PAGE,
+            // Récap : boutons « Envoyer le récap » (WhatsApp, récap allumé) et « Confirmer la commande » (récap en attente)
+            'recap' => $c->channel === 'whatsapp' && $c->store?->whatsapp_recap ? ['pending' => RecapOrders::pendingFor($c)] : null,
             'messages' => $messages->map(fn (ConversationMessage $m) => $this->message($m, isset($hints[$m->id]))),
             // Ce que le client a écrit depuis la dernière commande créée ici : texte proposé à l'analyse
             'order_text' => $messages->filter(fn (ConversationMessage $m) => $m->direction === 'in' && ($since === null || $m->sent_at->gt($since)))
