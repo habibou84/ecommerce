@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=540">
+<title>Caisse et bénéfice</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 540px; height: 960px; overflow: hidden; background: #f5f7f4; }
+  body { font-family: Inter, sans-serif; color: #0f172a; -webkit-font-smoothing: antialiased; }
+  img.e { width: 1.15em; height: 1.15em; vertical-align: -0.22em; margin: 0 .03em; display: inline; }
+  .scr { position: absolute; inset: 0; display: none; overflow: hidden; background: #f5f7f4; }
+  .status { height: 32px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 700; }
+  .gh { background: linear-gradient(140deg, #13a058, #065f46); color: #fff; padding: 6px 20px 16px; }
+  .gh small { opacity: .85; font-size: 13.5px; } .gh h1 { font-size: 25px; letter-spacing: -.5px; }
+  .hero { margin: 12px 14px 0; background: #0f172a; color: #fff; border-radius: 18px; padding: 14px 16px; }
+  .hero .l { font-size: 12.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #94a3b8; }
+  .hero .v { font-size: 40px; font-weight: 900; letter-spacing: -1px; line-height: 1.1; } .hero .s { font-size: 13.5px; color: #cbd5e1; }
+  .row { margin: 10px 14px 0; background: #fff; border-radius: 16px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 18px -10px rgba(15,23,42,.2); opacity: 0; }
+  .row .t { display: flex; justify-content: space-between; align-items: center; font-size: 16.5px; font-weight: 800; } .row .t b { font-size: 21px; white-space: nowrap; } .ln b, .ch .t span { white-space: nowrap; }
+  .row .d { color: #64748b; font-size: 13.5px; margin-top: 2px; } .row .sub { display: flex; justify-content: space-between; font-size: 14.5px; margin-top: 5px; color: #334155; }
+  .pill { display: inline-block; border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-weight: 800; margin-top: 6px; }
+  .rd { background: #fee2e2; color: #991b1b; } .gr { background: #dcfce7; color: #166534; }
+  .ln { display: flex; justify-content: space-between; font-size: 16px; padding: 7px 0; border-bottom: 1px solid #eef1ef; opacity: 0; } .ln b { font-weight: 800; } .ln.neg b { color: #b91c1c; }
+  .profit { margin: 12px 14px 0; border-radius: 18px; padding: 14px 16px; background: linear-gradient(140deg, #13a058, #065f46); color: #fff; opacity: 0; }
+  .profit .l { font-size: 12.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; opacity: .85; } .profit .v { font-size: 42px; font-weight: 900; letter-spacing: -1px; line-height: 1.1; } .profit .s { font-size: 14.5px; opacity: .9; }
+  .ch { margin: 10px 14px 0; background: #fff; border-radius: 16px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 18px -10px rgba(15,23,42,.2); opacity: 0; }
+  .ch .t { display: flex; justify-content: space-between; font-size: 17px; font-weight: 800; } .ch .m { display: flex; justify-content: space-between; font-size: 14px; color: #64748b; margin-top: 3px; }
+  .ch .bar { height: 10px; border-radius: 5px; background: #e2e8f0; margin-top: 8px; overflow: hidden; } .ch .bar div { height: 100%; border-radius: 5px; background: #22c55e; }
+  .ch.bad { background: #fef2f2; outline: 2px solid #fca5a5; } .ch.bad .bar div { background: #ef4444; }
+  .wa { background: #efe6dc; } .wah { background: #0f7a5c; color: #fff; padding: 4px 16px 12px; }
+  .wah .av { width: 40px; height: 40px; border-radius: 10px; background: #fff; padding: 3px; }
+  .bub { margin: 10px 12px 0; max-width: 92%; background: #fff; border-radius: 12px; padding: 10px 12px 7px; font-size: 15.5px; line-height: 1.42; box-shadow: 0 1px 1px rgba(0,0,0,.1); opacity: 0; transform-origin: top left; }
+  .bub .ti { text-align: right; font-size: 11px; color: #667781; margin-top: 2px; } .bub .hl { background: #fef9c3; border-radius: 4px; padding: 0 2px; }
+</style>
+</head>
+<body>
+<div id="z" style="zoom:1.38;position:absolute;left:0;top:0;width:391px;height:696px;overflow:hidden">
+
+<!-- 1. Caisse : où est mon argent -->
+<div class="scr" id="s1">
+  <div class="gh"><div class="status"><span>18:30</span><span>📶 🔋</span></div><small>Awa Mode · Caisse</small><h1>Où est mon argent</h1></div>
+  <div class="hero"><div class="l">À récupérer</div><div class="v" id="due">0 F</div><div class="s">chez vos livreurs et les entreprises de livraison</div></div>
+  <div class="row" id="r0"><div class="t"><span>🛵 Chez mes livreurs</span><b>60 500 F</b></div><div class="sub"><span>Moussa Traoré</span><span>48 500 F</span></div><div class="sub"><span>Ibrahim Koné</span><span>12 000 F</span></div></div>
+  <div class="row" id="r1"><div class="t"><span>🚚 Entreprises de livraison</span><b>92 000 F</b></div><div class="d">Livré, pas encore reversé</div><span class="pill rd">⚠️ dont 25 000 F en retard</span></div>
+  <div class="row" id="r2"><div class="t"><span>👥 Clients : reste à payer</span><b>35 000 F</b></div><div class="d">4 commandes livrées, pas soldées</div></div>
+</div>
+
+<!-- 2. Dépenses et bénéfice réel -->
+<div class="scr" id="s2">
+  <div class="gh"><div class="status"><span>18:31</span><span>📶 🔋</span></div><small>Awa Mode · Statistiques · ce mois-ci</small><h1>Bénéfice réel</h1></div>
+  <div class="row" style="opacity:1"><div class="t"><span>Chiffre d'affaires livré</span><b>2 050 000 F</b></div><div class="d">210 commandes livrées</div></div>
+  <div class="row" style="opacity:1;padding-bottom:6px">
+    <div class="ln" id="l0" style="opacity:1"><span>Marge nette des commandes</span><b>640 000 F</b></div>
+    <div class="ln neg" id="l1"><span>🏠 Loyer</span><b>− 100 000 F</b></div>
+    <div class="ln neg" id="l2"><span>🚕 Transport</span><b>− 45 000 F</b></div>
+    <div class="ln neg" id="l3" style="border-bottom:0"><span>📣 Publicité</span><b>− 180 000 F</b></div></div>
+  <div class="profit" id="pf"><div class="l">Bénéfice</div><div class="v" id="pv">0 F</div><div class="s">Soit par commande livrée : <b>1 500 F</b></div></div>
+</div>
+
+<!-- 3. Par canal de vente, une fois la publicité payée -->
+<div class="scr" id="s3">
+  <div class="gh"><div class="status"><span>18:32</span><span>📶 🔋</span></div><small>Awa Mode · Statistiques</small><h1>Par canal de vente</h1></div>
+  <div class="ch" id="k0"><div class="t"><span>🎵 TikTok</span><span style="color:#047857">+ 246 000 F</span></div><div class="m"><span>Ventes 820 000 F · pub 60 000 F</span><span>après la pub</span></div><div class="bar"><div id="b0"></div></div></div>
+  <div class="ch" id="k1"><div class="t"><span>💬 WhatsApp</span><span style="color:#047857">+ 183 000 F</span></div><div class="m"><span>Ventes 610 000 F · pub 0 F</span><span>après la pub</span></div><div class="bar"><div id="b1"></div></div></div>
+  <div class="ch" id="k2"><div class="t"><span>📘 Facebook</span><span id="fbv" style="color:#b91c1c">− 14 000 F</span></div><div class="m"><span>Ventes 420 000 F · pub 120 000 F</span><span>après la pub</span></div><div class="bar"><div id="b2"></div></div>
+    <span class="pill rd" id="fbw" style="opacity:0">⚠️ Cette publicité coûte plus qu'elle ne rapporte</span></div>
+</div>
+
+<!-- 4. Rapport du soir sur WhatsApp -->
+<div class="scr wa" id="s4">
+  <div class="wah"><div class="status" style="color:#fff"><span>20:00</span><span>📶 🔋</span></div>
+    <div style="display:flex;gap:10px;align-items:center"><span style="font-size:22px">←</span><img class="av" src="../pub7/logo.png"><div><b style="font-size:17px">Jibiat Marchand</b><div style="font-size:12.5px;opacity:.85">Rapport du jour</div></div></div></div>
+  <div class="bub" id="m0">📊 <b>Awa Mode — mardi 17 novembre</b><br>Commandes reçues : 14 (212 000 F)<br>Livrées : 11 (168 500 F)<br>À confirmer : 3 · À faire livrer : 2<br>Espèces chez les livreurs : 60 500 F<br>À recevoir des entreprises de livraison : 92 000 F (dont 25 000 F en retard)<br><span class="hl" id="hl0"><b>Bénéfice depuis le 1er du mois : 315 000 F</b></span><div class="ti">20:00</div></div>
+  <div class="bub" id="m1">💡 <b>Conseils :</b><br><span id="c0">1. La robe wax rouge va manquer : 3 pièces pour 2 jours de ventes.</span><br><span id="c1">2. 3 commandes attendent une confirmation depuis hier.</span><br><span id="c2">3. La publicité Facebook coûte plus qu'elle ne rapporte.</span><div class="ti">20:00</div></div>
+</div>
+</div>
+
+<script>
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+const back = x => { x = clamp(x); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const $ = id => document.getElementById(id);
+const F = n => Math.round(n).toLocaleString('fr-FR').replace(/ | /g, ' ') + ' F';
+const EMOJI = /\p{Extended_Pictographic}️?/gu;
+function fix(img) { if (img.dataset.r) return; img.dataset.r = 1; img.src = img.src.includes('-fe0f.png') ? img.src.replace('-fe0f.png', '.png') : img.src.replace('.png', '-fe0f.png'); }
+(function emojify(root) { const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (w.nextNode()) if (/\p{Extended_Pictographic}/u.test(w.currentNode.nodeValue)) nodes.push(w.currentNode);
+  nodes.forEach(n => { const s = document.createElement('span'); s.innerHTML = n.nodeValue.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(EMOJI, e => `<img class="e" src="../video7/emoji64/${[...e].map(c => c.codePointAt(0).toString(16)).join('-')}.png" onerror="fix(this)" alt="">`); n.replaceWith(...s.childNodes); }); })(document.body);
+const rise = (id, s, a, dy = 24) => { const k = (s - a) / 0.4, el = $(id); el.style.opacity = clamp(k * 1.5); el.style.transform = `translateY(${(1 - ease(k)) * dy}px)`; };
+const glow = (el, on) => { el.style.outline = on ? '3px solid #f59e0b' : ''; el.style.outlineOffset = '0px'; };
+
+// Temps local : caisse 0 → 12 · bénéfice réel 12 → 26 · par canal 26 → 36 · rapport du soir 36 → …
+window.render = function (s) {
+  [['s1', 0, 12], ['s2', 12, 26], ['s3', 26, 36], ['s4', 36, 99]].forEach(([id, a, b]) => $(id).style.display = s >= a && s < b ? 'block' : 'none');
+  // 1. Caisse
+  $('due').textContent = F(ease((s - 0.4) / 1.4) * 187500);
+  rise('r0', s, 3.0); rise('r1', s, 5.0); rise('r2', s, 7.0);
+  [['r0', 3.0, 5.0], ['r1', 5.0, 7.0], ['r2', 7.0, 9.5]].forEach(([id, a, b]) => glow($(id), s >= a + 0.2 && s < b));
+  // 2. Dépenses puis bénéfice
+  [['l1', 13.5], ['l2', 15.0], ['l3', 16.5]].forEach(([id, a]) => { const k = (s - a) / 0.35, el = $(id); el.style.opacity = clamp(k * 1.5); el.style.transform = `translateX(${(1 - ease(k)) * -20}px)`; });
+  rise('pf', s, 19.0, 30); $('pv').textContent = F(ease((s - 19.2) / 1.3) * 315000);
+  $('pf').style.transform += ` scale(${s > 21 ? 1 + 0.02 * Math.abs(Math.sin((s - 21) * 3)) : 1})`;
+  // 3. Par canal
+  [['k0', 26.4, 'b0', 82], ['k1', 27.4, 'b1', 61], ['k2', 28.4, 'b2', 42]].forEach(([id, a, bar, w]) => { rise(id, s, a); $(bar).style.width = (ease((s - a - 0.2) / 0.7) * w) + '%'; });
+  glow($('k0'), s >= 29.6 && s < 31.6); $('k2').classList.toggle('bad', s >= 31.8);
+  const fk = (s - 31.9) / 0.35; $('fbw').style.opacity = clamp(fk * 1.5); $('fbw').style.transform = `scale(${s < 31.9 ? .7 : .7 + .3 * back(fk)})`;
+  // 4. Rapport du soir
+  [['m0', 36.5], ['m1', 41.0]].forEach(([id, a]) => { const k = (s - a) / 0.35, el = $(id); el.style.opacity = clamp(k * 1.6); el.style.transform = `scale(${s < a ? .85 : .85 + .15 * back(k)})`; });
+  $('hl0').style.background = s >= 39 ? '#fde047' : '#fef9c3';
+  [['c0', 42.0], ['c1', 43.2], ['c2', 44.4]].forEach(([id, a]) => $(id).style.opacity = s >= a ? 1 : 0.15);
+};
+if (!location.hash.includes('capture')) { const st = performance.now(); (function loop(n) { render(((n - st) / 1000) % 48); requestAnimationFrame(loop); })(st); }
+</script>
+</body>
+</html>
