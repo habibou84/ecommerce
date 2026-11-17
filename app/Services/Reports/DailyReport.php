@@ -12,6 +12,7 @@ use App\Models\Store;
 use App\Notifications\DailyReportMail;
 use App\Services\Accounts\StoreGroup;
 use App\Services\Accounts\StoreRoles;
+use App\Services\Orders\OrderListing;
 use App\Services\Shipping\CarrierBalances;
 use App\Services\WhatsApp\CustomerMessenger;
 use Carbon\CarbonImmutable;
@@ -45,7 +46,7 @@ class DailyReport
             'delivered_amount' => (int) (clone $delivered)->sum('total'),
             'cancelled' => (clone $received)->where('status', OrderStatus::Cancelled->value)->count(),
             'to_confirm' => Order::forStore($store->id)->where('status', OrderStatus::PendingConfirmation->value)->count(),
-            'to_ship' => Order::forStore($store->id)->where('status', OrderStatus::Confirmed->value)->count(),
+            'to_ship' => OrderListing::toShip(Order::forStore($store->id))->count(),
             'in_delivery' => Shipment::forStore($store->id)->whereIn('status', ['requested', 'accepted', 'awaiting_pickup', 'in_transit', 'out_for_delivery', 'rescheduled'])->count(),
             'courier_cash' => (int) CashCollection::forStore($store->id)->whereNull('remittance_id')->where('method', 'cash')->sum('amount'),
             'carrier_due' => (int) $due->sum('net'),

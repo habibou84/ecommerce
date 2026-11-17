@@ -3,10 +3,9 @@ import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 
 // Menu « Livraisons » : qui livre, comment et pour combien (paie des livreurs). L'argent encaissé par les livreurs
-// et les entreprises reste dans la Caisse.
+// et les entreprises reste dans la Caisse ; les livraisons en cours se suivent dans la liste des commandes.
 const auth = useAuthStore()
 const tabs = computed(() => [
-  ...(auth.can('shipments.manage') ? [{ to: '/gestion/livraisons', label: 'En cours', exact: true }] : []),
   ...(auth.can('couriers.manage') ? [{ to: '/gestion/livraisons/livreurs', label: 'Mes livreurs', short: 'Livreurs' }] : []),
   ...(auth.can('carriers.manage') ? [{ to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison', short: 'Entreprises' }] : []),
   ...(auth.can('shipments.manage') ? [{ to: '/gestion/livraisons/automatisation', label: 'Automatisation' }] : []),
