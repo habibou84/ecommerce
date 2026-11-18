@@ -31,7 +31,9 @@ use Throwable;
  *
  * Garde-fous :
  * - désactivé par défaut ; seulement avec la connexion officielle de Meta (pas par QR code) ;
- * - il attend 20 s après le dernier message (la personne a fini d'écrire) et ne répond qu'au dernier ;
+ * - à l'essai, il ne répond qu'aux numéros d'essai indiqués dans la console ;
+ * - il attend 8 s après le dernier message (la personne a fini d'écrire) et ne répond qu'au dernier ; pendant ce
+ *   temps et pendant qu'il prépare sa réponse, la personne voit « en train d'écrire… » ;
  * - il se tait quand l'inscription par WhatsApp est en cours, quand l'équipe a répondu depuis moins de 12 h ou
  *   quand « Aide demandée » est levée sur la conversation ;
  * - une réponse vient d'une fiche ou des données du compte, jamais d'une invention : sinon il passe la main ;
@@ -39,7 +41,7 @@ use Throwable;
  */
 class SupportAgent
 {
-    public const WAIT_SECONDS = 20;
+    public const WAIT_SECONDS = 8;
 
     public const HUMAN_HOURS = 12;
 
@@ -58,7 +60,7 @@ class SupportAgent
     ) {}
 
     /**
-     * @return array{enabled: bool, daily_budget: float, available: bool, unavailable_reason: ?string}
+     * @return array{enabled: bool, daily_budget: float, test_phones: list<string>, available: bool, unavailable_reason: ?string}
      */
     public function settings(): array
     {
@@ -73,24 +75,34 @@ class SupportAgent
         return [
             'enabled' => ($saved['enabled'] ?? '0') === '1',
             'daily_budget' => (float) ($saved['daily_budget'] ?? self::DEFAULT_DAILY_BUDGET),
+            // Numéros d'essai : tant qu'il y en a, l'assistant ne répond qu'à eux
+            'test_phones' => array_values(array_filter(explode(',', (string) ($saved['test_phones'] ?? '')))),
             'available' => $reason === null,
             'unavailable_reason' => $reason,
         ];
     }
 
-    public function update(bool $enabled, float $dailyBudget): void
+    /**
+     * @param  list<string>  $testPhones  numéros d'essai (vide : l'assistant répond à tout le monde)
+     */
+    public function update(bool $enabled, float $dailyBudget, array $testPhones = []): void
     {
         PlatformSetting::put('support_agent.enabled', $enabled ? '1' : '0');
         PlatformSetting::put('support_agent.daily_budget', (string) round($dailyBudget, 2));
+        $phones = collect($testPhones)->map(fn (string $p) => PhoneNumber::modernize($p) ?? PhoneNumber::normalize($p))->filter()->unique()->values();
+        PlatformSetting::put('support_agent.test_phones', $phones->isEmpty() ? null : $phones->implode(','));
     }
 
     /**
-     * Message reçu sur le numéro du support, auquel aucun robot n'a répondu : l'assistant y répondra dans 20 s.
+     * Message reçu sur le numéro du support, auquel aucun robot n'a répondu : l'assistant y répondra dans quelques
+     * secondes, et la personne voit tout de suite « en train d'écrire… ».
      */
     public function schedule(SupportMessage $message): void
     {
         $settings = $this->settings();
-        if ($settings['enabled'] && $settings['available'] && $message->direction === 'in' && $message->type === 'text') {
+        if ($settings['enabled'] && $settings['available'] && $message->direction === 'in' && $message->type === 'text'
+            && $this->inTest($settings, (string) $message->conversation?->contact)) {
+            rescue(fn () => $this->whatsapp->typing($message), report: false);
             AnswerSupportMessage::dispatch($message->id)->delay(now()->addSeconds(self::WAIT_SECONDS));
         }
     }
@@ -103,7 +115,8 @@ class SupportAgent
         $message = SupportMessage::with('conversation')->find($messageId);
         $conversation = $message?->conversation;
         $settings = $this->settings();
-        if ($conversation === null || ! $settings['enabled'] || ! $settings['available'] || ! $this->mayAnswer($conversation, $message)) {
+        if ($conversation === null || ! $settings['enabled'] || ! $settings['available'] || ! $this->inTest($settings, $conversation->contact)
+            || ! $this->mayAnswer($conversation, $message)) {
             return null;
         }
         if ($this->spentToday() >= $settings['daily_budget']) {
@@ -115,6 +128,8 @@ class SupportAgent
             return SupportAgentRun::BUDGET;
         }
 
+        // La réponse prend quelques secondes : « en train d'écrire… » est relancé (il s'efface au bout de 25 s)
+        rescue(fn () => $this->whatsapp->typing($message), report: false);
         $user = $this->userFor($conversation->contact);
         $store = $user ? $this->storeFor($user) : null;
         $articles = [];
@@ -192,6 +207,16 @@ class SupportAgent
                     'contact' => $r->conversation?->contact_name ?: PhoneNumber::display((string) $r->conversation?->contact),
                 ])->values(),
         ];
+    }
+
+    /**
+     * Pendant un essai, seuls les numéros d'essai reçoivent une réponse ; sans numéro d'essai, tout le monde.
+     *
+     * @param  array{test_phones: list<string>}  $settings
+     */
+    private function inTest(array $settings, string $contact): bool
+    {
+        return $settings['test_phones'] === [] || collect($settings['test_phones'])->contains(fn (string $phone) => PhoneNumber::sameNumber($phone, $contact));
     }
 
     private function mayAnswer(SupportConversation $conversation, SupportMessage $message): bool
