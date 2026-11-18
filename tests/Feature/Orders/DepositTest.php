@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\Expeditions;
+use App\Services\Orders\OrderDesk;
 use App\Services\Places\Places;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -87,6 +88,45 @@ class DepositTest extends TestCase
         $this->storeApi($this->store, 'POST', "orders/{$id}/payments", ['amount' => 22500, 'method' => 'wave', 'kind' => 'deposit'])
             ->assertOk()->assertJsonPath('data.status', 'confirmed')->assertJsonPath('data.upfront.deposit_due', 0);
         $this->assertSame(0, Expeditions::blockingDue($order->fresh()));
+    }
+
+    public function test_deposit_never_exceeds_the_total(): void
+    {
+        // Saisi à la main à la création : refusé au-dessus du total, avec le total dans le message
+        $this->order([[$this->sac, 1]], ['deposit_required' => 50000])->assertStatus(422)
+            ->assertJsonValidationErrors('deposit_required')
+            ->assertJsonPath('errors.deposit_required.0', fn ($m) => str_contains($m, 'dépasser le total'));
+        $this->assertSame(0, Order::count());
+        // Égal au total : accepté ; 0 : pas d'acompte
+        $order = Order::findOrFail($this->order([[$this->sac, 1]], ['deposit_required' => 8000])->assertCreated()->json('data.id'));
+        $total = $order->total;
+        $this->assertSame(8000, $order->deposit_required);
+        $this->assertNull(Order::findOrFail($this->order([[$this->robe, 1]], ['deposit_required' => 0])->assertCreated()->json('data.id'))->deposit_required);
+
+        // Modification : refusé au-dessus du total, la commande ne change pas
+        $this->storeApi($this->store, 'PUT', "orders/{$order->id}", ['deposit_required' => $total + 1])->assertStatus(422)->assertJsonValidationErrors('deposit_required');
+        $this->assertSame(8000, $order->fresh()->deposit_required);
+
+        // Le total baisse ensuite (remise) : l'acompte fixé à la main est ramené au total
+        $this->storeApi($this->store, 'PUT', "orders/{$order->id}", ['discount_total' => 3000])->assertOk();
+        $this->assertSame($order->fresh()->total, $order->fresh()->deposit_required);
+        $this->assertLessThan($total, $order->fresh()->deposit_required);
+    }
+
+    public function test_the_order_form_previews_the_automatic_deposit(): void
+    {
+        $this->store->forceFill(['deposit_mode' => 'above', 'deposit_min_total' => 20000, 'deposit_rule_percent' => 30, 'deposit_blocks' => false])->save();
+        $quote = $this->storeApi($this->store, 'POST', 'orders/pricing', ['items' => [
+            ['variant_id' => $this->robe->variants()->value('id'), 'quantity' => 1],
+            ['variant_id' => $this->sac->variants()->value('id'), 'quantity' => 1],
+        ]])->assertOk();
+        // Acompte des articles (50 % de la robe) et règle de la boutique, que le formulaire applique au total
+        $quote->assertJsonPath('data.deposit', ['items' => 22500, 'mode' => 'above', 'percent' => 30, 'min_total' => 20000, 'blocks' => false]);
+        // Le même calcul que l'enregistrement
+        $this->assertSame(22500, OrderDesk::autoDeposit(22500, 53000, $this->store));
+        $this->assertSame(15900, OrderDesk::autoDeposit(0, 53000, $this->store));
+        $this->assertSame(16000, OrderDesk::autoDeposit(0, 53100, $this->store)); // 15 930 F arrondi aux 100 F
+        $this->assertSame(0, OrderDesk::autoDeposit(0, 8000, $this->store));
     }
 
     public function test_reminder_is_sent_only_once(): void
