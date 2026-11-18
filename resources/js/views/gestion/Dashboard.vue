@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import ColorIcon from '../../components/ColorIcon.vue'
 import Icon from '../../components/Icon.vue'
@@ -183,9 +183,20 @@ const pendingHidden = computed(() => pending.value.length - pendingShort.value.l
 
 // Guide de démarrage : avancement et prochaine étape (le détail est sur sa page)
 const guide = ref(null)
+const router = useRouter()
 onMounted(async () => {
   guide.value = (await http.get('/setup-guide').catch(() => ({ data: { data: null } }))).data.data
+  // Nouvelle boutique : l'assistant du premier accès (tarifs, premier produit, WhatsApp), à l'arrivée après
+  // l'inscription, puis une fois par visite tant qu'il n'est ni terminé ni remis à plus tard
+  if (guide.value?.welcome?.pending && (welcome.value || !welcomeSeen())) router.replace('/gestion/bienvenue')
 })
+function welcomeSeen() {
+  try {
+    return sessionStorage.getItem('jm-welcome-seen') === '1'
+  } catch {
+    return true
+  }
+}
 // Icône en couleur de chaque ligne « À faire maintenant » (les mêmes que dans Jibiat)
 const TODO_COLORS = { live: 'live', phone: 'telephone', truck: 'colis', box: 'colis', alert: 'aregler', cash: 'moto', receipt: 'camion', messages: 'whatsapp' }
 const todoColor = (t) => (t.key === 'stock' ? 'stock' : TODO_COLORS[t.icon] ?? 'colis')

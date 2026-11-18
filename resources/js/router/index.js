@@ -47,6 +47,8 @@ const storeRoutes = [
   { path: '/livreur/:any(.*)*', redirect: '/livreur' },
   // Mode présentation du live : plein écran, sans le menu de la gestion (partagé à l'écran dans TikTok)
   { path: '/gestion/live/:id(\\d+)/presentation', component: () => import('../views/gestion/marketing/LivePresentation.vue'), props: true, meta: { platform: 'live_screens', auth: true, title: 'Mode présentation', permission: 'orders.manage' } },
+  // Assistant du premier accès : plein écran, sans le menu de la gestion (tarifs de livraison, premier produit, WhatsApp)
+  { path: '/gestion/bienvenue', component: () => import('../views/gestion/Welcome.vue'), meta: { auth: true, title: 'Bienvenue', permission: 'store.manage' } },
   {
     path: '/gestion',
     component: () => import('../layouts/GestionLayout.vue'),

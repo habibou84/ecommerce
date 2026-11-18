@@ -39,6 +39,8 @@ class SharedCouriersTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Avant l'heure limite (14 h) : les commandes du jour se livrent le jour même, quelle que soit l'heure des tests
+        $this->travelTo(today()->setTime(10, 0));
         $this->mode = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
         $this->mode->currentSubscription()->first()->update(['status' => SubscriptionStatus::Expired]);
         $this->mode->subscriptions()->create(['plan_id' => Plan::where('code', 'business')->value('id'), 'status' => 'active', 'billing_cycle' => 'monthly',
