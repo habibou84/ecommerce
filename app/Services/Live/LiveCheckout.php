@@ -474,7 +474,8 @@ class LiveCheckout
      * Comment payer avant l'envoi : le lien de paiement en ligne de la commande quand la boutique en a un, sinon la
      * boutique envoie son numéro Wave ou Orange Money.
      */
-    private function howToPay(Order $order): string
+    /** Comment payer ce qui est dû avant l'envoi : lien de paiement en ligne, sinon le lien Wave de la boutique */
+    public function howToPay(Order $order): string
     {
         $store = Store::findOrFail($order->store_id);
         try {

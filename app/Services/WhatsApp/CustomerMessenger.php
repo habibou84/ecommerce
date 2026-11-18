@@ -19,9 +19,11 @@ use App\Models\WhatsappAccount;
 use App\Notifications\CourierAlert;
 use App\Notifications\ShipmentAlert;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Live\LiveCheckout;
 use App\Services\Orders\Expeditions;
 use App\Services\Orders\MessageTexts;
 use App\Services\Orders\OrderDesk;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
@@ -250,7 +252,15 @@ class CustomerMessenger
 
     private function confirmationText(Order $order): string
     {
-        return app(MessageTexts::class)->render($order, 'whatsapp_confirmation');
+        $texts = app(MessageTexts::class);
+        $text = $texts->render($order, 'whatsapp_confirmation');
+        // Texte personnalisé par la boutique sans {acompte} : l'acompte est quand même annoncé
+        $due = MessageTexts::depositDue($order);
+        if ($due > 0 && ! str_contains($texts->text($order->store ?? Store::findOrFail($order->store_id), 'whatsapp_confirmation'), '{acompte}')) {
+            $text .= "\n\n💳 Acompte à payer pour valider la commande : ".Money::format($due);
+        }
+
+        return $text;
     }
 
     public function forCart(Cart $cart): ?OutboundMessage
@@ -441,6 +451,29 @@ class CustomerMessenger
     }
 
     /**
+     * « Confirmer » alors que l'acompte (ou l'expédition payée d'avance) n'est pas payé : le client reçoit une réponse,
+     * avec le montant et comment payer, au lieu de rien. Une seule fois par quart d'heure (boutons touchés plusieurs fois).
+     */
+    private function askUpfront(Order $order): void
+    {
+        $due = $order->upfrontDue();
+        if ($due <= 0 || ! Cache::add('upfront-reply:'.$order->id, true, now()->addMinutes(15))) {
+            return;
+        }
+        $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
+        if ($conversation === null || ! $conversation->canReply()) {
+            return;
+        }
+        $what = $order->isExpedition() && $order->expedition_prepay ? 'dès réception du paiement de '.Money::format($due).' (avant l\'envoi)' : 'dès réception de l\'acompte de '.Money::format($due);
+        try {
+            $this->inbox->replyAutomatically($conversation, "Merci ! 🙏 Votre commande n° {$order->reference()} sera confirmée {$what}.\n".app(LiveCheckout::class)->howToPay($order));
+            $this->orders->log($order, 'upfront_requested', ['amount' => $due, 'via' => 'whatsapp_confirm'], null, 'customer');
+        } catch (Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
      * Le client a répondu par un bouton : la commande est confirmée ou annulée (si elle attend encore).
      */
     private function answer(WhatsappAccount $account, int $orderId, string $choice, string $from): void
@@ -455,6 +488,8 @@ class CustomerMessenger
         $mustPay = $order->upfrontDue() > 0
             || ($order->source?->value === 'online_store' && $order->store?->online_payment === 'required' && $order->amountDue() > 0);
         if ($choice === 'confirm' && $mustPay) {
+            $this->askUpfront($order);
+
             return;
         }
 
