@@ -195,6 +195,20 @@ class SupportAgentTest extends TestCase
         $console('GET')->assertJsonPath('data.stats.week.answered', 1)->assertJsonPath('data.stats.week.handoff', 1)->assertJsonPath('data.stats.week.alone_percent', 50)
             ->assertJsonPath('data.stats.handoffs.0.reason', 'Compte bloqué');
 
+        // À l'essai : seul le numéro d'essai reçoit une réponse (écrit comme on le dit, « 07 08 09 10 11 »)
+        $console('PUT', ['enabled' => true, 'daily_budget' => 2, 'test_phones' => ['pas un numéro']])->assertStatus(422);
+        $console('PUT', ['enabled' => true, 'daily_budget' => 2, 'test_phones' => ['07 08 09 10 11']])->assertOk()->assertJsonPath('data.settings.test_phones', ['+2250708091011']);
+        $sent = count($this->sent);
+        $this->say('Comment ajouter un livreur ?', '2250505050505');
+        $this->assertCount($sent, $this->sent);
+        $this->assertSame(2, SupportAgentRun::count());
+        $this->ai->agentWill([], 'Bonjour 🙂');
+        $this->travel(13)->hours();
+        $this->say('Bonjour', '2250708091011');
+        $this->assertSame('Bonjour 🙂', $this->lastText());
+        // Liste vidée : de nouveau tout le monde
+        $console('PUT', ['enabled' => true, 'daily_budget' => 2, 'test_phones' => []])->assertOk()->assertJsonPath('data.settings.test_phones', []);
+
         // Par QR code, l'assistant ne répond pas
         PlatformSetting::put('whatsapp.mode', 'qr');
         $this->assertFalse(app(SupportAgent::class)->settings()['available']);
