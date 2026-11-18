@@ -32,7 +32,8 @@ use Throwable;
  * Garde-fous :
  * - désactivé par défaut ; seulement avec la connexion officielle de Meta (pas par QR code) ;
  * - à l'essai, il ne répond qu'aux numéros d'essai indiqués dans la console ;
- * - il attend 20 s après le dernier message (la personne a fini d'écrire) et ne répond qu'au dernier ;
+ * - il attend 8 s après le dernier message (la personne a fini d'écrire) et ne répond qu'au dernier ; pendant ce
+ *   temps et pendant qu'il prépare sa réponse, la personne voit « en train d'écrire… » ;
  * - il se tait quand l'inscription par WhatsApp est en cours, quand l'équipe a répondu depuis moins de 12 h ou
  *   quand « Aide demandée » est levée sur la conversation ;
  * - une réponse vient d'une fiche ou des données du compte, jamais d'une invention : sinon il passe la main ;
@@ -40,7 +41,7 @@ use Throwable;
  */
 class SupportAgent
 {
-    public const WAIT_SECONDS = 20;
+    public const WAIT_SECONDS = 8;
 
     public const HUMAN_HOURS = 12;
 
@@ -93,13 +94,15 @@ class SupportAgent
     }
 
     /**
-     * Message reçu sur le numéro du support, auquel aucun robot n'a répondu : l'assistant y répondra dans 20 s.
+     * Message reçu sur le numéro du support, auquel aucun robot n'a répondu : l'assistant y répondra dans quelques
+     * secondes, et la personne voit tout de suite « en train d'écrire… ».
      */
     public function schedule(SupportMessage $message): void
     {
         $settings = $this->settings();
         if ($settings['enabled'] && $settings['available'] && $message->direction === 'in' && $message->type === 'text'
             && $this->inTest($settings, (string) $message->conversation?->contact)) {
+            rescue(fn () => $this->whatsapp->typing($message), report: false);
             AnswerSupportMessage::dispatch($message->id)->delay(now()->addSeconds(self::WAIT_SECONDS));
         }
     }
@@ -125,6 +128,8 @@ class SupportAgent
             return SupportAgentRun::BUDGET;
         }
 
+        // La réponse prend quelques secondes : « en train d'écrire… » est relancé (il s'efface au bout de 25 s)
+        rescue(fn () => $this->whatsapp->typing($message), report: false);
         $user = $this->userFor($conversation->contact);
         $store = $user ? $this->storeFor($user) : null;
         $articles = [];

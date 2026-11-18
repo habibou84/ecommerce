@@ -28,6 +28,9 @@ class SupportAgentTest extends TestCase
     /** @var list<array<string, mixed>> */
     private array $sent = [];
 
+    /** @var list<array<string, mixed>> */
+    private array $typing = [];
+
     private FakeAiClient $ai;
 
     protected function setUp(): void
@@ -41,6 +44,12 @@ class SupportAgentTest extends TestCase
         Http::preventStrayRequests();
         Http::fake(function (HttpRequest $r) {
             if (str_ends_with((string) parse_url($r->url(), PHP_URL_PATH), '/9001/messages')) {
+                // « En train d'écrire… » : à part des messages envoyés
+                if (isset($r->data()['typing_indicator'])) {
+                    $this->typing[] = $r->data();
+
+                    return Http::response(['success' => true]);
+                }
                 $this->sent[] = $r->data();
 
                 return Http::response(['messages' => [['id' => 'wamid.out'.count($this->sent)]]]);
@@ -76,12 +85,17 @@ class SupportAgentTest extends TestCase
         $this->say('Bonjour, comment ajouter mes livreurs ?');
         $this->assertSame([], $this->sent);
         $this->assertSame([], $this->ai->calls);
+        $this->assertSame([], $this->typing);
 
         app(SupportAgent::class)->update(true, 3.5);
         $this->ai->agentWill([['chercher_aide', ['question' => 'ajouter mes livreurs']]], "Dans Livraisons › « Mes livreurs », touchez « + Livreur ».\nhttps://localhost/video");
         $this->say('Bonjour, comment ajouter mes livreurs ?');
 
         $this->assertStringContainsString('« + Livreur »', $this->lastText());
+        // « En train d'écrire… » dès le message reçu puis pendant la réponse, sur le message de la personne (marqué lu)
+        $this->assertCount(2, $this->typing);
+        $this->assertSame(['status' => 'read', 'typing_indicator' => ['type' => 'text']], collect($this->typing[0])->only(['status', 'typing_indicator'])->all());
+        $this->assertStringStartsWith('wamid.agent', $this->typing[0]['message_id']);
         // La fiche trouvée, avec ses étapes et la page de sa vidéo
         $fiche = $this->ai->toolResults[0]['fiches'][0];
         $this->assertSame('Comment ajouter mes livreurs ou une entreprise de livraison ?', $fiche['question']);
