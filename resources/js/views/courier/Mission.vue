@@ -33,6 +33,30 @@ watch(() => offline.synced, load)
 // Sans réseau, rien ne peut se vérifier ou se payer en ligne : le paiement à la porte attend le réseau
 const noNetwork = computed(() => !offline.online || offline.savedAt !== null)
 
+// Chez le client : sa position va sur son adresse (carte de la tournée, prochaines commandes)
+const canSavePosition = computed(() => ['in_transit', 'out_for_delivery', 'rescheduled', 'failed', 'delivered'].includes(mission.value?.status) && !mission.value?.expedition)
+const locating = ref(false)
+const positionSaved = ref(false)
+function savePosition() {
+  if (!navigator.geolocation) return (error.value = 'Ce téléphone ne donne pas sa position.')
+  locating.value = true
+  error.value = ''
+  navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+    try {
+      const data = (await http.post(`/courier/missions/${props.id}/position`, { latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy })).data.data
+      mission.value = { ...mission.value, point: data.point }
+      positionSaved.value = true
+    } catch (e) {
+      error.value = errorMessage(e)
+    } finally {
+      locating.value = false
+    }
+  }, () => {
+    locating.value = false
+    error.value = 'Position refusée : autorisez la localisation pour cette application dans les réglages du téléphone.'
+  }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 })
+}
+
 // Paiement à la porte : QR code mobile money, puis attente de la confirmation du prestataire
 const door = ref(null)
 let poll = null
@@ -58,6 +82,7 @@ const paidAtDoor = computed(() => door.value && mission.value?.amount_due === 0)
 const can = (step) => mission.value?.next_steps.includes(step)
 const mapsUrl = computed(() => {
   const m = mission.value
+  if (m?.point?.exact) return `https://www.google.com/maps/search/?api=1&query=${m.point.lat},${m.point.lng}`
   return m ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([m.address, m.landmark, m.place, 'Côte d\'Ivoire'].filter(Boolean).join(', '))}` : '#'
 })
 const whatsapp = computed(() => mission.value ? `https://wa.me/${mission.value.customer_phone.replace('+', '')}` : '#')
@@ -205,6 +230,13 @@ async function step(status) {
       <p v-if="mission.customer_notified_at && !mission.customer_response" class="text-xs text-emerald-700">✓ Client prévenu par le marchand que vous êtes en route.</p>
       <a v-else-if="!mission.customer_notified_at && ['in_transit', 'out_for_delivery'].includes(mission.status)" :href="mission.notify_url" target="_blank" class="btn-secondary w-full text-sm">💬 Prévenir le client que j'arrive</a>
       <p class="text-xs text-slate-500">{{ mission.customer_phone_display }}<template v-if="mission.customer_phone2"> · autre : {{ mission.customer_phone2 }}</template></p>
+      <!-- Position du client : gardée sur son adresse pour placer exactement ses prochaines commandes sur la carte -->
+      <div v-if="canSavePosition" class="space-y-1 border-t border-slate-100 pt-2">
+        <p v-if="!mission.point?.exact" class="text-xs text-amber-800">≈ Position approximative{{ mission.point ? ' : centre du quartier' : ' : pas encore sur la carte' }}</p>
+        <button type="button" class="btn-secondary w-full text-sm" :disabled="locating || noNetwork" @click="savePosition">{{ locating ? 'Position en cours…' : mission.point?.exact ? '📍 Corriger la position du client' : '📍 Enregistrer la position du client' }}</button>
+        <p v-if="positionSaved" class="text-xs font-medium text-emerald-700">✓ Position enregistrée : ses prochaines commandes seront placées ici.</p>
+        <p v-else class="explain-detail">À faire une fois chez le client.</p>
+      </div>
     </section>
 
     <section class="rounded-xl bg-white p-4 text-sm shadow-sm">

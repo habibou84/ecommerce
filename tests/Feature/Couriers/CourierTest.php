@@ -28,6 +28,7 @@ use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
 use App\Services\Orders\ParcelLabels;
+use App\Services\Places\PlaceLocator;
 use App\Services\Places\Places;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
@@ -601,6 +602,60 @@ class CourierTest extends TestCase
         $this->asCourier($user);
         $this->storeApi($this->store, 'GET', "courier/missions/{$third->id}")->assertJsonPath('data.due_day', today()->addDays(2)->toDateString())
             ->assertJsonPath('data.next_steps', []);
+    }
+
+    public function test_courses_are_placed_on_the_map_and_the_courier_saves_the_customer_position(): void
+    {
+        [$courier, $user] = $this->onboardCourier();
+        $angre = Place::whereNull('store_id')->where('name', 'Angré')->firstOrFail();
+        $first = $this->assign($this->order(), $courier);
+
+        // Ni point de la commande, ni quartier placé : pas de point
+        $this->asCourier($user);
+        $this->storeApi($this->store, 'GET', "courier/missions/{$first->id}")->assertJsonPath('data.point', null);
+        // Quartier placé : centre du quartier, approximatif
+        $angre->forceFill(['latitude' => 5.395, 'longitude' => -3.988])->save();
+        $this->storeApi($this->store, 'GET', 'courier/missions')->assertJsonPath('data.0.point', ['lat' => 5.395, 'lng' => -3.988, 'exact' => false]);
+
+        // Pas encore récupéré : pas de position ; position imprécise refusée
+        $this->storeApi($this->store, 'POST', "courier/missions/{$first->id}/position", ['latitude' => 5.39, 'longitude' => -3.98])->assertStatus(422);
+        $this->step($first, ['status' => 'in_transit'])->assertOk();
+        $this->storeApi($this->store, 'POST', "courier/missions/{$first->id}/position", ['latitude' => 5.39, 'longitude' => -3.98, 'accuracy' => 400])->assertStatus(422);
+        $this->storeApi($this->store, 'POST', "courier/missions/{$first->id}/position", ['latitude' => 5.3912345, 'longitude' => -3.9811111, 'accuracy' => 8])
+            ->assertOk()->assertJsonPath('data.point', ['lat' => 5.391235, 'lng' => -3.981111, 'exact' => true]);
+
+        // Commande suivante du même client à la même adresse : placée exactement, sans rien refaire
+        $this->asCourier($this->store->owner);
+        $next = app(OrderDesk::class)->create($this->store, [
+            'source' => 'whatsapp', 'customer_name' => 'Fatou Diallo', 'customer_phone' => '+2250506070809', 'delivery_method' => 'delivery',
+            'shipping_place_id' => $angre->id, 'shipping_address' => 'Cité Arcades', 'confirmed' => true,
+            'items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 1]],
+        ], $this->store->owner);
+        $second = $this->assign($next, $courier);
+        $this->asCourier($user);
+        $this->storeApi($this->store, 'GET', "courier/missions/{$second->id}")->assertJsonPath('data.point', ['lat' => 5.391235, 'lng' => -3.981111, 'exact' => true]);
+    }
+
+    public function test_quarters_are_located_in_openstreetmap_and_locations_get_a_pin(): void
+    {
+        Http::fake(['nominatim.openstreetmap.org/*' => Http::sequence()
+            ->push([['lat' => '5.3600', 'lon' => '-4.0083']])
+            ->push([['lat' => '48.85', 'lon' => '2.35']]) // hors de Côte d'Ivoire : écarté
+            ->whenEmpty(Http::response([]))]);
+        $before = Place::whereNotNull('latitude')->count();
+        $result = app(PlaceLocator::class)->locateMissing(3, 0);
+        $this->assertSame(['located' => 1, 'missed' => 2], $result);
+        $this->assertSame($before + 1, Place::whereNotNull('latitude')->count());
+        // Déjà cherchés ce mois-ci : pas cherchés de nouveau
+        Http::assertSentCount(3);
+        $this->assertSame(3, Place::whereNotNull('located_at')->count());
+
+        // Épingle d'un emplacement : point de départ du livreur
+        $location = $this->storeApi($this->store, 'GET', 'stock/locations')->json('data.0');
+        $this->storeApi($this->store, 'PUT', "stock/locations/{$location['id']}", ['name' => $location['name'], 'type' => $location['type'], 'latitude' => 5.35, 'longitude' => -3.99])
+            ->assertOk()->assertJsonPath('data.latitude', 5.35);
+        $this->storeApi($this->store, 'PUT', "stock/locations/{$location['id']}", ['name' => $location['name'], 'type' => $location['type'], 'latitude' => 5.35])
+            ->assertStatus(422)->assertJsonValidationErrors('longitude');
     }
 
     public function test_unanswered_missions_are_reminded_once(): void

@@ -118,6 +118,14 @@ return [
         ],
     ],
 
+    // Carte de la tournée du livreur : fond de carte (style MapLibre, OpenStreetMap servi par OpenFreeMap par défaut,
+    // sans clé) et recherche de la position des quartiers (Nominatim d'OpenStreetMap : une recherche par seconde)
+    'maps' => [
+        'style_url' => env('MAP_STYLE_URL', 'https://tiles.openfreemap.org/styles/liberty'),
+        'geocoder_url' => env('MAP_GEOCODER_URL', 'https://nominatim.openstreetmap.org/search'),
+        'user_agent' => env('MAP_GEOCODER_USER_AGENT', 'JibiatMarchand/1.0 (livraisons)'),
+    ],
+
     // Cartes Membre Premium demandées par les entreprises de Jibiat : secret partagé avec le serveur de Jibiat
     'jibiat' => [
         'premium_secret' => env('JIBIAT_PREMIUM_SECRET'),
