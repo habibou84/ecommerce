@@ -8,6 +8,7 @@ use App\Models\HelpMiss;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Help\HelpCenter;
+use App\Support\StartSteps;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
@@ -52,7 +53,7 @@ class HelpCenterTest extends TestCase
         $count = HelpArticle::count();
         $this->assertGreaterThanOrEqual(15, $count);
         $article = HelpArticle::where('slug', 'ajouter-un-produit')->firstOrFail();
-        $this->assertSame('/videos/etapes/etape-06.mp4?v=2', $article->video_url);
+        $this->assertSame('/videos/etapes/etape-06.mp4', strtok($article->video_url, '?'));
         // Chaque vidéo et chaque écran cités existent
         foreach (HelpArticle::all() as $a) {
             if ($a->video_url) {
@@ -88,8 +89,11 @@ class HelpCenterTest extends TestCase
 
         $show = $this->shop('GET', 'help/ajouter-un-produit')->assertOk()
             ->assertJsonPath('data.video.file', true)->assertJsonPath('data.screen', '/gestion/catalogue/nouveau')->assertJsonPath('data.my_vote', null);
+        // Vidéo d'une étape : sa dernière version, même si la fiche a été créée avant qu'elle soit refaite
+        HelpArticle::where('slug', 'ajouter-un-produit')->update(['video_url' => '/videos/etapes/etape-06.mp4?v=1']);
+        $this->shop('GET', 'help/ajouter-un-produit')->assertJsonPath('data.video.url', StartSteps::all()[5]['video'])->assertJsonPath('data.video.seconds', StartSteps::all()[5]['seconds']);
         $this->assertNotEmpty($show->json('data.steps'));
-        $this->assertSame(1, HelpArticle::where('slug', 'ajouter-un-produit')->value('views'));
+        $this->assertSame(2, HelpArticle::where('slug', 'ajouter-un-produit')->value('views'));
 
         $this->shop('POST', 'help/ajouter-un-produit/vote', ['helpful' => false])->assertOk();
         $this->shop('POST', 'help/ajouter-un-produit/vote', ['helpful' => true])->assertOk()->assertJsonPath('data.my_vote', true);
