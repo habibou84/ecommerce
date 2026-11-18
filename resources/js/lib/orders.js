@@ -115,6 +115,7 @@ export function eventLabel(event) {
     case 'refund': return `Remboursement de ${new Intl.NumberFormat('fr-FR').format(d.amount)} F${d.method === 'manual' ? ' (à la main)' : ''}${d.reason ? ` : ${d.reason}` : ''}`
     case 'auto_assigned': return `Confiée automatiquement à ${d.to} (${d.reason})`
     case 'auto_assignment_failed': return d.to === 'personne' ? `Confiée à personne automatiquement : ${d.error}` : `Impossible de confier automatiquement à ${d.to} : ${d.error}`
+    case 'upfront_requested': return `Le client a touché « Confirmer » : ${new Intl.NumberFormat('fr-FR').format(d.amount)} F à payer d'abord, redemandés sur WhatsApp`
     case 'customer_eta_reply': return d.response === 'available' ? 'Le client attend le livreur' : 'Le client n\'est pas disponible pour la livraison'
     case 'return_created': return `${d.exchange ? 'Échange' : 'Retour'} ${d.return} : ${new Intl.NumberFormat('fr-FR').format(d.value)} F d'articles rendus`
     case 'return_received': return `${d.return} : articles reçus${d.restocked ? ' et remis en stock' : ''}${d.refunded ? `, ${new Intl.NumberFormat('fr-FR').format(d.refunded)} F remboursés` : ''}`

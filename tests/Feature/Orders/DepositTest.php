@@ -78,6 +78,9 @@ class DepositTest extends TestCase
         $id = $this->order([[$this->robe, 1]])->assertCreated()->json('data.id');
         $order = Order::findOrFail($id);
         $this->assertSame(22500, Expeditions::blockingDue($order));
+        // Liste des commandes : ce qui est attendu avant le livreur (badge « Acompte attendu », « Lien d'acompte »)
+        $row = collect($this->storeApi($this->store, 'GET', 'orders')->json('data'))->firstWhere('id', $id);
+        $this->assertSame([22500, 'deposit'], [$row['prepay_due'], $row['prepay_kind']]);
 
         // Juste un rappel : la commande peut partir
         $this->store->forceFill(['deposit_blocks' => false])->save();
