@@ -23,6 +23,7 @@ use App\Models\Payment;
 use App\Models\Place;
 use App\Models\ProductVariant;
 use App\Models\Refund;
+use App\Models\Shipment;
 use App\Models\StockLocation;
 use App\Models\Store;
 use App\Models\User;
@@ -30,11 +31,13 @@ use App\Notifications\OrderPlaced;
 use App\Services\Accounts\TeamNotifier;
 use App\Services\Billing\Credits;
 use App\Services\Billing\PlanLimits;
+use App\Services\Couriers\CourierDays;
 use App\Services\Customers\CustomerBook;
 use App\Services\Customers\Loyalty;
 use App\Services\Places\DeliveryRates;
 use App\Services\Places\Places;
 use App\Services\Promotions\Pricing;
+use App\Services\Shipping\ShipmentDesk;
 use App\Services\Stock\StockKeeper;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -191,6 +194,7 @@ class OrderDesk
             if ($order->isDirty('scheduled_date') && $order->scheduled_date?->lt(today())) {
                 throw new BusinessRuleException('La date de livraison est déjà passée : choisissez aujourd\'hui ou plus tard.', 'scheduled_date');
             }
+            $newDate = $order->isDirty('scheduled_date') ? $order->scheduled_date?->toDateString() : null;
             $this->ensureDeliveryDate($order->store, $order);
 
             $itemsChanged = array_key_exists('items', $data);
@@ -210,6 +214,15 @@ class OrderDesk
             $order->save();
             $this->pricing->recordUsages($order->setRelation('items', $order->items()->get()));
             $this->refreshPaymentStatus($order);
+
+            // Nouvelle date et course chez un livreur de la boutique : la course suit la date et il est prévenu
+            if ($newDate !== null) {
+                $course = Shipment::forStore($order->store_id)->where('order_id', $order->id)->where('mode', 'own_courier')
+                    ->whereIn('status', CourierDays::DATED)->latest('id')->first();
+                if ($course !== null) {
+                    app(ShipmentDesk::class)->newCourierDate($course->setRelation('order', $order), $newDate, $actor);
+                }
+            }
 
             $after = $order->only(array_keys($before));
             $changes = array_keys(array_diff_assoc(array_map('strval', $after), array_map('strval', $before)));

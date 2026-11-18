@@ -141,7 +141,7 @@ class CourierAccessTest extends TestCase
         Notification::fake();
         $this->assertSame(1, app(CourierMorning::class)->send());
         Notification::assertSentTo(User::findOrFail($courier->fresh()->user_id), CourierDayPlan::class,
-            fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 1 course · Awa Mode"
+            fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 1 à ramasser · Awa Mode"
                 && $n->toArray($notifiable)['body'] === '16 500 F à encaisser · Cocody');
     }
 
@@ -197,7 +197,7 @@ class CourierAccessTest extends TestCase
         Notification::fake();
         $this->assertSame(1, app(CourierMorning::class)->send());
         Notification::assertSentTo(User::findOrFail($awa->fresh()->user_id), CourierDayPlan::class,
-            fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 2 courses · 2 boutiques");
+            fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 2 à ramasser · 2 boutiques");
 
         // Côté Koffi Shop : seulement sa course
         $this->logout();

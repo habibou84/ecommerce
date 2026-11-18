@@ -15,6 +15,7 @@ use App\Models\ParcelLabel;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
+use App\Services\Couriers\CourierDays;
 use App\Services\Couriers\CourierDesk;
 use App\Services\Couriers\CourierPayroll;
 use App\Services\Couriers\MissionResponses;
@@ -96,11 +97,19 @@ class CourierAppController extends Controller
      */
     public function missions(Request $request): JsonResponse
     {
+        // Jour passé : ce qu'il a fait ce jour-là (lecture seule) et son bilan
+        $day = $request->validate(['day' => ['nullable', 'date_format:Y-m-d', 'before:today']])['day'] ?? null;
+        if ($day !== null) {
+            return $this->pastDay($request, Carbon::parse($day));
+        }
+
         $missions = $this->shipments()->with(['order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'order.store', 'order.place.parent'])->whereIn('courier_id', $this->couriers($request)->pluck('id'))
             ->where(fn ($q) => $q->whereIn('status', self::ACTIVE)->orWhereDate('updated_at', today()))
             ->orderByRaw("CASE status WHEN 'out_for_delivery' THEN 0 WHEN 'in_transit' THEN 1 WHEN 'awaiting_pickup' THEN 2 WHEN 'rescheduled' THEN 3 WHEN 'failed' THEN 4 WHEN 'returning' THEN 5 ELSE 6 END")
             ->orderBy('requested_at')->orderBy('id')->get();
 
+        // Colis pas encore ramassé dont la date est passée : il n'y a plus accès, la boutique choisit une nouvelle date
+        $missions = $missions->reject(fn (Shipment $s) => $s->status->value === 'awaiting_pickup' && CourierDays::isOverdue($s))->values();
         $several = $this->couriers($request)->count() > 1;
         $this->responses->markSeen($missions);
         $this->loadAssignments($missions);
@@ -112,6 +121,42 @@ class CourierAppController extends Controller
         }
 
         return response()->json(['data' => $missions->map(fn (Shipment $s) => $this->summary($s, $several))]);
+    }
+
+    /**
+     * Un jour passé : les courses livrées, en échec, retournées ou ramassées ce jour-là, et le bilan du jour.
+     */
+    private function pastDay(Request $request, Carbon $day): JsonResponse
+    {
+        $ids = $this->couriers($request)->pluck('id');
+        $date = $day->toDateString();
+        // Échecs notés par le livreur ce jour-là
+        $failed = ShipmentEvent::withoutGlobalScope(StoreScope::class)->where('source', 'courier')->whereIn('status', ['failed', 'rescheduled'])
+            ->whereDate('occurred_at', $date)->whereIn('shipment_id', $this->shipments()->whereIn('courier_id', $ids)->select('id'))
+            ->pluck('shipment_id')->unique();
+        $missions = $this->shipments()->with(['order' => fn ($q) => $q->withoutGlobalScope(StoreScope::class), 'order.store', 'order.place.parent'])
+            ->whereIn('courier_id', $ids)
+            ->where(fn ($q) => $q->whereDate('delivered_at', $date)->orWhereDate('returned_at', $date)->orWhereDate('picked_up_at', $date)->orWhereIn('id', $failed))
+            ->orderBy('id')->get();
+        $several = $this->couriers($request)->count() > 1;
+
+        return response()->json([
+            'data' => $missions->map(fn (Shipment $s) => $this->summary($s, $several) + [
+                // Ce qui s'est passé ce jour-là : range la course dans l'onglet du jour
+                'outcome' => match (true) {
+                    $s->delivered_at?->toDateString() === $date => 'delivered',
+                    $s->returned_at?->toDateString() === $date => 'returned',
+                    $failed->contains($s->id) => 'failed',
+                    default => 'picked_up',
+                },
+            ]),
+            'meta' => [
+                'day' => $date,
+                'delivered' => $missions->filter(fn (Shipment $s) => $s->delivered_at?->toDateString() === $date)->count(),
+                'failed' => $failed->count(),
+                'collected' => (int) CashCollection::withoutGlobalScope(StoreScope::class)->whereIn('courier_id', $ids)->whereDate('collected_at', $date)->sum('amount'),
+            ],
+        ]);
     }
 
     public function show(Request $request, int $shipment): JsonResponse
@@ -443,9 +488,12 @@ class CourierAppController extends Controller
             // Réponse du livreur : à accepter tant qu'il n'a ni accepté ni récupéré le colis
             'acceptance' => isset($this->assignments[$s->id]) ? ($this->assignments[$s->id]->accepted_at ? 'accepted' : 'pending') : null,
             'assigned_at' => isset($this->assignments[$s->id]) ? $this->assignments[$s->id]->assigned_at->toIso8601String() : null,
-            // Jour où la course lui a été confiée : une course reçue aujourd'hui pour une date passée est à faire
-            // aujourd'hui, elle n'est pas « en retard » pour lui (le retard est celui de la boutique)
-            'handed_on' => ($this->assignments[$s->id]->assigned_at ?? $s->requested_at)?->toDateString(),
+            // Jour de la course (date de report, sinon date de livraison ; sans date : aujourd'hui) et ses onglets
+            'due_day' => (CourierDays::dueDay($s) ?? today())->toDateString(),
+            // Date passée sans livraison : la boutique doit choisir une nouvelle date, il n'y touche plus
+            'overdue' => CourierDays::isOverdue($s),
+            // Échec sans nouvelle date : en attente de la décision de la boutique (relivrer ou retour)
+            'awaiting_decision' => $s->status->value === 'failed',
             // Envoi automatique avec délai : sans réponse avant cette heure, la course passe au livreur suivant
             'answer_by' => $this->answerBy($s),
         ];

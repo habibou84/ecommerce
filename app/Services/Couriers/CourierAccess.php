@@ -75,8 +75,8 @@ class CourierAccess
         $link = $this->issue($courier, $by);
         $missions = Shipment::forStore($courier->store_id)->where('courier_id', $courier->id)
             ->whereIn('status', SharedCouriers::ACTIVE_MISSIONS)->with('order.place.parent')->get();
-        // Courses du jour : prévues aujourd'hui ou avant (en retard), ou sans date
-        $today = CourierMorning::dueToday($missions);
+        // Courses du jour (à ramasser et à livrer), sans les colis à rapporter
+        $today = CourierMorning::dueToday($missions)->reject(fn (Shipment $s) => CourierMorning::tab($s) === 'return');
         $first = trim(explode(' ', trim($courier->name))[0] ?? '');
         $store = $courier->store->name;
 

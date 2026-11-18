@@ -1,25 +1,31 @@
 // Tournée du jour du livreur : ordre logique des arrêts et itinéraire.
 
 export const today = () => new Date().toLocaleDateString('sv-SE') // AAAA-MM-JJ, heure du téléphone
-export const tomorrow = () => new Date(Date.now() + 86400000).toLocaleDateString('sv-SE')
-
-// Jour de la course : la date de report choisie par le livreur, sinon la date de livraison de la commande
-export const dueDay = (m) => (m.status === 'rescheduled' && m.rescheduled_to) || m.scheduled_date || null
-// Prévue un autre jour : hors de la tournée d'aujourd'hui (les colis à rapporter restent du jour)
-export const isLater = (m) => m.status !== 'returning' && !!dueDay(m) && dueDay(m) > today()
-// En retard pour le livreur : date passée alors que la course lui était déjà confiée. Reçue aujourd'hui pour une
-// date passée, elle est simplement à faire aujourd'hui (le retard est celui de la boutique, pas le sien).
-export const isLate = (m) => m.status !== 'returning' && !!dueDay(m) && dueDay(m) < today() && !(m.handed_on && m.handed_on >= today())
-// « Aujourd'hui », « Demain » ou « jeu. 2 nov. » : jour où faire la course (date passée = aujourd'hui)
-export const dayLabel = (m) => {
-  const d = dueDay(m)
-  if (!d || d <= today()) return 'Aujourd\'hui'
-  return d === tomorrow() ? 'Demain' : shortDay(d)
+// Jour décalé de n jours (AAAA-MM-JJ)
+export const addDays = (iso, n) => {
+  const d = new Date(`${iso}T12:00:00`)
+  d.setDate(d.getDate() + n)
+  return d.toLocaleDateString('sv-SE')
 }
+export const tomorrow = () => addDays(today(), 1)
+
+// Jour de la course, donné par le serveur (date de livraison ou de report ; sans date : aujourd'hui)
+export const dueDay = (m) => m.due_day || today()
 // « 14:15 »
 export const clock = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 // « jeu. 2 nov. »
 export const shortDay = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+// « Aujourd'hui », « Demain », « Hier » ou « jeu. 2 nov. »
+export const dayName = (d) => (d === today() ? 'Aujourd\'hui' : d === tomorrow() ? 'Demain' : d === addDays(today(), -1) ? 'Hier' : shortDay(d))
+
+// Onglet de la course pour un jour donné : pickup (à ramasser), deliver (à livrer), return (à retourner), ou aucun.
+// Date passée sans livraison : aucun onglet (le marchand choisit une nouvelle date).
+export function tabOf(m, day) {
+  if (m.status === 'returning') return day === today() ? 'return' : null
+  if (m.overdue || dueDay(m) !== day) return null
+  if (m.status === 'awaiting_pickup') return 'pickup'
+  return ['in_transit', 'out_for_delivery', 'rescheduled'].includes(m.status) ? 'deliver' : null
+}
 
 const hasPoint = (m) => m.latitude != null && m.longitude != null
 

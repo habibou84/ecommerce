@@ -25,7 +25,6 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Services\Catalog\CatalogWriter;
-use App\Services\Couriers\CourierMorning;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
 use App\Services\Orders\ParcelLabels;
@@ -33,7 +32,6 @@ use App\Services\Places\Places;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\DatabaseNotification;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -324,16 +322,30 @@ class CourierTest extends TestCase
             ->assertOk()->assertJsonPath('data.status', 'rescheduled')->assertJsonPath('data.attempts_count', 1);
         $this->assertContains('shipment_rescheduled', DatabaseNotification::all()->pluck('data.kind'));
 
+        // Reportée à demain : rien à faire aujourd'hui, la course se fait le jour choisi
+        $this->step($shipment, ['status' => 'out_for_delivery'])->assertStatus(422);
+        $this->travel(1)->days();
         $this->step($shipment, ['status' => 'out_for_delivery'])->assertOk();
-        $this->step($shipment, ['status' => 'failed', 'reason' => 'Refus du client'])->assertOk()->assertJsonPath('data.status', 'failed');
+        $this->step($shipment, ['status' => 'failed', 'reason' => 'Refus du client'])->assertOk()->assertJsonPath('data.status', 'failed')
+            ->assertJsonPath('data.awaiting_decision', true);
         // L'alerte nomme le livreur (pas « Entreprise de livraison »)
         $this->assertContains($courier->name.' : Refus du client', DatabaseNotification::all()->pluck('data.body'));
-        $this->step($shipment, ['status' => 'returning'])->assertOk();
+        // Échec sans nouvelle date : le marchand décide, le livreur ne peut plus rien faire
+        $this->storeApi($this->store, 'GET', "courier/missions/{$shipment->id}")->assertJsonPath('data.next_steps', []);
+        $this->step($shipment, ['status' => 'returning'])->assertStatus(422);
         $this->assertSame(600, (int) CourierEarning::where('courier_id', $courier->id)->sum('amount'));
-        $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.today.failed', 2)->assertJsonPath('data.today.earned', 600);
+        $this->storeApi($this->store, 'GET', 'courier/me')->assertJsonPath('data.today.failed', 1)->assertJsonPath('data.today.earned', 300);
+
+        // Le marchand fait revenir le colis : le livreur est prévenu, la course passe « à retourner »
+        $this->asCourier($this->store->owner);
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.shipments.0.needs_decision', true)
+            ->assertJsonPath('data.shipments.0.carrier_actions.decide', true);
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/decision", ['decision' => 'return'])->assertOk()->assertJsonPath('data.status', 'returning');
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $user->id)->get()->contains(fn ($n) => str_contains($n->data['title'], 'Colis à rapporter à la boutique')));
+        // Pas de seconde paie de tentative pour une décision de la boutique
+        $this->assertSame(600, (int) CourierEarning::where('courier_id', $courier->id)->sum('amount'));
 
         // Le gérant réceptionne le colis : remise en stock
-        $this->asCourier($this->store->owner);
         $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/status", ['status' => 'returned'])->assertOk();
         $this->assertSame([OrderStatus::Returned, [5, 0]], [$order->fresh()->status, $this->stock()]);
     }
@@ -527,25 +539,68 @@ class CourierTest extends TestCase
         $this->storeApi($this->store, 'POST', "courier/missions/{$next->id}/decline", ['reason' => 'Trop loin'])->assertStatus(422);
     }
 
-    public function test_a_course_received_today_for_a_past_date_is_for_today_not_late(): void
+    public function test_the_courier_works_by_day_and_the_shop_reschedules_overdue_courses(): void
     {
         [$courier, $user] = $this->onboardCourier();
-        $order = $this->order();
-        $order->forceFill(['scheduled_date' => today()->subDays(3)])->save();
-        $this->store->forceFill(['assignment_mode' => 'auto', 'mission_timeout_minutes' => 15])->save();
-        $shipment = $this->assign($order, $courier);
+        // Course confiée aujourd'hui pour une date passée : elle est pour aujourd'hui
+        $old = $this->order();
+        $old->forceFill(['scheduled_date' => today()->subDays(3)])->save();
+        $first = $this->assign($old, $courier);
+        $this->assertTrue($old->fresh()->scheduled_date->isToday());
+        // Course de demain : le colis peut déjà être récupéré la veille, rien d'autre
+        $next = $this->order();
+        $next->forceFill(['scheduled_date' => today()->addDay()])->save();
+        $later = $this->assign($next, $courier);
 
-        // Confiée aujourd'hui : à faire aujourd'hui, avec l'heure limite pour répondre
         $this->asCourier($user);
-        $mission = $this->storeApi($this->store, 'GET', 'courier/missions')->assertOk()->json('data.0');
-        $this->assertSame([today()->subDays(3)->toDateString(), today()->toDateString()], [$mission['scheduled_date'], $mission['handed_on']]);
-        $this->assertSame(now()->addMinutes(15)->format('H:i'), Carbon::parse($mission['answer_by'])->format('H:i'));
-        $this->assertFalse(CourierMorning::isLate($shipment->fresh('order'), now()));
+        $missions = collect($this->storeApi($this->store, 'GET', 'courier/missions')->assertOk()->json('data'))->keyBy('id');
+        $this->assertSame([today()->toDateString(), today()->addDay()->toDateString()], [$missions[$first->id]['due_day'], $missions[$later->id]['due_day']]);
+        $this->storeApi($this->store, 'GET', "courier/missions/{$later->id}")->assertJsonPath('data.next_steps', ['in_transit']);
+        $this->step($first, ['status' => 'in_transit'])->assertOk();
+        $this->step($later, ['status' => 'in_transit'])->assertOk();
+        $this->step($later, ['status' => 'out_for_delivery'])->assertStatus(422);
 
-        // Acceptée : plus d'heure limite. Toujours pas livrée le lendemain : là, elle est en retard pour lui
-        $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/accept")->assertOk()->assertJsonPath('data.answer_by', null);
+        // Lendemain : la course d'hier pas livrée est dépassée, il n'y touche plus
         $this->travel(1)->days();
-        $this->assertTrue(CourierMorning::isLate($shipment->fresh('order'), now()->subDay()));
+        $this->storeApi($this->store, 'GET', "courier/missions/{$first->id}")->assertJsonPath('data.overdue', true)->assertJsonPath('data.next_steps', []);
+        $this->step($first, ['status' => 'out_for_delivery'])->assertStatus(422)->assertJsonPath('message', 'La date de livraison ('.today()->subDay()->format('d/m').') est passée : le marchand doit d\'abord choisir une nouvelle date.');
+        $this->step($later, ['status' => 'out_for_delivery'])->assertOk();
+
+        // Hier : ce qu'il a fait ce jour-là
+        $past = $this->storeApi($this->store, 'GET', 'courier/missions?day='.today()->subDay()->toDateString())->assertOk();
+        $this->assertEqualsCanonicalizing([$first->id, $later->id], array_column($past->json('data'), 'id'));
+        $this->assertSame(['picked_up', 'picked_up'], array_column($past->json('data'), 'outcome'));
+
+        // Le marchand reporte la course dépassée à aujourd'hui : le livreur est prévenu et peut la livrer
+        $this->asCourier($this->store->owner);
+        $this->storeApi($this->store, 'GET', "orders/{$old->id}")->assertJsonPath('data.shipments.0.carrier_reschedule.missed_day', today()->subDay()->toDateString())
+            ->assertJsonPath('data.shipments.0.carrier_reschedule.in_hand', true);
+        $this->storeApi($this->store, 'POST', "shipments/{$first->id}/reschedule", ['date' => today()->toDateString()])->assertOk();
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $user->id)->get()->contains(fn ($n) => str_contains($n->data['title'], 'Course reportée à aujourd\'hui')));
+        $this->asCourier($user);
+        $this->step($first, ['status' => 'out_for_delivery'])->assertOk();
+
+        // Échec sans date, le marchand fait relivrer demain : la course revient dans « à livrer » demain
+        $this->step($first, ['status' => 'failed', 'reason' => 'Client absent'])->assertOk()->assertJsonPath('data.awaiting_decision', true);
+        $this->asCourier($this->store->owner);
+        $this->storeApi($this->store, 'POST', "shipments/{$first->id}/decision", ['decision' => 'redeliver', 'date' => today()->addDay()->toDateString()])
+            ->assertOk()->assertJsonPath('data.status', 'rescheduled');
+        $this->asCourier($user);
+        $this->storeApi($this->store, 'GET', "courier/missions/{$first->id}")->assertJsonPath('data.due_day', today()->addDay()->toDateString())
+            ->assertJsonPath('data.next_steps', []);
+
+        // Colis pas encore ramassé : le marchand change la date sur la commande, la course suit et le livreur est prévenu
+        $this->asCourier($this->store->owner);
+        $third = $this->assign(app(OrderDesk::class)->create($this->store, [
+            'source' => 'whatsapp', 'customer_name' => 'Awa', 'customer_phone' => '+2250506070810', 'delivery_method' => 'delivery',
+            'shipping_place_id' => Place::whereNull('store_id')->where('name', 'Angré')->value('id'), 'shipping_address' => 'Cité', 'confirmed' => true,
+            'items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 1]],
+        ], $this->store->owner), $courier);
+        $this->storeApi($this->store, 'PUT', "orders/{$third->order_id}", ['scheduled_date' => today()->addDays(2)->toDateString()])->assertOk();
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $user->id)->get()->contains(fn ($n) => str_contains($n->data['title'], 'Course reportée au '.today()->addDays(2)->format('d/m'))));
+        $this->asCourier($user);
+        $this->storeApi($this->store, 'GET', "courier/missions/{$third->id}")->assertJsonPath('data.due_day', today()->addDays(2)->toDateString())
+            ->assertJsonPath('data.next_steps', []);
     }
 
     public function test_unanswered_missions_are_reminded_once(): void
