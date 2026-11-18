@@ -7,6 +7,7 @@ use App\Models\HelpFeedback;
 use App\Models\HelpMiss;
 use App\Models\User;
 use App\Support\HelpDefaults;
+use App\Support\StartSteps;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -115,14 +116,18 @@ class HelpCenter
         if (! $full) {
             return $base;
         }
+        // Vidéo d'une étape essentielle : toujours sa dernière version (adresse, image et durée à jour)
+        $step = $a->video_path === null && $a->video_url !== null
+            ? collect(StartSteps::all())->first(fn (array $s) => strtok($s['video'], '?') === strtok($a->video_url, '?'))
+            : null;
 
         return $base + [
             'steps' => $a->steps ?? [],
             'body' => $a->body,
             'video' => $a->videoUrl() === null ? null : [
-                'url' => $a->videoUrl(),
-                'poster' => $a->poster_url,
-                'seconds' => $a->video_seconds,
+                'url' => $step['video'] ?? $a->videoUrl(),
+                'poster' => $step['poster'] ?? $a->poster_url,
+                'seconds' => $step['seconds'] ?? $a->video_seconds,
                 // Fichier lu dans la page ; un lien (YouTube, TikTok…) s'ouvre à côté
                 'file' => (bool) preg_match('/\.(mp4|webm)(\?.*)?$/i', $a->videoUrl()),
             ],
