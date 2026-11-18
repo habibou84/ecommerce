@@ -74,6 +74,7 @@ const stateOf = (s) => (s.done ? 'done' : s.skipped ? 'skipped' : 'todo')
           <div>
             <p class="explain">Quelques réglages, une étape à la fois.</p>
             <p class="explain-detail">Pour que {{ auth.store?.name }} tourne au mieux. Passez une étape et revenez-y quand vous voulez.</p>
+            <RouterLink v-if="auth.can('store.manage')" to="/gestion/bienvenue" class="mt-1 inline-block text-sm font-semibold text-emerald-700 underline">L'essentiel en 3 étapes : tarifs, premier produit, WhatsApp</RouterLink>
           </div>
         </div>
         <p v-if="guide" class="text-sm font-semibold tabular-nums text-emerald-800">{{ guide.done }} sur {{ guide.total }} étapes essentielles faites</p>
