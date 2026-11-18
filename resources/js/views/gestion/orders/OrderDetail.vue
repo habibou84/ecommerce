@@ -59,12 +59,15 @@ const actions = computed(() => {
       { key: 'completed', label: 'Marquer livrée', icon: 'check', run: () => openModal('complete') },
       { key: 'processing', label: 'Marquer en préparation', icon: 'box', run: () => setStatus('processing') },
     ].filter((a) => nextStatuses.value.includes(a.key))
+    const unpaid = o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status)
+    // Acompte attendu : « Acompte reçu » et « Lien d'acompte » en avant ; s'il bloque la livraison, « Acompte reçu »
+    // devient l'action principale (la commande ne part pas avant)
+    const deposit = o.upfront?.deposit_due > 0 && !(o.expedition?.prepay)
+    const payment = { key: 'payment', label: deposit ? 'Acompte reçu' : 'Paiement reçu', icon: 'cash', run: () => openModal('payment') }
+    if (!list.primary && unpaid && deposit && o.upfront?.blocking) list.primary = payment
     if (!list.primary) list.primary = steps.shift() ?? null
     list.secondary.push(...steps)
-    const unpaid = o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status)
-    // Acompte attendu : « Acompte reçu » et « Lien d'acompte » en avant
-    const deposit = o.upfront?.deposit_due > 0 && !(o.expedition?.prepay)
-    if (unpaid) list.secondary.push({ key: 'payment', label: deposit ? 'Acompte reçu' : 'Paiement reçu', run: () => openModal('payment') })
+    if (unpaid && list.primary !== payment) list.secondary.push(payment)
     if (unpaid) (deposit ? list.secondary : list.more).push({ key: 'link', label: deposit ? '📲 Lien d\'acompte' : 'Lien de paiement', run: openPayLink })
     if (edit) list.more.push(edit)
     if (canRefund.value) list.more.push({ key: 'refund', label: 'Rembourser', run: openRefund })

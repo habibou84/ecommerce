@@ -1,0 +1,11 @@
+Étape 6. Vos produits et leur stock. Une commande se saisit en quelques secondes.
+
+Touchez plus Produit. Produits, puis Mes produits, chaque article avec son prix et son stock.
+
+Le nom, la description. Une photo, le nom de l'article, quelques mots pour le décrire.
+
+Le prix et le stock. Tailles et couleurs, cochez Plusieurs variantes.
+
+Le stock baisse tout seul. À chaque vente. Vous voyez ce qui va manquer.
+
+C'est fait. Étape suivante, mettre des photos sur vos produits.

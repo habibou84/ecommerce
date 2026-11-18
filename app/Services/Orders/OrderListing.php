@@ -273,6 +273,8 @@ class OrderListing
                     && ! in_array($shipment->status, [ShipmentStatus::InTransit, ShipmentStatus::OutForDelivery, ShipmentStatus::Returning], true))),
             // Expédition payée d'avance pas encore réglée : le lien de paiement d'abord, pas de course possible
             'prepay_due' => Expeditions::blockingDue($order),
+            // Ce qui est attendu avant le livreur : l'acompte, ou l'expédition payée d'avance (libellés de la liste)
+            'prepay_kind' => Expeditions::blockingDue($order) > 0 ? ($order->isExpedition() && $order->expedition_prepay ? 'expedition' : 'deposit') : null,
             'whatsapp_url' => $order->customer_phone ? 'https://wa.me/'.ltrim($order->customer_phone, '+') : null,
         ];
     }

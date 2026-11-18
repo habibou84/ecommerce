@@ -7,7 +7,10 @@ on corrige la scène et on relance : plus besoin de refaire la vidéo à la main
 - `etapes.cjs` : le contenu. Une vidéo par étape, une liste de scènes (titre, phrase, écran à montrer, ce qu'il faut
   entourer en vert). Les textes vouvoient, comme toute l'application.
 - `fabriquer.cjs` : le moteur. Il ouvre la boutique de démonstration, photographie chaque écran, l'habille
-  (fond vert, titre, téléphone, cadre) et assemble les images en vidéo MP4 verticale (1080 × 1920, sans son).
+  (fond vert, titre, téléphone, cadre) et assemble les images en vidéo MP4 verticale (1080 × 1920), avec la voix
+  si elle existe.
+- `voix/` : pour chaque vidéo, le texte lu (`etape-NN.txt`), la voix (`etape-NN.mp3`) et le début exact de chaque
+  scène dans la voix (`etape-NN.json`).
 
 ## Préparer
 
@@ -38,6 +41,23 @@ Options : `--boutique=http://demo.localhost:8000`, `--site=http://localhost:8000
 L'outil remplace `etape-NN.mp4` et `etape-NN.jpg`, et écrit `etapes.json` (durées et numéro de version).
 `App\Support\StartSteps` lit ce fichier : les durées affichées et l'adresse des vidéos se mettent à jour seules, et
 les navigateurs rechargent les nouvelles vidéos. Il reste à regarder les vidéos, puis à les enregistrer dans le dépôt.
+
+## La voix
+
+Chaque vidéo a une voix (voix « Martial » d'ElevenLabs, modèle `eleven_v4`), une seule lecture par vidéo. Chaque
+scène dure le temps de sa phrase et change un instant avant que la voix la commence.
+
+Quand le texte d'une vidéo change :
+
+1. `node tools/videos/fabriquer.cjs 4 --texte-voix` réécrit `voix/etape-04.txt` (une scène par paragraphe). Une
+   scène peut avoir un champ `dit` dans `etapes.cjs` quand le texte lu doit différer du texte affiché.
+2. Faites lire ce texte par la même voix dans ElevenLabs et enregistrez le fichier en `voix/etape-04.mp3`.
+3. Relevez le début de chaque paragraphe (transcription d'ElevenLabs, « speech to text », qui donne l'heure de
+   chaque mot) dans `voix/etape-04.json` : `{"debuts": [0, 5.08, 10.6, ...]}`, un nombre par scène, en secondes.
+   Sans ce fichier l'outil estime les débuts à partir des silences : c'est approximatif, à vérifier à l'écoute.
+4. Relancez `node tools/videos/fabriquer.cjs 4`.
+
+Sans fichier `.mp3`, la vidéo est fabriquée sans son.
 
 ## Corriger une scène
 
