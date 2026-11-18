@@ -25,13 +25,15 @@ class CourierDesk
 {
     public const MOBILE_METHODS = ['wave', 'orange_money', 'mtn_momo', 'moov_money'];
 
-    /** Étapes possibles depuis chaque statut */
+    /**
+     * Étapes possibles depuis chaque statut. Après un échec sans nouvelle date, le marchand décide (relivrer ou
+     * retour) : le livreur n'a rien à faire. Le retour est demandé par le marchand, puis le colis est reçu à la boutique.
+     */
     private const NEXT = [
         'awaiting_pickup' => ['in_transit'],
         'in_transit' => ['out_for_delivery', 'delivered', 'failed'],
         'out_for_delivery' => ['delivered', 'failed'],
-        'failed' => ['out_for_delivery', 'returning'],
-        'rescheduled' => ['out_for_delivery', 'returning'],
+        'rescheduled' => ['out_for_delivery', 'delivered', 'failed'],
     ];
 
     public function __construct(private readonly ShipmentDesk $shipments) {}
@@ -39,9 +41,9 @@ class CourierDesk
     /**
      * @return list<string>
      */
-    public static function nextSteps(Shipment $shipment): array
+    public static function nextSteps(Shipment $shipment, ?Carbon $day = null): array
     {
-        return self::NEXT[$shipment->status->value] ?? [];
+        return CourierDays::allowedSteps($shipment, self::NEXT[$shipment->status->value] ?? [], $day);
     }
 
     /**
@@ -52,7 +54,12 @@ class CourierDesk
         if ($shipment->courier_id !== $courier->id || ! $shipment->isOwnCourier()) {
             throw new BusinessRuleException('Cette course ne vous est pas confiée.');
         }
-        if (! in_array($step, self::nextSteps($shipment), true)) {
+        // Jour de l'étape (faite sans réseau, elle garde son jour) : date passée ou course d'un autre jour refusées
+        $day = isset($data['occurred_at']) ? Carbon::parse($data['occurred_at']) : today();
+        if (in_array($step, self::NEXT[$shipment->status->value] ?? [], true) && ! in_array($step, self::nextSteps($shipment, $day), true)) {
+            throw new BusinessRuleException(CourierDays::refusal($shipment, $day) ?? 'Étape impossible pour cette livraison.', 'status');
+        }
+        if (! in_array($step, self::nextSteps($shipment, $day), true)) {
             throw new BusinessRuleException('Étape impossible pour cette livraison.', 'status');
         }
 
@@ -76,6 +83,10 @@ class CourierDesk
                 'company' => (string) $data['expedition_company'], 'fee' => (int) $data['expedition_fee'],
                 'ticket' => $data['expedition_ticket'] ?? null, 'advanced' => (bool) ($data['expedition_advanced'] ?? false),
             ], $photoPath, $courier->user, $courier);
+        }
+        // Reportée avec le client : la commande prend la nouvelle date (la boutique ne la voit pas « en retard »)
+        if ($step === 'failed' && ! empty($data['rescheduled_to'])) {
+            $shipment->order->forceFill(['scheduled_date' => $data['rescheduled_to']])->save();
         }
         // Colis récupéré : la mission est acceptée de fait
         if ($step === 'in_transit') {
@@ -145,6 +156,8 @@ class CourierDesk
             attempts: $shipment->attempts_count + 1,
             proofPhotoPath: $photoPath,
             rescheduledTo: $date,
+            // Sans nouvelle date convenue avec le client : le marchand décide (relivrer ou faire revenir le colis)
+            needsDecision: $date === null,
             occurredAt: $data['occurred_at'] ?? null,
         );
     }

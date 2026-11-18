@@ -6,7 +6,7 @@ import Alert from '../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { loadMission, offline, sendStep, shrinkPhoto } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
-import { clock, dayLabel, dueDay, isLate, isLater, shortDay } from '../../lib/route'
+import { clock, dayName, dueDay, shortDay, today, tomorrow } from '../../lib/route'
 
 const props = defineProps({ id: { type: String, required: true } })
 const mission = ref(null)
@@ -85,10 +85,10 @@ async function respond(action) {
 }
 
 // Action principale du moment (bouton fixé en bas)
-// Prévue un autre jour : visible pour s'organiser, mais la course se fait le jour prévu
-const notYet = computed(() => !!mission.value && isLater(mission.value))
+// Prévue un autre jour : visible pour s'organiser ; la veille, le colis peut déjà être récupéré
+const notYet = computed(() => !!mission.value && !['returning', 'failed'].includes(mission.value.status) && !mission.value.overdue && dueDay(mission.value) > today())
 const primary = computed(() => {
-  if (!mission.value || panel.value || notYet.value) return null
+  if (!mission.value || panel.value) return null
   // Nouvelle mission : d'abord accepter ou refuser (le bouton fixe cacherait ce choix)
   if (mission.value.acceptance === 'pending' && mission.value.status === 'awaiting_pickup') return null
   if (can('in_transit')) return { label: '📦 J\'ai récupéré le colis', run: () => step('in_transit') }
@@ -222,7 +222,7 @@ async function step(status) {
     <Alert v-if="error">{{ error }}</Alert>
     <section v-if="mission.acceptance === 'pending' && mission.status === 'awaiting_pickup'" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
       <p class="font-semibold text-amber-900">🔔 Nouvelle course : acceptez-la ou refusez-la</p>
-      <p class="text-sm text-amber-900">À livrer : <strong>{{ isLate(mission) ? `en retard, prévue ${shortDay(dueDay(mission))}` : dayLabel(mission) }}</strong><template v-if="mission.answer_by"> · répondez avant {{ clock(mission.answer_by) }}, sinon elle sera confiée à un autre livreur</template></p>
+      <p class="text-sm text-amber-900">À livrer : <strong>{{ dayName(dueDay(mission)) }}</strong><template v-if="mission.answer_by"> · répondez avant {{ clock(mission.answer_by) }}, sinon elle sera confiée à un autre livreur</template></p>
       <template v-if="declining">
         <input v-model="declineReason" class="input" maxlength="255" placeholder="Motif (trop loin, trop de colis…)" />
         <div class="grid grid-cols-2 gap-2">
@@ -238,8 +238,10 @@ async function step(status) {
     <Alert v-if="queued" tone="warning">Étape gardée sur le téléphone : elle sera envoyée au marchand dès que le réseau revient, avec l'heure où vous l'avez faite.</Alert>
     <p v-else-if="mission.pending_sync" class="text-sm text-amber-800">⏳ Des étapes de cette livraison ne sont pas encore envoyées.</p>
 
-    <p v-if="notYet" class="rounded-xl bg-sky-50 p-4 text-sm text-sky-900">📅 Course prévue le <strong>{{ shortDay(dueDay(mission)) }}</strong> : vous la ferez ce jour-là. Elle passera dans « Aujourd'hui » le matin même.</p>
-    <p v-else-if="isLate(mission)" class="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">En retard : prévue le {{ shortDay(dueDay(mission)) }}.</p>
+    <p v-if="mission.overdue" class="rounded-xl bg-slate-100 p-4 text-sm text-slate-700">⏸ Prévue {{ shortDay(dueDay(mission)) }}, pas livrée : le marchand va choisir une nouvelle date. Vous serez prévenu et la course reviendra dans votre tournée ce jour-là.</p>
+    <p v-else-if="mission.awaiting_decision" class="rounded-xl bg-slate-100 p-4 text-sm text-slate-700">⏸ Échec enregistré : le marchand décide, relivrer à une autre date ou rapporter le colis à la boutique. Vous serez prévenu.</p>
+    <p v-else-if="mission.status === 'returning'" class="rounded-xl bg-red-50 p-4 text-sm text-red-900">↩ Rapportez ce colis à la boutique : le marchand confirmera sa réception.</p>
+    <p v-else-if="notYet" class="rounded-xl bg-sky-50 p-4 text-sm text-sky-900">📅 Course prévue <strong>{{ dueDay(mission) === tomorrow() ? 'demain' : `le ${shortDay(dueDay(mission))}` }}</strong> : vous la ferez ce jour-là.<template v-if="can('in_transit')"> Vous pouvez déjà récupérer le colis.</template></p>
 
     <!-- Action suivante : gros bouton fixé en bas de l'écran, facile à toucher d'une main ou avec des gants -->
     <div v-if="primary" class="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-10 mx-auto max-w-lg bg-gradient-to-t from-slate-50 px-4 pt-3 pb-2">
@@ -247,7 +249,6 @@ async function step(status) {
     </div>
     <div class="space-y-2">
       <button v-if="can('failed') && panel !== 'failed'" class="btn-secondary w-full py-3" @click="panel = 'failed'">✕ Pas livré</button>
-      <button v-if="can('returning')" class="btn-secondary w-full py-3" :disabled="busy" @click="step('returning')">↩ Je rapporte le colis au marchand</button>
     </div>
 
     <!-- Expédition : dépôt à la gare -->
@@ -335,8 +336,9 @@ async function step(status) {
       </div>
       <input v-model="form.reason" class="input" placeholder="Motif" maxlength="255" required />
       <div>
-        <label for="reschedule" class="label">Nouvelle date <span class="font-normal text-slate-400">(si reportée)</span></label>
-        <input id="reschedule" v-model="form.rescheduled_to" type="date" class="input" />
+        <label for="reschedule" class="label">Nouvelle date convenue avec le client <span class="font-normal text-slate-400">(facultatif)</span></label>
+        <input id="reschedule" v-model="form.rescheduled_to" type="date" class="input" :min="today()" />
+        <p class="explain-detail mt-1">Sans date, le marchand décide : relivrer ou rapporter le colis.</p>
       </div>
       <button class="btn-danger w-full py-3" :disabled="busy">Enregistrer l'échec</button>
     </form>

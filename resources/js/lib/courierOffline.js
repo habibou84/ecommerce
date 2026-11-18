@@ -18,13 +18,12 @@ export const offline = reactive({
   offers: 0, // nouvelles missions à accepter (pastille du menu)
 })
 
-// Étapes possibles depuis chaque statut (comme CourierDesk::NEXT côté serveur)
+// Étapes possibles depuis chaque statut (comme CourierDesk::NEXT côté serveur ; après un échec sans date, le marchand décide)
 const NEXT = {
   awaiting_pickup: ['in_transit'],
   in_transit: ['out_for_delivery', 'delivered', 'failed'],
   out_for_delivery: ['delivered', 'failed'],
-  failed: ['out_for_delivery', 'returning'],
-  rescheduled: ['out_for_delivery', 'returning'],
+  rescheduled: ['out_for_delivery', 'delivered', 'failed'],
 }
 const LABELS = {
   in_transit: 'Colis récupéré',
@@ -96,7 +95,8 @@ async function withPendingSteps(mission) {
   const steps = (await all()).filter((item) => item.missionId === mission.id && !item.error)
   return steps.reduce((m, item) => {
     const status = item.status === 'failed' && item.fields.rescheduled_to ? 'rescheduled' : item.status
-    return { ...m, status, status_label: LABELS[status], next_steps: NEXT[status] ?? [], pending_sync: true,
+    const due = status === 'rescheduled' ? item.fields.rescheduled_to : m.due_day
+    return { ...m, status, status_label: LABELS[status], next_steps: NEXT[status] ?? [], pending_sync: true, due_day: due, awaiting_decision: status === 'failed',
       ...(status === 'delivered' ? { collected_amount: Number(item.fields.collected_amount ?? 0) } : {}) }
   }, mission)
 }
