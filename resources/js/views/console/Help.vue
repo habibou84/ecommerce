@@ -13,9 +13,26 @@ const error = ref('')
 const tab = ref('articles')
 const filter = ref('')
 
+// Assistant du support sur WhatsApp : il répond aux questions des marchands à partir de ces fiches
+const agent = ref(null)
+const agentForm = ref({ enabled: false, daily_budget: 3.5 })
+const agentSaved = ref(false)
+async function saveAgent() {
+  error.value = ''
+  agentSaved.value = false
+  try {
+    agent.value = (await http.put('/console/support-agent', { enabled: agentForm.value.enabled, daily_budget: Number(agentForm.value.daily_budget) })).data.data
+    agentSaved.value = true
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
 async function load() {
   try {
     data.value = (await http.get('/console/help')).data.data
+    agent.value = (await http.get('/console/support-agent')).data.data
+    agentForm.value = { enabled: agent.value.settings.enabled, daily_budget: agent.value.settings.daily_budget }
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -121,7 +138,7 @@ function writeFor(miss) {
       <div class="card p-3"><p class="text-xs text-slate-500">Recherches sans réponse</p><p class="text-xl font-bold" :class="data.misses.length ? 'text-amber-700' : ''">{{ data.misses.length }}</p></div>
     </div>
     <div class="flex gap-1 rounded-lg bg-slate-100 p-1 text-sm sm:w-fit">
-      <button v-for="[key, label] in [['articles', 'Fiches'], ['misses', `Recherches sans réponse (${data.misses.length})`]]" :key="key" class="rounded-md px-4 py-1.5" :class="tab === key ? 'bg-white font-semibold shadow-sm' : ''" @click="tab = key">{{ label }}</button>
+      <button v-for="[key, label] in [['articles', 'Fiches'], ['misses', `Recherches sans réponse (${data.misses.length})`], ['agent', 'Assistant WhatsApp']]" :key="key" class="rounded-md px-4 py-1.5" :class="tab === key ? 'bg-white font-semibold shadow-sm' : ''" @click="tab = key">{{ label }}</button>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
 
@@ -165,6 +182,37 @@ function writeFor(miss) {
         <button class="btn-secondary" @click="writeFor(m)">Écrire la fiche</button>
         <button class="btn-ghost" @click="call('delete', `/console/help/misses/${m.id}`)">Retirer</button>
       </article>
+    </section>
+
+    <!-- Assistant du support sur WhatsApp -->
+    <section v-if="tab === 'agent' && agent" class="space-y-4">
+      <p class="text-sm text-slate-600">Il répond sur le numéro du support avec ces fiches, et passe la main à l'équipe s'il ne sait pas.</p>
+      <Alert v-if="agent.settings.unavailable_reason">{{ agent.settings.unavailable_reason }}</Alert>
+      <form class="card space-y-4 p-4" @submit.prevent="saveAgent">
+        <label class="flex items-center gap-2 text-sm font-medium"><input v-model="agentForm.enabled" type="checkbox"> Répondre aux questions des marchands sur WhatsApp</label>
+        <Field id="agent-budget" label="Plafond de coût par jour (dollars)" hint="Atteint, l'assistant se tait jusqu'au lendemain : l'équipe répond.">
+          <input id="agent-budget" v-model="agentForm.daily_budget" type="number" min="0.5" max="100" step="0.5" class="input w-32">
+        </Field>
+        <div class="flex items-center gap-3">
+          <button class="btn-brand">Enregistrer</button>
+          <span v-if="agentSaved" class="text-sm text-emerald-700">Enregistré.</span>
+        </div>
+      </form>
+      <div class="grid gap-3 sm:grid-cols-4">
+        <div class="card p-3"><p class="text-xs text-slate-500">Répondu seul, 7 jours</p><p class="text-xl font-bold">{{ agent.stats.week.answered }}<span v-if="agent.stats.week.alone_percent !== null" class="ml-1 text-sm font-normal text-slate-500">{{ agent.stats.week.alone_percent }} %</span></p></div>
+        <div class="card p-3"><p class="text-xs text-slate-500">Passé à l'équipe, 7 jours</p><p class="text-xl font-bold">{{ agent.stats.week.handoff }}</p></div>
+        <div class="card p-3"><p class="text-xs text-slate-500">Coût, 7 jours</p><p class="text-xl font-bold">{{ agent.stats.week.cost_usd }} $</p></div>
+        <div class="card p-3"><p class="text-xs text-slate-500">Dépensé aujourd'hui</p><p class="text-xl font-bold">{{ agent.stats.spent_today }} $ <span class="text-sm font-normal text-slate-500">sur {{ agent.settings.daily_budget }} $</span></p></div>
+      </div>
+      <Alert v-if="agent.stats.week.failed || agent.stats.week.budget">{{ agent.stats.week.failed }} panne(s) et {{ agent.stats.week.budget }} conversation(s) laissées à l'équipe (plafond atteint) sur 7 jours.</Alert>
+      <div class="space-y-2">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Derniers passages à l'équipe</h2>
+        <p v-if="!agent.stats.handoffs.length" class="card p-6 text-center text-sm text-slate-500">Aucun pour l'instant.</p>
+        <article v-for="h in agent.stats.handoffs" :key="h.id" class="card flex flex-wrap items-center gap-3 p-3 text-sm">
+          <p class="min-w-0 flex-1 basis-56"><b>{{ h.contact }}</b> · {{ h.reason }}</p>
+          <span class="text-xs text-slate-500">{{ formatDateTime(h.at) }}</span>
+        </article>
+      </div>
     </section>
 
     <!-- Fiche -->
