@@ -1,0 +1,7 @@
+Étape 5. Vos jours et votre heure limite. Chaque commande reçoit sa date de livraison.
+
+Votre heure limite. Avant, livrée le jour même. Après, le jour suivant. Fermez les jours sans livraison.
+
+Chaque commande a sa date. Vous voyez quoi livrer aujourd'hui et demain.
+
+C'est fait. Étape suivante, ajouter vos produits et leur stock.

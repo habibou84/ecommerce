@@ -13,7 +13,7 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { execFileSync } = require('child_process')
+const { execFileSync, spawnSync } = require('child_process')
 const { chromium } = require('playwright')
 const { ETAPES, preparer } = require('./etapes.cjs')
 
@@ -23,6 +23,8 @@ const args = process.argv.slice(2)
 const option = (name, fallback) => (args.find((a) => a.startsWith(`--${name}=`)) ?? `--${name}=${fallback}`).split('=').slice(1).join('=')
 const only = args.filter((a) => /^\d+$/.test(a)).map(Number)
 const imagesOnly = args.includes('--images')
+const voiceTexts = args.includes('--texte-voix')
+const VOICES = path.join(__dirname, 'voix')
 const CONFIG = {
   boutique: option('boutique', 'http://demo.localhost:8000'),
   site: option('site', 'http://localhost:8000'),
@@ -156,8 +158,8 @@ async function capture(pages, scene, file) {
   return { file, mark }
 }
 
-function assemble(clips, output) {
-  const inputs = clips.flatMap((c) => ['-loop', '1', '-t', c.seconds.toFixed(2), '-i', c.file])
+function assemble(clips, output, voice = null) {
+  const inputs = clips.flatMap((c) => ['-loop', '1', '-t', c.seconds.toFixed(2), '-i', c.file]).concat(voice ? ['-i', voice] : [])
   let filter = ''
   let last = '0:v'
   let length = clips[0].seconds
@@ -167,13 +169,67 @@ function assemble(clips, output) {
     last = `v${i + 1}`
     length += c.seconds - fade
   })
-  filter += `[${last}]format=yuv420p[out]`
+  filter += `[${last}]format=yuv420p[out]` + (voice ? `;[${clips.length}:a]apad[voix]` : '')
   execFileSync('ffmpeg', ['-v', 'error', '-y', ...inputs, '-filter_complex', filter, '-map', '[out]', '-r', '30', '-c:v', 'libx264', '-preset', 'slow', '-crf', '24',
-    '-movflags', '+faststart', '-an', output], { stdio: 'inherit' })
+    '-movflags', '+faststart', ...(voice ? ['-map', '[voix]', '-c:a', 'aac', '-b:a', '128k', '-t', length.toFixed(2)] : ['-an']), output], { stdio: 'inherit' })
   return length
 }
 
+/** Ce que dit la voix pour une scène : le titre puis la phrase, sans les signes qui ne se lisent pas. */
+function spoken(etape, scene) {
+  const next = ETAPES.find((e) => e.n === etape.n + 1)
+  const text = scene.dit ?? (scene.type === 'debut' ? `Étape ${etape.n}. ${etape.titre.join(' ')}. ${etape.accroche}`
+    : scene.type === 'fin' ? (next ? `C'est fait. Étape suivante : ${next.suite}.` : 'Vous êtes prêt. Votre boutique tourne. Bonnes ventes !')
+      : `${scene.titre.join(' ')}. ${scene.texte}`)
+  return text.replace(/[«»]/g, '').replace(/›/g, ', puis').replace(/⋮/g, 'les trois points').replace(/\+ ?(?=[A-ZÉ,])/g, 'plus ').replace(/plus ,/g, 'plus,').replace(/\s+([,.:;!?])/g, '$1')
+    .replace(/[:;]/g, ',').replace(/([,.!?])\s*[,.]/g, '$1').replace(/\s+/g, ' ').trim()
+}
+
+const audioSeconds = (file) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim())
+
+/**
+ * Début de chaque scène dans la voix (une seule lecture par vidéo). Sans débuts relevés : estimation au prorata de la
+ * longueur des textes, calée sur le silence le plus proche (approximatif : à vérifier à l'écoute).
+ */
+function sceneStarts(file, texts) {
+  const total = audioSeconds(file)
+  // Débuts exacts, relevés dans la transcription de la voix (voix/etape-NN.json) : toujours préférés à l'estimation
+  const known = file.replace(/\.mp3$/, '.json')
+  if (fs.existsSync(known)) {
+    const starts = JSON.parse(fs.readFileSync(known, 'utf8')).debuts
+    if (starts.length === texts.length) return starts.concat(total + 0.7)
+    console.warn(`${path.basename(known)} : ${starts.length} débuts pour ${texts.length} scènes, estimation à la place`)
+  }
+  const log = spawnSync('ffmpeg', ['-i', file, '-af', 'silencedetect=noise=-38dB:d=0.2', '-f', 'null', '-'], { encoding: 'utf8' }).stderr
+  const starts = [...log.matchAll(/silence_start: ([\d.]+)/g)].map((m) => Number(m[1]))
+  const ends = [...log.matchAll(/silence_end: ([\d.]+)/g)].map((m) => Number(m[1]))
+  const pauses = starts.map((start, i) => (start + (ends[i] ?? start)) / 2)
+  // Après chaque pause trouvée, le reste est recalculé à partir d'elle : une voix plus lente au début ne décale pas la suite
+  const lengths = texts.map((t) => t.length)
+  let previous = 0
+  let left = lengths.reduce((n, l) => n + l, 0)
+  return texts.map((text, i) => {
+    if (i === 0) return 0
+    let at = previous + (lengths[i - 1] / left) * (total - previous)
+    left -= lengths[i - 1]
+    const near = pauses.filter((p) => p > previous + 0.8 && Math.abs(p - at) < 2.5).sort((a, b) => Math.abs(a - at) - Math.abs(b - at))[0]
+    at = Math.max(near ?? at, previous + 0.8)
+    previous = at
+    return at
+  }).concat(total + 0.7)
+}
+
 async function main() {
+  if (voiceTexts) {
+    // Le texte à faire lire par la voix, une scène par paragraphe : à enregistrer en voix/etape-NN.mp3
+    fs.mkdirSync(VOICES, { recursive: true })
+    for (const etape of ETAPES.filter((e) => !only.length || only.includes(e.n))) {
+      const file = path.join(VOICES, `etape-${String(etape.n).padStart(2, '0')}.txt`)
+      fs.writeFileSync(file, `${[{ type: 'debut' }, ...etape.scenes, { type: 'fin' }].map((scene) => spoken(etape, scene)).join('\n\n')}\n`)
+      console.log(file)
+    }
+    return
+  }
   fs.mkdirSync(CONFIG.travail, { recursive: true })
   const browser = await chromium.launch()
   const phone = { viewport: PHONE, deviceScaleFactor: 3, locale: 'fr-FR' }
@@ -199,12 +255,14 @@ async function main() {
     const dir = path.join(CONFIG.travail, id)
     fs.mkdirSync(dir, { recursive: true })
     const clips = []
+    const groups = [] // les images de chaque scène, pour les caler sur la voix
     const scenes = [{ type: 'debut' }, ...etape.scenes, { type: 'fin' }]
     for (const [i, scene] of scenes.entries()) {
       const name = path.join(dir, `scene-${String(i).padStart(2, '0')}`)
       if (scene.type) {
         await paint(frameHtml(etape, scene), `${name}.png`)
         clips.push({ file: `${name}.png`, seconds: scene.type === 'debut' ? 2.8 : 3.4 })
+        groups.push(clips.slice(-1))
         continue
       }
       const shot = scene.ecran ? await capture(pages, scene, `${name}-ecran.png`) : null
@@ -214,16 +272,29 @@ async function main() {
         await paint(frameHtml(etape, scene, shot, false), `${name}-a.png`)
         await paint(frameHtml(etape, scene, shot, true), `${name}-b.png`)
         clips.push({ file: `${name}-a.png`, seconds: 1.3 }, { file: `${name}-b.png`, seconds: reading, fade: 0.3 })
+        groups.push(clips.slice(-2))
       } else {
         await paint(frameHtml(etape, scene, shot, false), `${name}-a.png`)
         clips.push({ file: `${name}-a.png`, seconds: reading + 0.8 })
+        groups.push(clips.slice(-1))
       }
     }
     if (imagesOnly) {
       console.log(`Étape ${etape.n} : ${clips.length} images dans ${dir}`)
       continue
     }
-    const length = assemble(clips, path.join(OUT, `etape-${id}.mp4`))
+    // Avec une voix (voix/etape-NN.mp3) : chaque scène dure le temps de sa phrase, et change un instant avant
+    const voice = [path.join(VOICES, `etape-${id}.mp3`)].find((f) => fs.existsSync(f)) ?? null
+    if (voice) {
+      const starts = sceneStarts(voice, scenes.map((scene) => spoken(etape, scene))).map((t, i, all) => (i === 0 || i === all.length - 1 ? t : t - 0.25))
+      groups.forEach((group, i) => {
+        const span = starts[i + 1] - starts[i]
+        const lead = group.length === 2 ? Math.min(1, span / 3) : span
+        group[0].seconds = lead + (i === 0 ? 0 : FADE)
+        if (group.length === 2) group[1].seconds = span - lead + group[1].fade
+      })
+    }
+    const length = assemble(clips, path.join(OUT, `etape-${id}.mp4`), voice)
     execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', clips[0].file, '-vf', 'scale=540:-1', '-q:v', '4', path.join(OUT, `etape-${id}.jpg`)])
     seconds[etape.n] = Math.round(length)
     console.log(`Étape ${etape.n} : ${Math.round(length)} s, ${clips.length} images → public/videos/etapes/etape-${id}.mp4`)
