@@ -265,7 +265,8 @@ async function whatsapp(s) {
       <p v-if="s.scheduled_date && !s.is_final" class="text-slate-600">Livraison prévue <strong>{{ dayLabel(s.scheduled_date) }}</strong></p>
       <!-- Pas ramassé à sa date (contrat 1.10) : l'entreprise attend une nouvelle date ou l'annulation -->
       <div v-if="s.carrier_reschedule" class="rounded bg-amber-50 p-2 text-amber-900">
-        <p class="font-medium">📅 {{ s.carrier?.name || 'L\'entreprise de livraison' }} n'a pas pu ramasser ce colis {{ dayLabel(s.carrier_reschedule.missed_day) }}. Choisissez une nouvelle date.</p>
+        <p v-if="s.carrier?.driver === 'own_courier'" class="font-medium">📅 Pas livrée à sa date ({{ dayLabel(s.carrier_reschedule.missed_day) }}){{ s.carrier_reschedule.in_hand ? ', colis chez ' + s.carrier.name : '' }}. Choisissez une nouvelle date : {{ s.carrier.name }} la retrouvera dans son application et sera prévenu.</p>
+        <p v-else class="font-medium">📅 {{ s.carrier?.name || 'L\'entreprise de livraison' }} n'a pas pu ramasser ce colis {{ dayLabel(s.carrier_reschedule.missed_day) }}. Choisissez une nouvelle date.</p>
         <div class="mt-2 flex flex-wrap gap-2">
           <button class="btn-brand px-3 py-1.5" :disabled="busy" @click="reschedule(s, todayIso)">Livrer aujourd'hui</button>
           <button class="btn-secondary px-3 py-1.5" @click="openModal('reschedule', s)">Autre date…</button>
@@ -273,7 +274,7 @@ async function whatsapp(s) {
         </div>
       </div>
       <div v-if="s.needs_decision && !s.is_final" class="rounded bg-ocre-50 p-2 text-ocre-900">
-        <p class="font-medium">{{ s.carrier?.name || 'L\'entreprise de livraison' }} attend votre décision : nouvelle date ou retour du colis.</p>
+        <p class="font-medium">{{ s.carrier?.driver === 'own_courier' ? `Livraison échouée : ${s.carrier.name} attend votre décision, relivrer à une date ou rapporter le colis à la boutique.` : `${s.carrier?.name || 'L\'entreprise de livraison'} attend votre décision : nouvelle date ou retour du colis.` }}</p>
         <div v-if="s.carrier_actions?.decide" class="mt-2 flex flex-wrap gap-2">
           <button class="btn-brand px-3 py-1.5" @click="openModal('redeliver', s)">Relivrer le…</button>
           <button class="btn-secondary px-3 py-1.5" @click="openModal('return', s)">Faire revenir le colis</button>
@@ -444,7 +445,7 @@ async function whatsapp(s) {
         <Field id="rs-date" label="Nouvelle date de livraison">
           <input id="rs-date" v-model="form.date" class="input" type="date" :min="todayIso" :max="current.carrier_reschedule?.max_date" required />
         </Field>
-        <button class="btn-brand w-full" :disabled="busy">Envoyer à {{ current.carrier?.name }}</button>
+        <button class="btn-brand w-full" :disabled="busy">{{ current.carrier?.driver === 'own_courier' ? `Reporter et prévenir ${current.carrier.name}` : `Envoyer à ${current.carrier?.name}` }}</button>
       </form>
     </Modal>
 

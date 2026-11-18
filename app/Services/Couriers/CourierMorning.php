@@ -3,12 +3,10 @@
 namespace App\Services\Couriers;
 
 use App\Models\Courier;
-use App\Models\CourierAssignment;
 use App\Models\Scopes\StoreScope;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Notifications\CourierDayPlan;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Jibiat\Socle\Money;
 
@@ -19,36 +17,28 @@ use Jibiat\Socle\Money;
 class CourierMorning
 {
     /**
-     * Courses du jour d'une liste de missions actives : prévues aujourd'hui ou avant, ou sans date.
+     * Courses du jour d'une liste de missions actives : prévues aujourd'hui (ou sans date), plus les colis à rapporter.
+     * Une course dont la date est passée n'en fait pas partie : la boutique doit d'abord choisir une nouvelle date.
      *
      * @param  Collection<int, Shipment>  $missions
      * @return Collection<int, Shipment>
      */
     public static function dueToday(Collection $missions): Collection
     {
-        return $missions->filter(function (Shipment $s) {
-            if ($s->status->value === 'returning') {
-                return false;
-            }
-            $day = $s->status->value === 'rescheduled' && $s->rescheduled_to ? $s->rescheduled_to : $s->order?->scheduled_date;
-
-            return $day === null || $day->lte(today());
-        })->values();
+        return $missions->filter(fn (Shipment $s) => self::tab($s) !== null)->values();
     }
 
-    /**
-     * En retard pour le livreur : le jour de la course (report ou date de la commande) et le jour où elle lui a été
-     * confiée sont tous deux passés.
-     */
-    public static function isLate(Shipment $s, mixed $handedAt): bool
+    /** Onglet de la course aujourd'hui dans l'application du livreur : pickup, deliver, return, ou aucun */
+    public static function tab(Shipment $s): ?string
     {
-        $day = $s->status->value === 'rescheduled' && $s->rescheduled_to ? $s->rescheduled_to : $s->order?->scheduled_date;
-        if ($day === null || $s->status->value === 'returning') {
-            return false;
+        if ($s->status->value === 'returning') {
+            return 'return';
         }
-        $handed = $handedAt ? Carbon::parse($handedAt)->startOfDay() : null;
+        if (! in_array($s->status->value, CourierDays::DATED, true) || ! (CourierDays::dueDay($s) ?? today())->isToday()) {
+            return null;
+        }
 
-        return $day->lt(today()) && ($handed === null || $handed->lt(today()));
+        return $s->status->value === 'awaiting_pickup' ? 'pickup' : 'deliver';
     }
 
     /** @return int nombre de livreurs prévenus (un seul message par personne, toutes ses boutiques réunies) */
@@ -70,17 +60,15 @@ class CourierMorning
             if ($today->isEmpty()) {
                 continue;
             }
-            // En retard pour lui : date passée alors que la course lui était déjà confiée (reçue aujourd'hui, elle est du jour)
-            $handed = CourierAssignment::withoutGlobalScope(StoreScope::class)->whereIn('shipment_id', $today->pluck('id'))
-                ->where('status', 'assigned')->pluck('assigned_at', 'shipment_id');
-            $late = $today->filter(fn (Shipment $s) => self::isLate($s, $handed[$s->id] ?? $s->requested_at))->count();
-            $cash = (int) $today->sum('cod_amount');
+            $tabs = $today->countBy(fn (Shipment $s) => self::tab($s));
+            $parts = collect(['pickup' => 'à ramasser', 'deliver' => 'à livrer', 'return' => 'à retourner'])
+                ->filter(fn ($label, $tab) => ($tabs[$tab] ?? 0) > 0)->map(fn ($label, $tab) => $tabs[$tab].' '.$label)->implode(', ');
+            $cash = (int) $today->filter(fn (Shipment $s) => self::tab($s) !== 'return')->sum('cod_amount');
             $communes = $today->map(fn (Shipment $s) => $s->order?->place
                 ? ($s->order->place->type === 'neighborhood' ? $s->order->place->parent?->name : $s->order->place->name) : null)
                 ->filter()->unique()->take(4)->implode(', ');
             $stores = $today->pluck('store_id')->unique()->count();
-            $count = $today->count();
-            $title = "Aujourd'hui : {$count} course".($count > 1 ? 's' : '').($late ? " dont {$late} en retard" : '')
+            $title = "Aujourd'hui : {$parts}"
                 .' · '.($stores > 1 ? "{$stores} boutiques" : $fiches->firstWhere('store_id', $today->first()->store_id)?->store->name);
             $body = trim(($cash > 0 ? Money::format($cash).' à encaisser' : '').($communes !== '' ? ' · '.$communes : ''), ' ·');
             $user->notify(new CourierDayPlan($home->id, $title, $body));
