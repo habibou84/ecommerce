@@ -641,6 +641,17 @@ class PlatformWhatsApp
     }
 
     /**
+     * « En train d'écrire… » chez la personne qui a envoyé ce message (connexion officielle seulement).
+     */
+    public function typing(SupportMessage $message): void
+    {
+        $account = $this->isQr() ? null : $this->account();
+        if ($account !== null && $message->direction === 'in' && filled($message->provider_message_id)) {
+            $this->cloud->typing($account, $message->provider_message_id);
+        }
+    }
+
+    /**
      * Message envoyé depuis l'application WhatsApp Business du téléphone (coexistence) : recopié dans le fil.
      *
      * @param  array<string, mixed>  $echo

@@ -15,13 +15,19 @@ const filter = ref('')
 
 // Assistant du support sur WhatsApp : il répond aux questions des marchands à partir de ces fiches
 const agent = ref(null)
-const agentForm = ref({ enabled: false, daily_budget: 3.5 })
+const agentForm = ref({ enabled: false, daily_budget: 3.5, test_phones: '' })
+function fillAgentForm() {
+  const s = agent.value.settings
+  agentForm.value = { enabled: s.enabled, daily_budget: s.daily_budget, test_phones: s.test_phones.join(', ') }
+}
 const agentSaved = ref(false)
 async function saveAgent() {
   error.value = ''
   agentSaved.value = false
   try {
-    agent.value = (await http.put('/console/support-agent', { enabled: agentForm.value.enabled, daily_budget: Number(agentForm.value.daily_budget) })).data.data
+    const phones = agentForm.value.test_phones.split(/[,;\n]/).map((p) => p.trim()).filter(Boolean)
+    agent.value = (await http.put('/console/support-agent', { enabled: agentForm.value.enabled, daily_budget: Number(agentForm.value.daily_budget), test_phones: phones })).data.data
+    fillAgentForm()
     agentSaved.value = true
   } catch (e) {
     error.value = errorMessage(e)
@@ -32,7 +38,7 @@ async function load() {
   try {
     data.value = (await http.get('/console/help')).data.data
     agent.value = (await http.get('/console/support-agent')).data.data
-    agentForm.value = { enabled: agent.value.settings.enabled, daily_budget: agent.value.settings.daily_budget }
+    fillAgentForm()
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -193,6 +199,10 @@ function writeFor(miss) {
         <Field id="agent-budget" label="Plafond de coût par jour (dollars)" hint="Atteint, l'assistant se tait jusqu'au lendemain : l'équipe répond.">
           <input id="agent-budget" v-model="agentForm.daily_budget" type="number" min="0.5" max="100" step="0.5" class="input w-32">
         </Field>
+        <Field id="agent-test" label="Numéros d'essai" hint="Rempli : l'assistant ne répond qu'à ces numéros. Vide : il répond à tout le monde.">
+          <input id="agent-test" v-model="agentForm.test_phones" class="input" placeholder="07 08 09 10 11, 05 01 02 03 04" autocomplete="off">
+        </Field>
+        <p v-if="agent.settings.enabled && agent.settings.test_phones.length" class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">À l'essai : seuls {{ agent.settings.test_phones.length }} numéro(s) reçoivent une réponse.</p>
         <div class="flex items-center gap-3">
           <button class="btn-brand">Enregistrer</button>
           <span v-if="agentSaved" class="text-sm text-emerald-700">Enregistré.</span>

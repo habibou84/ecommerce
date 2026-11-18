@@ -28,6 +28,9 @@ class SupportAgentTest extends TestCase
     /** @var list<array<string, mixed>> */
     private array $sent = [];
 
+    /** @var list<array<string, mixed>> */
+    private array $typing = [];
+
     private FakeAiClient $ai;
 
     protected function setUp(): void
@@ -41,6 +44,12 @@ class SupportAgentTest extends TestCase
         Http::preventStrayRequests();
         Http::fake(function (HttpRequest $r) {
             if (str_ends_with((string) parse_url($r->url(), PHP_URL_PATH), '/9001/messages')) {
+                // « En train d'écrire… » : à part des messages envoyés
+                if (isset($r->data()['typing_indicator'])) {
+                    $this->typing[] = $r->data();
+
+                    return Http::response(['success' => true]);
+                }
                 $this->sent[] = $r->data();
 
                 return Http::response(['messages' => [['id' => 'wamid.out'.count($this->sent)]]]);
@@ -76,12 +85,17 @@ class SupportAgentTest extends TestCase
         $this->say('Bonjour, comment ajouter mes livreurs ?');
         $this->assertSame([], $this->sent);
         $this->assertSame([], $this->ai->calls);
+        $this->assertSame([], $this->typing);
 
         app(SupportAgent::class)->update(true, 3.5);
         $this->ai->agentWill([['chercher_aide', ['question' => 'ajouter mes livreurs']]], "Dans Livraisons › « Mes livreurs », touchez « + Livreur ».\nhttps://localhost/video");
         $this->say('Bonjour, comment ajouter mes livreurs ?');
 
         $this->assertStringContainsString('« + Livreur »', $this->lastText());
+        // « En train d'écrire… » dès le message reçu puis pendant la réponse, sur le message de la personne (marqué lu)
+        $this->assertCount(2, $this->typing);
+        $this->assertSame(['status' => 'read', 'typing_indicator' => ['type' => 'text']], collect($this->typing[0])->only(['status', 'typing_indicator'])->all());
+        $this->assertStringStartsWith('wamid.agent', $this->typing[0]['message_id']);
         // La fiche trouvée, avec ses étapes et la page de sa vidéo
         $fiche = $this->ai->toolResults[0]['fiches'][0];
         $this->assertSame('Comment ajouter mes livreurs ou une entreprise de livraison ?', $fiche['question']);
@@ -167,6 +181,25 @@ class SupportAgentTest extends TestCase
         $this->assertSame([], $this->ai->calls);
         $this->assertSame(0, SupportAgentRun::count());
 
+        // Déjà inscrit : après « Inscription », une question n'est pas prise pour une réponse du robot, l'assistant répond
+        $store = $this->createStore(['slug' => 'bold', 'name' => 'Boldstyle']);
+        $store->owner->forceFill(['phone' => '+2250702020202', 'name' => 'Mohamed'])->save();
+        $this->say('inscription', '2250702020202');
+        $this->assertStringContainsString('déjà la boutique *Boldstyle*', $this->lastText() ?: (end($this->sent)['interactive']['body']['text'] ?? ''));
+        $this->ai->agentWill([['chercher_aide', ['question' => 'connecter numéro WhatsApp Meta']]], 'Dans WhatsApp, touchez « Connecter mon numéro ».');
+        $this->say('Bonjour, je bloque pour connecter mon numéro WhatsApp sur Meta.', '2250702020202');
+        $this->assertSame('Dans WhatsApp, touchez « Connecter mon numéro ».', $this->lastText());
+        $this->assertSame('connecter-whatsapp', $this->ai->toolResults[0]['fiches'][0] ? SupportAgentRun::latest('id')->value('articles')[0] : null);
+        SupportAgentRun::query()->delete();
+
+        // Une inscription laissée en route depuis plus d'un jour n'attend plus de réponse
+        $this->say('Inscription', '2250703030303');
+        $this->travel(25)->hours();
+        $this->ai->agentWill([], 'Bonjour 🙂 Comment puis-je vous aider ?');
+        $this->say('Bonjour', '2250703030303');
+        $this->assertSame('Bonjour 🙂 Comment puis-je vous aider ?', $this->lastText());
+        SupportAgentRun::query()->delete();
+
         // Plafond du jour atteint : rien n'est envoyé, une seule ligne par conversation
         $conversation = SupportConversation::firstOrCreate(['contact' => '+2250505050505']);
         SupportAgentRun::create(['support_conversation_id' => $conversation->id, 'outcome' => SupportAgentRun::ANSWERED, 'cost_usd' => 0.6]);
@@ -194,6 +227,20 @@ class SupportAgentTest extends TestCase
         $this->say('Mon compte est bloqué', '2250102030405');
         $console('GET')->assertJsonPath('data.stats.week.answered', 1)->assertJsonPath('data.stats.week.handoff', 1)->assertJsonPath('data.stats.week.alone_percent', 50)
             ->assertJsonPath('data.stats.handoffs.0.reason', 'Compte bloqué');
+
+        // À l'essai : seul le numéro d'essai reçoit une réponse (écrit comme on le dit, « 07 08 09 10 11 »)
+        $console('PUT', ['enabled' => true, 'daily_budget' => 2, 'test_phones' => ['pas un numéro']])->assertStatus(422);
+        $console('PUT', ['enabled' => true, 'daily_budget' => 2, 'test_phones' => ['07 08 09 10 11']])->assertOk()->assertJsonPath('data.settings.test_phones', ['+2250708091011']);
+        $sent = count($this->sent);
+        $this->say('Comment ajouter un livreur ?', '2250505050505');
+        $this->assertCount($sent, $this->sent);
+        $this->assertSame(2, SupportAgentRun::count());
+        $this->ai->agentWill([], 'Bonjour 🙂');
+        $this->travel(13)->hours();
+        $this->say('Bonjour', '2250708091011');
+        $this->assertSame('Bonjour 🙂', $this->lastText());
+        // Liste vidée : de nouveau tout le monde
+        $console('PUT', ['enabled' => true, 'daily_budget' => 2, 'test_phones' => []])->assertOk()->assertJsonPath('data.settings.test_phones', []);
 
         // Par QR code, l'assistant ne répond pas
         PlatformSetting::put('whatsapp.mode', 'qr');
