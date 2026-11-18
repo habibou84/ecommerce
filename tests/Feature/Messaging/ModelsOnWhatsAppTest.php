@@ -131,8 +131,13 @@ class ModelsOnWhatsAppTest extends TestCase
         $this->assertSame(['S', 'M'], collect($sizes['interactive']['action']['buttons'])->pluck('reply.title')->all());
         $m = $this->robe->variants->firstWhere('title', 'M');
         $this->tap('models:var:'.$m->id, 'M');
-        [$noted, $address] = $this->sent();
-        $this->assertStringContainsString("✅ *C'est noté !*\nRobe wax — M", $noted['text']['body']);
+        [$noted] = $this->sent();
+        $this->assertStringContainsString("✅ *C'est noté !*\nRobe wax — M", $noted['interactive']['body']['text']);
+        $this->assertStringContainsString('1 article dans votre commande', $noted['interactive']['body']['text']);
+        // Plusieurs modèles : un autre, ou terminer (l'adresse)
+        $this->assertSame(['models:menu', 'models:done'], collect($noted['interactive']['action']['buttons'])->pluck('reply.id')->all());
+        $this->tap('models:done', '✅ Terminer');
+        [$address] = $this->sent();
         $this->assertStringStartsWith("📍 *DERNIÈRE ÉTAPE : L'ADRESSE*", $address['interactive']['body']['text']);
 
         // Quartier touché : commande WhatsApp créée (pas une commande du live), puis le récapitulatif

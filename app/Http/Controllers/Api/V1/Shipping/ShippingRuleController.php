@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers\Api\V1\Shipping;
 
+use App\Enums\OrderStatus;
+use App\Enums\ShipmentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CarrierConnection;
-use App\Models\DeliveryZone;
+use App\Models\Order;
+use App\Models\OrderEvent;
+use App\Models\Place;
 use App\Models\ShippingRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,13 +21,20 @@ use Illuminate\Validation\Rule;
  */
 class ShippingRuleController extends Controller
 {
+    /** Délais proposés avant de passer la mission au livreur suivant (minutes) */
+    private const TIMEOUTS = [10, 15, 30, 60];
+
+    private const SUMMARY_DAYS = 7;
+
     public function index(): JsonResponse
     {
         return response()->json([
             'data' => ShippingRule::with('connection:id,name')->orderBy('priority')->orderBy('id')->get()->map(fn (ShippingRule $r) => $this->present($r)),
             'assignment_mode' => $this->currentStore()->assignment_mode,
+            'courier_dispatch' => $this->currentStore()->courier_dispatch,
+            'mission_timeout_minutes' => $this->currentStore()->mission_timeout_minutes,
+            'summary' => $this->summary(),
             'actions' => ShippingRule::ACTIONS,
-            'zones' => DeliveryZone::orderBy('sort')->get(['id', 'name']),
             'carriers' => CarrierConnection::where('status', 'active')->orderBy('name')->get(['id', 'name']),
         ]);
     }
@@ -60,20 +71,53 @@ class ShippingRuleController extends Controller
     {
         $data = $request->validate([
             'assignment_mode' => ['sometimes', Rule::in(['off', 'suggest', 'auto'])],
+            'courier_dispatch' => ['sometimes', Rule::in(['nearest', 'round_robin'])],
+            'mission_timeout_minutes' => ['sometimes', 'nullable', 'integer', Rule::in(self::TIMEOUTS)],
             'order' => ['sometimes', 'array'],
             'order.*' => ['integer'],
         ]);
 
         DB::transaction(function () use ($data) {
-            if (isset($data['assignment_mode'])) {
-                $this->currentStore()->forceFill(['assignment_mode' => $data['assignment_mode']])->save();
-            }
+            $store = $this->currentStore();
+            $store->forceFill(array_intersect_key($data, array_flip(['assignment_mode', 'courier_dispatch', 'mission_timeout_minutes'])))->save();
             foreach (array_values($data['order'] ?? []) as $i => $id) {
                 ShippingRule::whereKey($id)->update(['priority' => $i + 1]);
             }
         });
 
         return $this->index();
+    }
+
+    /**
+     * Bilan de l'envoi automatique sur 7 jours : commandes envoyées toutes seules, et commandes bloquées (le dernier
+     * essai a échoué et personne ne livre encore), à reprendre à la main.
+     *
+     * @return array{days: int, sent: int, failed: int, blocked: list<array<string, mixed>>}
+     */
+    private function summary(): array
+    {
+        $since = now()->subDays(self::SUMMARY_DAYS);
+        $counts = OrderEvent::whereIn('type', ['auto_assigned', 'auto_assignment_failed'])->where('created_at', '>=', $since)
+            ->selectRaw('type, count(distinct order_id) as n')->groupBy('type')->pluck('n', 'type');
+
+        $active = array_values(array_filter(array_map(fn (ShipmentStatus $s) => $s->isFinal() ? null : $s->value, ShipmentStatus::cases())));
+        $blocked = Order::with(['events' => fn ($q) => $q->whereIn('type', ['auto_assigned', 'auto_assignment_failed', 'shipment_created'])->latest('id')])
+            ->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])
+            ->whereDoesntHave('shipments', fn ($q) => $q->whereIn('status', $active))
+            ->whereHas('events', fn ($q) => $q->where('type', 'auto_assignment_failed')->where('created_at', '>=', $since))
+            ->latest('id')->limit(50)->get()
+            ->filter(fn (Order $o) => $o->events->first()?->type === 'auto_assignment_failed')
+            ->take(10)
+            ->map(fn (Order $o) => [
+                'id' => $o->id,
+                'reference' => $o->reference(),
+                'customer' => $o->shipping_name ?? $o->customer?->name,
+                'place' => $o->shipping_place_label,
+                'reason' => $o->events->first()->data['error'] ?? null,
+                'at' => $o->events->first()->created_at->toIso8601String(),
+            ])->values()->all();
+
+        return ['days' => self::SUMMARY_DAYS, 'sent' => (int) ($counts['auto_assigned'] ?? 0), 'failed' => (int) ($counts['auto_assignment_failed'] ?? 0), 'blocked' => $blocked];
     }
 
     /**
@@ -86,8 +130,8 @@ class ShippingRuleController extends Controller
             'action' => ['required', Rule::in(array_keys(ShippingRule::ACTIONS))],
             'carrier_connection_id' => ['required_if:action,carrier', 'nullable', 'integer', Rule::exists('carrier_connections', 'id')->where('store_id', $this->currentStore()->id)],
             'conditions' => ['nullable', 'array'],
-            'conditions.delivery_zone_ids' => ['nullable', 'array'],
-            'conditions.delivery_zone_ids.*' => ['integer'],
+            'conditions.place_ids' => ['nullable', 'array', 'max:100'],
+            'conditions.place_ids.*' => ['integer'],
             'conditions.is_fragile' => ['nullable', 'boolean'],
             'conditions.min_amount' => ['nullable', 'integer', 'min:0'],
             'conditions.max_amount' => ['nullable', 'integer', 'min:0'],
@@ -96,8 +140,8 @@ class ShippingRuleController extends Controller
         ], ['carrier_connection_id.required_if' => 'Choisissez l\'entreprise de livraison.'], ['name' => 'nom', 'action' => 'action']);
 
         $conditions = $data['conditions'] ?? [];
-        if (! empty($conditions['delivery_zone_ids'])) {
-            $conditions['delivery_zone_ids'] = DeliveryZone::whereIn('id', $conditions['delivery_zone_ids'])->pluck('id')->all();
+        if (! empty($conditions['place_ids'])) {
+            $conditions['place_ids'] = Place::visibleTo($this->currentStore()->id)->whereIn('id', $conditions['place_ids'])->pluck('id')->all();
         }
         $data['conditions'] = array_filter($conditions, fn ($v) => $v !== null && $v !== []) ?: null;
         $data['carrier_connection_id'] = $data['action'] === 'carrier' ? $data['carrier_connection_id'] : null;
@@ -119,6 +163,9 @@ class ShippingRuleController extends Controller
             'carrier_connection_id' => $r->carrier_connection_id,
             'carrier' => $r->connection?->name,
             'conditions' => (object) ($r->conditions ?? []),
+            // Lieux du cas, nommés (« Angré, Cocody »)
+            'places' => Place::with('parent')->whereIn('id', $r->conditions['place_ids'] ?? [])->get()
+                ->map(fn (Place $p) => ['id' => $p->id, 'label' => $p->label()])->values(),
             'is_active' => $r->is_active,
         ];
     }

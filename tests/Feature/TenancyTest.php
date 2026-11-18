@@ -187,7 +187,19 @@ class TenancyTest extends TestCase
             ->assertJsonPath('short_name', 'Awa Mode Abi')
             ->assertJsonPath('start_url', '/gestion')
             ->assertJsonPath('display', 'standalone')
-            ->assertJsonPath('icons.1.sizes', '512x512');
+            ->assertJsonPath('icons.1.sizes', '512x512')
+            // Appui long sur l'icône : Messages, Nouvelle commande, Préparer un live
+            ->assertJsonPath('shortcuts.0.url', '/gestion/messages');
+
+        // Messages : une icône à part qui ouvre directement les conversations
+        $this->get($this->storeUrl($store, '/gestion/messages'))->assertOk()
+            ->assertSee('<link rel="manifest" href="/gestion/messages/manifest.webmanifest">', false);
+        $this->get($this->storeUrl($store, '/gestion/messages/manifest.webmanifest'))->assertOk()
+            ->assertJsonPath('id', '/gestion/messages')
+            ->assertJsonPath('name', 'Messages · Awa Mode Abidjan')
+            ->assertJsonPath('short_name', 'Messages')
+            ->assertJsonPath('start_url', '/gestion/messages')
+            ->assertJsonPath('icons.0.src', '/brand/messages-192.png');
         // La plateforme n'a pas de gestion à installer
         $this->get($this->platformUrl('/connexion'))->assertDontSee('/gestion/manifest.webmanifest', false);
     }

@@ -98,9 +98,13 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
 <template>
   <div class="space-y-5">
     <div v-if="auth.can('finance.view')" class="flex flex-wrap items-center gap-2">
-      <button v-for="[value, label] in PRESETS" :key="value" class="rounded-full border px-3 py-1 text-sm"
-              :class="period.preset === value ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-white'"
-              @click="period.preset = value; value !== 'custom' && load()">{{ label }}</button>
+      <!-- Période : même sélecteur que la liste des commandes -->
+      <div class="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-xl bg-slate-200/70 p-1 [scrollbar-width:none]" role="group" aria-label="Période">
+        <button v-for="[value, label] in PRESETS" :key="value" type="button" class="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold"
+                :class="period.preset === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+                :aria-pressed="period.preset === value"
+                @click="period.preset = value; value !== 'custom' && load()">{{ label }}</button>
+      </div>
       <template v-if="period.preset === 'custom'">
         <input v-model="period.from" type="date" class="input w-auto py-1" />
         <input v-model="period.to" type="date" class="input w-auto py-1" />
@@ -147,7 +151,7 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
           <div class="flex justify-between"><dt>Coût des livraisons</dt><dd>− {{ money(o.shipping_costs) }}</dd></div>
           <div class="flex justify-between border-t border-slate-200 pt-1 font-semibold sm:col-span-2"><dt>Marge nette</dt><dd>{{ money(o.net_margin) }}</dd></div>
         </dl>
-        <p v-if="o.without_cost" class="mt-2 text-xs text-amber-800">{{ o.without_cost }} commande(s) sans prix d'achat : renseignez le coût de vos produits pour une marge exacte.</p>
+        <p v-if="o.without_cost" class="mt-2 text-sm text-amber-800">{{ o.without_cost }} commande(s) sans prix d'achat : renseignez le coût de vos produits pour une marge exacte.</p>
       </section>
 
       <section v-if="p" class="card p-4 text-sm">
@@ -166,7 +170,7 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
         <p v-if="p.stock_purchases" class="mt-2 text-sm text-slate-500">
           Achats de stock : {{ money(p.stock_purchases) }} (déjà comptés dans la marge).
         </p>
-        <p v-else-if="!p.expenses" class="mt-2 text-xs text-slate-500">Notez vos dépenses (loyer, transport, emballages…) dans Caisse › Dépense pour un bénéfice complet.</p>
+        <p v-else-if="!p.expenses" class="explain-detail mt-2">Notez vos dépenses (loyer, transport, emballages…) dans Caisse › Dépense pour un bénéfice complet.</p>
       </section>
 
       <div class="grid gap-5 lg:grid-cols-2">
@@ -237,7 +241,8 @@ const hours = (h) => (h === null ? '—' : h < 24 ? `${Math.round(h)} h` : `${(h
 
     <section v-if="report" class="card space-y-3 p-4 text-sm">
       <h3 class="font-semibold"><Icon name="send" :size="18" class="mr-1 inline-block align-[-3px]" />Mon rapport du jour</h3>
-      <p class="text-slate-600">Chaque jour à l'heure choisie : ventes du jour, commandes à confirmer et à faire livrer, espèces chez les livreurs.</p>
+      <p class="explain">Le point de la journée, chaque jour à l'heure choisie.</p>
+      <p class="explain-detail">Ventes, commandes à confirmer et à faire livrer, espèces chez les livreurs.</p>
       <Alert v-if="reportError">{{ reportError }}</Alert>
       <div class="grid gap-3 sm:grid-cols-2">
         <div class="rounded-lg border border-slate-200 p-3">

@@ -1,4 +1,5 @@
 <script setup>
+import StateBadge from '../../components/StateBadge.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
 import QrScanner from '../../components/QrScanner.vue'
@@ -7,8 +8,7 @@ import http, { errorMessage } from '../../lib/http'
 import { newMissionAlert } from '../../lib/alertSound'
 import { cachedGet, loadMissions, offline, savedRoute, saveRoute, sendStep } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
-import { autoOrder, currentPosition, dueDay, isLate, isLater, itineraryUrl, routeOrder, shortDay, tomorrow } from '../../lib/route'
-import { SHIPMENT_TONES } from '../../lib/shipping'
+import { autoOrder, clock, currentPosition, dayLabel, dueDay, isLate, isLater, itineraryUrl, routeOrder, shortDay, tomorrow } from '../../lib/route'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -52,13 +52,13 @@ function scanned(input) {
   const code = rawCode(input)
   const found = code && (missions.value ?? []).find((m) => (m.labels ?? []).includes(code))
   if (found) router.push(`/livreur/missions/${found.id}`)
-  else error.value = code ? 'Ce colis n\'est dans aucune de tes courses.' : 'Ce n\'est pas une étiquette de colis.'
+  else error.value = code ? 'Ce colis n\'est dans aucune de vos courses.' : 'Ce n\'est pas une étiquette de colis.'
 }
 
 const FINAL = ['delivered', 'returned', 'cancelled', 'lost']
 // À accepter : nouvelles missions pas encore acceptées (ni colis récupéré)
-const offers = computed(() => (missions.value ?? []).filter((m) => m.acceptance === 'pending' && m.status === 'awaiting_pickup'))
-const active = computed(() => byStore((missions.value ?? []).filter((m) => !FINAL.includes(m.status) && !offers.value.includes(m))))
+const offers = computed(() => byStore((missions.value ?? []).filter((m) => m.acceptance === 'pending' && m.status === 'awaiting_pickup')))
+const active = computed(() => byStore((missions.value ?? []).filter((m) => !FINAL.includes(m.status) && !(m.acceptance === 'pending' && m.status === 'awaiting_pickup'))))
 // Tournée d'aujourd'hui (les colis à rapporter à la boutique restent à la fin), puis les missions reportées à plus tard
 const stops = computed(() => {
   const today = active.value.filter((m) => !isLater(m))
@@ -97,7 +97,7 @@ async function accept(m) {
   error.value = ''
   try {
     await http.post(`/courier/missions/${m.id}/accept`)
-    notice.value = `Mission ${m.reference} acceptée ✓`
+    notice.value = `Course ${m.reference} acceptée ✓`
     await load()
   } catch (e) {
     error.value = errorMessage(e)
@@ -110,7 +110,7 @@ async function decline() {
   error.value = ''
   try {
     await http.post(`/courier/missions/${declining.value.id}/decline`, { reason: reason.value })
-    notice.value = 'Mission refusée : le marchand est prévenu.'
+    notice.value = 'Course refusée : le marchand est prévenu.'
     declining.value = null
     reason.value = ''
     await load()
@@ -165,8 +165,8 @@ function saveOrder() {
   <div class="space-y-4">
     <Alert v-if="error">{{ error }}</Alert>
     <div v-if="me" class="grid grid-cols-3 gap-2 text-center">
-      <div class="rounded-xl bg-white p-3 shadow-sm"><p class="text-xl font-bold">{{ stops.length }}</p><p class="text-xs text-slate-500">arrêts aujourd'hui</p></div>
-      <div class="rounded-xl bg-white p-3 shadow-sm"><p class="text-xl font-bold">{{ me.today.delivered }}</p><p class="text-xs text-slate-500">livrées aujourd'hui</p></div>
+      <div class="rounded-xl bg-white p-3 shadow-sm"><p class="text-2xl font-bold">{{ stops.length }}</p><p class="text-xs text-slate-500">arrêts aujourd'hui</p></div>
+      <div class="rounded-xl bg-white p-3 shadow-sm"><p class="text-2xl font-bold">{{ me.today.delivered }}</p><p class="text-xs text-slate-500">livrées aujourd'hui</p></div>
       <RouterLink to="/livreur/caisse" class="rounded-xl bg-white p-3 shadow-sm" :class="{ 'ring-2 ring-amber-400': me.cash_limit && me.cash_held > me.cash_limit }">
         <p class="text-base font-bold">{{ money(me.cash_held) }}</p><p class="text-xs text-slate-500">à verser</p>
       </RouterLink>
@@ -184,20 +184,21 @@ function saveOrder() {
     </div>
 
     <div v-if="storeNames.length > 1" class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-sm font-semibold">
-      <button type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="!storeFilter ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'" @click="storeFilter = ''">Toutes</button>
-      <button v-for="n in storeNames" :key="n" type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="storeFilter === n ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'" @click="storeFilter = n">{{ n }}</button>
+      <button type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="!storeFilter ? 'bg-slate-900 text-white' : 'border border-field bg-white text-slate-700'" @click="storeFilter = ''">Toutes</button>
+      <button v-for="n in storeNames" :key="n" type="button" class="shrink-0 rounded-full px-3 py-1.5" :class="storeFilter === n ? 'bg-slate-900 text-white' : 'border border-field bg-white text-slate-700'" @click="storeFilter = n">{{ n }}</button>
     </div>
 
     <section v-for="m in offers" :key="`offer-${m.id}`" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 shadow-sm">
-      <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">🔔 Nouvelle mission</p>
+      <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">🔔 Nouvelle course à accepter</p>
       <RouterLink :to="`/livreur/missions/${m.id}`" class="block">
         <p class="font-semibold">{{ m.expedition_city ? `📦 Gare · vers ${m.expedition_city}` : m.place || 'Quartier ?' }}<template v-if="m.address && !m.expedition_city"> · {{ m.address }}</template></p>
         <p class="text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }} · {{ money(m.cod_amount) }} à encaisser</p>
-        <p v-if="dueDay(m)" class="text-sm font-semibold" :class="isLate(m) ? 'text-red-700' : 'text-slate-700'">{{ isLate(m) ? 'En retard · prévue ' : 'Prévue ' }}{{ shortDay(dueDay(m)) }}</p>
+        <p class="text-sm font-semibold" :class="isLate(m) ? 'text-red-700' : 'text-slate-700'">{{ isLate(m) ? `En retard · prévue ${shortDay(dueDay(m))}` : `À livrer : ${dayLabel(m)}` }}</p>
+        <p v-if="m.answer_by" class="text-xs text-amber-800">Répondez avant {{ clock(m.answer_by) }}, sinon elle sera confiée à un autre livreur.</p>
       </RouterLink>
       <template v-if="declining?.id === m.id">
         <div class="flex flex-wrap gap-2">
-          <button v-for="r in REASONS" :key="r" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="reason === r ? 'border-emerald-600 bg-white font-medium' : 'border-slate-300'" @click="reason = r">{{ r }}</button>
+          <button v-for="r in REASONS" :key="r" type="button" class="rounded-full border px-3 py-1.5 text-sm" :class="reason === r ? 'border-emerald-600 bg-white font-medium' : 'border-field'" @click="reason = r">{{ r }}</button>
         </div>
         <input v-model="reason" class="input" maxlength="255" placeholder="Motif du refus" />
         <div class="grid grid-cols-2 gap-2">
@@ -228,7 +229,7 @@ function saveOrder() {
     </section>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
-    <p v-if="missions && !stops.length && !offers.length" class="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm">Aucune livraison pour aujourd'hui. Les nouvelles missions apparaissent ici.</p>
+    <p v-if="missions && !stops.length && !offers.length" class="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm">Aucune livraison pour aujourd'hui. Les nouvelles courses apparaissent ici.</p>
     <template v-for="(m, i) in shown" :key="m.id">
       <h2 v-if="startsArea(shown, i)" class="pt-1 text-sm font-semibold text-slate-500">{{ m.status === 'returning' ? 'À rapporter' : m.commune || 'Autres quartiers' }}</h2>
       <div class="flex gap-3 rounded-xl bg-white p-4 shadow-sm active:bg-slate-50" :class="{ 'cursor-pointer': !editing }" @click="!editing && router.push(`/livreur/missions/${m.id}`)">
@@ -236,7 +237,7 @@ function saveOrder() {
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-2">
             <span class="font-semibold">{{ m.place || 'Quartier ?' }}</span>
-            <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[m.status]">{{ m.status_label }}</span>
+            <StateBadge kind="shipment" :status="m.status" :label="m.status_label" class="ml-auto" />
           </span>
           <span class="mt-1 block text-sm text-slate-600"><span v-if="m.store" class="mr-1 rounded bg-sky-50 px-1.5 text-xs font-medium text-sky-800">{{ m.store }}</span>{{ m.customer_name || 'Client' }} · {{ m.reference }}</span>
           <span v-if="m.address" class="block truncate text-sm text-slate-500">{{ m.address }}</span>
@@ -276,7 +277,7 @@ function saveOrder() {
       <h2 class="pt-2 text-sm font-semibold text-slate-500">Terminées aujourd'hui</h2>
       <RouterLink v-for="m in done" :key="m.id" :to="`/livreur/missions/${m.id}`" class="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm opacity-70 shadow-sm">
         <span class="flex-1"><template v-if="m.store">{{ m.store }} · </template>{{ m.place }} · {{ m.customer_name }}</span>
-        <span class="rounded-full px-2 py-0.5 text-xs" :class="SHIPMENT_TONES[m.status]">{{ m.status_label }}</span>
+        <StateBadge kind="shipment" :status="m.status" :label="m.status_label" />
       </RouterLink>
     </template>
   </div>

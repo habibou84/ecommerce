@@ -42,10 +42,10 @@ const FILTERS = [{ value: 'pending', label: 'À valider' }, { value: 'published'
 <template>
   <div class="space-y-4">
     <MarketingTabs />
-    <p class="text-sm text-slate-600">
-      Après la livraison, le client reçoit un lien pour noter les articles (message WhatsApp automatique 24 h après, ou bouton « Demander un avis » sur la commande).
-      Un avis n'apparaît sur la fiche produit qu'une fois publié.
-    </p>
+    <div>
+      <p class="explain">Après la livraison, le client note ses articles.</p>
+      <p class="explain-detail">Par un WhatsApp 24 h après, ou le bouton « Demander un avis » de la commande. Un avis s'affiche une fois publié.</p>
+    </div>
     <div class="flex flex-wrap gap-1">
       <button v-for="f in FILTERS" :key="f.value" class="rounded-full px-3 py-1 text-sm" :class="status === f.value ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-700'" @click="status = f.value; load()">
         {{ f.label }}<template v-if="f.value && counts[f.value]"> ({{ counts[f.value] }})</template>
@@ -56,7 +56,7 @@ const FILTERS = [{ value: 'pending', label: 'À valider' }, { value: 'published'
     <ul class="space-y-3">
       <li v-for="r in reviews" :key="r.id" class="card space-y-2 p-4 text-sm">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-base"><span class="text-amber-500">{{ '★'.repeat(r.rating) }}</span><span class="text-slate-300">{{ '★'.repeat(5 - r.rating) }}</span></span>
+          <span class="text-base"><span class="text-yellow-500">{{ '★'.repeat(r.rating) }}</span><span class="text-slate-300">{{ '★'.repeat(5 - r.rating) }}</span></span>
           <span class="font-medium">{{ r.product?.title ?? 'Produit supprimé' }}</span>
           <span class="ml-auto rounded bg-slate-100 px-2 py-0.5 text-xs">{{ r.status_label }}</span>
         </div>

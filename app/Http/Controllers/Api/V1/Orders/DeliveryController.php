@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DeliveryZone;
 use App\Models\Place;
 use App\Services\Orders\DeliveryCalendar;
+use App\Services\Places\DeliveryRates;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
 use Illuminate\Http\JsonResponse;
@@ -20,14 +21,21 @@ class DeliveryController extends Controller
 {
     public function __construct(private readonly Places $places) {}
 
-    public function places(Request $request, PlaceMatcher $matcher): JsonResponse
+    public function places(Request $request, PlaceMatcher $matcher, DeliveryRates $rates): JsonResponse
     {
-        $request->validate(['search' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', 'in:city,commune,neighborhood']]);
-        $all = $this->places->forStore($this->currentStore());
+        $request->validate(['search' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', 'in:city,commune,neighborhood'], 'home' => ['nullable', 'boolean']]);
+        $store = $this->currentStore();
+        $all = $this->places->forStore($store);
 
-        $found = filled($request->query('search'))
-            ? $matcher->search($request->query('search'), $all, 15)
-            : $all->when($request->query('type'), fn ($c, $type) => $c->where('type', $type))->sortBy('name')->values();
+        // « home » : la ville de la boutique puis ses communes (choix en un toucher)
+        if ($request->boolean('home')) {
+            $city = $rates->home($store);
+            $found = $city ? $all->where('id', $city->id)->concat($all->where('parent_id', $city->id)->where('type', 'commune')->sortBy('name'))->values() : collect();
+        } else {
+            $found = filled($request->query('search'))
+                ? $matcher->search($request->query('search'), $all, 15)
+                : $all->when($request->query('type'), fn ($c, $type) => $c->where('type', $type))->sortBy('name')->values();
+        }
 
         return response()->json(['data' => $found->map(fn (Place $p) => [
             'id' => $p->id,
@@ -111,6 +119,7 @@ class DeliveryController extends Controller
 
             return $zone;
         });
+        app(DeliveryRates::class)->checked($this->currentStore());
 
         return response()->json(['data' => $this->present($zone->load('places.parent'))], 201);
     }
@@ -124,6 +133,7 @@ class DeliveryController extends Controller
                 $this->syncPlaces($model, $request->input('place_ids', []));
             }
         });
+        app(DeliveryRates::class)->checked($this->currentStore());
 
         return response()->json(['data' => $this->present($model->load('places.parent'))]);
     }
@@ -131,6 +141,7 @@ class DeliveryController extends Controller
     public function destroyZone(int $zone): JsonResponse
     {
         DeliveryZone::findOrFail($zone)->delete();
+        app(DeliveryRates::class)->checked($this->currentStore());
 
         return response()->json(['message' => 'Zone supprimée.']);
     }

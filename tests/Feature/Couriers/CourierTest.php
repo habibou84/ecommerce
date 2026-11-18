@@ -25,6 +25,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Couriers\CourierMorning;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
 use App\Services\Orders\ParcelLabels;
@@ -32,6 +33,7 @@ use App\Services\Places\Places;
 use App\Services\WhatsApp\CustomerMessenger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -70,7 +72,7 @@ class CourierTest extends TestCase
      */
     private function onboardCourier(string $phone = '0102030405', string $name = 'Koffi', array $extra = []): array
     {
-        $created = $this->storeApi($this->store, 'POST', 'couriers', ['name' => $name, 'phone' => $phone, 'zone_ids' => [$this->zone()->id], ...$extra])->assertCreated();
+        $created = $this->storeApi($this->store, 'POST', 'couriers', ['name' => $name, 'phone' => $phone, 'place_ids' => [$this->zone()->places()->value('places.id')], ...$extra])->assertCreated();
         $token = basename($created->json('invitation_url'));
 
         $this->logout();
@@ -126,7 +128,7 @@ class CourierTest extends TestCase
         [$courier, $user] = $this->onboardCourier();
 
         $this->assertSame(['active', $user->id], [$courier->status, $courier->user_id]);
-        $this->assertSame([$this->zone()->id], $courier->zones->pluck('id')->all());
+        $this->assertSame([$this->zone()->places()->value('places.id')], $courier->places->pluck('id')->all());
 
         $this->asCourier($user);
         $this->storeApi($this->store, 'GET', 'courier/me')->assertOk()->assertJsonPath('data.name', 'Koffi')->assertJsonPath('data.cash_held', 0);
@@ -506,7 +508,7 @@ class CourierTest extends TestCase
         $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/decline", ['reason' => 'Trop loin'])->assertOk();
         $this->assertSame(['cancelled', OrderStatus::Confirmed], [$shipment->fresh()->status->value, $order->fresh()->status]);
         $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()
-            ->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Mission refusée par Koffi') && str_contains($n->data['body'], 'Trop loin')));
+            ->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Course refusée par Koffi') && str_contains($n->data['body'], 'Trop loin')));
         $this->assertSame([['cancelled', null]], array_map(fn ($m) => [$m['status'], $m['acceptance']], $this->storeApi($this->store, 'GET', 'courier/missions')->json('data')));
 
         // Affectation automatique : la commande refusée part vers un autre livreur, jamais vers celui qui a refusé
@@ -525,6 +527,27 @@ class CourierTest extends TestCase
         $this->storeApi($this->store, 'POST', "courier/missions/{$next->id}/decline", ['reason' => 'Trop loin'])->assertStatus(422);
     }
 
+    public function test_a_course_received_today_for_a_past_date_is_for_today_not_late(): void
+    {
+        [$courier, $user] = $this->onboardCourier();
+        $order = $this->order();
+        $order->forceFill(['scheduled_date' => today()->subDays(3)])->save();
+        $this->store->forceFill(['assignment_mode' => 'auto', 'mission_timeout_minutes' => 15])->save();
+        $shipment = $this->assign($order, $courier);
+
+        // Confiée aujourd'hui : à faire aujourd'hui, avec l'heure limite pour répondre
+        $this->asCourier($user);
+        $mission = $this->storeApi($this->store, 'GET', 'courier/missions')->assertOk()->json('data.0');
+        $this->assertSame([today()->subDays(3)->toDateString(), today()->toDateString()], [$mission['scheduled_date'], $mission['handed_on']]);
+        $this->assertSame(now()->addMinutes(15)->format('H:i'), Carbon::parse($mission['answer_by'])->format('H:i'));
+        $this->assertFalse(CourierMorning::isLate($shipment->fresh('order'), now()));
+
+        // Acceptée : plus d'heure limite. Toujours pas livrée le lendemain : là, elle est en retard pour lui
+        $this->storeApi($this->store, 'POST', "courier/missions/{$shipment->id}/accept")->assertOk()->assertJsonPath('data.answer_by', null);
+        $this->travel(1)->days();
+        $this->assertTrue(CourierMorning::isLate($shipment->fresh('order'), now()->subDay()));
+    }
+
     public function test_unanswered_missions_are_reminded_once(): void
     {
         [$courier, $user] = $this->onboardCourier();
@@ -536,7 +559,7 @@ class CourierTest extends TestCase
         $this->travel(16)->minutes();
         $this->artisan('couriers:remind')->expectsOutputToContain('1 mission(s)')->assertSuccessful();
         $this->artisan('couriers:remind')->expectsOutputToContain('0 mission(s)')->assertSuccessful();
-        $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Mission pas encore acceptée')));
+        $this->assertTrue(DatabaseNotification::where('notifiable_id', $this->store->owner_id)->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'Course pas encore acceptée')));
         $this->assertTrue(DatabaseNotification::where('notifiable_id', $user->id)->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'en attente de votre réponse')));
     }
 
@@ -563,6 +586,29 @@ class CourierTest extends TestCase
         $this->storeApi($this->store, 'POST', "couriers/{$yao->id}/deactivate")->assertOk();
         $this->asCourier($yaoUser);
         $this->storeApi($this->store, 'GET', 'courier/me')->assertForbidden();
+    }
+
+    public function test_courier_paid_the_whole_delivery_fee(): void
+    {
+        // Règle « frais de livraison » : le livreur reçoit ce que le client a payé pour la livraison (1 500 F ici) ;
+        // livraison offerte : le montant de secours (300 F)
+        $rule = $this->storeApi($this->store, 'POST', 'courier-pay-rules', ['name' => 'Frais de livraison', 'type' => 'delivery_fee', 'amount' => 300])->assertCreated()->json('data.id');
+        [$courier, $user] = $this->onboardCourier(extra: ['pay_rule_id' => $rule]);
+
+        $paid = $this->order();
+        $free = $this->order();
+        $free->forceFill(['shipping_fee' => 0])->save();
+        $this->assertSame(1500, $paid->shipping_fee);
+        foreach ([$paid, $free] as $order) {
+            $shipment = $this->assign($order, $courier);
+            $this->asCourier($user);
+            $this->step($shipment, ['status' => 'in_transit'])->assertOk();
+            $this->step($shipment, ['status' => 'delivered', 'payment_method' => 'cash'])->assertOk();
+            $this->asCourier($this->store->owner);
+        }
+
+        $this->storeApi($this->store, 'GET', "couriers/{$courier->id}/earnings")->assertJsonPath('unpaid', 1500 + 300);
+        $this->storeApi($this->store, 'POST', 'courier-pay-rules', ['name' => 'Autre', 'type' => 'au_kilo', 'amount' => 1])->assertStatus(422);
     }
 
     public function test_cash_desk_and_payroll(): void

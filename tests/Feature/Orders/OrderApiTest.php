@@ -3,6 +3,7 @@
 namespace Tests\Feature\Orders;
 
 use App\Enums\Role;
+use App\Models\Conversation;
 use App\Models\Order;
 use App\Models\Place;
 use App\Models\Store;
@@ -148,6 +149,39 @@ class OrderApiTest extends TestCase
         $this->assertSame('Angré, Cocody', $detail['addresses'][0]['place_label']);
 
         $this->api('POST', 'customers', ['phone' => '0707070707', 'name' => 'Nouveau'])->assertCreated()->assertJsonPath('data.phone', '+2250707070707');
+    }
+
+    public function test_customers_tab_summary_relaunch_and_file(): void
+    {
+        $order = $this->newOrder();
+        $customerId = $this->api('GET', "orders/{$order['id']}")->json('data.customer_id');
+        $this->api('PUT', "customers/{$customerId}", ['name' => 'Fatou Diallo', 'tags' => ['VIP']])->assertOk();
+
+        $summary = $this->api('GET', 'customers/summary')->assertOk()->json('data');
+        $this->assertSame(1, $summary['total']);
+        $this->assertSame(1, $summary['new_month']);
+        $this->assertSame(0, $summary['loyal']);
+        $this->assertSame(['VIP'], $summary['tags']);
+
+        // Liste : indicateurs de la ligne, et pagination demandée par l'écran
+        $row = $this->api('GET', 'customers?per_page=5&tag=VIP')->assertOk()->json('data.0');
+        $this->assertFalse($row['is_loyal']);
+        $this->assertFalse($row['is_risky']);
+        $this->assertStringStartsWith('https://wa.me/', $row['whatsapp_url']);
+
+        // Relance : texte du marchand avec le prénom, lien WhatsApp prêt
+        $relaunch = $this->api('GET', "customers/{$customerId}/relaunch")->assertOk()->json('data');
+        $this->assertStringContainsString('Bonjour Fatou', $relaunch['text']);
+        $this->assertStringContainsString(rawurlencode('Bonjour Fatou'), $relaunch['whatsapp_url']);
+
+        $detail = $this->api('GET', "customers/{$customerId}")->json('data');
+        $this->assertSame(1, $detail['orders_total']);
+        $this->assertNotNull($detail['first_order_at']);
+
+        // Conversation WhatsApp du client (par son numéro) : le bouton « Conversation » de la fiche
+        $this->assertNull($detail['conversation_id']);
+        $conversation = Conversation::create(['store_id' => $this->store->id, 'channel' => 'whatsapp', 'contact' => $detail['phone'], 'last_message_at' => now()]);
+        $this->assertSame($conversation->id, $this->api('GET', "customers/{$customerId}")->json('data.conversation_id'));
     }
 
     public function test_delivery_zones_and_places(): void

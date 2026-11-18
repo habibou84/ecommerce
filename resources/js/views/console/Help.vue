@@ -113,7 +113,7 @@ function writeFor(miss) {
       <h1 class="text-2xl font-semibold">Centre d'aide</h1>
       <button class="btn-brand ml-auto" @click="edit()">Écrire une fiche</button>
     </div>
-    <p class="text-sm text-slate-600">Une fiche = une question de marchand, sa réponse courte, les étapes, une vidéo ou des images, et l'écran à ouvrir. Les marchands les lisent dans l'application (Aide).</p>
+    <p class="text-sm text-slate-600">Une fiche répond à une question de marchand. Ils la lisent dans l'application (Aide).</p>
     <div class="grid gap-3 sm:grid-cols-4">
       <div class="card p-3"><p class="text-xs text-slate-500">Fiches publiées</p><p class="text-xl font-bold">{{ totals.published }} <span class="text-sm font-normal text-slate-500">sur {{ data.articles.length }}</span></p></div>
       <div class="card p-3"><p class="text-xs text-slate-500">Avec une vidéo</p><p class="text-xl font-bold">{{ totals.videos }}</p></div>
@@ -157,7 +157,7 @@ function writeFor(miss) {
 
     <!-- Recherches sans réponse -->
     <section v-if="tab === 'misses'" class="space-y-2">
-      <p class="text-sm text-slate-600">Ce que les marchands ont cherché sans rien trouver. Écrivez la fiche qui manque, ou ajoutez leurs mots dans les mots-clés d'une fiche existante.</p>
+      <p class="text-sm text-slate-600">Recherches sans résultat : écrivez la fiche, ou ajoutez ces mots à une fiche.</p>
       <p v-if="!data.misses.length" class="card p-6 text-center text-sm text-slate-500">Aucune recherche sans réponse.</p>
       <article v-for="m in data.misses" :key="m.id" class="card flex flex-wrap items-center gap-3 p-3 text-sm">
         <p class="min-w-0 flex-1 basis-56 font-medium">« {{ m.query }} »</p>
@@ -181,14 +181,14 @@ function writeFor(miss) {
             <input id="help-sort" v-model="article.sort" type="number" min="0" class="input">
           </Field>
         </div>
-        <Field id="help-summary" label="Réponse courte" :error="errors.summary?.[0]" hint="Deux ou trois phrases simples, en tutoyant : c'est la réponse envoyée telle quelle sur WhatsApp.">
+        <Field id="help-summary" label="Réponse courte" :error="errors.summary?.[0]" hint="Deux ou trois phrases simples, en vouvoyant : c'est la réponse envoyée telle quelle sur WhatsApp.">
           <textarea id="help-summary" v-model="article.summary" class="input" rows="3" maxlength="600" required />
         </Field>
         <div>
           <p class="mb-1 text-sm font-medium">Étapes</p>
           <div v-for="(s, i) in article.steps" :key="i" class="mb-2 flex items-center gap-2">
             <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">{{ i + 1 }}</span>
-            <input v-model="article.steps[i]" class="input" maxlength="300" placeholder="Ouvre Mes produits et touche « + Produit »">
+            <input v-model="article.steps[i]" class="input" maxlength="300" placeholder="Ouvrez Mes produits et touchez « + Produit »">
             <button type="button" class="btn-ghost px-2 text-red-600" aria-label="Retirer l'étape" @click="article.steps.splice(i, 1)">✕</button>
           </div>
           <button v-if="article.steps.length < 12" type="button" class="text-sm font-semibold text-emerald-700" @click="article.steps.push('')">+ Ajouter une étape</button>

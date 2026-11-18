@@ -74,7 +74,7 @@ async function removeAccount() {
       <p class="text-lg font-semibold">{{ me?.name ?? auth.profile?.courier?.name }}</p>
       <p class="text-sm text-slate-500">{{ phoneDisplay(auth.user?.phone) }}</p>
       <p v-if="me" class="mt-2 text-sm">{{ me.is_available ? '● Disponible' : '○ Indisponible' }} <span class="text-slate-500">· à changer en haut de l'écran</span></p>
-      <p v-if="me?.tracking" class="mt-1 text-sm text-slate-600">📍 Votre position est partagée avec le marchand quand vous êtes disponible et que l'application est ouverte.</p>
+      <p v-if="me?.tracking" class="explain-detail mt-1">📍 Votre position est partagée avec le marchand quand vous êtes disponible, application ouverte.</p>
     </section>
 
     <section v-if="me?.stores?.length" class="rounded-xl bg-white p-4 shadow-sm">
@@ -89,7 +89,7 @@ async function removeAccount() {
           <a v-if="s.phone" :href="`tel:${s.phone}`" class="btn-secondary px-3 py-1.5 text-sm">📞 Appeler</a>
         </li>
       </ul>
-      <p v-if="me.stores.length > 1" class="mt-2 text-xs text-slate-500">Vos courses de toutes ces boutiques sont réunies ici. Chaque boutique ne voit que ses propres courses, et vous versez à chacune son argent.</p>
+      <p v-if="me.stores.length > 1" class="explain-detail mt-2">Vos courses de toutes ces boutiques sont ici. Chacune ne voit que les siennes et reçoit son argent.</p>
     </section>
 
     <section class="space-y-3 rounded-xl bg-white p-4 text-sm shadow-sm">
@@ -117,7 +117,7 @@ async function removeAccount() {
 
     <Modal v-if="removing" title="Supprimer votre compte ?" @close="removing = false">
       <form class="space-y-4 text-sm" @submit.prevent="removeAccount">
-        <p>Votre nom, votre téléphone et vos accès sont effacés ; les livraisons déjà faites restent à la boutique. C'est définitif : saisissez votre mot de passe pour confirmer.</p>
+        <p><b class="block">C'est définitif : votre nom, votre téléphone et vos accès sont effacés.</b>Les livraisons déjà faites restent à la boutique. Saisissez votre mot de passe pour confirmer.</p>
         <p v-if="removeError" class="rounded-lg bg-red-50 p-3 text-red-800">{{ removeError }}</p>
         <PasswordInput v-model="removePassword" class="input" autocomplete="current-password" placeholder="Mot de passe" aria-label="Mot de passe" required />
         <div class="grid grid-cols-2 gap-2">

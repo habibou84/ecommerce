@@ -67,7 +67,7 @@ const gap = (item) => (item.counted === null || item.counted === '' ? null : Num
 
 <template>
   <div v-if="count" class="space-y-4 pb-36 lg:pb-20">
-    <RouterLink to="/gestion/stock/inventaires" class="text-sm text-slate-500 hover:text-emerald-700">← Inventaires</RouterLink>
+    <RouterLink to="/gestion/stock/inventaires" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Inventaires</RouterLink>
     <div class="flex flex-wrap items-center gap-2">
       <h2 class="text-lg font-semibold">Inventaire · {{ count.location }}</h2>
       <StatusBadge :status="count.status" :label="count.status_label" />

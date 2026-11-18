@@ -1,12 +1,12 @@
 <script setup>
+import StateBadge from '../../components/StateBadge.vue'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage, fieldErrors } from '../../lib/http'
 import { loadMission, offline, sendStep, shrinkPhoto } from '../../lib/courierOffline'
 import { money } from '../../lib/format'
-import { SHIPMENT_TONES } from '../../lib/shipping'
-import { dueDay, isLate, isLater, shortDay } from '../../lib/route'
+import { clock, dayLabel, dueDay, isLate, isLater, shortDay } from '../../lib/route'
 
 const props = defineProps({ id: { type: String, required: true } })
 const mission = ref(null)
@@ -168,7 +168,7 @@ async function step(status) {
       <div class="flex items-center gap-2">
         <h1 class="text-lg font-bold">{{ mission.reference }}</h1>
         <p v-if="mission.store" class="text-sm text-sky-800">Marchand {{ mission.store }}</p>
-        <span class="ml-auto rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[mission.status]">{{ mission.status_label }}</span>
+        <StateBadge kind="shipment" :status="mission.status" :label="mission.status_label" class="ml-auto" />
       </div>
       <template v-if="mission.pending_sync && mission.status === 'delivered'">
         <p class="mt-2 text-2xl font-bold">{{ money(mission.collected_amount) }}</p>
@@ -221,7 +221,8 @@ async function step(status) {
 
     <Alert v-if="error">{{ error }}</Alert>
     <section v-if="mission.acceptance === 'pending' && mission.status === 'awaiting_pickup'" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4">
-      <p class="font-semibold text-amber-900">🔔 Nouvelle mission : acceptez-la ou refusez-la</p>
+      <p class="font-semibold text-amber-900">🔔 Nouvelle course : acceptez-la ou refusez-la</p>
+      <p class="text-sm text-amber-900">À livrer : <strong>{{ isLate(mission) ? `en retard, prévue ${shortDay(dueDay(mission))}` : dayLabel(mission) }}</strong><template v-if="mission.answer_by"> · répondez avant {{ clock(mission.answer_by) }}, sinon elle sera confiée à un autre livreur</template></p>
       <template v-if="declining">
         <input v-model="declineReason" class="input" maxlength="255" placeholder="Motif (trop loin, trop de colis…)" />
         <div class="grid grid-cols-2 gap-2">
@@ -287,11 +288,11 @@ async function step(status) {
         <p class="label">Code donné par le client</p>
         <div class="flex justify-center gap-2">
           <input v-for="(d, i) in digits" :key="i" :ref="(el) => (boxes[i] = el)" :value="d" inputmode="numeric" maxlength="1" :aria-label="`Chiffre ${i + 1} du code`"
-                 class="h-16 w-14 rounded-xl border-2 text-center text-3xl font-bold" :class="errors.code ? 'border-red-500 bg-red-50' : 'border-slate-300 focus:border-emerald-600'"
+                 class="h-16 w-14 rounded-xl border-2 text-center text-3xl font-bold" :class="errors.code ? 'border-red-500 bg-red-50' : 'border-field focus:border-emerald-600'"
                  @input="typeDigit(i, $event)" @keydown.backspace="backDigit(i, $event)" />
         </div>
         <p v-if="errors.code" class="mt-1 text-sm text-red-600">{{ errors.code }}</p>
-        <p v-else-if="noNetwork" class="mt-1 text-xs text-slate-500">Sans réseau, le code sera vérifié à l'envoi : demandez bien le bon code au client.</p>
+        <p v-else-if="noNetwork" class="explain-detail mt-1">Sans réseau, le code sera vérifié à l'envoi : demandez bien le bon code au client.</p>
       </div>
       <div v-if="mission.door_payment && !paidAtDoor && !noNetwork" class="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm">
         <template v-if="!door">

@@ -72,9 +72,10 @@ class CustomerMessenger
         }
 
         if ($event->type === 'created' && $order->status === OrderStatus::PendingConfirmation) {
-            // Commande du live passée sur WhatsApp (numéro officiel) : le récapitulatif en image, avec « Je confirme »,
-            // « Changer l'adresse » et « Ajouter un article », sert de demande de confirmation. Pas de second message.
-            if (! $this->liveRecapAsks($order)) {
+            // Commande du live passée sur WhatsApp (numéro officiel), récap de la boutique, modèles, panier du catalogue
+            // suivi de la commune : le récapitulatif en image, avec « Je confirme », sert de demande de confirmation.
+            // Pas de second message.
+            if (! $this->liveRecapAsks($order) && ! $this->chatRecapAsks($order)) {
                 $this->requestConfirmation($order, automatic: true);
             }
 
@@ -162,6 +163,19 @@ class CustomerMessenger
         $conversation = Conversation::forStore($order->store_id)->where('channel', 'whatsapp')->where('contact', $order->customer_phone)->first();
 
         return $conversation !== null && $conversation->canReply() && $this->inbox->officialFor($conversation) !== null;
+    }
+
+    /**
+     * Commande passée dans la conversation (récap de la boutique, modèles, panier du catalogue suivi de la commune) :
+     * la conversation lui envoie elle-même son récapitulatif à confirmer.
+     */
+    private function chatRecapAsks(Order $order): bool
+    {
+        return match ($order->credit_channel) {
+            'recap', 'models' => true,
+            'catalog' => (bool) Store::whereKey($order->store_id)->value('whatsapp_cart_flow'),
+            default => false,
+        };
     }
 
     /**
@@ -305,7 +319,8 @@ class CustomerMessenger
     }
 
     /**
-     * Notification de Meta : réponses aux boutons (confirmation de commande) et statuts des messages.
+     * Notification de Meta : réponses aux boutons (confirmation de commande), statuts des messages, et messages envoyés
+     * depuis l'application WhatsApp Business du téléphone (échos, numéro en coexistence).
      *
      * @param  array<string, mixed>  $payload
      */
@@ -327,6 +342,11 @@ class CustomerMessenger
                         $column => $column ? now() : null,
                         'error' => ($status['status'] ?? null) === 'failed' ? mb_substr((string) ($status['errors'][0]['title'] ?? 'Échec'), 0, 250) : null,
                     ]));
+                }
+
+                // Messages envoyés depuis l'application WhatsApp Business du téléphone (numéro en coexistence)
+                foreach ($value['message_echoes'] ?? [] as $echo) {
+                    $this->inbox->fromBusinessApp($account, $echo);
                 }
 
                 foreach ($value['messages'] ?? [] as $message) {

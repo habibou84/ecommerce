@@ -16,25 +16,58 @@ import { boot } from '../lib/boot'
 import { guideClear, guideCurrent } from '../lib/guide'
 import http, { errorMessage } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
+import { pageTitle } from '../lib/pageTitle'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const menuOpen = ref(false)
 const switchError = ref('')
+// Titre de l'en-tête et de la fenêtre : celui de l'écran ouvert s'il en donne un (« Commande #1002 »), sinon celui de la route
+const screenTitle = computed(() => pageTitle() || route.meta.title)
+
+// Lien « Aller au contenu » : le focus passe sur la page, le prochain Tab part de son premier élément
+function skipToContent() {
+  const main = document.getElementById('contenu')
+  main?.focus()
+  main?.scrollIntoView({ block: 'start' })
+}
 
 // Menu en groupes : un groupe n'affiche que les pages que le rôle peut ouvrir (droits lus sur les routes),
 // disparaît s'il est vide et devient un lien direct s'il ne garde qu'une page
 const groups = [
   { label: 'Ventes', color: 'panier', icon: 'M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2', items: [
     { to: '/gestion/commandes', label: 'Commandes' },
-    { to: '/gestion/messages', label: 'Messages', badge: 'messages' },
     { to: '/gestion/confirmation', label: 'À confirmer' },
     { to: '/gestion/etiquettes', label: 'Étiquettes' },
     { to: '/gestion/caisse/vente', label: 'Vente au comptoir' },
     { to: '/gestion/clients', label: 'Clients' },
     { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' },
     { to: '/gestion/statistiques', label: 'Statistiques' },
+  ] },
+  // Livraisons puis Caisse, juste après les ventes : la commande, sa livraison, son argent
+  { label: 'Livraisons', color: 'moto', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', items: [
+    { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
+    { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' },
+    { to: '/gestion/livraisons/automatisation', label: 'Automatisation' },
+    { to: '/gestion/livraisons/paie', label: 'Paie des livreurs' },
+    { to: '/gestion/livraisons/tarifs', label: 'Tarifs et zones', also: ['/gestion/livraisons/zones'] },
+    { to: '/gestion/livraisons/reglages', label: 'Réglages des livraisons' },
+  ] },
+  { label: 'Caisse', color: 'caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', items: [
+    { to: '/gestion/caisse', label: 'Ma caisse', exact: true },
+    { to: '/gestion/caisse/livreurs', label: 'Argent chez les livreurs' },
+    { to: '/gestion/caisse/a-recevoir', label: 'Argent chez les entreprises' },
+    { to: '/gestion/caisse/depenses-mensuelles', label: 'Dépenses mensuelles' },
+  ] },
+  // WhatsApp : conversations, assistants des ventes et des réponses, textes et relances, au même endroit
+  { label: 'WhatsApp', color: 'whatsapp', icon: 'M3 21l1.7-5A8.5 8.5 0 1 1 8 19.4z', items: [
+    { to: '/gestion/whatsapp', label: 'Accueil WhatsApp', exact: true },
+    { to: '/gestion/messages', label: 'Conversations', badge: 'messages' },
+    { to: '/gestion/whatsapp/ventes', label: 'Assistant des ventes', also: ['/gestion/whatsapp/commandes-codes'] },
+    { to: '/gestion/whatsapp/reponses', label: 'Assistant des réponses' },
+    { to: '/gestion/textes-messages', label: 'Textes des messages' },
+    { to: '/gestion/marketing/relances', label: 'Relances' },
   ] },
   { label: 'Live', color: 'live', icon: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8', items: [
     { to: '/gestion/live', label: 'Préparer un live', exact: true },
@@ -46,35 +79,21 @@ const groups = [
     { to: '/gestion/packs', label: 'Packs' },
     { to: '/gestion/stock', label: 'Stock' },
   ] },
-  { label: 'Livraisons', color: 'moto', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm10 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', items: [
-    { to: '/gestion/livraisons', label: 'En cours', exact: true },
-    { to: '/gestion/livraisons/livreurs', label: 'Mes livreurs' },
-    { to: '/gestion/livraisons/entreprises', label: 'Entreprises de livraison' },
-    { to: '/gestion/livraisons/tarifs', label: 'Tarifs de livraison' },
-    { to: '/gestion/livraisons/qui-livre-quoi', label: 'Qui livre quoi' },
-  ] },
-  { label: 'Caisse', color: 'caisse', icon: 'M3 7h18v12H3zM3 11h18M7 15h3M16 4H8l-1 3h10z', items: [
-    { to: '/gestion/caisse', label: 'Vue d\'ensemble', exact: true },
-    { to: '/gestion/caisse/livreurs', label: 'Argent des livreurs' },
-    { to: '/gestion/caisse/a-recevoir', label: 'À recevoir des entreprises' },
-  ] },
   { label: 'Boutique en ligne', color: 'boutique', icon: 'M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8M10 20v-5h4v5', items: [
     { to: '/gestion/boutique-en-ligne', label: 'Apparence', exact: true },
     { to: '/gestion/boutique-en-ligne/pages', label: 'Pages et menus', also: ['/gestion/boutique-en-ligne/menus'] },
     { to: '/gestion/boutique-en-ligne/domaine', label: 'Nom de domaine' },
     { to: '/gestion/marketing', label: 'Promotions' },
-    { to: '/gestion/boost', label: '🚀 Boost Facebook' },
+    { to: '/gestion/boost', label: 'Boost Facebook' },
   ] },
   { label: 'Réglages', color: 'reglages', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z', items: [
     { to: '/gestion/demarrage', label: 'Bien démarrer' },
     { to: '/gestion/aide', label: 'Aide' },
-    { to: '/gestion/parametres', label: 'Informations de l\'espace marchand' },
+    { to: '/gestion/parametres', label: 'Ma boutique' },
     { to: '/gestion/equipe', label: 'Équipe' },
     { to: '/gestion/alertes', label: 'Alertes' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/acompte', label: 'Acompte' },
-    { to: '/gestion/whatsapp', label: 'WhatsApp' },
-    { to: '/gestion/textes-messages', label: 'Textes des messages' },
     { to: '/gestion/materiel', label: 'Matériel (étiquettes, live…)' },
     { to: '/gestion/mes-boutiques', label: 'Ajouter une boutique', single: true },
   ] },
@@ -95,7 +114,7 @@ function canOpen(path) {
 const several = computed(() => !!auth.profile?.is_owner && ((auth.profile?.stores?.length ?? 0) > 1 || !!auth.profile?.owns_several))
 const nav = computed(() => [
   { to: '/gestion', label: 'Accueil', color: 'accueil', icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z', exact: true },
-  ...(several.value ? [{ to: '/gestion/mes-boutiques', label: 'Vue d\'ensemble', color: 'menu', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' }] : []),
+  ...(several.value ? [{ to: '/gestion/mes-boutiques', label: 'Toutes mes boutiques', color: 'menu', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' }] : []),
   ...groups.flatMap((group) => {
     const items = group.items.filter((item) => canOpen(item.to) && !(item.single && several.value))
     if (!items.length) return []
@@ -130,6 +149,15 @@ async function refreshBadges() {
     // pastille seulement : une erreur passagère ne gêne pas la page
   }
 }
+// Application installée : le nombre de messages non lus aussi sur son icône (téléphones qui le permettent)
+watch(() => badges.value.messages, (count) => {
+  try {
+    const done = count > 0 ? navigator.setAppBadge?.(count) : navigator.clearAppBadge?.()
+    done?.catch?.(() => {})
+  } catch {
+    // pastille de l'icône non prise en charge
+  }
+})
 onMounted(() => {
   registerDevice()
   refreshBadges()
@@ -165,10 +193,31 @@ const sheetOpen = computed(() => swipeOn.value && route.path !== '/gestion')
 const swipeHome = computed(() => auth.profile?.features?.swipe_nav === true && (route.path === '/gestion' || sheetOpen.value))
 // Écrans ouverts l'un après l'autre dans la fenêtre : flèche retour tant qu'il y en a plus d'un
 const sheetDepth = ref(0)
+// Place de l'accueil dans l'historique quand la fenêtre s'est ouverte : la croix y revient d'un coup, même après
+// plusieurs écrans (une conversation, puis une autre…)
+let homePosition = null
 watch(() => route.path, (to, from) => {
-  if (!sheetOpen.value) sheetDepth.value = 0
-  else if (from === '/gestion' || !from) sheetDepth.value = 1
-  else sheetDepth.value += 1
+  if (!sheetOpen.value) {
+    sheetDepth.value = 0
+    homePosition = null
+  } else if (from === '/gestion' || !from) {
+    sheetDepth.value = 1
+    const position = window.history.state?.position
+    homePosition = from === '/gestion' && Number.isInteger(position) ? position - 1 : null
+  } else sheetDepth.value += 1
+}, { immediate: true })
+// Lien direct vers la liste des clients (notification, favori) : l'onglet Clients de l'accueil, pas une fenêtre par-dessus
+watch([swipeOn, () => route.path], ([on, path]) => {
+  if (!on || path !== '/gestion/clients') return
+  const filter = String(route.query.filtre ?? '')
+  try {
+    sessionStorage.setItem('jm.swipe-page', 'clients')
+    sessionStorage.setItem('jm.clients-filter', filter)
+  } catch {
+    // sans stockage : l'accueil s'ouvre sur son dernier onglet
+  }
+  router.replace('/gestion')
+  window.dispatchEvent(new CustomEvent('jm:swipe-go', { detail: { page: 'clients', filter } }))
 }, { immediate: true })
 // Fenêtre ouverte : glisser vers le bas ferme la fenêtre, sans « tirer pour rafraîchir » la page du navigateur
 watch(sheetOpen, (open) => {
@@ -195,22 +244,27 @@ function hideNoCard() {
 // Fermer : retour à l'écran d'où l'on vient (liste, live…) ; sans écran précédent (lien, notification), l'accueil
 function closeSheet() {
   sheetDrag.value = 0
-  if (window.history.state?.back) {
-    sheetDepth.value = Math.max(0, sheetDepth.value - 2)
-    router.back()
-  } else {
-    router.push('/gestion')
-  }
+  const position = window.history.state?.position
+  const steps = homePosition !== null && Number.isInteger(position) ? homePosition - position : 0
+  if (steps < 0) router.go(steps)
+  else router.replace('/gestion')
 }
 function sheetBack() {
   sheetDepth.value = Math.max(0, sheetDepth.value - 2)
   router.back()
 }
-// Glisser vers le bas : depuis la poignée, ou depuis le contenu quand il est déjà tout en haut
+// Glisser vers le bas : depuis la poignée, ou depuis le contenu quand il est déjà tout en haut. Pas depuis un écran qui
+// a son propre défilement (Messages : on remonte dans la discussion sans fermer la fenêtre)
 const sheetDrag = ref(0)
 let dragStart = null
+function scrolledInside(target, box) {
+  for (let el = target; el && el !== box; el = el.parentElement) {
+    if (el.scrollTop > 0 && el.scrollHeight > el.clientHeight) return true
+  }
+  return false
+}
 function dragBegin(e, fromContent = false) {
-  if (fromContent && e.currentTarget.scrollTop > 0) return
+  if (fromContent && (route.meta.noSheetDrag || e.currentTarget.scrollTop > 0 || scrolledInside(e.target, e.currentTarget))) return
   dragStart = e.touches[0].clientY
 }
 function dragMove(e) {
@@ -230,12 +284,14 @@ const bottomColor = { home: 'accueil', orders: 'panier' }
 // « Plus » : tout Jibiat Marchand en tuiles de couleur (seulement les pages que le rôle peut ouvrir) ;
 // le menu complet reste à un toucher
 const plusOpen = ref(false)
+// Tuile Livraisons : la première page du menu Livraisons que le rôle peut ouvrir
+const DELIVERY_PAGES = ['/gestion/livraisons/livreurs', '/gestion/livraisons/entreprises', '/gestion/livraisons/automatisation', '/gestion/livraisons/paie', '/gestion/livraisons/tarifs', '/gestion/livraisons/reglages']
 const PLUS_TILES = [
+  { to: DELIVERY_PAGES, label: 'Livraisons', color: 'moto' },
+  { to: '/gestion/caisse', label: 'Caisse', color: 'caisse' },
   { to: '/gestion/catalogue', label: 'Produits', color: 'produit' },
   { to: '/gestion/stock', label: 'Stock', color: 'stock' },
   { to: '/gestion/clients', label: 'Clients', color: 'clients' },
-  { to: '/gestion/livraisons', label: 'Livraisons', color: 'moto' },
-  { to: '/gestion/caisse', label: 'Caisse', color: 'caisse' },
   { to: '/gestion/live', label: 'Live', color: 'live' },
   { to: '/gestion/boutique-en-ligne', label: 'Boutique en ligne', color: 'boutique' },
   { to: '/gestion/marketing', label: 'Promotions', color: 'promo' },
@@ -246,7 +302,7 @@ const PLUS_TILES = [
   { to: '/gestion/demarrage', label: 'Bien démarrer', color: 'aide' },
   { to: '/gestion/aide', label: 'Aide', color: 'aide' },
 ]
-const plusTiles = computed(() => PLUS_TILES.filter((tile) => canOpen(tile.to)))
+const plusTiles = computed(() => PLUS_TILES.map((tile) => (Array.isArray(tile.to) ? { ...tile, to: tile.to.find(canOpen) } : tile)).filter((tile) => tile.to && canOpen(tile.to)))
 watch(() => route.path, () => { plusOpen.value = false })
 
 // Session de support de la plateforme : bandeau pour le support (lui-même) et pour la boutique
@@ -296,6 +352,8 @@ async function switchTo(store) {
 
 <template>
   <div class="min-h-screen lg:flex">
+    <!-- Clavier : premier arrêt de Tab, pour sauter le menu et aller droit au contenu de la page -->
+    <a href="#contenu" class="sr-only z-50 rounded-xl bg-emerald-700 text-sm font-semibold text-white shadow-lg focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:px-4 focus:py-3" @click.prevent="skipToContent">Aller au contenu</a>
     <!-- Barre latérale (ordinateur) / menu déroulant (téléphone) -->
     <aside
       class="fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col overflow-y-auto border-r border-slate-200 bg-white transition lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
@@ -337,7 +395,7 @@ async function switchTo(store) {
           </button>
           <a :href="auth.store?.url" target="_blank" class="mt-1 flex items-center gap-1.5 border-t border-slate-100 px-3 pb-2 pt-3 text-sm text-slate-700 hover:bg-slate-50">Voir le site de {{ auth.store?.name }} <Icon name="external" :size="14" /></a>
           <div v-if="auth.profile?.is_owner" class="border-t border-slate-100 pt-1">
-            <RouterLink to="/gestion/mes-boutiques/statistiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Vue d'ensemble</RouterLink>
+            <RouterLink to="/gestion/mes-boutiques/statistiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Toutes mes boutiques</RouterLink>
             <RouterLink to="/gestion/mes-boutiques" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="storeMenu = false; menuOpen = false">Gérer mes boutiques</RouterLink>
           </div>
         </div>
@@ -348,7 +406,7 @@ async function switchTo(store) {
           <div v-if="item.items">
             <button
               type="button"
-              class="flex w-full items-center gap-3 rounded-2xl px-2.5 py-1.5 text-[14.5px] font-semibold"
+              class="flex w-full items-center gap-3 rounded-2xl px-2.5 py-1.5 text-sm font-semibold"
               :class="isActive(item) ? 'text-emerald-800' : 'text-slate-700 hover:bg-slate-50'"
               :aria-expanded="openGroup === item.label"
               @click="toggle(item)"
@@ -356,7 +414,7 @@ async function switchTo(store) {
               <ColorIcon v-if="item.color" :name="item.color" :size="30" />
               <svg v-else viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path :d="item.icon" /></svg>
               {{ item.label }}
-              <span v-if="groupBadge(item) && openGroup !== item.label" class="ml-auto rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white">{{ groupBadge(item) }}</span>
+              <span v-if="groupBadge(item) && openGroup !== item.label" class="ml-auto rounded-full bg-slate-800 px-1.5 text-xs font-semibold text-white">{{ groupBadge(item) }}</span>
               <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400 transition" :class="[{ 'rotate-90': openGroup === item.label }, groupBadge(item) && openGroup !== item.label ? '' : 'ml-auto']" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6" /></svg>
             </button>
             <div v-show="openGroup === item.label" class="mb-1 ml-[26px] space-y-0.5 border-l border-slate-200 pl-3">
@@ -369,14 +427,14 @@ async function switchTo(store) {
                 @click="menuOpen = false"
               >
                 {{ sub.label }}
-                <span v-if="badges[sub.badge]" class="ml-auto rounded-full bg-emerald-600 px-1.5 text-[11px] font-semibold text-white">{{ badges[sub.badge] }}</span>
+                <span v-if="badges[sub.badge]" class="ml-auto rounded-full bg-slate-800 px-1.5 text-xs font-semibold text-white">{{ badges[sub.badge] }}</span>
               </RouterLink>
             </div>
           </div>
           <RouterLink
             v-else
             :to="item.to"
-            class="flex items-center gap-3 rounded-2xl px-2.5 py-1.5 text-[14.5px] font-semibold"
+            class="flex items-center gap-3 rounded-2xl px-2.5 py-1.5 text-sm font-semibold"
             :class="isActive(item) ? 'bg-emerald-50 text-emerald-800' : 'text-slate-700 hover:bg-slate-50'"
             @click="menuOpen = false"
           >
@@ -414,11 +472,11 @@ async function switchTo(store) {
           <button type="button" class="block w-full rounded-lg border-t border-slate-100 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50" @click="logout">Déconnexion</button>
         </div>
         <button type="button" class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-50" :aria-expanded="profileMenu" @click="profileMenu = !profileMenu">
-          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold text-white" style="background:linear-gradient(135deg,#b49dff,#7c5ce8)">{{ (auth.user?.name ?? '?').charAt(0).toUpperCase() }}</span>
+          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-700 text-sm font-bold text-white">{{ (auth.user?.name ?? '?').charAt(0).toUpperCase() }}</span>
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-medium">{{ auth.user?.name }}</span>
             <span class="block truncate text-xs text-slate-500">{{ auth.profile?.role?.label }}</span>
-            <span v-if="auth.store?.access_key?.premium" class="block truncate text-xs font-semibold text-amber-700">🏅 {{ auth.store.access_key.badge }}</span>
+            <span v-if="auth.store?.access_key?.premium" class="block truncate text-xs font-semibold text-yellow-700">🏅 {{ auth.store.access_key.badge }}</span>
           </span>
           <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-slate-400 transition" :class="{ 'rotate-180': profileMenu }" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 14 5-5 5 5" /></svg>
         </button>
@@ -434,8 +492,8 @@ async function switchTo(store) {
           <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         <div class="min-w-0" :class="swipeHome ? 'hidden lg:block' : ''">
-          <h1 class="truncate text-[17px] font-bold leading-tight sm:text-xl">{{ route.meta.title }}</h1>
-          <p v-if="route.path === '/gestion'" class="truncate text-[12.5px] leading-tight text-slate-500 first-letter:uppercase sm:text-sm">{{ todayLabel }}</p>
+          <h1 class="truncate text-lg font-bold leading-tight sm:text-2xl">{{ screenTitle }}</h1>
+          <p v-if="route.path === '/gestion'" class="truncate text-xs leading-tight text-slate-500 first-letter:uppercase sm:text-sm">{{ todayLabel }}</p>
         </div>
         <div class="relative ml-auto flex shrink-0 items-center gap-2" :class="swipeHome ? 'before:pointer-events-none before:absolute before:-left-8 before:inset-y-0 before:w-8 before:bg-gradient-to-r before:from-transparent before:to-slate-50 max-lg:-mr-4 max-lg:bg-slate-50 max-lg:pr-4' : ''">
           <RouterLink to="/gestion/aide" :class="swipeHome ? 'max-lg:!hidden' : ''" class="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-2.5 text-sm font-semibold text-slate-700 shadow-soft sm:px-3.5" title="Aide : fiches, vidéos, support" aria-label="Aide"><ColorIcon name="aide" :size="24" :tile="false" /><span class="hidden sm:inline">Aide</span></RouterLink>
@@ -451,11 +509,11 @@ async function switchTo(store) {
         <span><Icon name="help" :size="16" class="mr-1 inline-block align-[-3px]" />Le support Jibiat Marchand ({{ support.admin }}) a accès à votre gestion jusqu'à {{ supportUntil }} : « {{ support.reason }} »</span>
         <button class="underline" @click="endSupport">Mettre fin</button>
       </div>
-      <!-- Mode sans carte : une information calme (le live et les réponses partent), carte proposée sans insister -->
+      <!-- Mode sans carte : une information calme, sur une ligne, carte proposée sans insister -->
       <div v-if="auth.profile?.whatsapp_payment && auth.can('store.manage') && !noCardHidden" class="flex items-center gap-3 bg-sky-50 px-4 py-2.5 text-sky-950">
-        <span class="text-2xl" aria-hidden="true">📱</span>
-        <span class="min-w-0 flex-1 text-sm"><b class="block text-[15px] leading-tight">WhatsApp en mode sans carte</b>Live et réponses : automatiques. Le reste : bouton WhatsApp sur la commande. <a :href="auth.profile.whatsapp_payment.url" target="_blank" rel="noopener" class="font-bold underline">Ajouter une carte</a></span>
-        <button type="button" class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sky-900" aria-label="Masquer" @click="hideNoCard">✕</button>
+        <Icon name="whatsapp" :size="22" class="shrink-0 text-sky-800" />
+        <span class="min-w-0 flex-1 text-sm"><b class="block text-base leading-tight">WhatsApp en mode sans carte</b>Vos clients ne recevront pas les notifications automatiques. <a :href="auth.profile.whatsapp_payment.url" target="_blank" rel="noopener" class="font-bold underline">Ajouter une carte</a></span>
+        <button type="button" class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sky-900" aria-label="Masquer" @click="hideNoCard"><Icon name="close" :size="16" /></button>
       </div>
       <!-- Gratuité pour tous, avec le message choisi dans la console -->
       <div v-if="auth.store?.free?.banner" class="bg-emerald-700 px-4 py-2 text-center text-sm font-semibold text-white">🎁 {{ auth.store.free.banner }}</div>
@@ -466,7 +524,7 @@ async function switchTo(store) {
         <RouterLink :to="`/gestion/demarrage?etape=${guideStep.key}`" class="shrink-0 font-semibold underline">Revenir au guide</RouterLink>
         <button type="button" class="shrink-0 text-emerald-700" aria-label="Fermer" @click="guideClear(); guideStep = null"><Icon name="close" :size="16" /></button>
       </div>
-      <main class="mx-auto max-w-6xl p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
+      <main id="contenu" tabindex="-1" class="mx-auto max-w-6xl p-4 pb-24 focus:outline-none sm:p-6 sm:pb-24 lg:pb-6">
         <!-- Changement de boutique : la page est recréée avec les données de la nouvelle boutique -->
         <!-- Glissement : l'accueil reste chargé derrière la fenêtre -->
         <template v-if="swipeOn"><Dashboard v-if="homeSeen" :key="`home${auth.store?.id}`" /></template>
@@ -474,16 +532,15 @@ async function switchTo(store) {
           <component :is="Component" :key="auth.store?.id" />
         </RouterView>
       </main>
-      <!-- Glissement : l'écran ouvert depuis un onglet, dans une fenêtre (croix, ou glisser vers le bas) -->
+      <!-- Glissement : l'écran ouvert depuis un onglet, en pleine hauteur comme le live en cours (croix noire, ou glisser vers le bas) -->
       <div v-if="sheetOpen" v-show="!fullscreenOn" class="fixed inset-0 z-30 bg-slate-900/40 transition-opacity" :style="{ opacity: Math.max(0.2, 1 - sheetDrag / 400) }" @click="closeSheet" />
-      <section v-if="sheetOpen" class="fixed inset-x-0 bottom-0 top-3 z-40 flex flex-col overflow-hidden rounded-t-[28px] bg-slate-50 shadow-2xl"
-               :class="[sheetDrag ? '' : 'transition-transform duration-200', { invisible: fullscreenOn }]" :style="{ transform: `translateY(${sheetDrag}px)` }" role="dialog" :aria-label="route.meta.title">
-        <header class="shrink-0 bg-white px-4 pb-2 pt-2" @touchstart.passive="dragBegin($event)" @touchmove.passive="dragMove" @touchend="dragEnd">
-          <div class="mx-auto mb-2 h-1.5 w-12 rounded-full bg-slate-300" aria-hidden="true" />
+      <section v-if="sheetOpen" class="fixed inset-0 z-40 flex flex-col overflow-hidden bg-slate-50"
+               :class="[sheetDrag ? '' : 'transition-transform duration-200', { invisible: fullscreenOn }]" :style="{ transform: `translateY(${sheetDrag}px)` }" role="dialog" :aria-label="screenTitle">
+        <header class="shrink-0 border-b border-slate-200 bg-white px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]" @touchstart.passive="dragBegin($event)" @touchmove.passive="dragMove" @touchend="dragEnd">
           <div class="flex items-center gap-2">
             <button v-if="sheetDepth > 1" type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xl font-bold" aria-label="Retour" @click="sheetBack">‹</button>
-            <h2 class="min-w-0 flex-1 truncate text-[18px] font-extrabold">{{ route.meta.title }}</h2>
-            <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-700" aria-label="Fermer" @click="closeSheet"><Icon name="close" :size="20" /></button>
+            <h2 class="min-w-0 flex-1 truncate text-lg font-extrabold">{{ screenTitle }}</h2>
+            <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-900 text-white" aria-label="Fermer" @click="closeSheet"><Icon name="close" :size="20" /></button>
           </div>
         </header>
         <div class="sheet-body relative min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-28" @touchstart.passive="dragBegin($event, true)" @touchmove.passive="dragMove" @touchend="dragEnd">
@@ -496,7 +553,7 @@ async function switchTo(store) {
     <!-- Téléphone : les gestes de tous les jours sous le pouce (onglet actif en couleur sur une pastille, comme dans Jibiat) -->
     <nav v-if="!swipeHome && !swipeOn" class="hide-on-keyboard fixed inset-x-0 bottom-0 z-10 border-t border-slate-200/70 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Navigation principale">
       <div class="mx-auto grid h-[66px] max-w-md items-start px-1 pt-1.5" :class="canOpen('/gestion/live') ? 'grid-cols-6' : 'grid-cols-5'">
-        <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
+        <RouterLink v-for="tab in bottomTabs.slice(0, 2)" :key="tab.to" :to="tab.to" class="flex flex-col items-center gap-0.5 text-xs font-semibold" :class="isActive(tab) ? 'text-emerald-700' : 'text-slate-600'">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive(tab) ? 'bg-emerald-50' : ''">
             <ColorIcon v-if="isActive(tab)" :name="bottomColor[tab.icon]" :size="26" :tile="false" />
             <Icon v-else :name="tab.icon" :size="22" />
@@ -508,18 +565,18 @@ async function switchTo(store) {
           </RouterLink>
         </div>
         <!-- Le live garde sa couleur : c'est ce qui distingue Jibiat Marchand -->
-        <RouterLink v-if="canOpen('/gestion/live')" to="/gestion/live" class="flex flex-col items-center gap-0.5 text-[11px] font-bold text-[#c02a4e]">
-          <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/live' }) ? 'bg-[#ffecef]' : ''"><ColorIcon name="live" :size="26" :tile="false" /></span>Live
+        <RouterLink v-if="canOpen('/gestion/live')" to="/gestion/live" class="flex flex-col items-center gap-0.5 text-xs font-bold text-live">
+          <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/live' }) ? 'bg-live-soft' : ''"><ColorIcon name="live" :size="26" :tile="false" /></span>Live
         </RouterLink>
-        <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="isActive({ to: '/gestion/messages' }) ? 'text-emerald-700' : 'text-slate-600'">
+        <RouterLink v-if="canOpen('/gestion/messages')" to="/gestion/messages" class="relative flex flex-col items-center gap-0.5 text-xs font-semibold" :class="isActive({ to: '/gestion/messages' }) ? 'text-emerald-700' : 'text-slate-600'">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="isActive({ to: '/gestion/messages' }) ? 'bg-emerald-50' : ''">
             <ColorIcon v-if="isActive({ to: '/gestion/messages' })" name="whatsapp" :size="26" :tile="false" />
             <Icon v-else name="messages" :size="22" />
           </span>Messages
-          <span v-if="badges.messages" class="absolute right-[calc(50%-22px)] -top-0.5 min-w-[18px] rounded-full bg-[#e54a6e] px-1 text-center text-[10px] font-bold leading-[18px] text-white ring-2 ring-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
+          <span v-if="badges.messages" class="absolute right-[calc(50%-22px)] -top-0.5 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-pastille font-bold leading-[18px] text-white ring-2 ring-white">{{ badges.messages > 99 ? '99+' : badges.messages }}</span>
         </RouterLink>
         <span v-else />
-        <button type="button" class="flex flex-col items-center gap-0.5 text-[11px] font-semibold" :class="plusOpen ? 'text-emerald-700' : 'text-slate-600'" @click="plusOpen = true">
+        <button type="button" class="flex flex-col items-center gap-0.5 text-xs font-semibold" :class="plusOpen ? 'text-emerald-700' : 'text-slate-600'" @click="plusOpen = true">
           <span class="grid h-8 w-12 place-items-center rounded-full" :class="plusOpen ? 'bg-emerald-50' : ''">
             <ColorIcon v-if="plusOpen" name="menu" :size="26" :tile="false" />
             <Icon v-else name="menu" :size="22" />
@@ -533,13 +590,13 @@ async function switchTo(store) {
     <div v-if="plusOpen" class="fixed inset-x-0 bottom-0 z-40 max-h-[85vh] overflow-y-auto rounded-t-[28px] bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] lg:hidden" role="dialog" aria-label="Tout Jibiat Marchand">
       <div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200" />
       <div class="mb-3 flex items-center justify-between px-1">
-        <p class="text-[19px] font-extrabold">Tout Jibiat Marchand</p>
+        <p class="text-lg font-extrabold">Tout Jibiat Marchand</p>
         <button type="button" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600" aria-label="Fermer" @click="plusOpen = false"><Icon name="close" :size="18" /></button>
       </div>
       <div class="grid grid-cols-3 gap-2.5">
         <RouterLink v-for="tile in plusTiles" :key="tile.to" :to="tile.to" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-slate-50 px-1 py-3 text-center active:scale-95 transition">
           <ColorIcon :name="tile.color" :size="44" />
-          <span class="text-[12.5px] font-semibold leading-tight text-slate-700">{{ tile.label }}</span>
+          <span class="text-xs font-semibold leading-tight text-slate-700">{{ tile.label }}</span>
         </RouterLink>
       </div>
       <button type="button" class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 py-3 text-sm font-bold text-slate-700" @click="plusOpen = false; menuOpen = true">

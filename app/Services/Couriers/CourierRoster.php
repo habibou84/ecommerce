@@ -6,7 +6,7 @@ use App\Enums\Role;
 use App\Enums\UserStatus;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Courier;
-use App\Models\DeliveryZone;
+use App\Models\Place;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Accounts\Invitations;
@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Jibiat\Socle\PhoneNumber;
 
 /**
- * Livreurs de la boutique : ajout (lien d'invitation à envoyer par WhatsApp), zones, disponibilité, désactivation.
+ * Livreurs de la boutique : ajout (lien d'invitation à envoyer par WhatsApp), lieux couverts, disponibilité, désactivation.
  * Une personne déjà membre de l'équipe (gérant qui livre aussi) est reliée tout de suite, sans invitation.
  */
 class CourierRoster
@@ -28,7 +28,7 @@ class CourierRoster
     ) {}
 
     /**
-     * @param  array{name: string, phone: string, vehicle_type?: string, pay_rule_id?: ?int, cash_limit?: ?int, zone_ids?: list<int>, note?: ?string}  $data
+     * @param  array{name: string, phone: string, vehicle_type?: string, pay_rule_id?: ?int, cash_limit?: ?int, place_ids?: list<int>, note?: ?string}  $data
      * @param  list<array{store_id: int, role: string}>  $extras  autres boutiques de l'adresse (rejointes avec l'invitation)
      * @return array{0: Courier, 1: ?string} livreur et lien d'invitation (null s'il a déjà un compte dans la boutique)
      */
@@ -55,7 +55,7 @@ class CourierRoster
                 'user_id' => $isMember ? $member->id : null,
                 'status' => $isMember ? 'active' : 'invited',
             ]);
-            $this->syncZones($courier, $data['zone_ids'] ?? []);
+            $this->syncPlaces($courier, $data['place_ids'] ?? []);
 
             $link = $isMember ? null : $this->invitations->invite($store, $inviter, $phone, Role::Courier, $data['name'], $extras)[1];
 
@@ -82,8 +82,8 @@ class CourierRoster
     {
         DB::transaction(function () use ($courier, $data) {
             $courier->fill(collect($data)->only(['name', 'vehicle_type', 'pay_rule_id', 'cash_limit', 'is_available', 'note'])->all())->save();
-            if (array_key_exists('zone_ids', $data)) {
-                $this->syncZones($courier, $data['zone_ids'] ?? []);
+            if (array_key_exists('place_ids', $data)) {
+                $this->syncPlaces($courier, $data['place_ids'] ?? []);
             }
         });
 
@@ -109,12 +109,14 @@ class CourierRoster
     }
 
     /**
-     * @param  list<int>  $zoneIds
+     * Lieux couverts : seulement ceux que la boutique voit (référentiel ou ses propres quartiers).
+     *
+     * @param  list<int>  $placeIds
      */
-    private function syncZones(Courier $courier, array $zoneIds): void
+    private function syncPlaces(Courier $courier, array $placeIds): void
     {
-        $valid = DeliveryZone::forStore($courier->store_id)->whereIn('id', $zoneIds)->pluck('id')->all();
-        $courier->zones()->sync($valid);
+        $valid = Place::visibleTo($courier->store_id)->whereIn('id', $placeIds)->pluck('id');
+        $courier->places()->sync($valid->mapWithKeys(fn (int $id) => [$id => ['store_id' => $courier->store_id]])->all());
     }
 
     /**

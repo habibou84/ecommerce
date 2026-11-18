@@ -169,7 +169,10 @@ async function cancel(value) {
         <span v-else-if="sub?.status === 'past_due'" class="rounded bg-amber-100 px-2 py-0.5 text-sm text-amber-900">À renouveler avant le {{ formatDateTime(sub.grace_ends_at) }}</span>
         <span v-else-if="sub" class="text-sm text-slate-600">{{ sub.cancel_at_period_end ? 'Se termine' : 'Renouvellement' }} le {{ formatDateTime(sub.current_period_end) }} · {{ CYCLE_LABEL[sub.billing_cycle] ?? 'mensuel' }}</span>
       </div>
-      <p v-if="data.free" class="text-sm text-slate-600">Jibiat Marchand vous offre l'offre {{ data.free.plan }} : rien à payer{{ data.free.forever ? '' : ' pendant cette période' }}. Ses limites s'appliquent.</p>
+      <div v-if="data.free">
+        <p class="explain">Rien à payer{{ data.free.forever ? '' : ' pendant cette période' }} : l'offre {{ data.free.plan }} vous est offerte.</p>
+        <p class="explain-detail">Ses limites s'appliquent.</p>
+      </div>
       <p v-else-if="sub?.cancel_at_period_end" class="text-sm">Votre espace marchand passera à l'offre gratuite à l'échéance. <button class="text-emerald-700 underline" @click="cancel(false)">Garder mon abonnement</button></p>
       <p v-else-if="sub && sub.status === 'active' && !data.free" class="text-sm"><button class="text-slate-500 underline" @click="cancel(true)">Revenir à l'offre gratuite à l'échéance</button></p>
       <div class="grid gap-x-6 gap-y-2 pt-2 sm:grid-cols-2">
@@ -181,7 +184,7 @@ async function cancel(value) {
     </section>
 
     <section v-if="data.access_key" class="card space-y-1 p-4 text-sm" :class="data.access_key.premium ? 'bg-slate-950 text-white ring-0' : ''">
-      <p v-if="data.access_key.premium" class="text-base font-semibold text-amber-300">🏅 {{ data.access_key.badge }}</p>
+      <p v-if="data.access_key.premium" class="text-base font-semibold text-yellow-300">🏅 {{ data.access_key.badge }}</p>
       <p v-else class="font-semibold">Clé d'accès</p>
       <p v-if="data.access_key.offered_by" class="text-slate-300">Offerte par <strong class="text-white">{{ data.access_key.offered_by }}</strong></p>
       <p>
@@ -189,8 +192,8 @@ async function cancel(value) {
         <strong>{{ KEY_STATE[data.access_key.state] ?? data.access_key.state }}</strong>
       </p>
       <p v-if="data.access_key.offered_by" class="text-slate-300">
-        Après les {{ data.access_key.free_months }} mois offerts : −{{ Math.round(data.access_key.discount_rate * 100) }} % sur votre abonnement tant que vous livrez avec {{ data.access_key.offered_by }}.
-        <template v-if="data.access_key.state === 'lapsed'"> Aucune livraison récente avec eux : confiez-leur votre prochaine livraison pour retrouver la réduction.</template>
+        Après les {{ data.access_key.free_months }} mois offerts : −{{ Math.round(data.access_key.discount_rate * 100) }} % tant que vous livrez avec {{ data.access_key.offered_by }}.
+        <template v-if="data.access_key.state === 'lapsed'"> Confiez-leur votre prochaine livraison pour retrouver la réduction.</template>
       </p>
       <p v-if="data.access_key.state === 'paused'" :class="data.access_key.premium ? 'text-slate-200' : 'text-slate-600'">Sans commande depuis 2 mois, votre carte est en pause : elle se rallume dès votre prochaine commande.</p>
       <p v-else-if="data.access_key.pause_on" class="text-slate-200">Elle reste active tant que votre boutique enregistre au moins une commande tous les 2 mois (prochaine échéance : {{ formatDate(data.access_key.pause_on) }}).</p>
@@ -203,7 +206,7 @@ async function cancel(value) {
       <button v-if="!keyOpen" type="button" class="font-medium text-emerald-700 underline" @click="keyOpen = true">Vous avez une carte ou une clé d'accès ?</button>
       <form v-else class="space-y-2" @submit.prevent="redeemKey">
         <label for="key-code" class="block font-semibold">Activer une clé d'accès</label>
-        <p class="text-slate-600">Saisissez le code écrit sur la carte (ou scannez son QR code avec votre téléphone).</p>
+        <p class="explain-detail">Le code écrit sur la carte, ou scannez son QR code avec votre téléphone.</p>
         <div class="flex flex-wrap gap-2">
           <input id="key-code" v-model="keyCode" class="input w-48 font-mono uppercase tracking-widest" placeholder="ABCD-EFGH" maxlength="20" autocapitalize="characters" spellcheck="false" required />
           <button class="btn-brand" :disabled="busy">{{ busy ? 'Un instant…' : 'Activer' }}</button>
@@ -230,7 +233,7 @@ async function cancel(value) {
         <label v-for="p in paidPlans" :key="p.code" class="flex flex-col gap-2 rounded-xl border p-4 text-sm" :class="[choice.plan === p.code ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200', priceOf(p) ? 'cursor-pointer' : 'opacity-50']">
           <span class="flex items-center gap-2"><input v-model="choice.plan" type="radio" :value="p.code" :disabled="!priceOf(p)" class="accent-emerald-700" /><span class="text-base font-semibold">{{ p.name }}</span>
             <span v-if="p.code === data.plan.code && sub?.status !== 'trialing'" class="ml-auto rounded bg-white px-1.5 text-xs text-emerald-800">Actuelle</span></span>
-          <span v-if="priceOf(p)" class="text-xl font-semibold">{{ money(priceOf(p)) }}<span class="text-sm font-normal text-slate-500"> / {{ CYCLE_UNIT[choice.cycle] }}</span></span>
+          <span v-if="priceOf(p)" class="text-2xl font-semibold">{{ money(priceOf(p)) }}<span class="text-sm font-normal text-slate-500"> / {{ CYCLE_UNIT[choice.cycle] }}</span></span>
           <span v-else class="text-slate-500">Pas de paiement à la {{ CYCLE_UNIT[choice.cycle] }}</span>
           <span v-if="choice.cycle === 'yearly' && yearlySaving(p)" class="text-xs font-medium text-emerald-700">{{ money(yearlySaving(p)) }} d'économie par an</span>
           <ul class="space-y-0.5 text-slate-600">

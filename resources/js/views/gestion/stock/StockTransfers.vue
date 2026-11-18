@@ -108,7 +108,10 @@ async function act(action) {
   <div class="space-y-4">
     <StockTabs />
     <div class="flex items-center justify-between gap-3">
-      <p class="text-sm text-slate-600">Déplacer de la marchandise d'un emplacement à un autre. Elle quitte le départ à l'envoi et entre à la réception.</p>
+      <div>
+        <p class="explain">Déplacez de la marchandise d'un emplacement à un autre.</p>
+        <p class="explain-detail">Elle quitte le départ à l'envoi et entre à la réception.</p>
+      </div>
       <button class="btn-brand shrink-0" :disabled="locations.length < 2" :title="locations.length < 2 ? 'Créez d\'abord un deuxième emplacement' : ''" @click="create">+ Transfert</button>
     </div>
     <Alert v-if="locations.length < 2" tone="info">Un seul emplacement : ajoutez-en un dans l'onglet « Emplacements » pour faire des transferts.</Alert>
@@ -172,7 +175,7 @@ async function act(action) {
             <input id="st-note" v-model="sending.note" class="input" maxlength="200" />
           </Field>
         </div>
-        <p class="text-sm text-slate-500">Copiez d'abord l'article dans l'autre boutique (fiche produit).</p>
+        <p class="explain-detail">Copiez d'abord l'article dans l'autre boutique (fiche produit).</p>
         <VariantLines :lines="sending.items" :location-id="sending.location_id" />
         <button class="btn-brand w-full" :disabled="busy || !sending.items.length">Envoyer</button>
       </form>

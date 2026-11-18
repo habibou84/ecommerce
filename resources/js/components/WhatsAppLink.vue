@@ -105,7 +105,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
     <div v-else class="flex items-start gap-3">
       <ColorIcon name="telephone" :size="44" />
       <div class="min-w-0 flex-1">
-        <h3 class="text-[17px] font-extrabold">Conversations clients dans Messages</h3>
+        <h3 class="text-lg font-extrabold">Conversations clients dans Messages</h3>
         <p class="text-sm text-slate-600">Vos clients vous écrivent, vous répondez depuis l'application, et tout reste sur votre téléphone.</p>
       </div>
       <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[link.status][1]">{{ STATUS[link.status][0] }}</span>
@@ -152,7 +152,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
           </ol>
         </div>
         <div v-else class="space-y-2">
-          <p class="text-sm text-slate-500">Pratique quand cet écran est sur un ordinateur ou une tablette : vous scannez avec le téléphone.</p>
+          <p class="explain-detail">Pratique quand cet écran est sur un ordinateur ou une tablette : vous scannez avec le téléphone.</p>
           <button type="button" class="btn-brand" :disabled="busy || !link.available" @click="start">{{ busy ? 'Préparation…' : 'Afficher le QR code' }}</button>
         </div>
       </div>
@@ -170,7 +170,7 @@ onBeforeUnmount(() => timer && clearInterval(timer))
           <button type="button" class="btn-ghost px-2 text-sm" :disabled="busy" @click="pair">Recevoir un autre code</button>
         </div>
         <form v-else class="space-y-2" @submit.prevent="pair">
-          <p class="text-sm text-slate-500">Pratique quand cet écran est sur le téléphone lui-même : pas besoin de scanner.</p>
+          <p class="explain-detail">Pratique quand cet écran est sur le téléphone lui-même : pas besoin de scanner.</p>
           <label for="link-phone" class="block text-sm font-medium">Numéro WhatsApp de la boutique</label>
           <div class="flex flex-wrap gap-2">
             <input id="link-phone" v-model="phone" class="input max-w-xs" type="tel" inputmode="tel" autocomplete="tel" placeholder="07 00 00 00 00" required />
@@ -178,21 +178,20 @@ onBeforeUnmount(() => timer && clearInterval(timer))
           </div>
         </form>
       </div>
-      <p v-if="!link.available" class="text-xs text-slate-500">Bientôt disponible : le service n'est pas encore installé sur le serveur.</p>
+      <p v-if="!link.available" class="explain-detail">Bientôt disponible : le service n'est pas encore installé sur le serveur.</p>
     </template>
 
     <details v-if="!compact" class="text-xs text-slate-500">
       <summary class="cursor-pointer">Connexion non officielle : parfaite pour répondre aux clients, pas pour les envois en masse. <span class="font-medium text-emerald-700 underline">En savoir plus</span></summary>
       <p class="mt-2 rounded-lg bg-amber-50 p-3 text-amber-900">
-        Gardez le téléphone allumé avec Internet de temps en temps. N'envoyez pas de messages en masse par ce moyen :
-        WhatsApp peut bloquer un numéro qui le fait. Pour les messages automatiques, utilisez le numéro officiel
-        (onglet Messages automatiques).
+        <b class="block">Pas d'envois en masse par ce moyen : WhatsApp peut bloquer le numéro.</b>
+        Gardez le téléphone allumé avec Internet. Messages automatiques : numéro officiel (onglet Messages automatiques).
       </p>
     </details>
     <p v-if="!compact && link.status === 'connected'" class="text-right">
       <button type="button" class="text-xs font-medium text-red-600 hover:underline" :disabled="busy" @click="unlink">Déconnecter ce numéro</button>
     </p>
-    <p v-else-if="link.status !== 'connected'" class="text-xs text-slate-500">
+    <p v-else-if="link.status !== 'connected'" class="explain-detail">
       Connexion non officielle, pour les conversations seulement (pas d'envois en masse).
       <RouterLink to="/gestion/whatsapp" class="font-medium text-emerald-700 underline">Réglages WhatsApp</RouterLink>
     </p>

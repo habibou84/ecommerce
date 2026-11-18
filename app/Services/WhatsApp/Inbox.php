@@ -19,6 +19,7 @@ use App\Services\Messaging\AutoReplier;
 use App\Services\Social\MetaSocial;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Jibiat\Socle\PhoneNumber;
 use RuntimeException;
@@ -191,13 +192,40 @@ class Inbox
      */
     public function fromPhone(WhatsappLink $link, string $to, string $text, string $id): ?ConversationMessage
     {
-        $text = trim($text);
-        if ($text === '' || $id === '' || self::isPlatform($to) || ConversationMessage::forStore($link->store_id)->where('provider_message_id', $id)->exists()) {
+        return $this->fromMerchantPhone($link->store_id, $to, trim($text), $id, null);
+    }
+
+    /**
+     * Message envoyé depuis l'application WhatsApp Business du téléphone, sur le numéro officiel resté dans
+     * l'application (coexistence) : Meta le renvoie en « écho ». Il apparaît dans le fil comme une réponse de l'équipe
+     * (les assistants se taisent) ; « récap » et « confirmé » y sont compris.
+     *
+     * @param  array<string, mixed>  $echo
+     */
+    public function fromBusinessApp(WhatsappAccount $account, array $echo): ?ConversationMessage
+    {
+        $body = self::readable($echo);
+
+        return $body === null ? null : $this->fromMerchantPhone($account->store_id, (string) ($echo['to'] ?? ''), trim($body), (string) ($echo['id'] ?? ''),
+            isset($echo['timestamp']) ? Carbon::createFromTimestamp((int) $echo['timestamp']) : null, ($echo['type'] ?? 'text') === 'text');
+    }
+
+    private function fromMerchantPhone(int $storeId, string $to, string $text, string $id, ?Carbon $sentAt, bool $isText = true): ?ConversationMessage
+    {
+        if ($text === '' || $id === '' || ltrim($to, '+') === '' || self::isPlatform($to) || ConversationMessage::forStore($storeId)->where('provider_message_id', $id)->exists()) {
             return null;
         }
-        $conversation = Conversation::forStore($link->store_id)->where('channel', 'whatsapp')->where('contact', '+'.ltrim($to, '+'))->first();
+        $conversation = Conversation::forStore($storeId)->where('channel', 'whatsapp')->where('contact', '+'.ltrim($to, '+'))->first();
+        if ($conversation === null) {
+            return null;
+        }
+        $message = $this->record($conversation, 'text', $text, 'sent', $id, null, $sentAt);
+        // « récap » : la commande reconstituée part au client ; « confirmé » : la commande est confirmée
+        if ($isText) {
+            rescue(fn () => app(RecapOrders::class)->fromMerchant($conversation, $text));
+        }
 
-        return $conversation ? $this->record($conversation, 'text', $text, 'sent', $id) : null;
+        return $message;
     }
 
     /**
@@ -216,6 +244,10 @@ class Inbox
         $message = $this->land($storeId, $phone, $name, 'order', $body, $providerId, $sentAt, $viaLink);
         if ($order !== null) {
             $message->conversation->forceFill(['order_id' => $order->id])->save();
+            // Assistant des ventes : commune demandée, puis récapitulatif avec « Je confirme »
+            if ($store->whatsapp_cart_flow) {
+                rescue(fn () => app(RecapOrders::class)->follow($message->conversation, $order));
+            }
         }
 
         return $message;
@@ -271,6 +303,17 @@ class Inbox
      * Réponse de l'équipe, envoyée tout de suite : une erreur de Meta est montrée à la personne qui répond.
      */
     public function reply(Conversation $conversation, string $text, User $user): ConversationMessage
+    {
+        $message = $this->send($conversation, $text, $user);
+        // « récap » et « confirmé » écrits depuis l'application : comme depuis le téléphone de la boutique
+        if ($conversation->channel === 'whatsapp' && (RecapOrders::recapText($text) !== null || RecapOrders::confirms($text))) {
+            rescue(fn () => app(RecapOrders::class)->fromMerchant($conversation, $text));
+        }
+
+        return $message;
+    }
+
+    private function send(Conversation $conversation, string $text, User $user): ConversationMessage
     {
         if (self::isPlatform($conversation->contact)) {
             throw new BusinessRuleException('Les échanges avec le support Jibiat Marchand restent sur le téléphone du propriétaire.', 'body');
@@ -340,11 +383,11 @@ class Inbox
     {
         $link = $this->linkFor($conversation);
         if ($link !== null) {
-            return $this->record($conversation, 'auto', '📷 '.$caption, 'queued', $this->bridge->send($link, $conversation->contact, $caption, slow: true, image: $image));
+            return $this->record($conversation, 'auto', $caption, 'queued', $this->bridge->send($link, $conversation->contact, $caption, slow: true, image: $image), media: ['media_url' => $image]);
         }
         $account = $this->officialFor($conversation) ?? throw new BusinessRuleException('Aucun WhatsApp connecté ne permet d\'envoyer une image à ce client.');
 
-        return $this->record($conversation, 'auto', '📷 '.$caption, 'sent', $this->cloud->sendImage($account, $conversation->contact, $image, $caption));
+        return $this->record($conversation, 'auto', $caption, 'sent', $this->cloud->sendImage($account, $conversation->contact, $image, $caption), media: ['media_url' => $image]);
     }
 
     /**
@@ -360,7 +403,35 @@ class Inbox
             return null;
         }
 
-        return $this->record($conversation, 'auto', $preview, 'sent', $send($this->cloud, $account, $conversation->contact));
+        $this->cloud->lastMessage = null;
+        $id = $send($this->cloud, $account, $conversation->contact);
+        [$body, $media] = self::shown($this->cloud->lastMessage, $preview);
+
+        return $this->record($conversation, 'auto', $body, 'sent', $id, media: $media);
+    }
+
+    /**
+     * Ce que le client a vu d'un message riche : texte, photo et choix (boutons ou lignes de la liste) ; le résumé
+     * seul si le message n'est pas lisible.
+     *
+     * @param  array<string, mixed>|null  $sent
+     * @return array{0: string, 1: array{media_url?: string, options?: array<string, mixed>}}
+     */
+    private static function shown(?array $sent, string $preview): array
+    {
+        $interactive = $sent['interactive'] ?? null;
+        if (($sent['type'] ?? null) === 'image') {
+            return [(string) ($sent['image']['caption'] ?? $preview), array_filter(['media_url' => $sent['image']['link'] ?? null])];
+        }
+        if (! is_array($interactive) || ! isset($interactive['body']['text'])) {
+            return [$preview, []];
+        }
+        $options = $interactive['type'] === 'list'
+            ? ['button' => $interactive['action']['button'] ?? null, 'rows' => collect($interactive['action']['sections'] ?? [])->flatMap(fn ($s) => $s['rows'] ?? [])
+                ->map(fn ($r) => array_filter(['title' => $r['title'] ?? '', 'description' => $r['description'] ?? null]))->values()->all()]
+            : ['buttons' => collect($interactive['action']['buttons'] ?? [])->map(fn ($b) => (string) ($b['reply']['title'] ?? ''))->values()->all()];
+
+        return [(string) $interactive['body']['text'], array_filter(['media_url' => $interactive['header']['image']['link'] ?? null, 'options' => array_filter($options)])];
     }
 
     /**
@@ -401,6 +472,30 @@ class Inbox
     }
 
     /**
+     * Photo reçue d'un client, en octets : lue chez Meta (numéro officiel) ou au service du WhatsApp relié, puis
+     * gardée 30 jours pour Conversations ; null si elle n'est plus disponible.
+     */
+    public function photo(Conversation $conversation, ConversationMessage $message): ?string
+    {
+        if ($message->direction !== 'in' || $message->type !== 'image') {
+            return null;
+        }
+        $path = "conversation-photos/{$message->store_id}/{$message->id}";
+        $disk = Storage::disk('local');
+        if ($disk->exists($path)) {
+            return $disk->get($path);
+        }
+        $bytes = $conversation->via_link
+            ? (($link = $this->linkFor($conversation)) && $message->provider_message_id ? $this->bridge->image($link, $message->provider_message_id) : null)
+            : (($account = WhatsappAccount::forStore($message->store_id)->first()) && $message->media_id ? $this->cloud->image($account, $message->media_id) : null);
+        if ($bytes !== null && $message->sent_at->gt(now()->subDays(30))) {
+            $disk->put($path, $bytes);
+        }
+
+        return $bytes;
+    }
+
+    /**
      * WhatsApp relié (QR code ou numéro) par lequel répondre, sans limite de 24 h : celui de la boutique s'il est
      * connecté. Seule exception : le client a écrit en dernier à un autre numéro, celui de la connexion officielle de
      * Meta ; la réponse part alors de ce numéro-là, pour ne pas venir d'un numéro qu'il ne connaît pas.
@@ -432,9 +527,13 @@ class Inbox
         }
     }
 
-    private function record(Conversation $conversation, string $type, string $body, string $status, ?string $providerId = null, ?User $user = null): ConversationMessage
+    /**
+     * @param  array{media_url?: string, options?: array<string, mixed>}  $media
+     */
+    private function record(Conversation $conversation, string $type, string $body, string $status, ?string $providerId = null, ?User $user = null, ?Carbon $sentAt = null, array $media = []): ConversationMessage
     {
-        $conversation->forceFill(['last_preview' => Str::limit($body, 197), 'last_message_at' => now()])->save();
+        $sentAt ??= now();
+        $conversation->forceFill(['last_preview' => Str::limit($body, 197), 'last_message_at' => $sentAt])->save();
 
         return $conversation->messages()->create([
             'store_id' => $conversation->store_id,
@@ -444,8 +543,8 @@ class Inbox
             'provider_message_id' => $providerId,
             'status' => $status,
             'user_id' => $user?->id,
-            'sent_at' => now(),
-        ]);
+            'sent_at' => $sentAt,
+        ] + $media);
     }
 
     /**

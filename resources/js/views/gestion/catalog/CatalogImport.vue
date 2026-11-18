@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../../components/ExplainMore.vue'
 import PasswordInput from '../../../components/PasswordInput.vue'
 import { reactive, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
@@ -79,15 +80,16 @@ async function importDelivery() {
 
 <template>
   <div class="space-y-6">
-    <RouterLink to="/gestion/catalogue" class="text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
+    <RouterLink to="/gestion/catalogue" class="back-link text-sm text-slate-500 hover:text-emerald-700">← Mes produits</RouterLink>
 
     <section class="card space-y-4 p-4 sm:p-6">
       <div>
         <h2 class="font-semibold">Fichier Excel (CSV)</h2>
-        <p class="mt-1 text-sm text-slate-600">
-          Une ligne par variante. Le plus simple : <button class="font-medium text-emerald-700 hover:underline" @click="download">exportez votre catalogue</button>,
-          modifiez-le dans Excel, enregistrez au format CSV, puis importez-le. Les exports Shopify sont aussi acceptés. Les photos ne sont pas importées.
-        </p>
+        <div class="mt-1">
+          <p class="explain">Une ligne par variante, au format CSV.</p>
+          <p class="explain-detail">Le plus simple : <button class="font-medium text-emerald-700 hover:underline" @click="download">exportez votre catalogue</button>, modifiez-le dans Excel, puis importez-le. Les photos ne sont pas importées.</p>
+          <ExplainMore>Les exports Shopify sont aussi acceptés.</ExplainMore>
+        </div>
       </div>
       <input type="file" accept=".csv,text/csv" class="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium" @change="pick" />
       <Alert v-if="csvError">{{ csvError }}</Alert>

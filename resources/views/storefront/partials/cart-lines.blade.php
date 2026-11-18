@@ -17,7 +17,7 @@
                 <p class="text-sm text-slate-500">
                     <span data-line-unit>@money($line['unit_price'])</span>
                     <s data-line-compare class="text-slate-400" @if (! $line['compare_at']) hidden @endif>{{ $line['compare_at'] ? \Jibiat\Socle\Money::format($line['compare_at']) : '' }}</s>
-                    <span data-line-volume class="text-brand" @if (! $line['volume']) hidden @endif>· prix de gros ou pack</span>
+                    <span data-line-volume class="text-brand-text" @if (! $line['volume']) hidden @endif>· prix de gros ou pack</span>
                 </p>
                 <p data-line-short class="text-sm text-red-700" @if (! $line['short']) hidden @endif>Il n'en reste que {{ $line['max'] }} : ajustez la quantité.</p>
                 @if (($line['lot_missing'] ?? 0) > 0)

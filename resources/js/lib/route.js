@@ -7,8 +7,17 @@ export const tomorrow = () => new Date(Date.now() + 86400000).toLocaleDateString
 export const dueDay = (m) => (m.status === 'rescheduled' && m.rescheduled_to) || m.scheduled_date || null
 // Prévue un autre jour : hors de la tournée d'aujourd'hui (les colis à rapporter restent du jour)
 export const isLater = (m) => m.status !== 'returning' && !!dueDay(m) && dueDay(m) > today()
-// Date passée et pas encore livrée
-export const isLate = (m) => m.status !== 'returning' && !!dueDay(m) && dueDay(m) < today()
+// En retard pour le livreur : date passée alors que la course lui était déjà confiée. Reçue aujourd'hui pour une
+// date passée, elle est simplement à faire aujourd'hui (le retard est celui de la boutique, pas le sien).
+export const isLate = (m) => m.status !== 'returning' && !!dueDay(m) && dueDay(m) < today() && !(m.handed_on && m.handed_on >= today())
+// « Aujourd'hui », « Demain » ou « jeu. 2 nov. » : jour où faire la course (date passée = aujourd'hui)
+export const dayLabel = (m) => {
+  const d = dueDay(m)
+  if (!d || d <= today()) return 'Aujourd\'hui'
+  return d === tomorrow() ? 'Demain' : shortDay(d)
+}
+// « 14:15 »
+export const clock = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 // « jeu. 2 nov. »
 export const shortDay = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
 

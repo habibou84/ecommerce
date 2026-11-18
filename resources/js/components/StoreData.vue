@@ -51,7 +51,10 @@ async function close() {
 <template>
   <section class="card space-y-3 p-4 text-sm sm:p-6">
     <h2 class="font-semibold">Vos données</h2>
-    <p class="text-slate-600">Téléchargez toutes les données de votre espace marchand : produits et stock, clients, commandes et articles, paiements, livraisons, dépenses, fournisseurs, avis. Une archive de fichiers qui s'ouvrent dans Excel, gardée 7 jours.</p>
+    <div>
+      <p class="explain">Téléchargez toutes vos données, à ouvrir dans Excel.</p>
+      <p class="explain-detail">Produits, stock, clients, commandes, paiements, livraisons, dépenses, fournisseurs, avis. Archive gardée 7 jours.</p>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
     <ul v-if="exports.length" class="divide-y divide-slate-100">
       <li v-for="e in exports" :key="e.id" class="flex items-center gap-2 py-2">
@@ -65,7 +68,10 @@ async function close() {
 
     <div class="border-t border-slate-200 pt-3">
       <h3 class="font-semibold text-red-700">Fermer l'espace marchand</h3>
-      <p class="text-slate-600">La boutique en ligne et la gestion ferment pour toute l'équipe, l'abonnement s'arrête à la fin de la période payée. Vos données sont conservées : exportez-les avant. Pour rouvrir, contactez le support.</p>
+      <div>
+        <p class="explain">La boutique et la gestion ferment pour toute l'équipe.</p>
+        <p class="explain-detail">L'abonnement s'arrête en fin de période. Vos données sont gardées : exportez-les avant. Pour rouvrir : le support.</p>
+      </div>
       <button class="btn-ghost mt-2 text-red-600" @click="Object.assign(closing, { open: true, confirmation: '', reason: '', error: '', done: false })">Fermer l'espace marchand…</button>
     </div>
 

@@ -5,6 +5,7 @@ namespace Tests\Feature\Messaging;
 use App\Enums\Role;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
+use App\Models\Order;
 use App\Models\Place;
 use App\Models\Product;
 use App\Models\Store;
@@ -14,8 +15,11 @@ use App\Notifications\CustomerMessage;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Orders\OrderMessageParser;
 use App\Services\Places\Places;
+use App\Services\WhatsApp\Inbox;
+use App\Services\WhatsApp\WhatsAppCloud;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -29,11 +33,18 @@ class InboxTest extends TestCase
 
     private string|array|null $metaError = null;
 
+    /** Petite image PNG (1 × 1) */
+    private const PNG = "\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\x01\0\0\0\x01\x08\x06\0\0\0\x1f\x15\xc4\x89\0\0\0\rIDATx\x9cc\xf8\x0f\0\0\x01\x01\x00\x05\x18\xd8N\0\0\0\0IEND\xaeB`\x82";
+
     protected function setUp(): void
     {
         parent::setUp();
         Http::preventStrayRequests();
-        Http::fake(['https://graph.facebook.com/v25.0/*' => function () {
+        Http::fake(['https://lookaside.fbsbx.com/*' => Http::response(self::PNG), 'https://graph.facebook.com/v25.0/*' => function (HttpRequest $request) {
+            // Photo reçue : adresse temporaire chez Meta
+            if (str_ends_with($request->url(), '/MEDIA-1')) {
+                return Http::response(['url' => 'https://lookaside.fbsbx.com/whatsapp/MEDIA-1']);
+            }
             if ($this->metaError) {
                 return Http::response(['error' => is_array($this->metaError) ? $this->metaError : ['message' => $this->metaError]], 400);
             }
@@ -110,6 +121,30 @@ class InboxTest extends TestCase
         $this->storeApi($this->store, 'GET', 'conversations?q=0102')->assertJsonCount(1, 'data');
     }
 
+    public function test_customer_photos_and_rich_automatic_messages_show_in_the_thread(): void
+    {
+        Storage::fake('local');
+        $account = $this->connect();
+        $this->inbound($account, [['from' => '2250506070809', 'id' => 'wamid.p', 'timestamp' => (string) now()->timestamp, 'type' => 'image', 'image' => ['id' => 'MEDIA-1', 'caption' => 'celle-ci']]])->assertOk();
+        $conversation = Conversation::sole();
+        // Message riche envoyé par un assistant : photo, texte et boutons gardés pour le fil
+        app(Inbox::class)->replyRich($conversation, 'résumé', fn (WhatsAppCloud $cloud, $a, string $to) => $cloud->sendButtons($a, $to, 'Robe wax · 15 000 F', ['x:1' => 'Je prends'], 'https://cdn.test/robe.jpg'));
+        app(Inbox::class)->replyRich($conversation, 'résumé', fn (WhatsAppCloud $cloud, $a, string $to) => $cloud->sendList($a, $to, 'Quelle taille ?', 'Choisir', 'Tailles', [['id' => 'x:s', 'title' => 'S', 'description' => 'En stock']]));
+
+        $messages = $this->storeApi($this->store, 'GET', "conversations/{$conversation->id}")->assertOk()->json('data.messages');
+        $this->assertTrue($messages[0]['photo']);
+        $this->assertSame(['Robe wax · 15 000 F', 'https://cdn.test/robe.jpg', ['buttons' => ['Je prends']]], [$messages[1]['body'], $messages[1]['media_url'], $messages[1]['options']]);
+        $this->assertSame(['Quelle taille ?', ['button' => 'Choisir', 'rows' => [['title' => 'S', 'description' => 'En stock']]]], [$messages[2]['body'], $messages[2]['options']]);
+
+        // La photo du client, lue chez Meta puis gardée
+        $photo = $this->storeApi($this->store, 'GET', "conversations/{$conversation->id}/messages/{$messages[0]['id']}/photo")->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->assertSame(self::PNG, $photo->getContent());
+        $this->storeApi($this->store, 'GET', "conversations/{$conversation->id}/messages/{$messages[1]['id']}/photo")->assertNotFound();
+        Http::assertSentCount(2 + 2); // 2 messages riches, l'adresse et la photo une seule fois
+        $this->storeApi($this->store, 'GET', "conversations/{$conversation->id}/messages/{$messages[0]['id']}/photo")->assertOk();
+        Http::assertSentCount(4);
+    }
+
     public function test_reply_within_24_hours(): void
     {
         $account = $this->connect();
@@ -167,6 +202,11 @@ class InboxTest extends TestCase
         $this->assertStringStartsWith('🤖 Bonjour Fatou, merci pour votre commande #1001 chez Awa Mode', $detail->json('data.messages.1.body'));
         $this->assertStringEndsWith('[Confirmer] [Annuler]', $detail->json('data.messages.1.body'));
         $this->storeApi($this->store, 'GET', 'conversations?filter=without_order')->assertJsonCount(0, 'data');
+        // Liste : la commande avec son statut, et le filtre « À confirmer »
+        $this->storeApi($this->store, 'GET', 'conversations?filter=pending')->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.order.status', 'pending_confirmation')->assertJsonPath('data.0.order.status_label', 'À confirmer')
+            ->assertJsonPath('data.0.order.total', (int) Order::findOrFail($order->json('data.id'))->total);
+        $detail->assertJsonPath('data.customer.orders', 1);
 
         // Nouveau message après la commande : seul lui est proposé pour la commande suivante
         $this->travel(2)->minutes();

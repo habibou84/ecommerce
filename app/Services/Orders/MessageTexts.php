@@ -3,6 +3,7 @@
 namespace App\Services\Orders;
 
 use App\Exceptions\BusinessRuleException;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\Store;
@@ -46,6 +47,10 @@ class MessageTexts
             'label' => 'Remerciement',
             'text' => 'Bonjour {prenom}, merci pour votre achat chez {boutique} ! Nous espérons que vous êtes satisfait(e). À bientôt 🙏',
         ],
+        'relaunch' => [
+            'label' => 'Relance d\'un client (bouton Relancer de l\'onglet Clients)',
+            'text' => 'Bonjour {prenom}, ça fait un moment ! 😊 Il y a du nouveau chez {boutique}, venez voir : {lien_boutique}',
+        ],
         'review_request' => [
             'label' => 'Demande d\'avis',
             'text' => "Bonjour {prenom}, merci d'avoir commandé chez {boutique} ! Votre avis sur les articles reçus nous aide beaucoup ⭐\n{lien_avis}",
@@ -62,6 +67,7 @@ class MessageTexts
         'adresse' => 'livraison ou retrait',
         'suivi' => 'lien de suivi',
         'lien_avis' => 'lien pour donner son avis',
+        'lien_boutique' => 'lien de la boutique en ligne',
         'livreur' => 'prénom du livreur',
         'tel_livreur' => 'téléphone du livreur',
     ];
@@ -86,6 +92,19 @@ class MessageTexts
         }
 
         return trim(preg_replace("/\n{3,}/", "\n\n", implode("\n", $lines)));
+    }
+
+    /**
+     * Message à un client sans commande en cours (relance) : seuls {prenom}, {boutique} et {lien_boutique} ont un sens.
+     */
+    public function renderForCustomer(Store $store, Customer $customer, string $key): string
+    {
+        $order = (new Order)->forceFill(['store_id' => $store->id, 'customer_name' => $customer->name, 'number' => 0, 'tracking_token' => 'relance',
+            'delivery_method' => 'delivery', 'subtotal' => 0, 'shipping_fee' => 0, 'total' => 0, 'amount_paid' => 0, 'amount_refunded' => 0]);
+        $order->setRelation('store', $store);
+        $order->setRelation('items', collect());
+
+        return $this->render($order, $key);
     }
 
     /**
@@ -132,6 +151,7 @@ class MessageTexts
             'adresse' => $order->delivery_method === 'pickup' ? 'à retirer en boutique' : 'à livrer à '.trim(($order->shipping_place_label ?? '').' '.($order->shipping_address ?? '')),
             'suivi' => $order->trackingUrl(),
             'lien_avis' => $order->store->url('/avis/'.$order->tracking_token),
+            'lien_boutique' => $order->store->url(),
             'livreur' => $courier ? (string) strtok($courier->name, ' ') : '',
             'tel_livreur' => $courier?->phone ? PhoneNumber::display($courier->phone) : '',
         ];

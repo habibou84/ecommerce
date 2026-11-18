@@ -11,6 +11,8 @@
 @theme {
     --color-brand: var(--brand);
     --color-brand-contrast: var(--brand-contrast);
+    /* Couleur de la boutique assombrie si besoin (4,5:1 sur le fond) : liens, prix, remises */
+    --color-brand-text: var(--brand-text);
     --color-brand-soft: var(--brand-soft);
     --color-page: var(--page-bg);
 }

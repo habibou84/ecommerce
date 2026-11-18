@@ -54,15 +54,18 @@ function later(order, hours) {
 
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-slate-600">
-      Appelez ou écrivez à chaque client avant de faire livrer : c'est le meilleur moyen d'éviter les refus à la livraison.
-      <span v-if="done" class="font-medium text-emerald-700">{{ done }} traitée(s) depuis l'ouverture.</span>
-    </p>
+    <div>
+      <p class="explain">Appelez ou écrivez à chaque client avant de faire livrer.</p>
+      <p class="explain-detail">
+        C'est le meilleur moyen d'éviter les refus.
+        <span v-if="done" class="font-medium text-emerald-700">{{ done }} traitée(s) depuis l'ouverture.</span>
+      </p>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
     <p v-if="loading && !orders.length" class="text-sm text-slate-500">Chargement…</p>
     <div v-else-if="!orders.length" class="card p-8 text-center">
       <p class="text-lg font-medium"><Icon name="check" :size="18" class="mr-1 inline-block align-[-3px]" />Rien à confirmer</p>
-      <p class="text-sm text-slate-500">Les nouvelles commandes apparaîtront ici.</p>
+      <p class="explain-detail">Les nouvelles commandes apparaîtront ici.</p>
     </div>
 
     <article v-for="o in orders" :key="o.id" class="card space-y-3 p-4" :class="{ 'border-amber-400': due(o), 'opacity-60': busy === o.id }">
