@@ -167,6 +167,25 @@ class SupportAgentTest extends TestCase
         $this->assertSame([], $this->ai->calls);
         $this->assertSame(0, SupportAgentRun::count());
 
+        // Déjà inscrit : après « Inscription », une question n'est pas prise pour une réponse du robot, l'assistant répond
+        $store = $this->createStore(['slug' => 'bold', 'name' => 'Boldstyle']);
+        $store->owner->forceFill(['phone' => '+2250702020202', 'name' => 'Mohamed'])->save();
+        $this->say('inscription', '2250702020202');
+        $this->assertStringContainsString('déjà la boutique *Boldstyle*', $this->lastText() ?: (end($this->sent)['interactive']['body']['text'] ?? ''));
+        $this->ai->agentWill([['chercher_aide', ['question' => 'connecter numéro WhatsApp Meta']]], 'Dans WhatsApp, touchez « Connecter mon numéro ».');
+        $this->say('Bonjour, je bloque pour connecter mon numéro WhatsApp sur Meta.', '2250702020202');
+        $this->assertSame('Dans WhatsApp, touchez « Connecter mon numéro ».', $this->lastText());
+        $this->assertSame('connecter-whatsapp', $this->ai->toolResults[0]['fiches'][0] ? SupportAgentRun::latest('id')->value('articles')[0] : null);
+        SupportAgentRun::query()->delete();
+
+        // Une inscription laissée en route depuis plus d'un jour n'attend plus de réponse
+        $this->say('Inscription', '2250703030303');
+        $this->travel(25)->hours();
+        $this->ai->agentWill([], 'Bonjour 🙂 Comment puis-je vous aider ?');
+        $this->say('Bonjour', '2250703030303');
+        $this->assertSame('Bonjour 🙂 Comment puis-je vous aider ?', $this->lastText());
+        SupportAgentRun::query()->delete();
+
         // Plafond du jour atteint : rien n'est envoyé, une seule ligne par conversation
         $conversation = SupportConversation::firstOrCreate(['contact' => '+2250505050505']);
         SupportAgentRun::create(['support_conversation_id' => $conversation->id, 'outcome' => SupportAgentRun::ANSWERED, 'cost_usd' => 0.6]);

@@ -46,6 +46,9 @@ class SignupByWhatsApp
 
     public const REMIND_AFTER_HOURS = 3;
 
+    /** Une étape en cours n'attend plus de réponse après ce délai sans message */
+    public const STEP_HOURS = 24;
+
     public const MAX_STORES_PER_DAY = 3;
 
     public const LINK_TTL = 900;
@@ -147,6 +150,11 @@ class SignupByWhatsApp
             return $this->start($signup, $trigger);
         }
 
+        // Une question restée sans réponse depuis plus d'un jour n'attend plus rien : sinon le robot prendrait pour une
+        // réponse le premier message écrit des jours plus tard (une demande d'aide, par exemple)
+        if ($signup->exists && in_array($signup->step, self::ACTIVE, true) && $signup->last_inbound_at?->lt(now()->subHours(self::STEP_HOURS))) {
+            $signup->fill(['step' => 'idle'])->save();
+        }
         $active = $signup->exists && in_array($signup->step, self::ACTIVE, true);
         if ($active && in_array($words, ['annuler', 'stop inscription', 'laisse tomber'], true)) {
             $signup->fill(['step' => 'idle', 'data' => []])->save();
@@ -263,8 +271,10 @@ class SignupByWhatsApp
                 if ($payload === 'su:login' || in_array(self::words($value), ['oui', 'ok', 'connexion', 'me connecter', 'connecter'], true)) {
                     return $this->sendLogin($signup);
                 }
+                // Déjà inscrit et il écrit autre chose : ce n'est pas une réponse, c'est une question pour le support
+                $signup->fill(['step' => 'idle'])->save();
 
-                return $this->missed($signup) ?: $this->ask($signup, 'existing');
+                return false;
 
             case 'confirm':
                 if ($payload === 'su:other' || self::words($value) === 'autre numero') {
