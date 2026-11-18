@@ -3,7 +3,8 @@
 namespace App\Support;
 
 /**
- * « Les étapes essentielles pour commencer » : une courte vidéo par étape (public/videos/etapes), sur la page
+ * « Les étapes essentielles pour commencer » : une courte vidéo par étape (public/videos/etapes, fabriquées par
+ * tools/videos), sur la page
  * « Bien démarrer » du site et dans le guide de démarrage de l'application (même ordre que ce guide).
  */
 class StartSteps
@@ -13,6 +14,9 @@ class StartSteps
      */
     public static function all(): array
     {
+        $made = self::made();
+        $version = $made['version'] ?? '2';
+
         return collect([
             [null, 'Créer votre espace marchand', 'Nom de la boutique, votre numéro, un message WhatsApp pour le vérifier (rien à recopier) : l\'essai gratuit démarre tout de suite. Ou écrivez « Inscription » sur WhatsApp.', 32],
             ['mobile_app', 'Installer l\'application sur votre téléphone', 'Sur ordinateur, rien à installer. Sur Android : Chrome › ⋮ › « Installer l\'application ». Sur iPhone : Safari › Partager › « Sur l\'écran d\'accueil ». Puis activez les notifications.', 39],
@@ -30,10 +34,23 @@ class StartSteps
             'guide' => $s[0],
             'title' => $s[1],
             'text' => $s[2],
-            'seconds' => $s[3],
-            'video' => sprintf('/videos/etapes/etape-%02d.mp4?v=2', $i + 1),
-            'poster' => sprintf('/videos/etapes/etape-%02d.jpg?v=2', $i + 1),
+            'seconds' => (int) ($made['seconds'][$i + 1] ?? $s[3]),
+            'video' => sprintf('/videos/etapes/etape-%02d.mp4?v=%s', $i + 1, $version),
+            'poster' => sprintf('/videos/etapes/etape-%02d.jpg?v=%s', $i + 1, $version),
         ])->all();
+    }
+
+    /**
+     * Durées et version des vidéos, écrites par l'outil qui les fabrique (tools/videos) : la version change à chaque
+     * fabrication, pour que les navigateurs rechargent les vidéos.
+     *
+     * @return array{version?: string, seconds?: array<int|string, int>}
+     */
+    private static function made(): array
+    {
+        $file = public_path('videos/etapes/etapes.json');
+
+        return is_file($file) ? (json_decode((string) file_get_contents($file), true) ?: []) : [];
     }
 
     /**
