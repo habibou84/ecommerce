@@ -28,6 +28,8 @@ class PageController extends Controller
             'trialDays' => TrialOffer::days(),
             'trialOffer' => TrialOffer::duration().' de l\'offre '.TrialOffer::planName(),
             'supportWhatsapp' => config('platform.support_whatsapp'),
+            // Fond de carte (tournée du livreur, épingle des emplacements)
+            'mapStyleUrl' => config('services.maps.style_url'),
             'store' => $store ? ['id' => $store->id, 'name' => $store->name, 'slug' => $store->slug] : null,
             // Inscription de nouvelles boutiques fermée dans la console
             'signupOpen' => app(Features::class)->enabled('signup'),

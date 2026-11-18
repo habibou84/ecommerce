@@ -57,6 +57,9 @@ class LocationController extends Controller
             'type' => ['required', Rule::in(StockLocationType::manualValues())],
             'address' => ['nullable', 'string', 'max:500'],
             'landmark' => ['nullable', 'string', 'max:200'],
+            // Épingle sur la carte : point de départ du livreur
+            'latitude' => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitude'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180', 'required_with:latitude'],
             'phone' => ['nullable', 'string', 'max:20'],
             'is_pickup_point' => ['sometimes', 'boolean'],
             'fulfills_online_orders' => ['sometimes', 'boolean'],
@@ -74,6 +77,8 @@ class LocationController extends Controller
             'type_label' => $location->type->label(),
             'address' => $location->address,
             'landmark' => $location->landmark,
+            'latitude' => $location->latitude,
+            'longitude' => $location->longitude,
             'phone' => $location->phone,
             'is_pickup_point' => $location->is_pickup_point,
             'fulfills_online_orders' => $location->fulfills_online_orders,

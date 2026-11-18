@@ -65,8 +65,9 @@ class CustomerBook
                 'place_id' => $order->shipping_place_id,
                 'address_line' => $order->shipping_address,
                 'landmark' => $order->shipping_landmark,
-                'latitude' => $order->shipping_latitude,
-                'longitude' => $order->shipping_longitude,
+                // Sans point GPS sur la commande : on garde celui de l'adresse (enregistré par un livreur)
+                'latitude' => $order->shipping_latitude ?? $address->latitude,
+                'longitude' => $order->shipping_latitude !== null ? $order->shipping_longitude : $address->longitude,
                 'is_default' => true,
             ])->save();
 
