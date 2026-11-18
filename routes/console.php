@@ -27,6 +27,7 @@ use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Orders\OrderDesk;
 use App\Services\Partners\PartnerReferrals;
+use App\Services\Places\PlaceLocator;
 use App\Services\Platform\BackupStatus;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierConnections;
@@ -92,6 +93,13 @@ Artisan::command('couriers:remind', function (MissionResponses $responses) {
 Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
 
 // Résumé du matin des livreurs : courses du jour et argent à encaisser
+// Carte du livreur : centre des quartiers sans position, cherché dans OpenStreetMap (une recherche par seconde)
+Artisan::command('places:locate {--limit=50}', function (PlaceLocator $locator) {
+    $result = $locator->locateMissing((int) $this->option('limit'));
+    $this->info("{$result['located']} lieu(x) placé(s), {$result['missed']} introuvable(s).");
+})->purpose('Cherche la position des lieux (quartiers, communes) dans OpenStreetMap');
+Schedule::command('places:locate')->dailyAt('04:20')->withoutOverlapping()->runInBackground();
+
 Artisan::command('couriers:morning', function (CourierMorning $morning) {
     $this->info($morning->send().' livreur(s) prévenu(s).');
 })->purpose('Envoie à chaque livreur le résumé de ses courses du jour');

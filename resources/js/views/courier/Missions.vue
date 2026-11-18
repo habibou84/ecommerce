@@ -1,6 +1,6 @@
 <script setup>
 import StateBadge from '../../components/StateBadge.vue'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import Alert from '../../components/Alert.vue'
 import QrScanner from '../../components/QrScanner.vue'
 import { rawCode } from '../../lib/parcelLabels'
@@ -226,6 +226,34 @@ function saveOrder() {
   notice.value = 'Ordre de la tournée enregistré ✓'
 }
 
+// ── Carte de la tournée (onglet « À livrer » d'aujourd'hui) ──
+const MapView = defineAsyncComponent(() => import('../../components/MapView.vue'))
+const view = ref('list') // 'list' | 'map'
+const here = ref(null) // position du livreur (départ), si le téléphone la donne
+const selectedStop = ref(null)
+watch(view, async (v) => {
+  if (v === 'map' && !here.value) here.value = await currentPosition()
+})
+const mapStops = computed(() => lists.value.deliver.map((m, i) => ({ m, n: i + 1 })))
+const mapPoints = computed(() => {
+  const located = mapStops.value.filter(({ m }) => m.point)
+  const start = here.value ? { lat: here.value.latitude, lng: here.value.longitude } : lists.value.deliver.find((m) => m.origin_point)?.origin_point
+  return [
+    ...(start ? [{ id: 'start', lat: start.lat, lng: start.lng, kind: 'start', title: 'Départ' }] : []),
+    ...located.map(({ m, n }) => ({ id: m.id, lat: m.point.lat, lng: m.point.lng, label: String(n), kind: m.point.exact ? 'stop' : 'approx', last: n === lists.value.deliver.length, title: `${n} · ${m.place}` })),
+  ]
+})
+const noPoint = computed(() => mapStops.value.filter(({ m }) => !m.point))
+const selected = computed(() => mapStops.value.find(({ m }) => m.id === selectedStop.value) ?? null)
+const goUrl = (m) => (m.point ? `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${m.point.lat},${m.point.lng}` : itineraryUrl([m]))
+// Distance à vol d'oiseau depuis le départ (km)
+function km(a, b) {
+  const r = (d) => (d * Math.PI) / 180
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2
+  return 12742 * Math.asin(Math.sqrt(h))
+}
+const distanceTo = (m) => (here.value && m.point ? km({ lat: here.value.latitude, lng: here.value.longitude }, m.point).toFixed(1).replace('.', ',') : null)
+
 const EMPTY = { pickup: 'Rien à ramasser', deliver: 'Rien à livrer', return: 'Rien à rapporter à la boutique' }
 const OUTCOME_LABEL = { delivered: 'Livrée', failed: 'Échec', returned: 'Rapportée', picked_up: 'Récupérée' }
 </script>
@@ -298,17 +326,52 @@ const OUTCOME_LABEL = { delivered: 'Livrée', failed: 'Échec', returned: 'Rappo
     <!-- À livrer aujourd'hui : itinéraire et ordre de la tournée -->
     <section v-if="tab === 'deliver' && isToday && lists.deliver.length" class="space-y-2 rounded-xl bg-white p-3 shadow-sm">
       <p class="text-sm text-slate-600"><strong>{{ lists.deliver.length }} arrêt(s)</strong> · {{ money(toCollect(lists.deliver)) }} à encaisser</p>
-      <div v-if="!editing" class="grid grid-cols-2 gap-2">
-        <a :href="itinerary" target="_blank" class="btn-brand px-2 text-sm">🗺️ Itinéraire</a>
+      <div class="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 text-sm font-semibold" role="group" aria-label="Affichage">
+        <button type="button" class="rounded-md py-1.5" :class="view === 'list' ? 'bg-white shadow-sm' : 'text-slate-600'" :aria-pressed="view === 'list'" @click="view = 'list'">☰ Liste</button>
+        <button type="button" class="rounded-md py-1.5" :class="view === 'map' ? 'bg-white shadow-sm' : 'text-slate-600'" :aria-pressed="view === 'map'" @click="view = 'map'; editing = false">🗺️ Carte</button>
+      </div>
+      <div v-if="!editing && view === 'list'" class="grid grid-cols-2 gap-2">
+        <a :href="itinerary" target="_blank" class="btn-brand px-2 text-sm">🧭 Google Maps</a>
         <button class="btn-secondary px-2 text-sm" @click="edit">↕ Changer l'ordre</button>
       </div>
-      <div v-else class="grid grid-cols-2 gap-2">
+      <div v-else-if="editing" class="grid grid-cols-2 gap-2">
         <button class="btn-secondary px-2 text-sm" :disabled="busy" @click="auto">✨ Ordre automatique</button>
         <button class="btn-brand px-2 text-sm" @click="saveOrder">✓ Enregistrer</button>
         <button class="btn-ghost col-span-2 text-sm" @click="editing = false">Annuler</button>
       </div>
       <p v-if="lists.deliver.length > 10 && !editing" class="text-xs text-slate-500">L'itinéraire montre les dix premiers arrêts.</p>
     </section>
+
+    <!-- Carte de la tournée : départ, arrêts numérotés dans l'ordre, dernier arrêt entouré -->
+    <template v-if="tab === 'deliver' && isToday && view === 'map' && lists.deliver.length">
+      <div class="h-[55vh] min-h-72">
+        <MapView :points="mapPoints" line :selected="selectedStop" @select="(id) => (selectedStop = id === 'start' ? null : id)" />
+      </div>
+      <p class="flex flex-wrap gap-x-3 px-1 text-xs text-slate-500">
+        <span><span class="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-green-600 align-[-1px]" />{{ here ? 'Vous' : 'Boutique' }}</span>
+        <span><span class="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-700 align-[-1px]" />Position exacte</span>
+        <span><span class="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-dashed border-emerald-700 align-[-1px]" />Centre du quartier</span>
+        <span>Traits à vol d'oiseau</span>
+      </p>
+      <section v-if="selected" class="space-y-2 rounded-xl bg-white p-3 shadow-sm">
+        <p class="flex items-center gap-2">
+          <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-sm font-bold text-white">{{ selected.n }}</span>
+          <strong class="min-w-0 flex-1 truncate">{{ selected.m.place || 'Quartier ?' }}</strong>
+          <span v-if="distanceTo(selected.m)" class="text-xs text-slate-500">≈ {{ distanceTo(selected.m) }} km</span>
+        </p>
+        <p class="text-sm text-slate-600">{{ selected.m.customer_name || 'Client' }} · {{ selected.m.reference }} · {{ money(selected.m.cod_amount) }} à encaisser</p>
+        <p v-if="!selected.m.point.exact" class="text-xs text-amber-800">≈ Position approximative : centre du quartier.</p>
+        <div class="grid grid-cols-2 gap-2">
+          <RouterLink :to="`/livreur/missions/${selected.m.id}`" class="btn-secondary px-2 text-sm">Ouvrir la course</RouterLink>
+          <a :href="goUrl(selected.m)" target="_blank" class="btn-brand px-2 text-sm">🧭 Y aller</a>
+        </div>
+      </section>
+      <p v-else class="px-1 text-sm text-slate-500">Touchez un numéro pour voir la course.</p>
+      <div v-if="noPoint.length" class="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600">
+        <p class="font-medium">{{ noPoint.length }} arrêt(s) sans position sur la carte</p>
+        <RouterLink v-for="{ m, n } in noPoint" :key="`np-${m.id}`" :to="`/livreur/missions/${m.id}`" class="block truncate text-emerald-700">{{ n }} · {{ m.place || 'Quartier ?' }} · {{ m.customer_name }}</RouterLink>
+      </div>
+    </template>
 
     <!-- Chez le livreur, mais au marchand de décider -->
     <template v-if="tab === 'deliver'">
@@ -324,7 +387,7 @@ const OUTCOME_LABEL = { delivered: 'Livrée', failed: 'Échec', returned: 'Rappo
       {{ EMPTY[tab] }} {{ isToday ? 'aujourd\'hui' : 'ce jour-là' }}.
     </p>
 
-    <template v-for="(m, i) in shown" :key="m.id">
+    <template v-for="(m, i) in (tab === 'deliver' && isToday && view === 'map' ? [] : shown)" :key="m.id">
       <!-- Nouvelle course à accepter -->
       <section v-if="!isPast && isOffer(m)" class="space-y-2 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 shadow-sm">
         <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">🔔 Nouvelle course à accepter</p>

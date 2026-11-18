@@ -11,7 +11,7 @@ class StockLocation extends Model
 {
     use BelongsToStore;
 
-    protected $fillable = ['store_id', 'name', 'type', 'carrier_connection_id', 'remote_hub_id', 'address', 'landmark', 'phone', 'is_pickup_point', 'fulfills_online_orders', 'priority', 'is_active'];
+    protected $fillable = ['store_id', 'name', 'type', 'carrier_connection_id', 'remote_hub_id', 'address', 'landmark', 'latitude', 'longitude', 'phone', 'is_pickup_point', 'fulfills_online_orders', 'priority', 'is_active'];
 
     protected function casts(): array
     {
@@ -20,6 +20,8 @@ class StockLocation extends Model
             'is_pickup_point' => 'boolean',
             'fulfills_online_orders' => 'boolean',
             'is_active' => 'boolean',
+            'latitude' => 'float',
+            'longitude' => 'float',
         ];
     }
 

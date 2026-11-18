@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
@@ -22,7 +22,27 @@ function open(location) {
   error.value = ''
   editing.value = location
     ? { ...location }
-    : { name: '', type: 'warehouse', address: '', landmark: '', phone: '', is_pickup_point: false, fulfills_online_orders: true, priority: locations.value.length, is_active: true }
+    : { name: '', type: 'warehouse', address: '', landmark: '', latitude: null, longitude: null, phone: '', is_pickup_point: false, fulfills_online_orders: true, priority: locations.value.length, is_active: true }
+}
+
+// Épingle sur la carte : point de départ du livreur
+const MapView = defineAsyncComponent(() => import('../../../components/MapView.vue'))
+const pin = computed(() => (editing.value?.latitude != null ? [{ lat: editing.value.latitude, lng: editing.value.longitude, kind: 'pin', title: editing.value.name }] : []))
+const locating = ref(false)
+function setPin({ lat, lng }) {
+  editing.value.latitude = lat
+  editing.value.longitude = lng
+}
+function useMyPosition() {
+  if (!navigator.geolocation) return (error.value = 'Cet appareil ne donne pas sa position.')
+  locating.value = true
+  navigator.geolocation.getCurrentPosition(({ coords }) => {
+    setPin({ lat: +coords.latitude.toFixed(6), lng: +coords.longitude.toFixed(6) })
+    locating.value = false
+  }, () => {
+    locating.value = false
+    error.value = 'Position refusée : autorisez la localisation pour ce site, ou touchez la carte.'
+  }, { enableHighAccuracy: true, timeout: 20000 })
 }
 
 async function save() {
@@ -85,6 +105,16 @@ async function save() {
         <Field id="l-landmark" label="Point de repère">
           <input id="l-landmark" v-model="editing.landmark" class="input" maxlength="200" />
         </Field>
+        <div class="space-y-2">
+          <p class="label">Position sur la carte <span class="font-normal text-slate-400">(départ du livreur)</span></p>
+          <div class="h-48"><MapView :points="pin" pick @pick="setPin" /></div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="btn-secondary px-3 py-1.5 text-sm" :disabled="locating" @click="useMyPosition">{{ locating ? 'Position…' : '📍 Utiliser ma position' }}</button>
+            <button v-if="editing.latitude != null" type="button" class="btn-ghost px-3 py-1.5 text-sm" @click="editing.latitude = null; editing.longitude = null">Effacer</button>
+          </div>
+          <p class="explain-detail">Touchez la carte pour placer ou déplacer l'épingle.</p>
+          <p v-if="errors.latitude" class="text-sm text-red-600">{{ errors.latitude }}</p>
+        </div>
         <label class="flex items-center gap-2 text-sm"><input v-model="editing.is_pickup_point" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Les clients peuvent y retirer leurs commandes</label>
         <label class="flex items-center gap-2 text-sm"><input v-model="editing.fulfills_online_orders" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Prépare les commandes en ligne</label>
         <label v-if="editing.id" class="flex items-center gap-2 text-sm"><input v-model="editing.is_active" type="checkbox" class="h-4 w-4 accent-emerald-700" /> Actif</label>

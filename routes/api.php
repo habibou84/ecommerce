@@ -710,6 +710,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('missions', [CourierAppController::class, 'missions'])->name('missions');
                 Route::get('missions/{shipment}', [CourierAppController::class, 'show'])->whereNumber('shipment')->name('missions.show');
                 Route::post('missions/{shipment}/door-payment', [CourierAppController::class, 'doorPayment'])->whereNumber('shipment')->middleware('throttle:20,1')->name('missions.door-payment');
+                Route::post('missions/{shipment}/position', [CourierAppController::class, 'savePosition'])->whereNumber('shipment')->middleware('throttle:20,1')->name('missions.position');
                 Route::post('missions/{shipment}/accept', [CourierAppController::class, 'accept'])->whereNumber('shipment')->name('missions.accept');
                 Route::post('missions/{shipment}/decline', [CourierAppController::class, 'decline'])->whereNumber('shipment')->middleware('throttle:20,1')->name('missions.decline');
                 Route::post('missions/{shipment}/steps', [CourierAppController::class, 'step'])->whereNumber('shipment')->middleware('throttle:60,1')->name('missions.step');
