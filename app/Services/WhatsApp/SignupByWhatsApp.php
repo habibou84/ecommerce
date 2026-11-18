@@ -56,7 +56,7 @@ class SignupByWhatsApp
     /** Étapes de l'entonnoir, dans l'ordre */
     public const FUNNEL = ['started', 'confirmed', 'name', 'first_name', 'live', 'created', 'photo'];
 
-    public const KEY_PHRASE = 'Toi, tu fais ton live sur TikTok. Jibiat Marchand enregistre les commandes.';
+    public const KEY_PHRASE = 'Vous faites votre live sur TikTok. Jibiat Marchand enregistre les commandes.';
 
     private const FORBIDDEN = ['jibiat', 'whatsapp', 'facebook', 'tiktok', 'instagram', 'meta'];
 
@@ -132,7 +132,7 @@ class SignupByWhatsApp
 
             return false;
         }
-        // Choix par numéro (QR code : « Tape 1 ») ou bouton touché ; une correspondance ne sert qu'une fois
+        // Choix par numéro (QR code : « Tapez 1 ») ou bouton touché ; une correspondance ne sert qu'une fois
         if ($payload === null && ($payload = $signup->data['choices'][trim($text)] ?? null) !== null) {
             $signup->forceFill(['data' => array_merge($signup->data, ['choices' => []])])->save();
         }
@@ -150,7 +150,7 @@ class SignupByWhatsApp
         $active = $signup->exists && in_array($signup->step, self::ACTIVE, true);
         if ($active && in_array($words, ['annuler', 'stop inscription', 'laisse tomber'], true)) {
             $signup->fill(['step' => 'idle', 'data' => []])->save();
-            $this->say($phone, "D'accord, j'arrête l'inscription. Écris *Inscription* quand tu veux recommencer 🙂");
+            $this->say($phone, "D'accord, j'arrête l'inscription. Écrivez *Inscription* quand vous voulez recommencer 🙂");
 
             return true;
         }
@@ -204,7 +204,7 @@ class SignupByWhatsApp
         foreach ($due as $signup) {
             $signup->forceFill(['reminded_at' => now()])->save();
             try {
-                $this->say($signup->phone, 'Tu y es presque 😊 Ta boutique est à une ou deux réponses d\'être prête.');
+                $this->say($signup->phone, 'Vous y êtes presque 😊 Votre boutique est à une ou deux réponses d\'être prête.');
                 $this->ask($signup, $signup->step);
                 $sent++;
             } catch (Throwable) {
@@ -246,7 +246,7 @@ class SignupByWhatsApp
             return true;
         }
         $signup->save();
-        $this->choices($signup, "Bienvenue sur Jibiat Marchand 👋\n".self::KEY_PHRASE."\n\nTu veux créer ta boutique avec ce numéro : *".PhoneNumber::display($phone).'* ?', [
+        $this->choices($signup, "Bienvenue sur Jibiat Marchand 👋\n".self::KEY_PHRASE."\n\nVous voulez créer votre boutique avec ce numéro : *".PhoneNumber::display($phone).'* ?', [
             'su:yes' => '✅ Oui', 'su:other' => 'Autre numéro',
         ]);
 
@@ -269,7 +269,7 @@ class SignupByWhatsApp
             case 'confirm':
                 if ($payload === 'su:other' || self::words($value) === 'autre numero') {
                     $signup->fill(['step' => 'idle'])->save();
-                    $this->say($signup->phone, "D'accord. Le plus simple : écris *Inscription* depuis le WhatsApp de ce numéro-là 🙂\nOu inscris-toi sur le site : ".Tenancy::platformUrl('/creer-ma-boutique'));
+                    $this->say($signup->phone, "D'accord. Le plus simple : écrivez *Inscription* depuis le WhatsApp de ce numéro-là 🙂\nOu inscrivez-vous sur le site : ".Tenancy::platformUrl('/creer-ma-boutique'));
 
                     return true;
                 }
@@ -294,7 +294,7 @@ class SignupByWhatsApp
             case 'first_name':
                 $name = Str::limit(preg_replace('/\s+/', ' ', $value), 40, '');
                 if (self::notAName($name) || preg_match('/https?:|www\.|\d{4,}/i', $name)) {
-                    return $this->missed($signup) ?: $this->sayTrue($signup, 'Écris juste ton prénom, par exemple *Awa* 🙂');
+                    return $this->missed($signup) ?: $this->sayTrue($signup, 'Écrivez juste votre prénom, par exemple *Awa* 🙂');
                 }
                 $this->put($signup, ['first_name' => mb_convert_case($name, MB_CASE_TITLE)]);
                 $this->reach($signup, 'first_name');
@@ -331,7 +331,7 @@ class SignupByWhatsApp
                 }
                 if (in_array(self::words($value), ['plus tard', 'non', 'pas maintenant', 'apres'], true)) {
                     $signup->fill(['step' => 'done'])->save();
-                    $this->say($signup->phone, 'Pas de souci 👍 Ajoute tes articles quand tu veux depuis ta boutique. Écris *live* pour savoir comment vendre en live.');
+                    $this->say($signup->phone, 'Pas de souci 👍 Ajoutez vos articles quand vous voulez depuis votre boutique. Écrivez *live* pour savoir comment vendre en live.');
 
                     return true;
                 }
@@ -350,14 +350,14 @@ class SignupByWhatsApp
         $signup->forceFill(['step' => $step])->save();
         $data = $signup->data ?? [];
         match ($step) {
-            'existing' => $this->choices($signup, 'Touche *Me connecter* pour recevoir ton lien de connexion à ta boutique.', ['su:login' => 'Me connecter']),
-            'confirm' => $this->choices($signup, 'Tu veux créer ta boutique avec ce numéro : *'.PhoneNumber::display($signup->phone).'* ?', ['su:yes' => '✅ Oui', 'su:other' => 'Autre numéro']),
-            'name' => $this->say($signup->phone, (($signup->data['misses'] ?? 0) > 0 || isset($signup->data['store_name']) ? '' : 'Super ! ')."Quel est le *nom de ta boutique* ?\n_Exemple : Awa Mode_"),
-            'first_name' => $this->say($signup->phone, (($signup->data['misses'] ?? 0) > 0 ? 'Et ' : 'Joli nom ! Et ').'*ton prénom* ?'),
-            'live' => $this->choices($signup, 'Dernière question : tu vends en *live sur TikTok* ?', ['su:live-yes' => 'Oui, en live', 'su:live-no' => 'Pas encore']),
-            'recap' => $this->choices($signup, "Je vérifie avec toi :\n\n🏪 *{$data['store_name']}*\n🔗 ".self::host($this->slugFor($data['store_name'] ?? ''))."\n👤 "
+            'existing' => $this->choices($signup, 'Touchez *Me connecter* pour recevoir votre lien de connexion à votre boutique.', ['su:login' => 'Me connecter']),
+            'confirm' => $this->choices($signup, 'Vous voulez créer votre boutique avec ce numéro : *'.PhoneNumber::display($signup->phone).'* ?', ['su:yes' => '✅ Oui', 'su:other' => 'Autre numéro']),
+            'name' => $this->say($signup->phone, (($signup->data['misses'] ?? 0) > 0 || isset($signup->data['store_name']) ? '' : 'Super ! ')."Quel est le *nom de votre boutique* ?\n_Exemple : Awa Mode_"),
+            'first_name' => $this->say($signup->phone, (($signup->data['misses'] ?? 0) > 0 ? 'Et ' : 'Joli nom ! Et ').'*votre prénom* ?'),
+            'live' => $this->choices($signup, 'Dernière question : vous vendez en *live sur TikTok* ?', ['su:live-yes' => 'Oui, en live', 'su:live-no' => 'Pas encore']),
+            'recap' => $this->choices($signup, "Je vérifie avec vous :\n\n🏪 *{$data['store_name']}*\n🔗 ".self::host($this->slugFor($data['store_name'] ?? ''))."\n👤 "
                 .($data['first_name'] ?? self::firstName((string) User::where('phone', $signup->phone)->value('name'))).' · '.PhoneNumber::display($signup->phone)
-                ."\n🎁 Essai gratuit, sans carte bancaire\n\nOn crée ta boutique ?", ['su:create' => '🚀 Créer', 'su:edit' => 'Modifier']),
+                ."\n🎁 Essai gratuit, sans carte bancaire\n\nOn crée votre boutique ?", ['su:create' => '🚀 Créer', 'su:edit' => 'Modifier']),
             default => null,
         };
 
@@ -370,12 +370,12 @@ class SignupByWhatsApp
         $phone = $signup->phone;
         $owner = User::where('phone', $phone)->first();
         if ($owner !== null && ! $owner->isActive()) {
-            $this->say($phone, 'Ce compte est suspendu. Écris *aide* pour parler à l\'équipe.');
+            $this->say($phone, 'Ce compte est suspendu. Écrivez *aide* pour parler à l\'équipe.');
 
             return true;
         }
         if ($owner !== null && Store::where('owner_id', $owner->id)->where('created_at', '>=', now()->subDay())->count() >= self::MAX_STORES_PER_DAY) {
-            $this->say($phone, 'Tu as déjà créé '.self::MAX_STORES_PER_DAY.' boutiques aujourd\'hui. Réessaie demain, ou écris *aide*.');
+            $this->say($phone, 'Vous avez déjà créé '.self::MAX_STORES_PER_DAY.' boutiques aujourd\'hui. Réessayez demain, ou écrivez *aide*.');
 
             return true;
         }
@@ -395,7 +395,7 @@ class SignupByWhatsApp
                 return app(StoreSignup::class)->createStore($owner, $data['store_name'], $this->slugFor($data['store_name']), partner: $partner);
             });
         } catch (BusinessRuleException $e) {
-            $this->say($phone, 'Je n\'ai pas pu créer la boutique : '.$e->getMessage()."\nÉcris un autre nom de boutique.");
+            $this->say($phone, 'Je n\'ai pas pu créer la boutique : '.$e->getMessage()."\nÉcrivez un autre nom de boutique.");
 
             return $this->ask($signup, 'name');
         }
@@ -413,10 +413,10 @@ class SignupByWhatsApp
         $signup->forceFill(['step' => 'photo', 'store_id' => $store->id, 'completed_at' => now()])->save();
         $this->reach($signup, 'created');
         $link = app(LoginHandoff::class)->url($owner, $store, '/gestion', self::LINK_TTL);
-        $this->say($phone, '✅ C\'est prêt, '.self::firstName($owner->name)." ! Ta boutique *{$store->name}* est créée.\n\n"
-            ."👉 Ouvre-la ici (lien valable 15 min, rien que pour toi, ne le partage pas) :\n{$link}\n\n"
-            .'La prochaine fois, connecte-toi avec ton numéro : on t\'envoie la vérification ici, sur WhatsApp.', preview: false);
-        $this->say($phone, '📸 Envoie-moi maintenant la *photo d\'un article* que tu vends : je crée ta première fiche produit. (Ou écris *plus tard*.)');
+        $this->say($phone, '✅ C\'est prêt, '.self::firstName($owner->name)." ! Votre boutique *{$store->name}* est créée.\n\n"
+            ."👉 Ouvrez-la ici (lien valable 15 min, rien que pour vous, ne le partagez pas) :\n{$link}\n\n"
+            .'La prochaine fois, connectez-vous avec votre numéro : on vous envoie la vérification ici, sur WhatsApp.', preview: false);
+        $this->say($phone, '📸 Envoyez-moi maintenant la *photo d\'un article* que vous vendez : je crée votre première fiche produit. (Ou écrivez *plus tard*.)');
 
         return true;
     }
@@ -425,14 +425,14 @@ class SignupByWhatsApp
     {
         if ($mediaId === '') {
             // Par QR code, la photo n'arrive pas jusqu'ici
-            $this->say($signup->phone, '📸 Merci ! Ajoute-la dans ta boutique, c\'est plus simple : '.$signup->store?->url('/gestion/catalogue/nouveau'));
+            $this->say($signup->phone, '📸 Merci ! Ajoutez-la dans votre boutique, c\'est plus simple : '.$signup->store?->url('/gestion/catalogue/nouveau'));
             $signup->fill(['step' => 'done'])->save();
 
             return true;
         }
         $signup->fill(['step' => 'done'])->save();
         $this->reach($signup, 'photo');
-        $this->say($signup->phone, '👍 Photo reçue, je prépare ta fiche…');
+        $this->say($signup->phone, '👍 Photo reçue, je prépare votre fiche…');
         DraftSignupProduct::dispatch($signup->id, $mediaId);
 
         return true;
@@ -447,7 +447,7 @@ class SignupByWhatsApp
         if ($signup->store === null) {
             return;
         }
-        $this->say($signup->phone, 'Je n\'ai pas pu préparer la fiche avec cette photo. Ajoute ton article ici : '.$signup->store->url('/gestion/catalogue/nouveau'));
+        $this->say($signup->phone, 'Je n\'ai pas pu préparer la fiche avec cette photo. Ajoutez votre article ici : '.$signup->store->url('/gestion/catalogue/nouveau'));
     }
 
     public function draftProduct(WhatsappSignup $signup, string $mediaId): void
@@ -475,8 +475,8 @@ class SignupByWhatsApp
         }
         $options = $product->options->map(fn ($o) => $o->name.' : '.$o->values->pluck('value')->implode(', '))->implode("\n");
         $link = app(LoginHandoff::class)->url($owner, $store, '/gestion/catalogue/'.$product->id, self::LINK_TTL);
-        $this->say($signup->phone, "Voilà ta première fiche 👇\n\n*{$product->title}*\nPrix : _à compléter_".($options !== '' ? "\n{$options}" : '')
-            ."\n\nAjoute le prix ici (lien 15 min) :\n{$link}\n\nPour ton premier live, écris *live* et je t'explique.", preview: false);
+        $this->say($signup->phone, "Voilà votre première fiche 👇\n\n*{$product->title}*\nPrix : _à compléter_".($options !== '' ? "\n{$options}" : '')
+            ."\n\nAjoutez le prix ici (lien 15 min) :\n{$link}\n\nPour votre premier live, écrivez *live* et je vous explique.", preview: false);
     }
 
     private function sendLogin(WhatsappSignup $signup): bool
@@ -485,11 +485,11 @@ class SignupByWhatsApp
         $owner = User::where('phone', $signup->phone)->first();
         $signup->fill(['step' => 'idle'])->save();
         if ($store === null || $owner === null || ! $owner->isActive() || $owner->activeMembershipIn($store) === null) {
-            $this->say($signup->phone, 'Connecte-toi sur '.Tenancy::platformUrl('/connexion').' avec ton numéro.');
+            $this->say($signup->phone, 'Connectez-vous sur '.Tenancy::platformUrl('/connexion').' avec votre numéro.');
 
             return true;
         }
-        $this->say($signup->phone, "Voici ton lien de connexion (15 min, ne le partage pas) :\n".app(LoginHandoff::class)->url($owner, $store, '/gestion', self::LINK_TTL), preview: false);
+        $this->say($signup->phone, "Voici votre lien de connexion (15 min, ne le partagez pas) :\n".app(LoginHandoff::class)->url($owner, $store, '/gestion', self::LINK_TTL), preview: false);
 
         return true;
     }
@@ -498,7 +498,7 @@ class SignupByWhatsApp
     {
         $signup->forceFill(['paused_until' => now()->addDays(self::PAUSE_DAYS)])->save();
         SupportConversation::whereIn('contact', array_unique([$signup->phone, $this->contact($signup->phone)]))->update(['help_requested_at' => now()]);
-        $this->say($signup->phone, 'C\'est noté 🙏 Quelqu\'un de l\'équipe Jibiat Marchand te répond ici très vite.');
+        $this->say($signup->phone, 'C\'est noté 🙏 Quelqu\'un de l\'équipe Jibiat Marchand vous répond ici très vite.');
         app(SupportAlerts::class)->helpRequested($this->contact($signup->phone), 'A écrit « aide » (étape : '.$this->stepLabel($signup->step).').');
 
         return true;
@@ -512,13 +512,13 @@ class SignupByWhatsApp
         $owner = User::where('phone', $phone)->first();
         $store = $owner?->stores()->orderBy('stores.id')->first();
         if ($store === null) {
-            $this->choices($this->signupRow($phone), self::KEY_PHRASE."\n\nPour vendre en live, il te faut d'abord ta boutique. On la crée maintenant ?", ['su:start' => '🚀 M\'inscrire']);
+            $this->choices($this->signupRow($phone), self::KEY_PHRASE."\n\nPour vendre en live, il vous faut d'abord votre boutique. On la crée maintenant ?", ['su:start' => '🚀 M\'inscrire']);
 
             return true;
         }
-        $this->say($phone, self::KEY_PHRASE."\n\nTon premier live en 3 étapes :\n1️⃣ Connecte ton WhatsApp Business (une fois)\n2️⃣ Choisis tes articles : chacun reçoit un code (A1, A2…)\n3️⃣ Ouvre les commandes et lance ton live sur TikTok : tes clients écrivent le code, la commande est enregistrée\n\n🎬 La vidéo (1 min) : "
+        $this->say($phone, self::KEY_PHRASE."\n\nVotre premier live en 3 étapes :\n1️⃣ Connectez votre WhatsApp Business (une fois)\n2️⃣ Choisissez vos articles : chacun reçoit un code (A1, A2…)\n3️⃣ Ouvrez les commandes et lancez votre live sur TikTok : vos clients écrivent le code, la commande est enregistrée\n\n🎬 La vidéo (1 min) : "
             .Tenancy::platformUrl('/video/live/comment-ca-marche-v'));
-        $this->choices($this->signupRow($phone), 'Je t\'envoie le lien pour préparer ton live ?', ['lv:link' => 'Préparer mon live', 'lv:wa' => 'Connecter WhatsApp', 'su:help' => 'Je veux de l\'aide']);
+        $this->choices($this->signupRow($phone), 'Je vous envoie le lien pour préparer votre live ?', ['lv:link' => 'Préparer mon live', 'lv:wa' => 'Connecter WhatsApp', 'su:help' => 'Je veux de l\'aide']);
 
         return true;
     }
@@ -532,8 +532,8 @@ class SignupByWhatsApp
         }
         $link = app(LoginHandoff::class)->url($owner, $store, '/gestion/live', self::LINK_TTL);
         $this->say($phone, ($payload === 'lv:wa'
-            ? "Pour connecter WhatsApp, ton numéro doit être dans l'application *WhatsApp Business* (pas WhatsApp classique). Meta peut te demander de scanner un QR code avec WhatsApp Business : fais-le depuis un autre appareil si tu es sur ce téléphone.\n\n👉 Étape 1 de cette page (lien 15 min) :\n"
-            : "👉 Prépare ton live ici (lien 15 min, ne le partage pas) :\n").$link, preview: false);
+            ? "Pour connecter WhatsApp, votre numéro doit être dans l'application *WhatsApp Business* (pas WhatsApp classique). Meta peut vous demander de scanner un QR code avec WhatsApp Business : faites-le depuis un autre appareil si vous êtes sur ce téléphone.\n\n👉 Étape 1 de cette page (lien 15 min) :\n"
+            : "👉 Préparez votre live ici (lien 15 min, ne le partagez pas) :\n").$link, preview: false);
 
         return true;
     }
@@ -666,10 +666,10 @@ class SignupByWhatsApp
         }
         $what = match ($kind) {
             'audio' => '🎤 Je ne peux pas écouter les vocaux.',
-            'image' => '📷 J\'ai bien reçu ta photo, mais j\'ai d\'abord besoin d\'une réponse écrite.',
+            'image' => '📷 J\'ai bien reçu votre photo, mais j\'ai d\'abord besoin d\'une réponse écrite.',
             default => 'Je n\'ai pas compris 🙂',
         };
-        $this->say($signup->phone, $what.' Réponds par écrit, s\'il te plaît.');
+        $this->say($signup->phone, $what.' Répondez par écrit, s\'il vous plaît.');
 
         return $this->ask($signup, $signup->step);
     }
@@ -687,11 +687,11 @@ class SignupByWhatsApp
                 'audio' => '🎤 J\'ai reçu un vocal',
                 'document' => '📄 J\'ai reçu un document',
                 'sticker' => 'J\'ai reçu un autocollant',
-                default => 'J\'ai bien reçu ton message',
+                default => 'J\'ai bien reçu votre message',
             };
-            $this->say($signup->phone, $got.', mais il me faut une *photo* de ton article 📸 : appareil photo › touche une fois (pas d\'appui long). Ou écris *plus tard*.');
+            $this->say($signup->phone, $got.', mais il me faut une *photo* de votre article 📸 : appareil photo › touchez une fois (pas d\'appui long). Ou écrivez *plus tard*.');
         } else {
-            $this->say($signup->phone, 'Pas de souci 🙂 Si c\'est compliqué, écris *plus tard* : tu ajouteras tes articles depuis ta boutique.');
+            $this->say($signup->phone, 'Pas de souci 🙂 Si c\'est compliqué, écrivez *plus tard* : vous ajouterez vos articles depuis votre boutique.');
         }
 
         return true;
@@ -707,7 +707,7 @@ class SignupByWhatsApp
             return false;
         }
         $this->put($signup, ['misses' => 0]);
-        $this->say($signup->phone, 'Je passe la main à un conseiller : il te répond ici très vite 🙂');
+        $this->say($signup->phone, 'Je passe la main à un conseiller : il vous répond ici très vite 🙂');
         app(SupportAlerts::class)->helpRequested($this->contact($signup->phone), 'Le robot n\'a pas compris 3 réponses de suite (étape : '.$this->stepLabel($signup->step).').');
         $signup->forceFill(['paused_until' => now()->addDays(self::PAUSE_DAYS)])->save();
 
@@ -744,14 +744,14 @@ class SignupByWhatsApp
     {
         $plain = self::words($name);
         if (mb_strlen(trim($name)) > 60 || self::notAName($name)) {
-            return 'Écris le nom de ta boutique (2 à 60 lettres), par exemple *Awa Mode*.';
+            return 'Écrivez le nom de votre boutique (2 à 60 lettres), par exemple *Awa Mode*.';
         }
         if (preg_match('/https?:|www\.|@/i', $name)) {
             return 'Juste le nom, sans lien ni adresse e-mail 🙂';
         }
         foreach (self::FORBIDDEN as $word) {
             if (preg_match('/\b'.$word.'\b/', $plain)) {
-                return 'Ce nom n\'est pas possible (« '.$word.' » est réservé). Choisis le nom de ta boutique.';
+                return 'Ce nom n\'est pas possible (« '.$word.' » est réservé). Choisissez le nom de votre boutique.';
             }
         }
 
@@ -782,6 +782,6 @@ class SignupByWhatsApp
 
     private static function firstName(?string $name): string
     {
-        return Str::before(trim((string) $name), ' ') ?: 'toi';
+        return Str::before(trim((string) $name), ' ') ?: 'vous';
     }
 }

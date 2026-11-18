@@ -10,6 +10,7 @@ use App\Models\SupportMessage;
 use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Services\Accounts\PhoneVerifier;
+use App\Services\Support\SupportAgent;
 use App\Support\Tenancy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
@@ -522,9 +523,13 @@ class PlatformWhatsApp
         } else {
             // Inscription par WhatsApp, mot « live », « aide » : réponses automatiques (sauf pendant une pause)
             $payload = $message['interactive']['button_reply']['id'] ?? $message['interactive']['list_reply']['id'] ?? $message['button']['payload'] ?? null;
-            rescue(fn () => app(SignupByWhatsApp::class)->handle('+'.ltrim($from, '+'), ($message['type'] ?? null) === 'image' ? '' : $body,
+            $answered = rescue(fn () => app(SignupByWhatsApp::class)->handle('+'.ltrim($from, '+'), ($message['type'] ?? null) === 'image' ? '' : $body,
                 is_string($payload) ? $payload : null, ($message['type'] ?? null) === 'image' ? ($message['image']['id'] ?? null) : null,
-                (string) ($message['type'] ?? 'text')));
+                (string) ($message['type'] ?? 'text')), true);
+            // Question libre restée sans réponse du robot : l'assistant du support y répond (s'il est activé)
+            if ($answered === false && $saved !== null) {
+                rescue(fn () => app(SupportAgent::class)->schedule($saved));
+            }
         }
 
         return $saved;
@@ -587,13 +592,13 @@ class PlatformWhatsApp
     }
 
     /**
-     * Message à boutons (3 au plus) : boutons de WhatsApp avec Meta, « Tape 1 / Tape 2 » par QR code.
+     * Message à boutons (3 au plus) : boutons de WhatsApp avec Meta, « Tapez 1 / Tapez 2 » par QR code.
      *
      * @param  array<string, string>  $buttons  identifiant => libellé
      */
     public function sendChoices(string $to, string $text, array $buttons): SupportMessage
     {
-        $listed = $text."\n\n".collect(array_values($buttons))->map(fn (string $label, int $i) => 'Tape *'.($i + 1).'* : '.$label)->implode("\n");
+        $listed = $text."\n\n".collect(array_values($buttons))->map(fn (string $label, int $i) => 'Tapez *'.($i + 1).'* : '.$label)->implode("\n");
         if ($this->isQr()) {
             $id = $this->bridge->sendFrom(WhatsAppBridge::PLATFORM, $to, $listed);
         } else {
