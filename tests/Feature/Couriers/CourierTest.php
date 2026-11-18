@@ -50,6 +50,8 @@ class CourierTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Avant l'heure limite (14 h) : les commandes du jour se livrent le jour même, quelle que soit l'heure des tests
+        $this->travelTo(today()->setTime(10, 0));
         Storage::fake('local');
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
         // Offre Pro : jusqu'à 5 livreurs (l'offre gratuite n'en permet qu'un)

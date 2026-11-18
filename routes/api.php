@@ -307,6 +307,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('dashboard', DashboardController::class)->name('dashboard');
             // Guide de démarrage pas à pas (étapes selon le rôle de chacun)
             Route::get('setup-guide', [SetupGuideController::class, 'show'])->name('setup-guide.show');
+            Route::post('setup-guide/welcome', [SetupGuideController::class, 'finishWelcome'])->name('setup-guide.welcome');
             Route::put('setup-guide/{step}', [SetupGuideController::class, 'skip'])->where('step', '[a-z_]+')->name('setup-guide.skip');
             // Centre d'aide : fiches, recherche, avis
             Route::get('help', [HelpController::class, 'index'])->middleware('throttle:60,1')->name('help');

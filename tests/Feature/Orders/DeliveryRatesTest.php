@@ -40,6 +40,8 @@ class DeliveryRatesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Avant l'heure limite (14 h) : les commandes du jour se livrent le jour même, quelle que soit l'heure des tests
+        $this->travelTo(today()->setTime(10, 0));
         Storage::fake('local');
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
         Subscription::create(['store_id' => $this->store->id, 'plan_id' => Plan::where('code', 'pro')->value('id'), 'status' => 'active', 'billing_cycle' => 'monthly', 'current_period_start' => now(), 'current_period_end' => now()->addMonth()]);
