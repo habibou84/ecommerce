@@ -42,6 +42,8 @@ use App\Services\Stock\StockKeeper;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Jibiat\Socle\Money;
 
 /**
  * Toutes les opérations sur les commandes passent par ici : création, modification, changements de statut
@@ -117,6 +119,7 @@ class OrderDesk
             $this->replaceItems($order, $data['items'], $actor);
             $this->recalculate($order, $data['shipping_fee'] ?? null, true);
             $order->deposit_manual = array_key_exists('deposit_required', $data) && $data['deposit_required'] !== null;
+            $this->checkDeposit($order, $data);
             $this->preorder($order);
             $this->deposit($order);
             $order->save();
@@ -205,6 +208,7 @@ class OrderDesk
             // Acompte : fixé à la main (vide = calculé de nouveau), sinon recalculé avec les articles et le total
             if (array_key_exists('deposit_required', $data)) {
                 $order->deposit_manual = $data['deposit_required'] !== null;
+                $this->checkDeposit($order, $data);
             }
             $this->deposit($order);
             $order->save();
@@ -527,19 +531,31 @@ class OrderDesk
     }
 
     /**
-     * Acompte calculé (sauf s'il a été fixé à la main) : somme des acomptes des articles, ou la règle de la boutique
-     * (toujours, ou au-dessus d'un montant : pourcentage du total) si elle donne plus. Arrondi aux 100 F, jamais plus
-     * que le total ; null sans acompte.
+     * Acompte calculé (sauf s'il a été fixé à la main) : voir autoDeposit(). Un acompte fixé à la main reste le sien,
+     * mais jamais plus que le total (articles retirés ensuite) ; null sans acompte.
      */
     public function deposit(Order $order): void
     {
+        $total = (int) $order->total;
         if ($order->deposit_manual) {
+            $order->deposit_required = $order->deposit_required ? (min((int) $order->deposit_required, $total) ?: null) : null;
+
             return;
         }
         $store = $order->store ?? Store::find($order->store_id);
         $items = $order->items()->with('product')->get();
         $fromItems = (int) $items->sum(fn ($i) => $i->product ? $i->product->depositFor((int) $i->total, (int) $i->quantity) : 0);
-        $total = (int) $order->total;
+        $deposit = self::autoDeposit($fromItems, $total, $store);
+        $order->deposit_required = $deposit > 0 ? $deposit : null;
+    }
+
+    /**
+     * Acompte « Auto » : somme des acomptes des articles, ou la règle de la boutique (toujours, ou au-dessus d'un
+     * montant : pourcentage du total) si elle donne plus. Arrondi aux 100 F, jamais plus que le total ; 0 sans acompte.
+     * Même calcul pour l'enregistrement et pour l'aperçu du formulaire de commande.
+     */
+    public static function autoDeposit(int $fromItems, int $total, ?Store $store): int
+    {
         $percent = (int) ($store?->deposit_rule_percent ?? 0);
         $ruleApplies = $percent > 0 && match ($store?->deposit_mode) {
             'always' => true,
@@ -548,8 +564,27 @@ class OrderDesk
         };
         $fromRule = $ruleApplies ? (int) round($total * min(100, $percent) / 100) : 0;
         $deposit = max($fromItems, $fromRule);
-        $deposit = $deposit > 0 ? min($total, (int) (ceil($deposit / 100) * 100)) : 0;
-        $order->deposit_required = $deposit > 0 ? $deposit : null;
+
+        return $deposit > 0 ? min($total, (int) (ceil($deposit / 100) * 100)) : 0;
+    }
+
+    /**
+     * Acompte saisi à la main : jamais plus que le total de la commande (0 = pas d'acompte).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function checkDeposit(Order $order, array $data): void
+    {
+        $asked = $data['deposit_required'] ?? null;
+        if ($asked === null) {
+            return;
+        }
+        if ((int) $asked > (int) $order->total) {
+            throw ValidationException::withMessages([
+                'deposit_required' => "L'acompte ne peut pas dépasser le total de la commande (".Money::format((int) $order->total).').',
+            ]);
+        }
+        $order->deposit_required = (int) $asked > 0 ? (int) $asked : null;
     }
 
     private function releaseItems(Order $order, ?User $actor, string $note): Order
