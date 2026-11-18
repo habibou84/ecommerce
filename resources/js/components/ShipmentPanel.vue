@@ -31,6 +31,9 @@ const emit = defineEmits(['changed'])
 const shipments = computed(() => [...(props.order.shipments ?? [])].reverse())
 const active = computed(() => shipments.value.find((s) => !['cancelled', 'rejected'].includes(s.status)))
 const canShip = computed(() => props.order.delivery_method === 'delivery' && ['confirmed', 'processing'].includes(props.order.status) && !active.value)
+// Acompte attendu (réglage « l'acompte bloque la livraison ») : la course partira une fois payé ; l'expédition payée
+// d'avance a son propre encadré (ExpeditionPanel)
+const waitingDeposit = computed(() => (!active.value && props.order.upfront?.blocking && !props.order.expedition?.prepay ? props.order.upfront.deposit_due : 0))
 
 // Livreur ou entreprise déjà choisi pour la commande (pas encore de course) : affiché à la place de « Faire livrer »
 const planned = computed(() => (!active.value && props.order.delivery_method === 'delivery' ? props.order.planned_courier ?? props.order.planned_carrier ?? null : null))
@@ -226,14 +229,19 @@ async function whatsapp(s) {
   <section class="card space-y-3 p-4 text-sm">
     <div class="flex items-center gap-2">
       <h3 class="font-semibold">Livraison</h3>
-      <button v-if="canShip && !planned" class="btn-brand ml-auto px-3 py-1.5" @click="openShip"><Icon name="truck" :size="16" class="mr-1 inline-block align-[-3px]" />Faire livrer</button>
+      <button v-if="canShip && !planned && !waitingDeposit" class="btn-brand ml-auto px-3 py-1.5" @click="openShip"><Icon name="truck" :size="16" class="mr-1 inline-block align-[-3px]" />Faire livrer</button>
+    </div>
+    <!-- Acompte attendu : à la place de « Faire livrer », ce qu'il faut d'abord -->
+    <div v-if="waitingDeposit && ['pending_confirmation', 'confirmed', 'processing'].includes(order.status)" class="rounded-xl bg-amber-50 p-3 text-amber-900">
+      <p class="font-semibold">⏳ En attente de l'acompte : {{ money(waitingDeposit) }}</p>
+      <p class="mt-0.5">La course pourra partir une fois l'acompte payé : boutons « Lien d'acompte » ou « Acompte reçu ».</p>
     </div>
     <!-- Livreur déjà choisi : son nom et « Modifier » au lieu de « Faire livrer » -->
     <div v-if="planned" class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
       <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><Icon name="truck" :size="18" /></span>
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">{{ planned.name }}</span>
-        <span class="block text-xs text-emerald-800">{{ order.status === 'pending_confirmation' ? 'Livreur choisi · la course partira à la confirmation' : canShip ? 'Livreur choisi · course pas encore envoyée' : 'Livreur choisi' }}</span>
+        <span class="block text-xs text-emerald-800">{{ waitingDeposit ? 'Livreur choisi · la course pourra partir une fois l\'acompte payé' : order.status === 'pending_confirmation' ? 'Livreur choisi · la course partira à la confirmation' : canShip ? 'Livreur choisi · course pas encore envoyée' : 'Livreur choisi' }}</span>
       </span>
       <button type="button" class="btn-secondary shrink-0 px-3 py-1.5" :disabled="busy" @click="openPicker">Modifier</button>
     </div>

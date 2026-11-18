@@ -21,11 +21,11 @@ class MessageTexts
     public const MESSAGES = [
         'confirm_request' => [
             'label' => 'Demande de confirmation (depuis votre WhatsApp)',
-            'text' => "Bonjour {prenom}, merci pour votre commande {commande} chez {boutique} :\n{articles}\n\nTotal : {total} ({adresse}).\n\nPouvez-vous nous confirmer la commande et votre disponibilité ? Répondez « OUI » pour confirmer.",
+            'text' => "Bonjour {prenom}, merci pour votre commande {commande} chez {boutique} :\n{articles}\n\nTotal : {total} ({adresse}).\n💳 Acompte à payer pour valider la commande : {acompte}\n\nPouvez-vous nous confirmer la commande et votre disponibilité ? Répondez « OUI » pour confirmer.",
         ],
         'whatsapp_confirmation' => [
             'label' => 'Demande de confirmation automatique (boutons Confirmer / Annuler, dans la conversation)',
-            'text' => "Bonjour {prenom}, merci pour votre commande {commande} chez {boutique} :\n{articles}\n\nTotal : {total} ({adresse}).\n\nConfirmez-vous la commande ?",
+            'text' => "Bonjour {prenom}, merci pour votre commande {commande} chez {boutique} :\n{articles}\n\nTotal : {total} ({adresse}).\n💳 Acompte à payer pour valider la commande : {acompte}\n\nConfirmez-vous la commande ?",
         ],
         'courier_on_the_way' => [
             'label' => 'Livreur en route (au départ du livreur ; boutons J\'attends / Pas disponible)',
@@ -64,6 +64,7 @@ class MessageTexts
         'articles' => 'liste des articles',
         'total' => 'total',
         'reste' => 'reste à payer (ligne retirée si tout est payé)',
+        'acompte' => 'acompte encore à payer (ligne retirée sans acompte)',
         'adresse' => 'livraison ou retrait',
         'suivi' => 'lien de suivi',
         'lien_avis' => 'lien pour donner son avis',
@@ -71,6 +72,14 @@ class MessageTexts
         'livreur' => 'prénom du livreur',
         'tel_livreur' => 'téléphone du livreur',
     ];
+
+    /**
+     * Acompte encore à payer avant que la commande parte (pas pour une expédition payée d'avance : tout est dû).
+     */
+    public static function depositDue(Order $order): int
+    {
+        return $order->isExpedition() && $order->expedition_prepay ? 0 : $order->depositDue();
+    }
 
     public function text(Store $store, string $key): string
     {
@@ -148,6 +157,7 @@ class MessageTexts
             'articles' => $order->items->map(fn ($i) => "• {$i->quantity} × {$i->label()}")->implode("\n"),
             'total' => Money::format($order->total),
             'reste' => $order->amountDue() > 0 ? Money::format($order->amountDue()) : '',
+            'acompte' => self::depositDue($order) > 0 ? Money::format(self::depositDue($order)) : '',
             'adresse' => $order->delivery_method === 'pickup' ? 'à retirer en boutique' : 'à livrer à '.trim(($order->shipping_place_label ?? '').' '.($order->shipping_address ?? '')),
             'suivi' => $order->trackingUrl(),
             'lien_avis' => $order->store->url('/avis/'.$order->tracking_token),

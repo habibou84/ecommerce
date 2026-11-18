@@ -156,11 +156,16 @@ function deliveryBadge(o) {
 // Action principale de chaque ligne, selon l'étape : toujours en vert de la marque (l'ocre est pour les statuts à traiter)
 function mainAction(o) {
   if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => confirmOrder(o) }
-  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && o.prepay_due > 0 && !o.shipment_id && canManage.value) return { label: 'Lien de paiement', icon: 'cash', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => sendPayLink(o) }
+  if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && o.prepay_due > 0 && !o.shipment_id && canManage.value) return { label: o.prepay_kind === 'deposit' ? 'Lien d\'acompte' : 'Lien de paiement', icon: 'cash', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => sendPayLink(o) }
   if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && !o.deliverer) return { label: 'Faire livrer', icon: 'truck', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openAssign([o.id]) }
   if (o.status === 'shipped' && canManage.value) return { label: 'Marquer livrée', icon: 'check', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openComplete(o) }
   return null
 }
+
+// Payé avant le livreur (acompte, expédition payée d'avance) : ce qui est attendu, au lieu d'un « Faire livrer » absent
+const waitingPayment = (o) => (o.prepay_due > 0 && o.delivery_method === 'delivery' && !o.shipment_id && ['pending_confirmation', 'confirmed', 'processing'].includes(o.status)
+  ? `⏳ ${o.prepay_kind === 'expedition' ? 'Paiement avant l\'envoi' : 'Acompte attendu'} · ${money(o.prepay_due)}`
+  : '')
 
 // Livreur déjà choisi : son nom à la place de « Faire livrer », avec « Modifier »
 const showDeliverer = (o) => !mainAction(o) && !!o.deliverer && o.delivery_method === 'delivery' && !['completed', 'cancelled', 'returned'].includes(o.status)
@@ -502,6 +507,7 @@ async function exportList() {
                   <Icon :name="deliveryBadge(o).late ? 'alert' : 'truck'" :size="12" />{{ deliveryBadge(o).text }}
                 </span>
                 <p v-if="o.deliverer && !showDeliverer(o)" class="mt-0.5 flex items-center gap-1 whitespace-nowrap text-xs text-slate-500"><Icon name="truck" :size="12" />{{ o.deliverer }}<template v-if="o.deliverer_planned"> (prévu)</template></p>
+                <span v-if="waitingPayment(o)" class="mt-0.5 inline-flex whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900" title="La course partira une fois payé">{{ waitingPayment(o) }}</span>
                 <p v-if="o.shipment_status_label" class="mt-0.5 flex min-w-0 items-center gap-1 text-xs" :title="o.tracking_code ? `Suivi : ${o.tracking_code}` : ''"><StateBadge kind="shipment" :status="o.shipment_status" :label="o.shipment_status_label" /><span v-if="o.tracking_code" class="truncate text-slate-500">{{ o.tracking_code }}</span></p>
               </td>
               <td class="truncate py-3 pr-3 text-slate-600" :title="o.items_label">{{ o.items_label }}</td>
@@ -552,6 +558,7 @@ async function exportList() {
           <div class="mt-2 flex flex-wrap items-center gap-1.5 pl-14">
             <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" :class="STATUS_TONES[o.status]"><Icon :name="STATUS_ICONS[o.status] ?? 'more'" :size="13" />{{ o.status_label }}</span>
             <span v-if="deliveryBadge(o)" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" :class="deliveryBadge(o).tone"><Icon :name="deliveryBadge(o).late ? 'alert' : 'calendar'" :size="13" />{{ deliveryBadge(o).text }}</span>
+            <span v-if="waitingPayment(o)" class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">{{ waitingPayment(o) }}</span>
             <StateBadge v-if="o.shipment_status_label" kind="shipment" :status="o.shipment_status" :label="o.tracking_code ? `${o.shipment_status_label} · ${o.tracking_code}` : o.shipment_status_label" />
             <span v-if="o.possible_duplicate" class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">Doublon ?</span>
             <span v-if="o.deliverer && !showDeliverer(o)" class="inline-flex items-center gap-1 text-xs text-slate-500"><Icon name="truck" :size="13" />{{ o.deliverer }}</span>
