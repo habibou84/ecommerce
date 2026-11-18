@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\Console\ConsoleHelpController;
 use App\Http\Controllers\Api\V1\Console\ConsoleMaterielController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
+use App\Http\Controllers\Api\V1\Console\ConsoleSupportAgentController;
 use App\Http\Controllers\Api\V1\Console\ConsoleTeamController;
 use App\Http\Controllers\Api\V1\Console\ConsoleWhatsAppController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
@@ -217,6 +218,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('help/{article}/video', [ConsoleHelpController::class, 'video'])->whereNumber('article')->name('help.video');
             Route::delete('help/{article}/video', [ConsoleHelpController::class, 'removeVideo'])->whereNumber('article')->name('help.video.remove');
             Route::delete('help/misses/{miss}', [ConsoleHelpController::class, 'dismissMiss'])->whereNumber('miss')->name('help.misses.dismiss');
+            // Assistant du support sur WhatsApp : activation, plafond de coût, suivi
+            Route::get('support-agent', [ConsoleSupportAgentController::class, 'show'])->name('support-agent');
+            Route::put('support-agent', [ConsoleSupportAgentController::class, 'update'])->name('support-agent.update');
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
             Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');

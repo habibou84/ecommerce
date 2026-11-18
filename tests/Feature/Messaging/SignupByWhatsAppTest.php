@@ -121,14 +121,14 @@ class SignupByWhatsAppTest extends TestCase
     {
         $this->say('Inscription');
         $this->say('Oui', 'su:yes');
-        $this->assertStringContainsString('nom de ta boutique', $this->last()['text']);
+        $this->assertStringContainsString('nom de votre boutique', $this->last()['text']);
         $signup = fn () => WhatsappSignup::where('phone', '+2250708091011')->sole();
 
         // Autocollant : pas le nom « Autocollant », la question est reposée
         $this->sendKind('sticker');
         $this->assertArrayNotHasKey('store_name', $signup()->data);
         $this->assertSame('name', $signup()->step);
-        $this->assertStringContainsString('nom de ta boutique', $this->last()['text']);
+        $this->assertStringContainsString('nom de votre boutique', $this->last()['text']);
         // Vocal : on dit qu'on ne peut pas l'écouter
         $this->sendKind('audio');
         $this->assertStringContainsString('Je ne peux pas écouter les vocaux', $this->texts());
@@ -178,7 +178,7 @@ class SignupByWhatsAppTest extends TestCase
         $this->sendKind('video');
         $this->assertStringContainsString('J\'ai reçu une vidéo, mais il me faut une *photo*', $this->last()['text']);
         $this->sendKind('video');
-        $this->assertStringContainsString('Si c\'est compliqué, écris *plus tard*', $this->last()['text']);
+        $this->assertStringContainsString('Si c\'est compliqué, écrivez *plus tard*', $this->last()['text']);
         $this->sendKind('video');
         $this->assertStringContainsString('Je passe la main à un conseiller', $this->last()['text']);
         $this->assertTrue(WhatsappSignup::where('phone', '+2250708091011')->sole()->paused());
@@ -188,17 +188,17 @@ class SignupByWhatsAppTest extends TestCase
     {
         Queue::fake();
         $this->say('Bonjour, inscription');
-        $this->assertStringContainsString('Toi, tu fais ton live sur TikTok', $this->last()['text']);
+        $this->assertStringContainsString('Vous faites votre live sur TikTok', $this->last()['text']);
         $this->assertStringContainsString('07 08 09 10 11', $this->last()['text']);
         $this->assertSame(['su:yes', 'su:other'], $this->last()['buttons']);
 
         $this->say('✅ Oui', 'su:yes');
-        $this->assertStringContainsString('nom de ta boutique', $this->last()['text']);
+        $this->assertStringContainsString('nom de votre boutique', $this->last()['text']);
         // Nom refusé, puis accepté
         $this->say('Jibiat boutique');
         $this->assertStringContainsString('réservé', $this->last()['text']);
         $this->say('Awa Mode');
-        $this->assertStringContainsString('ton prénom', $this->last()['text']);
+        $this->assertStringContainsString('votre prénom', $this->last()['text']);
         $this->say('awa');
         $this->assertSame(['su:live-yes', 'su:live-no'], $this->last()['buttons']);
         $this->say('Oui, en live', 'su:live-yes');
@@ -273,7 +273,7 @@ class SignupByWhatsAppTest extends TestCase
         $this->say('inscription');
         $count = count($this->sent);
         $this->say('aide');
-        $this->assertStringContainsString('te répond ici très vite', $this->last()['text']);
+        $this->assertStringContainsString('vous répond ici très vite', $this->last()['text']);
         $this->assertNotNull(SupportConversation::where('contact', '+2250708091011')->value('help_requested_at'));
         Notification::assertSentTo($admin, SupportHelpRequested::class, fn (SupportHelpRequested $n) => str_contains($n->toArray($admin)['body'], 'aide'));
         $this->say('oui');
@@ -286,7 +286,7 @@ class SignupByWhatsAppTest extends TestCase
         // … mais quand la console lui rend la main
         app(SignupByWhatsApp::class)->resume('+2250708091011');
         $this->say('oui');
-        $this->assertStringContainsString('nom de ta boutique', $this->last()['text']);
+        $this->assertStringContainsString('nom de votre boutique', $this->last()['text']);
 
         // Réponse faite depuis le téléphone (WhatsApp Business) : le robot se met en pause
         $this->webhook(['message_echoes' => [['from' => '2250507016739', 'to' => '2250708091011', 'id' => 'wamid.tel', 'timestamp' => (string) now()->timestamp, 'type' => 'text', 'text' => ['body' => 'Je t\'aide']]]]);
@@ -339,14 +339,14 @@ class SignupByWhatsAppTest extends TestCase
         $this->say('Oui', 'su:yes');
         $this->travel(181)->minutes();
         $this->assertSame(1, app(SignupByWhatsApp::class)->remind());
-        $this->assertStringContainsString('nom de ta boutique', $this->last()['text']);
+        $this->assertStringContainsString('nom de votre boutique', $this->last()['text']);
         $this->assertSame(0, app(SignupByWhatsApp::class)->remind());
 
         // « live » d'un commerçant : phrase clé, 3 étapes, vidéo, puis le lien de « Préparer un live »
         $store = $this->createStore(['slug' => 'awa']);
         $phone = ltrim($store->owner->phone, '+');
         $this->say('live', from: $phone);
-        $this->assertStringContainsString('Toi, tu fais ton live sur TikTok', $this->sent[count($this->sent) - 2]['text']['body']);
+        $this->assertStringContainsString('Vous faites votre live sur TikTok', $this->sent[count($this->sent) - 2]['text']['body']);
         $this->assertStringContainsString('/video/live/comment-ca-marche-v', $this->sent[count($this->sent) - 2]['text']['body']);
         $this->get($this->platformUrl('/video/live/comment-ca-marche-v'))->assertOk()->assertSee('/videos/live/comment-ca-marche-v.mp4', false);
         $this->get($this->platformUrl('/video/live/..%2F..%2Fenv'))->assertNotFound();
