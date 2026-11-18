@@ -42,6 +42,8 @@ class StatsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Avant l'heure limite (14 h) : les commandes du jour se livrent le jour même, quelle que soit l'heure des tests
+        $this->travelTo(today()->setTime(10, 0));
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
         app(Places::class)->provisionDefaultZone($this->store);
         $this->robe = app(CatalogWriter::class)->save($this->store, null, ['title' => 'Robe wax', 'variants' => [['price' => 15000, 'cost_price' => 9000, 'on_hand' => 50]]]);
