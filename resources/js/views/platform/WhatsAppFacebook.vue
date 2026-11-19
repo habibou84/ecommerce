@@ -34,8 +34,10 @@ const sure = source.coexistence === '1'
 const destination = ref(null)
 const checking = ref(true)
 
-// Retour de Facebook : accepté seulement s'il a été lancé depuis cette page, dans ce navigateur (un lien Facebook
-// fabriqué par quelqu'un d'autre ne peut pas renvoyer le code vers son espace)
+// Retour de Facebook : repart tout seul seulement s'il a été lancé depuis cette page, dans ce navigateur. Sinon
+// (Android : Facebook finit souvent dans son application, qui rouvre le retour dans un autre navigateur), on
+// redemande de confirmer l'espace affiché en grand : un lien Facebook fabriqué par quelqu'un d'autre ne peut pas
+// renvoyer le code vers son espace sans que le marchand le voie.
 const NONCE_KEY = 'wa-fb-nonce'
 function readNonce() {
   try {
@@ -77,36 +79,53 @@ const handedBack = ref(false)
 const redirectUri = facebookReturnUrl(boot.platformUrl)
 const embeddedBrowser = inAppBrowser()
 const copied = ref(false)
+// Retour de Facebook arrivé dans un autre navigateur : confirmer l'espace avant d'y envoyer la connexion
+const confirming = ref(false)
 
 onMounted(async () => {
   if (returned && back.value) {
     const expected = readNonce()
     writeNonce(null)
-    if (!returned.n || returned.n !== expected) {
-      checking.value = false
+    // Refus ou abandon chez Facebook : rien à protéger, on repart vers la boutique avec le message
+    if (!route.query.code) {
+      goBack({ erreur: route.query.error_reason === 'user_denied' ? 'Connexion à Facebook annulée.' : 'Facebook n\'a pas terminé la connexion. Recommencez quand vous voulez.' })
       return
     }
-    // Facebook a renvoyé le code (ou un refus) : on repart aussitôt vers la boutique
-    if (route.query.code) {
-      goBack({ code: String(route.query.code), redirect_uri: redirectUri, coexistence: sure ? '1' : '0' })
-    } else {
-      goBack({ erreur: route.query.error_reason === 'user_denied' ? 'Connexion à Facebook annulée.' : 'Facebook n\'a pas terminé la connexion. Recommencez quand vous voulez.' })
+    // Lancé depuis ce navigateur : on repart aussitôt vers la boutique avec le code
+    if (returned.n && returned.n === expected) {
+      finishReturn()
+      return
     }
+    // Autre navigateur : l'espace est vérifié par le serveur et affiché, le marchand confirme
+    destination.value = await fetchDestination()
+    confirming.value = !!destination.value
+    checking.value = false
     return
   }
   if (back.value) {
-    try {
-      const params = { retour: back.value, ...(appKey ? { cle: appKey } : {}) }
-      const data = (await http.get('/whatsapp/facebook/destination', { params })).data.data
-      destination.value = data
-      Object.assign(options, { appId: data.app_id, configId: data.config_id, version: data.graph_version || options.version })
-    } catch {
-      destination.value = null
+    destination.value = await fetchDestination()
+    if (destination.value) {
+      Object.assign(options, { appId: destination.value.app_id, configId: destination.value.config_id, version: destination.value.graph_version || options.version })
     }
   }
   checking.value = false
   if (destination.value && options.appId && !prefersRedirect()) prepareFacebook(options)
 })
+
+async function fetchDestination() {
+  try {
+    const params = { retour: back.value, ...(appKey ? { cle: appKey } : {}) }
+    return (await http.get('/whatsapp/facebook/destination', { params })).data.data
+  } catch {
+    return null
+  }
+}
+
+// Code de Facebook envoyé à la boutique (il n'est valable que quelques minutes)
+function finishReturn() {
+  busy.value = true
+  goBack({ code: String(route.query.code), redirect_uri: redirectUri, coexistence: sure ? '1' : '0' })
+}
 
 // « Revenir » : la page d'où l'on vient, sans message d'erreur
 function leave() {
@@ -168,6 +187,16 @@ async function copyLink() {
       <p class="text-base text-slate-700">Fermez cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
     </div>
     <p v-else-if="checking" class="text-center text-sm text-slate-600">{{ returned ? 'Connexion reçue de Facebook, retour vers votre espace…' : 'Chargement…' }}</p>
+    <div v-else-if="confirming" class="space-y-4">
+      <p class="text-base text-slate-700">Facebook a terminé. Dernière étape : confirmez l'espace qui reçoit votre numéro.</p>
+      <div class="rounded-lg border-2 border-[var(--brand)] bg-brand-soft p-3 text-center">
+        <p class="text-sm text-slate-700">Votre numéro WhatsApp sera connecté à :</p>
+        <p class="text-lg font-black">{{ destination.name }}</p>
+        <p class="text-xs text-slate-600">{{ destination.host }}</p>
+      </div>
+      <p class="text-sm font-semibold text-red-700">Ce n'est pas votre espace ? Fermez cette page : quelqu'un essaie de récupérer votre WhatsApp.</p>
+      <button type="button" class="btn-brand w-full py-4 text-lg font-black" :disabled="busy" @click="finishReturn">{{ busy ? 'Retour vers votre espace…' : 'Terminer la connexion' }}</button>
+    </div>
     <Alert v-else-if="!back || returned || !destination || !options.appId || !options.configId" tone="error">
       Ce lien n'est pas valable. Revenez dans votre espace marchand (Réglages › WhatsApp) et recommencez.
     </Alert>
