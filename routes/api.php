@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\Console\ConsoleWhatsAppController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
 use App\Http\Controllers\Api\V1\Couriers\CourierController;
+use App\Http\Controllers\Api\V1\Couriers\CourierSpaceController;
 use App\Http\Controllers\Api\V1\Couriers\PayrollController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DeviceController;
@@ -119,6 +120,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
         // Clé d'accès d'une carte à QR code (page jibiat-marchand.com/cle/CODE)
         Route::get('access-keys/{code}', [AccessKeyController::class, 'show'])->where('code', '[A-Za-z0-9-]{1,20}')->middleware('throttle:20,1')->name('access-keys.show');
 
+        // Lien commun des livreurs : inscription (numéro vérifié) et connexion
+        Route::post('courier-space/signup', [CourierSpaceController::class, 'signup'])->middleware(['throttle:verification-start', 'throttle:login'])->name('courier-space.signup');
+        Route::post('courier-space/login', [CourierSpaceController::class, 'login'])->middleware('throttle:login')->name('courier-space.login');
+        Route::post('courier-space/logout', [CourierSpaceController::class, 'logout'])->middleware('auth:sanctum')->name('courier-space.logout');
+
         Route::post('account/login', [PlatformAccountController::class, 'login'])->middleware('throttle:login')->name('account.login');
         Route::post('account/whatsapp', [PlatformAccountController::class, 'whatsapp'])->middleware('throttle:verification-start')->name('account.whatsapp');
         Route::middleware('auth:sanctum')->group(function () {
@@ -131,9 +137,24 @@ Route::prefix('v1')->name('v1.')->group(function () {
     // ── Vérification d'un numéro (WhatsApp, code SMS en dernier recours) et mot de passe oublié : plateforme, boutiques, console ──
     // Écran du live (télé, tablette, ordinateur) : sans compte, relié à une boutique par un code à 4 chiffres
     Route::middleware('zone:platform,store')->group(function () {
+        // Communes et quartiers du profil livreur (inscription au lien commun, Mon compte de l'application)
+        Route::get('courier-space/places', [CourierSpaceController::class, 'places'])->middleware('throttle:60,1')->name('courier-space.places');
         Route::post('screens', [LiveScreenController::class, 'create'])->middleware('throttle:10,1')->name('screens.create');
         Route::get('screens/{token}', [LiveScreenController::class, 'show'])->where('token', '[A-Za-z0-9]{48}')->middleware('throttle:120,1')->middleware('cache.headers:private;no_cache;etag')->name('screens.show');
     });
+    // Espace du livreur (profil, demandes des boutiques) : au lien commun et dans l'application de chaque boutique
+    Route::middleware(['zone:platform,store', 'auth:sanctum'])->prefix('courier-space')->name('courier-space.')->group(function () {
+        Route::get('/', [CourierSpaceController::class, 'show'])->name('show');
+        Route::put('profile', [CourierSpaceController::class, 'updateProfile'])->name('profile');
+        Route::post('photo', [CourierSpaceController::class, 'savePhoto'])->middleware('throttle:20,1')->name('photo.store');
+        Route::get('photo', [CourierSpaceController::class, 'photo'])->name('photo');
+        Route::post('id-document', [CourierSpaceController::class, 'saveIdDocument'])->middleware('throttle:10,1')->name('id-document');
+        Route::post('requests/{courier}/accept', [CourierSpaceController::class, 'accept'])->whereNumber('courier')->name('requests.accept');
+        Route::post('requests/{courier}/decline', [CourierSpaceController::class, 'decline'])->whereNumber('courier')->name('requests.decline');
+        Route::post('stores/{courier}/leave', [CourierSpaceController::class, 'leave'])->whereNumber('courier')->name('stores.leave');
+        Route::post('open', [CourierSpaceController::class, 'open'])->name('open');
+    });
+
     Route::middleware('zone:platform,store,console')->group(function () {
         Route::post('password/forgot', [PasswordResetController::class, 'start'])->middleware('throttle:verification-start')->name('password.forgot');
         Route::get('verifications/{token}', [VerificationController::class, 'show'])->middleware('throttle:90,1')->name('verifications.show');
@@ -680,6 +701,12 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('couriers', [CourierController::class, 'store'])->name('couriers.store');
                 Route::patch('couriers/settings', [CourierController::class, 'settings'])->name('couriers.settings');
                 Route::patch('couriers/{courier}', [CourierController::class, 'update'])->whereNumber('courier')->name('couriers.update');
+                // Annuaire des livreurs inscrits au lien commun, demande, retrait de la demande, pièce d'identité
+                Route::get('couriers/directory', [CourierController::class, 'directory'])->name('couriers.directory');
+                Route::post('couriers/directory/{profile}/request', [CourierController::class, 'requestFromDirectory'])->whereNumber('profile')->middleware('throttle:30,1')->name('couriers.directory.request');
+                Route::post('couriers/{courier}/cancel-request', [CourierController::class, 'cancelRequest'])->whereNumber('courier')->name('couriers.cancel-request');
+                Route::get('couriers/{courier}/id-document', [CourierController::class, 'idDocument'])->whereNumber('courier')->name('couriers.id-document');
+                Route::get('courier-profiles/{profile}/photo', [CourierController::class, 'profilePhoto'])->whereNumber('profile')->name('courier-profiles.photo');
                 Route::post('couriers/{courier}/invitation', [CourierController::class, 'reinvite'])->whereNumber('courier')->name('couriers.reinvite');
                 // Lien d'accès sans mot de passe à envoyer sur WhatsApp, et coupure de l'accès
                 Route::post('couriers/{courier}/access-link', [CourierController::class, 'accessLink'])->whereNumber('courier')->middleware('throttle:30,1')->name('couriers.access-link');

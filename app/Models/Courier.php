@@ -17,13 +17,13 @@ class Courier extends Model
 
     public const VEHICLES = ['moto' => 'Moto', 'bicycle' => 'Vélo', 'car' => 'Voiture', 'foot' => 'À pied'];
 
-    protected $fillable = ['store_id', 'user_id', 'name', 'phone', 'vehicle_type', 'pay_rule_id', 'cash_limit', 'is_available', 'status', 'note'];
+    protected $fillable = ['store_id', 'user_id', 'name', 'phone', 'vehicle_type', 'pay_rule_id', 'cash_limit', 'is_available', 'status', 'note', 'requested_at', 'answered_at'];
 
     protected $attributes = ['status' => 'invited', 'is_available' => true, 'vehicle_type' => 'moto'];
 
     protected function casts(): array
     {
-        return ['is_available' => 'boolean', 'cash_limit' => 'integer', 'last_latitude' => 'float', 'last_longitude' => 'float', 'last_located_at' => 'datetime'];
+        return ['is_available' => 'boolean', 'cash_limit' => 'integer', 'last_latitude' => 'float', 'last_longitude' => 'float', 'last_located_at' => 'datetime', 'requested_at' => 'datetime', 'answered_at' => 'datetime'];
     }
 
     public function user(): BelongsTo

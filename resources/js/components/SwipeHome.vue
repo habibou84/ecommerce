@@ -113,10 +113,18 @@ const pages = computed(() => PAGES.filter((p) => p.show()))
 const KEY = 'jm.swipe-page'
 const track = ref(null)
 const tabs = ref(null)
-const current = ref(0)
-// L'onglet mémorisé n'est réécrit qu'une fois relu : sinon l'ouverture (onglet 0, le Live) l'effaçait
-// et une actualisation de la page ramenait toujours au Live
+// Onglet mémorisé, relu dès le départ : une actualisation affiche tout de suite cet onglet, sans passer par le Live
+function savedPage() {
+  try {
+    return Math.max(0, pages.value.findIndex((p) => p.key === sessionStorage.getItem(KEY)))
+  } catch {
+    return 0
+  }
+}
+const current = ref(savedPage())
+// Pages et barre d'onglets mises en place sans animation avant d'être montrées ; ensuite, glissement doux
 let restored = false
+const placed = ref(false)
 const seen = ref(new Set())
 const page = computed(() => pages.value[current.value] ?? pages.value[0])
 function go(i, smooth = true) {
@@ -144,23 +152,21 @@ watch(current, (i) => {
   // L'onglet de la page affichée vient au milieu de la barre (jamais caché sous la cloche)
   const bar = tabs.value
   const tab = bar?.children[i]
-  if (bar && tab) bar.scrollTo({ left: Math.max(0, tab.offsetLeft - (bar.clientWidth - tab.offsetWidth) / 2), behavior: 'smooth' })
+  if (bar && tab) bar.scrollTo({ left: Math.max(0, tab.offsetLeft - (bar.clientWidth - tab.offsetWidth) / 2), behavior: restored ? 'smooth' : 'auto' })
   if (key === 'orders') loadOrders()
   if (key === 'whatsapp') loadWhatsapp()
   if (key === 'items') loadItems()
   if (key === 'cash') loadCash()
 }, { immediate: true })
 onMounted(async () => {
-  let saved = null
-  try {
-    saved = sessionStorage.getItem(KEY)
-  } catch {
-    saved = null
-  }
-  const i = Math.max(0, pages.value.findIndex((p) => p.key === saved))
-  await nextTick()
-  current.value = i
+  const i = current.value
   go(i, false)
+  placed.value = true
+  // La barre d'onglets arrive après la page (Teleport) : centrée sur l'onglet d'un coup, sans glisser depuis le Live
+  await nextTick()
+  const bar = tabs.value
+  const tab = bar?.children[i]
+  if (bar && tab) bar.scrollTo({ left: Math.max(0, tab.offsetLeft - (bar.clientWidth - tab.offsetWidth) / 2), behavior: 'auto' })
   restored = true
   startPage = i
 })
@@ -350,8 +356,8 @@ function open(to) {
     </Teleport>
 
     <!-- Les pages, côte à côte, aimantées -->
-    <div ref="track" :class="{ 'swipe-peek': hint }" class="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none]" @scroll.passive="onScroll">
-      <section v-for="p in pages" :key="p.key" class="h-full w-full shrink-0 snap-start overflow-y-auto px-4 pb-28 pt-1" :aria-label="p.name">
+    <div ref="track" :class="{ 'swipe-peek': hint, invisible: !placed }" class="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none]" @scroll.passive="onScroll">
+      <section v-for="p in pages" :key="p.key" class="h-full w-full shrink-0 snap-start snap-always overflow-y-auto px-4 pb-28 pt-1" :aria-label="p.name">
         <!-- LIVE : préparer, en direct (« Revenir au live »), lives passés -->
         <!-- Chargée seulement une fois la page Live affichée, et pas en double quand « Préparer un live » est ouvert par-dessus -->
         <template v-if="p.key === 'live'">
