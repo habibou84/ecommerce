@@ -74,6 +74,11 @@ onMounted(async () => {
     const o = data.data
     original.value = deliverySignature(o)
     paidBefore.value = Math.max(0, (o.amount_paid ?? 0) - (o.amount_refunded ?? 0))
+    // Acompte fixé à la main : repris comme montant
+    if (o.upfront?.deposit_manual && o.deposit_required) {
+      depositMode.value = 'amount'
+      depositFixed.value = String(o.deposit_required)
+    }
     Object.assign(form, {
       customer_phone: o.customer_phone_display, customer_name: o.customer_name ?? '', delivery_method: o.delivery_method,
       shipping_phone2: o.shipping_phone2 ?? '', shipping_address: joinAddress(o.shipping_address, o.shipping_landmark), shipping_landmark: '',
@@ -419,12 +424,32 @@ function removePhone2() {
 const showPhone2 = ref(false)
 const showNotes = ref(false)
 const showDiscount = ref(false)
+// Remise : bloc ouvert dès qu'il y a quelque chose dedans ; sinon un lien « + Remise »
+const showDiscountBox = computed(() => showDiscount.value || !!form.discount_code || !!form.discount_total || !!rewardPoints.value || !canPrice.value)
+const discountLink = computed(() => canPrice.value && !showDiscountBox.value)
 const showDeposit = ref(false)
 // Acompte : vide = calculé tout seul (articles, réglage de la boutique) ; envoyé seulement s'il a été changé ici
 const depositTouched = ref(false)
-function setDeposit(percent) {
+// Trois façons de le fixer : Auto (calculé, seulement s'il y en a un), en pourcentage du total, ou un montant
+const depositMode = ref('auto')
+const depositPercent = ref('')
+const depositFixed = ref('')
+function setDepositMode(mode) {
   depositTouched.value = true
-  form.deposit_required = percent === null ? '' : Math.min(total.value, Math.ceil((total.value * percent) / 100 / 100) * 100)
+  depositMode.value = mode
+  applyDeposit()
+}
+// Le montant envoyé suit le mode : '' = Auto ; 0 = pas d'acompte ; pourcentage arrondi aux 100 F, jamais plus que le total
+function applyDeposit() {
+  if (depositMode.value === 'auto') form.deposit_required = ''
+  else if (depositMode.value === 'percent') {
+    const p = Number(depositPercent.value) || 0
+    form.deposit_required = p > 0 ? Math.min(total.value, Math.ceil((total.value * Math.min(100, p)) / 100 / 100) * 100) : 0
+  } else form.deposit_required = Math.max(0, Number(depositFixed.value) || 0)
+}
+function openDeposit() {
+  showDeposit.value = true
+  setDepositMode('percent')
 }
 // « Coller un message » depuis l'accueil (?coller=1) : la zone du message est ouverte d'emblée
 const pasteOpen = ref(route.query.coller === '1')
@@ -457,7 +482,19 @@ const autoDeposit = computed(() => {
 })
 const depositAuto = computed(() => form.deposit_required === '' || form.deposit_required === null)
 const depositAmount = computed(() => (depositAuto.value ? autoDeposit.value ?? 0 : Math.max(0, Number(form.deposit_required) || 0)))
-const depositTooHigh = computed(() => !depositAuto.value && Number(form.deposit_required) > total.value)
+const depositTooHigh = computed(() => depositMode.value === 'amount' && Number(depositFixed.value) > total.value)
+// Acompte : le lien « + Acompte » tant qu'il n'y en a pas (le bloc s'ouvre seul s'il y a un acompte automatique)
+const depositLink = computed(() => !showDeposit.value && depositAuto.value && !autoDeposit.value)
+const percentTooHigh = computed(() => depositMode.value === 'percent' && Number(depositPercent.value) > 100)
+watch([depositPercent, depositFixed, total], () => {
+  if (depositMode.value !== 'auto') applyDeposit()
+})
+watch(autoDeposit, (auto) => {
+  if (depositMode.value === 'auto' && !auto && showDeposit.value) {
+    depositMode.value = 'percent'
+    applyDeposit()
+  }
+})
 // Déjà reçu : avant cette modification, plus ce qui est noté à la saisie
 const paidSoFar = computed(() => paidBefore.value + (editing.value ? 0 : total.value - due.value))
 const depositLeft = computed(() => Math.max(0, depositAmount.value - paidSoFar.value))
@@ -471,6 +508,7 @@ const missing = computed(() => {
   if (form.delivery_method === 'delivery' && !form.scheduled_date) return { text: 'Choisissez la date de livraison', field: 'scheduled_date', target: '#delivery-date' }
   if (chosenCarrier.value && !chosenCarrier.value.covered) return { text: `${chosenCarrier.value.name} ne livre pas ce quartier`, field: 'shipping_place_id', target: '#place' }
   if (depositTooHigh.value) return { text: `Baissez l'acompte : il dépasse le total (${money(total.value)})`, field: 'deposit_required', target: '#deposit' }
+  if (percentTooHigh.value) return { text: 'L\'acompte ne peut pas dépasser 100 %', field: 'deposit_required', target: '#deposit' }
   return null
 })
 const blocker = computed(() => missing.value?.text ?? '')
@@ -572,6 +610,8 @@ const addressKey = (a) => (a ? `${a.place_id}|${a.address_line ?? ''}|${a.landma
 const takenFor = ref('') // adresse du client déjà reprise (le client peut être relu entre-temps)
 const addressTaken = computed(() => !!lastAddress.value && takenFor.value === addressKey(lastAddress.value))
 const addressFlash = ref(false)
+// Adresse : une ligne au départ, jusqu'à 4 quand on écrit plus
+const addressRows = computed(() => Math.min(4, Math.max(1, Math.ceil(String(form.shipping_address ?? '').length / 36), String(form.shipping_address ?? '').split('\n').length)))
 async function useLastAddress(show = false) {
   const a = lastAddress.value
   if (!a) return
@@ -702,6 +742,11 @@ function again(copy) {
     paste.value = ''
     parseInfo.value = ''
     showNotes.value = false
+    depositPercent.value = ''
+    depositFixed.value = ''
+    depositMode.value = 'auto'
+    depositTouched.value = false
+    showDeposit.value = false
   }
   done.value = null
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -779,22 +824,34 @@ async function save() {
 
 <template>
   <p v-if="loading" class="text-sm text-slate-500">Chargement…</p>
-  <form v-else class="space-y-5 pb-40 lg:pb-6" v-no-autofill novalidate @submit.prevent="save" @focusin="bringToTop">
-    <RouterLink v-if="conversation" :to="`/gestion/messages/${conversation.id}`" class="text-sm text-slate-500 hover:text-emerald-700">← Conversation avec {{ conversation.name || conversation.phone_display }}</RouterLink>
-    <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="back-link text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
+  <form v-else class="space-y-3 pb-40 lg:pb-6" v-no-autofill novalidate @submit.prevent="save" @focusin="bringToTop">
+    <div class="flex items-center gap-2">
+      <RouterLink v-if="conversation" :to="`/gestion/messages/${conversation.id}`" class="min-w-0 truncate text-sm text-slate-500 hover:text-emerald-700">← Conversation avec {{ conversation.name || conversation.phone_display }}</RouterLink>
+      <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="back-link text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
+    </div>
     <Alert v-if="error">{{ error }}</Alert>
 
-    <!-- Saisie rapide : un bandeau, ouvert seulement quand on en a besoin -->
-    <section v-if="!editing" class="card border-emerald-100 bg-emerald-50/60">
-      <button type="button" class="flex w-full items-center gap-3 p-4 text-left" :aria-expanded="pasteOpen" @click="pasteOpen = !pasteOpen">
-        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm"><Icon name="file" :size="20" /></span>
-        <span class="min-w-0 flex-1">
-          <span class="block font-bold">Coller le message du client</span>
-          <span class="explain-detail block">Numéro, nom, quartier et articles se remplissent seuls.</span>
-        </span>
-        <Icon name="chevron" :size="18" class="text-slate-400 transition" :class="{ 'rotate-90': pasteOpen }" />
-      </button>
-      <div v-if="pasteOpen" class="space-y-3 border-t border-emerald-100 p-4">
+    <Alert v-if="parseInfo" tone="info">{{ parseInfo }}</Alert>
+    <!-- Ce qui manque, après un appui sur « Créer la commande » -->
+    <div v-if="missingNotice" data-missing-notice class="sticky top-[4.5rem] z-20 flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-3 text-base font-medium text-amber-900 shadow" role="alert">
+      <Icon name="alert" :size="20" class="shrink-0" />{{ missingNotice }} pour {{ editing ? 'enregistrer' : 'créer la commande' }}.
+    </div>
+
+    <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-5">
+      <div class="min-w-0 space-y-3">
+        <!-- 1. Client -->
+        <section class="card space-y-3 p-4 sm:p-6">
+          <!-- « Coller le message » : un petit bouton à côté du titre (au lieu d'un grand bandeau) -->
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="text-base font-extrabold">Client</h2>
+            <button v-if="!editing" type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold" :class="pasteOpen ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-emerald-200 bg-emerald-50 text-emerald-800'" :aria-expanded="pasteOpen" @click="pasteOpen = !pasteOpen">
+              <Icon name="file" :size="15" />Coller le message
+            </button>
+          </div>
+          <!-- Saisie rapide : le message du client, ouvert seulement quand on en a besoin -->
+          <div v-if="!editing && pasteOpen" class="rounded-xl border border-emerald-100 bg-emerald-50/60">
+      <div class="space-y-3 p-3">
+        <p class="explain-detail">Numéro, nom, quartier et articles se remplissent seuls.</p>
         <textarea v-model="paste" class="input" rows="3" placeholder="Bonsoir, je veux 2 robes wax taille M. Je suis à Yop Siporex, 07 07 07 07 07…" />
         <div class="flex flex-wrap items-center gap-2">
           <button type="button" class="btn-secondary" :disabled="parsing || paste.trim().length < 5" @click="analyse(false)">{{ parsing ? 'Analyse…' : 'Analyser le message' }}</button>
@@ -811,55 +868,41 @@ async function save() {
         <p v-if="ai.enabled" class="explain-detail">L'assistant comprend les messages mal écrits, en plusieurs fois ou en capture d'écran.</p>
         <AiMeter />
       </div>
-    </section>
-    <Alert v-if="parseInfo" tone="info">{{ parseInfo }}</Alert>
-    <!-- Ce qui manque, après un appui sur « Créer la commande » -->
-    <div v-if="missingNotice" data-missing-notice class="sticky top-[4.5rem] z-20 flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-3 text-base font-medium text-amber-900 shadow" role="alert">
-      <Icon name="alert" :size="20" class="shrink-0" />{{ missingNotice }} pour {{ editing ? 'enregistrer' : 'créer la commande' }}.
-    </div>
+          </div>
 
-    <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <div class="min-w-0 space-y-5">
-        <!-- 1. Client -->
-        <section class="card space-y-5 p-4 sm:p-6">
-          <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
-            <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">1</span>Client
-          </h2>
-
-          <div v-if="!editing">
-            <p class="label-lg">Canal de vente</p>
+          <div v-if="!editing" aria-label="Canal de vente" role="group">
             <!-- Téléphone : une seule ligne qu'on fait glisser (le numéro du client reste à l'écran) ; ordinateur : sur plusieurs lignes -->
             <div v-tab-strip class="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
               <button
                 v-for="s in SOURCES"
                 :key="s.value"
                 type="button"
-                class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-base font-semibold"
+                class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold"
                 :class="form.source === s.value ? 'border-2 border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:border-field'"
                 :aria-pressed="form.source === s.value"
                 @click="form.source = s.value"
               >
-                <Icon :name="SOURCE_ICONS[s.value] ?? 'more'" :size="17" />{{ s.label }}
+                <Icon :name="SOURCE_ICONS[s.value] ?? 'more'" :size="15" />{{ s.label }}
               </button>
             </div>
           </div>
 
-          <div class="grid gap-4 sm:grid-cols-2">
-            <Field id="phone" label="Téléphone" large :error="errors.customer_phone || (phoneIncomplete ? 'Numéro incomplet : 10 chiffres attendus.' : '')">
+          <div class="grid grid-cols-[1.15fr_1fr] gap-2 sm:gap-4">
+            <Field id="phone" label="Téléphone" :error="errors.customer_phone || (phoneIncomplete ? 'Numéro incomplet : 10 chiffres attendus.' : '')">
               <template #after-label><span class="text-red-600"> *</span></template>
-              <input id="phone" v-model="form.customer_phone" class="input-lg" type="tel" inputmode="tel" autocomplete="off" placeholder="07 00 00 00 00" :disabled="editing" @input="onPhoneInput" @blur="phoneTouched = true; lookupCustomer()" />
+              <input id="phone" v-model="form.customer_phone" class="input text-base" type="tel" inputmode="tel" autocomplete="off" placeholder="07 00 00 00 00" :disabled="editing" @input="onPhoneInput" @blur="phoneTouched = true; lookupCustomer()" />
             </Field>
-            <Field id="name" label="Nom du client" large :error="errors.customer_name">
-              <input id="name" v-model="form.customer_name" class="input-lg" maxlength="120" autocomplete="off" />
+            <Field id="name" label="Nom" :error="errors.customer_name">
+              <input id="name" v-model="form.customer_name" class="input text-base" maxlength="120" autocomplete="off" />
             </Field>
           </div>
-          <Field v-if="showPhone2" id="phone2" label="Autre numéro" large :error="errors.shipping_phone2">
+          <Field v-if="showPhone2" id="phone2" label="Autre numéro" :error="errors.shipping_phone2">
             <div class="flex gap-2">
-              <input id="phone2" v-model="form.shipping_phone2" class="input-lg sm:max-w-xs" type="tel" inputmode="tel" placeholder="07 00 00 00 00" @input="form.shipping_phone2 = formatPhone(form.shipping_phone2)" />
+              <input id="phone2" v-model="form.shipping_phone2" class="input text-base sm:max-w-xs" type="tel" inputmode="tel" placeholder="07 00 00 00 00" @input="form.shipping_phone2 = formatPhone(form.shipping_phone2)" />
               <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-field px-3 text-sm font-medium text-slate-600 hover:bg-slate-50" @click="removePhone2"><Icon name="close" :size="18" />Retirer</button>
             </div>
           </Field>
-          <button v-else type="button" class="-mt-1 text-base font-medium text-emerald-700 hover:underline" @click="showPhone2 = true">+ Ajouter un autre numéro</button>
+          <button v-else type="button" class="-mt-1 text-sm font-medium text-emerald-700 hover:underline" @click="showPhone2 = true">+ Autre numéro</button>
 
           <!-- Client connu : fiche résumée et son adresse habituelle -->
           <Alert v-if="known?.is_blacklisted" tone="error">Ce client est sur liste noire{{ known.blacklist_reason ? ` : ${known.blacklist_reason}` : '' }}.</Alert>
@@ -882,61 +925,35 @@ async function save() {
         </section>
 
         <!-- 2. Livraison : qui livre d'abord, puis le quartier (limité aux zones de l'entreprise choisie) -->
-        <section class="card space-y-5 p-4 sm:p-6">
-          <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
-            <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">2</span>Livraison
-          </h2>
-          <div class="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-base font-semibold sm:w-96">
-            <button type="button" class="rounded-lg py-2.5" :class="form.delivery_method === 'delivery' ? 'bg-white shadow-sm' : 'text-slate-600'" @click="form.delivery_method = 'delivery'">Livraison</button>
-            <button type="button" class="rounded-lg py-2.5" :class="form.delivery_method === 'pickup' ? 'bg-white shadow-sm' : 'text-slate-600'" @click="form.delivery_method = 'pickup'">Retrait au magasin</button>
+        <section class="card space-y-3 p-4 sm:p-6">
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="text-base font-extrabold">Livraison</h2>
+            <div class="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-sm font-semibold" role="group" aria-label="Livraison ou retrait">
+              <button type="button" class="rounded-lg px-3 py-1.5" :class="form.delivery_method === 'delivery' ? 'bg-white shadow-sm' : 'text-slate-600'" :aria-pressed="form.delivery_method === 'delivery'" @click="form.delivery_method = 'delivery'">Livraison</button>
+              <button type="button" class="rounded-lg px-3 py-1.5" :class="form.delivery_method === 'pickup' ? 'bg-white shadow-sm' : 'text-slate-600'" :aria-pressed="form.delivery_method === 'pickup'" @click="form.delivery_method = 'pickup'">Retrait</button>
+            </div>
           </div>
 
           <template v-if="form.delivery_method === 'delivery'">
-            <div>
-              <p class="label-lg">Qui livre ?</p>
-              <button type="button" class="flex min-h-14 w-full items-center gap-3 rounded-xl border-2 bg-white px-4 py-2.5 text-left disabled:opacity-70" :class="chosen ? 'border-emerald-600' : 'border-field border-dashed'" :disabled="!canPrice" @click="pickerOpen = true">
-                <template v-if="chosenCarrier || chosenCourier">
-                  <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-bold" :class="chosenCarrier ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-emerald-800'">{{ initials(delivererName) }}</span>
-                  <span class="min-w-0 flex-1">
-                    <span class="block text-base font-semibold">{{ delivererName }}</span>
-                    <span class="block text-sm text-slate-500">
-                      <template v-if="chosenCarrier">Entreprise de livraison{{ chosenCarrier.is_api ? ' · Delivery App' : chosenCarrier.zones_count ? ` · ${chosenCarrier.zones_count} zone(s)` : '' }}</template>
-                      <template v-else>Mon livreur · {{ chosenCourier.is_available ? 'disponible' : 'indisponible' }}{{ chosenCourier.active_missions ? ` · ${chosenCourier.active_missions} course(s) en cours` : '' }}</template>
-                    </span>
-                  </span>
-                </template>
-                <template v-else>
-                  <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500"><Icon name="truck" :size="18" /></span>
-                  <span class="min-w-0 flex-1">
-                    <span class="block text-base font-semibold">{{ chosen ? 'Chargement…' : 'Décider plus tard' }}</span>
-                    <span class="block text-sm text-slate-500">Choisir un livreur ou une entreprise de livraison</span>
-                  </span>
-                </template>
-                <span class="text-sm font-semibold text-emerald-700">{{ chosen ? 'Changer' : 'Choisir' }}</span>
-              </button>
-              <p v-if="errors.planned_courier_id || errors.planned_carrier_connection_id" class="mt-1 text-sm text-red-600">{{ errors.planned_courier_id || errors.planned_carrier_connection_id }}</p>
-              <p v-else-if="chosenCourier && place && !chosenCourier.covers_zone" class="mt-1.5 text-sm text-amber-800">{{ chosenCourier.name }} ne couvre pas ce quartier d'habitude.</p>
-              <button v-if="chosenCarrier" type="button" class="mt-1.5 text-sm font-medium text-emerald-700 hover:underline" @click="openTariffs">Voir toutes ses zones et tarifs</button>
-            </div>
-
-            <Field id="place" label="Quartier / commune" large :class="addressFlash ? 'rounded-xl ring-4 ring-emerald-300 transition' : 'transition'" :error="errors.shipping_place_id">
+            <Field id="place" label="Quartier / commune" :class="addressFlash ? 'rounded-xl ring-4 ring-emerald-300 transition' : 'transition'" :error="errors.shipping_place_id">
               <DeliveryPlacePicker id="place" v-model="place" :carrier-id="placeCarrier?.id ?? null" :carrier-name="placeCarrier?.name ?? ''" @change-deliverer="pickerOpen = true" />
               <p v-if="placeHint && !errors.shipping_place_id" class="mt-1.5 text-sm" :class="placeHint.tone">{{ placeHint.text }}</p>
-              <PlaceTapPicker v-if="!place && !placeCarrier && rates?.home" class="mt-3" :rates="rates" :show-fees="canPrice" @pick="place = $event" @search="focusPlaceSearch" />
+              <PlaceTapPicker v-if="!place && !placeCarrier && rates?.home" class="mt-2" :rates="rates" :show-fees="canPrice" @pick="place = $event" @search="focusPlaceSearch" />
             </Field>
 
-            <Field id="address" label="Adresse précise et point de repère" large :class="addressFlash ? 'rounded-xl ring-4 ring-emerald-300 transition' : 'transition'">
-              <textarea id="address" v-model="form.shipping_address" class="input-lg" rows="3" maxlength="255" placeholder="Rue, immeuble, étage… et un repère : face pharmacie, à côté de l'école…" />
+            <Field id="address" label="Adresse et repère" :class="addressFlash ? 'rounded-xl ring-4 ring-emerald-300 transition' : 'transition'">
+              <!-- Une ligne, qui s'agrandit si on écrit plus -->
+              <textarea id="address" v-model="form.shipping_address" class="input resize-none text-base" :rows="addressRows" maxlength="255" placeholder="Rue, repère (face pharmacie…)" />
             </Field>
 
             <div>
-              <p id="delivery-date" class="label-lg">Date de livraison <span class="text-red-600">*</span></p>
-              <div class="flex flex-wrap items-center gap-2">
+              <p id="delivery-date" class="label">Date de livraison <span class="text-red-600">*</span></p>
+              <div v-tab-strip class="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
                 <button
                   v-for="d in dayChoices"
                   :key="d.date"
                   type="button"
-                  class="rounded-full border px-4 py-2 text-base first-letter:uppercase"
+                  class="shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm first-letter:uppercase"
                   :class="!pickDate && form.scheduled_date === d.date ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : d.disabled ? 'cursor-not-allowed border-slate-200 text-slate-400 line-through' : 'border-field text-slate-700'"
                   :disabled="d.disabled"
                   :title="!d.open ? 'Pas de livraison ce jour-là' : d.disabled ? 'Trop tôt pour qui livre' : undefined"
@@ -944,31 +961,40 @@ async function save() {
                 >
                   {{ d.label }}
                 </button>
-                <button type="button" class="rounded-full border px-4 py-2 text-base" :class="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date)) ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field text-slate-700'" @click="pickDate = true">Autre date</button>
-                <input v-if="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date))" v-model="form.scheduled_date" class="input w-auto" type="date" :min="earliestDate ?? isoDay(0)" aria-label="Date de livraison" />
+                <button type="button" class="shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm" :class="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date)) ? 'border-2 border-emerald-600 bg-emerald-50 font-semibold text-emerald-800' : 'border-field text-slate-700'" @click="pickDate = true">📅 Autre date</button>
               </div>
-              <p v-if="errors.scheduled_date" class="mt-2 text-sm text-red-600">{{ errors.scheduled_date }}</p>
+              <input v-if="pickDate || (form.scheduled_date && !dayChoices.some((d) => d.date === form.scheduled_date))" v-model="form.scheduled_date" type="date" :min="earliestDate ?? isoDay(0)" aria-label="Date de livraison" class="input mt-2 w-auto" />
+              <p v-if="errors.scheduled_date" class="mt-1.5 text-sm text-red-600">{{ errors.scheduled_date }}</p>
               <p v-else-if="dateNotice" class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-base text-amber-900">{{ dateNotice }}</p>
               <p v-else-if="closedChosen" class="mt-2 text-sm text-amber-800">D'habitude, pas de livraison ce jour-là.</p>
-              <p v-else-if="earliestDate && form.scheduled_date === earliestDate" class="mt-2 text-sm text-slate-500">Première date possible{{ calendar ? ` (commandes livrées le jour même jusqu'à ${calendar.cutoff.replace(':', ' h ')})` : '' }}.</p>
+              <p v-else-if="earliestDate && form.scheduled_date === earliestDate && dayChoices.some((d) => d.disabled)" class="mt-1.5 text-xs text-slate-500">Première date possible{{ calendar ? ` (livré le jour même jusqu'à ${calendar.cutoff.replace(':', ' h ')})` : '' }}.</p>
             </div>
 
-            <!-- Frais : calculés, modifiables d'un geste -->
-            <div class="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-base">
-              <Icon name="truck" :size="20" class="text-slate-500" />
-              <span class="font-semibold">{{ expedition ? 'Livraison + expédition' : 'Frais de livraison' }}</span>
+            <!-- Qui livre et frais : deux lignes courtes (le choix complet s'ouvre dans une fenêtre) -->
+            <div class="divide-y divide-slate-200 rounded-xl bg-slate-50 text-sm">
+            <div class="flex items-center gap-2 px-3 py-2">
+              <Icon name="truck" :size="18" class="shrink-0 text-slate-500" />
+              <span class="min-w-0 flex-1 truncate"><span class="text-slate-600">Qui livre : </span><b class="font-semibold">{{ delivererName || (chosen ? 'Chargement…' : 'plus tard') }}</b></span>
+              <button type="button" class="shrink-0 font-semibold text-emerald-700 hover:underline disabled:opacity-50" :disabled="!canPrice" @click="pickerOpen = true">{{ chosen ? 'Changer' : 'Choisir' }}</button>
+            </div>
+            <div class="flex items-center gap-2 px-3 py-2">
+              <span class="shrink-0 text-slate-600">{{ expedition ? 'Livraison + expédition' : 'Frais' }}</span>
               <template v-if="manualFee">
-                <input v-model="shippingFee" class="input w-28 py-1 text-right" type="number" min="0" :aria-label="expedition ? 'Livraison + expédition' : 'Frais de livraison'" @input="askRemember = true" />
+                <input v-model="shippingFee" class="input w-24 py-1 text-right" type="number" min="0" :aria-label="expedition ? 'Livraison + expédition' : 'Frais de livraison'" @input="askRemember = true" />
                 <span>F</span>
                 <button type="button" class="font-medium text-emerald-700 hover:underline" @click="manualFee = false">Recalculer</button>
               </template>
               <template v-else>
-                <span class="font-semibold tabular-nums">{{ fee ? money(fee) : expedition && expedition.fee === null ? 'À indiquer' : 'Offerts' }}</span>
-                <span v-if="feeSource" class="text-slate-500">· {{ feeSource }}</span>
-                <span v-if="optionsLoading" class="text-slate-400">…</span>
-                <button v-if="canPrice" type="button" class="ml-auto font-medium text-emerald-700 hover:underline" @click="editFee">Modifier</button>
+                <span class="min-w-0 flex-1 truncate" :title="feeSource || undefined">
+                  <b class="font-semibold tabular-nums">{{ fee ? money(fee) : expedition && expedition.fee === null ? 'À indiquer' : 'Offerts' }}</b><span v-if="feeSource" class="text-slate-600"> · {{ feeSource }}</span><span v-if="optionsLoading" class="text-slate-400"> …</span>
+                </span>
+                <button v-if="canPrice" type="button" class="shrink-0 font-semibold text-emerald-700 hover:underline" @click="editFee">Modifier</button>
               </template>
             </div>
+            </div>
+            <p v-if="errors.planned_courier_id || errors.planned_carrier_connection_id" class="-mt-1.5 text-sm text-red-600">{{ errors.planned_courier_id || errors.planned_carrier_connection_id }}</p>
+            <p v-else-if="chosenCourier && place && !chosenCourier.covers_zone" class="-mt-1.5 text-sm text-amber-800">{{ chosenCourier.name }} ne couvre pas ce quartier d'habitude.</p>
+            <button v-if="chosenCarrier" type="button" class="-mt-1.5 text-sm font-medium text-emerald-700 hover:underline" @click="openTariffs">Voir toutes les zones et tarifs de {{ chosenCarrier.name }}</button>
             <!-- Prix tapé : le retenir pour la suite -->
             <div v-if="rememberChoices.length" class="rounded-xl border border-amber-300 bg-amber-50 p-3">
               <p class="mb-2 font-bold text-amber-900">Retenir {{ money(Number(shippingFee || 0)) }} pour la suite ?</p>
@@ -1009,11 +1035,11 @@ async function save() {
         </section>
 
         <!-- 2. Articles -->
-        <section class="card space-y-4 p-4 sm:p-6">
-          <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
-            <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">3</span>Articles
-            <span v-if="items.length" class="text-sm font-normal text-slate-500">· {{ items.length }}</span>
-          </h2>
+        <section class="card space-y-3 p-4 sm:p-6">
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="text-base font-extrabold">Articles<span v-if="items.length" class="text-sm font-normal text-slate-500"> · {{ items.length }}</span></h2>
+            <button type="button" class="text-sm font-semibold text-emerald-700 hover:underline" @click="items.push({ variant_id: null, title: '', quantity: 1, unit_price: '' })">+ Hors catalogue</button>
+          </div>
           <p v-if="errors.items" class="text-sm text-red-600">{{ errors.items }}</p>
           <ProductPicker @add="(line) => items.push(line)" />
           <ul v-if="items.length" class="space-y-2">
@@ -1055,40 +1081,29 @@ async function save() {
               </div>
             </li>
           </ul>
-          <p v-else class="flex items-start gap-2 text-base leading-snug text-slate-600">
-            <Icon name="up" :size="18" class="mt-0.5 shrink-0 text-emerald-700" />
-            <span><b class="block font-semibold text-slate-900">Tapez le nom ou le code de l'article.</b><span class="text-sm">Puis touchez-le dans la liste pour l'ajouter.</span></span>
+          <p v-else class="flex items-center gap-1.5 text-sm text-slate-600">
+            <Icon name="up" :size="16" class="shrink-0 text-emerald-700" />Tapez le nom ou le code, puis touchez l'article.
           </p>
-          <button type="button" class="text-sm text-emerald-700 hover:underline" @click="items.push({ variant_id: null, title: '', quantity: 1, unit_price: '' })">+ Article hors catalogue</button>
         </section>
 
-        <!-- Notes : repliées tant qu'on n'en a pas besoin -->
-        <section class="card p-4 sm:p-6">
-          <button v-if="!showNotes" type="button" class="w-full text-left text-sm text-emerald-700 hover:underline" @click="showNotes = true">+ Ajouter une note<span class="hidden sm:inline"> (demande du client, note pour l'équipe)</span></button>
-          <div v-else class="grid gap-4 sm:grid-cols-2">
-            <Field id="customer_note" label="Demande du client">
-              <textarea id="customer_note" v-model="form.customer_note" class="input" rows="2" />
-            </Field>
-            <Field id="internal_note" label="Note interne" hint="Visible seulement par l'équipe">
-              <textarea id="internal_note" v-model="form.internal_note" class="input" rows="2" />
-            </Field>
-          </div>
-        </section>
       </div>
 
       <!-- 3. Paiement et validation -->
       <aside class="space-y-4 lg:sticky lg:top-20 lg:self-start">
         <section class="card space-y-3 p-4 text-base sm:p-5">
-          <h2 class="flex items-center gap-2.5 text-lg font-extrabold">
-            <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-700 text-sm font-extrabold text-white">4</span>Paiement
-          </h2>
-          <div class="flex justify-between"><span class="text-slate-600">Articles</span><span class="tabular-nums">{{ money(subtotal) }}</span></div>
-          <div class="flex justify-between gap-2"><span class="text-slate-600">{{ expedition ? 'Livraison + expédition' : 'Livraison' }}<template v-if="delivererName && form.delivery_method === 'delivery'"> · {{ delivererName }}</template></span><span class="tabular-nums">{{ form.delivery_method === 'pickup' ? '—' : fee ? money(fee) : expedition && form.expedition_payer !== 'store' ? 'À indiquer' : 'Offerte' }}</span></div>
-          <div v-if="discount || pointsDiscount" class="flex justify-between text-emerald-700"><span>Remise</span><span class="tabular-nums">− {{ money(discount + pointsDiscount) }}</span></div>
+          <!-- Total en tête, le détail sur une ligne -->
+          <div>
+            <div class="flex items-baseline justify-between">
+              <h2 class="text-base font-extrabold">Total</h2>
+              <span class="text-2xl font-extrabold tabular-nums">{{ money(total) }}</span>
+            </div>
+            <p class="text-sm text-slate-500">
+              Articles {{ money(subtotal) }} · {{ expedition ? 'Livraison + expédition' : 'Livraison' }} {{ form.delivery_method === 'pickup' ? '—' : fee ? money(fee) : expedition && form.expedition_payer !== 'store' ? 'à indiquer' : 'offerte' }}<span v-if="discount || pointsDiscount" class="text-emerald-700"> · Remise − {{ money(discount + pointsDiscount) }}</span>
+            </p>
+          </div>
 
           <!-- Une seule entrée pour toutes les remises -->
-          <button v-if="canPrice && !showDiscount && !form.discount_code && !form.discount_total && !rewardPoints" type="button" class="text-emerald-700 hover:underline" @click="showDiscount = true">+ Ajouter une remise</button>
-          <div v-else class="space-y-2 rounded-lg bg-slate-50 p-3">
+          <div v-if="showDiscountBox" class="space-y-2 rounded-lg bg-slate-50 p-3">
             <div class="flex items-center justify-between gap-2">
               <label for="promo" class="text-slate-600">Code promo</label>
               <input id="promo" v-model.trim="form.discount_code" class="input w-32 py-1 text-right uppercase" maxlength="40" placeholder="—" />
@@ -1107,14 +1122,10 @@ async function save() {
             <p v-if="errors.reward_points" class="text-xs text-red-600">{{ errors.reward_points }}</p>
           </div>
 
-          <div class="flex items-baseline justify-between border-t border-slate-200 pt-3">
-            <span class="text-base font-semibold">Total</span>
-            <span class="text-2xl font-bold tabular-nums">{{ money(total) }}</span>
-          </div>
 
           <!-- Déjà payé (Wave, Orange Money…) avant l'enregistrement : noté avec la commande -->
           <div v-if="!editing && canPrice" class="space-y-2">
-            <p class="font-semibold">Le client a-t-il déjà payé ?</p>
+            <p class="text-sm font-semibold">Déjà payé ?</p>
             <div class="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Le client a-t-il déjà payé ?">
               <button v-for="[value, label] in [['none', 'Pas encore'], ['part', 'Une partie'], ['all', 'Tout payé']]" :key="value" type="button" role="radio" :aria-checked="paid.mode === value"
                       class="rounded-xl border-2 px-1 py-2 text-sm font-bold" :class="paid.mode === value ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-slate-200 text-slate-700'" @click="paid.mode = value">{{ value === 'all' && paid.mode === 'all' ? '✅ ' : '' }}{{ label }}</button>
@@ -1131,7 +1142,7 @@ async function save() {
               <input v-model.trim="paid.reference" class="input py-1.5 text-sm" maxlength="100" placeholder="N° de transaction (facultatif)" aria-label="N° de transaction" />
               <p v-if="errors['paid.amount'] || errors['paid.method']" class="text-xs text-red-600">{{ errors['paid.amount'] || errors['paid.method'] }}</p>
             </template>
-            <div class="flex items-baseline justify-between">
+            <div v-if="paid.mode !== 'none'" class="flex items-baseline justify-between">
               <span class="text-slate-600">Reste à encaisser</span>
               <span class="font-bold tabular-nums">{{ money(due) }}<span v-if="due === 0 && paid.mode !== 'none'" class="ml-1.5 rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-extrabold text-white">PAYÉ</span></span>
             </div>
@@ -1140,33 +1151,51 @@ async function save() {
             </p>
           </div>
 
-          <button v-if="!showDeposit && depositAuto && !autoDeposit" type="button" class="text-emerald-700 hover:underline" @click="showDeposit = true">+ Demander un acompte</button>
-          <div v-else class="space-y-1.5">
+          <!-- Remise, acompte, note : une seule ligne de liens ; chacun ouvre son bloc -->
+          <div v-if="discountLink || depositLink || !showNotes" class="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-emerald-700">
+            <button v-if="discountLink" type="button" class="hover:underline" @click="showDiscount = true">+ Remise</button>
+            <button v-if="depositLink" type="button" class="hover:underline" @click="openDeposit">+ Acompte</button>
+            <button v-if="!showNotes" type="button" class="hover:underline" @click="showNotes = true">+ Note</button>
+          </div>
+          <div v-if="!depositLink" class="space-y-2">
+            <!-- Auto (seulement s'il y a un acompte automatique), pourcentage ou montant -->
+            <p class="font-semibold">Acompte</p>
+            <div class="grid gap-1.5" :class="autoDeposit ? 'grid-cols-3' : 'grid-cols-2'" role="radiogroup" aria-label="Acompte">
+              <button v-for="[mode, label] in [...(autoDeposit ? [['auto', `Auto · ${money(autoDeposit)}`]] : []), ['percent', '%'], ['amount', 'Montant']]" :key="mode" type="button" role="radio" :aria-checked="depositMode === mode"
+                      class="rounded-xl border-2 px-1 py-2 text-sm font-bold" :class="depositMode === mode ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-slate-200 text-slate-700'" @click="setDepositMode(mode)">{{ label }}</button>
+            </div>
             <div class="flex items-center justify-between gap-2">
-              <label for="deposit" class="text-slate-600">Acompte exigé (F)</label>
-              <input id="deposit" v-model="form.deposit_required" type="number" min="0" :max="total" class="input w-32 py-1 text-right" :class="{ 'border-red-500': depositTooHigh }"
-                     :placeholder="autoDeposit ? `auto : ${autoDeposit}` : 'auto'" :aria-invalid="depositTooHigh" @input="depositTouched = true" />
+              <label for="deposit" class="text-slate-600">{{ depositMode === 'auto' ? 'Acompte automatique' : depositMode === 'percent' ? 'Tapez le pourcentage de l\'acompte' : 'Tapez le montant de l\'acompte' }}</label>
+              <div class="relative w-32 shrink-0">
+                <input v-if="depositMode === 'auto'" id="deposit" :value="autoDeposit" type="number" disabled class="input w-full cursor-not-allowed bg-slate-100 py-1 pr-7 text-right text-slate-500" />
+                <input v-else-if="depositMode === 'percent'" id="deposit" v-model="depositPercent" type="number" min="1" max="100" inputmode="numeric" class="input w-full py-1 pr-7 text-right" :class="{ 'border-red-500': percentTooHigh }" placeholder="30" :aria-invalid="percentTooHigh" />
+                <input v-else id="deposit" v-model="depositFixed" type="number" min="0" :max="total" inputmode="numeric" class="input w-full py-1 pr-7 text-right" :class="{ 'border-red-500': depositTooHigh }" placeholder="5000" :aria-invalid="depositTooHigh" />
+                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">{{ depositMode === 'percent' ? '%' : 'F' }}</span>
+              </div>
             </div>
-            <div class="flex flex-wrap justify-end gap-1.5 text-xs font-bold">
-              <button type="button" class="rounded-full border px-2.5 py-1" :class="depositAuto ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-field'" @click="setDeposit(null)">Auto{{ autoDeposit ? ` · ${money(autoDeposit)}` : '' }}</button>
-              <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(30)">30 %</button>
-              <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(50)">50 %</button>
-            </div>
-            <p v-if="depositTooHigh || errors.deposit_required" class="text-right text-xs font-semibold text-red-600" role="alert">{{ depositTooHigh ? `L'acompte ne peut pas dépasser le total de la commande (${money(total)}).` : errors.deposit_required }}</p>
-            <p v-else-if="depositAuto && autoDeposit === 0" class="text-right explain-detail">Auto : pas d'acompte pour ces articles (réglage de la boutique).</p>
-            <p v-else-if="depositAuto && autoDeposit === null" class="text-right explain-detail">Auto : selon les articles et le réglage de la boutique.</p>
+            <p v-if="depositTooHigh || percentTooHigh || errors.deposit_required" class="text-right text-xs font-semibold text-red-600" role="alert">{{ depositTooHigh ? `L'acompte ne peut pas dépasser le total de la commande (${money(total)}).` : percentTooHigh ? 'L\'acompte ne peut pas dépasser 100 % du total.' : errors.deposit_required }}</p>
+            <p v-else-if="depositMode === 'auto'" class="text-right explain-detail">Calculé selon les articles et le réglage de la boutique.</p>
+            <p v-else-if="depositMode === 'percent' && depositAmount > 0" class="text-right explain-detail">{{ depositPercent }} % de {{ money(total) }}, arrondi aux 100 F.</p>
             <!-- Ce que l'acompte veut dire pour cette commande -->
-            <div v-if="!depositTooHigh && depositAmount > 0" class="rounded-lg px-3 py-2 text-sm font-semibold" :class="depositLeft === 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'">
+            <div v-if="!depositTooHigh && !percentTooHigh && depositAmount > 0" class="rounded-lg px-3 py-2 text-sm font-semibold" :class="depositLeft === 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'">
               <p v-if="depositLeft === 0">✅ Acompte de {{ money(depositAmount) }} déjà couvert par ce qui a été payé.</p>
               <p v-else-if="paidSoFar > 0">⏳ Il manque {{ money(depositLeft) }} d'acompte (sur {{ money(depositAmount) }}).</p>
               <p v-else>⏳ Acompte à recevoir : {{ money(depositAmount) }} · reste à la livraison : {{ money(Math.max(0, total - depositAmount)) }}</p>
               <p v-if="depositLeft > 0 && depositRule?.blocks !== false" class="mt-0.5 text-xs font-normal">La commande attend l'acompte avant de partir chez le livreur.</p>
             </div>
           </div>
-          <label v-if="!editing" class="flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 p-3">
+          <div v-if="showNotes" class="space-y-2">
+            <Field id="customer_note" label="Demande du client">
+              <textarea id="customer_note" v-model="form.customer_note" class="input" rows="2" />
+            </Field>
+            <Field id="internal_note" label="Note interne" hint="Visible seulement par l'équipe">
+              <textarea id="internal_note" v-model="form.internal_note" class="input" rows="2" />
+            </Field>
+          </div>
+          <label v-if="!editing" class="flex cursor-pointer items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
             <input v-model="form.confirmed" type="checkbox" class="peer sr-only" />
-            <span class="mt-0.5 h-6 w-11 shrink-0 rounded-full bg-slate-300 p-0.5 transition peer-checked:bg-emerald-600"><span class="block h-5 w-5 rounded-full bg-white shadow transition" :class="{ 'translate-x-5': form.confirmed }" /></span>
-            <span>Déjà confirmée avec le client <span class="block text-sm text-slate-500">Sinon elle va dans la file « À confirmer ».</span></span>
+            <span class="h-6 w-11 shrink-0 rounded-full bg-slate-300 p-0.5 transition peer-checked:bg-emerald-600"><span class="block h-5 w-5 rounded-full bg-white shadow transition" :class="{ 'translate-x-5': form.confirmed }" /></span>
+            <span class="text-sm font-semibold">Déjà confirmée avec le client<span class="block text-xs font-normal text-slate-600">Sinon elle va dans « À confirmer ».</span></span>
           </label>
         </section>
 

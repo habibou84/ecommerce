@@ -3,23 +3,20 @@ import { computed, ref } from 'vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
 
-// Lieu de livraison en touchant : les communes de la ville de la boutique (les plus livrées d'abord, avec leur prix),
-// puis les quartiers de la commune ; « Expédition vers une autre ville » pour les autres villes.
+// Lieu de livraison en touchant : les communes de la ville de la boutique (les plus livrées d'abord, avec leur prix)
+// sur une ligne qu'on fait glisser, puis les quartiers de la commune touchée sur une deuxième ligne ; « Autre ville »
+// pour une expédition. Une ligne au lieu d'une grille : le formulaire reste court.
 const props = defineProps({
   rates: { type: Object, required: true }, // GET /delivery-rates
   showFees: { type: Boolean, default: true },
 })
 const emit = defineEmits(['pick', 'search'])
 
-const SHOWN = 10
-const all = ref(false)
 const commune = ref(null) // { id, name, fee }
 const quartiers = ref([])
 const loading = ref(false)
 const cities = ref(false)
 
-const communes = computed(() => (all.value ? props.rates.places : props.rates.places.slice(0, SHOWN)))
-const hidden = computed(() => Math.max(0, props.rates.places.length - SHOWN))
 const home = computed(() => props.rates.home)
 
 const feeText = (p) => (p.fee === null || p.fee === undefined ? 'prix à indiquer' : p.fee === 0 ? 'offerte' : money(p.fee))
@@ -39,58 +36,39 @@ function pick(p, ancestors) {
   emit('pick', { id: p.id, label: p.label ?? p.name, ancestor_ids: ancestors.filter(Boolean) })
 }
 
-function back() {
-  commune.value = null
-  cities.value = false
-}
 </script>
 
 <template>
-  <div class="space-y-2">
-    <!-- Expédition : villes -->
-    <template v-if="cities">
-      <div class="flex items-center gap-2 text-sm">
-        <span class="rounded-full bg-sky-50 px-3 py-1 font-semibold text-sky-800">Expédition vers une autre ville</span>
-        <button type="button" class="ml-auto font-medium text-emerald-700 underline" @click="back">Retour</button>
+  <!-- Lignes qu'on fait glisser (comme le canal de vente) : communes, puis quartiers ou villes -->
+  <div class="space-y-1.5">
+    <div v-tab-strip class="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+      <button v-for="p in rates.places" :key="p.id" type="button" class="shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold"
+              :class="commune?.id === p.id ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-500'" :aria-pressed="commune?.id === p.id" @click="cities = false; open(p)">
+        {{ p.name }}<span v-if="showFees" class="ml-1 text-xs font-bold" :class="p.learned ? 'text-emerald-700' : 'text-slate-500'">{{ feeText(p) }}</span>
+      </button>
+      <button v-if="rates.cities.length" type="button" class="shrink-0 whitespace-nowrap rounded-full border border-dashed px-3 py-1.5 text-sm font-semibold"
+              :class="cities ? 'border-sky-500 bg-sky-50 text-sky-900' : 'border-sky-300 text-sky-800'" :aria-pressed="cities" @click="commune = null; cities = !cities">📦 Autre ville</button>
+    </div>
+
+    <!-- Quartiers de la commune touchée -->
+    <template v-if="commune">
+      <p v-if="loading" class="text-sm text-slate-400">Chargement…</p>
+      <div v-else v-tab-strip class="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0" :aria-label="`Quartiers de ${commune.name}`">
+        <button v-for="q in quartiers" :key="q.id" type="button" class="shrink-0 whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-emerald-500" @click="pick(q, [commune.id, home?.id])">
+          {{ q.name }}<span v-if="showFees && q.fee !== commune.fee" class="ml-1 text-xs font-bold" :class="q.learned ? 'text-emerald-700' : 'text-slate-500'">{{ feeText(q) }}</span>
+        </button>
+        <button type="button" class="shrink-0 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50/60 px-3 py-1.5 text-sm font-semibold text-emerald-800" @click="pick({ ...commune, label: commune.name }, [home?.id])">Toute la commune</button>
+        <button type="button" class="shrink-0 whitespace-nowrap rounded-full border border-dashed border-field px-3 py-1.5 text-sm text-slate-600" @click="emit('search')">+ Pas dans la liste</button>
       </div>
-      <p class="text-sm text-slate-600">
-        Expédition : prix convenu avec le client (livraison + expédition){{ rates.expedition.fee !== null && showFees ? `, à partir de ${money(rates.expedition.fee)}` : '' }}.
-      </p>
-      <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-        <button v-for="c in rates.cities" :key="c.id" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-base font-semibold hover:border-sky-400" @click="pick({ ...c, label: c.name }, [])">
+    </template>
+
+    <!-- Expédition : villes -->
+    <template v-else-if="cities">
+      <p v-if="rates.expedition.fee !== null && showFees" class="text-xs text-slate-600">Prix convenu avec le client (livraison + expédition), à partir de {{ money(rates.expedition.fee) }}.</p>
+      <div v-tab-strip class="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0" aria-label="Villes">
+        <button v-for="c in rates.cities" :key="c.id" type="button" class="shrink-0 whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-sky-400" @click="pick({ ...c, label: c.name }, [])">
           {{ c.name }}
         </button>
-      </div>
-    </template>
-
-    <!-- Quartiers de la commune -->
-    <template v-else-if="commune">
-      <div class="flex items-center gap-2 text-sm">
-        <span class="rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-800">{{ commune.name }}<template v-if="showFees"> · {{ feeText(commune) }}</template></span>
-        <button type="button" class="ml-auto font-medium text-emerald-700 underline" @click="back">Changer de commune</button>
-      </div>
-      <p class="text-sm font-semibold text-slate-700">Quel quartier ?</p>
-      <p v-if="loading" class="text-sm text-slate-400">Chargement…</p>
-      <div v-else class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-        <button v-for="q in quartiers" :key="q.id" type="button" class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-emerald-500" @click="pick(q, [commune.id, home?.id])">
-          <span class="block truncate text-base font-semibold">{{ q.name }}</span>
-          <span v-if="showFees && q.fee !== commune.fee" class="block text-xs" :class="q.learned ? 'text-emerald-700' : 'text-slate-500'">{{ feeText(q) }}</span>
-        </button>
-        <button type="button" class="col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/50 px-3 py-2 text-center text-base font-semibold text-emerald-800 sm:col-span-3" @click="pick({ ...commune, label: commune.name }, [home?.id])">Toute la commune</button>
-        <button type="button" class="col-span-2 rounded-xl border border-dashed border-field px-3 py-2 text-center text-sm text-slate-600 sm:col-span-3" @click="emit('search')">+ Quartier pas dans la liste</button>
-      </div>
-    </template>
-
-    <!-- Communes de la ville -->
-    <template v-else>
-      <p class="text-sm font-semibold text-slate-700">Ou touchez la commune</p>
-      <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-        <button v-for="p in communes" :key="p.id" type="button" class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-emerald-500" @click="open(p)">
-          <span class="block truncate text-base font-semibold">{{ p.name }}</span>
-          <span v-if="showFees" class="block text-xs" :class="p.learned ? 'text-emerald-700' : 'text-slate-500'">{{ feeText(p) }}</span>
-        </button>
-        <button v-if="hidden && !all" type="button" class="rounded-xl border border-dashed border-field px-3 py-2 text-left text-sm text-slate-600" @click="all = true">+ {{ hidden }} autre(s) commune(s)</button>
-        <button v-if="rates.cities.length" type="button" class="rounded-xl border border-dashed border-sky-300 px-3 py-2 text-left text-sm font-medium text-sky-800" @click="cities = true">Expédition vers une autre ville…</button>
       </div>
     </template>
   </div>
