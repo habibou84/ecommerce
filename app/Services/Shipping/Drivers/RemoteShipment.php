@@ -3,6 +3,7 @@
 namespace App\Services\Shipping\Drivers;
 
 use App\Enums\ShipmentStatus;
+use Jibiat\Socle\Contract\Contract;
 
 /**
  * Course telle que la décrit le transporteur, ramenée à la forme commune.
@@ -39,6 +40,8 @@ final class RemoteShipment
          * l'entreprise dit qu'il n'y en a pas (ou plus), null quand elle ne l'envoie pas (version plus ancienne)
          */
         public readonly array|false|null $reschedule = null,
+        /** Raison du retour (contrat 1.11) : refused, max_attempts, company, merchant ; null si inconnue ou pas de retour */
+        public readonly ?string $returnCause = null,
     ) {}
 
     /**
@@ -76,7 +79,17 @@ final class RemoteShipment
             labelUrl: is_string($order['label_url'] ?? null) ? $order['label_url'] : null,
             cancellation: is_array($order['cancellation'] ?? null) ? $order['cancellation'] : null,
             reschedule: array_key_exists('reschedule', $order) ? (is_array($order['reschedule']) ? $order['reschedule'] : false) : null,
+            returnCause: is_string($order['return_cause'] ?? null) ? $order['return_cause'] : null,
         );
+    }
+
+    /**
+     * « Refusé par le client : le colis vous sera retourné ». Le retour n'est « demandé » par la boutique que pour
+     * merchant ; une raison inconnue (nouvelle version de Jibiat) ou absente reste une phrase neutre.
+     */
+    public static function returnText(?string $cause): string
+    {
+        return Contract::RETURN_CAUSES[$cause ?? ''] ?? 'Le colis vous sera retourné';
     }
 
     /** « Annulée par Koné (Dispatch) : Client injoignable avant le ramassage · Appelé 3 fois » */
