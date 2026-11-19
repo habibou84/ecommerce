@@ -357,7 +357,7 @@ function open(to) {
 
     <!-- Les pages, côte à côte, aimantées -->
     <div ref="track" :class="{ 'swipe-peek': hint, invisible: !placed }" class="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none]" @scroll.passive="onScroll">
-      <section v-for="p in pages" :key="p.key" class="h-full w-full shrink-0 snap-start overflow-y-auto px-4 pb-28 pt-1" :aria-label="p.name">
+      <section v-for="p in pages" :key="p.key" class="h-full w-full shrink-0 snap-start snap-always overflow-y-auto px-4 pb-28 pt-1" :aria-label="p.name">
         <!-- LIVE : préparer, en direct (« Revenir au live »), lives passés -->
         <!-- Chargée seulement une fois la page Live affichée, et pas en double quand « Préparer un live » est ouvert par-dessus -->
         <template v-if="p.key === 'live'">
