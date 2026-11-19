@@ -579,6 +579,11 @@ class ShippingTest extends TestCase
         $this->assertSame([ShipmentStatus::Failed, true, 'Client absent', 1], [$failed->status, $failed->needsDecision, $failed->incident, $failed->attempts]);
         $this->assertSame([ShipmentStatus::Rescheduled, $in2, $in2], [$read('order-rescheduled')->status, $read('order-rescheduled')->rescheduledTo, $read('order-rescheduled')->scheduledDate]);
         $this->assertSame([true, false], [$read('order-return-requested')->returnRequested, $read('order-return-requested')->needsDecision]);
+        // Contrat 1.11 : pourquoi le colis revient ; « demandé » seulement quand c'est la boutique
+        $this->assertSame(['merchant', 'refused', null], [$read('order-return-requested')->returnCause, $read('order-refused')->returnCause, $pending->returnCause]);
+        $this->assertSame('Refusé par le client : le colis vous sera retourné', RemoteShipment::returnText('refused'));
+        $this->assertSame('Le colis vous sera retourné', RemoteShipment::returnText('lost'));
+        $this->assertSame('Le colis vous sera retourné', RemoteShipment::returnText(null));
         $delivered = $read('order-delivered');
         $this->assertSame([ShipmentStatus::Delivered, 31500], [$delivered->status, $delivered->collected]);
         $this->assertStringStartsWith('https://', (string) $delivered->proofPhotoUrl);
@@ -661,10 +666,12 @@ class ShippingTest extends TestCase
         // Décision attendue, puis retour demandé : affichés sur la fiche
         $this->webhook($connection, 'order.updated', ['order' => $this->remoteOrder('rescheduled', ['delivery' => ['scheduled_date' => $in3], 'needs_decision' => true])], 'evt-3')->assertOk();
         $this->assertTrue($shipment->fresh()->needs_decision);
-        $this->webhook($connection, 'order.updated', ['order' => $this->remoteOrder('rescheduled', ['delivery' => ['scheduled_date' => $in3], 'needs_decision' => false, 'return_requested' => true])], 'evt-4')->assertOk();
+        $this->webhook($connection, 'order.updated', ['order' => $this->remoteOrder('rescheduled', ['delivery' => ['scheduled_date' => $in3], 'needs_decision' => false, 'return_requested' => true, 'return_cause' => 'refused'])], 'evt-4')->assertOk();
         $this->storeApi($this->store, 'GET', "orders/{$shipment->order_id}")->assertOk()
             ->assertJsonPath('data.shipments.0.needs_decision', false)
             ->assertJsonPath('data.shipments.0.return_requested', true)
+            ->assertJsonPath('data.shipments.0.return_cause', 'refused')
+            ->assertJsonPath('data.shipments.0.return_text', 'Refusé par le client : le colis vous sera retourné')
             ->assertJsonPath('data.shipments.0.scheduled_date', $in3);
         $this->assertSame(1, DatabaseNotification::all()->filter(fn ($n) => str_starts_with($n->data['title'], 'Date de livraison changée'))->count());
     }

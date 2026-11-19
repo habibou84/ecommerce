@@ -83,6 +83,9 @@ class ShipmentPresenter
             // Livreur de la boutique : après un échec sans nouvelle date, la boutique décide
             'needs_decision' => $s->isOwnCourier() ? $s->status === ShipmentStatus::Failed : $s->needs_decision,
             'return_requested' => $s->return_requested,
+            // Pourquoi le colis revient (refus du client, tentatives épuisées, entreprise, boutique)
+            'return_cause' => $s->return_requested ? $s->return_cause : null,
+            'return_text' => $s->return_requested ? RemoteShipment::returnText($s->return_cause) : null,
             // Actions possibles sur la course chez l'entreprise de livraison (Delivery App)
             'carrier_actions' => self::carrierActions($s),
             // Notes du livreur chez l'entreprise de livraison : peut-on le noter, note de la boutique, note du client

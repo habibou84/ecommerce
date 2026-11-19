@@ -288,7 +288,7 @@ async function whatsapp(s) {
           <button class="btn-secondary px-3 py-1.5" @click="openModal('return', s)">Faire revenir le colis</button>
         </div>
       </div>
-      <p v-else-if="s.return_requested && !s.is_final" class="rounded bg-violet-50 p-2 text-violet-900">Retour du colis demandé.</p>
+      <p v-else-if="s.return_requested && !s.is_final" class="rounded bg-violet-50 p-2 text-violet-900">{{ s.return_text || 'Le colis vous sera retourné' }}.</p>
       <!-- Annulée ou refusée : par qui et pourquoi (entreprise de livraison) -->
       <p v-if="s.cancellation_text" class="rounded bg-red-50 p-2 text-red-900">{{ s.cancellation_text }}</p>
       <p v-if="s.failure_reason && !s.cancellation_text" class="rounded bg-amber-50 p-2 text-amber-900">{{ s.failure_reason }}<template v-if="s.attempts_count"> ({{ s.attempts_count }} tentative{{ s.attempts_count > 1 ? 's' : '' }})</template></p>
