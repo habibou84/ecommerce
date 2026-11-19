@@ -17,7 +17,7 @@ import { useAuthStore } from '../stores/auth'
 
 /**
  * Navigation par glissement (fonction « swipe_nav » de la console) : sur téléphone, l'accueil devient des pages côte
- * à côte, le Live d'abord. Chaque page garde l'essentiel de son domaine ; ⚙ ouvre ses réglages, les pastilles des
+ * à côte : Commandes, WhatsApp, Live, puis le reste. Chaque page garde l'essentiel de son domaine ; ⚙ ouvre ses réglages, les pastilles des
  * onglets signalent ce qui demande de l'attention (rouge qui pulse : urgent, orange : à surveiller). Les chiffres
  * viennent de l'accueil (GET dashboard, déjà chargé) ; les listes ne se chargent qu'à l'arrivée sur leur page.
  */
@@ -82,18 +82,19 @@ const pl = (n, one, many) => `${n ?? 0} ${n > 1 ? many : one}`
 // Icône de couleur de chaque onglet (la même que dans le menu), à la place des émojis
 const PAGE_COLORS = { live: 'live', whatsapp: 'whatsapp', boost: 'promo', orders: 'panier', delivery: 'moto', cash: 'caisse', shop: 'boutique', clients: 'clients', items: 'produit', more: 'menu' }
 const PAGES = [
-  { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
-    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+  // Ordre sur téléphone : Commandes, WhatsApp, Live, puis le reste
+  { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
+    settings: [{ to: '/gestion/confirmation', label: 'À confirmer' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   // WhatsApp : ce qui attend (non lus, récaps, paniers), conversations, assistants des ventes et des réponses
   { key: 'whatsapp', name: 'WhatsApp', icon: '💬', show: () => canOpen('/gestion/whatsapp') || canOpen('/gestion/messages'),
     badge: () => { const n = (s.value.unread_messages ?? 0) + (whatsapp.value?.todo?.recaps ?? 0) + (whatsapp.value?.todo?.carts ?? 0); return n ? { n, level: 'orange' } : null },
     settings: [{ to: '/gestion/whatsapp', label: 'Mon numéro WhatsApp' }, { to: '/gestion/whatsapp/ventes', label: 'Assistant des ventes' }, { to: '/gestion/whatsapp/reponses', label: 'Assistant des réponses' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/marketing/relances', label: 'Relances' }] },
+  { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
+    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
   // Boost : la pub Facebook et Instagram au même endroit (connexion, pixel, produits à booster, commandes venues des boosts)
   { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
     settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
-  { key: 'orders', name: 'Commandes', icon: '🛍️', show: () => canOpen('/gestion/commandes'), badge: () => badge(orderTodo.value),
-    settings: [{ to: '/gestion/confirmation', label: 'À confirmer' }, { to: '/gestion/etiquettes', label: 'Étiquettes à scanner' }, { to: '/gestion/paniers-abandonnes', label: 'Paniers abandonnés' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
-  // Livraisons : juste après les commandes, avant la caisse
+  // Livraisons, puis la caisse
   { key: 'delivery', name: 'Livraisons', icon: '🛵', show: () => DELIVERY_LINKS.some((l) => canOpen(l.to)), badge: () => badge(deliveryTodo.value),
     settings: [{ to: '/gestion/livraisons/automatisation', label: 'Automatisation' }, { to: '/gestion/livraisons/paie', label: 'Paie des livreurs' }, { to: '/gestion/livraisons/tarifs', label: 'Tarifs et zones' }, { to: '/gestion/livraisons/reglages', label: 'Réglages des livraisons' }, { to: '/gestion/alertes', label: 'Alertes (délais, heures)' }] },
   { key: 'cash', name: 'Caisse', icon: '💰', show: () => canOpen('/gestion/caisse'), badge: () => badge(cashTodo.value),
@@ -146,7 +147,7 @@ watch(current, (i) => {
     try {
       sessionStorage.setItem(KEY, key)
     } catch {
-      // Sans stockage : on revient sur le Live
+      // Sans stockage : on revient sur le premier onglet (Commandes)
     }
   }
   // L'onglet de la page affichée vient au milieu de la barre (jamais caché sous la cloche)
