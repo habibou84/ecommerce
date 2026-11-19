@@ -192,7 +192,7 @@ class CourierNetwork
 
     /**
      * Annuaire : livreurs inscrits visibles, qui livrent dans ce lieu (sa commune ou un de ses quartiers), pas encore
-     * reliés à la boutique (ni demande en attente).
+     * reliés à la boutique (ni demande en attente) ; ceux qui ont fourni leur pièce d'identité en premier.
      *
      * @return EloquentCollection<int, CourierProfile>
      */
@@ -206,7 +206,8 @@ class CourierNetwork
             ->whereHas('user', fn ($q) => $q->where('status', UserStatus::Active->value))
             ->whereNotIn('user_id', $taken)
             ->when($ids, fn ($q) => $q->whereHas('places', fn ($p) => $p->whereIn('places.id', $ids)))
-            ->latest('updated_at')->limit(60)->get();
+            // Pièce d'identité fournie d'abord : elle augmente ses chances d'être choisi
+            ->orderByRaw('id_document_path IS NULL')->latest('updated_at')->limit(60)->get();
     }
 
     private function ensureOwnRequest(Courier $fiche, User $user): void

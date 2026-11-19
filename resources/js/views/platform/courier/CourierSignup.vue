@@ -15,6 +15,7 @@ const errors = ref({})
 const error = ref('')
 const busy = ref(false)
 const pending = ref(null)
+const idDocument = ref(null) // pièce d'identité facultative, envoyée une fois le compte créé
 
 onMounted(async () => {
   const { data } = await http.get('/courier-space/places')
@@ -26,7 +27,15 @@ function toggle(id) {
   form.place_ids = form.place_ids.includes(id) ? form.place_ids.filter((x) => x !== id) : [...form.place_ids, id]
 }
 
-const done = (data) => window.location.assign(data.redirect)
+// Compte créé (session ouverte) : la pièce d'identité choisie part dans le profil, puis l'espace s'ouvre
+async function done(data) {
+  if (idDocument.value) {
+    const body = new FormData()
+    body.append('document', idDocument.value)
+    await http.post('/courier-space/id-document', body).catch(() => {})
+  }
+  window.location.assign(data.redirect)
+}
 
 async function submit() {
   busy.value = true
@@ -71,6 +80,15 @@ async function submit() {
                   :class="form.place_ids.includes(c.id) ? 'border-emerald-600 bg-emerald-50 font-medium' : 'border-field'" @click="toggle(c.id)">{{ c.name }}</button>
         </div>
         <p class="explain-detail mt-1">Les quartiers s'ajoutent ensuite dans votre profil.</p>
+      </div>
+      <div class="rounded-lg border border-slate-200 p-3">
+        <p class="label">Pièce d'identité <span class="font-normal text-slate-400">(facultative)</span></p>
+        <p class="text-sm text-slate-600">Certaines boutiques l'exigent : en l'ajoutant, vous avez plus de chances d'être choisi.</p>
+        <p class="explain-detail">Une boutique peut aussi vous la demander plus tard. Seules vos boutiques la voient.</p>
+        <label class="btn-secondary mt-2 inline-flex cursor-pointer px-3 py-1.5 text-sm">{{ idDocument ? 'Changer' : '🪪 Ajouter ma pièce' }}
+          <input type="file" accept="image/*,application/pdf" capture="environment" class="sr-only" @change="idDocument = $event.target.files[0] ?? null" />
+        </label>
+        <p v-if="idDocument" class="mt-1 text-sm text-emerald-700">✓ {{ idDocument.name }}</p>
       </div>
       <label class="flex items-start gap-2 text-sm">
         <input v-model="form.listed" type="checkbox" class="mt-0.5 h-4 w-4 accent-emerald-700" />

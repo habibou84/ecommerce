@@ -171,8 +171,9 @@ defineExpose({ reload: load })
       </label>
 
       <div class="rounded-lg border p-3" :class="space.profile.has_id_document ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'">
-        <p class="text-sm font-medium">{{ space.profile.has_id_document ? '🪪 Pièce d\'identité ajoutée ✓' : '🪪 Pièce d\'identité pas encore ajoutée' }}</p>
-        <p class="explain-detail">Certaines boutiques l'exigent. Seules vos boutiques peuvent la voir.</p>
+        <p class="text-sm font-medium">{{ space.profile.has_id_document ? '🪪 Pièce d\'identité ajoutée ✓' : '🪪 Pièce d\'identité (facultative)' }}</p>
+        <p v-if="!space.profile.has_id_document" class="text-sm text-slate-600">Certaines boutiques l'exigent : en l'ajoutant, vous avez plus de chances d'être choisi.</p>
+        <p class="explain-detail">Une boutique peut aussi vous la demander plus tard. Seules vos boutiques la voient.</p>
         <label class="btn-secondary mt-2 inline-flex cursor-pointer px-3 py-1.5 text-sm">{{ space.profile.has_id_document ? 'Remplacer' : 'Ajouter ma pièce' }}
           <input type="file" accept="image/*,application/pdf" capture="environment" class="sr-only" @change="upload('document', $event)" />
         </label>

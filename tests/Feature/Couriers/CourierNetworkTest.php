@@ -86,7 +86,15 @@ class CourierNetworkTest extends TestCase
     {
         $moussa = $this->signUp();
         $this->signUp('0700000004', 'Awa Bamba');
-        CourierProfile::whereHas('user', fn ($q) => $q->where('name', 'Awa Bamba'))->update(['listed' => false]);
+        // Pièce d'identité fournie : en tête de l'annuaire
+        $this->signUp('0700000005', 'Yao Kouamé');
+        CourierProfile::whereHas('user', fn ($q) => $q->where('name', 'Yao Kouamé'))->update(['id_document_path' => 'couriers/x/id/cni.jpg']);
+        $this->actingAs($this->store->owner);
+        $names = array_column($this->storeApi($this->store, 'GET', 'couriers/directory')->json('data'), 'name');
+        $this->assertSame('Yao K.', $names[0]);
+        $this->assertEqualsCanonicalizing(['Awa B.', 'Moussa T.'], array_slice($names, 1));
+        $this->logout();
+        CourierProfile::whereHas('user', fn ($q) => $q->whereIn('name', ['Awa Bamba', 'Yao Kouamé']))->update(['listed' => false]);
 
         // Annuaire : livreurs visibles qui livrent dans la commune (ou un de ses quartiers), sans leur numéro
         $this->actingAs($this->store->owner);
