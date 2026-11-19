@@ -42,6 +42,10 @@ class CourierRoster
 
         $member = User::where('phone', $phone)->first();
         $isMember = $member !== null && $member->activeMembershipIn($store) !== null;
+        // Livreur inscrit (lien commun ou autre boutique) : demande à accepter dans son application, sans invitation
+        if ($member !== null && ! $isMember && CourierNetwork::isCourier($member)) {
+            return [app(CourierNetwork::class)->request($store, $inviter, $member, $data), null];
+        }
 
         return DB::transaction(function () use ($store, $inviter, $data, $phone, $member, $isMember, $extras) {
             $courier = Courier::create([

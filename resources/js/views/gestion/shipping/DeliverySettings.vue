@@ -45,6 +45,10 @@ async function setting(key, value) {
         <input type="checkbox" class="mt-0.5" :checked="settings.courier_tracking" @change="setting('courier_tracking', $event.target.checked)" />
         <span>Voir la position des livreurs pendant leur tournée <span class="block text-slate-500">Leur dernière position s'affiche dans Mes livreurs, quand ils sont disponibles et que l'application est ouverte. Prévenez-les : l'application le leur indique.</span></span>
       </label>
+      <label class="flex items-start gap-2">
+        <input type="checkbox" class="mt-0.5" :checked="settings.couriers_require_id" @change="setting('couriers_require_id', $event.target.checked)" />
+        <span>Exiger la pièce d'identité des livreurs <span class="block text-slate-500">Un livreur inscrit ne peut accepter votre demande qu'après avoir ajouté sa pièce d'identité. Vous la voyez ensuite dans Mes livreurs.</span></span>
+      </label>
     </section>
 
     <section class="card p-4 text-sm">

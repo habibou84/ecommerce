@@ -2,6 +2,7 @@
 import PasswordInput from '../../components/PasswordInput.vue'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import CourierSpace from '../../components/CourierSpace.vue'
 import Modal from '../../components/Modal.vue'
 import PushToggle from '../../components/PushToggle.vue'
 import { cachedGet, forgetAll, offline } from '../../lib/courierOffline'
@@ -91,6 +92,9 @@ async function removeAccount() {
       </ul>
       <p v-if="me.stores.length > 1" class="explain-detail mt-2">Vos courses de toutes ces boutiques sont ici. Chacune ne voit que les siennes et reçoit son argent.</p>
     </section>
+
+    <!-- Demandes des boutiques, profil livreur (annuaire, pièce d'identité), quitter une boutique -->
+    <CourierSpace compact-stores />
 
     <section class="space-y-3 rounded-xl bg-white p-4 text-sm shadow-sm">
       <p class="font-semibold">Affichage</p>

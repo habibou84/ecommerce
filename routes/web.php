@@ -12,6 +12,11 @@ use Illuminate\Support\Facades\Route;
 
 // La racine, la boutique en ligne et le suivi des commandes sont dans routes/storefront.php (sans session)
 
+// /livreur et /livreur/connexion|inscription : lien commun des livreurs sur jibiat-marchand.com (inscription, connexion,
+// espace) et application livreur sur l'adresse d'une boutique. Une seule route pour les deux : la page (même
+// application Vue) choisit selon l'adresse ; les autres pages /livreur/… sont plus bas (boutique seulement).
+Route::get('/livreur/{page?}', [PageController::class, 'spa'])->whereIn('page', ['inscription', 'connexion'])->middleware('zone:platform,store')->name('courier-home');
+
 // jibiat-marchand.com : création de boutique et connexion (application Vue)
 Route::middleware('zone:platform')->group(function () {
     Route::get('/creer-ma-boutique', [PageController::class, 'spa'])->name('signup');
