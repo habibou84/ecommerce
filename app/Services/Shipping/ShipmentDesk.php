@@ -623,6 +623,7 @@ class ShipmentDesk
                 'scheduled_date' => $stale ? null : $remote->scheduledDate,
                 'needs_decision' => $stale ? null : $remote->needsDecision,
                 'return_requested' => $stale ? null : $remote->returnRequested,
+                'return_cause' => $stale ? null : $remote->returnCause,
                 'carrier_ratings' => $remote->ratings,
                 'carrier_cancellation' => $remote->cancellation,
             ], fn ($v) => $v !== null))
