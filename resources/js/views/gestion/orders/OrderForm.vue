@@ -74,6 +74,11 @@ onMounted(async () => {
     const o = data.data
     original.value = deliverySignature(o)
     paidBefore.value = Math.max(0, (o.amount_paid ?? 0) - (o.amount_refunded ?? 0))
+    // Acompte fixé à la main : repris comme montant
+    if (o.upfront?.deposit_manual && o.deposit_required) {
+      depositMode.value = 'amount'
+      depositFixed.value = String(o.deposit_required)
+    }
     Object.assign(form, {
       customer_phone: o.customer_phone_display, customer_name: o.customer_name ?? '', delivery_method: o.delivery_method,
       shipping_phone2: o.shipping_phone2 ?? '', shipping_address: joinAddress(o.shipping_address, o.shipping_landmark), shipping_landmark: '',
@@ -422,9 +427,26 @@ const showDiscount = ref(false)
 const showDeposit = ref(false)
 // Acompte : vide = calculé tout seul (articles, réglage de la boutique) ; envoyé seulement s'il a été changé ici
 const depositTouched = ref(false)
-function setDeposit(percent) {
+// Trois façons de le fixer : Auto (calculé, seulement s'il y en a un), en pourcentage du total, ou un montant
+const depositMode = ref('auto')
+const depositPercent = ref('')
+const depositFixed = ref('')
+function setDepositMode(mode) {
   depositTouched.value = true
-  form.deposit_required = percent === null ? '' : Math.min(total.value, Math.ceil((total.value * percent) / 100 / 100) * 100)
+  depositMode.value = mode
+  applyDeposit()
+}
+// Le montant envoyé suit le mode : '' = Auto ; 0 = pas d'acompte ; pourcentage arrondi aux 100 F, jamais plus que le total
+function applyDeposit() {
+  if (depositMode.value === 'auto') form.deposit_required = ''
+  else if (depositMode.value === 'percent') {
+    const p = Number(depositPercent.value) || 0
+    form.deposit_required = p > 0 ? Math.min(total.value, Math.ceil((total.value * Math.min(100, p)) / 100 / 100) * 100) : 0
+  } else form.deposit_required = Math.max(0, Number(depositFixed.value) || 0)
+}
+function openDeposit() {
+  showDeposit.value = true
+  setDepositMode('percent')
 }
 // « Coller un message » depuis l'accueil (?coller=1) : la zone du message est ouverte d'emblée
 const pasteOpen = ref(route.query.coller === '1')
@@ -457,7 +479,17 @@ const autoDeposit = computed(() => {
 })
 const depositAuto = computed(() => form.deposit_required === '' || form.deposit_required === null)
 const depositAmount = computed(() => (depositAuto.value ? autoDeposit.value ?? 0 : Math.max(0, Number(form.deposit_required) || 0)))
-const depositTooHigh = computed(() => !depositAuto.value && Number(form.deposit_required) > total.value)
+const depositTooHigh = computed(() => depositMode.value === 'amount' && Number(depositFixed.value) > total.value)
+const percentTooHigh = computed(() => depositMode.value === 'percent' && Number(depositPercent.value) > 100)
+watch([depositPercent, depositFixed, total], () => {
+  if (depositMode.value !== 'auto') applyDeposit()
+})
+watch(autoDeposit, (auto) => {
+  if (depositMode.value === 'auto' && !auto && showDeposit.value) {
+    depositMode.value = 'percent'
+    applyDeposit()
+  }
+})
 // Déjà reçu : avant cette modification, plus ce qui est noté à la saisie
 const paidSoFar = computed(() => paidBefore.value + (editing.value ? 0 : total.value - due.value))
 const depositLeft = computed(() => Math.max(0, depositAmount.value - paidSoFar.value))
@@ -471,6 +503,7 @@ const missing = computed(() => {
   if (form.delivery_method === 'delivery' && !form.scheduled_date) return { text: 'Choisissez la date de livraison', field: 'scheduled_date', target: '#delivery-date' }
   if (chosenCarrier.value && !chosenCarrier.value.covered) return { text: `${chosenCarrier.value.name} ne livre pas ce quartier`, field: 'shipping_place_id', target: '#place' }
   if (depositTooHigh.value) return { text: `Baissez l'acompte : il dépasse le total (${money(total.value)})`, field: 'deposit_required', target: '#deposit' }
+  if (percentTooHigh.value) return { text: 'L\'acompte ne peut pas dépasser 100 %', field: 'deposit_required', target: '#deposit' }
   return null
 })
 const blocker = computed(() => missing.value?.text ?? '')
@@ -702,6 +735,11 @@ function again(copy) {
     paste.value = ''
     parseInfo.value = ''
     showNotes.value = false
+    depositPercent.value = ''
+    depositFixed.value = ''
+    depositMode.value = 'auto'
+    depositTouched.value = false
+    showDeposit.value = false
   }
   done.value = null
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1140,23 +1178,28 @@ async function save() {
             </p>
           </div>
 
-          <button v-if="!showDeposit && depositAuto && !autoDeposit" type="button" class="text-emerald-700 hover:underline" @click="showDeposit = true">+ Demander un acompte</button>
-          <div v-else class="space-y-1.5">
+          <button v-if="!showDeposit && depositAuto && !autoDeposit" type="button" class="text-emerald-700 hover:underline" @click="openDeposit">+ Demander un acompte</button>
+          <div v-else class="space-y-2">
+            <!-- Auto (seulement s'il y a un acompte automatique), pourcentage ou montant -->
+            <p class="font-semibold">Acompte</p>
+            <div class="grid gap-1.5" :class="autoDeposit ? 'grid-cols-3' : 'grid-cols-2'" role="radiogroup" aria-label="Acompte">
+              <button v-for="[mode, label] in [...(autoDeposit ? [['auto', `Auto · ${money(autoDeposit)}`]] : []), ['percent', '%'], ['amount', 'Montant']]" :key="mode" type="button" role="radio" :aria-checked="depositMode === mode"
+                      class="rounded-xl border-2 px-1 py-2 text-sm font-bold" :class="depositMode === mode ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-slate-200 text-slate-700'" @click="setDepositMode(mode)">{{ label }}</button>
+            </div>
             <div class="flex items-center justify-between gap-2">
-              <label for="deposit" class="text-slate-600">Acompte exigé (F)</label>
-              <input id="deposit" v-model="form.deposit_required" type="number" min="0" :max="total" class="input w-32 py-1 text-right" :class="{ 'border-red-500': depositTooHigh }"
-                     :placeholder="autoDeposit ? `auto : ${autoDeposit}` : 'auto'" :aria-invalid="depositTooHigh" @input="depositTouched = true" />
+              <label for="deposit" class="text-slate-600">{{ depositMode === 'auto' ? 'Acompte automatique' : depositMode === 'percent' ? 'Tapez le pourcentage de l\'acompte' : 'Tapez le montant de l\'acompte' }}</label>
+              <div class="relative w-32 shrink-0">
+                <input v-if="depositMode === 'auto'" id="deposit" :value="autoDeposit" type="number" disabled class="input w-full cursor-not-allowed bg-slate-100 py-1 pr-7 text-right text-slate-500" />
+                <input v-else-if="depositMode === 'percent'" id="deposit" v-model="depositPercent" type="number" min="1" max="100" inputmode="numeric" class="input w-full py-1 pr-7 text-right" :class="{ 'border-red-500': percentTooHigh }" placeholder="30" :aria-invalid="percentTooHigh" />
+                <input v-else id="deposit" v-model="depositFixed" type="number" min="0" :max="total" inputmode="numeric" class="input w-full py-1 pr-7 text-right" :class="{ 'border-red-500': depositTooHigh }" placeholder="5000" :aria-invalid="depositTooHigh" />
+                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">{{ depositMode === 'percent' ? '%' : 'F' }}</span>
+              </div>
             </div>
-            <div class="flex flex-wrap justify-end gap-1.5 text-xs font-bold">
-              <button type="button" class="rounded-full border px-2.5 py-1" :class="depositAuto ? 'border-emerald-700 bg-emerald-50 text-emerald-900' : 'border-field'" @click="setDeposit(null)">Auto{{ autoDeposit ? ` · ${money(autoDeposit)}` : '' }}</button>
-              <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(30)">30 %</button>
-              <button type="button" class="rounded-full border border-field px-2.5 py-1" @click="setDeposit(50)">50 %</button>
-            </div>
-            <p v-if="depositTooHigh || errors.deposit_required" class="text-right text-xs font-semibold text-red-600" role="alert">{{ depositTooHigh ? `L'acompte ne peut pas dépasser le total de la commande (${money(total)}).` : errors.deposit_required }}</p>
-            <p v-else-if="depositAuto && autoDeposit === 0" class="text-right explain-detail">Auto : pas d'acompte pour ces articles (réglage de la boutique).</p>
-            <p v-else-if="depositAuto && autoDeposit === null" class="text-right explain-detail">Auto : selon les articles et le réglage de la boutique.</p>
+            <p v-if="depositTooHigh || percentTooHigh || errors.deposit_required" class="text-right text-xs font-semibold text-red-600" role="alert">{{ depositTooHigh ? `L'acompte ne peut pas dépasser le total de la commande (${money(total)}).` : percentTooHigh ? 'L\'acompte ne peut pas dépasser 100 % du total.' : errors.deposit_required }}</p>
+            <p v-else-if="depositMode === 'auto'" class="text-right explain-detail">Calculé selon les articles et le réglage de la boutique.</p>
+            <p v-else-if="depositMode === 'percent' && depositAmount > 0" class="text-right explain-detail">{{ depositPercent }} % de {{ money(total) }}, arrondi aux 100 F.</p>
             <!-- Ce que l'acompte veut dire pour cette commande -->
-            <div v-if="!depositTooHigh && depositAmount > 0" class="rounded-lg px-3 py-2 text-sm font-semibold" :class="depositLeft === 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'">
+            <div v-if="!depositTooHigh && !percentTooHigh && depositAmount > 0" class="rounded-lg px-3 py-2 text-sm font-semibold" :class="depositLeft === 0 ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'">
               <p v-if="depositLeft === 0">✅ Acompte de {{ money(depositAmount) }} déjà couvert par ce qui a été payé.</p>
               <p v-else-if="paidSoFar > 0">⏳ Il manque {{ money(depositLeft) }} d'acompte (sur {{ money(depositAmount) }}).</p>
               <p v-else>⏳ Acompte à recevoir : {{ money(depositAmount) }} · reste à la livraison : {{ money(Math.max(0, total - depositAmount)) }}</p>
