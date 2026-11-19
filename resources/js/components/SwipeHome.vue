@@ -114,6 +114,9 @@ const KEY = 'jm.swipe-page'
 const track = ref(null)
 const tabs = ref(null)
 const current = ref(0)
+// L'onglet mémorisé n'est réécrit qu'une fois relu : sinon l'ouverture (onglet 0, le Live) l'effaçait
+// et une actualisation de la page ramenait toujours au Live
+let restored = false
 const seen = ref(new Set())
 const page = computed(() => pages.value[current.value] ?? pages.value[0])
 function go(i, smooth = true) {
@@ -131,10 +134,12 @@ watch(current, (i) => {
   const key = pages.value[i]?.key
   if (!key) return
   seen.value.add(key)
-  try {
-    sessionStorage.setItem(KEY, key)
-  } catch {
-    // Sans stockage : on revient sur le Live
+  if (restored) {
+    try {
+      sessionStorage.setItem(KEY, key)
+    } catch {
+      // Sans stockage : on revient sur le Live
+    }
   }
   // L'onglet de la page affichée vient au milieu de la barre (jamais caché sous la cloche)
   const bar = tabs.value
@@ -156,6 +161,7 @@ onMounted(async () => {
   await nextTick()
   current.value = i
   go(i, false)
+  restored = true
   startPage = i
 })
 
