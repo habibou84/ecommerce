@@ -268,6 +268,7 @@ class PhoneVerifier
 
         return match ($verification->purpose) {
             VerificationPurpose::Signup => '✅ Numéro vérifié ! Retournez sur la page Jibiat Marchand : votre espace marchand s\'ouvre.',
+            VerificationPurpose::CourierSignup => '✅ Numéro vérifié ! Retournez sur la page : votre espace livreur s\'ouvre.',
             VerificationPurpose::Invitation => '✅ Numéro vérifié ! Retournez sur la page : vous rejoignez l\'équipe de '.($verification->store?->name ?? 'la boutique').'.',
             VerificationPurpose::PasswordReset => $verification->user_id
                 ? '✅ Numéro vérifié. Retournez sur la page pour choisir votre nouveau mot de passe.'
@@ -294,6 +295,7 @@ class PhoneVerifier
     {
         $what = match ($verification->purpose) {
             VerificationPurpose::Signup => 'pour créer votre espace marchand',
+            VerificationPurpose::CourierSignup => 'pour créer votre espace livreur',
             VerificationPurpose::Invitation => 'pour rejoindre l\'espace marchand '.$verification->store?->name,
             VerificationPurpose::PasswordReset => 'pour changer votre mot de passe',
             VerificationPurpose::ConsoleLogin => 'pour vous connecter à la console Jibiat Marchand',

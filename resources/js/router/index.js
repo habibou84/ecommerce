@@ -13,6 +13,10 @@ const platformRoutes = [
   // Écran du live (télé, tablette, ordinateur) : code à 4 chiffres, puis affichage du live de la boutique
   { path: '/ecran/:token?', component: () => import('../views/platform/LiveScreen.vue'), props: true },
   { path: '/mot-de-passe-oublie', component: () => import('../views/auth/ForgotPassword.vue'), props: { loginPath: '/connexion' } },
+  // Lien commun des livreurs : inscription sans boutique, connexion, espace (demandes des boutiques, profil)
+  { path: '/livreur', component: () => import('../views/platform/courier/CourierHome.vue') },
+  { path: '/livreur/inscription', component: () => import('../views/platform/courier/CourierSignup.vue') },
+  { path: '/livreur/connexion', component: () => import('../views/platform/courier/CourierLogin.vue') },
 ]
 
 // {slug}.jibiat-marchand.com : gestion de la boutique
