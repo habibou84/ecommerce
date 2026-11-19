@@ -36,7 +36,8 @@ const form = reactive({
   deposit_required: '',
   customer_note: '',
   internal_note: '',
-  confirmed: false,
+  // Coché par défaut : la commande saisie a déjà été vue avec le client ; à décocher pour la file « À confirmer »
+  confirmed: true,
   // Expédition vers une autre ville : qui paie la compagnie de transport, paiement avant de partir à la gare
   expedition_payer: 'included',
   expedition_prepay: null,
