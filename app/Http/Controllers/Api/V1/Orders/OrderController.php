@@ -58,6 +58,7 @@ class OrderController extends Controller
             'days' => $listing->dayTotals($request, $page->getCollection()->pluck('list_day')->unique()->values()->all()),
             'counts' => $listing->counts($request),
             'summary' => $listing->summary($request, $page->total()),
+            'progress' => $listing->progress($request),
         ]);
     }
 

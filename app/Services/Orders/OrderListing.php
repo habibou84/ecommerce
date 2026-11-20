@@ -34,12 +34,12 @@ class OrderListing
     public static function rules(): array
     {
         return [
-            'status' => ['nullable', Rule::in([...OrderStatus::values(), 'to_ship', 'at_courier', 'late'])],
+            'status' => ['nullable', Rule::in([...OrderStatus::values(), 'to_ship', 'at_courier', 'late', 'in_progress', 'failed'])],
             'search' => ['nullable', 'string', 'max:100'],
             'source' => ['nullable', Rule::enum(OrderSource::class)],
             'customer_id' => ['nullable', 'integer'],
             'callback_due' => ['nullable', 'boolean'],
-            'period' => ['nullable', Rule::in(['today', 'yesterday', 'tomorrow', '7d', 'month', 'custom'])],
+            'period' => ['nullable', Rule::in(['today', 'yesterday', 'tomorrow', '7d', 'month', 'custom', 'all'])],
             'date_field' => ['nullable', Rule::in(['created', 'scheduled'])],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
@@ -184,6 +184,9 @@ class OrderListing
             'to_ship' => self::toShip($query),
             'at_courier' => $query->whereIn('status', [OrderStatus::Confirmed->value, OrderStatus::Processing->value])->whereHas('shipments', self::activeShipment(...)),
             'late' => $this->late($query),
+            // Onglets de la liste : en cours (pas encore livrée ni en échec), échec (livraison ratée, annulée, retournée)
+            'in_progress' => $query->whereIn('status', self::NEEDS_DATE)->whereNot(fn (Builder $q) => self::deliveryFailed($q)),
+            'failed' => self::failed($query),
             default => $query->where('status', $status),
         };
     }
@@ -200,6 +203,22 @@ class OrderListing
     private static function activeShipment(Builder $q): void
     {
         $q->whereNotIn('status', array_map(fn (ShipmentStatus $s) => $s->value, array_filter(ShipmentStatus::cases(), fn (ShipmentStatus $s) => $s->isFinal())));
+    }
+
+    /**
+     * Échec : livraison ratée, reportée ou en retour (course pas encore close), ou commande annulée ou retournée.
+     */
+    public static function failed(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->whereIn('status', [OrderStatus::Cancelled->value, OrderStatus::Returned->value])
+            ->orWhere(fn (Builder $q) => self::deliveryFailed($q->whereIn('status', self::NEEDS_DATE))));
+    }
+
+    /** Course en cours dont la livraison a raté, a été reportée, revient, ou attend une décision */
+    private static function deliveryFailed(Builder $query): Builder
+    {
+        return $query->whereHas('shipments', fn (Builder $s) => $s->whereNotIn('status', array_map(fn (ShipmentStatus $x) => $x->value, array_filter(ShipmentStatus::cases(), fn (ShipmentStatus $x) => $x->isFinal())))
+            ->where(fn (Builder $q) => $q->whereIn('status', [ShipmentStatus::Failed->value, ShipmentStatus::Rescheduled->value, ShipmentStatus::Returning->value])->orWhere('needs_decision', true)));
     }
 
     public function late(Builder $query): Builder
@@ -220,6 +239,8 @@ class OrderListing
             ->put('to_ship', $this->withStatus($this->filtered($request), 'to_ship')->count())
             ->put('at_courier', $this->withStatus($this->filtered($request), 'at_courier')->count())
             ->put('late', $this->late($this->filtered($request))->count())
+            ->put('in_progress', $this->withStatus($this->filtered($request), 'in_progress')->count())
+            ->put('failed', self::failed($this->filtered($request))->count())
             ->all();
     }
 
@@ -239,6 +260,32 @@ class OrderListing
             'amount' => (int) $row->amount,
             'to_collect' => (int) $row->due,
             'due_today' => Order::where('scheduled_date', today()->toDateString())->whereIn('status', array_map(fn ($s) => $s->value, self::OPEN))->count(),
+        ];
+    }
+
+    /**
+     * Avancement des commandes affichées (tous onglets) : montant total, montant livré, en route, en échec.
+     * Les commandes annulées ou retournées ne comptent pas dans le total.
+     *
+     * @return array<string, int>
+     */
+    public function progress(Request $request): array
+    {
+        $sum = fn (Builder $q) => $q->toBase()->selectRaw('COUNT(*) AS n, COALESCE(SUM(total), 0) AS amount')->first();
+        $all = $sum($this->filtered($request)->whereNotIn('status', [OrderStatus::Cancelled->value, OrderStatus::Returned->value]));
+        $delivered = $sum($this->filtered($request)->where('status', OrderStatus::Completed->value));
+        $failed = $sum(self::deliveryFailed($this->filtered($request)->whereIn('status', self::NEEDS_DATE)));
+        $onTheWay = $sum($this->withStatus($this->filtered($request), 'in_progress')->where('status', OrderStatus::Shipped->value));
+
+        return [
+            'count' => (int) $all->n,
+            'amount' => (int) $all->amount,
+            'delivered_count' => (int) $delivered->n,
+            'delivered_amount' => (int) $delivered->amount,
+            'on_the_way_count' => (int) $onTheWay->n,
+            'on_the_way_amount' => (int) $onTheWay->amount,
+            'failed_count' => (int) $failed->n,
+            'failed_amount' => (int) $failed->amount,
         ];
     }
 
@@ -266,6 +313,7 @@ class OrderListing
             // Course en cours : son état et le numéro de suivi, visibles dans la liste (onglets À ramasser, En route)
             'shipment_status' => $shipment && ! $shipment->status->isFinal() ? $shipment->status->value : null,
             'shipment_status_label' => $shipment && ! $shipment->status->isFinal() ? $shipment->status->label() : null,
+            'delivery_failed' => $shipment !== null && ! $shipment->status->isFinal() && ($shipment->needs_decision || in_array($shipment->status, [ShipmentStatus::Failed, ShipmentStatus::Rescheduled, ShipmentStatus::Returning], true)),
             'tracking_code' => $shipment && ! $shipment->status->isFinal() ? $shipment->carrier_tracking_code : null,
             'deliverer_editable' => $deliverer !== null && $order->delivery_method === 'delivery' && (
                 ($shipment === null && in_array($order->status, [OrderStatus::PendingConfirmation, OrderStatus::Confirmed, OrderStatus::Processing], true))

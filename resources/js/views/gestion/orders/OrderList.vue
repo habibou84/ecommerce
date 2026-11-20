@@ -10,6 +10,8 @@ import MaterielTip from '../../../components/MaterielTip.vue'
 import http, { download, errorMessage } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
 import StateBadge from '../../../components/StateBadge.vue'
+import PointSheet from '../../../components/PointSheet.vue'
+import { canPoint, loadPoint } from '../../../lib/point'
 import { CANCEL_REASONS, ORDER_TABS, PAYMENT_TONES, SOURCES, STATUS_ICONS, STATUS_TONES, avatar, riskLabel, tabCount } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
 
@@ -20,13 +22,20 @@ const canManage = computed(() => auth.can('orders.manage'))
 const canAssign = computed(() => auth.can('shipments.manage'))
 
 const PERIODS = [
-  { value: '', label: 'Toutes les dates' },
-  { value: 'today', label: 'Aujourd\'hui' },
   { value: 'yesterday', label: 'Hier' },
+  { value: 'today', label: 'Aujourd\'hui' },
   { value: 'tomorrow', label: 'Demain' },
   { value: '7d', label: '7 jours' },
   { value: 'month', label: 'Ce mois' },
+  { value: 'all', label: 'Toutes' },
   { value: 'custom', label: 'Période…' },
+]
+// Les onglets de la liste ; les étapes plus fines (à confirmer, à faire livrer…) restent ouvrables par un lien
+const LIST_TABS = [
+  { value: '', label: 'Toutes' },
+  { value: 'in_progress', label: 'En cours' },
+  { value: 'completed', label: 'Livrées' },
+  { value: 'failed', label: 'Échec', alert: true },
 ]
 const SORTS = [
   { value: 'scheduled', label: 'Date de livraison' },
@@ -38,7 +47,7 @@ const SORTS = [
 // Filtres, gardés dans l'adresse de la page (retour arrière, lien partagé)
 const q = route.query
 const filters = reactive({
-  status: q.status ?? '', search: q.search ?? '', source: q.source ?? '', period: q.period ?? '', date_field: q.date_field ?? 'scheduled',
+  status: q.status ?? '', search: q.search ?? '', source: q.source ?? '', period: q.period ?? (Object.keys(q).length ? 'all' : 'today'), date_field: q.date_field ?? 'scheduled',
   from: q.from ?? '', to: q.to ?? '', deliverer: q.deliverer ?? '', commune_id: q.commune_id ?? '', payment: q.payment ?? '', alert: q.alert ?? '', sort: q.sort ?? 'scheduled', page: 1,
 })
 const params = () => Object.fromEntries(Object.entries(filters).filter(([k, v]) => v !== '' && v !== null && !(k === 'date_field' && v === 'scheduled') && !(k === 'sort' && v === 'scheduled')))
@@ -46,6 +55,7 @@ const params = () => Object.fromEntries(Object.entries(filters).filter(([k, v]) 
 const orders = ref([])
 const counts = ref({})
 const summary = ref(null)
+const progress = ref(null)
 const meta = ref(null)
 const days = ref({})
 const error = ref('')
@@ -64,6 +74,7 @@ async function load(more = false) {
     orders.value = more ? [...orders.value, ...data.data.filter((o) => !orders.value.some((x) => x.id === o.id))] : data.data
     counts.value = data.counts
     summary.value = data.summary
+    progress.value = data.progress
     meta.value = data.meta
     days.value = more ? { ...days.value, ...data.days } : data.days
     selected.value = new Set([...selected.value].filter((id) => orders.value.some((o) => o.id === id)))
@@ -73,6 +84,24 @@ async function load(more = false) {
     loading.value = false
   }
 }
+
+// Faire le point : ce que les livreurs et les entreprises doivent (montant sur le bouton)
+const showPoint = computed(() => canPoint(auth))
+const pointTotal = ref(null)
+const pointOpen = ref(false)
+async function loadPointTotal() {
+  if (showPoint.value) pointTotal.value = (await loadPoint(auth).catch(() => null))?.total ?? null
+}
+onMounted(loadPointTotal)
+function pointChanged() {
+  loadPointTotal()
+  load()
+}
+
+// Carte du haut : total, livré, barre (livré, en route, échec)
+const PERIOD_TITLES = { today: 'Commandes du jour', yesterday: 'Commandes d\'hier', tomorrow: 'Commandes de demain', '7d': 'Commandes des 7 jours', month: 'Commandes du mois' }
+const progressTitle = computed(() => PERIOD_TITLES[filters.period] ?? 'Total des commandes')
+const pct = (n) => (progress.value?.amount ? Math.min(100, Math.round((n / progress.value.amount) * 100)) : 0)
 
 // Qui livre et communes, pour les filtres et pour confier les commandes
 const options = ref(null)
@@ -105,10 +134,12 @@ const delivererLabel = (key) => {
   return (type === 'courier' ? options.value?.couriers : options.value?.carriers)?.find((d) => String(d.id) === id)?.name ?? 'Livreur'
 }
 // Files des alertes (ouvertes depuis une notification ou l'accueil)
+const STEP_LABELS = Object.fromEntries(ORDER_TABS.map((t) => [t.value, t.label]))
 const ALERTS = { proof: '💳 Reçus à valider', unassigned: 'Sans livreur', not_picked: 'Pas encore ramassées', on_the_way: 'Encore en route', unhandled: 'Problème de livraison à traiter', to_bring_back: 'Colis à rapporter' }
 watch(() => route.query.alert, (v) => { if ((v ?? '') !== filters.alert) filters.alert = v ?? '' })
 const activeFilters = computed(() => [
   filters.alert && ALERTS[filters.alert] && { key: 'alert', label: ALERTS[filters.alert] },
+  filters.status && !LIST_TABS.some((t) => t.value === filters.status) && { key: 'status', label: `Étape : ${STEP_LABELS[filters.status] ?? filters.status}` },
   filters.deliverer && { key: 'deliverer', label: `Qui livre : ${delivererLabel(filters.deliverer)}` },
   filters.commune_id && { key: 'commune_id', label: `Commune : ${communes.value.find((c) => String(c.id) === String(filters.commune_id))?.name ?? '…'}` },
   filters.payment && { key: 'payment', label: filters.payment === 'paid' ? 'Payées' : 'À encaisser' },
@@ -155,6 +186,7 @@ function deliveryBadge(o) {
 
 // Action principale de chaque ligne, selon l'étape : toujours en vert de la marque (l'ocre est pour les statuts à traiter)
 function mainAction(o) {
+  if (o.delivery_failed && canManage.value) return { label: 'Que faire ?', icon: 'alert', tone: 'bg-red-700 hover:bg-red-800', run: () => router.push(`/gestion/commandes/${o.id}`) }
   if (o.status === 'pending_confirmation' && auth.can('orders.confirm')) return { label: 'Confirmer', icon: 'phone', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => confirmOrder(o) }
   if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && o.prepay_due > 0 && !o.shipment_id && canManage.value) return { label: o.prepay_kind === 'deposit' ? 'Lien d\'acompte' : 'Lien de paiement', icon: 'cash', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => sendPayLink(o) }
   if (['confirmed', 'processing'].includes(o.status) && o.delivery_method === 'delivery' && canAssign.value && !o.deliverer) return { label: 'Faire livrer', icon: 'truck', tone: 'bg-emerald-700 hover:bg-emerald-800', run: () => openAssign([o.id]) }
@@ -416,41 +448,42 @@ async function exportList() {
       <button type="button" class="text-emerald-700 hover:underline" @click="clearFilters">Tout effacer</button>
     </div>
 
+    <!-- Avancement : total, livré, barre, et le point de l'argent -->
+    <section v-if="progress" class="card p-4 lg:p-5">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0"><p class="text-sm font-semibold text-slate-500">{{ progressTitle }}</p><p class="truncate font-display text-2xl font-extrabold tracking-tight lg:text-3xl">{{ money(progress.amount) }}</p></div>
+        <div class="min-w-0 text-right"><p class="text-sm font-semibold text-slate-500">Livré</p><p class="truncate font-display text-2xl font-extrabold tracking-tight text-emerald-700 lg:text-3xl">{{ money(progress.delivered_amount) }}</p></div>
+      </div>
+      <div class="mt-3 flex h-3 overflow-hidden rounded-full bg-slate-200" role="img" :aria-label="`${pct(progress.delivered_amount)} % livré`">
+        <i class="block h-full bg-emerald-700" :style="{ width: `${pct(progress.delivered_amount)}%` }" />
+        <i class="block h-full bg-sky-400" :style="{ width: `${pct(progress.on_the_way_amount)}%` }" />
+        <i class="block h-full bg-red-500" :style="{ width: `${pct(progress.failed_amount)}%` }" />
+      </div>
+      <p class="mt-1.5 flex flex-wrap justify-between gap-x-3 text-sm font-semibold">
+        <span class="text-emerald-800">{{ pct(progress.delivered_amount) }} % livré · {{ progress.delivered_count }} sur {{ progress.count }}</span>
+        <span class="text-slate-600">{{ progress.on_the_way_count }} en route<template v-if="progress.failed_count"> · <span class="text-red-700">{{ progress.failed_count }} échec{{ progress.failed_count > 1 ? 's' : '' }}</span></template></span>
+      </p>
+      <button v-if="showPoint" type="button" class="btn-brand mt-3 w-full py-3 text-base lg:w-auto lg:px-6" @click="pointOpen = true">
+        <Icon name="cash" :size="18" class="shrink-0" /><span class="truncate">Faire le point<span v-if="pointTotal" class="font-semibold opacity-90"> · {{ money(pointTotal) }}<span class="hidden sm:inline"> à récupérer</span></span></span>
+      </button>
+    </section>
+
     <!-- Étape de la commande : des onglets soulignés -->
-    <nav v-tab-strip class="-mx-4 flex gap-5 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Étape des commandes">
+    <nav v-tab-strip class="-mx-4 flex gap-3 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Étape des commandes">
       <button
-        v-for="tab in ORDER_TABS"
+        v-for="tab in LIST_TABS"
         :key="tab.value"
         type="button"
         role="tab"
         :aria-selected="filters.status === tab.value"
-        class="-mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-[2.5px] text-sm font-semibold"
-        :class="filters.status === tab.value ? 'border-emerald-700 text-emerald-800' : tab.alert && counts.late ? 'border-transparent text-red-700 hover:border-red-200' : 'border-transparent text-slate-600 hover:border-field hover:text-slate-900'"
+        class="-mb-px inline-flex min-h-11 flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap border-b-[2.5px] text-sm font-semibold sm:flex-none"
+        :class="filters.status === tab.value ? (tab.alert && counts.failed ? 'border-red-700 text-red-800' : 'border-emerald-700 text-emerald-800') : tab.alert && counts.failed ? 'border-transparent text-red-700 hover:border-red-200' : 'border-transparent text-slate-600 hover:border-field hover:text-slate-900'"
         @click="filters.status = tab.value"
       >
         {{ tab.label }}
-        <span class="rounded-md px-1.5 text-xs font-bold" :class="filters.status === tab.value ? 'bg-emerald-50 text-emerald-800' : tab.alert && counts.late ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'">{{ tabCount(counts, tab.value) }}</span>
+        <span class="rounded-md px-1.5 text-xs font-bold" :class="tab.alert && counts.failed ? 'bg-red-100 text-red-800' : filters.status === tab.value ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'">{{ tabCount(counts, tab.value) }}</span>
       </button>
     </nav>
-
-    <!-- Résumé de la liste affichée -->
-    <!-- Téléphone : les trois chiffres sur une seule ligne -->
-    <div v-if="summary" class="card flex py-3 lg:hidden">
-      <div class="min-w-0 flex-1 px-3"><p class="text-xs font-semibold text-slate-500">Montant</p><p class="truncate font-display text-base font-extrabold">{{ money(summary.amount) }}</p></div>
-      <div class="min-w-0 flex-1 border-l border-slate-200 px-3"><p class="text-xs font-semibold text-slate-500">À encaisser</p><p class="truncate font-display text-base font-extrabold" :class="summary.to_collect ? 'text-ocre-700' : ''">{{ money(summary.to_collect) }}</p></div>
-      <button type="button" class="min-w-0 flex-1 border-l border-slate-200 px-3 text-left" @click="Object.assign(filters, { period: 'today', date_field: 'scheduled', status: '' })">
-        <p class="text-xs font-semibold text-slate-500">Aujourd'hui</p><p class="truncate font-display text-base font-extrabold text-emerald-800">{{ summary.due_today }} à livrer</p>
-      </button>
-    </div>
-    <!-- Ordinateur : quatre cartes -->
-    <div v-if="summary" class="hidden grid-cols-4 gap-3 lg:grid">
-      <div class="card p-4"><p class="text-sm font-semibold text-slate-500">Commandes</p><p class="mt-1 text-2xl font-extrabold">{{ summary.count }}</p></div>
-      <div class="card p-4"><p class="text-sm font-semibold text-slate-500">Montant</p><p class="mt-1 text-2xl font-extrabold">{{ money(summary.amount) }}</p></div>
-      <div class="card p-4"><p class="text-sm font-semibold text-slate-500">À encaisser</p><p class="mt-1 text-2xl font-extrabold" :class="summary.to_collect ? 'text-ocre-700' : ''">{{ money(summary.to_collect) }}</p></div>
-      <button type="button" class="card p-4 text-left hover:border-emerald-600" @click="Object.assign(filters, { period: 'today', date_field: 'scheduled', status: '' })">
-        <p class="text-sm font-semibold text-slate-500">À livrer aujourd'hui</p><p class="mt-1 text-2xl font-extrabold text-emerald-800">{{ summary.due_today }}</p>
-      </button>
-    </div>
 
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
@@ -585,6 +618,8 @@ async function exportList() {
       </button>
     </div>
     <p v-else-if="stacked" class="text-center text-sm text-slate-500 lg:hidden">Toutes les commandes sont affichées ({{ meta.total }}).</p>
+
+    <PointSheet v-if="pointOpen" @close="pointOpen = false" @changed="pointChanged" />
 
     <!-- Filtres et tri -->
     <Modal v-if="filtersOpen" title="Filtres et tri" @close="filtersOpen = false">

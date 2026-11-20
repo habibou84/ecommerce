@@ -43,6 +43,39 @@ class OrderListTest extends TestCase
         return Order::findOrFail($id);
     }
 
+    public function test_day_tabs_and_progress(): void
+    {
+        $day = ['confirmed' => true, 'scheduled_date' => today()->toDateString()];
+        $courier = Courier::create(['store_id' => $this->store->id, 'name' => 'Koffi', 'phone' => '+2250102030405', 'status' => 'active', 'is_available' => true]);
+        $waiting = $this->order($day);
+        $onTheWay = $this->order($day);
+        $delivered = $this->order($day);
+        $failed = $this->order($day);
+        $cancelled = $this->order($day);
+        $this->api('POST', 'orders/bulk', ['ids' => [$onTheWay->id, $delivered->id, $failed->id], 'action' => 'assign', 'courier_id' => $courier->id])->assertOk();
+        foreach ([$onTheWay, $delivered, $failed] as $o) {
+            $o->refresh()->forceFill(['status' => OrderStatus::Shipped])->save();
+            $o->shipments()->first()->forceFill(['status' => 'out_for_delivery'])->save();
+        }
+        $failed->shipments()->first()->forceFill(['status' => 'failed'])->save();
+        $this->api('POST', "orders/{$delivered->id}/status", ['status' => 'completed'])->assertOk();
+        $this->api('POST', 'orders/bulk', ['ids' => [$cancelled->id], 'action' => 'status', 'status' => 'cancelled', 'reason' => 'customer_request'])->assertOk();
+        $this->order(['confirmed' => true, 'scheduled_date' => today()->addDay()->toDateString()]);
+
+        $list = $this->api('GET', 'orders?period=today')->assertOk();
+        $list->assertJsonPath('counts.in_progress', 2)->assertJsonPath('counts.completed', 1)->assertJsonPath('counts.failed', 2);
+        $this->assertSame([
+            'count' => 4, 'amount' => 4 * 19500, 'delivered_count' => 1, 'delivered_amount' => 19500,
+            'on_the_way_count' => 1, 'on_the_way_amount' => 19500, 'failed_count' => 1, 'failed_amount' => 19500,
+        ], $list->json('progress'));
+        $ids = fn (string $status) => collect($this->api('GET', "orders?period=today&status={$status}")->json('data'))->pluck('id')->sort()->values()->all();
+        $this->assertSame([$waiting->id, $onTheWay->id], $ids('in_progress'));
+        $this->assertSame([$failed->id, $cancelled->id], $ids('failed'));
+        $this->assertTrue(collect($list->json('data'))->firstWhere('id', $failed->id)['delivery_failed']);
+        // Toutes les dates
+        $this->api('GET', 'orders?period=all')->assertOk()->assertJsonPath('progress.count', 5);
+    }
+
     public function test_list_by_period_late_tab_summary_and_row_details(): void
     {
         $today = $this->order(['confirmed' => true, 'scheduled_date' => today()->toDateString()]);

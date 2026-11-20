@@ -26,7 +26,7 @@ export const ORDER_TABS = [
 // Chiffre d'un onglet, à partir des « counts » renvoyés par GET /orders (Toutes : la somme des statuts)
 export function tabCount(counts, tab) {
   if (tab) return counts?.[tab] ?? 0
-  return Object.entries(counts ?? {}).filter(([k]) => !['to_ship', 'at_courier', 'late'].includes(k)).reduce((s, [, n]) => s + n, 0)
+  return Object.entries(counts ?? {}).filter(([k]) => !['to_ship', 'at_courier', 'late', 'in_progress', 'failed'].includes(k)).reduce((s, [, n]) => s + n, 0)
 }
 // Lien vers la liste ouverte sur un onglet
 export const tabLink = (tab) => (tab ? `/gestion/commandes?status=${tab}` : '/gestion/commandes')
