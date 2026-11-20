@@ -129,6 +129,8 @@ return [
     // Cartes Membre Premium demandées par les entreprises de Jibiat : secret partagé avec le serveur de Jibiat
     'jibiat' => [
         'premium_secret' => env('JIBIAT_PREMIUM_SECRET'),
+        // Connexion directe aux entreprises (contrat socle 1.12) : secret partagé avec Jibiat, dans les deux sens
+        'connect_secret' => env('CONNECT_JIBIAT_MARCHAND_SECRET'),
     ],
 
 ];

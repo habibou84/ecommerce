@@ -4,6 +4,7 @@ namespace App\Services\Shipping;
 
 use App\Exceptions\BusinessRuleException;
 use App\Models\CarrierConnection;
+use App\Models\CarrierRequest;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Billing\PlanLimits;
@@ -47,13 +48,18 @@ class CarrierDirectory
             ->where('status', '!=', 'disabled')->pluck('base_url')
             ->map(fn (string $url) => mb_strtolower((string) parse_url($url, PHP_URL_HOST)))->all();
         $city = mb_strtolower(trim((string) $store->address));
+        $requests = CarrierRequest::forStore($store->id)->whereIn('status', [...CarrierRequest::OPEN, 'declined', 'expired', 'failed'])
+            ->where('updated_at', '>=', now()->subDays(30))->latest('id')->get()->unique('slug')
+            ->mapWithKeys(fn (CarrierRequest $r) => [$r->slug => [
+                'id' => $r->id, 'status' => $r->status, 'decide_before' => $r->decide_before?->toIso8601String(), 'reason' => $r->reason, 'created_at' => $r->created_at?->toIso8601String(),
+            ]])->all();
 
-        $list = collect($companies)->map(function (array $c) use ($connected, $city, $store) {
+        $list = collect($companies)->map(function (array $c) use ($connected, $city, $store, $requests) {
             $host = mb_strtolower((string) parse_url($c['url'], PHP_URL_HOST));
             $local = $city !== '' && collect($c['cities'])->contains(fn (string $name) => str_contains($city, mb_strtolower($name)));
 
-            // partner : l'entreprise qui a invité la boutique, toujours en premier
-            return [...$c, 'connected' => in_array($host, $connected, true), 'near' => $local, 'partner' => $store->referred_by === $c['slug']];
+            // partner : l'entreprise qui a invité la boutique, toujours en premier ; request : dernière demande en un clic
+            return [...$c, 'connected' => in_array($host, $connected, true), 'near' => $local, 'partner' => $store->referred_by === $c['slug'], 'request' => $requests[$c['slug']] ?? null];
         })->sortByDesc(fn (array $c) => [$c['partner'] ? 1 : 0, $c['near'] ? 1 : 0, $c['stats']['deliveries_90d'] ?? 0])->values()->all();
 
         return ['companies' => $list, 'available' => true];
@@ -105,6 +111,8 @@ class CarrierDirectory
                 'ships_inland' => (bool) ($c['ships_inland'] ?? false),
                 'price_from' => isset($c['price_from']) ? (int) $c['price_from'] : null,
                 'accepts' => ($c['accepts'] ?? 'signup') === 'request' ? 'request' : 'signup',
+                // Ouverture du compte en un clic, de serveur à serveur (contrat 1.12)
+                'direct' => (bool) ($c['direct'] ?? false),
                 'stats' => [
                     'deliveries_90d' => (int) ($c['stats']['deliveries_90d'] ?? 0),
                     'success_rate' => isset($c['stats']['success_rate']) ? (float) $c['stats']['success_rate'] : null,

@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\Api\Partners\ConnectionController;
 use App\Http\Controllers\Api\Partners\PremiumCardController;
 use App\Http\Controllers\Api\V1\AccessKeyController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -106,6 +107,9 @@ Route::prefix('partners/v1')->name('partners.')->middleware(['zone:api', 'thrott
     Route::get('premium-cards', [PremiumCardController::class, 'index'])->name('premium-cards.index');
     Route::delete('premium-cards/{code}', [PremiumCardController::class, 'destroy'])->where('code', '[A-Za-z0-9-]{1,20}')->name('premium-cards.destroy');
 });
+// Décisions des entreprises de Jibiat sur la connexion directe (contrat socle 1.12), secret de la connexion directe
+Route::post('partners/v1/connections', [ConnectionController::class, 'store'])
+    ->middleware(['zone:api', 'throttle:120,1', VerifyPartnerSignature::class.':connect'])->name('partners.connections.store');
 
 Route::prefix('v1')->name('v1.')->group(function () {
     // ── jibiat-marchand.com : création de boutique, retrouver ses boutiques ──
@@ -497,6 +501,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('carriers/directory', [CarrierController::class, 'directory'])->name('carriers.directory');
                 Route::post('carriers/connect/start', [CarrierController::class, 'connectStart'])->middleware('throttle:20,1')->name('carriers.connect.start');
                 Route::post('carriers/connect/finish', [CarrierController::class, 'connectFinish'])->middleware('throttle:10,1')->name('carriers.connect.finish');
+                Route::post('carriers/connect/direct', [CarrierController::class, 'connectDirect'])->middleware('throttle:20,1')->name('carriers.connect.direct');
+                Route::post('carriers/requests/{carrierRequest}/refresh', [CarrierController::class, 'refreshRequest'])->whereNumber('carrierRequest')->middleware('throttle:20,1')->name('carriers.requests.refresh');
+                Route::delete('carriers/requests/{carrierRequest}', [CarrierController::class, 'cancelRequest'])->whereNumber('carrierRequest')->name('carriers.requests.cancel');
                 Route::post('carriers/manual', [CarrierController::class, 'connectManual'])->name('carriers.manual');
                 Route::patch('carriers/{carrier}', [CarrierController::class, 'update'])->whereNumber('carrier')->name('carriers.update');
                 Route::delete('carriers/{carrier}', [CarrierController::class, 'destroy'])->whereNumber('carrier')->name('carriers.destroy');

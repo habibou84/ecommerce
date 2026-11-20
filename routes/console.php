@@ -5,6 +5,7 @@ use App\Enums\OrderStatus;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
 use App\Models\AdminAction;
 use App\Models\CarrierConnection;
+use App\Models\CarrierRequest;
 use App\Models\CarrierWebhookReceipt;
 use App\Models\Cart;
 use App\Models\Order;
@@ -31,6 +32,7 @@ use App\Services\Places\PlaceLocator;
 use App\Services\Platform\BackupStatus;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierConnections;
+use App\Services\Shipping\CarrierDirectConnect;
 use App\Services\Shipping\CarrierEvents;
 use App\Services\Shipping\CarrierException;
 use App\Services\Social\SocialPublisher;
@@ -62,6 +64,13 @@ Artisan::command('shipping:sync', function (CarrierEvents $events) {
 })->purpose('Synchronise les expéditions avec les entreprises de livraison');
 
 Schedule::command('shipping:sync')->everyTenMinutes()->withoutOverlapping()->runInBackground();
+// Connexion directe : demandes en cours relues chez l'entreprise (décision perdue), au plus toutes les 15 minutes
+Schedule::call(function () {
+    CarrierRequest::withoutGlobalScopes()->whereIn('status', CarrierRequest::OPEN)
+        ->where(fn ($q) => $q->whereNull('last_checked_at')->orWhere('last_checked_at', '<=', now()->subMinutes(15)))
+        ->where('created_at', '>=', now()->subDays(30))->orderBy('id')->limit(200)->get()
+        ->each(fn (CarrierRequest $r) => app(CarrierDirectConnect::class)->refresh($r));
+})->everyFifteenMinutes()->name('shipping:connect-requests')->withoutOverlapping();
 
 /*
  * Zones des transporteurs relues chaque nuit : une zone ouverte ou fermée chez eux l'est aussi ici, sans attendre
