@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api\V1\Shipping;
 use App\Http\Controllers\Controller;
 use App\Models\CarrierConnection;
 use App\Models\CarrierPayout;
+use App\Models\CarrierRequest;
 use App\Models\CarrierZone;
 use App\Models\CarrierZoneMapping;
 use App\Services\Partners\PartnerReferrals;
 use App\Services\Places\Places;
 use App\Services\Shipping\CarrierConnections;
+use App\Services\Shipping\CarrierDirectConnect;
 use App\Services\Shipping\CarrierDirectory;
 use App\Services\Shipping\CarrierEvents;
 use App\Services\Shipping\CarrierStock;
@@ -75,6 +77,45 @@ class CarrierController extends Controller
         $connection = $directory->finish($this->currentStore(), $request->user(), $data['state'], $data['code']);
 
         return response()->json(['data' => $this->present($connection)], 201);
+    }
+
+    /**
+     * « Travailler avec … » (connexion directe, contrat 1.12) : compte ouvert tout de suite, ou demande envoyée.
+     */
+    public function connectDirect(Request $request, CarrierDirectConnect $direct): JsonResponse
+    {
+        $data = $request->validate(['slug' => ['required', 'string', 'max:100']]);
+        $carrierRequest = $direct->request($this->currentStore(), $request->user(), $data['slug']);
+
+        return response()->json(['data' => $this->presentRequest($carrierRequest)], $carrierRequest->wasRecentlyCreated ? 201 : 200);
+    }
+
+    public function refreshRequest(int $carrierRequest, CarrierDirectConnect $direct): JsonResponse
+    {
+        return response()->json(['data' => $this->presentRequest($direct->refresh(CarrierRequest::findOrFail($carrierRequest)))]);
+    }
+
+    public function cancelRequest(int $carrierRequest, CarrierDirectConnect $direct): JsonResponse
+    {
+        return response()->json(['data' => $this->presentRequest($direct->cancel(CarrierRequest::findOrFail($carrierRequest)))]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function presentRequest(CarrierRequest $r): array
+    {
+        $connection = $r->connection_id ? CarrierConnection::find($r->connection_id) : null;
+
+        return [
+            'id' => $r->id,
+            'slug' => $r->slug,
+            'name' => $r->name,
+            'status' => $r->status,
+            'decide_before' => $r->decide_before?->toIso8601String(),
+            'reason' => $r->reason,
+            'connection' => $connection ? $this->present($connection) : null,
+        ];
     }
 
     public function connectManual(Request $request): JsonResponse
