@@ -89,9 +89,11 @@ const zoneOf = (place) => {
 const itemsTotal = (r) => r.items.reduce((s, i) => s + (Number(i.unit_price) || 0) * (Number(i.quantity) || 0), 0)
 // Frais affichés : ceux de vos zones (l'entreprise choisie applique son tarif à l'enregistrement)
 const rowFee = (r) => (common.chosen.startsWith('carrier:') ? null : zoneOf(r.place)?.fee ?? null)
+// Dans la fenêtre : une commune touchée sans son quartier le dit
+const draftPending = ref(null)
 const missingOf = (r) => [
   r.phone.replace(/\D/g, '').length < 8 && 'téléphone',
-  !r.place && 'commune',
+  !r.place && (r === draft.value && draftPending.value ? `quartier à ${draftPending.value}` : 'commune'),
   !r.items.length && 'articles',
   r.items.some((i) => i.needs_variant) && 'variante',
 ].filter(Boolean)
@@ -163,6 +165,7 @@ function edit(r) {
   draftIsNew.value = !r
   draft.value = r ? JSON.parse(JSON.stringify(r)) : blankRow()
   known.value = null
+  draftPending.value = null
   nextTick(() => document.getElementById('d-phone')?.focus())
 }
 function formatPhone(value) {
@@ -444,7 +447,7 @@ watch(done, () => (notice.value = ''))
         </div>
         <div>
           <p class="label">Commune ou quartier <span class="text-red-600">*</span></p>
-          <PlaceTapPicker v-if="!draft.place && rates?.home" class="mb-2" :rates="rates" @pick="draft.place = $event" @search="focusPlace" />
+          <PlaceTapPicker v-if="!draft.place && rates?.home" class="mb-2" :rates="rates" @pick="draft.place = $event; draftPending = null" @search="focusPlace" @pending="draftPending = $event" />
           <DeliveryPlacePicker id="d-place" v-model="draft.place" />
           <p v-if="draft.place && zoneOf(draft.place)" class="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">Livraison : {{ money(zoneOf(draft.place).fee) }}</p>
         </div>
