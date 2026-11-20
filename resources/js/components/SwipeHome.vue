@@ -241,16 +241,35 @@ const orders = ref(null)
 const orderCounts = ref(null)
 const dayProgress = ref(null)
 const dayTab = ref('')
+// Jour affiché : aujourd'hui par défaut ; « Autre date » ouvre le calendrier
+const DAY_PERIODS = [
+  { value: 'yesterday', label: 'Hier' },
+  { value: 'today', label: 'Aujourd\'hui' },
+  { value: 'tomorrow', label: 'Demain' },
+  { value: '7d', label: '7 jours' },
+  { value: 'month', label: 'Ce mois' },
+  { value: 'all', label: 'Toutes' },
+]
+const dayPeriod = ref('today')
+const dayDate = ref('')
+const DAY_TITLES = { today: 'Commandes du jour', yesterday: 'Commandes d\'hier', tomorrow: 'Commandes de demain', '7d': 'Commandes des 7 jours', month: 'Commandes du mois', all: 'Toutes les commandes' }
+const dayTitle = computed(() => (dayPeriod.value === 'custom' && dayDate.value
+  ? `Commandes du ${new Date(`${dayDate.value}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
+  : DAY_TITLES[dayPeriod.value] ?? 'Commandes'))
+function pickDate(e) {
+  dayDate.value = e.target.value
+  if (dayDate.value) dayPeriod.value = 'custom'
+}
 const ordersMore = ref(0)
 async function loadOrders(force = false) {
   if (orders.value && !force) return
-  const data = (await http.get('/orders', { params: { period: 'today', status: dayTab.value || undefined, per_page: 30 } }).catch(() => ({ data: { data: [], counts: null } }))).data
+  const data = (await http.get('/orders', { params: { period: dayPeriod.value, from: dayPeriod.value === 'custom' ? dayDate.value : undefined, status: dayTab.value || undefined, per_page: 30 } }).catch(() => ({ data: { data: [], counts: null } }))).data
   orders.value = data.data
   orderCounts.value = data.counts ?? orderCounts.value
   dayProgress.value = data.progress ?? dayProgress.value
   ordersMore.value = Math.max(0, (data.meta?.total ?? 0) - data.data.length)
 }
-watch(dayTab, () => loadOrders(true))
+watch([dayTab, dayPeriod, dayDate], () => loadOrders(true))
 // Retour à l'accueil après une action dans la liste : chiffres à jour
 watch(() => route.path, (path) => { if (path === '/gestion' && orders.value) loadOrders(true) })
 
@@ -397,7 +416,18 @@ function open(to) {
             <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center whitespace-nowrap px-2 py-3 text-sm font-black">＋ Nouvelle commande</RouterLink>
             <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center whitespace-nowrap px-2 py-3 text-sm font-black">Vente au comptoir</RouterLink>
           </div>
-          <DayProgress :progress="dayProgress" @changed="loadOrders(true)" />
+          <!-- Jour : aujourd'hui par défaut ; la carte, les onglets et la liste suivent -->
+          <div class="-mx-4 mb-3 overflow-x-auto px-4 [scrollbar-width:none]">
+            <div class="inline-flex gap-0.5 rounded-xl bg-slate-200/70 p-1" role="group" aria-label="Jour">
+              <button v-for="d in DAY_PERIODS" :key="d.value" type="button" class="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold"
+                      :class="dayPeriod === d.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'" :aria-pressed="dayPeriod === d.value" @click="dayPeriod = d.value">{{ d.label }}</button>
+              <label class="relative shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold" :class="dayPeriod === 'custom' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'">
+                {{ dayPeriod === 'custom' && dayDate ? new Date(`${dayDate}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : 'Autre date' }}
+                <input type="date" class="absolute inset-0 cursor-pointer opacity-0" :value="dayDate" aria-label="Choisir une date" @change="pickDate" />
+              </label>
+            </div>
+          </div>
+          <DayProgress :progress="dayProgress" :title="dayTitle" @changed="loadOrders(true)" />
           <div v-if="orderTodo.length" class="mt-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
             <p class="text-xs font-black uppercase tracking-wide text-orange-800">À faire</p>
             <RouterLink v-for="t in orderTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-sm font-bold first-of-type:border-0">
@@ -415,7 +445,7 @@ function open(to) {
           </div>
           <div class="mt-3 rounded-2xl bg-white p-1 shadow-soft">
             <p v-if="!orders" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
-            <p v-else-if="!orders.length" class="p-4 text-center text-sm text-slate-500">{{ dayTab ? 'Aucune commande ici aujourd\'hui.' : 'Aucune commande à livrer aujourd\'hui.' }}</p>
+            <p v-else-if="!orders.length" class="p-4 text-center text-sm text-slate-500">{{ dayPeriod === 'today' ? (dayTab ? 'Aucune commande ici aujourd\'hui.' : 'Aucune commande à livrer aujourd\'hui.') : 'Aucune commande pour ce jour.' }}</p>
             <RouterLink v-for="o in orders ?? []" :key="o.id" :to="`/gestion/commandes/${o.id}`" class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0">
               <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl font-black" :class="o.delivery_failed ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'">{{ (o.customer_name ?? '?').charAt(0).toUpperCase() }}</span>
               <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template><template v-if="o.deliverer"> · {{ o.deliverer }}</template></span></span>
@@ -423,7 +453,7 @@ function open(to) {
               <StateBadge v-else :status="o.status" :label="o.status_label" class="shrink-0" />
             </RouterLink>
           </div>
-          <RouterLink v-if="canOpen('/gestion/commandes')" to="/gestion/commandes" class="mt-2 block py-2 text-center text-sm font-bold text-emerald-700">{{ ordersMore ? `Voir les ${ordersMore} autres et les autres jours ›` : 'Voir les autres jours ›' }}</RouterLink>
+          <RouterLink v-if="canOpen('/gestion/commandes')" :to="{ path: '/gestion/commandes', query: { period: dayPeriod, from: dayPeriod === 'custom' ? dayDate : undefined, status: dayTab || undefined } }" class="mt-2 block py-2 text-center text-sm font-bold text-emerald-700">{{ ordersMore ? `Voir les ${ordersMore} autres dans la liste complète ›` : 'Ouvrir la liste complète ›' }}</RouterLink>
         </template>
 
         <!-- LIVRAISONS : ce qui attend, colis dehors, livreurs, automatisation, paie -->
