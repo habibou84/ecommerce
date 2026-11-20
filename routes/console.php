@@ -71,6 +71,8 @@ Schedule::call(function () {
         ->where('created_at', '>=', now()->subDays(30))->orderBy('id')->limit(200)->get()
         ->each(fn (CarrierRequest $r) => app(CarrierDirectConnect::class)->refresh($r));
 })->everyFifteenMinutes()->name('shipping:connect-requests')->withoutOverlapping();
+// Colis en attente d'un compte : sans réponse 24 h après (et Jibiat muet), la commande revient « à assigner »
+Schedule::call(fn () => app(CarrierDirectConnect::class)->expireOverdue())->everyFiveMinutes()->name('shipping:connect-overdue')->withoutOverlapping();
 
 /*
  * Zones des transporteurs relues chaque nuit : une zone ouverte ou fermée chez eux l'est aussi ici, sans attendre

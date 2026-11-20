@@ -66,6 +66,44 @@ class CarrierDirectory
     }
 
     /**
+     * Entreprises de l'annuaire pas encore connectées qui livrent ce lieu, avec leur prix (devis de l'annuaire,
+     * contrat 1.12) : proposées dans « Qui livre ? » d'une commande. Vide si l'annuaire ne répond pas.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function quotesFor(Store $store, string $placeCode, ?string $pickupCode, bool $fragile, ?float $weightKg): array
+    {
+        $listed = collect($this->forStore($store)['companies'])->filter(fn (array $c) => $c['direct'] && ! $c['connected'])->keyBy('slug');
+        if ($listed->isEmpty()) {
+            return [];
+        }
+
+        $body = array_filter(['delivery_place' => $placeCode, 'pickup_place' => $pickupCode, 'fragile' => $fragile, 'weight_kg' => $weightKg, 'slugs' => $listed->keys()->values()->all()], fn ($v) => $v !== null);
+        $quotes = Cache::remember('carrier-directory-quotes:'.md5(json_encode($body)), now()->addMinutes(10), function () use ($body) {
+            try {
+                $response = Http::acceptJson()->timeout(6)->post(rtrim((string) config('platform.delivery_app_directory_url'), '/').'/quotes', $body);
+
+                return $response->successful() && is_array($response->json('data')) ? $response->json('data') : [];
+            } catch (Throwable $e) {
+                Log::warning('Devis de l\'annuaire Jibiat injoignables', ['error' => $e->getMessage()]);
+
+                return [];
+            }
+        });
+
+        return collect($quotes)->filter(fn ($q) => is_array($q) && ($q['covered'] ?? false) && $listed->has($q['slug'] ?? ''))
+            ->map(function (array $q) use ($listed) {
+                $c = $listed->get($q['slug']);
+
+                return [
+                    'slug' => $c['slug'], 'name' => $c['name'], 'logo_url' => $c['logo_url'], 'accepts' => $c['accepts'], 'partner' => $c['partner'],
+                    'fee' => isset($q['total']) ? (int) $q['total'] : null, 'zone' => $q['zone'] ?? null, 'earliest_date' => $q['earliest_date'] ?? null,
+                    'success_rate' => $c['stats']['success_rate'], 'request' => $c['request'],
+                ];
+            })->sortBy(fn (array $q) => [$q['partner'] ? 0 : 1, $q['fee'] ?? PHP_INT_MAX])->values()->all();
+    }
+
+    /**
      * Entreprise de l'annuaire (parrainage d'un nouvel e-commerçant), null si inconnue ou annuaire injoignable.
      *
      * @return array<string, mixed>|null

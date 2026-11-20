@@ -2,11 +2,17 @@
 
 namespace App\Services\Shipping;
 
+use App\Enums\OrderStatus;
+use App\Enums\Permission;
 use App\Exceptions\BusinessRuleException;
+use App\Jobs\AutoAssignOrder;
 use App\Models\CarrierConnection;
 use App\Models\CarrierRequest;
+use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
+use App\Notifications\CarrierRequestNotice;
+use App\Services\Accounts\TeamNotifier;
 use App\Services\Billing\PlanLimits;
 use App\Services\Catalog\DeliveryAppImporter;
 use Illuminate\Http\Client\Response;
@@ -158,7 +164,7 @@ class CarrierDirectConnect
      */
     private function apply(CarrierRequest $request, array $data): CarrierRequest
     {
-        return DB::transaction(function () use ($request, $data) {
+        $request = DB::transaction(function () use ($request, $data) {
             $request = CarrierRequest::withoutGlobalScopes()->lockForUpdate()->find($request->id);
             if (! $request->isOpen()) {
                 return $request;
@@ -192,6 +198,62 @@ class CarrierDirectConnect
 
             return $request;
         });
+
+        $this->settleOrders($request);
+
+        return $request;
+    }
+
+    /**
+     * Commandes qui attendaient ce compte : confiées à l'entreprise une fois connectée (la course part si la commande
+     * est confirmée) ; sinon elles reviennent « à assigner » et l'équipe est prévenue.
+     */
+    public function settleOrders(CarrierRequest $request): void
+    {
+        if ($request->isOpen()) {
+            return;
+        }
+        $orders = Order::withoutGlobalScopes()->where('planned_carrier_request_id', $request->id)->get();
+        if ($orders->isEmpty()) {
+            return;
+        }
+
+        $connected = $request->status === 'connected' && $request->connection_id !== null;
+        foreach ($orders as $order) {
+            $order->forceFill(['planned_carrier_request_id' => null, 'planned_carrier_connection_id' => $connected ? $request->connection_id : $order->planned_carrier_connection_id])->save();
+            if ($connected && in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Processing], true)) {
+                AutoAssignOrder::dispatch($order->id)->afterCommit();
+            }
+        }
+
+        $store = Store::find($request->store_id);
+        $count = $orders->count();
+        $numbers = $orders->take(5)->map(fn (Order $o) => $o->setRelation('store', $store)->reference())->implode(', ');
+        $notice = $connected
+            ? new CarrierRequestNotice($store->id, "{$request->name} a ouvert votre compte", trans_choice('{1} La commande :list lui est confiée.|[2,*] Les :count commandes qui l\'attendaient lui sont confiées (:list).', $count, ['count' => $count, 'list' => $numbers]), '/gestion/commandes')
+            : new CarrierRequestNotice($store->id, match ($request->status) {
+                'expired' => "{$request->name} n'a pas répondu à temps",
+                'cancelled' => "Demande annulée chez {$request->name}",
+                default => "{$request->name} n'a pas ouvert votre compte",
+            }, trans_choice('{1} La commande :list revient à assigner : choisissez un autre livreur.|[2,*] :count commandes reviennent à assigner (:list) : choisissez un autre livreur.', $count, ['count' => $count, 'list' => $numbers]).($request->reason ? " Motif : {$request->reason}" : ''), '/gestion/commandes');
+        app(TeamNotifier::class)->notify($store, Permission::OrdersManage->value, $notice);
+    }
+
+    /**
+     * Commandes en attente d'un compte dont le délai est dépassé sans réponse (Jibiat injoignable) : la demande est
+     * annulée ici, les commandes reviennent « à assigner ». Jibiat expire de son côté au même moment.
+     */
+    public function expireOverdue(): void
+    {
+        CarrierRequest::withoutGlobalScopes()->whereIn('status', CarrierRequest::OPEN)->whereNotNull('decide_before')
+            ->where('decide_before', '<=', now()->subMinutes(10))->orderBy('id')->get()
+            ->each(function (CarrierRequest $request) {
+                $request = $this->refresh($request);
+                if ($request->isOpen()) {
+                    $request->forceFill(['status' => 'expired', 'decided_at' => now(), 'decide_before' => null])->save();
+                    $this->settleOrders($request);
+                }
+            });
     }
 
     private function connect(Store $store, CarrierRequest $request, string $key): CarrierConnection

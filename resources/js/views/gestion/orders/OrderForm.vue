@@ -94,7 +94,7 @@ onMounted(async () => {
     items.value = o.items.map((i) => ({ variant_id: i.variant_id, title: i.title, variant_title: i.variant_title, quantity: i.quantity, unit_price: i.unit_price, thumb: i.thumb, price_edited: true }))
     shippingFee.value = o.shipping_fee
     manualFee.value = true
-    chosen.value = o.planned_courier ? `courier:${o.planned_courier.id}` : o.planned_carrier ? `carrier:${o.planned_carrier.id}` : ''
+    chosen.value = o.planned_courier ? `courier:${o.planned_courier.id}` : o.planned_carrier ? `carrier:${o.planned_carrier.id}` : o.planned_carrier_request ? `directory:${o.planned_carrier_request.slug}` : ''
     showMore.value = !!(o.shipping_phone2 || o.customer_note || o.internal_note || o.discount_total || o.discount_code)
     loading.value = false
     await nextTick()
@@ -216,7 +216,12 @@ function addCourier(c) {
   options.value.couriers = [...(options.value.couriers ?? []), { id: c.id, name: c.name, is_available: true, active_missions: 0, covers_zone: false, connected: false }]
 }
 const chosenCourier = computed(() => (chosen.value.startsWith('courier:') ? options.value?.couriers.find((c) => `courier:${c.id}` === chosen.value) ?? null : null))
-const chosenCarrier = computed(() => (chosen.value.startsWith('carrier:') ? options.value?.carriers.find((c) => `carrier:${c.id}` === chosen.value) ?? null : null))
+// Entreprise de l'annuaire pas encore partenaire : même forme qu'une entreprise connectée (prix du devis), « directory »
+const chosenDirectory = computed(() => (chosen.value.startsWith('directory:') ? (options.value?.directory ?? []).find((d) => `directory:${d.slug}` === chosen.value) ?? null : null))
+const chosenCarrier = computed(() => {
+  if (chosenDirectory.value) return { ...chosenDirectory.value, covered: true, zones_count: 0, directory: true }
+  return chosen.value.startsWith('carrier:') ? options.value?.carriers.find((c) => `carrier:${c.id}` === chosen.value) ?? null : null
+})
 // Une entreprise choisie qui a un tarif pour ce quartier : c'est son prix
 const carrierFee = computed(() => (chosenCarrier.value?.covered && chosenCarrier.value.fee !== null ? chosenCarrier.value.fee : null))
 const ready = ref(false)
@@ -416,7 +421,12 @@ const delivererCards = computed(() => {
     sub: ['Entreprise', place.value ? (c.covered ? (c.day_message || `livre ${place.value.label.split(',')[0]}`) : `ne livre pas ${place.value.label.split(',')[0]}`) : ''].filter(Boolean).join(' · '),
     rank: c.covered ? 2 : 6,
   })
-  const all = [...(o.couriers ?? []).map(courier), ...(o.carriers ?? []).map(carrier)]
+  const directory = (d) => ({
+    key: `directory:${d.slug}`, name: d.name, tone: 'bg-violet-100 text-violet-800', price: d.fee,
+    sub: ['Pas encore partenaire', d.request?.status === 'pending' ? 'demande en cours' : d.request?.status === 'confirmation' ? 'à confirmer sur WhatsApp' : 'compte ouvert en un clic'].join(' · '),
+    rank: 4,
+  })
+  const all = [...(o.couriers ?? []).map(courier), ...(o.carriers ?? []).map(carrier), ...(o.directory ?? []).map(directory)]
   const recent = o.recent ?? []
   const sorted = all.filter((e) => !e.disabled).sort((a, b) => (recent.includes(b.key) - recent.includes(a.key)) || (a.rank - b.rank) || ((a.price ?? 1e9) - (b.price ?? 1e9)))
   const top = sorted.slice(0, 3)
@@ -424,7 +434,7 @@ const delivererCards = computed(() => {
   if (current && !top.includes(current)) top.splice(2, 1, current)
   return top
 })
-const moreDeliverers = computed(() => Math.max(0, (options.value?.couriers?.length ?? 0) + (options.value?.carriers?.length ?? 0) - delivererCards.value.length))
+const moreDeliverers = computed(() => Math.max(0, (options.value?.couriers?.length ?? 0) + (options.value?.carriers?.length ?? 0) + (options.value?.directory?.length ?? 0) - delivererCards.value.length))
 
 const placeCarrier = computed(() => (chosenCarrier.value && chosenCarrier.value.zones_count > 0 ? chosenCarrier.value : null))
 const delivererName = computed(() => chosenCarrier.value?.name ?? chosenCourier.value?.name ?? '')
@@ -912,6 +922,7 @@ async function save() {
       const delivering = form.delivery_method === 'delivery'
       payload.planned_courier_id = delivering && chosen.value.startsWith('courier:') ? Number(chosen.value.split(':')[1]) : null
       payload.planned_carrier_connection_id = delivering && chosen.value.startsWith('carrier:') ? Number(chosen.value.split(':')[1]) : null
+      payload.planned_carrier_slug = delivering && chosen.value.startsWith('directory:') ? chosen.value.slice('directory:'.length) : null
     }
     if (editing.value) {
       delete payload.source
@@ -1273,9 +1284,13 @@ async function save() {
                 </button>
                 <button v-if="canPrice" type="button" class="pt-1 text-sm font-bold text-emerald-700 hover:underline" @click="pickerOpen = true">{{ moreDeliverers ? `Voir tous les livreurs et entreprises (${moreDeliverers} de plus) ›` : 'Ajouter un livreur ›' }}</button>
               </div>
-              <p v-if="errors.planned_courier_id || errors.planned_carrier_connection_id" class="mt-1.5 text-sm text-red-600">{{ errors.planned_courier_id || errors.planned_carrier_connection_id }}</p>
+              <p v-if="errors.planned_courier_id || errors.planned_carrier_connection_id || errors.planned_carrier_slug" class="mt-1.5 text-sm text-red-600">{{ errors.planned_courier_id || errors.planned_carrier_connection_id || errors.planned_carrier_slug }}</p>
+              <p v-else-if="chosenDirectory" class="mt-1.5 rounded-lg bg-violet-50 p-2 text-sm text-violet-900">
+                Enregistrer ouvre votre compte chez <b>{{ chosenDirectory.name }}</b> (nom, téléphone et adresse partagés).
+                <template v-if="chosenDirectory.accepts === 'request'"> Sans accord en 24 h, la commande revient à assigner.</template>
+              </p>
               <p v-else-if="chosenCourier && place && !chosenCourier.covers_zone && !chosenCourier.all_zones" class="mt-1.5 text-sm text-amber-800">{{ chosenCourier.name }} ne couvre pas ce quartier d'habitude.</p>
-              <button v-if="chosenCarrier" type="button" class="mt-1 block text-sm font-medium text-emerald-700 hover:underline" @click="openTariffs">Zones et tarifs de {{ chosenCarrier.name }}</button>
+              <button v-if="chosenCarrier && !chosenCarrier.directory" type="button" class="mt-1 block text-sm font-medium text-emerald-700 hover:underline" @click="openTariffs">Zones et tarifs de {{ chosenCarrier.name }}</button>
             </div>
 
             <!-- Frais : calculés, modifiables d'un geste -->
