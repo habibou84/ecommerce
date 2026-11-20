@@ -1013,8 +1013,9 @@ async function save() {
   </div>
 
   <!-- Toute la commande sur une page : le client, les articles, la livraison, l'argent ; le total suit en bas -->
-  <form v-else class="space-y-3 pb-56 lg:pb-6" v-no-autofill novalidate @submit.prevent="save" @focusin="bringToTop">
-    <div class="flex items-center gap-2">
+  <form v-else class="order-form space-y-3 pb-56 lg:pb-6" v-no-autofill novalidate @submit.prevent="save" @focusin="bringToTop">
+    <!-- Ligne du lien de retour : retirée dans la fenêtre du téléphone, où le lien est caché (pas de bande vide) -->
+    <div class="flex items-center gap-2" :class="{ 'back-row': !conversation }">
       <RouterLink v-if="conversation" :to="`/gestion/messages/${conversation.id}`" class="min-w-0 truncate text-sm text-slate-500 hover:text-emerald-700">← Conversation avec {{ conversation.name || conversation.phone_display }}</RouterLink>
       <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="back-link text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
     </div>
