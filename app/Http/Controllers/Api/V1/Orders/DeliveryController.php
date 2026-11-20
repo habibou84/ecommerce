@@ -26,7 +26,8 @@ class DeliveryController extends Controller
     {
         $request->validate(['search' => ['nullable', 'string', 'max:100'], 'type' => ['nullable', 'in:city,commune,neighborhood'], 'home' => ['nullable', 'boolean']]);
         $store = $this->currentStore();
-        $all = $this->places->forStore($store);
+        // Ville de la boutique et villes livrées directement (les villes de l'intérieur : par « Expédition »)
+        $all = $this->places->local($store);
 
         // « home » : la ville de la boutique puis ses communes (choix en un toucher)
         if ($request->boolean('home')) {

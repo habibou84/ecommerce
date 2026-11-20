@@ -6,7 +6,8 @@ import { money } from '../lib/format'
 
 // Quartier de livraison : un seul champ pour les communes et les quartiers. Entreprise de livraison choisie : seulement
 // les quartiers qu'elle dessert, rangés par zone avec son tarif. Sinon les lieux de la boutique : à l'ouverture, les
-// plus livrés sont proposés ; en tapant, ceux-là restent en tête ; et l'ajout d'un quartier absent.
+// plus livrés sont proposés ; en tapant, ceux-là restent en tête. Les villes de l'intérieur ne sortent que par l'entrée
+// « Expédition » ; un quartier absent se signale.
 const props = defineProps({
   modelValue: { type: Object, default: null }, // { id, label, ancestor_ids }
   id: { type: String, default: 'place' },
@@ -57,7 +58,18 @@ function onInput() {
 }
 
 function close() {
-  setTimeout(() => (open.value = false), 150)
+  setTimeout(() => {
+    open.value = false
+    citiesOpen.value = false
+  }, 150)
+}
+
+// Entrée « Expédition » : villes de l'intérieur, chargées une fois (les plus expédiées d'abord)
+const citiesOpen = ref(false)
+const cities = ref([])
+async function openCities() {
+  citiesOpen.value = true
+  if (!cities.value.length) cities.value = (await http.get('/orders/delivery-options/cities')).data.data
 }
 
 function choose(place) {
@@ -120,7 +132,7 @@ async function add() {
       <Icon name="search" :size="20" class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
       <input :id="id" v-model="search" class="input-lg pl-12" :placeholder="carrierId ? `Quartier desservi par ${carrierName}` : 'Quartier ou commune (ex. Angré, Yop Siporex)'" autocomplete="off" @input="onInput" @focus="onFocus" @blur="close" />
     </div>
-    <div v-if="open && (results.length || loading || carrierId || search.trim().length >= 2)" class="absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+    <div v-if="open && (results.length || loading || carrierId || search.trim().length >= 2 || !carrierId)" class="absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
       <p v-if="carrierId" class="border-b border-slate-100 bg-slate-50 px-4 py-2 text-sm text-slate-600">Zones de <strong>{{ carrierName }}</strong> · seuls les quartiers qu'elle dessert</p>
       <div class="max-h-80 overflow-y-auto">
         <p v-if="loading && !results.length" class="px-4 py-3 text-sm text-slate-500">Recherche…</p>
@@ -136,6 +148,20 @@ async function add() {
           </button>
         </template>
       </div>
+      <!-- Autre ville que celle de la boutique (et Grand-Bassam) : expédition, puis choix de la ville -->
+      <template v-if="!carrierId">
+        <button v-if="!citiesOpen" type="button" class="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-2.5 text-left font-medium text-sky-800 hover:bg-sky-50" @mousedown.prevent="openCities">
+          <span aria-hidden="true">🚚</span><span class="flex-1">Expédition (autre ville)</span><Icon name="chevron" :size="16" />
+        </button>
+        <div v-else class="max-h-72 overflow-y-auto border-t border-slate-100">
+          <p class="px-4 pb-1 pt-3 text-xs font-bold uppercase tracking-wide text-slate-500">Expédition · ville du client</p>
+          <p v-if="!cities.length" class="px-4 py-2 text-sm text-slate-500">Chargement…</p>
+          <button v-for="c in cities" :key="c.id" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-sky-50" :class="{ 'bg-sky-50': modelValue?.id === c.id }" @mousedown.prevent="choose(c)">
+            <span aria-hidden="true">🚚</span><span class="min-w-0 flex-1">{{ c.label }}</span>
+            <span v-if="c.fee !== null && c.fee !== undefined" class="text-sm text-slate-500 tabular-nums">{{ money(c.fee) }}</span>
+          </button>
+        </div>
+      </template>
       <p v-if="carrierId" class="border-t border-slate-100 px-4 py-2.5 text-sm text-slate-500">
         Quartier absent ? {{ carrierName }} ne le dessert pas :
         <button type="button" class="font-medium text-emerald-700 hover:underline" @mousedown.prevent="open = false; emit('change-deliverer')">choisir un autre livreur</button>

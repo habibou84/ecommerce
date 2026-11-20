@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Place;
 use App\Models\Store;
 use Illuminate\Support\Collection;
+use Jibiat\Socle\Places\Places as CommonPlaces;
 
 /**
  * Prix de livraison sans réglages : la ville de la boutique (Abidjan par défaut) et son prix de départ, puis les prix
@@ -41,13 +42,27 @@ class DeliveryRates
     }
 
     /**
-     * Lieu dans une autre ville que celle de la boutique : commande à expédier.
+     * Villes livrées directement par la boutique : la sienne et les villes proches de la liste commune (depuis
+     * Abidjan : Grand-Bassam). Les autres sont des expéditions.
+     *
+     * @return list<int>
+     */
+    public function directCityIds(Place $home): array
+    {
+        $codes = $home->code ? CommonPlaces::directCities($home->code) : [];
+
+        return [$home->id, ...Place::whereNull('store_id')->whereIn('code', $codes)->pluck('id')->all()];
+    }
+
+    /**
+     * Lieu hors de la ville de la boutique et des villes livrées directement : commande à expédier.
      */
     public function isExpedition(Store $store, ?Place $place): bool
     {
         $home = $this->home($store);
 
-        return $place !== null && $home !== null && $this->cityOf($place->loadMissing('parent.parent'))->id !== $home->id;
+        return $place !== null && $home !== null
+            && ! in_array($this->cityOf($place->loadMissing('parent.parent'))->id, $this->directCityIds($home), true);
     }
 
     /**
@@ -89,7 +104,8 @@ class DeliveryRates
     public function cities(Store $store): array
     {
         $home = $this->home($store);
-        $cities = Place::visibleTo($store->id)->whereNull('parent_id')->where('is_active', true)->when($home, fn ($q) => $q->whereKeyNot($home->id))->get();
+        // Villes d'expédition : ni celle de la boutique, ni celles livrées directement (Grand-Bassam depuis Abidjan)
+        $cities = Place::visibleTo($store->id)->whereNull('parent_id')->where('is_active', true)->when($home, fn ($q) => $q->whereNotIn('id', $this->directCityIds($home)))->get();
         $uses = Order::where('expedition_city_id', '!=', null)->selectRaw('expedition_city_id, count(*) as n')->groupBy('expedition_city_id')->pluck('n', 'expedition_city_id');
 
         $own = $this->ownZones($store, $cities->pluck('id')->all());

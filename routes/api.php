@@ -448,6 +448,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 // Saisie : qui peut livrer ce quartier et à quel prix, zones et tarifs d'une entreprise de livraison
                 Route::post('orders/delivery-options', DeliveryOptionsController::class)->name('orders.delivery-options');
                 Route::get('orders/delivery-options/places', [DeliveryOptionsController::class, 'places'])->name('orders.delivery-options.places');
+                Route::get('orders/delivery-options/cities', [DeliveryOptionsController::class, 'cities'])->name('orders.delivery-options.cities');
                 Route::get('orders/delivery-options/carriers/{carrier}', [DeliveryOptionsController::class, 'tariffs'])->whereNumber('carrier')->name('orders.delivery-options.tariffs');
                 Route::post('orders/{order}/status', [OrderController::class, 'transition'])->whereNumber('order')->name('orders.status');
                 Route::post('orders/{order}/payments', [OrderController::class, 'payment'])->whereNumber('order')->name('orders.payments');
