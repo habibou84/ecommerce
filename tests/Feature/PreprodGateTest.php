@@ -50,6 +50,7 @@ class PreprodGateTest extends TestCase
     public function test_the_return_address_stays_on_the_site(): void
     {
         $this->post($this->platformUrl('/'.PreprodGate::PATH), ['code' => 'mangue-2026', 'retour' => '//pirate.example/x'])->assertRedirect('/');
+        $this->post($this->platformUrl('/'.PreprodGate::PATH), ['code' => 'mangue-2026', 'retour' => '/\\pirate.example/x'])->assertRedirect('/');
     }
 
     public function test_webhooks_and_health_check_stay_open(): void
