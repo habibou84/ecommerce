@@ -12,6 +12,14 @@ export default defineConfig({
         vue(),
         tailwindcss(),
     ],
+    build: {
+        rollupOptions: {
+            output: {
+                // Worker de MapLibre (.mjs) publié en .js : servi comme JavaScript quel que soit le serveur web
+                assetFileNames: (asset) => (asset.names?.[0] ?? asset.name ?? '').endsWith('.mjs') ? 'assets/[name]-[hash].js' : 'assets/[name]-[hash][extname]',
+            },
+        },
+    },
     server: {
         watch: {
             ignored: ['**/storage/framework/views/**'],

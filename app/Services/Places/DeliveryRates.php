@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Place;
 use App\Models\Store;
 use Illuminate\Support\Collection;
+use Jibiat\Socle\Places\Places as CommonPlaces;
 
 /**
  * Prix de livraison sans réglages : la ville de la boutique (Abidjan par défaut) et son prix de départ, puis les prix
@@ -41,13 +42,27 @@ class DeliveryRates
     }
 
     /**
-     * Lieu dans une autre ville que celle de la boutique : commande à expédier.
+     * Villes livrées directement par la boutique : la sienne et les villes proches de la liste commune (depuis
+     * Abidjan : Grand-Bassam). Les autres sont des expéditions.
+     *
+     * @return list<int>
+     */
+    public function directCityIds(Place $home): array
+    {
+        $codes = $home->code ? CommonPlaces::directCities($home->code) : [];
+
+        return [$home->id, ...Place::whereNull('store_id')->whereIn('code', $codes)->pluck('id')->all()];
+    }
+
+    /**
+     * Lieu hors de la ville de la boutique et des villes livrées directement : commande à expédier.
      */
     public function isExpedition(Store $store, ?Place $place): bool
     {
         $home = $this->home($store);
 
-        return $place !== null && $home !== null && $this->cityOf($place->loadMissing('parent.parent'))->id !== $home->id;
+        return $place !== null && $home !== null
+            && ! in_array($this->cityOf($place->loadMissing('parent.parent'))->id, $this->directCityIds($home), true);
     }
 
     /**
@@ -78,6 +93,9 @@ class DeliveryRates
         ])->sort(fn (array $a, array $b) => [$b['uses'], $a['name']] <=> [$a['uses'], $b['name']])->values()->all();
     }
 
+    /** Grandes villes, proposées d'abord dans les listes courtes (WhatsApp : 10 lignes au plus) */
+    private const MAIN_CITIES = ['bouake', 'yamoussoukro', 'san-pedro', 'daloa', 'korhogo', 'grand-bassam', 'man', 'gagnoa', 'abengourou', 'divo', 'soubre', 'bondoukou'];
+
     /**
      * Autres villes (expéditions), les plus utilisées d'abord.
      *
@@ -86,14 +104,18 @@ class DeliveryRates
     public function cities(Store $store): array
     {
         $home = $this->home($store);
-        $cities = Place::visibleTo($store->id)->whereNull('parent_id')->where('is_active', true)->when($home, fn ($q) => $q->whereKeyNot($home->id))->get();
+        // Villes d'expédition : ni celle de la boutique, ni celles livrées directement (Grand-Bassam depuis Abidjan)
+        $cities = Place::visibleTo($store->id)->whereNull('parent_id')->where('is_active', true)->when($home, fn ($q) => $q->whereNotIn('id', $this->directCityIds($home)))->get();
         $uses = Order::where('expedition_city_id', '!=', null)->selectRaw('expedition_city_id, count(*) as n')->groupBy('expedition_city_id')->pluck('n', 'expedition_city_id');
 
         $own = $this->ownZones($store, $cities->pluck('id')->all());
 
         return $cities->map(fn (Place $c) => ['id' => $c->id, 'name' => $c->name, 'uses' => (int) ($uses[$c->id] ?? 0),
-            'fee' => $own->has($c->id) ? (int) $own[$c->id]->fee : null, 'learned' => $own->has($c->id)])
-            ->sort(fn (array $a, array $b) => [$b['uses'], $a['name']] <=> [$a['uses'], $b['name']])->values()->all();
+            'fee' => $own->has($c->id) ? (int) $own[$c->id]->fee : null, 'learned' => $own->has($c->id),
+            'rank' => array_search($c->code, self::MAIN_CITIES, true) === false ? 99 : array_search($c->code, self::MAIN_CITIES, true)])
+            // Les plus expédiées, celles qui ont un prix de la boutique, les grandes villes, puis l'ordre alphabétique
+            ->sort(fn (array $a, array $b) => [$b['uses'], (int) $b['learned'], $a['rank'], $a['name']] <=> [$a['uses'], (int) $a['learned'], $b['rank'], $b['name']])
+            ->map(fn (array $c) => array_diff_key($c, ['rank' => true]))->values()->all();
     }
 
     /**

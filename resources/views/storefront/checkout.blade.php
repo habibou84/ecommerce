@@ -131,6 +131,11 @@
                         </div>
                     </fieldset>
                 @endif
+                @if ($turnstileKey ?? null)
+                    {{-- Anti-robot Cloudflare : le plus souvent invisible, une case à cocher seulement en cas de doute --}}
+                    <div class="cf-turnstile mt-4" data-sitekey="{{ $turnstileKey }}" data-language="fr" data-appearance="interaction-only" data-action="commande"></div>
+                    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+                @endif
                 <p data-error="form" class="mt-3 text-sm text-red-700" hidden></p>
                 <button type="submit" class="btn-store mt-4 w-full">Confirmer la commande</button>
             </aside>

@@ -16,6 +16,8 @@ use App\Services\Catalog\CatalogWriter;
 use App\Services\Places\Places;
 use App\Services\Storefront\CartService;
 use App\Services\Storefront\ThemeSettings;
+use Illuminate\Http\Client\Request as HttpRequest;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -226,6 +228,38 @@ class StorefrontTest extends TestCase
 
         $this->ajax('POST', '/commande', $data, $token)->assertCreated();
         $this->assertStringContainsString('frais à confirmer', Order::sole()->internal_note);
+    }
+
+    public function test_checkout_asks_cloudflare_turnstile_when_configured(): void
+    {
+        [$sRouge] = $this->robe->variants->all();
+        $data = ['name' => 'Fatou', 'phone' => '0506070809', 'delivery_method' => 'delivery', 'place_id' => $this->place('Angré')->id];
+        $cart = fn () => $this->addToCart($sRouge->id, 1)->getCookie(CartService::COOKIE)->getValue();
+
+        // Sans clés : ni widget ni vérification
+        $token = $cart();
+        $this->withCookie(CartService::COOKIE, $token)->get($this->storeUrl($this->store, '/commande'))->assertOk()->assertDontSee('cf-turnstile');
+
+        config(['services.turnstile.site_key' => '0x4AAAAAAA-site', 'services.turnstile.secret_key' => '0x4AAAAAAA-secret']);
+        Http::fake(['challenges.cloudflare.com/*' => fn (HttpRequest $r) => Http::response(['success' => $r['response'] === 'jeton-humain'])]);
+
+        $this->withCookie(CartService::COOKIE, $token)->get($this->storeUrl($this->store, '/commande'))->assertOk()
+            ->assertSee('data-sitekey="0x4AAAAAAA-site"', false)->assertDontSee('0x4AAAAAAA-secret');
+
+        // Robot : pas de jeton, ou un jeton refusé par Cloudflare
+        $this->ajax('POST', '/commande', $data, $token)->assertStatus(422)->assertJsonPath('errors.form.0', 'La vérification anti-robot a échoué. Rechargez la page et réessayez.');
+        $this->ajax('POST', '/commande', $data + ['cf-turnstile-response' => 'faux'], $token)->assertStatus(422);
+        Http::assertNotSent(fn (HttpRequest $r) => $r['response'] === null);
+        $this->assertSame(0, Order::count());
+
+        // Personne : jeton accepté, avec la clé secrète et l'adresse du client
+        $this->ajax('POST', '/commande', $data + ['cf-turnstile-response' => 'jeton-humain'], $token)->assertCreated();
+        Http::assertSent(fn (HttpRequest $r) => $r['secret'] === '0x4AAAAAAA-secret' && $r['response'] === 'jeton-humain' && filled($r['remoteip']));
+
+        // Cloudflare en panne : la commande passe quand même (les autres limites restent)
+        Http::fake(['challenges.cloudflare.com/*' => Http::response('', 503)]);
+        $this->ajax('POST', '/commande', $data + ['cf-turnstile-response' => 'jeton-humain'], $cart())->assertCreated();
+        $this->assertSame(2, Order::count());
     }
 
     public function test_fake_orders_cannot_flood_a_store(): void

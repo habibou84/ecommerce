@@ -1,0 +1,35 @@
+name: Sécurité des dépendances
+
+# Failles connues dans les paquets PHP (composer.lock) et JavaScript (package-lock.json).
+# Chaque jour (une faille peut être publiée sans que le code change), et à chaque PR ou fusion.
+# Une alerte rend ce contrôle rouge : mettre à jour le paquet (composer update <paquet> / npm update <paquet>).
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  push:
+    branches: [main, production]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Failles connues (Composer et npm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Paquets PHP
+        run: composer audit --locked --no-interaction
+      - name: Paquets JavaScript (production)
+        run: npm audit --omit=dev --audit-level=high
