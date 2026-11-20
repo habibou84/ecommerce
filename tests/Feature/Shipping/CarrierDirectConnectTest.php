@@ -4,9 +4,15 @@ namespace Tests\Feature\Shipping;
 
 use App\Models\CarrierConnection;
 use App\Models\CarrierRequest;
+use App\Models\Order;
+use App\Models\Place;
+use App\Models\Product;
 use App\Models\Store;
+use App\Services\Catalog\CatalogWriter;
 use App\Services\Places\Places;
+use App\Services\Shipping\CarrierDirectConnect;
 use Illuminate\Http\Client\Request as HttpRequest;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -31,6 +37,8 @@ class CarrierDirectConnectTest extends TestCase
 
     private Store $store;
 
+    private Product $robe;
+
     /** @var array<string, \Closure> */
     private array $remote = [];
 
@@ -53,6 +61,9 @@ class CarrierDirectConnectTest extends TestCase
         app(Places::class)->provisionDefaultZone($this->store);
         $this->store->owner->forceFill(['phone' => '+2250708091011', 'phone_verified_at' => now()->subMonth()])->save();
         $this->actingAs($this->store->owner);
+        $this->robe = app(CatalogWriter::class)->save($this->store, null, [
+            'title' => 'Robe wax', 'variants' => [['price' => 15000, 'on_hand' => 5]],
+        ]);
 
         $this->stub([
             'https://jibiat.com/api/public/directory' => fn () => Http::response(Contract::example('directory')),
@@ -194,5 +205,88 @@ class CarrierDirectConnectTest extends TestCase
         $this->storeApi($this->store, 'POST', 'carriers/connect/direct', ['slug' => 'rapide'])->assertStatus(422);
 
         $this->assertSame(0, CarrierRequest::count());
+    }
+
+    /**
+     * Commande confirmée confiée à Rapide Express, pas encore partenaire : réponse de l'entreprise donnée.
+     */
+    private function orderFor(string $answer): Order
+    {
+        $this->stub([
+            'POST '.self::DIRECT => $this->answer($answer),
+            'POST '.self::API.'/quotes' => fn () => Http::response(Contract::example('quote')),
+            'POST '.self::API.'/orders' => fn () => Http::response(['data' => Contract::example('order-pending')['data']], 201),
+        ]);
+        $angre = Place::whereNull('store_id')->where('name', 'Angré')->firstOrFail()->id;
+        $id = $this->storeApi($this->store, 'POST', 'orders', [
+            'source' => 'whatsapp', 'customer_phone' => '0506070809', 'delivery_method' => 'delivery', 'shipping_place_id' => $angre,
+            'items' => [['variant_id' => $this->robe->variants()->first()->id, 'quantity' => 1]], 'confirmed' => true,
+            'planned_carrier_slug' => 'rapide', 'shipping_fee' => 1500,
+        ])->assertCreated()->json('data.id');
+
+        return Order::with('shipments')->findOrFail($id);
+    }
+
+    public function test_the_order_form_offers_directory_companies_that_deliver_the_place_with_their_price(): void
+    {
+        $this->stub(['POST https://jibiat.com/api/public/directory/quotes' => fn () => Http::response(Contract::example('directory-quotes'))]);
+        $angre = Place::whereNull('store_id')->where('name', 'Angré')->firstOrFail()->id;
+
+        $options = $this->storeApi($this->store, 'POST', 'orders/delivery-options', ['place_id' => $angre])->assertOk();
+        $this->assertSame([['rapide', 'Rapide Express', 1500]], array_map(fn ($d) => [$d['slug'], $d['name'], $d['fee']], $options->json('data.directory')));
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'https://jibiat.com/api/public/directory/quotes'
+            && $r['delivery_place'] === 'abidjan-cocody-angre' && $r['pickup_place'] === 'abidjan-cocody-angre');
+    }
+
+    public function test_an_order_for_an_open_company_leaves_at_once(): void
+    {
+        $order = $this->orderFor('connect-direct-connected');
+
+        $this->assertNull($order->planned_carrier_request_id);
+        $this->assertSame(CarrierConnection::firstOrFail()->id, $order->planned_carrier_connection_id);
+        $this->assertSame(CarrierConnection::firstOrFail()->id, $order->shipments->sole()->carrier_connection_id);
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === self::DIRECT && $r['waiting_orders'] === 1);
+    }
+
+    public function test_an_order_waits_for_the_account_then_leaves_once_the_company_accepts(): void
+    {
+        $order = $this->orderFor('connect-direct-pending');
+        $request = CarrierRequest::firstOrFail();
+        $this->assertSame($request->id, $order->planned_carrier_request_id);
+        $this->assertCount(0, $order->shipments);
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}")->assertJsonPath('data.planned_carrier_request.name', 'Rapide Express');
+
+        $body = [...Contract::example('connect-decision-connected'), 'request_id' => $request->request_id];
+        $body['connection']['api_key'] = self::KEY;
+        $this->decision($body)->assertOk();
+
+        $order = $order->fresh('shipments');
+        $this->assertNull($order->planned_carrier_request_id);
+        $this->assertSame($request->fresh()->connection_id, $order->planned_carrier_connection_id);
+        $this->assertSame($order->planned_carrier_connection_id, $order->shipments->sole()->carrier_connection_id);
+        $this->assertTrue(DatabaseNotification::query()->get()->contains(fn ($n) => str_contains($n->data['title'] ?? '', 'a ouvert votre compte')));
+    }
+
+    public function test_without_an_answer_in_24_hours_the_order_comes_back_to_assign(): void
+    {
+        $order = $this->orderFor('connect-direct-pending');
+        $request = CarrierRequest::firstOrFail();
+
+        // Jibiat expire la demande : la commande revient « à assigner »
+        $this->decision(['request_id' => $request->request_id, 'status' => 'expired', 'company' => Contract::example('connect-decision-declined')['company'], 'connection' => null, 'reason' => null, 'decided_at' => now()->toIso8601ZuluString()])->assertOk();
+        $order = $order->fresh('shipments');
+        $this->assertNull($order->planned_carrier_request_id);
+        $this->assertNull($order->planned_carrier_connection_id);
+        $this->assertCount(0, $order->shipments);
+        $this->assertTrue(DatabaseNotification::query()->get()->contains(fn ($n) => str_contains($n->data['body'] ?? '', 'revient à assigner')));
+
+        // Jibiat muet : Jibiat Marchand expire lui-même la demande passé le délai
+        $other = $this->orderFor('connect-direct-pending');
+        $late = CarrierRequest::latest('id')->firstOrFail();
+        $late->forceFill(['decide_before' => now()->subMinutes(20)])->save();
+        $this->stub(['GET '.self::DIRECT.'/*' => fn () => Http::response(['message' => 'indisponible'], 503)]);
+        app(CarrierDirectConnect::class)->expireOverdue();
+        $this->assertSame('expired', $late->fresh()->status);
+        $this->assertNull($other->fresh()->planned_carrier_request_id);
     }
 }

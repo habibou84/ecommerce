@@ -68,6 +68,8 @@ class OrderRequest extends FormRequest
             // Qui livre (facultatif) : un livreur de la boutique ou une entreprise de livraison, pas les deux
             'planned_courier_id' => ['sometimes', 'nullable', 'integer', 'prohibits:planned_carrier_connection_id'],
             'planned_carrier_connection_id' => ['sometimes', 'nullable', 'integer'],
+            // Ou une entreprise de l'annuaire pas encore partenaire : compte ouvert en un clic (connexion directe)
+            'planned_carrier_slug' => ['sometimes', 'nullable', 'string', 'max:100', 'prohibits:planned_courier_id,planned_carrier_connection_id'],
 
             'items' => [$required, 'array', 'min:1', 'max:50'],
             'items.*.variant_id' => ['nullable', 'integer'],
@@ -86,7 +88,7 @@ class OrderRequest extends FormRequest
             'discount_code' => 'code promo',
             'reward_points' => 'points de fidélité',
             'referral_code' => 'code de parrainage',
-            'planned_courier_id' => 'livreur', 'planned_carrier_connection_id' => 'entreprise de livraison',
+            'planned_courier_id' => 'livreur', 'planned_carrier_connection_id' => 'entreprise de livraison', 'planned_carrier_slug' => 'entreprise de livraison',
             'scheduled_date' => 'date de livraison',
         ];
     }

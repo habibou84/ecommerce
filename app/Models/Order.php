@@ -121,6 +121,12 @@ class Order extends Model
         return $this->belongsTo(CarrierConnection::class, 'planned_carrier_connection_id');
     }
 
+    /** Entreprise de l'annuaire choisie à la saisie : la commande attend l'ouverture du compte chez elle */
+    public function plannedCarrierRequest(): BelongsTo
+    {
+        return $this->belongsTo(CarrierRequest::class, 'planned_carrier_request_id');
+    }
+
     public function location(): BelongsTo
     {
         return $this->belongsTo(StockLocation::class, 'location_id');

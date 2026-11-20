@@ -313,6 +313,9 @@ async function addNote() {
             <p v-if="(order.planned_courier || order.planned_carrier) && !order.shipments.length" class="flex items-center gap-1.5 text-emerald-800">
               <Icon name="truck" :size="16" />Sera livrée par {{ (order.planned_courier || order.planned_carrier).name }}{{ order.status === 'pending_confirmation' ? ' (course envoyée à la confirmation)' : '' }}
             </p>
+            <p v-else-if="order.planned_carrier_request && !order.shipments.length" class="flex items-center gap-1.5 text-violet-800">
+              <Icon name="clock" :size="16" />En attente de l'ouverture de votre compte chez {{ order.planned_carrier_request.name }}<template v-if="order.planned_carrier_request.decide_before"> (réponse avant le {{ new Date(order.planned_carrier_request.decide_before).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }}, sinon la commande revient à assigner)</template>
+            </p>
           </template>
           <p v-if="order.scheduled_date" class="font-medium" :class="order.is_late ? 'text-red-700' : 'text-slate-700'">Livraison prévue le {{ new Date(`${order.scheduled_date.slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) }}</p>
           <p v-else-if="order.delivery_method === 'delivery' && !['completed', 'cancelled', 'returned'].includes(order.status)" class="font-medium text-amber-800">Date de livraison à fixer (bouton Modifier)</p>
