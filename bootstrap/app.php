@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\BusinessRuleException;
+use App\Http\Controllers\Api\V1\Messaging\WhatsAppConnectSessionController;
 use App\Http\Middleware\EnsureCourier;
 use App\Http\Middleware\EnsurePlatformFeature;
 use App\Http\Middleware\EnsureSessionCurrent;
@@ -55,7 +56,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [EnsureSessionCurrent::class]);
         $middleware->api(append: [EnsureSessionCurrent::class]);
         // Cookies des pixels publicitaires (posés par leur script) : lus tels quels pour l'API Conversions
-        $middleware->encryptCookies(except: ['_fbp', '_fbc', '_ttp', PreprodGate::COOKIE]);
+        $middleware->encryptCookies(except: ['_fbp', '_fbc', '_ttp', PreprodGate::COOKIE, WhatsAppConnectSessionController::COOKIE]);
         $middleware->alias([
             'zone' => EnsureZone::class,
             'member' => EnsureStoreMember::class,
