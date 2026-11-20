@@ -12,6 +12,7 @@ import http from '../lib/http'
 import { money } from '../lib/format'
 import { tabCount } from '../lib/orders'
 import DayProgress from './DayProgress.vue'
+import DayOrderCard from './DayOrderCard.vue'
 import { platformOn } from '../router'
 import { boot } from '../lib/boot'
 import { useAuthStore } from '../stores/auth'
@@ -261,7 +262,15 @@ function pickDate(e) {
   if (dayDate.value) dayPeriod.value = 'custom'
 }
 const ordersMore = ref(0)
+// Livreurs et entreprises, pour « Changer » le livreur d'une commande (chargés une fois)
+const deliveryOptions = ref(null)
+const orderNotice = ref(null)
+function showNotice(m) {
+  orderNotice.value = m
+  setTimeout(() => { if (orderNotice.value === m) orderNotice.value = null }, 6000)
+}
 async function loadOrders(force = false) {
+  if (!deliveryOptions.value && auth.can('shipments.manage')) http.post('/orders/delivery-options', {}).then((r) => (deliveryOptions.value = r.data.data)).catch(() => {})
   if (orders.value && !force) return
   const data = (await http.get('/orders', { params: { period: dayPeriod.value, from: dayPeriod.value === 'custom' ? dayDate.value : undefined, status: dayTab.value || undefined, per_page: 30 } }).catch(() => ({ data: { data: [], counts: null } }))).data
   orders.value = data.data
@@ -443,15 +452,11 @@ function open(to) {
               {{ tab.label }}<span v-if="orderCounts" class="rounded-md px-1.5 text-xs font-bold" :class="tab.alert && orderCounts.failed ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'">{{ tabCount(orderCounts, tab.value) }}</span>
             </button>
           </div>
-          <div class="mt-3 rounded-2xl bg-white p-1 shadow-soft">
-            <p v-if="!orders" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
-            <p v-else-if="!orders.length" class="p-4 text-center text-sm text-slate-500">{{ dayPeriod === 'today' ? (dayTab ? 'Aucune commande ici aujourd\'hui.' : 'Aucune commande à livrer aujourd\'hui.') : 'Aucune commande pour ce jour.' }}</p>
-            <RouterLink v-for="o in orders ?? []" :key="o.id" :to="`/gestion/commandes/${o.id}`" class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0">
-              <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl font-black" :class="o.delivery_failed ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'">{{ (o.customer_name ?? '?').charAt(0).toUpperCase() }}</span>
-              <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template><template v-if="o.deliverer"> · {{ o.deliverer }}</template></span></span>
-              <StateBadge v-if="o.shipment_status_label && !['completed', 'cancelled', 'returned'].includes(o.status)" kind="shipment" :status="o.shipment_status" :label="o.shipment_status_label" class="shrink-0" />
-              <StateBadge v-else :status="o.status" :label="o.status_label" class="shrink-0" />
-            </RouterLink>
+          <p v-if="orderNotice" class="mt-3 rounded-xl px-3 py-2 text-sm font-semibold" :class="orderNotice.error ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-900'">{{ orderNotice.text }}</p>
+          <div class="mt-3 space-y-3">
+            <p v-if="!orders" class="rounded-2xl bg-white p-4 text-center text-sm text-slate-500 shadow-soft">Chargement…</p>
+            <p v-else-if="!orders.length" class="rounded-2xl bg-white p-4 text-center text-sm text-slate-500 shadow-soft">{{ dayPeriod === 'today' ? (dayTab ? 'Aucune commande ici aujourd\'hui.' : 'Aucune commande à livrer aujourd\'hui.') : 'Aucune commande pour ce jour.' }}</p>
+            <DayOrderCard v-for="o in orders ?? []" :key="o.id" :order="o" :options="deliveryOptions" @changed="loadOrders(true)" @message="showNotice" />
           </div>
           <RouterLink v-if="canOpen('/gestion/commandes')" :to="{ path: '/gestion/commandes', query: { period: dayPeriod, from: dayPeriod === 'custom' ? dayDate : undefined, status: dayTab || undefined } }" class="mt-2 block py-2 text-center text-sm font-bold text-emerald-700">{{ ordersMore ? `Voir les ${ordersMore} autres dans la liste complète ›` : 'Ouvrir la liste complète ›' }}</RouterLink>
         </template>
