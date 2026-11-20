@@ -267,6 +267,14 @@ select.input-lg {
 .sheet-body .back-link {
     display: none;
 }
+/* Ligne qui ne contient que ce lien : retirée aussi, sinon elle laisse un écart vide en haut de la fenêtre */
+.sheet-body .back-row {
+    display: none;
+}
+/* Formulaire de commande : collé sous le titre de la fenêtre (8 px au lieu de 16) */
+.sheet-body .order-form {
+    margin-top: -0.5rem;
+}
 /* Écran de Livraisons ouvert dans la fenêtre : seulement cet écran, sans la barre des autres onglets (la page
    Livraisons de l'accueil y mène déjà ; le titre de la fenêtre dit où l'on est). */
 .sheet-body .delivery-tabs {
