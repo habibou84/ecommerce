@@ -34,25 +34,9 @@ const sure = source.coexistence === '1'
 const destination = ref(null)
 const checking = ref(true)
 
-// Retour de Facebook : repart tout seul seulement s'il a été lancé depuis cette page, dans ce navigateur. Sinon
-// (Android : Facebook finit souvent dans son application, qui rouvre le retour dans un autre navigateur), on
-// redemande de confirmer l'espace affiché en grand : un lien Facebook fabriqué par quelqu'un d'autre ne peut pas
-// renvoyer le code vers son espace sans que le marchand le voie.
-const NONCE_KEY = 'wa-fb-nonce'
-function readNonce() {
-  try {
-    return window.localStorage.getItem(NONCE_KEY)
-  } catch {
-    return null
-  }
-}
-function writeNonce(value) {
-  try {
-    value ? window.localStorage.setItem(NONCE_KEY, value) : window.localStorage.removeItem(NONCE_KEY)
-  } catch {
-    // stockage indisponible : le retour de Facebook sera refusé, la fenêtre (ordinateur) reste possible
-  }
-}
+// Sécurité (liens fabriqués par un autre marchand) : le code de Facebook ne va que vers la gestion de la boutique
+// indiquée, où seul un membre connecté peut s'en servir, ou vers l'application installée qui a lancé la connexion
+// (dépôt accepté par le serveur seulement depuis le navigateur de ce téléphone). Rien à vérifier ici.
 
 // Retour seulement vers une boutique de la plateforme (https://{boutique}.jibiat-marchand.com/…)
 const back = computed(() => {
@@ -79,27 +63,15 @@ const handedBack = ref(false)
 const redirectUri = facebookReturnUrl(boot.platformUrl)
 const embeddedBrowser = inAppBrowser()
 const copied = ref(false)
-// Retour de Facebook arrivé dans un autre navigateur : confirmer l'espace avant d'y envoyer la connexion
-const confirming = ref(false)
 
 onMounted(async () => {
+  // Retour de Facebook (page entière) : on repart aussitôt vers la boutique, avec le code ou le message
   if (returned && back.value) {
-    const expected = readNonce()
-    writeNonce(null)
-    // Refus ou abandon chez Facebook : rien à protéger, on repart vers la boutique avec le message
-    if (!route.query.code) {
+    if (route.query.code) {
+      goBack({ code: String(route.query.code), redirect_uri: redirectUri, coexistence: sure ? '1' : '0' })
+    } else {
       goBack({ erreur: route.query.error_reason === 'user_denied' ? 'Connexion à Facebook annulée.' : 'Facebook n\'a pas terminé la connexion. Recommencez quand vous voulez.' })
-      return
     }
-    // Lancé depuis ce navigateur : on repart aussitôt vers la boutique avec le code
-    if (returned.n && returned.n === expected) {
-      finishReturn()
-      return
-    }
-    // Autre navigateur : l'espace est vérifié par le serveur et affiché, le marchand confirme
-    destination.value = await fetchDestination()
-    confirming.value = !!destination.value
-    checking.value = false
     return
   }
   if (back.value) {
@@ -119,12 +91,6 @@ async function fetchDestination() {
   } catch {
     return null
   }
-}
-
-// Code de Facebook envoyé à la boutique (il n'est valable que quelques minutes)
-function finishReturn() {
-  busy.value = true
-  goBack({ code: String(route.query.code), redirect_uri: redirectUri, coexistence: sure ? '1' : '0' })
 }
 
 // « Revenir » : la page d'où l'on vient, sans message d'erreur
@@ -150,9 +116,7 @@ async function goBack(params) {
 
 // Téléphone : la page entière chez Facebook
 function fullPage() {
-  const nonce = [...window.crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('')
-  writeNonce(nonce)
-  const state = btoa(JSON.stringify({ n: nonce, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value, depuis: from.value, cle: appKey }))
+  const state = btoa(JSON.stringify({ coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value, depuis: from.value, cle: appKey }))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   window.location.assign(facebookDialogUrl(options, redirectUri, state))
 }
@@ -187,16 +151,6 @@ async function copyLink() {
       <p class="text-base text-slate-700">Fermez cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
     </div>
     <p v-else-if="checking" class="text-center text-sm text-slate-600">{{ returned ? 'Connexion reçue de Facebook, retour vers votre espace…' : 'Chargement…' }}</p>
-    <div v-else-if="confirming" class="space-y-4">
-      <p class="text-base text-slate-700">Facebook a terminé. Dernière étape : confirmez l'espace qui reçoit votre numéro.</p>
-      <div class="rounded-lg border-2 border-[var(--brand)] bg-brand-soft p-3 text-center">
-        <p class="text-sm text-slate-700">Votre numéro WhatsApp sera connecté à :</p>
-        <p class="text-lg font-black">{{ destination.name }}</p>
-        <p class="text-xs text-slate-600">{{ destination.host }}</p>
-      </div>
-      <p class="text-sm font-semibold text-red-700">Ce n'est pas votre espace ? Fermez cette page : quelqu'un essaie de récupérer votre WhatsApp.</p>
-      <button type="button" class="btn-brand w-full py-4 text-lg font-black" :disabled="busy" @click="finishReturn">{{ busy ? 'Retour vers votre espace…' : 'Terminer la connexion' }}</button>
-    </div>
     <Alert v-else-if="!back || returned || !destination || !options.appId || !options.configId" tone="error">
       Ce lien n'est pas valable. Revenez dans votre espace marchand (Réglages › WhatsApp) et recommencez.
     </Alert>
@@ -212,7 +166,6 @@ async function copyLink() {
         <p class="text-lg font-black">{{ destination.name }}</p>
         <p class="text-xs text-slate-600">{{ destination.host }}</p>
       </div>
-      <p class="text-sm font-semibold text-red-700">Ce n'est pas votre espace ? Fermez cette page : quelqu'un essaie de récupérer votre WhatsApp.</p>
       <p class="text-base text-slate-700">Facebook s'ouvre et vous guide : suivez ses étapes jusqu'au bout.</p>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
       <button type="button" class="btn-brand w-full py-4 text-lg font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
