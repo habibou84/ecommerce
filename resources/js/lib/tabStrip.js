@@ -8,7 +8,9 @@ function update(el) {
 function reveal(el) {
   const active = el.querySelector('.border-emerald-700, [aria-current="page"]')
   if (active && el.scrollWidth > el.clientWidth) {
-    el.scrollLeft = active.offsetLeft - (el.clientWidth - active.offsetWidth) / 2
+    // Position mesurée dans la ligne elle-même (offsetLeft dépend du parent positionné, pas toujours la ligne)
+    const left = active.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft
+    el.scrollLeft = left - (el.clientWidth - active.offsetWidth) / 2
   }
   update(el)
 }
