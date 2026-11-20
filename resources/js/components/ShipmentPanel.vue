@@ -250,6 +250,9 @@ async function whatsapp(s) {
       La course n'a pas pu être envoyée à {{ order.assignment_error.to || planned.name }}<template v-if="order.assignment_error.error"> : {{ order.assignment_error.error }}</template>
     </p>
     <button v-if="planned && canShip" type="button" class="btn-brand w-full py-2" :disabled="busy" @click="assignTo(plannedKey)">{{ order.assignment_error ? 'Réessayer l\'envoi' : 'Envoyer la course' }} à {{ planned.name }}</button>
+    <p v-if="!planned && !shipments.length && order.planned_carrier_request" class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900">
+      Compte en cours d'ouverture chez <b>{{ order.planned_carrier_request.name }}</b> : la course part dès qu'elle accepte.
+    </p>
     <p v-if="!shipments.length && !canShip && !planned" class="text-slate-500">
       {{ order.delivery_method === 'pickup' ? 'Retrait en boutique.' : 'Confirmez la commande pour la faire livrer.' }}
     </p>

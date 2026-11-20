@@ -9,7 +9,7 @@ import { useAuthStore } from '../stores/auth'
 // « Qui livre ? » : mes livreurs et les entreprises de livraison, avec recherche, les plus récents en tête
 const props = defineProps({
   options: { type: Object, default: null }, // réponse de /orders/delivery-options
-  modelValue: { type: String, default: '' }, // '' | 'courier:ID' | 'carrier:ID'
+  modelValue: { type: String, default: '' }, // '' | 'courier:ID' | 'carrier:ID' | 'directory:slug'
   placeLabel: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue', 'close', 'courier-created'])
@@ -22,7 +22,7 @@ function created(courier) {
 }
 
 const search = ref('')
-const filter = ref('all') // all | courier | carrier
+const filter = ref('all') // all | courier | carrier (dont les entreprises de l'annuaire)
 
 const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
 const place = computed(() => props.placeLabel.split(',')[0])
@@ -47,6 +47,11 @@ const entries = computed(() => [
       c.day_message || '',
     ].filter(Boolean).join(' · '),
   })),
+  // Entreprises de l'annuaire pas encore partenaires qui livrent ce lieu : compte ouvert en un clic à l'enregistrement
+  ...(props.options?.directory ?? []).map((d) => ({
+    key: `directory:${d.slug}`, type: 'carrier', directory: true, name: d.name, price: d.fee, faded: false, disabled: false, partner: !!d.partner,
+    sub: ['Pas encore partenaire', d.accepts === 'request' ? 'compte validé par l\'entreprise (24 h)' : 'compte ouvert tout de suite', d.success_rate !== null && d.success_rate !== undefined ? `${Math.round(d.success_rate * 100)} % livrés` : ''].filter(Boolean).join(' · '),
+  })),
 ])
 
 const normalize = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -55,7 +60,8 @@ const recent = computed(() => (search.value.trim() || filter.value !== 'all' ? [
 const sections = computed(() => [
   { title: 'Récemment utilisés', items: recent.value },
   { title: 'Mes livreurs', items: visible.value.filter((e) => e.type === 'courier' && !recent.value.includes(e)) },
-  { title: `Entreprises de livraison${props.placeLabel ? ` · pour ${place.value}` : ''}`, items: visible.value.filter((e) => e.type === 'carrier' && !recent.value.includes(e)) },
+  { title: `Entreprises de livraison${props.placeLabel ? ` · pour ${place.value}` : ''}`, items: visible.value.filter((e) => e.type === 'carrier' && !e.directory && !recent.value.includes(e)) },
+  { title: 'Autres entreprises qui livrent ici · pas encore partenaires', items: visible.value.filter((e) => e.directory) },
 ].filter((s) => s.items.length))
 const count = (type) => entries.value.filter((e) => e.type === type).length
 
