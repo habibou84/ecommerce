@@ -4,19 +4,18 @@ import http, { errorMessage } from '../lib/http'
 import { money } from '../lib/format'
 
 /**
- * Prix de livraison à toucher : le prix de la ville, toutes les communes déjà listées (prix de la ville en gris, prix
- * changé en vert), les quartiers à part, les expéditions vers les autres villes (un seul prix pour toutes, paiement
- * avant l'envoi) et la livraison offerte. Chaque toucher est enregistré tout de suite.
+ * Prix de livraison : le prix de la ville, puis chaque commune avec sa case de prix (vide : comme la ville), dont le
+ * prix vaut pour tous ses quartiers ; ses quartiers se déplient, un prix à part seulement s'il diffère. Puis les
+ * expéditions vers les autres villes (un seul prix pour toutes, paiement avant l'envoi) et la livraison offerte.
+ * Chaque prix est enregistré tout de suite.
  */
 const emit = defineEmits(['loaded'])
 
 const rates = ref(null)
 const error = ref('')
 const busy = ref(false)
-const allCommunes = ref(false)
 const sheet = ref(null) // { kind, place?, title, value }
 const other = ref('')
-const quartiers = ref(null) // quartiers de la commune ouverte dans la fenêtre
 
 const CITY_CHIPS = [1000, 1500, 2000, 2500, 3000]
 const SHIP_CHIPS = [2000, 2500, 3000, 3500, 4000, 5000]
@@ -40,21 +39,40 @@ onMounted(() => run(() => http.get('/delivery-rates')))
 
 const base = computed(() => rates.value?.base_fee ?? null)
 const homeName = computed(() => rates.value?.home?.name ?? 'la ville')
-const communes = computed(() => (allCommunes.value ? rates.value?.places ?? [] : (rates.value?.places ?? []).slice(0, 6)))
+const communes = computed(() => rates.value?.places ?? [])
+// Quartiers dépliés : commune -> liste (vide pendant le chargement)
+const opened = ref({})
+async function toggleCommune(c) {
+  if (opened.value[c.id]) {
+    const next = { ...opened.value }
+    delete next[c.id]
+    opened.value = next
+    return
+  }
+  opened.value = { ...opened.value, [c.id]: [] }
+  await loadChildren(c)
+}
+async function loadChildren(c) {
+  const list = (await http.get(`/delivery-rates/places/${c.id}`)).data.data.places
+  opened.value = { ...opened.value, [c.id]: list }
+}
+const apart = (c) => (opened.value[c.id] ?? []).filter((q) => q.learned).length
+// Prix tapé dans la liste : retenu pour ce lieu ; vide : il reprend celui de sa commune (ou de la ville)
+async function saveFee(place, raw, commune = null) {
+  const value = String(raw).trim()
+  const ok = value === ''
+    ? (place.learned ? await run(() => http.delete(`/delivery-rates/places/${place.id}`)) : true)
+    : await run(() => http.post('/delivery-rates/remember', { place_id: place.id, fee: Number(value) }))
+  if (ok && commune) await loadChildren(commune)
+}
 const shipping = computed(() => rates.value?.expedition?.fee ?? null)
 
-function open(kind, place = null) {
+// Fenêtre à boutons rapides : prix de la ville, prix des expéditions, livraison offerte
+function open(kind) {
   other.value = ''
-  quartiers.value = null
-  const value = {
-    base: base.value,
-    place: place?.learned ? place.fee : null,
-    quartier: place?.learned ? place.fee : null,
-    shipping: shipping.value,
-    free: rates.value?.free_shipping_above ?? null,
-  }[kind]
-  const title = { base: `${homeName.value} (partout)`, shipping: 'Expédition · toutes les villes', free: 'Livraison offerte dès' }[kind] ?? place.name
-  sheet.value = { kind, place, title, value, parent: kind === 'quartier' ? sheet.value?.place : null }
+  const value = { base: base.value, shipping: shipping.value, free: rates.value?.free_shipping_above ?? null }[kind]
+  const title = { base: `${homeName.value} (partout)`, shipping: 'Expédition · toutes les villes', free: 'Livraison offerte dès' }[kind]
+  sheet.value = { kind, title, value }
 }
 
 const chips = computed(() => ({ shipping: SHIP_CHIPS, free: FREE_CHIPS }[sheet.value?.kind] ?? CITY_CHIPS))
@@ -65,27 +83,11 @@ async function choose(fee) {
     base: () => http.put('/delivery-rates', { base_fee: fee }),
     shipping: () => http.put('/delivery-rates', { expedition_fee: fee }),
     free: () => http.put('/delivery-rates', { free_shipping_above: fee }),
-  }[s.kind] ?? (() => http.post('/delivery-rates/remember', { place_id: s.place.id, fee })))())
+  }[s.kind])())
   if (ok) sheet.value = null
 }
-async function reset() {
-  const s = sheet.value
-  if (s.kind === 'free') return choose(null)
-  if (await run(() => http.delete(`/delivery-rates/places/${s.place.id}`))) sheet.value = null
-}
-const resetLabel = computed(() => {
-  const s = sheet.value
-  if (!s) return ''
-  if (s.kind === 'free') return 'Jamais offerte'
-  if (s.kind === 'place') return `Comme ${homeName.value} (${money(base.value ?? 0)})`
-  if (s.kind === 'quartier') return `Comme ${s.parent?.name ?? 'la commune'}`
-  return ''
-})
-const canReset = computed(() => sheet.value && (sheet.value.kind === 'free' ? sheet.value.value !== null : ['place', 'quartier'].includes(sheet.value.kind) && sheet.value.place?.learned))
-
-async function loadQuartiers() {
-  quartiers.value = (await http.get(`/delivery-rates/places/${sheet.value.place.id}`)).data.data.places
-}
+const reset = () => choose(null)
+const canReset = computed(() => sheet.value?.kind === 'free' && sheet.value.value !== null)
 
 const toggleShipping = () => run(() => http.put('/delivery-rates', { expedition_fee: shipping.value === null ? 3000 : null }))
 const togglePrepay = () => run(() => http.put('/delivery-rates', { expedition_prepay: !rates.value.expedition.prepay }))
@@ -129,14 +131,30 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
           </button>
         </section>
 
-        <!-- Communes -->
-        <p class="px-1 text-sm font-black uppercase tracking-wide text-slate-500">Par commune · touchez un prix</p>
-        <section class="rounded-2xl bg-white px-4 py-1">
-          <button v-for="c in communes" :key="c.id" type="button" class="flex w-full items-center justify-between gap-3 border-b border-slate-100 py-2.5 text-left last:border-0" @click="open('place', c)">
-            <span class="min-w-0 truncate text-base">{{ c.name }}</span>
-            <span :class="pill(c.learned)">{{ money((c.learned ? c.fee : base) ?? 0) }}</span>
-          </button>
-          <button v-if="!allCommunes && rates.places.length > 6" type="button" class="block w-full py-2.5 text-center text-sm font-black text-emerald-700" @click="allCommunes = true">Voir les {{ rates.places.length - 6 }} autres communes ▾</button>
+        <!-- Communes : leur prix vaut pour tous leurs quartiers ; les quartiers se déplient, un prix à part s'il diffère -->
+        <p class="px-1 text-sm font-black uppercase tracking-wide text-slate-500">Par commune</p>
+        <section class="divide-y divide-slate-100 rounded-2xl bg-white">
+          <template v-for="c in communes" :key="c.id">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-base font-bold">{{ c.name }}</p>
+                <button v-if="c.has_children" type="button" class="text-sm font-bold text-emerald-700" @click="toggleCommune(c)">
+                  {{ opened[c.id] ? '▾' : '▸' }} Quartiers<template v-if="opened[c.id]?.length"> ({{ opened[c.id].length }}<template v-if="apart(c)"> · {{ apart(c) }} à part</template>)</template>
+                </button>
+              </div>
+              <span v-if="!c.learned" class="whitespace-nowrap text-xs text-slate-500">comme {{ homeName }}</span>
+              <input :value="c.learned ? c.fee : ''" :placeholder="base !== null ? String(base) : '—'" type="number" inputmode="numeric" min="0" class="w-28 rounded-xl border-2 border-field px-3 py-2 text-right text-base font-bold tabular-nums" :aria-label="`Prix pour ${c.name}`" :disabled="busy" @change="saveFee(c, $event.target.value)">
+            </div>
+            <template v-if="opened[c.id]">
+              <p v-if="!opened[c.id].length" class="bg-slate-50 px-8 py-2 text-sm text-slate-500">Chargement…</p>
+              <div v-for="q in opened[c.id]" :key="q.id" class="flex flex-wrap items-center gap-x-3 gap-y-1 bg-slate-50 py-2 pl-8 pr-4">
+                <span class="min-w-0 flex-1 truncate text-base">↳ {{ q.name }}</span>
+                <button v-if="q.learned" type="button" class="text-sm text-slate-500" :title="`Remettre le prix de ${c.name}`" :disabled="busy" @click="saveFee(q, '', c)">↺</button>
+                <span v-else class="whitespace-nowrap text-xs text-slate-500">comme {{ c.name }}</span>
+                <input :value="q.learned ? q.fee : ''" :placeholder="String((c.learned ? c.fee : base) ?? '—')" type="number" inputmode="numeric" min="0" class="w-28 rounded-xl border-2 border-field px-3 py-1.5 text-right text-base tabular-nums" :aria-label="`Prix pour ${q.name}`" :disabled="busy" @change="saveFee(q, $event.target.value, c)">
+              </div>
+            </template>
+          </template>
         </section>
 
         <!-- Expéditions -->
@@ -203,18 +221,8 @@ const pill = (on) => ['shrink-0 whitespace-nowrap rounded-xl border-2 px-2.5 py-
           <input v-model="other" type="number" inputmode="numeric" min="0" placeholder="Autre prix" class="min-w-0 flex-1 rounded-xl border-2 border-field px-3 py-2.5 text-base font-bold" aria-label="Autre prix">
           <button type="submit" class="rounded-xl bg-emerald-700 px-4 py-3 font-black text-white" :disabled="busy || other === ''">OK</button>
         </form>
-        <button v-if="canReset" type="button" class="mt-3 block w-full rounded-xl border-2 border-field py-3 text-base font-black" :disabled="busy" @click="reset">{{ resetLabel }}</button>
+        <button v-if="canReset" type="button" class="mt-3 block w-full rounded-xl border-2 border-field py-3 text-base font-black" :disabled="busy" @click="reset">Jamais offerte</button>
 
-        <!-- Quartiers à part dans la commune -->
-        <template v-if="sheet.kind === 'place' && sheet.place.has_children">
-          <button v-if="!quartiers" type="button" class="mt-3 block w-full text-center text-sm font-black text-emerald-700" @click="loadQuartiers">Un quartier a un autre prix ? ▸</button>
-          <div v-else class="mt-3 rounded-xl bg-slate-50 px-3 py-1">
-            <button v-for="q in quartiers" :key="q.id" type="button" class="flex w-full items-center justify-between gap-3 border-b border-slate-200 py-2 text-left last:border-0" @click="open('quartier', q)">
-              <span class="min-w-0 truncate text-base">{{ q.name }}</span>
-              <span :class="pill(q.learned)">{{ money(q.fee ?? 0) }}</span>
-            </button>
-          </div>
-        </template>
       </div>
     </div>
   </div>
