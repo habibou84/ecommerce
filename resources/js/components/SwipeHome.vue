@@ -154,10 +154,14 @@ watch(current, (i) => {
   const bar = tabs.value
   const tab = bar?.children[i]
   if (bar && tab) bar.scrollTo({ left: Math.max(0, tab.offsetLeft - (bar.clientWidth - tab.offsetWidth) / 2), behavior: restored ? 'smooth' : 'auto' })
-  if (key === 'orders') loadOrders()
-  if (key === 'whatsapp') loadWhatsapp()
-  if (key === 'items') loadItems()
-  if (key === 'cash') loadCash()
+  // Après le démarrage du composant : la page affichée d'emblée (Commandes, première) peut se charger avant que
+  // ses données soient déclarées plus bas
+  nextTick(() => {
+    if (key === 'orders') loadOrders()
+    if (key === 'whatsapp') loadWhatsapp()
+    if (key === 'items') loadItems()
+    if (key === 'cash') loadCash()
+  })
 }, { immediate: true })
 onMounted(async () => {
   const i = current.value
