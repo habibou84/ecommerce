@@ -87,7 +87,7 @@ class AppServiceProvider extends ServiceProvider
             $planned = Order::withoutGlobalScopes()->whereKey($event->order_id)
                 ->where(fn ($q) => $q->whereNotNull('planned_courier_id')->orWhereNotNull('planned_carrier_connection_id'))->exists();
             if ($planned || Store::whereKey($event->store_id)->value('assignment_mode') === 'auto') {
-                DB::afterCommit(fn () => AutoAssignOrder::dispatch($event->order_id));
+                DB::afterCommit(fn () => AutoAssignOrder::launch($event->order_id));
             }
         });
 

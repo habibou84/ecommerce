@@ -10,4 +10,6 @@ enum VerificationPurpose: string
     case ConsoleLogin = 'console_login';
     // Connexion par WhatsApp, sans mot de passe (gestion d'une boutique, ou plateforme pour retrouver ses boutiques)
     case Login = 'login';
+    // Inscription d'un livreur au lien commun (jibiat-marchand.com/livreur), sans boutique
+    case CourierSignup = 'courier_signup';
 }

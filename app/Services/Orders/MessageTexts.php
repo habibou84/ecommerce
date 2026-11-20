@@ -3,6 +3,7 @@
 namespace App\Services\Orders;
 
 use App\Exceptions\BusinessRuleException;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\Store;
@@ -20,11 +21,11 @@ class MessageTexts
     public const MESSAGES = [
         'confirm_request' => [
             'label' => 'Demande de confirmation (depuis votre WhatsApp)',
-            'text' => "Bonjour {prenom}, merci pour votre commande {commande} chez {boutique} :\n{articles}\n\nTotal : {total} ({adresse}).\n\nPouvez-vous nous confirmer la commande et votre disponibilité ? Répondez « OUI » pour confirmer.",
+            'text' => "Bonjour {prenom}, merci pour votre commande {commande} chez {boutique} :\n{articles}\n\nTotal : {total} ({adresse}).\n💳 Acompte à payer pour valider la commande : {acompte}\n\nPouvez-vous nous confirmer la commande et votre disponibilité ? Répondez « OUI » pour confirmer.",
         ],
         'whatsapp_confirmation' => [
             'label' => 'Demande de confirmation automatique (boutons Confirmer / Annuler, dans la conversation)',
-            'text' => "Bonjour {prenom}, merci pour votre commande {commande} chez {boutique} :\n{articles}\n\nTotal : {total} ({adresse}).\n\nConfirmez-vous la commande ?",
+            'text' => "Bonjour {prenom}, merci pour votre commande {commande} chez {boutique} :\n{articles}\n\nTotal : {total} ({adresse}).\n💳 Acompte à payer pour valider la commande : {acompte}\n\nConfirmez-vous la commande ?",
         ],
         'courier_on_the_way' => [
             'label' => 'Livreur en route (au départ du livreur ; boutons J\'attends / Pas disponible)',
@@ -46,6 +47,10 @@ class MessageTexts
             'label' => 'Remerciement',
             'text' => 'Bonjour {prenom}, merci pour votre achat chez {boutique} ! Nous espérons que vous êtes satisfait(e). À bientôt 🙏',
         ],
+        'relaunch' => [
+            'label' => 'Relance d\'un client (bouton Relancer de l\'onglet Clients)',
+            'text' => 'Bonjour {prenom}, ça fait un moment ! 😊 Il y a du nouveau chez {boutique}, venez voir : {lien_boutique}',
+        ],
         'review_request' => [
             'label' => 'Demande d\'avis',
             'text' => "Bonjour {prenom}, merci d'avoir commandé chez {boutique} ! Votre avis sur les articles reçus nous aide beaucoup ⭐\n{lien_avis}",
@@ -59,12 +64,22 @@ class MessageTexts
         'articles' => 'liste des articles',
         'total' => 'total',
         'reste' => 'reste à payer (ligne retirée si tout est payé)',
+        'acompte' => 'acompte encore à payer (ligne retirée sans acompte)',
         'adresse' => 'livraison ou retrait',
         'suivi' => 'lien de suivi',
         'lien_avis' => 'lien pour donner son avis',
+        'lien_boutique' => 'lien de la boutique en ligne',
         'livreur' => 'prénom du livreur',
         'tel_livreur' => 'téléphone du livreur',
     ];
+
+    /**
+     * Acompte encore à payer avant que la commande parte (pas pour une expédition payée d'avance : tout est dû).
+     */
+    public static function depositDue(Order $order): int
+    {
+        return $order->isExpedition() && $order->expedition_prepay ? 0 : $order->depositDue();
+    }
 
     public function text(Store $store, string $key): string
     {
@@ -86,6 +101,19 @@ class MessageTexts
         }
 
         return trim(preg_replace("/\n{3,}/", "\n\n", implode("\n", $lines)));
+    }
+
+    /**
+     * Message à un client sans commande en cours (relance) : seuls {prenom}, {boutique} et {lien_boutique} ont un sens.
+     */
+    public function renderForCustomer(Store $store, Customer $customer, string $key): string
+    {
+        $order = (new Order)->forceFill(['store_id' => $store->id, 'customer_name' => $customer->name, 'number' => 0, 'tracking_token' => 'relance',
+            'delivery_method' => 'delivery', 'subtotal' => 0, 'shipping_fee' => 0, 'total' => 0, 'amount_paid' => 0, 'amount_refunded' => 0]);
+        $order->setRelation('store', $store);
+        $order->setRelation('items', collect());
+
+        return $this->render($order, $key);
     }
 
     /**
@@ -129,9 +157,11 @@ class MessageTexts
             'articles' => $order->items->map(fn ($i) => "• {$i->quantity} × {$i->label()}")->implode("\n"),
             'total' => Money::format($order->total),
             'reste' => $order->amountDue() > 0 ? Money::format($order->amountDue()) : '',
+            'acompte' => self::depositDue($order) > 0 ? Money::format(self::depositDue($order)) : '',
             'adresse' => $order->delivery_method === 'pickup' ? 'à retirer en boutique' : 'à livrer à '.trim(($order->shipping_place_label ?? '').' '.($order->shipping_address ?? '')),
             'suivi' => $order->trackingUrl(),
             'lien_avis' => $order->store->url('/avis/'.$order->tracking_token),
+            'lien_boutique' => $order->store->url(),
             'livreur' => $courier ? (string) strtok($courier->name, ' ') : '',
             'tel_livreur' => $courier?->phone ? PhoneNumber::display($courier->phone) : '',
         ];

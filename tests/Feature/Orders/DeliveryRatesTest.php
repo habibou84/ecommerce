@@ -40,6 +40,8 @@ class DeliveryRatesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Avant l'heure limite (14 h) : les commandes du jour se livrent le jour même, quelle que soit l'heure des tests
+        $this->travelTo(today()->setTime(10, 0));
         Storage::fake('local');
         $this->store = $this->createStore(['slug' => 'awa', 'name' => 'Awa Mode']);
         Subscription::create(['store_id' => $this->store->id, 'plan_id' => Plan::where('code', 'pro')->value('id'), 'status' => 'active', 'billing_cycle' => 'monthly', 'current_period_start' => now(), 'current_period_end' => now()->addMonth()]);
@@ -67,7 +69,7 @@ class DeliveryRatesTest extends TestCase
      */
     private function courier(): array
     {
-        $created = $this->storeApi($this->store, 'POST', 'couriers', ['name' => 'Koffi', 'phone' => '0102030405', 'zone_ids' => [DeliveryZone::forStore($this->store->id)->value('id')]])->assertCreated();
+        $created = $this->storeApi($this->store, 'POST', 'couriers', ['name' => 'Koffi', 'phone' => '0102030405', 'place_ids' => [DeliveryZone::forStore($this->store->id)->firstOrFail()->places()->value('places.id')]])->assertCreated();
         $token = basename($created->json('invitation_url'));
         $this->logout();
         $start = $this->storeApi($this->store, 'POST', "invitations/{$token}/accept", ['name' => 'Koffi', 'password' => 'motdepasse'])->assertStatus(202)->json();

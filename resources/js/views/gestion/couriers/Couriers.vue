@@ -1,13 +1,14 @@
 <script setup>
 import Icon from '../../../components/Icon.vue'
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import Alert from '../../../components/Alert.vue'
 import CourierWhatsAppButton from '../../../components/CourierWhatsAppButton.vue'
 import DeliveryTabs from '../../../components/DeliveryTabs.vue'
 import Field from '../../../components/Field.vue'
 import Modal from '../../../components/Modal.vue'
+import PlacesPicker from '../../../components/PlacesPicker.vue'
 import http, { errorMessage, fieldErrors } from '../../../lib/http'
-import { formatDateTime, money } from '../../../lib/format'
+import { money } from '../../../lib/format'
 import { useAuthStore } from '../../../stores/auth'
 
 const auth = useAuthStore()
@@ -18,14 +19,10 @@ const data = ref(null)
 const error = ref('')
 const errors = ref({})
 const busy = ref(false)
-const modal = ref(null) // 'edit' | 'link' | 'pay' | 'rule'
+const modal = ref(null) // 'edit' | 'link'
 const editing = ref(null)
 const link = ref(null)
 const notice = ref('')
-const pay = ref(null) // { courier, earnings, unpaid, payouts }
-const adjust = reactive({ type: 'bonus', amount: '', note: '' })
-const payForm = reactive({ method: 'wave', reference: '' })
-const rule = ref(null)
 
 async function load() {
   try {
@@ -40,8 +37,8 @@ function open(courier) {
   errors.value = {}
   error.value = ''
   editing.value = courier
-    ? { ...courier, pay_rule_id: courier.pay_rule?.id ?? null, zone_ids: courier.zones.map((z) => z.id) }
-    : { name: '', phone: '', vehicle_type: 'moto', pay_rule_id: null, cash_limit: null, zone_ids: [], note: '', store_ids: [] }
+    ? { ...courier, pay_rule_id: courier.pay_rule?.id ?? null, places: [...courier.places] }
+    : { name: '', phone: '', vehicle_type: 'moto', pay_rule_id: null, cash_limit: null, places: [], note: '', store_ids: [] }
   modal.value = 'edit'
 }
 
@@ -49,15 +46,17 @@ async function save() {
   busy.value = true
   errors.value = {}
   try {
-    const payload = { ...editing.value, cash_limit: editing.value.cash_limit === '' ? null : editing.value.cash_limit }
+    const { places, ...fields } = editing.value
+    const payload = { ...fields, place_ids: places.map((p) => p.id), cash_limit: fields.cash_limit === '' ? null : fields.cash_limit }
     if (editing.value.id) {
       delete payload.phone
       await http.patch(`/couriers/${editing.value.id}`, payload)
       modal.value = null
     } else {
       const { data: res } = await http.post('/couriers', payload)
-      // Nouveau livreur : son accès part sur WhatsApp, sans mot de passe à créer
-      link.value = res.data.status === 'active' ? null : { id: res.data.id, name: res.data.name }
+      // Livreur déjà inscrit : il accepte la demande dans son application ; sinon son accès part sur WhatsApp
+      if (res.requested) notice.value = `Demande envoyée à ${res.data.name} : il doit l'accepter dans son application.`
+      link.value = res.requested || res.data.status === 'active' ? null : { id: res.data.id, name: res.data.name }
       modal.value = link.value ? 'link' : null
     }
     await load()
@@ -69,14 +68,6 @@ async function save() {
   }
 }
 
-async function setting(key, value) {
-  try {
-    data.value.settings = (await http.patch('/couriers/settings', { [key]: value })).data.data
-    if (key === 'courier_tracking') await load()
-  } catch (e) {
-    error.value = errorMessage(e)
-  }
-}
 const mapUrl = (l) => `https://www.google.com/maps/search/?api=1&query=${l.latitude},${l.longitude}`
 const ago = (at) => {
   const minutes = Math.round((Date.now() - new Date(at)) / 60000)
@@ -98,6 +89,51 @@ async function toggleAvailable(courier) {
   courier.is_available = !courier.is_available
 }
 
+async function cancelRequest(courier) {
+  try {
+    await http.post(`/couriers/${courier.id}/cancel-request`)
+    await load()
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
+// ── Annuaire des livreurs inscrits au lien commun ──
+const directory = ref(null)
+const communes = ref([])
+const placeId = ref('')
+const asking = ref(null) // livreur de l'annuaire à qui la boutique envoie une demande
+const askForm = ref({ pay_rule_id: null, cash_limit: null })
+async function openDirectory() {
+  modal.value = 'directory'
+  error.value = ''
+  if (!communes.value.length) communes.value = (await http.get('/courier-space/places')).data.data.filter((p) => p.type === 'commune')
+  await searchDirectory()
+}
+async function searchDirectory() {
+  try {
+    directory.value = (await http.get('/couriers/directory', { params: { place_id: placeId.value || undefined } })).data
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+async function sendRequest() {
+  busy.value = true
+  error.value = ''
+  try {
+    await http.post(`/couriers/directory/${asking.value.id}/request`, { ...askForm.value, cash_limit: askForm.value.cash_limit === '' ? null : askForm.value.cash_limit })
+    notice.value = `Demande envoyée à ${asking.value.name} : il doit l'accepter dans son application.`
+    asking.value = null
+    modal.value = null
+    await load()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
+const waiting = (c) => ['requested', 'declined'].includes(c.status)
+
 async function deactivate(courier) {
   if (!confirm(`Désactiver ${courier.name} ? Il ne pourra plus se connecter à l'application.`)) return
   try {
@@ -108,58 +144,6 @@ async function deactivate(courier) {
   }
 }
 
-
-async function openPay(courier) {
-  error.value = ''
-  const { data: res } = await http.get(`/couriers/${courier.id}/earnings`)
-  pay.value = { courier, ...res }
-  Object.assign(adjust, { type: 'bonus', amount: '', note: '' })
-  modal.value = 'pay'
-}
-async function addAdjustment() {
-  try {
-    await http.post(`/couriers/${pay.value.courier.id}/earnings`, { ...adjust, amount: Number(adjust.amount) })
-    await openPay(pay.value.courier)
-  } catch (e) {
-    error.value = errorMessage(e)
-  }
-}
-async function createPayout() {
-  try {
-    await http.post(`/couriers/${pay.value.courier.id}/payouts`)
-    await openPay(pay.value.courier)
-  } catch (e) {
-    error.value = errorMessage(e)
-  }
-}
-async function markPaid(payout) {
-  await http.post(`/courier-payouts/${payout.id}/pay`, { method: payForm.method, reference: payForm.reference || null })
-  await openPay(pay.value.courier)
-  await load()
-}
-
-function openRule(r) {
-  rule.value = r ? { ...r, zone_amounts: { ...(r.zone_amounts ?? {}) } } : { name: '', type: 'per_delivery', amount: 1000, expedition_amount: null, failed_attempt_amount: 0, zone_amounts: {} }
-  errors.value = {}
-  modal.value = 'rule'
-}
-async function saveRule() {
-  try {
-    if (rule.value.id) await http.put(`/courier-pay-rules/${rule.value.id}`, rule.value)
-    else await http.post('/courier-pay-rules', rule.value)
-    modal.value = null
-    await load()
-  } catch (e) {
-    errors.value = fieldErrors(e)
-  }
-}
-async function deleteRule() {
-  if (!confirm('Supprimer cette règle ?')) return
-  await http.delete(`/courier-pay-rules/${rule.value.id}`)
-  modal.value = null
-  await load()
-}
-const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la zone)` : `${money(r.amount)} par livraison`) + (r.expedition_amount != null ? `, ${money(r.expedition_amount)} par expédition` : '') + (r.failed_attempt_amount ? `, ${money(r.failed_attempt_amount)} par tentative` : '')
 </script>
 
 <template>
@@ -167,62 +151,54 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
     <DeliveryTabs />
     <div class="flex items-center justify-between gap-3">
       <p class="text-sm text-slate-600">Vos livreurs reçoivent leurs missions dans l'application <strong>/livreur</strong>, sur leur téléphone.</p>
-      <button class="btn-brand shrink-0" @click="open(null)">+ Livreur</button>
+      <span class="flex shrink-0 gap-2">
+        <button class="btn-secondary" @click="openDirectory">🔎 Annuaire</button>
+        <button class="btn-brand" @click="open(null)">+ Livreur</button>
+      </span>
     </div>
     <Alert v-if="error && !modal">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
     <div v-if="data" class="card">
-      <p v-if="!data.data.length" class="p-6 text-sm text-slate-500">Aucun livreur. Ajoutez-en un : il reçoit ses courses et son accès sur WhatsApp, sans mot de passe.</p>
+      <p v-if="!data.data.length" class="explain-detail p-6">Aucun livreur. Ajoutez-en un : il reçoit ses courses et son accès sur WhatsApp, sans mot de passe.</p>
       <ul class="divide-y divide-slate-100">
-        <li v-for="c in data.data" :key="c.id" class="flex flex-wrap items-center gap-3 px-4 py-3 text-sm" :class="{ 'opacity-50': c.status === 'inactive' }">
+        <li v-for="c in data.data" :key="c.id" class="flex flex-wrap items-center gap-3 px-4 py-3 text-sm" :class="{ 'opacity-50': ['inactive', 'declined'].includes(c.status) }">
+          <img v-if="c.profile?.photo_url" :src="c.profile.photo_url" alt="" class="h-10 w-10 shrink-0 rounded-full object-cover" />
           <span class="min-w-0 flex-1">
-            <span class="block font-medium">{{ c.name }} <span class="font-normal text-slate-500">· {{ c.phone_display }} · {{ data.vehicles[c.vehicle_type] }}</span></span>
+            <span class="block font-medium">{{ c.name }} <span class="font-normal text-slate-500"><template v-if="c.phone_display">· {{ c.phone_display }} </template>· {{ data.vehicles[c.vehicle_type] }}</span></span>
+            <!-- Livreur inscrit au lien commun : pièce d'identité fournie ou non -->
+            <span v-if="c.profile" class="block text-xs">
+              <a v-if="c.profile.id_document_url" :href="c.profile.id_document_url" target="_blank" class="text-emerald-700 underline">🪪 Pièce d'identité</a>
+              <span v-else-if="c.profile.has_id_document" class="text-emerald-700">🪪 Pièce d'identité fournie</span>
+              <span v-else class="text-amber-800">⚠ Pas de pièce d'identité</span>
+            </span>
             <span class="block text-slate-500">
-              {{ c.zones.map((z) => z.name).join(', ') || 'Toutes zones' }} · {{ c.pay_rule?.name ?? 'sans règle de paie' }}
+              {{ c.places.map((p) => p.label).join(', ') || 'Partout' }} · {{ c.pay_rule?.name ?? 'sans règle de paie' }}
               <template v-if="c.active_missions"> · {{ c.active_missions }} mission(s) en cours</template>
             </span>
             <a v-if="c.location" :href="mapUrl(c.location)" target="_blank" class="block text-emerald-700 hover:underline"><Icon name="pin" :size="16" class="mr-1 inline-block align-[-3px]" />Position {{ ago(c.location.at) }}</a>
           </span>
           <span v-if="c.status === 'invited'" class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Invité</span>
+          <span v-else-if="c.status === 'requested'" class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">En attente de sa réponse</span>
+          <span v-else-if="c.status === 'declined'" class="rounded bg-slate-100 px-2 py-0.5 text-xs">A refusé</span>
           <span v-else-if="c.status === 'inactive'" class="rounded bg-slate-100 px-2 py-0.5 text-xs">Désactivé</span>
           <button v-else class="rounded-full px-2 py-0.5 text-xs" :class="c.is_available ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'" @click="toggleAvailable(c)">
             {{ c.is_available ? 'Disponible' : 'Indisponible' }}
           </button>
-          <span class="w-28 text-right" :class="{ 'font-semibold text-amber-800': c.cash_limit && c.cash_held > c.cash_limit }">{{ money(c.cash_held) }} <span class="block text-xs font-normal text-slate-400">espèces</span></span>
-          <span class="flex gap-1">
+          <span v-if="waiting(c)" class="flex gap-1">
+            <button class="btn-ghost px-2 py-1 text-red-600" @click="cancelRequest(c)">{{ c.status === 'requested' ? 'Retirer la demande' : 'Retirer' }}</button>
+          </span>
+          <span v-if="!waiting(c)" class="w-28 text-right" :class="{ 'font-semibold text-amber-800': c.cash_limit && c.cash_held > c.cash_limit }">{{ money(c.cash_held) }} <span class="block text-xs font-normal text-slate-400">espèces</span></span>
+          <span v-if="!waiting(c)" class="flex gap-1">
             <CourierWhatsAppButton v-if="c.status !== 'inactive'" :courier-id="c.id" :label="c.status === 'invited' ? 'Envoyer son accès' : 'WhatsApp'" small />
             <button v-if="c.status === 'active'" class="btn-ghost px-2 py-1 text-slate-600" title="Téléphone perdu, livreur parti : déconnecter son téléphone" @click="cutAccess(c)">Couper l'accès</button>
-            <button v-if="c.status !== 'invited'" class="btn-secondary px-2 py-1" @click="openPay(c)">Paie · {{ money(c.unpaid) }}</button>
+            <RouterLink v-if="c.status !== 'invited'" :to="`/gestion/livraisons/paie?livreur=${c.id}`" class="btn-secondary px-2 py-1">Paie · {{ money(c.unpaid) }}</RouterLink>
             <button class="btn-ghost px-2 py-1" @click="open(c)">Modifier</button>
             <button v-if="c.status !== 'inactive'" class="btn-ghost px-2 py-1 text-red-600" @click="deactivate(c)">✕</button>
           </span>
         </li>
       </ul>
     </div>
-
-    <section v-if="data" class="card space-y-3 p-4 text-sm">
-      <h3 class="font-semibold">Réglages des livraisons</h3>
-      <label class="flex items-start gap-2">
-        <input type="checkbox" class="mt-0.5" :checked="data.settings.require_delivery_code" @change="setting('require_delivery_code', $event.target.checked)" />
-        <span>Code du client à la livraison <span class="block text-slate-500">Le client reçoit un code sur sa page de suivi et le donne au livreur : la livraison ne se valide qu'avec ce code.</span></span>
-      </label>
-      <label class="flex items-start gap-2">
-        <input type="checkbox" class="mt-0.5" :checked="data.settings.courier_tracking" @change="setting('courier_tracking', $event.target.checked)" />
-        <span>Voir la position des livreurs pendant leur tournée <span class="block text-slate-500">Leur dernière position s'affiche ici, quand ils sont disponibles et que l'application est ouverte. Prévenez-les : l'application le leur indique.</span></span>
-      </label>
-    </section>
-
-    <section v-if="data" class="card p-4 text-sm">
-      <div class="mb-2 flex items-center">
-        <h3 class="font-semibold">Règles de paie</h3>
-        <button class="btn-secondary ml-auto px-3 py-1" @click="openRule(null)">+ Règle</button>
-      </div>
-      <p v-if="!data.pay_rules.length" class="text-slate-500">Exemple : 1 000 F par livraison réussie, 300 F par tentative échouée.</p>
-      <ul class="divide-y divide-slate-100">
-        <li v-for="r in data.pay_rules" :key="r.id"><button class="w-full py-2 text-left hover:text-emerald-700" @click="openRule(r)"><strong>{{ r.name }}</strong> · {{ ruleLabel(r) }}</button></li>
-      </ul>
-    </section>
 
     <Modal v-if="modal === 'edit'" :title="editing.id ? editing.name : 'Nouveau livreur'" @close="modal = null">
       <form class="space-y-4" @submit.prevent="save">
@@ -241,12 +217,9 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
           <select id="cr-rule" v-model="editing.pay_rule_id" class="input"><option :value="null">Aucune</option><option v-for="r in data.pay_rules" :key="r.id" :value="r.id">{{ r.name }}</option></select>
         </Field>
         <fieldset>
-          <legend class="label">Zones couvertes</legend>
-          <div class="flex flex-wrap gap-2">
-            <label v-for="z in data.zones" :key="z.id" class="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 text-sm">
-              <input v-model="editing.zone_ids" type="checkbox" :value="z.id" class="accent-emerald-700" /> {{ z.name }}
-            </label>
-          </div>
+          <legend class="label">Où livre-t-il ?</legend>
+          <PlacesPicker id="cr-places" v-model="editing.places" empty-label="Partout : aucun lieu choisi." />
+          <p class="mt-1 explain-detail">Une commune couvre tous ses quartiers. Ses courses lui sont proposées en priorité dans ces lieux.</p>
         </fieldset>
         <fieldset v-if="!editing.id && otherStores().length">
           <legend class="label">Travaille aussi pour</legend>
@@ -255,10 +228,46 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
               <input v-model="editing.store_ids" type="checkbox" :value="st.id" class="accent-emerald-700" /> {{ st.name }}
             </label>
           </div>
-          <p class="mt-1 text-xs text-slate-500">Une seule application pour toutes ses livraisons ; chaque boutique garde ses zones et sa paie pour lui.</p>
+          <p class="mt-1 explain-detail">Une seule application pour toutes ses livraisons ; chaque boutique garde ses lieux et sa paie pour lui.</p>
         </fieldset>
         <button class="btn-brand w-full" :disabled="busy">{{ editing.id ? 'Enregistrer' : 'Ajouter et créer le lien' }}</button>
       </form>
+    </Modal>
+
+    <Modal v-if="modal === 'directory'" title="Annuaire des livreurs" @close="modal = null; asking = null">
+      <div class="space-y-3 text-sm">
+        <Alert v-if="error">{{ error }}</Alert>
+        <p class="text-slate-600">Livreurs inscrits sur <strong>jibiat-marchand.com/livreur</strong>. Envoyez une demande : il l'accepte dans son application, puis son numéro apparaît.</p>
+        <Field id="dir-place" label="Commune">
+          <select id="dir-place" v-model="placeId" class="input" @change="searchDirectory"><option value="">Toutes</option><option v-for="c in communes" :key="c.id" :value="c.id">{{ c.name }}</option></select>
+        </Field>
+        <p v-if="directory?.require_id" class="rounded bg-sky-50 p-2 text-sky-900">Vous exigez la pièce d'identité : un livreur sans pièce devra l'ajouter avant d'accepter.</p>
+        <p v-if="directory && !directory.data.length" class="explain-detail">Aucun livreur inscrit pour cette commune pour l'instant.</p>
+        <div v-for="p in directory?.data ?? []" :key="p.id" class="space-y-2 rounded-lg border border-slate-200 p-3">
+          <div class="flex items-center gap-3">
+            <img v-if="p.photo_url" :src="p.photo_url" alt="" class="h-12 w-12 rounded-full object-cover" />
+            <span v-else class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-lg" aria-hidden="true">🛵</span>
+            <span class="min-w-0 flex-1">
+              <span class="block font-medium">{{ p.name }} <span class="font-normal text-slate-500">· {{ p.vehicle }}</span></span>
+              <span class="block truncate text-slate-500">{{ p.places.join(', ') || 'Communes non précisées' }}</span>
+              <span class="block text-xs" :class="p.has_id_document ? 'text-emerald-700' : 'text-amber-800'">{{ p.has_id_document ? '🪪 Pièce d\'identité fournie' : '⚠ Pas de pièce d\'identité' }}</span>
+            </span>
+            <button v-if="asking?.id !== p.id" class="btn-secondary shrink-0 px-3 py-1.5" @click="asking = p; askForm = { pay_rule_id: null, cash_limit: null }">Demander</button>
+          </div>
+          <form v-if="asking?.id === p.id" class="space-y-2 border-t border-slate-100 pt-2" @submit.prevent="sendRequest">
+            <div class="grid grid-cols-2 gap-2">
+              <Field id="ask-rule" label="Sa paie chez vous">
+                <select id="ask-rule" v-model="askForm.pay_rule_id" class="input"><option :value="null">Aucune règle</option><option v-for="r in data.pay_rules" :key="r.id" :value="r.id">{{ r.name }}</option></select>
+              </Field>
+              <Field id="ask-limit" label="Plafond d'espèces"><input id="ask-limit" v-model="askForm.cash_limit" type="number" min="0" class="input" placeholder="Aucun" /></Field>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" class="btn-secondary" @click="asking = null">Annuler</button>
+              <button class="btn-brand" :disabled="busy">Envoyer la demande</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </Modal>
 
     <Modal v-if="modal === 'link'" :title="`Accès de ${link.name}`" @close="modal = null">
@@ -266,69 +275,6 @@ const ruleLabel = (r) => (r.type === 'per_zone' ? `${money(r.amount)} (selon la 
         <p>Envoyez-lui son lien sur WhatsApp : il entre <strong>sans mot de passe</strong>.</p>
         <CourierWhatsAppButton :courier-id="link.id" label="Envoyer par WhatsApp" />
       </div>
-    </Modal>
-
-    <Modal v-if="modal === 'pay'" :title="`Paie de ${pay.courier.name}`" wide @close="modal = null">
-      <div class="space-y-4 text-sm">
-        <Alert v-if="error">{{ error }}</Alert>
-        <div class="flex items-center gap-3">
-          <p class="text-lg">À payer : <strong>{{ money(pay.unpaid) }}</strong></p>
-          <button class="btn-brand ml-auto" :disabled="!pay.data.length" @click="createPayout">Préparer le relevé</button>
-        </div>
-        <ul class="max-h-60 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
-          <li v-for="e in pay.data" :key="e.id" class="flex justify-between px-3 py-1.5">
-            <span>{{ e.type_label }}<template v-if="e.reference"> · {{ e.reference }}</template><template v-if="e.note"> · {{ e.note }}</template> <span class="text-xs text-slate-400">{{ formatDateTime(e.created_at) }}</span></span>
-            <span :class="{ 'text-red-600': e.amount < 0 }">{{ money(e.amount) }}</span>
-          </li>
-          <li v-if="!pay.data.length" class="px-3 py-2 text-slate-500">Rien à payer.</li>
-        </ul>
-        <form class="flex flex-wrap gap-2" @submit.prevent="addAdjustment">
-          <select v-model="adjust.type" class="input w-auto"><option value="bonus">Prime</option><option value="advance">Avance</option><option value="adjustment">Ajustement</option></select>
-          <input v-model="adjust.amount" type="number" class="input w-32" placeholder="Montant" required />
-          <input v-model="adjust.note" class="input min-w-0 flex-1" placeholder="Note" />
-          <button class="btn-secondary">Ajouter</button>
-        </form>
-        <div v-if="pay.payouts.length">
-          <h4 class="mb-1 font-semibold">Relevés</h4>
-          <ul class="divide-y divide-slate-100">
-            <li v-for="p in pay.payouts" :key="p.id" class="flex flex-wrap items-center gap-2 py-2">
-              <span class="flex-1">Jusqu'au {{ new Date(p.period_end).toLocaleDateString('fr-FR') }} · {{ p.lines_count }} ligne(s)</span>
-              <strong>{{ money(p.total) }}</strong>
-              <template v-if="p.status === 'draft'">
-                <select v-model="payForm.method" class="input w-auto py-1"><option value="wave">Wave</option><option value="orange_money">Orange Money</option><option value="mtn_momo">MTN</option><option value="moov_money">Moov</option><option value="cash">Espèces</option></select>
-                <button class="btn-brand px-2 py-1" @click="markPaid(p)">Marquer payé</button>
-              </template>
-              <span v-else class="rounded px-2 py-0.5 text-xs" :class="p.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100'">{{ p.status === 'paid' ? `Payé (${p.method})` : 'Annulé' }}</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </Modal>
-
-    <Modal v-if="modal === 'rule'" :title="rule.id ? rule.name : 'Nouvelle règle de paie'" @close="modal = null">
-      <form class="space-y-4" @submit.prevent="saveRule">
-        <Field id="ru-name" label="Nom" :error="errors.name"><input id="ru-name" v-model="rule.name" class="input" required /></Field>
-        <Field id="ru-type" label="Calcul">
-          <select id="ru-type" v-model="rule.type" class="input"><option value="per_delivery">Montant fixe par livraison</option><option value="per_zone">Selon la zone de livraison</option></select>
-        </Field>
-        <Field id="ru-amount" :label="rule.type === 'per_zone' ? 'Montant par défaut' : 'Par livraison réussie'" :error="errors.amount">
-          <input id="ru-amount" v-model.number="rule.amount" type="number" min="0" class="input" required />
-        </Field>
-        <div v-if="rule.type === 'per_zone'" class="space-y-2">
-          <div v-for="z in data.zones" :key="z.id" class="flex items-center gap-2 text-sm">
-            <span class="flex-1">{{ z.name }}</span>
-            <input v-model.number="rule.zone_amounts[z.id]" type="number" min="0" class="input w-32" :placeholder="String(rule.amount)" />
-          </div>
-        </div>
-        <Field id="ru-expedition" label="Par expédition (colis déposé à la gare)" hint="Vide : le montant par défaut. Le prix convenu avec le client ne change pas cette paie.">
-          <input id="ru-expedition" v-model.number="rule.expedition_amount" type="number" min="0" class="input" :placeholder="String(rule.amount)" />
-        </Field>
-        <Field id="ru-failed" label="Par tentative échouée"><input id="ru-failed" v-model.number="rule.failed_attempt_amount" type="number" min="0" class="input" /></Field>
-        <div class="flex gap-2">
-          <button v-if="rule.id" type="button" class="btn-ghost text-red-600" @click="deleteRule">Supprimer</button>
-          <button class="btn-brand ml-auto">Enregistrer</button>
-        </div>
-      </form>
     </Modal>
   </div>
 </template>

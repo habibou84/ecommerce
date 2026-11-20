@@ -68,6 +68,57 @@ async function connectFromDirectory(company) {
   }
 }
 
+// Connexion directe (en un clic, sans quitter Jibiat Marchand) : compte ouvert tout de suite, ou demande envoyée
+async function workWith(company) {
+  connecting.value = company.slug
+  error.value = ''
+  notice.value = ''
+  try {
+    const { data } = await http.post('/carriers/connect/direct', { slug: company.slug })
+    applyRequest(company, data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    connecting.value = null
+  }
+}
+
+async function refreshRequest(company) {
+  connecting.value = company.slug
+  try {
+    const { data } = await http.post(`/carriers/requests/${company.request.id}/refresh`)
+    applyRequest(company, data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    connecting.value = null
+  }
+}
+
+async function cancelRequest(company) {
+  if (!confirm(`Annuler votre demande chez ${company.name} ?`)) return
+  try {
+    const { data } = await http.delete(`/carriers/requests/${company.request.id}`)
+    company.request = { ...company.request, status: data.data.status }
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
+function applyRequest(company, request) {
+  company.request = request
+  if (request.status === 'connected') {
+    notice.value = `${company.name} a ouvert votre compte : vos commandes peuvent lui être confiées en un clic.`
+    company.connected = true
+    load()
+    if (request.connection?.unmapped_count) openZones(request.connection)
+  } else if (request.status === 'pending') {
+    notice.value = `Demande envoyée à ${company.name} : vous serez connecté dès qu'elle ouvre votre compte.`
+  } else if (request.status === 'confirmation') {
+    notice.value = `Vous avez déjà un compte chez ${company.name} : confirmez sur WhatsApp, la connexion se fera aussitôt.`
+  }
+}
+
 // Retour de la page « Connecter » de l'entreprise : code à échanger, demande envoyée ou refus
 async function finishReturn() {
   const { code, state, error: refused } = route.query
@@ -246,8 +297,8 @@ const copy = (text) => navigator.clipboard?.writeText(text)
     <Alert v-if="error && !modal">{{ error }}</Alert>
     <Alert v-if="notice" tone="success">{{ notice }}</Alert>
 
-    <p v-if="carriers && !carriers.length" class="card p-6 text-sm text-slate-500">
-      Aucune entreprise connectée. Choisissez-en une ci-dessous : « Connecter ».
+    <p v-if="carriers && !carriers.length" class="card explain-detail p-6">
+      <b class="explain block">Aucune entreprise connectée.</b>Choisissez-en une ci-dessous : « Connecter ».
     </p>
 
     <article v-for="c in carriers ?? []" :key="c.id" class="card space-y-3 p-4 text-sm">
@@ -267,11 +318,11 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         </p>
         <p v-if="c.webhook_auto">✓ Statuts reçus en direct (webhook créé automatiquement)<template v-if="c.last_synced_at"> · dernière synchronisation {{ formatDateTime(c.last_synced_at) }}</template></p>
         <div v-else class="rounded bg-amber-50 p-2 text-amber-900">
-          Pour recevoir les statuts en direct, déclarez cette adresse dans Delivery App (Profil › Intégrations › Webhooks) puis collez le secret :
+          <b class="block">Recevez les statuts en direct.</b>Déclarez cette adresse dans Delivery App (Profil › Intégrations › Webhooks), puis collez le secret :
           <code class="block break-all py-1">{{ c.webhook_url }}</code>
           <button class="underline" @click="copy(c.webhook_url)">Copier</button>
           <input class="input mt-2" placeholder="Secret whsec_…" @change="save(c, { webhook_secret: $event.target.value })" />
-          <span class="text-xs">En attendant, les statuts sont relus toutes les 10 minutes.</span>
+          <span class="text-sm">En attendant, les statuts sont relus toutes les 10 minutes.</span>
         </div>
       </div>
 
@@ -302,8 +353,8 @@ const copy = (text) => navigator.clipboard?.writeText(text)
         <p class="text-sm text-slate-600">Elles livrent avec Jibiat : leurs résultats sur 90 jours.</p>
       </div>
       <p v-if="directory === null" class="text-sm text-slate-500">Chargement de l'annuaire…</p>
-      <p v-else-if="!directoryAvailable" class="card p-4 text-sm text-slate-500">Annuaire indisponible. Connectez-vous avec une clé API (« + Entreprise »).</p>
-      <p v-else-if="!directory.length" class="card p-4 text-sm text-slate-500">Aucune entreprise dans l'annuaire pour l'instant.</p>
+      <p v-else-if="!directoryAvailable" class="explain-detail card p-4">Annuaire indisponible. Connectez-vous avec une clé API (« + Entreprise »).</p>
+      <p v-else-if="!directory.length" class="explain-detail card p-4">Aucune entreprise dans l'annuaire pour l'instant.</p>
       <template v-else>
       <p v-if="partner && !partner.connected" class="rounded-lg bg-sky-50 p-3 text-sm text-sky-900">
         Connectez <strong>{{ partner.name }}</strong> en un clic.
@@ -326,8 +377,25 @@ const copy = (text) => navigator.clipboard?.writeText(text)
             <div class="rounded-lg bg-slate-50 p-2"><dt class="text-xs text-slate-500">Délai moyen</dt><dd class="font-semibold">{{ hours(d.stats.average_delivery_hours) }}</dd></div>
             <div class="rounded-lg bg-slate-50 p-2"><dt class="text-xs text-slate-500">Dès</dt><dd class="font-semibold">{{ money(d.price_from) }}</dd></div>
           </dl>
-          <p class="text-xs text-slate-500">{{ d.stats.deliveries_90d }} colis livrés en 90 jours<template v-if="d.stats.success_rate === null"> · chiffres affichés dès 20 courses</template><template v-if="d.accepts === 'request'"> · ouverture de compte sur demande</template></p>
+          <p class="explain-detail">{{ d.stats.deliveries_90d }} colis livrés en 90 jours<template v-if="d.stats.success_rate === null"> · chiffres affichés dès 20 courses</template><template v-if="d.accepts === 'request'"> · ouverture de compte sur demande</template></p>
           <span v-if="d.connected" class="mt-auto rounded-lg bg-emerald-50 py-2 text-center font-medium text-emerald-800">✓ Déjà connectée</span>
+          <template v-else-if="d.direct && d.request && ['pending', 'confirmation'].includes(d.request.status)">
+            <p class="mt-auto rounded-lg bg-amber-50 p-2 text-amber-900">
+              <template v-if="d.request.status === 'confirmation'">Confirmez sur WhatsApp : vous avez déjà un compte chez {{ d.name }}.</template>
+              <template v-else>Demande envoyée : {{ d.name }} doit ouvrir votre compte<template v-if="d.request.decide_before"> (réponse avant le {{ new Date(d.request.decide_before).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }})</template>.</template>
+            </p>
+            <div class="flex gap-2">
+              <button class="btn-ghost flex-1" :disabled="connecting === d.slug" @click="refreshRequest(d)">{{ connecting === d.slug ? '…' : 'Actualiser' }}</button>
+              <button class="btn-ghost flex-1 text-red-600" @click="cancelRequest(d)">Annuler</button>
+            </div>
+          </template>
+          <template v-else-if="d.direct">
+            <p v-if="d.request && ['declined', 'expired', 'failed'].includes(d.request.status)" class="mt-auto rounded-lg bg-red-50 p-2 text-red-800">
+              {{ d.request.status === 'expired' ? `${d.name} n'a pas répondu à temps.` : d.request.status === 'failed' ? 'Compte ouvert, mais la connexion a échoué.' : `${d.name} n'a pas ouvert votre compte.` }}<template v-if="d.request.reason"> {{ d.request.reason }}</template>
+            </p>
+            <button class="btn-brand mt-auto" :disabled="connecting === d.slug || busy" @click="workWith(d)">{{ connecting === d.slug ? 'Envoi…' : `Travailler avec ${d.name}` }}</button>
+            <p class="explain-detail text-center">Votre compte est ouvert sans quitter Jibiat Marchand<template v-if="d.accepts === 'request'"> (validé par l'entreprise)</template>.</p>
+          </template>
           <button v-else class="btn-brand mt-auto" :disabled="connecting === d.slug || busy" @click="connectFromDirectory(d)">{{ connecting === d.slug ? 'Ouverture…' : 'Connecter' }}</button>
         </article>
       </div>
@@ -382,7 +450,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
             <span class="text-slate-500">F</span>
             <button v-if="current.driver !== 'delivery_app'" type="button" class="btn-ghost px-2 text-red-600" :aria-label="`Supprimer ${z.label}`" @click="removeZone(z)"><Icon name="close" :size="16" /></button>
           </li>
-          <li v-if="!zones.zones.length" class="px-3 py-3 text-slate-500">Pas encore de zone : sans grille, l'entreprise est proposée partout, aux frais de vos propres zones.</li>
+          <li v-if="!zones.zones.length" class="explain-detail px-3 py-3">Pas encore de zone : l'entreprise est proposée partout, aux frais de vos propres zones.</li>
         </ul>
         <form v-if="current.driver !== 'delivery_app'" class="mb-5 flex flex-wrap gap-2" @submit.prevent="addZone">
           <input v-model="newZone.name" class="input min-w-0 flex-1" placeholder="Zone (ex. Cocody, Yopougon…)" required maxlength="120" />
@@ -433,7 +501,7 @@ const copy = (text) => navigator.clipboard?.writeText(text)
             </tr>
           </tbody>
         </table>
-        <p class="mt-3 text-xs text-slate-500">Le stock de l'entreprise fait foi : corrigez un écart par un ajustement sur l'emplacement de l'entrepôt.</p>
+        <p class="explain-detail mt-3">Le stock de l'entreprise fait foi : corrigez un écart par un ajustement sur l'emplacement de l'entrepôt.</p>
       </template>
     </Modal>
   </div>

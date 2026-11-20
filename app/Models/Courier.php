@@ -17,13 +17,13 @@ class Courier extends Model
 
     public const VEHICLES = ['moto' => 'Moto', 'bicycle' => 'Vélo', 'car' => 'Voiture', 'foot' => 'À pied'];
 
-    protected $fillable = ['store_id', 'user_id', 'name', 'phone', 'vehicle_type', 'pay_rule_id', 'cash_limit', 'is_available', 'status', 'note'];
+    protected $fillable = ['store_id', 'user_id', 'name', 'phone', 'vehicle_type', 'pay_rule_id', 'cash_limit', 'is_available', 'status', 'note', 'requested_at', 'answered_at'];
 
     protected $attributes = ['status' => 'invited', 'is_available' => true, 'vehicle_type' => 'moto'];
 
     protected function casts(): array
     {
-        return ['is_available' => 'boolean', 'cash_limit' => 'integer', 'last_latitude' => 'float', 'last_longitude' => 'float', 'last_located_at' => 'datetime'];
+        return ['is_available' => 'boolean', 'cash_limit' => 'integer', 'last_latitude' => 'float', 'last_longitude' => 'float', 'last_located_at' => 'datetime', 'requested_at' => 'datetime', 'answered_at' => 'datetime'];
     }
 
     public function user(): BelongsTo
@@ -36,9 +36,33 @@ class Courier extends Model
         return $this->belongsTo(CourierPayRule::class, 'pay_rule_id');
     }
 
-    public function zones(): BelongsToMany
+    /**
+     * Lieux couverts (ville, commune ou quartier). Aucun : il couvre partout.
+     */
+    public function places(): BelongsToMany
     {
-        return $this->belongsToMany(DeliveryZone::class, 'courier_zones');
+        return $this->belongsToMany(Place::class, 'courier_places')->withPivot('store_id');
+    }
+
+    /**
+     * Le livreur couvre-t-il ce lieu de livraison ? Sans lieu coché, il couvre partout (même une commande sans lieu
+     * précis) ; sinon le lieu doit être un de ses lieux ou s'y trouver (Angré est dans Cocody, dans Abidjan).
+     */
+    public function coversPlace(?Place $place): bool
+    {
+        if ($this->places->isEmpty()) {
+            return true;
+        }
+
+        return $place !== null && array_intersect($place->lineageIds(), $this->places->pluck('id')->all()) !== [];
+    }
+
+    /**
+     * Missions confiées (historique, y compris refusées) : sert au « chacun son tour ».
+     */
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(CourierAssignment::class);
     }
 
     public function shipments(): HasMany

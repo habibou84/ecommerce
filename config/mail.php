@@ -115,4 +115,13 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    | E-mails aux couleurs de Jibiat Marchand : en-tête vert nuit, boutons et liens verts
+    | (resources/views/vendor/mail/html/themes/jibiat.css)
+    */
+    'markdown' => [
+        'theme' => env('MAIL_MARKDOWN_THEME', 'jibiat'),
+        'paths' => [resource_path('views/vendor/mail')],
+    ],
+
 ];

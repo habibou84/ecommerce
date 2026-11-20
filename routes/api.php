@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\Api\Partners\ConnectionController;
 use App\Http\Controllers\Api\Partners\PremiumCardController;
 use App\Http\Controllers\Api\V1\AccessKeyController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -19,14 +20,17 @@ use App\Http\Controllers\Api\V1\Console\ConsoleController;
 use App\Http\Controllers\Api\V1\Console\ConsoleCreditsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleFeaturesController;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
+use App\Http\Controllers\Api\V1\Console\ConsoleHelpController;
 use App\Http\Controllers\Api\V1\Console\ConsoleMaterielController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
+use App\Http\Controllers\Api\V1\Console\ConsoleSupportAgentController;
 use App\Http\Controllers\Api\V1\Console\ConsoleTeamController;
 use App\Http\Controllers\Api\V1\Console\ConsoleWhatsAppController;
 use App\Http\Controllers\Api\V1\Couriers\CashController;
 use App\Http\Controllers\Api\V1\Couriers\CourierAppController;
 use App\Http\Controllers\Api\V1\Couriers\CourierController;
+use App\Http\Controllers\Api\V1\Couriers\CourierSpaceController;
 use App\Http\Controllers\Api\V1\Couriers\PayrollController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DeviceController;
@@ -34,6 +38,7 @@ use App\Http\Controllers\Api\V1\DomainController;
 use App\Http\Controllers\Api\V1\Finance\CashOverviewController;
 use App\Http\Controllers\Api\V1\Finance\CashRegisterController;
 use App\Http\Controllers\Api\V1\Finance\RecurringExpenseController;
+use App\Http\Controllers\Api\V1\HelpController;
 use App\Http\Controllers\Api\V1\InvitationController;
 use App\Http\Controllers\Api\V1\Marketing\BoostAdsController;
 use App\Http\Controllers\Api\V1\Marketing\BoostController;
@@ -102,6 +107,9 @@ Route::prefix('partners/v1')->name('partners.')->middleware(['zone:api', 'thrott
     Route::get('premium-cards', [PremiumCardController::class, 'index'])->name('premium-cards.index');
     Route::delete('premium-cards/{code}', [PremiumCardController::class, 'destroy'])->where('code', '[A-Za-z0-9-]{1,20}')->name('premium-cards.destroy');
 });
+// Décisions des entreprises de Jibiat sur la connexion directe (contrat socle 1.12), secret de la connexion directe
+Route::post('partners/v1/connections', [ConnectionController::class, 'store'])
+    ->middleware(['zone:api', 'throttle:120,1', VerifyPartnerSignature::class.':connect'])->name('partners.connections.store');
 
 Route::prefix('v1')->name('v1.')->group(function () {
     // ── jibiat-marchand.com : création de boutique, retrouver ses boutiques ──
@@ -116,6 +124,11 @@ Route::prefix('v1')->name('v1.')->group(function () {
         // Clé d'accès d'une carte à QR code (page jibiat-marchand.com/cle/CODE)
         Route::get('access-keys/{code}', [AccessKeyController::class, 'show'])->where('code', '[A-Za-z0-9-]{1,20}')->middleware('throttle:20,1')->name('access-keys.show');
 
+        // Lien commun des livreurs : inscription (numéro vérifié) et connexion
+        Route::post('courier-space/signup', [CourierSpaceController::class, 'signup'])->middleware(['throttle:verification-start', 'throttle:login'])->name('courier-space.signup');
+        Route::post('courier-space/login', [CourierSpaceController::class, 'login'])->middleware('throttle:login')->name('courier-space.login');
+        Route::post('courier-space/logout', [CourierSpaceController::class, 'logout'])->middleware('auth:sanctum')->name('courier-space.logout');
+
         Route::post('account/login', [PlatformAccountController::class, 'login'])->middleware('throttle:login')->name('account.login');
         Route::post('account/whatsapp', [PlatformAccountController::class, 'whatsapp'])->middleware('throttle:verification-start')->name('account.whatsapp');
         Route::middleware('auth:sanctum')->group(function () {
@@ -128,9 +141,24 @@ Route::prefix('v1')->name('v1.')->group(function () {
     // ── Vérification d'un numéro (WhatsApp, code SMS en dernier recours) et mot de passe oublié : plateforme, boutiques, console ──
     // Écran du live (télé, tablette, ordinateur) : sans compte, relié à une boutique par un code à 4 chiffres
     Route::middleware('zone:platform,store')->group(function () {
+        // Communes et quartiers du profil livreur (inscription au lien commun, Mon compte de l'application)
+        Route::get('courier-space/places', [CourierSpaceController::class, 'places'])->middleware('throttle:60,1')->name('courier-space.places');
         Route::post('screens', [LiveScreenController::class, 'create'])->middleware('throttle:10,1')->name('screens.create');
         Route::get('screens/{token}', [LiveScreenController::class, 'show'])->where('token', '[A-Za-z0-9]{48}')->middleware('throttle:120,1')->middleware('cache.headers:private;no_cache;etag')->name('screens.show');
     });
+    // Espace du livreur (profil, demandes des boutiques) : au lien commun et dans l'application de chaque boutique
+    Route::middleware(['zone:platform,store', 'auth:sanctum'])->prefix('courier-space')->name('courier-space.')->group(function () {
+        Route::get('/', [CourierSpaceController::class, 'show'])->name('show');
+        Route::put('profile', [CourierSpaceController::class, 'updateProfile'])->name('profile');
+        Route::post('photo', [CourierSpaceController::class, 'savePhoto'])->middleware('throttle:20,1')->name('photo.store');
+        Route::get('photo', [CourierSpaceController::class, 'photo'])->name('photo');
+        Route::post('id-document', [CourierSpaceController::class, 'saveIdDocument'])->middleware('throttle:10,1')->name('id-document');
+        Route::post('requests/{courier}/accept', [CourierSpaceController::class, 'accept'])->whereNumber('courier')->name('requests.accept');
+        Route::post('requests/{courier}/decline', [CourierSpaceController::class, 'decline'])->whereNumber('courier')->name('requests.decline');
+        Route::post('stores/{courier}/leave', [CourierSpaceController::class, 'leave'])->whereNumber('courier')->name('stores.leave');
+        Route::post('open', [CourierSpaceController::class, 'open'])->name('open');
+    });
+
     Route::middleware('zone:platform,store,console')->group(function () {
         Route::post('password/forgot', [PasswordResetController::class, 'start'])->middleware('throttle:verification-start')->name('password.forgot');
         Route::get('verifications/{token}', [VerificationController::class, 'show'])->middleware('throttle:90,1')->name('verifications.show');
@@ -204,6 +232,20 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::post('materiel/products/{product}/image', [ConsoleMaterielController::class, 'image'])->whereNumber('product')->name('materiel.products.image');
             Route::post('materiel/orders/{order}/status', [ConsoleMaterielController::class, 'advance'])->whereNumber('order')->name('materiel.orders.status');
             Route::post('materiel/orders/{order}/paid', [ConsoleMaterielController::class, 'paid'])->whereNumber('order')->name('materiel.orders.paid');
+            // Centre d'aide : fiches, images, vidéo, recherches sans réponse
+            Route::get('help', [ConsoleHelpController::class, 'index'])->name('help');
+            Route::post('help', [ConsoleHelpController::class, 'store'])->name('help.store');
+            Route::post('help/defaults', [ConsoleHelpController::class, 'defaults'])->name('help.defaults');
+            Route::put('help/{article}', [ConsoleHelpController::class, 'update'])->whereNumber('article')->name('help.update');
+            Route::delete('help/{article}', [ConsoleHelpController::class, 'destroy'])->whereNumber('article')->name('help.destroy');
+            Route::post('help/{article}/image', [ConsoleHelpController::class, 'image'])->whereNumber('article')->name('help.image');
+            Route::delete('help/{article}/images/{index}', [ConsoleHelpController::class, 'removeImage'])->whereNumber(['article', 'index'])->name('help.image.remove');
+            Route::post('help/{article}/video', [ConsoleHelpController::class, 'video'])->whereNumber('article')->name('help.video');
+            Route::delete('help/{article}/video', [ConsoleHelpController::class, 'removeVideo'])->whereNumber('article')->name('help.video.remove');
+            Route::delete('help/misses/{miss}', [ConsoleHelpController::class, 'dismissMiss'])->whereNumber('miss')->name('help.misses.dismiss');
+            // Assistant du support sur WhatsApp : activation, plafond de coût, suivi
+            Route::get('support-agent', [ConsoleSupportAgentController::class, 'show'])->name('support-agent');
+            Route::put('support-agent', [ConsoleSupportAgentController::class, 'update'])->name('support-agent.update');
             Route::put('plans/{plan}', [ConsoleController::class, 'updatePlan'])->whereNumber('plan')->name('plans.update');
             Route::get('invoices', [ConsoleController::class, 'invoices'])->name('invoices');
             Route::get('ai-usage', [ConsoleController::class, 'aiUsage'])->name('ai-usage');
@@ -290,7 +332,12 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::get('dashboard', DashboardController::class)->name('dashboard');
             // Guide de démarrage pas à pas (étapes selon le rôle de chacun)
             Route::get('setup-guide', [SetupGuideController::class, 'show'])->name('setup-guide.show');
+            Route::post('setup-guide/welcome', [SetupGuideController::class, 'finishWelcome'])->name('setup-guide.welcome');
             Route::put('setup-guide/{step}', [SetupGuideController::class, 'skip'])->where('step', '[a-z_]+')->name('setup-guide.skip');
+            // Centre d'aide : fiches, recherche, avis
+            Route::get('help', [HelpController::class, 'index'])->middleware('throttle:60,1')->name('help');
+            Route::get('help/{slug}', [HelpController::class, 'show'])->where('slug', '[a-z0-9-]+')->name('help.show');
+            Route::post('help/{slug}/vote', [HelpController::class, 'vote'])->where('slug', '[a-z0-9-]+')->name('help.vote');
             // La boutique met fin à un accès du support de la plateforme
             Route::post('support-sessions/{session}/end', SupportSessionController::class)->whereNumber('session')
                 ->middleware('permission:'.Permission::TeamManage->value)->name('support.end');
@@ -432,11 +479,16 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('conversations/unread', [ConversationController::class, 'unread'])->name('conversations.unread');
                 Route::get('conversations/{conversation}', [ConversationController::class, 'show'])->whereNumber('conversation')->name('conversations.show');
                 Route::get('conversations/{conversation}/messages', [ConversationController::class, 'older'])->whereNumber('conversation')->name('conversations.older');
+                Route::get('conversations/{conversation}/messages/{message}/photo', [ConversationController::class, 'photo'])->whereNumber(['conversation', 'message'])->middleware('throttle:120,1')->name('conversations.photo');
                 Route::post('conversations/{conversation}/messages', [ConversationController::class, 'reply'])->whereNumber('conversation')->name('conversations.reply');
+                Route::post('conversations/{conversation}/recap', [ConversationController::class, 'recap'])->whereNumber('conversation')->middleware('throttle:20,1')->name('conversations.recap');
+                Route::post('conversations/{conversation}/recap/confirm', [ConversationController::class, 'confirmRecap'])->whereNumber('conversation')->middleware('throttle:20,1')->name('conversations.recap.confirm');
                 Route::post('conversations/{conversation}/suggest', [ConversationController::class, 'suggest'])->whereNumber('conversation')->middleware('throttle:30,1')->name('conversations.suggest');
             });
             Route::middleware('permission:'.Permission::CustomersView->value)->group(function () {
                 Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
+                Route::get('customers/summary', [CustomerController::class, 'summary'])->name('customers.summary');
+                Route::get('customers/{customer}/relaunch', [CustomerController::class, 'relaunch'])->whereNumber('customer')->name('customers.relaunch');
                 Route::get('customers/{customer}', [CustomerController::class, 'show'])->whereNumber('customer')->name('customers.show');
                 Route::get('customers/elsewhere', [CustomerController::class, 'elsewhere'])->name('customers.elsewhere');
             });
@@ -449,6 +501,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('carriers/directory', [CarrierController::class, 'directory'])->name('carriers.directory');
                 Route::post('carriers/connect/start', [CarrierController::class, 'connectStart'])->middleware('throttle:20,1')->name('carriers.connect.start');
                 Route::post('carriers/connect/finish', [CarrierController::class, 'connectFinish'])->middleware('throttle:10,1')->name('carriers.connect.finish');
+                Route::post('carriers/connect/direct', [CarrierController::class, 'connectDirect'])->middleware('throttle:20,1')->name('carriers.connect.direct');
+                Route::post('carriers/requests/{carrierRequest}/refresh', [CarrierController::class, 'refreshRequest'])->whereNumber('carrierRequest')->middleware('throttle:20,1')->name('carriers.requests.refresh');
+                Route::delete('carriers/requests/{carrierRequest}', [CarrierController::class, 'cancelRequest'])->whereNumber('carrierRequest')->name('carriers.requests.cancel');
                 Route::post('carriers/manual', [CarrierController::class, 'connectManual'])->name('carriers.manual');
                 Route::patch('carriers/{carrier}', [CarrierController::class, 'update'])->whereNumber('carrier')->name('carriers.update');
                 Route::delete('carriers/{carrier}', [CarrierController::class, 'destroy'])->whereNumber('carrier')->name('carriers.destroy');
@@ -532,6 +587,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                     Route::get('marketing/boosts', [BoostAdsController::class, 'index'])->name('boosts.index');
                     Route::post('marketing/boosts', [BoostAdsController::class, 'store'])->middleware('throttle:10,1')->name('boosts.store');
                     Route::post('marketing/boosts/{boost}/action', [BoostAdsController::class, 'action'])->whereNumber('boost')->middleware('throttle:20,1')->name('boosts.action');
+                    Route::delete('marketing/boosts/failed', [BoostAdsController::class, 'clearFailed'])->middleware('throttle:20,1')->name('boosts.clear-failed');
+                    Route::delete('marketing/boosts/{boost}', [BoostAdsController::class, 'destroy'])->whereNumber('boost')->middleware('throttle:20,1')->name('boosts.destroy');
                 });
                 Route::get('marketing/tracking', [TrackingController::class, 'show'])->name('tracking.show');
                 Route::put('marketing/tracking', [TrackingController::class, 'update'])->name('tracking.update');
@@ -593,6 +650,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('whatsapp/sales', [WhatsAppSalesController::class, 'show'])->name('whatsapp.sales.show');
                 Route::put('whatsapp/sales', [WhatsAppSalesController::class, 'update'])->name('whatsapp.sales.update');
                 Route::put('whatsapp/models', [WhatsAppSalesController::class, 'models'])->name('whatsapp.models.update');
+                Route::put('whatsapp/recap', [WhatsAppSalesController::class, 'recap'])->name('whatsapp.recap.update');
+                Route::put('whatsapp/cart-flow', [WhatsAppSalesController::class, 'cartFlow'])->name('whatsapp.cart-flow.update');
+                Route::put('whatsapp/catalog/visible', [WhatsAppSalesController::class, 'catalogVisible'])->middleware('throttle:10,1')->name('whatsapp.catalog.visible');
                 // Connexion WhatsApp depuis l'application installée : la fenêtre Facebook dépose son résultat ici
                 Route::post('whatsapp/connect-session', [WhatsAppConnectSessionController::class, 'register'])->middleware('throttle:20,1')->name('whatsapp.connect-session.register');
                 Route::get('whatsapp/connect-session/{key}', [WhatsAppConnectSessionController::class, 'show'])->where('key', '[A-Za-z0-9]{32,64}')->middleware('throttle:120,1')->name('whatsapp.connect-session.show');
@@ -648,6 +708,12 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('couriers', [CourierController::class, 'store'])->name('couriers.store');
                 Route::patch('couriers/settings', [CourierController::class, 'settings'])->name('couriers.settings');
                 Route::patch('couriers/{courier}', [CourierController::class, 'update'])->whereNumber('courier')->name('couriers.update');
+                // Annuaire des livreurs inscrits au lien commun, demande, retrait de la demande, pièce d'identité
+                Route::get('couriers/directory', [CourierController::class, 'directory'])->name('couriers.directory');
+                Route::post('couriers/directory/{profile}/request', [CourierController::class, 'requestFromDirectory'])->whereNumber('profile')->middleware('throttle:30,1')->name('couriers.directory.request');
+                Route::post('couriers/{courier}/cancel-request', [CourierController::class, 'cancelRequest'])->whereNumber('courier')->name('couriers.cancel-request');
+                Route::get('couriers/{courier}/id-document', [CourierController::class, 'idDocument'])->whereNumber('courier')->name('couriers.id-document');
+                Route::get('courier-profiles/{profile}/photo', [CourierController::class, 'profilePhoto'])->whereNumber('profile')->name('courier-profiles.photo');
                 Route::post('couriers/{courier}/invitation', [CourierController::class, 'reinvite'])->whereNumber('courier')->name('couriers.reinvite');
                 // Lien d'accès sans mot de passe à envoyer sur WhatsApp, et coupure de l'accès
                 Route::post('couriers/{courier}/access-link', [CourierController::class, 'accessLink'])->whereNumber('courier')->middleware('throttle:30,1')->name('couriers.access-link');
@@ -679,6 +745,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('missions', [CourierAppController::class, 'missions'])->name('missions');
                 Route::get('missions/{shipment}', [CourierAppController::class, 'show'])->whereNumber('shipment')->name('missions.show');
                 Route::post('missions/{shipment}/door-payment', [CourierAppController::class, 'doorPayment'])->whereNumber('shipment')->middleware('throttle:20,1')->name('missions.door-payment');
+                Route::post('missions/{shipment}/position', [CourierAppController::class, 'savePosition'])->whereNumber('shipment')->middleware('throttle:20,1')->name('missions.position');
                 Route::post('missions/{shipment}/accept', [CourierAppController::class, 'accept'])->whereNumber('shipment')->name('missions.accept');
                 Route::post('missions/{shipment}/decline', [CourierAppController::class, 'decline'])->whereNumber('shipment')->middleware('throttle:20,1')->name('missions.decline');
                 Route::post('missions/{shipment}/steps', [CourierAppController::class, 'step'])->whereNumber('shipment')->middleware('throttle:60,1')->name('missions.step');
@@ -719,6 +786,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::put('delivery-zones/{zone}', [DeliveryController::class, 'updateZone'])->whereNumber('zone')->name('zones.update');
                 Route::delete('delivery-zones/{zone}', [DeliveryController::class, 'destroyZone'])->whereNumber('zone')->name('zones.destroy');
                 Route::put('delivery-rates', [DeliveryRatesController::class, 'update'])->name('delivery-rates.update');
+                Route::post('delivery-rates/checked', [DeliveryRatesController::class, 'confirm'])->name('delivery-rates.checked');
                 Route::delete('delivery-rates/places/{place}', [DeliveryRatesController::class, 'forget'])->whereNumber('place')->name('delivery-rates.forget');
             });
 

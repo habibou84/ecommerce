@@ -1,4 +1,5 @@
 <script setup>
+import StateBadge from './StateBadge.vue'
 import Icon from './Icon.vue'
 import { useAuthStore } from '../stores/auth'
 import CourierWhatsAppButton from './CourierWhatsAppButton.vue'
@@ -10,7 +11,7 @@ import Field from './Field.vue'
 import Modal from './Modal.vue'
 import http, { errorMessage } from '../lib/http'
 import { formatDateTime, money } from '../lib/format'
-import { MANUAL_STATUSES, SHIPMENT_TONES, SOURCE_LABELS } from '../lib/shipping'
+import { MANUAL_STATUSES, SOURCE_LABELS } from '../lib/shipping'
 
 // « aujourd'hui », « demain » ou « le lundi 23 novembre »
 function dayLabel(iso) {
@@ -30,6 +31,9 @@ const emit = defineEmits(['changed'])
 const shipments = computed(() => [...(props.order.shipments ?? [])].reverse())
 const active = computed(() => shipments.value.find((s) => !['cancelled', 'rejected'].includes(s.status)))
 const canShip = computed(() => props.order.delivery_method === 'delivery' && ['confirmed', 'processing'].includes(props.order.status) && !active.value)
+// Acompte attendu (réglage « l'acompte bloque la livraison ») : la course partira une fois payé ; l'expédition payée
+// d'avance a son propre encadré (ExpeditionPanel)
+const waitingDeposit = computed(() => (!active.value && props.order.upfront?.blocking && !props.order.expedition?.prepay ? props.order.upfront.deposit_due : 0))
 
 // Livreur ou entreprise déjà choisi pour la commande (pas encore de course) : affiché à la place de « Faire livrer »
 const planned = computed(() => (!active.value && props.order.delivery_method === 'delivery' ? props.order.planned_courier ?? props.order.planned_carrier ?? null : null))
@@ -225,18 +229,27 @@ async function whatsapp(s) {
   <section class="card space-y-3 p-4 text-sm">
     <div class="flex items-center gap-2">
       <h3 class="font-semibold">Livraison</h3>
-      <button v-if="canShip && !planned" class="btn-brand ml-auto px-3 py-1.5" @click="openShip"><Icon name="truck" :size="16" class="mr-1 inline-block align-[-3px]" />Faire livrer</button>
+      <button v-if="canShip && !planned && !waitingDeposit" class="btn-brand ml-auto px-3 py-1.5" @click="openShip"><Icon name="truck" :size="16" class="mr-1 inline-block align-[-3px]" />Faire livrer</button>
+    </div>
+    <!-- Acompte attendu : à la place de « Faire livrer », ce qu'il faut d'abord -->
+    <div v-if="waitingDeposit && ['pending_confirmation', 'confirmed', 'processing'].includes(order.status)" class="rounded-xl bg-amber-50 p-3 text-amber-900">
+      <p class="font-semibold">⏳ En attente de l'acompte : {{ money(waitingDeposit) }}</p>
+      <p class="mt-0.5">La course pourra partir une fois l'acompte payé : boutons « Lien d'acompte » ou « Acompte reçu ».</p>
     </div>
     <!-- Livreur déjà choisi : son nom et « Modifier » au lieu de « Faire livrer » -->
     <div v-if="planned" class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
       <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><Icon name="truck" :size="18" /></span>
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">{{ planned.name }}</span>
-        <span class="block text-xs text-emerald-800">{{ order.status === 'pending_confirmation' ? 'Livreur choisi · la course part dès la confirmation' : canShip ? 'Livreur choisi · course en préparation' : 'Livreur choisi' }}</span>
+        <span class="block text-xs text-emerald-800">{{ waitingDeposit ? 'Livreur choisi · la course pourra partir une fois l\'acompte payé' : order.status === 'pending_confirmation' ? 'Livreur choisi · la course partira à la confirmation' : canShip ? 'Livreur choisi · course pas encore envoyée' : 'Livreur choisi' }}</span>
       </span>
       <button type="button" class="btn-secondary shrink-0 px-3 py-1.5" :disabled="busy" @click="openPicker">Modifier</button>
     </div>
-    <button v-if="planned && canShip" type="button" class="btn-brand w-full py-2" :disabled="busy" @click="assignTo(plannedKey)">Envoyer la course à {{ planned.name }}</button>
+    <!-- Envoi automatique en échec : la raison, et le même bouton pour réessayer -->
+    <p v-if="planned && canShip && order.assignment_error" class="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">
+      La course n'a pas pu être envoyée à {{ order.assignment_error.to || planned.name }}<template v-if="order.assignment_error.error"> : {{ order.assignment_error.error }}</template>
+    </p>
+    <button v-if="planned && canShip" type="button" class="btn-brand w-full py-2" :disabled="busy" @click="assignTo(plannedKey)">{{ order.assignment_error ? 'Réessayer l\'envoi' : 'Envoyer la course' }} à {{ planned.name }}</button>
     <p v-if="!shipments.length && !canShip && !planned" class="text-slate-500">
       {{ order.delivery_method === 'pickup' ? 'Retrait en boutique.' : 'Confirmez la commande pour la faire livrer.' }}
     </p>
@@ -245,7 +258,7 @@ async function whatsapp(s) {
     <article v-for="s in shipments" :key="s.id" class="space-y-2 rounded-lg border border-slate-200 p-3" :class="{ 'opacity-60': ['cancelled', 'rejected'].includes(s.status) }">
       <div class="flex flex-wrap items-center gap-2">
         <span class="font-medium">{{ s.reference }}</span>
-        <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="SHIPMENT_TONES[s.status]">{{ s.status_label }}</span>
+        <StateBadge kind="shipment" :status="s.status" :label="s.status_label" />
         <span class="text-slate-500">{{ s.carrier?.name }}</span>
       </div>
       <p v-if="s.tracking_code" class="text-slate-600">
@@ -260,21 +273,22 @@ async function whatsapp(s) {
       <p v-if="s.scheduled_date && !s.is_final" class="text-slate-600">Livraison prévue <strong>{{ dayLabel(s.scheduled_date) }}</strong></p>
       <!-- Pas ramassé à sa date (contrat 1.10) : l'entreprise attend une nouvelle date ou l'annulation -->
       <div v-if="s.carrier_reschedule" class="rounded bg-amber-50 p-2 text-amber-900">
-        <p class="font-medium">📅 {{ s.carrier?.name || 'L\'entreprise de livraison' }} n'a pas pu ramasser ce colis {{ dayLabel(s.carrier_reschedule.missed_day) }}. Choisissez une nouvelle date.</p>
+        <p v-if="s.carrier?.driver === 'own_courier'" class="font-medium">📅 Pas livrée à sa date ({{ dayLabel(s.carrier_reschedule.missed_day) }}){{ s.carrier_reschedule.in_hand ? ', colis chez ' + s.carrier.name : '' }}. Choisissez une nouvelle date : {{ s.carrier.name }} la retrouvera dans son application et sera prévenu.</p>
+        <p v-else class="font-medium">📅 {{ s.carrier?.name || 'L\'entreprise de livraison' }} n'a pas pu ramasser ce colis {{ dayLabel(s.carrier_reschedule.missed_day) }}. Choisissez une nouvelle date.</p>
         <div class="mt-2 flex flex-wrap gap-2">
           <button class="btn-brand px-3 py-1.5" :disabled="busy" @click="reschedule(s, todayIso)">Livrer aujourd'hui</button>
           <button class="btn-secondary px-3 py-1.5" @click="openModal('reschedule', s)">Autre date…</button>
           <button v-if="s.is_cancellable" class="btn-ghost px-3 py-1.5 text-red-700" @click="openModal('cancel', s)">Annuler</button>
         </div>
       </div>
-      <div v-if="s.needs_decision && !s.is_final" class="rounded bg-rose-50 p-2 text-rose-900">
-        <p class="font-medium">{{ s.carrier?.name || 'L\'entreprise de livraison' }} attend votre décision : nouvelle date ou retour du colis.</p>
+      <div v-if="s.needs_decision && !s.is_final" class="rounded bg-ocre-50 p-2 text-ocre-900">
+        <p class="font-medium">{{ s.carrier?.driver === 'own_courier' ? `Livraison échouée : ${s.carrier.name} attend votre décision, relivrer à une date ou rapporter le colis à la boutique.` : `${s.carrier?.name || 'L\'entreprise de livraison'} attend votre décision : nouvelle date ou retour du colis.` }}</p>
         <div v-if="s.carrier_actions?.decide" class="mt-2 flex flex-wrap gap-2">
           <button class="btn-brand px-3 py-1.5" @click="openModal('redeliver', s)">Relivrer le…</button>
           <button class="btn-secondary px-3 py-1.5" @click="openModal('return', s)">Faire revenir le colis</button>
         </div>
       </div>
-      <p v-else-if="s.return_requested && !s.is_final" class="rounded bg-violet-50 p-2 text-violet-900">Retour du colis demandé.</p>
+      <p v-else-if="s.return_requested && !s.is_final" class="rounded bg-violet-50 p-2 text-violet-900">{{ s.return_text || 'Le colis vous sera retourné' }}.</p>
       <!-- Annulée ou refusée : par qui et pourquoi (entreprise de livraison) -->
       <p v-if="s.cancellation_text" class="rounded bg-red-50 p-2 text-red-900">{{ s.cancellation_text }}</p>
       <p v-if="s.failure_reason && !s.cancellation_text" class="rounded bg-amber-50 p-2 text-amber-900">{{ s.failure_reason }}<template v-if="s.attempts_count"> ({{ s.attempts_count }} tentative{{ s.attempts_count > 1 ? 's' : '' }})</template></p>
@@ -283,8 +297,8 @@ async function whatsapp(s) {
       <a v-if="s.label_url && !s.is_final" :href="s.label_url" target="_blank" rel="noopener" class="btn-secondary inline-flex w-fit px-3 py-1.5">🏷️ Imprimer l'étiquette{{ s.carrier?.name ? ` de ${s.carrier.name}` : '' }}</a>
       <!-- Notes du livreur chez l'entreprise de livraison -->
       <div v-if="s.carrier_ratings && (s.can_rate_courier || s.carrier_ratings.merchant || s.carrier_ratings.recipient)" class="rounded bg-slate-50 p-2 space-y-1">
-        <p v-if="s.carrier_ratings.merchant">Votre note du livreur : <span class="text-amber-500" aria-hidden="true">{{ stars(s.carrier_ratings.merchant.score) }}</span> <strong>{{ s.carrier_ratings.merchant.score }}/5</strong><template v-if="s.carrier_ratings.merchant.comment"> · « {{ s.carrier_ratings.merchant.comment }} »</template></p>
-        <p v-if="s.carrier_ratings.recipient">Note du client : <span class="text-amber-500" aria-hidden="true">{{ stars(s.carrier_ratings.recipient.score) }}</span> <strong>{{ s.carrier_ratings.recipient.score }}/5</strong><template v-if="s.carrier_ratings.recipient.comment"> · « {{ s.carrier_ratings.recipient.comment }} »</template></p>
+        <p v-if="s.carrier_ratings.merchant">Votre note du livreur : <span class="text-yellow-500" aria-hidden="true">{{ stars(s.carrier_ratings.merchant.score) }}</span> <strong>{{ s.carrier_ratings.merchant.score }}/5</strong><template v-if="s.carrier_ratings.merchant.comment"> · « {{ s.carrier_ratings.merchant.comment }} »</template></p>
+        <p v-if="s.carrier_ratings.recipient">Note du client : <span class="text-yellow-500" aria-hidden="true">{{ stars(s.carrier_ratings.recipient.score) }}</span> <strong>{{ s.carrier_ratings.recipient.score }}/5</strong><template v-if="s.carrier_ratings.recipient.comment"> · « {{ s.carrier_ratings.recipient.comment }} »</template></p>
         <button v-if="s.can_rate_courier" class="btn-secondary px-2 py-1" @click="openRating(s)">⭐ Noter le livreur</button>
       </div>
       <ol class="space-y-1 border-l-2 border-slate-100 pl-3 text-xs text-slate-600">
@@ -295,7 +309,7 @@ async function whatsapp(s) {
       </ol>
       <p v-if="s.courier" class="text-slate-600">Livreur : <strong>{{ s.courier.name }}</strong> · <a :href="`tel:${s.courier.phone}`" class="text-emerald-700 underline">appeler</a></p>
       <CourierWhatsAppButton v-if="s.courier && !s.is_final && auth.can('couriers.manage')" :courier-id="s.courier.id" small />
-      <p v-if="s.courier && !s.is_final" class="text-xs" :class="s.courier.accepted_at ? 'text-emerald-700' : 'text-amber-700'">
+      <p v-if="s.courier && !s.is_final" class="text-sm font-semibold" :class="s.courier.accepted_at ? 'text-emerald-700' : 'text-amber-700'">
         <template v-if="s.courier.accepted_at">✓ Mission acceptée à {{ new Date(s.courier.accepted_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</template>
         <template v-else-if="s.courier.seen_at">Vue à {{ new Date(s.courier.seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}, pas encore acceptée</template>
         <template v-else-if="s.status === 'awaiting_pickup'">Pas encore vue par le livreur</template>
@@ -338,7 +352,7 @@ async function whatsapp(s) {
               <input v-model="form.target" type="radio" :value="`courier:${c.id}`" class="accent-emerald-700" />
               <span class="min-w-0 flex-1">
                 <span class="block font-medium">{{ c.name }}</span>
-                <span class="block text-xs text-slate-500">{{ c.connected === false ? 'Pas encore connecté' : c.is_available ? 'Disponible' : 'Indisponible' }}{{ c.covers_zone ? ' · couvre ce quartier' : '' }} · {{ c.active_missions }} en cours</span>
+                <span class="block text-xs text-slate-500">{{ c.connected === false ? 'Pas encore connecté' : c.is_available ? 'Disponible' : 'Indisponible' }}{{ c.all_zones ? ' · livre partout' : c.covers_zone ? ' · couvre ce quartier' : '' }} · {{ c.active_missions }} en cours</span>
                 <span class="block text-xs text-slate-400">{{ history(c.stats) }}</span>
               </span>
               <span v-if="c.cost !== null && c.cost !== undefined" class="text-right"><span class="block font-semibold">{{ money(c.cost) }}</span><span class="block text-xs text-slate-400">sa paie</span></span>
@@ -415,8 +429,8 @@ async function whatsapp(s) {
     <Modal v-if="modal === 'edit'" :title="`Modifier la course ${current.reference}`" @close="modal = null">
       <form class="space-y-4" @submit.prevent="saveEdit">
         <Alert v-if="error">{{ error }}</Alert>
-        <p class="text-xs text-slate-500">
-          {{ current.carrier_actions.edit === 'all' ? 'Avant le ramassage, tout se modifie.' : 'Le colis est déjà récupéré : seule la livraison se modifie.' }}
+        <p class="explain">{{ current.carrier_actions.edit === 'all' ? 'Avant le ramassage, tout se modifie.' : 'Colis récupéré : seule la livraison se modifie.' }}</p>
+        <p class="explain-detail">
           Pour changer le quartier, modifiez la commande : la course suivra.
         </p>
         <Field id="ce-address" label="Adresse"><input id="ce-address" v-model="edit.delivery_address" class="input" maxlength="500" /></Field>
@@ -439,7 +453,7 @@ async function whatsapp(s) {
         <Field id="rs-date" label="Nouvelle date de livraison">
           <input id="rs-date" v-model="form.date" class="input" type="date" :min="todayIso" :max="current.carrier_reschedule?.max_date" required />
         </Field>
-        <button class="btn-brand w-full" :disabled="busy">Envoyer à {{ current.carrier?.name }}</button>
+        <button class="btn-brand w-full" :disabled="busy">{{ current.carrier?.driver === 'own_courier' ? `Reporter et prévenir ${current.carrier.name}` : `Envoyer à ${current.carrier?.name}` }}</button>
       </form>
     </Modal>
 
@@ -475,13 +489,13 @@ async function whatsapp(s) {
         <div>
           <p class="mb-1 text-sm font-medium">Note</p>
           <div class="flex gap-1" role="radiogroup" aria-label="Note du livreur">
-            <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rating.score === n" :aria-label="`${n} sur 5`" :class="['text-3xl leading-none', n <= rating.score ? 'text-amber-500' : 'text-slate-300']" @click="rating.score = n">★</button>
+            <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rating.score === n" :aria-label="`${n} sur 5`" :class="['text-3xl leading-none', n <= rating.score ? 'text-yellow-500' : 'text-slate-300']" @click="rating.score = n">★</button>
           </div>
         </div>
         <div>
           <p class="mb-1 text-sm font-medium">Remarques (facultatif)</p>
           <div class="flex flex-wrap gap-2">
-            <button v-for="t in RATING_TAGS" :key="t.code" type="button" :aria-pressed="rating.tags.includes(t.code)" :class="['rounded-full border px-3 py-1 text-sm', rating.tags.includes(t.code) ? (t.good ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-red-400 bg-red-50 text-red-800') : 'border-slate-300']" @click="toggleTag(t.code)">{{ t.label }}</button>
+            <button v-for="t in RATING_TAGS" :key="t.code" type="button" :aria-pressed="rating.tags.includes(t.code)" :class="['rounded-full border px-3 py-1 text-sm', rating.tags.includes(t.code) ? (t.good ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-red-400 bg-red-50 text-red-800') : 'border-field']" @click="toggleTag(t.code)">{{ t.label }}</button>
           </div>
         </div>
         <Field id="rt-comment" label="Commentaire (facultatif)"><textarea id="rt-comment" v-model="rating.comment" class="input" rows="2" maxlength="500" /></Field>

@@ -17,7 +17,8 @@ use Illuminate\Support\Collection;
 /**
  * Réponse du livreur à une mission : vue, acceptée ou refusée avec un motif. Refusée, elle est annulée et, en
  * affectation automatique, repart aussitôt vers un autre livreur ; l'équipe est prévenue dans tous les cas.
- * Sans réponse au bout d'un quart d'heure, l'équipe reçoit un rappel.
+ * Sans réponse au bout d'un quart d'heure, l'équipe reçoit un rappel ; en envoi automatique, la boutique peut aussi
+ * la faire passer au livreur suivant après le délai qu'elle choisit.
  */
 class MissionResponses
 {
@@ -70,17 +71,46 @@ class MissionResponses
     {
         $assignment = $this->ownAssignment($shipment, $courier);
         if ($shipment->status !== ShipmentStatus::AwaitingPickup) {
-            throw new BusinessRuleException('Le colis est déjà récupéré : la mission ne peut plus être refusée.');
+            throw new BusinessRuleException('Le colis est déjà récupéré : la course ne peut plus être refusée.');
         }
 
         $assignment->forceFill(['status' => 'declined', 'declined_at' => now(), 'completed_at' => now(), 'decline_reason' => $reason, 'seen_at' => $assignment->seen_at ?? now()])->save();
         $this->shipments->cancel($shipment, "Refusée par {$courier->name} : {$reason}", $courier->user);
 
         $next = $this->advisor->autoAssign($shipment->order->fresh());
-        $this->team->notify($shipment->store, Permission::ShipmentsManage->value, new MissionResponse($shipment, 'Mission refusée par '.$courier->name,
+        $this->team->notify($shipment->store, Permission::ShipmentsManage->value, new MissionResponse($shipment, 'Course refusée par '.$courier->name,
             $reason.' · '.($next ? 'confiée à '.($next->courier?->name ?? $next->connection?->name) : 'à confier à un autre livreur')), $courier->user);
 
         return $next;
+    }
+
+    /**
+     * Envoi automatique avec délai de réponse : mission toujours ni acceptée ni refusée après ce délai → reprise au
+     * livreur (comme un refus, il ne la revoit plus) et confiée au suivant. L'équipe est prévenue.
+     */
+    public function passUnanswered(): int
+    {
+        $late = CourierAssignment::withoutGlobalScopes()->with(['shipment.order', 'shipment.store', 'courier.user'])
+            ->where('status', 'assigned')->whereNull('accepted_at')
+            ->whereHas('shipment', fn ($q) => $q->withoutGlobalScopes()->where('status', ShipmentStatus::AwaitingPickup->value)
+                ->whereHas('store', fn ($s) => $s->where('assignment_mode', 'auto')->whereNotNull('mission_timeout_minutes')))
+            ->get()
+            ->filter(fn (CourierAssignment $a) => $a->assigned_at->lt(now()->subMinutes($a->shipment->store->mission_timeout_minutes)));
+
+        foreach ($late as $assignment) {
+            $shipment = $assignment->shipment;
+            $minutes = $shipment->store->mission_timeout_minutes;
+            $reason = "Pas de réponse en {$minutes} min";
+            $assignment->forceFill(['status' => 'declined', 'declined_at' => now(), 'completed_at' => now(), 'decline_reason' => $reason])->save();
+            $this->shipments->cancel($shipment, "{$assignment->courier->name} : {$reason}", null);
+
+            $next = $this->advisor->autoAssign($shipment->order->fresh());
+            $this->team->notify($shipment->store, Permission::ShipmentsManage->value, new MissionResponse($shipment, $assignment->courier->name.' n\'a pas accepté la course',
+                $reason.' · '.($next ? 'confiée à '.($next->courier?->name ?? $next->connection?->name) : 'confiée à personne : à confier vous-même')));
+            $assignment->courier->user?->notify(new MissionResponse($shipment, 'Course confiée à un autre livreur', "Vous ne l'avez pas acceptée en {$minutes} min", '/livreur'));
+        }
+
+        return $late->count();
     }
 
     /**
@@ -96,9 +126,9 @@ class MissionResponses
         foreach ($late as $assignment) {
             $shipment = $assignment->shipment;
             $assignment->forceFill(['reminded_at' => now()])->save();
-            $this->team->notify($shipment->store, Permission::ShipmentsManage->value, new MissionResponse($shipment, 'Mission pas encore acceptée',
+            $this->team->notify($shipment->store, Permission::ShipmentsManage->value, new MissionResponse($shipment, 'Course pas encore acceptée',
                 $assignment->courier->name.($assignment->seen_at ? ' l\'a vue sans répondre' : ' ne l\'a pas encore vue').' · confiez-la à un autre livreur si besoin'));
-            $assignment->courier->user?->notify(new MissionResponse($shipment, 'Mission en attente de votre réponse', 'Acceptez-la ou refusez-la', '/livreur/missions/'.$shipment->id));
+            $assignment->courier->user?->notify(new MissionResponse($shipment, 'Course en attente de votre réponse', 'Acceptez-la ou refusez-la', '/livreur/missions/'.$shipment->id));
         }
 
         return $late->count();
@@ -107,9 +137,9 @@ class MissionResponses
     private function ownAssignment(Shipment $shipment, Courier $courier): CourierAssignment
     {
         if ($shipment->courier_id !== $courier->id) {
-            throw new BusinessRuleException('Cette mission ne vous est pas confiée.');
+            throw new BusinessRuleException('Cette course ne vous est pas confiée.');
         }
 
-        return $this->current($shipment) ?? throw new BusinessRuleException('Cette mission ne vous est plus confiée.');
+        return $this->current($shipment) ?? throw new BusinessRuleException('Cette course ne vous est plus confiée.');
     }
 }

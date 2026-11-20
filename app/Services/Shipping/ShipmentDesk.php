@@ -18,8 +18,10 @@ use App\Models\Shipment;
 use App\Models\ShipmentEvent;
 use App\Models\StockLocation;
 use App\Models\User;
+use App\Notifications\MissionResponse;
 use App\Notifications\ShipmentAlert;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Couriers\CourierDays;
 use App\Services\Couriers\CourierMissions;
 use App\Services\Orders\Expeditions;
 use App\Services\Orders\OrderDesk;
@@ -366,6 +368,9 @@ class ShipmentDesk
      */
     public function decideAtCarrier(Shipment $shipment, string $decision, ?string $date, ?string $note, ?User $actor): Shipment
     {
+        if ($shipment->isOwnCourier()) {
+            return $this->decideForCourier($shipment, $decision, $date, $note, $actor);
+        }
         [$connection, $driver] = $this->carrierLink($shipment);
         if (! $shipment->needs_decision) {
             throw new BusinessRuleException('Aucune décision n\'est attendue pour cette livraison.');
@@ -384,6 +389,9 @@ class ShipmentDesk
      */
     public function rescheduleAtCarrier(Shipment $shipment, string $date, ?User $actor): Shipment
     {
+        if ($shipment->isOwnCourier()) {
+            return $this->rescheduleForCourier($shipment, $date, $actor);
+        }
         [$connection, $driver] = $this->carrierLink($shipment);
         if ($shipment->carrier_reschedule === null) {
             throw new BusinessRuleException('Aucune nouvelle date n\'est demandée pour cette livraison.');
@@ -395,6 +403,88 @@ class ShipmentDesk
         $this->eventIfUnchanged($shipment, $remote, $label, null, $actor);
 
         return $shipment->fresh();
+    }
+
+    /**
+     * Livreur de la boutique, échec sans nouvelle date : la boutique décide. Relivrer à une date (la course revient
+     * dans son application ce jour-là, colis en main) ou faire revenir le colis (onglet « À retourner »).
+     */
+    private function decideForCourier(Shipment $shipment, string $decision, ?string $date, ?string $note, ?User $actor): Shipment
+    {
+        if ($shipment->status !== ShipmentStatus::Failed) {
+            throw new BusinessRuleException('Aucune décision n\'est attendue pour cette livraison.');
+        }
+        $redeliver = $decision === 'redeliver';
+        $label = $redeliver ? 'Relivraison le '.Carbon::parse($date)->format('d/m/Y') : 'Retour du colis à la boutique demandé';
+        $this->apply($shipment, new RemoteShipment(
+            trackingCode: '',
+            status: $redeliver ? ShipmentStatus::Rescheduled : ShipmentStatus::Returning,
+            rawStatus: $redeliver ? 'rescheduled' : 'returning',
+            rescheduledTo: $redeliver ? $date : null,
+            needsDecision: false,
+        ), 'user', trim($label.($note ? ' : '.$note : '')), $actor);
+
+        $fresh = $shipment->fresh(['order', 'courier.user']);
+        $this->tellCourier($fresh, $redeliver ? 'Course à relivrer '.self::courierDay($date) : 'Colis à rapporter à la boutique', $note);
+
+        return $fresh;
+    }
+
+    /**
+     * Livreur de la boutique, date de livraison passée sans livraison : la boutique choisit une nouvelle date. La course
+     * revient dans l'application du livreur ce jour-là, et il est prévenu.
+     */
+    private function rescheduleForCourier(Shipment $shipment, string $date, ?User $actor): Shipment
+    {
+        $shipment->loadMissing('order');
+        if (! CourierDays::isOverdue($shipment)) {
+            throw new BusinessRuleException('La date de cette livraison n\'est pas passée : modifiez-la depuis la commande.');
+        }
+
+        return $this->newCourierDate($shipment, $date, $actor);
+    }
+
+    /**
+     * Nouvelle date de livraison d'une course confiée à un livreur de la boutique : date de la commande, ou date de
+     * report quand la course était déjà reportée. Le livreur est prévenu (« faire signe au livreur »).
+     */
+    public function newCourierDate(Shipment $shipment, string $date, ?User $actor): Shipment
+    {
+        $shipment->loadMissing('order');
+        $day = Carbon::parse($date)->startOfDay();
+        if ($day->lt(today())) {
+            throw new BusinessRuleException('Choisissez aujourd\'hui ou plus tard.', 'date');
+        }
+        DB::transaction(function () use ($shipment, $day, $actor) {
+            if ($shipment->rescheduled_to !== null) {
+                $shipment->forceFill(['rescheduled_to' => $day->toDateString()])->save();
+            }
+            $shipment->order->forceFill(['scheduled_date' => $day->toDateString()])->save();
+            $this->event($shipment, $shipment->status, $shipment->carrier_status, 'user', 'Nouvelle date de livraison : '.$day->format('d/m/Y'), $actor);
+        });
+
+        $fresh = $shipment->fresh(['order', 'courier.user']);
+        $this->tellCourier($fresh, 'Course reportée '.self::courierDay($day->toDateString()), null);
+
+        return $fresh;
+    }
+
+    /** Alerte dans l'application du livreur de la boutique */
+    private function tellCourier(Shipment $shipment, string $title, ?string $note): void
+    {
+        $shipment->courier?->user?->notify(new MissionResponse($shipment, $title, $note, '/livreur/missions/'.$shipment->id));
+    }
+
+    /** « à aujourd'hui », « à demain », « au 20/11 » */
+    private static function courierDay(string $date): string
+    {
+        $day = Carbon::parse($date);
+
+        return match (true) {
+            $day->isToday() => 'à aujourd\'hui',
+            $day->isTomorrow() => 'à demain',
+            default => 'au '.$day->format('d/m'),
+        };
     }
 
     public function requestReturnAtCarrier(Shipment $shipment, ?string $note, ?User $actor): Shipment
@@ -533,6 +623,7 @@ class ShipmentDesk
                 'scheduled_date' => $stale ? null : $remote->scheduledDate,
                 'needs_decision' => $stale ? null : $remote->needsDecision,
                 'return_requested' => $stale ? null : $remote->returnRequested,
+                'return_cause' => $stale ? null : $remote->returnCause,
                 'carrier_ratings' => $remote->ratings,
                 'carrier_cancellation' => $remote->cancellation,
             ], fn ($v) => $v !== null))

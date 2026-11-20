@@ -12,6 +12,11 @@ use Illuminate\Support\Facades\Route;
 
 // La racine, la boutique en ligne et le suivi des commandes sont dans routes/storefront.php (sans session)
 
+// /livreur et /livreur/connexion|inscription : lien commun des livreurs sur jibiat-marchand.com (inscription, connexion,
+// espace) et application livreur sur l'adresse d'une boutique. Une seule route pour les deux : la page (même
+// application Vue) choisit selon l'adresse ; les autres pages /livreur/… sont plus bas (boutique seulement).
+Route::get('/livreur/{page?}', [PageController::class, 'spa'])->whereIn('page', ['inscription', 'connexion'])->middleware('zone:platform,store')->name('courier-home');
+
 // jibiat-marchand.com : création de boutique et connexion (application Vue)
 Route::middleware('zone:platform')->group(function () {
     Route::get('/creer-ma-boutique', [PageController::class, 'spa'])->name('signup');
@@ -64,7 +69,7 @@ Route::middleware('zone:console')->group(function () {
 Route::middleware('zone:store')->group(function () {
     Route::get('/auth/relais', HandoffController::class)->name('handoff');
     Route::get('/invitation/{token}', [PageController::class, 'spa'])->name('invitation');
-    Route::get('/gestion/{any?}', [PageController::class, 'spa'])->where('any', '(?!manifest\.webmanifest).*')->name('gestion');
+    Route::get('/gestion/{any?}', [PageController::class, 'spa'])->where('any', '(?!(?:messages/)?manifest\.webmanifest$).*')->name('gestion');
     // Lien d'accès du livreur reçu par WhatsApp (un seul usage) : connexion sans mot de passe
     Route::get('/livreur/acces/{token}', CourierAccessController::class)->middleware('throttle:20,1')->name('courier-access');
     // Application des livreurs de la boutique (installable sur le téléphone)

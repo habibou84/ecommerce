@@ -82,7 +82,7 @@ const spacedSecret = computed(() => draft.value?.secret.match(/.{1,4}/g).join(' 
 
     <div v-if="codes" class="space-y-4 text-sm">
       <Alert tone="success">✓ C'est activé. À chaque connexion : mot de passe, puis le code de l'application.</Alert>
-      <p class="text-slate-700">Téléphone perdu ou changé ? Un de ces codes remplace celui de l'application, <b>une seule fois chacun</b>. Gardez-les hors du téléphone (papier, coffre-fort de mots de passe).</p>
+      <p class="text-slate-700"><b class="block">Téléphone perdu ou changé ? Utilisez un de ces codes.</b>Chacun sert <b>une seule fois</b>. Gardez-les hors du téléphone (papier, coffre-fort de mots de passe).</p>
       <ul class="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 text-center font-mono text-base font-semibold tracking-wide">
         <li v-for="c in codes" :key="c">{{ c }}</li>
       </ul>

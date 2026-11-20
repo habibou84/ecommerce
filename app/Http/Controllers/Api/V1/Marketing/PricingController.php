@@ -100,8 +100,25 @@ class PricingController extends Controller
         ], array_keys($data['items']), $data['items']);
         $code = $pricing->code($storeId, $data['discount_code'] ?? null, $forCode, $data['customer_phone'] ?? null, $data['order_id'] ?? null);
 
+        // Acompte « Auto » : acompte des articles (sur les prix de la commande), et la règle de la boutique que le
+        // formulaire applique au total (livraison et réductions comprises) avec OrderDesk::autoDeposit
+        $store = $this->currentStore();
+        $fromItems = 0;
+        foreach ($forCode as $i => $line) {
+            $product = isset($catalog[$i]) ? $catalog[$i]['variant']->product : null;
+            $fromItems += $product ? $product->depositFor((int) $line['total'], (int) $data['items'][$i]['quantity']) : 0;
+        }
+
         return response()->json(['data' => [
             'lines' => array_values($lines),
+            'deposit' => [
+                'items' => $fromItems,
+                'mode' => $store->deposit_mode ?? 'never',
+                'percent' => (int) ($store->deposit_rule_percent ?? 0),
+                'min_total' => $store->deposit_min_total !== null ? (int) $store->deposit_min_total : null,
+                // Acompte pas payé : la commande attend avant de partir chez le livreur (réglage de la boutique)
+                'blocks' => (bool) ($store->deposit_blocks ?? true),
+            ],
             'discount' => $code['code'] ? ['code' => $code['code'], 'amount' => $code['amount'], 'free_shipping' => $code['free_shipping'], 'label' => $code['label'], 'error' => $code['error']] : null,
         ]]);
     }

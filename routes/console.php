@@ -5,6 +5,7 @@ use App\Enums\OrderStatus;
 use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
 use App\Models\AdminAction;
 use App\Models\CarrierConnection;
+use App\Models\CarrierRequest;
 use App\Models\CarrierWebhookReceipt;
 use App\Models\Cart;
 use App\Models\Order;
@@ -27,9 +28,11 @@ use App\Services\Live\LiveSales;
 use App\Services\Orders\OrderAlerts;
 use App\Services\Orders\OrderDesk;
 use App\Services\Partners\PartnerReferrals;
+use App\Services\Places\PlaceLocator;
 use App\Services\Platform\BackupStatus;
 use App\Services\Reports\DailyReport;
 use App\Services\Shipping\CarrierConnections;
+use App\Services\Shipping\CarrierDirectConnect;
 use App\Services\Shipping\CarrierEvents;
 use App\Services\Shipping\CarrierException;
 use App\Services\Social\SocialPublisher;
@@ -38,6 +41,7 @@ use App\Services\WhatsApp\MerchantCatchUp;
 use App\Services\WhatsApp\MerchantOnboarding;
 use App\Services\WhatsApp\MetaHealth;
 use App\Services\WhatsApp\PlatformWhatsApp;
+use App\Services\WhatsApp\RecapOrders;
 use App\Services\WhatsApp\SignupByWhatsApp;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Artisan;
@@ -60,6 +64,13 @@ Artisan::command('shipping:sync', function (CarrierEvents $events) {
 })->purpose('Synchronise les expéditions avec les entreprises de livraison');
 
 Schedule::command('shipping:sync')->everyTenMinutes()->withoutOverlapping()->runInBackground();
+// Connexion directe : demandes en cours relues chez l'entreprise (décision perdue), au plus toutes les 15 minutes
+Schedule::call(function () {
+    CarrierRequest::withoutGlobalScopes()->whereIn('status', CarrierRequest::OPEN)
+        ->where(fn ($q) => $q->whereNull('last_checked_at')->orWhere('last_checked_at', '<=', now()->subMinutes(15)))
+        ->where('created_at', '>=', now()->subDays(30))->orderBy('id')->limit(200)->get()
+        ->each(fn (CarrierRequest $r) => app(CarrierDirectConnect::class)->refresh($r));
+})->everyFifteenMinutes()->name('shipping:connect-requests')->withoutOverlapping();
 
 /*
  * Zones des transporteurs relues chaque nuit : une zone ouverte ou fermée chez eux l'est aussi ici, sans attendre
@@ -83,12 +94,21 @@ Schedule::command('shipping:zones')->dailyAt('03:40')->withoutOverlapping();
  * Missions confiées aux livreurs et toujours sans réponse après un quart d'heure : rappel à l'équipe et au livreur.
  */
 Artisan::command('couriers:remind', function (MissionResponses $responses) {
+    // D'abord les missions à passer au livreur suivant (boutiques en envoi automatique avec un délai), puis les rappels
+    $this->line($responses->passUnanswered().' mission(s) passée(s) au livreur suivant');
     $this->line($responses->remindUnanswered().' mission(s) sans réponse signalée(s)');
 })->purpose('Rappel des missions pas encore acceptées par les livreurs');
 
 Schedule::command('couriers:remind')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
 
 // Résumé du matin des livreurs : courses du jour et argent à encaisser
+// Carte du livreur : centre des quartiers sans position, cherché dans OpenStreetMap (une recherche par seconde)
+Artisan::command('places:locate {--limit=50}', function (PlaceLocator $locator) {
+    $result = $locator->locateMissing((int) $this->option('limit'));
+    $this->info("{$result['located']} lieu(x) placé(s), {$result['missed']} introuvable(s).");
+})->purpose('Cherche la position des lieux (quartiers, communes) dans OpenStreetMap');
+Schedule::command('places:locate')->dailyAt('04:20')->withoutOverlapping()->runInBackground();
+
 Artisan::command('couriers:morning', function (CourierMorning $morning) {
     $this->info($morning->send().' livreur(s) prévenu(s).');
 })->purpose('Envoie à chaque livreur le résumé de ses courses du jour');
@@ -217,6 +237,18 @@ Artisan::command('live:expire', function (LiveSales $live) {
 })->purpose('Vente en live : pièces gardées sans quartier à temps rendues à la liste d\'attente');
 
 Schedule::command('live:expire')->everyMinute()->withoutOverlapping();
+
+Artisan::command('credits:whatsapp', function (Credits $credits) {
+    $this->line($credits->billOrders().' commande(s) WhatsApp (récap, catalogue, modèles) retirée(s) du solde');
+})->purpose('Commandes WhatsApp hors live confirmées les jours passés : retirées du solde, un jour compté par boutique');
+
+Schedule::command('credits:whatsapp')->hourly()->withoutOverlapping();
+
+Artisan::command('recap:remind', function (RecapOrders $recaps) {
+    $this->line($recaps->remind().' récap(s) WhatsApp relancé(s) ou annulé(s)');
+})->purpose('Récaps WhatsApp sans réponse : relance au bout de 2 h, annulation au bout de 24 h (stock rendu)');
+
+Schedule::command('recap:remind')->everyTenMinutes()->withoutOverlapping()->runInBackground();
 
 Artisan::command('referrals:report', function (PartnerReferrals $referrals) {
     $sent = Store::whereNotNull('referred_by')->get()->filter(fn (Store $store) => $referrals->push($store))->count();

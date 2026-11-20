@@ -1526,12 +1526,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/habibou84/socle.git",
-                "reference": "8bf04febc72a6ae6142ba86943ad3e5e0dd7ec8e"
+                "reference": "52c62478254acbd2b4a44b1bbd67ac85118f49b0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/habibou84/socle/zipball/8bf04febc72a6ae6142ba86943ad3e5e0dd7ec8e",
-                "reference": "8bf04febc72a6ae6142ba86943ad3e5e0dd7ec8e",
+                "url": "https://api.github.com/repos/habibou84/socle/zipball/52c62478254acbd2b4a44b1bbd67ac85118f49b0",
+                "reference": "52c62478254acbd2b4a44b1bbd67ac85118f49b0",
                 "shasum": ""
             },
             "require": {
@@ -1577,7 +1577,7 @@
                 "source": "https://github.com/habibou84/socle/tree/main",
                 "issues": "https://github.com/habibou84/socle/issues"
             },
-            "time": "2026-11-05T12:53:17+00:00"
+            "time": "2026-11-20T11:47:50+00:00"
         },
         {
             "name": "intervention/gif",

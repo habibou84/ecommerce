@@ -6,6 +6,7 @@ use App\Enums\ShipmentStatus;
 use App\Models\CourierAssignment;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
+use App\Services\Couriers\CourierDays;
 use App\Services\Shipping\Drivers\RemoteShipment;
 
 /**
@@ -30,6 +31,10 @@ class ShipmentPresenter
      */
     private static function carrierActions(Shipment $s): ?array
     {
+        // Livreur de la boutique : seule la décision après un échec (relivrer ou faire revenir le colis)
+        if ($s->isOwnCourier()) {
+            return $s->status === ShipmentStatus::Failed ? ['edit' => null, 'decide' => true, 'return' => false, 'note' => false] : null;
+        }
         if (! $s->connection?->isApi() || ! $s->carrier_tracking_code || $s->status->isFinal()) {
             return null;
         }
@@ -75,15 +80,22 @@ class ShipmentPresenter
             'proof_photo_url' => $s->proof_photo_path || $s->proof_photo_url ? '/api/v1/shipments/'.$s->id.'/proof' : null,
             'rescheduled_to' => $s->rescheduled_to?->toDateString(),
             'scheduled_date' => $s->scheduled_date?->toDateString(),
-            'needs_decision' => $s->needs_decision,
+            // Livreur de la boutique : après un échec sans nouvelle date, la boutique décide
+            'needs_decision' => $s->isOwnCourier() ? $s->status === ShipmentStatus::Failed : $s->needs_decision,
             'return_requested' => $s->return_requested,
+            // Pourquoi le colis revient (refus du client, tentatives épuisées, entreprise, boutique)
+            'return_cause' => $s->return_requested ? $s->return_cause : null,
+            'return_text' => $s->return_requested ? RemoteShipment::returnText($s->return_cause) : null,
             // Actions possibles sur la course chez l'entreprise de livraison (Delivery App)
             'carrier_actions' => self::carrierActions($s),
             // Notes du livreur chez l'entreprise de livraison : peut-on le noter, note de la boutique, note du client
             'carrier_ratings' => $s->carrier_ratings,
             'carrier_cancellation' => $s->carrier_cancellation,
             // Colis pas ramassé à sa date : l'entreprise attend une nouvelle date (ou l'annulation)
-            'carrier_reschedule' => $s->carrier_reschedule && ! $s->status->isFinal() ? $s->carrier_reschedule : null,
+            // Livreur de la boutique : date de livraison passée sans livraison, la boutique choisit une nouvelle date
+            'carrier_reschedule' => $s->isOwnCourier()
+                ? (CourierDays::isOverdue($s) ? ['missed_day' => CourierDays::dueDay($s)->toDateString(), 'max_date' => null, 'in_hand' => $s->status->hasLeft()] : null)
+                : ($s->carrier_reschedule && ! $s->status->isFinal() ? $s->carrier_reschedule : null),
             // Course chez une entreprise par API : annuler demande un motif de la liste
             'connection_is_api' => (bool) ($s->connection?->isApi() && $s->carrier_tracking_code),
             'cancellation_text' => RemoteShipment::cancellationText($s->carrier_cancellation, $s->connection?->name ?? 'l\'entreprise'),

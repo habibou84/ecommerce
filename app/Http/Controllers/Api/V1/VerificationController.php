@@ -16,6 +16,7 @@ use App\Services\Accounts\PasswordReset;
 use App\Services\Accounts\PhoneVerifier;
 use App\Services\Accounts\StoreRoles;
 use App\Services\Accounts\StoreSignup;
+use App\Services\Couriers\CourierSignup;
 use App\Support\Tenancy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -173,6 +174,13 @@ class VerificationController extends Controller
             })(),
 
             VerificationPurpose::Login => $this->finishLogin($request, $verification),
+
+            VerificationPurpose::CourierSignup => (function () use ($verification, $request) {
+                $user = app(CourierSignup::class)->complete($verification);
+                $this->login($request, $user);
+
+                return response()->json(['status' => 'completed', 'redirect' => '/livreur'], 201);
+            })(),
         };
     }
 
@@ -220,7 +228,7 @@ class VerificationController extends Controller
         $verification = $this->verifier->find($token) ?? throw new BusinessRuleException('Cette demande n\'existe pas ou a expiré. Recommencez.');
 
         $here = match ($verification->purpose) {
-            VerificationPurpose::Signup => $this->tenancy->zone() === Tenancy::PLATFORM,
+            VerificationPurpose::Signup, VerificationPurpose::CourierSignup => $this->tenancy->zone() === Tenancy::PLATFORM,
             VerificationPurpose::Invitation => $this->tenancy->store()?->id === $verification->store_id,
             VerificationPurpose::ConsoleLogin => $this->tenancy->zone() === Tenancy::CONSOLE,
             // Mot de passe oublié sans boutique : sur la plateforme ou sur la console (nouvel administrateur, oubli)

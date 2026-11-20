@@ -37,6 +37,9 @@ class SetupGuide
         'more' => 'Pour aller plus loin',
     ];
 
+    /** L'assistant du premier accès n'est proposé qu'aux boutiques créées depuis moins de 7 jours */
+    public const WELCOME_DAYS = 7;
+
     public function __construct(private readonly StoreRoles $roles) {}
 
     /**
@@ -76,7 +79,38 @@ class SetupGuide
             'done' => $required->where('done', true)->count(),
             'total' => $required->count(),
             'next' => $next['key'] ?? null,
+            'welcome' => $this->welcome($store, $user),
         ];
+    }
+
+    /**
+     * Assistant du premier accès (écran « Bienvenue ») : trois étapes essentielles, tarifs de livraison, premier produit
+     * et WhatsApp relié à Meta. Proposé au gérant d'une boutique de moins de WELCOME_DAYS jours tant qu'il ne l'a ni
+     * terminé ni remis à plus tard, et que les trois étapes ne sont pas déjà faites.
+     *
+     * @return array{pending: bool, steps: array{delivery: bool, product: bool, whatsapp: bool}}
+     */
+    public function welcome(Store $store, User $user): array
+    {
+        $steps = [
+            'delivery' => $store->delivery_rates_checked_at !== null || (bool) ($this->definitions()['delivery_zones']['done'])($store, $user),
+            'product' => (bool) ($this->definitions()['products']['done'])($store, $user),
+            'whatsapp' => WhatsappAccount::forStore($store->id)->where('status', 'active')->exists(),
+        ];
+        $pending = $this->roles->can($user, $store, Permission::StoreManage)
+            && empty($store->setup_guide['welcome_done_at'])
+            && $store->created_at?->gt(now()->subDays(self::WELCOME_DAYS))
+            && in_array(false, $steps, true);
+
+        return ['pending' => (bool) $pending, 'steps' => $steps];
+    }
+
+    /**
+     * Assistant du premier accès terminé ou remis à plus tard : il n'est plus proposé (les étapes restent dans le guide).
+     */
+    public function finishWelcome(Store $store): void
+    {
+        $store->forceFill(['setup_guide' => ['welcome_done_at' => now()->toIso8601String()] + ($store->setup_guide ?? [])])->save();
     }
 
     /**

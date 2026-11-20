@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../ExplainMore.vue'
 import { onMounted, ref } from 'vue'
 import Alert from '../Alert.vue'
 import http, { errorMessage } from '../../lib/http'
@@ -54,17 +55,18 @@ const width = (key) => `${data.value.funnel.started ? Math.round((data.value.fun
       <label v-if="data" class="flex items-center gap-2 font-semibold"><input type="checkbox" class="h-5 w-5" :checked="data.enabled" @change="toggle" /> Active</label>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
-    <p class="text-slate-600">
-      La personne écrit « Inscription » à ce numéro : numéro confirmé, nom de la boutique, prénom, live ou pas, récapitulatif, puis lien de connexion
-      (15 min) et photo du premier article. « aide » passe la main à l'équipe ; quand vous répondez vous-même, le robot se tait 6 h pour cette personne.
-    </p>
+    <div>
+      <p class="explain">Écrire « Inscription » à ce numéro crée la boutique.</p>
+      <p class="explain-detail">Le robot demande la boutique, le prénom et le live, puis envoie le lien de connexion (15 min).</p>
+      <ExplainMore>Il demande aussi la photo du premier article. « aide » passe la main à l'équipe ; quand vous répondez vous-même, le robot se tait 6 h pour cette personne.</ExplainMore>
+    </div>
     <template v-if="data">
       <div v-if="data.link" class="flex flex-wrap items-center gap-3">
         <img :src="data.qr" alt="QR code du lien d'inscription par WhatsApp" class="h-28 w-28 rounded-lg border border-slate-200" />
         <div class="min-w-0 flex-1 space-y-2">
           <p class="break-all font-mono text-xs">{{ data.link }}</p>
           <button type="button" class="btn-ghost" @click="copy">{{ copied ? '✓ Copié' : 'Copier le lien' }}</button>
-          <p class="text-xs text-slate-500">Avec un code : ajoutez-le après le mot, par exemple « Inscription ABC12 » (carte d'accès ou entreprise de livraison qui invite).</p>
+          <p class="explain-detail">Avec un code : ajoutez-le après le mot, par exemple « Inscription ABC12 » (carte d'accès ou entreprise de livraison qui invite).</p>
         </div>
       </div>
       <div>

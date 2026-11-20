@@ -173,6 +173,36 @@ class WhatsAppTest extends TestCase
         $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
     }
 
+    public function test_confirmation_with_a_deposit_announces_it_and_answers_the_confirm_button(): void
+    {
+        $account = $this->connect();
+        $this->store->forceFill(['wave_link' => 'https://pay.wave.com/m/M_awa/c/ci/'])->save();
+        // Conversation ouverte : la demande part dans la conversation, avec l'acompte annoncé
+        $this->inbound($account, ['contacts' => [['wa_id' => '2250506070809', 'profile' => ['name' => 'Fatou']]],
+            'messages' => [['from' => '2250506070809', 'id' => 'wamid.in1', 'type' => 'text', 'text' => ['body' => 'Je veux 2 robes']]]])->assertOk();
+        $order = app(OrderDesk::class)->create($this->store, [
+            'source' => 'whatsapp', 'customer_name' => 'Fatou Diallo', 'customer_phone' => '+2250506070809', 'delivery_method' => 'delivery',
+            'shipping_place_id' => Place::whereNull('store_id')->where('name', 'Angré')->value('id'), 'deposit_required' => 10000,
+            'items' => [['variant_id' => $this->robe->variants[0]->id, 'quantity' => 2]],
+        ], $this->store->owner);
+        Http::assertSent(fn (HttpRequest $r) => ($r['type'] ?? null) === 'interactive'
+            && str_contains($r['interactive']['body']['text'], 'Acompte à payer pour valider la commande : 10'));
+
+        // « Confirmer » sans avoir payé : la commande attend toujours, et le client reçoit le montant et comment payer
+        $tap = fn (string $id) => $this->inbound($account, ['messages' => [['from' => '2250506070809', 'id' => $id, 'type' => 'interactive',
+            'interactive' => ['type' => 'button_reply', 'button_reply' => ['id' => "confirm:{$order->id}", 'title' => 'Confirmer']]]]])->assertOk();
+        $tap('wamid.in2');
+        $this->assertSame(OrderStatus::PendingConfirmation, $order->fresh()->status);
+        $replies = fn () => collect(Http::recorded())->filter(fn ($pair) => ($pair[0]['type'] ?? null) === 'text'
+            && str_contains($pair[0]['text']['body'] ?? '', "sera confirmée dès réception de l'acompte"))->count();
+        $this->assertSame(1, $replies());
+        Http::assertSent(fn (HttpRequest $r) => ($r['type'] ?? null) === 'text' && str_contains($r['text']['body'] ?? '', 'Payez'));
+        $this->assertTrue($order->events()->where('type', 'upfront_requested')->exists());
+        // Bouton touché encore : pas de deuxième réponse tout de suite
+        $tap('wamid.in3');
+        $this->assertSame(1, $replies());
+    }
+
     public function test_confirmation_resent_by_template_even_without_automation(): void
     {
         $this->connect(['order_confirmation' => false]);

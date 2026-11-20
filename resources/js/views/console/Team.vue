@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../components/ExplainMore.vue'
 import PasswordInput from '../../components/PasswordInput.vue'
 import { onMounted, reactive, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
@@ -78,7 +79,7 @@ async function close(id) {
 
 <template>
   <div class="max-w-3xl space-y-4">
-    <h2 class="text-xl font-semibold">Équipe de la console</h2>
+    <h2 class="text-2xl font-semibold">Équipe de la console</h2>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="added" tone="success">{{ added }}</Alert>
 
@@ -112,10 +113,11 @@ async function close(id) {
     <button v-if="!adding" class="btn-secondary" @click="adding = true">Ajouter un administrateur</button>
     <form v-else class="card space-y-3 p-4 text-sm" @submit.prevent="add">
       <p class="font-semibold">Nouvel administrateur</p>
-      <p class="text-slate-600">
-        Il aura accès à toute la console. Il choisira lui-même son mot de passe (« Mot de passe oublié ? » sur la page de connexion) recevra un code à son adresse e-mail pour son premier accès, puis activera la validation en deux étapes sur son téléphone.
-        Un numéro qui a déjà un compte marchand n'est pas accepté : la console a ses propres comptes.
-      </p>
+      <div>
+        <p class="explain">Il aura accès à toute la console.</p>
+        <p class="explain-detail">Il choisit son mot de passe, reçoit un code par e-mail, puis active la validation en deux étapes.</p>
+        <ExplainMore>Mot de passe : « Mot de passe oublié ? » sur la page de connexion. Un numéro qui a déjà un compte marchand n'est pas accepté : la console a ses propres comptes.</ExplainMore>
+      </div>
       <div class="grid gap-3 sm:grid-cols-3">
         <Field id="admin-name" label="Nom" :error="errors.name"><input id="admin-name" v-model="form.name" class="input" required /></Field>
         <Field id="admin-phone" label="Numéro" :error="errors.phone"><input id="admin-phone" v-model="form.phone" type="tel" class="input" required /></Field>
@@ -126,7 +128,7 @@ async function close(id) {
     </form>
 
     <h3 class="pt-2 text-lg font-semibold">Mes sessions</h3>
-    <p class="-mt-2 text-sm text-slate-600">Les appareils connectés à votre compte. Un appareil inconnu ? Fermez-le et changez votre mot de passe.</p>
+    <p class="explain-detail -mt-2">Les appareils connectés à votre compte. Un appareil inconnu ? Fermez-le et changez votre mot de passe.</p>
     <section class="card divide-y divide-slate-100 text-sm">
       <div v-for="s in sessions ?? []" :key="s.id" class="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
         <div class="min-w-0 flex-1">

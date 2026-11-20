@@ -141,7 +141,7 @@ class CourierAccessTest extends TestCase
         Notification::fake();
         $this->assertSame(1, app(CourierMorning::class)->send());
         Notification::assertSentTo(User::findOrFail($courier->fresh()->user_id), CourierDayPlan::class,
-            fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 1 course · Awa Mode"
+            fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 1 à ramasser · Awa Mode"
                 && $n->toArray($notifiable)['body'] === '16 500 F à encaisser · Cocody');
     }
 
@@ -159,28 +159,29 @@ class CourierAccessTest extends TestCase
         $sac = SharedCouriers::within($koffi, fn () => app(CatalogWriter::class)->save($koffi, null, ['title' => 'Sac', 'variants' => [['price' => 8000, 'on_hand' => 5]]]));
         $this->logout();
         $this->actingAs($koffi->owner);
-        $courierId = $this->storeApi($koffi, 'POST', 'couriers', ['name' => 'Moussa Koné', 'phone' => '0102030405'])->assertCreated()->json('data.id');
+        // Moussa est déjà livreur : Koffi Shop lui envoie une demande ; pas de course avant qu'il accepte
+        $courierId = $this->storeApi($koffi, 'POST', 'couriers', ['name' => 'Moussa Koné', 'phone' => '0102030405'])->assertCreated()
+            ->assertJsonPath('requested', true)->json('data.id');
         $order = SharedCouriers::within($koffi, fn () => app(OrderDesk::class)->create($koffi, [
             'source' => 'whatsapp', 'customer_name' => 'Yao', 'customer_phone' => '+2250506070811', 'delivery_method' => 'delivery',
             'shipping_place_id' => Place::whereNull('store_id')->where('name', 'Angré')->value('id'), 'shipping_address' => 'Cité', 'confirmed' => true,
             'scheduled_date' => today()->toDateString(), 'items' => [['variant_id' => $sac->variants()->withoutGlobalScopes()->value('id'), 'quantity' => 1]],
         ], $koffi->owner));
+        $this->storeApi($koffi, 'POST', "orders/{$order->id}/shipments", ['courier_id' => $courierId])->assertStatus(422);
+
+        // Il accepte depuis son application (adresse d'Awa Mode), puis Koffi Shop lui confie la course
+        $this->logout();
+        $this->actingAs(User::findOrFail($awa->fresh()->user_id));
+        $this->storeApi($this->store, 'POST', "courier-space/requests/{$courierId}/accept")->assertOk()->assertJsonPath('data.stores.1.name', 'Koffi Shop');
+        $this->logout();
+        $this->actingAs($koffi->owner);
         $this->storeApi($koffi, 'POST', "orders/{$order->id}/shipments", ['courier_id' => $courierId])->assertCreated();
 
         // Son lien de Koffi Shop ouvre son espace d'accueil (adresse d'Awa Mode)
         $link = $this->storeApi($koffi, 'POST', "couriers/{$courierId}/access-link")->assertOk()->json('data.link');
         $this->assertStringStartsWith($this->storeUrl($this->store, '/livreur/acces/'), $link);
-
-        // Attaque : Koffi ouvre lui-même le lien pour entrer dans le compte de Moussa → refusé
         $this->logout();
-        $this->get($link)->assertRedirect('/livreur/connexion?lien=connecte');
-        $this->assertGuest('web');
-        $this->assertNull(Courier::forStore($koffi->id)->findOrFail($courierId)->user_id);
-
-        // Moussa l'ouvre sur son téléphone, où il est connecté à son espace : les deux boutiques sont réunies
         $this->actingAs(User::findOrFail($awa->fresh()->user_id));
-        $this->get($link)->assertRedirect('/livreur');
-        $this->assertSame('active', Courier::forStore($koffi->id)->findOrFail($courierId)->status);
 
         // Une seule liste : les courses des deux boutiques, chacune avec son nom ; l'argent séparé par boutique
         $missions = $this->storeApi($this->store, 'GET', 'courier/missions')->assertOk()->json('data');
@@ -197,7 +198,7 @@ class CourierAccessTest extends TestCase
         Notification::fake();
         $this->assertSame(1, app(CourierMorning::class)->send());
         Notification::assertSentTo(User::findOrFail($awa->fresh()->user_id), CourierDayPlan::class,
-            fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 2 courses · 2 boutiques");
+            fn (CourierDayPlan $n, array $channels, $notifiable) => $n->toArray($notifiable)['title'] === "Aujourd'hui : 2 à ramasser · 2 boutiques");
 
         // Côté Koffi Shop : seulement sa course
         $this->logout();

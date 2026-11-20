@@ -25,6 +25,9 @@ class DeliveryAdvisor
     /** En dessous, l'historique de la zone est jugé trop maigre : on prend celui de toutes les zones */
     private const MIN_ZONE_SAMPLE = 3;
 
+    /** Livreur choisi automatiquement : personne de libre pour livrer */
+    public const NOBODY = 'aucun livreur ni entreprise de livraison libre pour ce lieu';
+
     public function __construct(private readonly ShipmentDesk $shipments, private readonly OrderDesk $orders) {}
 
     /**
@@ -32,29 +35,36 @@ class DeliveryAdvisor
      */
     public function options(Order $order): array
     {
-        $order->loadMissing('items.product');
+        $order->loadMissing(['items.product', 'place.parent', 'store']);
         $zoneId = $order->delivery_zone_id;
 
         // Livreurs qui ont déjà refusé cette commande : on ne la leur propose plus
         $declined = CourierAssignment::forStore($order->store_id)->where('status', 'declined')
             ->whereIn('shipment_id', Shipment::forStore($order->store_id)->where('order_id', $order->id)->select('id'))->pluck('courier_id')->all();
 
-        $couriers = Courier::forStore($order->store_id)->whereIn('status', ['active', 'invited'])->with(['zones:id', 'payRule'])
+        $couriers = Courier::forStore($order->store_id)->whereIn('status', ['active', 'invited'])->with(['places:id', 'payRule'])
             ->withCount(['shipments as active_missions' => fn ($q) => $q->whereIn('status', ['awaiting_pickup', 'in_transit', 'out_for_delivery'])])
+            ->withMax('assignments as last_assigned_at', 'assigned_at')
             ->get()
             ->map(fn (Courier $c) => [
                 'id' => $c->id,
                 'name' => $c->name,
                 'is_available' => $c->is_available,
+                'last_assigned_at' => $c->last_assigned_at,
                 // Créé mais pas encore connecté : proposé à la main, jamais choisi par les règles automatiques
                 'connected' => $c->status === 'active',
                 'active_missions' => $c->active_missions,
-                'covers_zone' => $zoneId !== null && $c->zones->contains('id', $zoneId),
+                'covers_zone' => $c->coversPlace($order->place),
+                'all_zones' => $c->places->isEmpty(),
                 'declined' => in_array($c->id, $declined, true),
-                'cost' => $c->payRule?->amountFor($zoneId),
+                'cost' => $c->payRule?->amountFor($zoneId, false, (int) $order->shipping_fee),
                 'stats' => $this->stats($order->store_id, 'courier_id', $c->id, $zoneId),
             ])
-            ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['active_missions']])->values()->all();
+            // Parmi ceux qui couvrent le lieu et sont disponibles : « chacun son tour » (celui qui a reçu une course il y a
+            // le plus longtemps), sinon celui du quartier avant celui qui livre partout, puis le moins occupé
+            ->sortBy(fn ($c) => $order->store->courier_dispatch === 'round_robin'
+                ? [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, (string) $c['last_assigned_at']]
+                : [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['all_zones'] ? 1 : 0, $c['active_missions']])->values()->all();
 
         $connections = CarrierConnection::forStore($order->store_id)->where('status', 'active')->get()->keyBy('id');
         $carriers = array_map(fn (array $q) => $q + [
@@ -99,13 +109,13 @@ class DeliveryAdvisor
     }
 
     /**
-     * Dès la confirmation : expédition confiée à qui a été choisi à la saisie de la commande, sinon (mode automatique)
-     * à qui désignent les règles. Un échec est noté au journal de la commande.
+     * Dès la confirmation, ou quand le livreur est choisi sur une commande déjà confirmée : expédition confiée à qui a
+     * été choisi, sinon (mode automatique) à qui désignent les règles. Un échec est noté au journal de la commande.
      */
     public function autoAssign(Order $order): ?Shipment
     {
         $order = $order->fresh(['store', 'items.product', 'shipments', 'plannedCourier', 'plannedCarrier']);
-        if ($order->status !== OrderStatus::Confirmed || $order->delivery_method === 'pickup'
+        if (! in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Processing], true) || $order->delivery_method === 'pickup'
             || $order->shipments->contains(fn (Shipment $s) => ! $s->status->isFinal())) {
             return null;
         }
@@ -113,6 +123,10 @@ class DeliveryAdvisor
         $suggestion = $this->planned($order);
         if ($suggestion === null && $order->store->assignment_mode === 'auto') {
             $suggestion = $this->suggest($order);
+            // Personne ne convient (et aucun cas « je choisis moi-même ») : noté au journal, la commande attend
+            if ($suggestion === null && ! $this->manualCase($order)) {
+                $this->orders->log($order, 'auto_assignment_failed', ['to' => 'personne', 'error' => self::NOBODY], null, 'system');
+            }
         }
         if ($suggestion === null) {
             return null;
@@ -177,13 +191,26 @@ class DeliveryAdvisor
         return $choice ? ['type' => $choice['type'], 'id' => $choice['id'], 'name' => $choice['name']] : null;
     }
 
+    /**
+     * Un cas particulier « je choisis moi-même » correspond à la commande : pas d'envoi automatique, voulu.
+     */
+    private function manualCase(Order $order): bool
+    {
+        return ShippingRule::forStore($order->store_id)->where('is_active', true)->where('action', 'manual')->get()
+            ->contains(fn (ShippingRule $rule) => $this->matches($rule, $order));
+    }
+
     private function matches(ShippingRule $rule, Order $order): bool
     {
         $c = $rule->conditions ?? [];
         $fragile = $order->items->contains(fn ($i) => $i->product?->is_fragile);
         $weight = (int) $order->items->sum(fn ($i) => ($i->weight_g ?? 0) * $i->quantity);
 
-        return (empty($c['delivery_zone_ids']) || in_array($order->delivery_zone_id, array_map('intval', $c['delivery_zone_ids']), true))
+        // Lieux : la commande va dans un des lieux du cas (Angré est dans Cocody, dans Abidjan)
+        $order->loadMissing('place.parent');
+        $inPlaces = empty($c['place_ids']) || ($order->place !== null && array_intersect($order->place->lineageIds(), array_map('intval', $c['place_ids'])) !== []);
+
+        return $inPlaces
             && (! isset($c['is_fragile']) || $c['is_fragile'] === null || (bool) $c['is_fragile'] === $fragile)
             && (! isset($c['min_amount']) || $c['min_amount'] === null || $order->total >= $c['min_amount'])
             && (! isset($c['max_amount']) || $c['max_amount'] === null || $order->total <= $c['max_amount'])

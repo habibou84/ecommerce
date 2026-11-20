@@ -137,10 +137,10 @@ async function cancel(post) {
           {{ account('tiktok')?.connected ? 'Reconnecter TikTok' : 'Connecter TikTok' }}
         </button>
       </div>
-      <p class="text-slate-500">
-        Instagram se connecte avec la page Facebook : le compte Instagram doit être professionnel et lié à la page.
-        Une fois connectés, les messages Messenger et Instagram arrivent dans <RouterLink to="/gestion/messages" class="underline">Messages</RouterLink>.
-      </p>
+      <div>
+        <p class="explain">Les messages Messenger et Instagram arrivent dans <RouterLink to="/gestion/messages" class="text-emerald-700 underline">Messages</RouterLink>.</p>
+        <p class="explain-detail">Instagram se connecte avec la page Facebook : le compte doit être professionnel et lié à la page.</p>
+      </div>
       <p v-if="!data.available.meta || !data.available.tiktok" class="text-amber-800">
         {{ !data.available.meta ? 'La connexion Facebook / Instagram' : 'La connexion TikTok' }} n'est pas encore activée sur la plateforme.
       </p>
@@ -162,12 +162,12 @@ async function cancel(post) {
           <p class="text-slate-500">{{ networks[n]?.orders ?? 0 }} commande(s) · {{ networks[n]?.clicks ?? 0 }} clic(s) · {{ networks[n]?.posts ?? 0 }} publication(s)</p>
         </div>
       </div>
-      <p class="text-slate-500">Commandes venues des liens publiés depuis l'application, des publicités Facebook et TikTok (suivi publicitaire), et des commandes saisies avec le canal du réseau.</p>
+      <p class="explain-detail">Commandes venues de vos liens publiés, de vos publicités et des commandes saisies avec ce réseau.</p>
     </section>
 
     <section v-if="data" class="card p-4 text-sm">
       <h3 class="mb-1 font-semibold">Publications</h3>
-      <p class="mb-2 text-slate-500">Pour publier un produit : ouvrez sa fiche dans Produits, puis « Publier sur les réseaux ».</p>
+      <p class="explain-detail mb-2">Pour publier un produit : sa fiche dans Produits › « Publier sur les réseaux ».</p>
       <p v-if="!data.stats.posts.length" class="py-4 text-slate-500">Aucune publication sur la période.</p>
       <ul class="divide-y divide-slate-100">
         <li v-for="p in data.stats.posts" :key="p.id" class="space-y-1 py-3">

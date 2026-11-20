@@ -34,23 +34,9 @@ const sure = source.coexistence === '1'
 const destination = ref(null)
 const checking = ref(true)
 
-// Retour de Facebook : accepté seulement s'il a été lancé depuis cette page, dans ce navigateur (un lien Facebook
-// fabriqué par quelqu'un d'autre ne peut pas renvoyer le code vers son espace)
-const NONCE_KEY = 'wa-fb-nonce'
-function readNonce() {
-  try {
-    return window.localStorage.getItem(NONCE_KEY)
-  } catch {
-    return null
-  }
-}
-function writeNonce(value) {
-  try {
-    value ? window.localStorage.setItem(NONCE_KEY, value) : window.localStorage.removeItem(NONCE_KEY)
-  } catch {
-    // stockage indisponible : le retour de Facebook sera refusé, la fenêtre (ordinateur) reste possible
-  }
-}
+// Sécurité (liens fabriqués par un autre marchand) : le code de Facebook ne va que vers la gestion de la boutique
+// indiquée, où seul un membre connecté peut s'en servir, ou vers l'application installée qui a lancé la connexion
+// (dépôt accepté par le serveur seulement depuis le navigateur de ce téléphone). Rien à vérifier ici.
 
 // Retour seulement vers une boutique de la plateforme (https://{boutique}.jibiat-marchand.com/…)
 const back = computed(() => {
@@ -79,14 +65,8 @@ const embeddedBrowser = inAppBrowser()
 const copied = ref(false)
 
 onMounted(async () => {
+  // Retour de Facebook (page entière) : on repart aussitôt vers la boutique, avec le code ou le message
   if (returned && back.value) {
-    const expected = readNonce()
-    writeNonce(null)
-    if (!returned.n || returned.n !== expected) {
-      checking.value = false
-      return
-    }
-    // Facebook a renvoyé le code (ou un refus) : on repart aussitôt vers la boutique
     if (route.query.code) {
       goBack({ code: String(route.query.code), redirect_uri: redirectUri, coexistence: sure ? '1' : '0' })
     } else {
@@ -95,18 +75,23 @@ onMounted(async () => {
     return
   }
   if (back.value) {
-    try {
-      const params = { retour: back.value, ...(appKey ? { cle: appKey } : {}) }
-      const data = (await http.get('/whatsapp/facebook/destination', { params })).data.data
-      destination.value = data
-      Object.assign(options, { appId: data.app_id, configId: data.config_id, version: data.graph_version || options.version })
-    } catch {
-      destination.value = null
+    destination.value = await fetchDestination()
+    if (destination.value) {
+      Object.assign(options, { appId: destination.value.app_id, configId: destination.value.config_id, version: destination.value.graph_version || options.version })
     }
   }
   checking.value = false
   if (destination.value && options.appId && !prefersRedirect()) prepareFacebook(options)
 })
+
+async function fetchDestination() {
+  try {
+    const params = { retour: back.value, ...(appKey ? { cle: appKey } : {}) }
+    return (await http.get('/whatsapp/facebook/destination', { params })).data.data
+  } catch {
+    return null
+  }
+}
 
 // « Revenir » : la page d'où l'on vient, sans message d'erreur
 function leave() {
@@ -131,9 +116,7 @@ async function goBack(params) {
 
 // Téléphone : la page entière chez Facebook
 function fullPage() {
-  const nonce = [...window.crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('')
-  writeNonce(nonce)
-  const state = btoa(JSON.stringify({ n: nonce, coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value, depuis: from.value, cle: appKey }))
+  const state = btoa(JSON.stringify({ coexistence: source.coexistence === 'auto' ? 'auto' : (sure ? '1' : '0'), retour: back.value, depuis: from.value, cle: appKey }))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   window.location.assign(facebookDialogUrl(options, redirectUri, state))
 }
@@ -162,10 +145,10 @@ async function copyLink() {
 </script>
 
 <template>
-  <AuthShell title="Connecte ton numéro WhatsApp sur Meta" subtitle="Connexion officielle, avec ton compte Facebook.">
+  <AuthShell title="Connectez votre numéro WhatsApp sur Meta" subtitle="Connexion officielle, avec votre compte Facebook.">
     <div v-if="handedBack" class="space-y-2 text-center">
       <p class="text-lg font-extrabold">✅ C'est fait !</p>
-      <p class="text-[15px] text-slate-700">Ferme cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
+      <p class="text-base text-slate-700">Fermez cette fenêtre (✕ en haut) : l'application Jibiat Marchand termine la connexion toute seule.</p>
     </div>
     <p v-else-if="checking" class="text-center text-sm text-slate-600">{{ returned ? 'Connexion reçue de Facebook, retour vers votre espace…' : 'Chargement…' }}</p>
     <Alert v-else-if="!back || returned || !destination || !options.appId || !options.configId" tone="error">
@@ -174,19 +157,18 @@ async function copyLink() {
     <div v-else class="space-y-4">
       <!-- Navigateur intégré (lien ouvert depuis WhatsApp, Facebook, Instagram…) : la connexion y échoue souvent -->
       <div v-if="embeddedBrowser" class="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        <p><b>Ouvrez cette page dans Chrome ou Safari</b> pour connecter WhatsApp : dans le navigateur de WhatsApp, Facebook ou Instagram, la connexion n'aboutit souvent pas.</p>
+        <p><b class="block">Ouvrez cette page dans Chrome ou Safari.</b>Dans le navigateur de WhatsApp, Facebook ou Instagram, la connexion n'aboutit souvent pas.</p>
         <p>Menu ⋮ (ou ⋯) › « Ouvrir dans le navigateur », ou copiez le lien et collez-le dans Chrome.</p>
         <button type="button" class="btn-secondary w-full" @click="copyLink">{{ copied ? 'Lien copié ✓' : 'Copier le lien' }}</button>
       </div>
       <div class="rounded-lg border-2 border-[var(--brand)] bg-brand-soft p-3 text-center">
-        <p class="text-sm text-slate-700">Ton numéro WhatsApp sera connecté à :</p>
+        <p class="text-sm text-slate-700">Votre numéro WhatsApp sera connecté à :</p>
         <p class="text-lg font-black">{{ destination.name }}</p>
         <p class="text-xs text-slate-600">{{ destination.host }}</p>
       </div>
-      <p class="text-sm font-semibold text-red-700">Ce n'est pas ton espace ? Ferme cette page : quelqu'un essaie de récupérer ton WhatsApp.</p>
-      <p class="text-[15px] text-slate-700">Facebook s'ouvre et te guide : suis ses étapes jusqu'au bout.</p>
+      <p class="text-base text-slate-700">Facebook s'ouvre et vous guide : suivez ses étapes jusqu'au bout.</p>
       <Alert v-if="error" tone="error">{{ error }}</Alert>
-      <button type="button" class="btn-brand w-full py-4 text-[17px] font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
+      <button type="button" class="btn-brand w-full py-4 text-lg font-black" :disabled="busy" @click="start">{{ busy ? 'Connexion à Facebook…' : 'Continuer avec Facebook' }}</button>
       <button type="button" class="btn-secondary w-full" @click="leave">Revenir</button>
       <WhatsAppHelp class="text-center" />
     </div>

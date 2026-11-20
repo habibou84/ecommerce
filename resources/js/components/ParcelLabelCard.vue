@@ -72,7 +72,7 @@ onUnmounted(() => window.removeEventListener('online', sync))
 <template>
   <section v-if="order.parcel_labels_enabled || labels.length" class="card space-y-2 p-4">
     <h3 class="font-semibold">🏷️ Étiquette du colis</h3>
-    <p v-if="!labels.length && !pending.length" class="text-sm text-slate-600">Colle une étiquette Jibiat sur le colis, puis scanne-la.</p>
+    <p v-if="!labels.length && !pending.length" class="text-sm text-slate-600">Collez une étiquette Jibiat sur le colis, puis scannez-la.</p>
     <div v-for="l in labels" :key="l.id" class="flex items-center justify-between gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm">
       <span class="font-semibold text-emerald-900">✓ {{ l.code }}</span>
       <button v-if="canManage" type="button" class="text-xs font-semibold text-slate-600 underline" :disabled="busy" @click="detach(l)">Détacher</button>

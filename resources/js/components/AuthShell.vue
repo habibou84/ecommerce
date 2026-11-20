@@ -18,7 +18,7 @@ defineProps({ title: { type: String, required: true }, subtitle: { type: String,
       <span v-else>Jibiat <span class="text-emerald-700">Marchand</span></span>
     </a>
     <div class="card w-full max-w-md p-6 sm:p-8">
-      <h1 class="text-xl font-semibold">{{ title }}</h1>
+      <h1 class="text-2xl font-semibold">{{ title }}</h1>
       <p v-if="subtitle" class="mt-1 text-sm text-slate-600">{{ subtitle }}</p>
       <div class="mt-6">
         <slot />

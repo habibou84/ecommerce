@@ -1,4 +1,5 @@
 <script setup>
+import ExplainMore from '../../components/ExplainMore.vue'
 import { onMounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
 import http, { errorMessage } from '../../lib/http'
@@ -62,10 +63,11 @@ async function save(plan) {
         <h2 class="text-base font-semibold">Jibiat Marchand gratuit pour tous</h2>
         <span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="free.active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'">{{ free.active ? 'En cours' : 'Arrêtée' }}</span>
       </div>
-      <p class="text-slate-600">
-        Tous les espaces marchands ont l'offre choisie sans payer : pas de fin d'essai ni de relance. Un abonnement payé plus élevé est gardé.
-        Les limites de l'offre restent appliquées ; l'assistant IA reste payant (actions IA du solde). À l'arrêt, chaque espace marchand qui ne paie pas garde l'offre pendant le délai, puis choisit la sienne.
-      </p>
+      <div>
+        <p class="explain">Tous les espaces marchands ont l'offre choisie, sans payer.</p>
+        <p class="explain-detail">Pas de fin d'essai ni de relance. Les limites de l'offre restent ; l'IA reste payante.</p>
+        <ExplainMore>Un abonnement payé plus élevé est gardé. À l'arrêt, chaque espace marchand qui ne paie pas garde l'offre pendant le délai, puis choisit la sienne.</ExplainMore>
+      </div>
       <Alert v-if="freeError">{{ freeError }}</Alert>
       <div class="grid gap-3 sm:grid-cols-3">
         <label>Offre donnée
@@ -86,7 +88,7 @@ async function save(plan) {
       </div>
     </section>
 
-    <p class="text-sm text-slate-600">Prix en FCFA (multiples de 5). Limite vide : illimitée. Les changements s'appliquent aussitôt à tous les espaces marchands de l'offre.</p>
+    <p class="explain-detail">Prix en FCFA (multiples de 5), limite vide : illimitée. Appliqué aussitôt à tous les espaces de l'offre.</p>
     <Alert v-if="error">{{ error }}</Alert>
     <div v-if="data" class="grid gap-4 lg:grid-cols-2">
       <section v-for="plan in data.data" :key="plan.id" class="card space-y-3 p-4 text-sm">

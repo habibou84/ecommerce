@@ -34,6 +34,11 @@ class CourierMissions
         ]);
         // Nouveau livreur : la mission entre dans sa tournée sans place choisie
         $shipment->forceFill(['courier_id' => $courier->id, 'route_position' => null])->save();
+        // Confiée aujourd'hui pour une date déjà passée : elle est pour aujourd'hui (le livreur ne voit pas les jours passés)
+        $order = $shipment->order;
+        if ($order && $order->scheduled_date?->lt(today()) && $shipment->status === ShipmentStatus::AwaitingPickup) {
+            $order->forceFill(['scheduled_date' => today()->toDateString()])->save();
+        }
 
         $courier->user?->notify(new CourierMission($shipment->setRelation('courier', $courier)));
     }
@@ -45,11 +50,13 @@ class CourierMissions
             return;
         }
         $rule = $courier->payRule;
-        $pay = $rule?->amountFor($shipment->order->delivery_zone_id, $shipment->order->isExpedition()) ?? 0;
+        $pay = $rule?->amountFor($shipment->order->delivery_zone_id, $shipment->order->isExpedition(), (int) $shipment->order->shipping_fee) ?? 0;
 
         match ($to) {
             ShipmentStatus::Delivered => $pay > 0 ? $this->earn($shipment, $courier, 'delivery', $pay) : null,
+            // Une paie par tentative du livreur (la relivraison décidée par la boutique n'en est pas une)
             ShipmentStatus::Failed, ShipmentStatus::Rescheduled => $rule && $rule->failed_attempt_amount > 0
+                && CourierEarning::forStore($shipment->store_id)->where('shipment_id', $shipment->id)->where('type', 'failed_attempt')->count() < max(1, (int) $shipment->attempts_count)
                 ? $this->earn($shipment, $courier, 'failed_attempt', $rule->failed_attempt_amount) : null,
             default => null,
         };

@@ -2,6 +2,7 @@
 
 namespace App\Services\Live;
 
+use App\Enums\OrderSource;
 use App\Models\LiveItem;
 use App\Models\LiveReservation;
 use App\Models\Order;
@@ -76,7 +77,8 @@ class LiveImages
             'price' => (int) $i->total,
             'image' => $i->variant?->image ?? $i->variant?->product?->images->first(),
         ])->values();
-        $key = md5(json_encode([$lines->map(fn ($l) => [$l['code'], $l['title'], $l['detail'], $l['price']]), $place, $order->shipping_fee, $order->total, $storeName]));
+        $live = $order->source === OrderSource::Live;
+        $key = md5(json_encode([$lines->map(fn ($l) => [$l['code'], $l['title'], $l['detail'], $l['price']]), $place, $order->shipping_fee, $order->total, $storeName, $live]));
         $path = "live/{$order->store_id}/recap-{$order->id}-".substr($key, 0, 10).'.jpg';
         if ($this->disk()->exists($path)) {
             return $this->disk()->url($path);
@@ -93,13 +95,18 @@ class LiveImages
         $red = imagecolorallocate($c, 220, 38, 38);
         imagefill($c, 0, 0, $white);
 
-        // En-tête orange (couleur du live)
+        // En-tête orange avec « ● LIVE » pour une commande du live ; vert, sans la mention, pour une commande passée
+        // ailleurs (récap de la boutique, modèles, catalogue WhatsApp)
         for ($x = 0; $x < self::WIDTH; $x++) {
             $t = $x / self::WIDTH;
-            imageline($c, $x, 0, $x, 96, imagecolorallocate($c, (int) (154 + 97 * $t), (int) (52 + 94 * $t), (int) (18 + 42 * $t)));
+            imageline($c, $x, 0, $x, 96, $live
+                ? imagecolorallocate($c, (int) (154 + 97 * $t), (int) (52 + 94 * $t), (int) (18 + 42 * $t))
+                : imagecolorallocate($c, (int) (6 + 10 * $t), (int) (95 + 90 * $t), (int) (70 + 59 * $t)));
         }
-        imagettftext($c, 30, 0, 32, 60, $white, $this->font('ExtraBold'), Str::limit('Votre commande · '.$storeName, 34));
-        imagettftext($c, 24, 0, self::WIDTH - 130, 58, $white, $this->font('ExtraBold'), '● LIVE');
+        imagettftext($c, 30, 0, 32, 60, $white, $this->font('ExtraBold'), Str::limit('Votre commande · '.$storeName, $live ? 34 : 40));
+        if ($live) {
+            imagettftext($c, 24, 0, self::WIDTH - 130, 58, $white, $this->font('ExtraBold'), '● LIVE');
+        }
 
         $y = 96;
         foreach ($lines as $l) {

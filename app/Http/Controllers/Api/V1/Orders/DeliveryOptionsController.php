@@ -45,7 +45,7 @@ class DeliveryOptionsController extends Controller
         $fragile = $variants->contains(fn (ProductVariant $v) => $v->product?->is_fragile);
 
         // Livreurs actifs, et ceux créés mais pas encore connectés (ils verront la course en ouvrant leur lien)
-        $couriers = Courier::whereIn('status', ['active', 'invited'])->with('zones:id')
+        $couriers = Courier::whereIn('status', ['active', 'invited'])->with('places:id')
             ->withCount(['shipments as active_missions' => fn ($q) => $q->whereIn('status', ['awaiting_pickup', 'in_transit', 'out_for_delivery'])])
             ->orderBy('name')->get()
             ->map(fn (Courier $c) => [
@@ -53,10 +53,11 @@ class DeliveryOptionsController extends Controller
                 'name' => $c->name,
                 'is_available' => $c->is_available,
                 'active_missions' => $c->active_missions,
-                'covers_zone' => $zone !== null && $c->zones->contains('id', $zone->id),
+                'covers_zone' => $c->coversPlace($place),
+                'all_zones' => $c->places->isEmpty(),
                 'connected' => $c->status === 'active',
             ])
-            ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['active_missions']])->values();
+            ->sortBy(fn ($c) => [$c['covers_zone'] ? 0 : 1, $c['is_available'] ? 0 : 1, $c['all_zones'] ? 1 : 0, $c['active_missions']])->values();
 
         $connections = CarrierConnection::where('status', 'active')->withCount(['zones' => fn ($q) => $q->where('is_active', true)])->get()->keyBy('id');
         $carriers = array_map(fn (array $q) => [
@@ -107,7 +108,9 @@ class DeliveryOptionsController extends Controller
 
     /**
      * Recherche du quartier de livraison. Entreprise de livraison choisie : seulement les quartiers qu'elle dessert,
-     * avec sa zone et son tarif ; sinon les lieux de la boutique, avec la zone de la boutique et ses frais.
+     * avec sa zone et son tarif ; sinon les lieux de la boutique, avec la zone de la boutique et ses frais. Sans
+     * recherche : les lieux les plus livrés (90 derniers jours) ; avec une recherche, ceux-là passent en tête
+     * (« frequent »), pour que le quartier habituel se trouve tout de suite.
      */
     public function places(Request $request, Places $places, PlaceMatcher $matcher): JsonResponse
     {
@@ -147,15 +150,27 @@ class DeliveryOptionsController extends Controller
             })->sortBy(fn ($p) => [$p['zone'], $p['label']])->values()]);
         }
 
-        if (mb_strlen($search) < 2) {
-            return response()->json(['data' => []]);
-        }
-
-        return response()->json(['data' => $matcher->search($search, $all, 20)->map(function (Place $p) use ($places, $store) {
+        // Lieux les plus livrés par la boutique : nombre de commandes des 90 derniers jours
+        $frequent = Order::whereNotNull('shipping_place_id')->where('created_at', '>=', now()->subDays(90))
+            ->toBase()->selectRaw('shipping_place_id, COUNT(*) AS n')->groupBy('shipping_place_id')
+            ->orderByDesc('n')->limit(8)->pluck('n', 'shipping_place_id')->map(fn ($n) => (int) $n)->all();
+        $present = function (Place $p) use ($places, $store, $frequent): array {
             $zone = $places->zoneFor($store, $p);
 
-            return $this->place($p) + ['zone' => $zone?->name, 'zone_id' => $zone?->id, 'fee' => $zone?->fee];
-        })->values()]);
+            return $this->place($p) + [
+                'zone' => $zone?->name, 'zone_id' => $zone?->id, 'fee' => $zone?->fee,
+                'frequent' => isset($frequent[$p->id]), 'orders_count' => $frequent[$p->id] ?? 0,
+            ];
+        };
+
+        if (mb_strlen($search) < 2) {
+            $byId = $all->keyBy('id');
+
+            return response()->json(['data' => collect(array_keys($frequent))->map(fn ($id) => $byId->get($id))->filter()->map($present)->values()]);
+        }
+
+        return response()->json(['data' => $matcher->search($search, $all, 20)->map($present)
+            ->sortByDesc(fn ($p) => $p['orders_count'])->values()]);
     }
 
     /**

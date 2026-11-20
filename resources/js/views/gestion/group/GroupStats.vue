@@ -56,7 +56,7 @@ const shown = computed(() => hovered.value ?? chart.value.at(-1))
     <GroupTabs />
     <div class="flex flex-wrap items-center gap-2">
       <button v-for="[value, label] in PRESETS" :key="value" class="rounded-full border px-3 py-1 text-sm"
-              :class="period.preset === value ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-white'"
+              :class="period.preset === value ? 'border-emerald-700 bg-emerald-50 text-emerald-800' : 'border-field bg-white'"
               @click="period.preset = value; value !== 'custom' && load()">{{ label }}</button>
       <template v-if="period.preset === 'custom'">
         <input v-model="period.from" type="date" class="input w-auto py-1" aria-label="Du" />

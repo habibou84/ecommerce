@@ -85,7 +85,10 @@ async function destroy() {
 <template>
   <div class="space-y-4">
     <div class="flex items-center justify-between gap-3">
-      <p class="text-sm text-slate-600">Regroupez vos produits (Nouveautés, Robes, Promotions…) : ce sont les rayons de votre boutique en ligne.</p>
+      <div>
+        <p class="explain">Les rayons de votre boutique en ligne.</p>
+        <p class="explain-detail">Regroupez vos produits : Nouveautés, Robes, Promotions…</p>
+      </div>
       <button v-if="auth.can('products.manage')" class="btn-brand shrink-0" @click="open(null)">+ Collection</button>
     </div>
     <Alert v-if="error">{{ error }}</Alert>

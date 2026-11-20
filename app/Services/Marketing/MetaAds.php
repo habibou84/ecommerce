@@ -21,7 +21,7 @@ class MetaAds
 {
     public const NETWORK = 'meta_ads';
 
-    public const SCOPES = ['business_management', 'catalog_management', 'ads_management', 'pages_show_list', 'pages_read_engagement', 'pages_manage_ads'];
+    public const SCOPES = ['business_management', 'catalog_management', 'ads_management', 'pages_show_list', 'pages_read_engagement'];
 
     public const FEED_NAME = 'Jibiat Marchand';
 

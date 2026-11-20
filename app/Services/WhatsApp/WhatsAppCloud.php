@@ -19,6 +19,13 @@ class WhatsAppCloud
 
     public const GRAPH = 'https://graph.facebook.com/'.self::VERSION.'/';
 
+    /**
+     * Dernier message envoyé (sans le destinataire) : le fil de Conversations y lit la photo et les choix proposés.
+     *
+     * @var array<string, mixed>|null
+     */
+    public ?array $lastMessage = null;
+
     // Erreurs de Meta les plus courantes, dites simplement (les autres gardent le texte de Meta)
     private const ERRORS = [
         // Une autre application reliée au même numéro tient la conversation
@@ -104,8 +111,24 @@ class WhatsAppCloud
     /**
      * @param  array<string, mixed>  $message
      */
+    /**
+     * « En train d'écrire… » chez la personne (et son message marqué lu), pendant qu'une réponse se prépare : affiché
+     * 25 secondes au plus, ou jusqu'à la réponse. Un échec ne compte pas : la réponse part quand même.
+     */
+    public function typing(WhatsappAccount $account, string $messageId): bool
+    {
+        try {
+            return Http::withToken($account->access_token)->acceptJson()->timeout(5)->post(self::GRAPH.$account->phone_number_id.'/messages', [
+                'messaging_product' => 'whatsapp', 'status' => 'read', 'message_id' => $messageId, 'typing_indicator' => ['type' => 'text'],
+            ])->successful();
+        } catch (ConnectionException) {
+            return false;
+        }
+    }
+
     private function send(WhatsappAccount $account, string $to, array $message): string
     {
+        $this->lastMessage = $message;
         try {
             $response = Http::withToken($account->access_token)->acceptJson()->timeout(15)
                 ->post(self::GRAPH.$account->phone_number_id.'/messages', ['messaging_product' => 'whatsapp', 'to' => ltrim($to, '+')] + $message);

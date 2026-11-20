@@ -13,11 +13,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Place extends Model
 {
-    protected $fillable = ['country', 'parent_id', 'type', 'name', 'slug', 'code', 'aliases', 'latitude', 'longitude', 'store_id', 'is_active'];
+    protected $fillable = ['country', 'parent_id', 'type', 'name', 'slug', 'code', 'aliases', 'latitude', 'longitude', 'located_at', 'store_id', 'is_active'];
 
     protected function casts(): array
     {
-        return ['aliases' => 'array', 'is_active' => 'boolean'];
+        return ['aliases' => 'array', 'is_active' => 'boolean', 'latitude' => 'float', 'longitude' => 'float', 'located_at' => 'datetime'];
     }
 
     public function parent(): BelongsTo
@@ -51,6 +51,16 @@ class Place extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Le lieu et ceux qui le contiennent : quartier, commune, ville (du plus précis au plus large).
+     *
+     * @return list<int>
+     */
+    public function lineageIds(): array
+    {
+        return array_values(array_filter([$this->id, $this->parent_id, $this->parent?->parent_id]));
     }
 
     /**

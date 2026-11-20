@@ -12,6 +12,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\Permission;
 use App\Exceptions\BusinessRuleException;
+use App\Jobs\AutoAssignOrder;
 use App\Models\CarrierConnection;
 use App\Models\Courier;
 use App\Models\Order;
@@ -22,21 +23,27 @@ use App\Models\Payment;
 use App\Models\Place;
 use App\Models\ProductVariant;
 use App\Models\Refund;
+use App\Models\Shipment;
 use App\Models\StockLocation;
 use App\Models\Store;
 use App\Models\User;
 use App\Notifications\OrderPlaced;
 use App\Services\Accounts\TeamNotifier;
+use App\Services\Billing\Credits;
 use App\Services\Billing\PlanLimits;
+use App\Services\Couriers\CourierDays;
 use App\Services\Customers\CustomerBook;
 use App\Services\Customers\Loyalty;
 use App\Services\Places\DeliveryRates;
 use App\Services\Places\Places;
 use App\Services\Promotions\Pricing;
+use App\Services\Shipping\ShipmentDesk;
 use App\Services\Stock\StockKeeper;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Jibiat\Socle\Money;
 
 /**
  * Toutes les opérations sur les commandes passent par ici : création, modification, changements de statut
@@ -98,6 +105,8 @@ class OrderDesk
                 'fulfillment_status' => FulfillmentStatus::Unfulfilled,
                 'tracking_token' => Str::random(24),
                 'created_by' => $actor?->id,
+                // Commande WhatsApp payante hors live (récap, catalogue, modèles) : comptée si elle est confirmée
+                'credit_channel' => $data['credit_channel'] ?? null,
             ]);
             $this->applyPlace($store, $order);
             $this->applyExpedition($order, $data);
@@ -110,6 +119,7 @@ class OrderDesk
             $this->replaceItems($order, $data['items'], $actor);
             $this->recalculate($order, $data['shipping_fee'] ?? null, true);
             $order->deposit_manual = array_key_exists('deposit_required', $data) && $data['deposit_required'] !== null;
+            $this->checkDeposit($order, $data);
             $this->preorder($order);
             $this->deposit($order);
             $order->save();
@@ -177,9 +187,14 @@ class OrderDesk
             if (array_key_exists('planned_courier_id', $data) || array_key_exists('planned_carrier_connection_id', $data) || $order->delivery_method === 'pickup') {
                 $this->applyPlannedDelivery($order, $data);
             }
+            // Livreur choisi ou changé sur une commande déjà confirmée : la course part, comme à la confirmation
+            $plannedChanged = $order->isDirty(['planned_courier_id', 'planned_carrier_connection_id'])
+                && ($order->planned_courier_id || $order->planned_carrier_connection_id)
+                && in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Processing], true);
             if ($order->isDirty('scheduled_date') && $order->scheduled_date?->lt(today())) {
                 throw new BusinessRuleException('La date de livraison est déjà passée : choisissez aujourd\'hui ou plus tard.', 'scheduled_date');
             }
+            $newDate = $order->isDirty('scheduled_date') ? $order->scheduled_date?->toDateString() : null;
             $this->ensureDeliveryDate($order->store, $order);
 
             $itemsChanged = array_key_exists('items', $data);
@@ -193,15 +208,29 @@ class OrderDesk
             // Acompte : fixé à la main (vide = calculé de nouveau), sinon recalculé avec les articles et le total
             if (array_key_exists('deposit_required', $data)) {
                 $order->deposit_manual = $data['deposit_required'] !== null;
+                $this->checkDeposit($order, $data);
             }
             $this->deposit($order);
             $order->save();
             $this->pricing->recordUsages($order->setRelation('items', $order->items()->get()));
             $this->refreshPaymentStatus($order);
 
+            // Nouvelle date et course chez un livreur de la boutique : la course suit la date et il est prévenu
+            if ($newDate !== null) {
+                $course = Shipment::forStore($order->store_id)->where('order_id', $order->id)->where('mode', 'own_courier')
+                    ->whereIn('status', CourierDays::DATED)->latest('id')->first();
+                if ($course !== null) {
+                    app(ShipmentDesk::class)->newCourierDate($course->setRelation('order', $order), $newDate, $actor);
+                }
+            }
+
             $after = $order->only(array_keys($before));
             $changes = array_keys(array_diff_assoc(array_map('strval', $after), array_map('strval', $before)));
             $this->log($order, 'edited', ['fields' => $changes, 'items' => $itemsChanged], $actor);
+            if ($plannedChanged) {
+                $orderId = $order->id;
+                DB::afterCommit(fn () => AutoAssignOrder::launch($orderId));
+            }
             if ($placeChanged && $order->isExpedition()) {
                 Expeditions::prepareMessage($order);
             }
@@ -258,7 +287,10 @@ class OrderDesk
             }
 
             match ($to) {
-                OrderStatus::Confirmed => $order->forceFill(['confirmed_at' => $order->confirmed_at ?? now(), 'confirmed_by' => $order->confirmed_by ?? $actor?->id, 'callback_at' => null]),
+                OrderStatus::Confirmed => $order->forceFill(['confirmed_at' => $order->confirmed_at ?? now(), 'confirmed_by' => $order->confirmed_by ?? $actor?->id, 'callback_at' => null,
+                    // Commande WhatsApp payante : comptée si les commandes payantes sont allumées et sans illimité, au
+                    // moment où elle est confirmée (retirée du solde le soir)
+                    'credit_due' => $order->credit_channel !== null && $order->credit_due === null ? app(Credits::class)->counting($order->store ?? Store::findOrFail($order->store_id)) : $order->credit_due]),
                 OrderStatus::Shipped => $this->shipItems($order, $actor)->forceFill(['shipped_at' => now()]),
                 OrderStatus::Completed => $this->shipItems($order, $actor)->forceFill(['completed_at' => now(), 'shipped_at' => $order->shipped_at ?? now()]),
                 OrderStatus::Cancelled => $this->releaseUsages($this->releaseItems($order, $actor, 'Commande annulée'))->forceFill([
@@ -499,19 +531,31 @@ class OrderDesk
     }
 
     /**
-     * Acompte calculé (sauf s'il a été fixé à la main) : somme des acomptes des articles, ou la règle de la boutique
-     * (toujours, ou au-dessus d'un montant : pourcentage du total) si elle donne plus. Arrondi aux 100 F, jamais plus
-     * que le total ; null sans acompte.
+     * Acompte calculé (sauf s'il a été fixé à la main) : voir autoDeposit(). Un acompte fixé à la main reste le sien,
+     * mais jamais plus que le total (articles retirés ensuite) ; null sans acompte.
      */
     public function deposit(Order $order): void
     {
+        $total = (int) $order->total;
         if ($order->deposit_manual) {
+            $order->deposit_required = $order->deposit_required ? (min((int) $order->deposit_required, $total) ?: null) : null;
+
             return;
         }
         $store = $order->store ?? Store::find($order->store_id);
         $items = $order->items()->with('product')->get();
         $fromItems = (int) $items->sum(fn ($i) => $i->product ? $i->product->depositFor((int) $i->total, (int) $i->quantity) : 0);
-        $total = (int) $order->total;
+        $deposit = self::autoDeposit($fromItems, $total, $store);
+        $order->deposit_required = $deposit > 0 ? $deposit : null;
+    }
+
+    /**
+     * Acompte « Auto » : somme des acomptes des articles, ou la règle de la boutique (toujours, ou au-dessus d'un
+     * montant : pourcentage du total) si elle donne plus. Arrondi aux 100 F, jamais plus que le total ; 0 sans acompte.
+     * Même calcul pour l'enregistrement et pour l'aperçu du formulaire de commande.
+     */
+    public static function autoDeposit(int $fromItems, int $total, ?Store $store): int
+    {
         $percent = (int) ($store?->deposit_rule_percent ?? 0);
         $ruleApplies = $percent > 0 && match ($store?->deposit_mode) {
             'always' => true,
@@ -520,8 +564,27 @@ class OrderDesk
         };
         $fromRule = $ruleApplies ? (int) round($total * min(100, $percent) / 100) : 0;
         $deposit = max($fromItems, $fromRule);
-        $deposit = $deposit > 0 ? min($total, (int) (ceil($deposit / 100) * 100)) : 0;
-        $order->deposit_required = $deposit > 0 ? $deposit : null;
+
+        return $deposit > 0 ? min($total, (int) (ceil($deposit / 100) * 100)) : 0;
+    }
+
+    /**
+     * Acompte saisi à la main : jamais plus que le total de la commande (0 = pas d'acompte).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function checkDeposit(Order $order, array $data): void
+    {
+        $asked = $data['deposit_required'] ?? null;
+        if ($asked === null) {
+            return;
+        }
+        if ((int) $asked > (int) $order->total) {
+            throw ValidationException::withMessages([
+                'deposit_required' => "L'acompte ne peut pas dépasser le total de la commande (".Money::format((int) $order->total).').',
+            ]);
+        }
+        $order->deposit_required = (int) $asked > 0 ? (int) $asked : null;
     }
 
     private function releaseItems(Order $order, ?User $actor, string $note): Order

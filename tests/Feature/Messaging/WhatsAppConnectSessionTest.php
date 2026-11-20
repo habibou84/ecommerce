@@ -20,9 +20,18 @@ class WhatsAppConnectSessionTest extends TestCase
         $this->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'X']])->assertNotFound();
 
         $this->actingAs($store->owner);
-        $this->storeApi($store, 'POST', 'whatsapp/connect-session', ['key' => $key])->assertCreated();
+        $browser = $this->storeApi($store, 'POST', 'whatsapp/connect-session', ['key' => $key])->assertCreated()->getCookie('wa_connect', false);
+        // Cookie du navigateur qui lance la connexion, valable sur tout le domaine (plateforme comprise), illisible en JS
+        $this->assertNotNull($browser);
+        $this->assertSame('.localhost', $browser->getDomain());
+        $this->assertTrue($browser->isHttpOnly());
         $this->storeApi($store, 'GET', "whatsapp/connect-session/{$key}")->assertOk()->assertJsonPath('data.result', null);
 
+        // Depuis un autre navigateur (sans le cookie, ou avec un faux) : refusé
+        $this->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'X']])->assertNotFound();
+        $this->withCredentials()->withUnencryptedCookie('wa_connect', 'faux')->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'X']])->assertNotFound();
+
+        $this->withUnencryptedCookie('wa_connect', $browser->getValue());
         $this->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'AQB-code', 'coexistence' => '0', 'pirate' => 'x']])->assertOk();
         // Déposé une seule fois
         $this->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'autre']])->assertNotFound();
@@ -43,6 +52,13 @@ class WhatsAppConnectSessionTest extends TestCase
         $key = str_repeat('b2', 24);
         $this->actingAs($attacker->owner);
         $this->storeApi($attacker, 'POST', 'whatsapp/connect-session', ['key' => $key])->assertCreated();
+        $this->logout();
+
+        // Lien de l'attaquant (sa clé, sa boutique) suivi par la victime jusqu'au bout chez Facebook : le code arrive dans
+        // le navigateur de la victime, qui n'a pas le cookie de l'attaquant ; il n'est pas déposé pour l'attaquant
+        $this->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'code-de-la-victime']])->assertNotFound();
+        $this->actingAs($attacker->owner);
+        $this->storeApi($attacker, 'GET', "whatsapp/connect-session/{$key}")->assertOk()->assertJsonPath('data.result', null);
         $this->logout();
 
         // Le lien envoyé à la victime avec la clé de l'attaquant et l'adresse de la victime : refusé

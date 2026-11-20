@@ -41,6 +41,8 @@ class LiveScreenController extends Controller
             return response()->json(['data' => ['paired' => false, 'code' => $this->screens->pendingCode($screen)]]);
         }
 
+        LiveScreens::rememberSize($screen->id, $request->integer('w'), $request->integer('h'));
+
         // Rien de neuf depuis la dernière demande : réponse vide (304), sans renvoyer photos ni QR codes
         $response = response()->json(['data' => ['paired' => true] + $this->screens->display($screen)]);
         $response->setEtag(md5((string) $response->getContent()))->headers->set('Cache-Control', 'no-cache, private');
@@ -257,6 +259,8 @@ class LiveScreenController extends Controller
             'last_seen_at' => $screen->last_seen_at?->toIso8601String(), 'paired_at' => $screen->paired_at?->toIso8601String(),
             // Lien direct (ordinateur, PRISM) : à coller une fois dans le logiciel de live
             'url' => LiveScreens::url($screen),
+            // Taille réelle de la fenêtre de l'écran, pour que l'aperçu de la console ait la même forme
+            'width' => LiveScreens::size($screen->id)['width'] ?? null, 'height' => LiveScreens::size($screen->id)['height'] ?? null,
         ];
     }
 }

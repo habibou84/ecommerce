@@ -99,6 +99,31 @@ class DeliveryRates
     /**
      * Prix de départ : celui de la ville de la boutique.
      */
+    /**
+     * Tarifs relus ou changés par la boutique (le menu WhatsApp ne le rappelle plus).
+     */
+    public function checked(Store $store): void
+    {
+        $store->forceFill(['delivery_rates_checked_at' => now()])->save();
+    }
+
+    /**
+     * Ce que le récap et les assistants envoient : prix de départ dans la ville, et nombre de prix à part.
+     *
+     * @return array{checked: bool, city: ?string, base_fee: ?int, specific: int}
+     */
+    public function summary(Store $store): array
+    {
+        $home = $this->home($store);
+
+        return [
+            'checked' => $store->delivery_rates_checked_at !== null,
+            'city' => $home?->name,
+            'base_fee' => $this->base($store),
+            'specific' => max(0, DeliveryZone::forStore($store->id)->where('is_active', true)->count() - 1),
+        ];
+    }
+
     public function base(Store $store): ?int
     {
         $home = $this->home($store);
