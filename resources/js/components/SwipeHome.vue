@@ -10,7 +10,8 @@ import BoostPanel from './marketing/BoostPanel.vue'
 import WhatsAppHub from './WhatsAppHub.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
-import { ORDER_TABS, tabCount, tabLink } from '../lib/orders'
+import { tabCount } from '../lib/orders'
+import DayProgress from './DayProgress.vue'
 import { platformOn } from '../router'
 import { boot } from '../lib/boot'
 import { useAuthStore } from '../stores/auth'
@@ -52,7 +53,7 @@ const deliveryTodo = computed(() => {
   if (!o) return []
   const late = (s.value.couriers?.late_returns ?? 0) + (s.value.carriers?.late_returns ?? 0)
   return [
-    { key: 'unassigned', icon: 'truck', count: o.waiting?.unassigned ?? 0, text: pl(o.waiting?.unassigned, 'commande à faire livrer', 'commandes à faire livrer'), action: 'Faire livrer', to: '/gestion/commandes?status=to_ship', urgent: true },
+    { key: 'unassigned', icon: 'truck', count: o.waiting?.unassigned ?? 0, text: pl(o.waiting?.unassigned, 'commande à faire livrer', 'commandes à faire livrer'), action: 'Faire livrer', to: '/gestion/commandes?alert=unassigned', urgent: true },
     { key: 'not_picked', icon: 'box', count: o.waiting?.not_picked ?? 0, text: pl(o.waiting?.not_picked, 'colis pas encore ramassé', 'colis pas encore ramassés'), action: 'Voir', to: '/gestion/commandes?alert=not_picked', urgent: false },
     { key: 'unhandled', icon: 'alert', count: o.waiting?.unhandled ?? 0, text: pl(o.waiting?.unhandled, 'problème de livraison', 'problèmes de livraison'), action: 'Traiter', to: '/gestion/commandes?alert=unhandled', urgent: true },
     { key: 'returns', icon: 'box', count: late, text: `${late} colis à rapporter en retard`, action: 'Voir', to: '/gestion/commandes?alert=to_bring_back', urgent: true },
@@ -229,16 +230,27 @@ watch(current, (i) => {
   if (startPage !== null && i !== startPage && hint.value) closeHint()
 })
 
-// ── Commandes : les dernières, chargées une fois à l'arrivée sur la page ──
+// ── Commandes : celles à livrer aujourd'hui, avec l'avancement ; les onglets filtrent sur place ──
+const DAY_TABS = [
+  { value: '', label: 'Toutes' },
+  { value: 'in_progress', label: 'En cours' },
+  { value: 'completed', label: 'Livrées' },
+  { value: 'failed', label: 'Échec', alert: true },
+]
 const orders = ref(null)
-// Chiffres des onglets : ceux de la liste des commandes (même calcul, mêmes noms)
 const orderCounts = ref(null)
+const dayProgress = ref(null)
+const dayTab = ref('')
+const ordersMore = ref(0)
 async function loadOrders(force = false) {
   if (orders.value && !force) return
-  const data = (await http.get('/orders', { params: { per_page: 6 } }).catch(() => ({ data: { data: [], counts: null } }))).data
+  const data = (await http.get('/orders', { params: { period: 'today', status: dayTab.value || undefined, per_page: 30 } }).catch(() => ({ data: { data: [], counts: null } }))).data
   orders.value = data.data
   orderCounts.value = data.counts ?? orderCounts.value
+  dayProgress.value = data.progress ?? dayProgress.value
+  ordersMore.value = Math.max(0, (data.meta?.total ?? 0) - data.data.length)
 }
+watch(dayTab, () => loadOrders(true))
 // Retour à l'accueil après une action dans la liste : chiffres à jour
 watch(() => route.path, (path) => { if (path === '/gestion' && orders.value) loadOrders(true) })
 
@@ -385,34 +397,33 @@ function open(to) {
             <RouterLink v-if="canOpen('/gestion/commandes/nouvelle')" to="/gestion/commandes/nouvelle" class="btn-brand justify-center whitespace-nowrap px-2 py-3 text-sm font-black">＋ Nouvelle commande</RouterLink>
             <RouterLink v-if="canOpen('/gestion/caisse/vente')" to="/gestion/caisse/vente" class="btn-secondary justify-center whitespace-nowrap px-2 py-3 text-sm font-black">Vente au comptoir</RouterLink>
           </div>
-          <div class="rounded-[22px] bg-brand-grad p-4 text-white">
-            <p class="text-sm font-semibold opacity-90">Aujourd'hui</p>
-            <p class="text-3xl font-black leading-tight">{{ money(s.orders?.today_amount ?? 0) }}</p>
-            <p class="text-sm font-semibold opacity-90">{{ pl(s.orders?.today_count ?? 0, 'commande', 'commandes') }}</p>
-          </div>
+          <DayProgress :progress="dayProgress" @changed="loadOrders(true)" />
           <div v-if="orderTodo.length" class="mt-3 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-2">
             <p class="text-xs font-black uppercase tracking-wide text-orange-800">À faire</p>
             <RouterLink v-for="t in orderTodo" :key="t.key" :to="t.to" class="flex items-center gap-2 border-t border-orange-100 py-2 text-sm font-bold first-of-type:border-0">
               <Icon :name="t.icon" :size="16" class="shrink-0 text-orange-700" /><span class="min-w-0 flex-1">{{ t.text }}</span><span class="shrink-0 text-xs font-black text-orange-700">{{ t.action }} ▸</span>
             </RouterLink>
           </div>
-          <!-- Onglets d'état : les mêmes que la liste des commandes, qui s'ouvre sur l'onglet touché -->
-          <div class="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
-            <RouterLink v-for="tab in ORDER_TABS" :key="tab.value" :to="tabLink(tab.value)"
-                        class="shrink-0 rounded-full px-3 py-1.5 text-sm font-extrabold shadow-soft"
-                        :class="tab.alert && orderCounts?.late ? 'bg-rose-100 text-rose-900' : 'bg-white'">
-              {{ tab.label }}<span v-if="orderCounts" class="ml-1 opacity-70">{{ tabCount(orderCounts, tab.value) }}</span>
-            </RouterLink>
+          <!-- Onglets : ils filtrent les commandes du jour juste en dessous -->
+          <div class="mt-3 flex border-b border-slate-200" role="tablist" aria-label="Commandes du jour">
+            <button v-for="tab in DAY_TABS" :key="tab.value" type="button" role="tab" :aria-selected="dayTab === tab.value"
+                    class="-mb-px inline-flex min-h-11 flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-[2.5px] text-sm font-extrabold"
+                    :class="dayTab === tab.value ? (tab.alert && orderCounts?.failed ? 'border-red-700 text-red-800' : 'border-emerald-700 text-emerald-800') : tab.alert && orderCounts?.failed ? 'border-transparent text-red-700' : 'border-transparent text-slate-600'"
+                    @click="dayTab = tab.value">
+              {{ tab.label }}<span v-if="orderCounts" class="rounded-md px-1.5 text-xs font-bold" :class="tab.alert && orderCounts.failed ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'">{{ tabCount(orderCounts, tab.value) }}</span>
+            </button>
           </div>
           <div class="mt-3 rounded-2xl bg-white p-1 shadow-soft">
             <p v-if="!orders" class="p-4 text-center text-sm text-slate-500">Chargement…</p>
-            <p v-else-if="!orders.length" class="p-4 text-center text-sm text-slate-500">Pas encore de commande.</p>
+            <p v-else-if="!orders.length" class="p-4 text-center text-sm text-slate-500">{{ dayTab ? 'Aucune commande ici aujourd\'hui.' : 'Aucune commande à livrer aujourd\'hui.' }}</p>
             <RouterLink v-for="o in orders ?? []" :key="o.id" :to="`/gestion/commandes/${o.id}`" class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0">
-              <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 font-black text-slate-600">{{ (o.customer_name ?? '?').charAt(0).toUpperCase() }}</span>
-              <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }} · {{ o.source_label }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template></span></span>
-              <StateBadge :status="o.status" :label="o.status_label" class="shrink-0" />
+              <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl font-black" :class="o.delivery_failed ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'">{{ (o.customer_name ?? '?').charAt(0).toUpperCase() }}</span>
+              <span class="min-w-0 flex-1"><b class="block truncate text-sm">{{ o.customer_name ?? o.reference }}</b><span class="block truncate text-xs text-slate-500">{{ money(o.total) }}<template v-if="o.shipping_place_label"> · {{ o.shipping_place_label }}</template><template v-if="o.deliverer"> · {{ o.deliverer }}</template></span></span>
+              <StateBadge v-if="o.shipment_status_label && !['completed', 'cancelled', 'returned'].includes(o.status)" kind="shipment" :status="o.shipment_status" :label="o.shipment_status_label" class="shrink-0" />
+              <StateBadge v-else :status="o.status" :label="o.status_label" class="shrink-0" />
             </RouterLink>
           </div>
+          <RouterLink v-if="canOpen('/gestion/commandes')" to="/gestion/commandes" class="mt-2 block py-2 text-center text-sm font-bold text-emerald-700">{{ ordersMore ? `Voir les ${ordersMore} autres et les autres jours ›` : 'Voir les autres jours ›' }}</RouterLink>
         </template>
 
         <!-- LIVRAISONS : ce qui attend, colis dehors, livreurs, automatisation, paie -->
