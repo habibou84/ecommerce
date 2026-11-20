@@ -9,7 +9,6 @@ import Icon from '../../../components/Icon.vue'
 import Modal from '../../../components/Modal.vue'
 import DelivererPicker from '../../../components/DelivererPicker.vue'
 import DeliveryPlacePicker from '../../../components/DeliveryPlacePicker.vue'
-import PlaceTapPicker from '../../../components/PlaceTapPicker.vue'
 import ProductPicker from '../../../components/ProductPicker.vue'
 import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
@@ -45,11 +44,6 @@ const form = reactive({
 })
 const blank = { ...form } // formulaire vide, pour « Nouvelle commande »
 const place = ref(null)
-// Commune touchée dont le quartier reste à choisir (liste déroulante allumée)
-const pendingCommune = ref(null)
-watch(place, (p) => {
-  if (p) pendingCommune.value = null
-})
 const items = ref([])
 const manualFee = ref(false)
 const shippingFee = ref('')
@@ -478,10 +472,6 @@ function bringToTop(event) {
   ]
 }
 
-function focusPlaceSearch() {
-  document.getElementById('place')?.focus()
-}
-
 // Acompte : vide = calculé tout seul (articles, réglage de la boutique) ; envoyé seulement s'il a été changé ici
 const depositTouched = ref(false)
 // Non, Auto (calculé, seulement s'il y en a un), en pourcentage du total, ou un montant
@@ -600,7 +590,6 @@ const missing = computed(() => {
   if (!items.value.length) return { text: 'Ajoutez au moins un article', field: 'items', target: '#product-search' }
   if (items.value.some((i) => i.needs_variant)) return { text: 'Choisissez la variante des articles signalés', field: 'items', target: '[data-needs-variant]' }
   if (items.value.some((i) => !i.variant_id && !String(i.title ?? '').trim())) return { text: 'Donnez un nom à l\'article hors catalogue', field: 'items', target: '[data-untitled]' }
-  if (form.delivery_method === 'delivery' && !place.value && pendingCommune.value) return { text: `Choisissez le quartier à ${pendingCommune.value}`, field: 'shipping_place_id', target: '#quartier-select' }
   if (form.delivery_method === 'delivery' && !form.scheduled_date) return { text: 'Choisissez la date de livraison', field: 'scheduled_date', target: '#delivery-date' }
   if (chosenCarrier.value && !chosenCarrier.value.covered) return { text: `${chosenCarrier.value.name} ne livre pas ce quartier`, field: 'shipping_place_id', target: '#place' }
   if (depositTooHigh.value) return { text: `Baissez l'acompte : il dépasse le total (${money(total.value)})`, field: 'deposit_required', target: '#deposit' }
@@ -1203,9 +1192,8 @@ async function save() {
             <!-- Où livrer -->
             <div id="place-field" :class="addressFlash ? 'rounded-xl ring-4 ring-emerald-300 transition' : 'transition'">
               <p class="mb-1.5 flex items-center gap-1.5 text-base font-extrabold"><ColorIcon name="lieu" :size="24" :tile="false" />Où livrer <span class="text-red-600">*</span></p>
-              <PlaceTapPicker v-if="!place && !placeCarrier && rates?.home" class="mb-2" :rates="rates" :show-fees="canPrice" :invalid="!!errors.shipping_place_id && !!pendingCommune" @pick="place = $event" @search="focusPlaceSearch" @pending="pendingCommune = $event" />
               <DeliveryPlacePicker id="place" v-model="place" :carrier-id="placeCarrier?.id ?? null" :carrier-name="placeCarrier?.name ?? ''" @change-deliverer="pickerOpen = true" />
-              <p v-if="errors.shipping_place_id && !pendingCommune" class="mt-1.5 text-sm text-red-600">{{ errors.shipping_place_id }}</p>
+              <p v-if="errors.shipping_place_id" class="mt-1.5 text-sm text-red-600">{{ errors.shipping_place_id }}</p>
               <p v-else-if="placeHint" class="mt-2 text-sm" :class="placeHint.tone === 'text-emerald-800' ? 'inline-flex rounded-full bg-emerald-50 px-3 py-1 font-bold text-emerald-800' : placeHint.tone">{{ placeHint.text }}</p>
               <label for="address" class="sr-only">Adresse et repère</label>
               <textarea id="address" v-model="form.shipping_address" class="input mt-2 resize-none text-base" :rows="addressRows" maxlength="255" placeholder="Adresse et repère (face pharmacie…)" />

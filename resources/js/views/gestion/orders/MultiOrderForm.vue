@@ -6,7 +6,6 @@ import DeliveryPlacePicker from '../../../components/DeliveryPlacePicker.vue'
 import DelivererPicker from '../../../components/DelivererPicker.vue'
 import Icon from '../../../components/Icon.vue'
 import Modal from '../../../components/Modal.vue'
-import PlaceTapPicker from '../../../components/PlaceTapPicker.vue'
 import ProductPicker from '../../../components/ProductPicker.vue'
 import http, { download, errorMessage } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
@@ -26,7 +25,6 @@ const canAssign = computed(() => auth.can('shipments.manage'))
 const common = reactive({ source: 'whatsapp', scheduled_date: '', chosen: '', confirmed: true })
 const options = ref(null) // jours de livraison, mes livreurs, entreprises
 const zones = ref([])
-const rates = ref(null)
 const pickDate = ref(false)
 const pickerOpen = ref(false)
 const isoDay = (offset) => {
@@ -55,7 +53,6 @@ const delivererChips = computed(() => [
 ].slice(0, 6))
 
 onMounted(async () => {
-  http.get('/delivery-rates').then(({ data }) => (rates.value = data.data)).catch(() => {})
   http.get('/delivery-zones').then(({ data }) => (zones.value = data.data)).catch(() => {})
   try {
     options.value = (await http.post('/orders/delivery-options', { place_id: null, items: [] })).data.data
@@ -89,11 +86,9 @@ const zoneOf = (place) => {
 const itemsTotal = (r) => r.items.reduce((s, i) => s + (Number(i.unit_price) || 0) * (Number(i.quantity) || 0), 0)
 // Frais affichés : ceux de vos zones (l'entreprise choisie applique son tarif à l'enregistrement)
 const rowFee = (r) => (common.chosen.startsWith('carrier:') ? null : zoneOf(r.place)?.fee ?? null)
-// Dans la fenêtre : une commune touchée sans son quartier le dit
-const draftPending = ref(null)
 const missingOf = (r) => [
   r.phone.replace(/\D/g, '').length < 8 && 'téléphone',
-  !r.place && (r === draft.value && draftPending.value ? `quartier à ${draftPending.value}` : 'commune'),
+  !r.place && 'commune ou quartier',
   !r.items.length && 'articles',
   r.items.some((i) => i.needs_variant) && 'variante',
 ].filter(Boolean)
@@ -165,7 +160,6 @@ function edit(r) {
   draftIsNew.value = !r
   draft.value = r ? JSON.parse(JSON.stringify(r)) : blankRow()
   known.value = null
-  draftPending.value = null
   nextTick(() => document.getElementById('d-phone')?.focus())
 }
 function formatPhone(value) {
@@ -194,9 +188,6 @@ async function useKnown() {
     draft.value.address ||= [k.address.address_line, k.address.landmark].filter(Boolean).join(', ')
   }
   known.value = null
-}
-function focusPlace() {
-  document.getElementById('d-place')?.focus()
 }
 function step(item, delta) {
   item.quantity = Math.max(1, (Number(item.quantity) || 1) + delta)
@@ -447,7 +438,6 @@ watch(done, () => (notice.value = ''))
         </div>
         <div>
           <p class="label">Commune ou quartier <span class="text-red-600">*</span></p>
-          <PlaceTapPicker v-if="!draft.place && rates?.home" class="mb-2" :rates="rates" @pick="draft.place = $event; draftPending = null" @search="focusPlace" @pending="draftPending = $event" />
           <DeliveryPlacePicker id="d-place" v-model="draft.place" />
           <p v-if="draft.place && zoneOf(draft.place)" class="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-800">Livraison : {{ money(zoneOf(draft.place).fee) }}</p>
         </div>
