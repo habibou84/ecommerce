@@ -10,9 +10,8 @@ import MaterielTip from '../../../components/MaterielTip.vue'
 import http, { download, errorMessage } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
 import StateBadge from '../../../components/StateBadge.vue'
-import PointSheet from '../../../components/PointSheet.vue'
-import { canPoint, loadPoint } from '../../../lib/point'
-import { CANCEL_REASONS, ORDER_TABS, PAYMENT_TONES, SOURCES, STATUS_ICONS, STATUS_TONES, avatar, riskLabel, tabCount } from '../../../lib/orders'
+import DayProgress from '../../../components/DayProgress.vue'
+import { CANCEL_REASONS, PAYMENT_TONES, SOURCES, STATUS_ICONS, STATUS_TONES, avatar, riskLabel, tabCount } from '../../../lib/orders'
 import { useAuthStore } from '../../../stores/auth'
 
 const auth = useAuthStore()
@@ -47,7 +46,7 @@ const SORTS = [
 // Filtres, gardés dans l'adresse de la page (retour arrière, lien partagé)
 const q = route.query
 const filters = reactive({
-  status: q.status ?? '', search: q.search ?? '', source: q.source ?? '', period: q.period ?? (Object.keys(q).length ? 'all' : 'today'), date_field: q.date_field ?? 'scheduled',
+  status: q.status ?? '', search: q.search ?? '', source: q.source ?? '', period: q.period ?? (q.alert || q.customer_id ? 'all' : 'today'), date_field: q.date_field ?? 'scheduled',
   from: q.from ?? '', to: q.to ?? '', deliverer: q.deliverer ?? '', commune_id: q.commune_id ?? '', payment: q.payment ?? '', alert: q.alert ?? '', sort: q.sort ?? 'scheduled', page: 1,
 })
 const params = () => Object.fromEntries(Object.entries(filters).filter(([k, v]) => v !== '' && v !== null && !(k === 'date_field' && v === 'scheduled') && !(k === 'sort' && v === 'scheduled')))
@@ -85,23 +84,9 @@ async function load(more = false) {
   }
 }
 
-// Faire le point : ce que les livreurs et les entreprises doivent (montant sur le bouton)
-const showPoint = computed(() => canPoint(auth))
-const pointTotal = ref(null)
-const pointOpen = ref(false)
-async function loadPointTotal() {
-  if (showPoint.value) pointTotal.value = (await loadPoint(auth).catch(() => null))?.total ?? null
-}
-onMounted(loadPointTotal)
-function pointChanged() {
-  loadPointTotal()
-  load()
-}
-
 // Carte du haut : total, livré, barre (livré, en route, échec)
 const PERIOD_TITLES = { today: 'Commandes du jour', yesterday: 'Commandes d\'hier', tomorrow: 'Commandes de demain', '7d': 'Commandes des 7 jours', month: 'Commandes du mois' }
 const progressTitle = computed(() => PERIOD_TITLES[filters.period] ?? 'Total des commandes')
-const pct = (n) => (progress.value?.amount ? Math.min(100, Math.round((n / progress.value.amount) * 100)) : 0)
 
 // Qui livre et communes, pour les filtres et pour confier les commandes
 const options = ref(null)
@@ -134,12 +119,13 @@ const delivererLabel = (key) => {
   return (type === 'courier' ? options.value?.couriers : options.value?.carriers)?.find((d) => String(d.id) === id)?.name ?? 'Livreur'
 }
 // Files des alertes (ouvertes depuis une notification ou l'accueil)
-const STEP_LABELS = Object.fromEntries(ORDER_TABS.map((t) => [t.value, t.label]))
+// Étape ouverte par un lien (accueil, alertes) : dite en mots simples, retirable
+const STEP_LABELS = { pending_confirmation: 'À confirmer avec le client', to_ship: 'Sans livreur', at_courier: 'Pas encore ramassées', shipped: 'En route', late: 'En retard', confirmed: 'Confirmées', processing: 'En préparation', cancelled: 'Annulées', returned: 'Retournées' }
 const ALERTS = { proof: '💳 Reçus à valider', unassigned: 'Sans livreur', not_picked: 'Pas encore ramassées', on_the_way: 'Encore en route', unhandled: 'Problème de livraison à traiter', to_bring_back: 'Colis à rapporter' }
 watch(() => route.query.alert, (v) => { if ((v ?? '') !== filters.alert) filters.alert = v ?? '' })
 const activeFilters = computed(() => [
   filters.alert && ALERTS[filters.alert] && { key: 'alert', label: ALERTS[filters.alert] },
-  filters.status && !LIST_TABS.some((t) => t.value === filters.status) && { key: 'status', label: `Étape : ${STEP_LABELS[filters.status] ?? filters.status}` },
+  filters.status && !LIST_TABS.some((t) => t.value === filters.status) && { key: 'status', label: STEP_LABELS[filters.status] ?? filters.status },
   filters.deliverer && { key: 'deliverer', label: `Qui livre : ${delivererLabel(filters.deliverer)}` },
   filters.commune_id && { key: 'commune_id', label: `Commune : ${communes.value.find((c) => String(c.id) === String(filters.commune_id))?.name ?? '…'}` },
   filters.payment && { key: 'payment', label: filters.payment === 'paid' ? 'Payées' : 'À encaisser' },
@@ -449,24 +435,7 @@ async function exportList() {
     </div>
 
     <!-- Avancement : total, livré, barre, et le point de l'argent -->
-    <section v-if="progress" class="card p-4 lg:p-5">
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0"><p class="text-sm font-semibold text-slate-500">{{ progressTitle }}</p><p class="truncate font-display text-2xl font-extrabold tracking-tight lg:text-3xl">{{ money(progress.amount) }}</p></div>
-        <div class="min-w-0 text-right"><p class="text-sm font-semibold text-slate-500">Livré</p><p class="truncate font-display text-2xl font-extrabold tracking-tight text-emerald-700 lg:text-3xl">{{ money(progress.delivered_amount) }}</p></div>
-      </div>
-      <div class="mt-3 flex h-3 overflow-hidden rounded-full bg-slate-200" role="img" :aria-label="`${pct(progress.delivered_amount)} % livré`">
-        <i class="block h-full bg-emerald-700" :style="{ width: `${pct(progress.delivered_amount)}%` }" />
-        <i class="block h-full bg-sky-400" :style="{ width: `${pct(progress.on_the_way_amount)}%` }" />
-        <i class="block h-full bg-red-500" :style="{ width: `${pct(progress.failed_amount)}%` }" />
-      </div>
-      <p class="mt-1.5 flex flex-wrap justify-between gap-x-3 text-sm font-semibold">
-        <span class="text-emerald-800">{{ pct(progress.delivered_amount) }} % livré · {{ progress.delivered_count }} sur {{ progress.count }}</span>
-        <span class="text-slate-600">{{ progress.on_the_way_count }} en route<template v-if="progress.failed_count"> · <span class="text-red-700">{{ progress.failed_count }} échec{{ progress.failed_count > 1 ? 's' : '' }}</span></template></span>
-      </p>
-      <button v-if="showPoint" type="button" class="btn-brand mt-3 w-full py-3 text-base lg:w-auto lg:px-6" @click="pointOpen = true">
-        <Icon name="cash" :size="18" class="shrink-0" /><span class="truncate">Faire le point<span v-if="pointTotal" class="font-semibold opacity-90"> · {{ money(pointTotal) }}<span class="hidden sm:inline"> à récupérer</span></span></span>
-      </button>
-    </section>
+    <DayProgress v-if="progress" :progress="progress" :title="progressTitle" @changed="load()" />
 
     <!-- Étape de la commande : des onglets soulignés -->
     <nav v-tab-strip class="-mx-4 flex gap-3 overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Étape des commandes">
@@ -618,8 +587,6 @@ async function exportList() {
       </button>
     </div>
     <p v-else-if="stacked" class="text-center text-sm text-slate-500 lg:hidden">Toutes les commandes sont affichées ({{ meta.total }}).</p>
-
-    <PointSheet v-if="pointOpen" @close="pointOpen = false" @changed="pointChanged" />
 
     <!-- Filtres et tri -->
     <Modal v-if="filtersOpen" title="Filtres et tri" @close="filtersOpen = false">
