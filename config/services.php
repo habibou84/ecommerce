@@ -133,4 +133,10 @@ return [
         'connect_secret' => env('CONNECT_JIBIAT_MARCHAND_SECRET'),
     ],
 
+    // Cloudflare Turnstile : anti-robot du passage de commande de la boutique en ligne (allumé avec les deux clés)
+    'turnstile' => [
+        'site_key' => env('TURNSTILE_SITE_KEY'),
+        'secret_key' => env('TURNSTILE_SECRET_KEY'),
+    ],
+
 ];
