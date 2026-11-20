@@ -29,7 +29,7 @@ class WhatsAppConnectSessionTest extends TestCase
 
         // Depuis un autre navigateur (sans le cookie, ou avec un faux) : refusé
         $this->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'X']])->assertNotFound();
-        $this->withUnencryptedCookie('wa_connect', 'faux')->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'X']])->assertNotFound();
+        $this->withCredentials()->withUnencryptedCookie('wa_connect', 'faux')->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'X']])->assertNotFound();
 
         $this->withUnencryptedCookie('wa_connect', $browser->getValue());
         $this->platformApi('POST', 'whatsapp/facebook/result', ['key' => $key, 'result' => ['code' => 'AQB-code', 'coexistence' => '0', 'pirate' => 'x']])->assertOk();
