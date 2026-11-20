@@ -1,34 +1,38 @@
 name: Mise à jour des serveurs
 
-# Fusion dans main → préproduction ; fusion dans production → production.
+# Après les tests réussis (CI) : fusion dans main → préproduction ; fusion dans production → production.
+# Une fusion dont les tests échouent n'est jamais déployée.
 # Connexion SSH avec une clé qui ne peut lancer que deploy/update.sh (voir docs/MISE-A-JOUR-AUTOMATIQUE.md).
 # Tant que les secrets ne sont pas enregistrés, la mise à jour est simplement sautée.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main, production]
-    paths-ignore:
-      - 'mobile/**'
-      - '.github/workflows/android.yml'
   workflow_dispatch:
 
 # Une mise à jour à la fois par serveur ; une fusion arrivée entre-temps passe ensuite (jamais annulée en cours)
 concurrency:
-  group: deploy-${{ github.ref_name }}
+  group: deploy-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: ${{ github.ref_name == 'production' && 'Production' || 'Préproduction' }}
-    if: github.ref_name == 'main' || github.ref_name == 'production'
+    name: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'production' && 'Production' || 'Préproduction' }}
+    # Seulement après des tests réussis sur une fusion (jamais pour une PR), ou lancé à la main
+    if: >-
+      (github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'production')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       HOST: ${{ secrets.DEPLOY_HOST }}
       PORT: ${{ secrets.DEPLOY_PORT || '22' }}
       USER_NAME: ${{ secrets.DEPLOY_USER || 'jmdeploy' }}
       HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
-      KEY: ${{ github.ref_name == 'production' && secrets.DEPLOY_KEY_PRODUCTION || secrets.DEPLOY_KEY_PREPROD }}
-      SITE: ${{ github.ref_name == 'production' && 'https://jibiat-marchand.com' || 'https://preprod.jibiat-marchand.com' }}
+      KEY: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'production' && secrets.DEPLOY_KEY_PRODUCTION || secrets.DEPLOY_KEY_PREPROD }}
+      SITE: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'production' && 'https://jibiat-marchand.com' || 'https://preprod.jibiat-marchand.com' }}
     steps:
       - name: Secrets
         id: secrets
@@ -74,8 +78,8 @@ jobs:
           deployed="$(grep 'Terminé' deploy.log | tail -n1 | sed 's/\x1b\[[0-9;]*m//g')"
           echo "::notice::${deployed#==> }"
           case "$deployed" in
-            *"${GITHUB_SHA:0:7}"*) ;;
-            *) echo "::warning::Le serveur affiche une autre version que ${GITHUB_SHA:0:7} (une fusion plus récente est peut-être déjà passée)." ;;
+            *"${SHA:0:7}"*) ;;
+            *) echo "::warning::Le serveur affiche une autre version que ${SHA:0:7} (une fusion plus récente est peut-être déjà passée)." ;;
           esac
 
       - name: Vérification

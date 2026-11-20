@@ -1,0 +1,20 @@
+# Mises à jour de sécurité proposées automatiquement (PR vers main, à relire et fusionner comme les autres).
+version: 2
+updates:
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      laravel-symfony:
+        patterns: ['laravel/*', 'symfony/*']
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

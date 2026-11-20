@@ -43,7 +43,9 @@ class AuthController extends Controller
         $request->validate(['phone' => ['required', 'string', 'max:30'], 'password' => ['required', 'string', 'max:100']]);
 
         $user = User::where('phone', PhoneNumber::normalize($request->string('phone')))->first();
-        if ($user === null || ! Hash::check($request->string('password'), (string) $user->password)) {
+        // Le mot de passe est vérifié même pour un numéro inconnu : même délai de réponse (pas de devinette des comptes)
+        $hash = $user?->password ?: self::dummyHash();
+        if (! Hash::check($request->string('password'), (string) $hash) || $user === null) {
             throw ValidationException::withMessages(['phone' => 'Numéro ou mot de passe incorrect.']);
         }
 
@@ -233,5 +235,12 @@ class AuthController extends Controller
             // Fonctions allumées dans la console pour cette boutique (masquées, en test ou actives)
             'features' => app(Features::class)->forStore($store),
         ];
+    }
+
+    private static function dummyHash(): string
+    {
+        static $hash = null;
+
+        return $hash ??= Hash::make('jibiat-marchand-compte-inexistant');
     }
 }
