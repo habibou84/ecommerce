@@ -78,6 +78,9 @@ class DeliveryRates
         ])->sort(fn (array $a, array $b) => [$b['uses'], $a['name']] <=> [$a['uses'], $b['name']])->values()->all();
     }
 
+    /** Grandes villes, proposées d'abord dans les listes courtes (WhatsApp : 10 lignes au plus) */
+    private const MAIN_CITIES = ['bouake', 'yamoussoukro', 'san-pedro', 'daloa', 'korhogo', 'grand-bassam', 'man', 'gagnoa', 'abengourou', 'divo', 'soubre', 'bondoukou'];
+
     /**
      * Autres villes (expéditions), les plus utilisées d'abord.
      *
@@ -92,8 +95,11 @@ class DeliveryRates
         $own = $this->ownZones($store, $cities->pluck('id')->all());
 
         return $cities->map(fn (Place $c) => ['id' => $c->id, 'name' => $c->name, 'uses' => (int) ($uses[$c->id] ?? 0),
-            'fee' => $own->has($c->id) ? (int) $own[$c->id]->fee : null, 'learned' => $own->has($c->id)])
-            ->sort(fn (array $a, array $b) => [$b['uses'], $a['name']] <=> [$a['uses'], $b['name']])->values()->all();
+            'fee' => $own->has($c->id) ? (int) $own[$c->id]->fee : null, 'learned' => $own->has($c->id),
+            'rank' => array_search($c->code, self::MAIN_CITIES, true) === false ? 99 : array_search($c->code, self::MAIN_CITIES, true)])
+            // Les plus expédiées, celles qui ont un prix de la boutique, les grandes villes, puis l'ordre alphabétique
+            ->sort(fn (array $a, array $b) => [$b['uses'], (int) $b['learned'], $a['rank'], $a['name']] <=> [$a['uses'], (int) $a['learned'], $b['rank'], $b['name']])
+            ->map(fn (array $c) => array_diff_key($c, ['rank' => true]))->values()->all();
     }
 
     /**

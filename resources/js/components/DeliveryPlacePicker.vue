@@ -91,14 +91,26 @@ async function startAdding() {
   adding.value = true
   open.value = false
   newPlace.value = { name: search.value.split(',')[0].trim(), parent_id: null }
-  if (!communes.value.length) communes.value = (await http.get('/places', { params: { type: 'commune' } })).data.data
+  if (!communes.value.length) {
+    const [c, v] = await Promise.all([http.get('/places', { params: { type: 'commune' } }), http.get('/places', { params: { type: 'city' } })])
+    communes.value = [...c.data.data, ...v.data.data]
+  }
 }
 
+// Le référentiel est commun (Jibiat et Jibiat Marchand) : le quartier manquant est signalé, la commune est choisie en
+// attendant qu'il soit ajouté à la liste
+const reportError = ref('')
+const reported = ref('')
 async function add() {
-  const { data } = await http.post('/places', newPlace.value)
-  const commune = communes.value.find((c) => c.id === newPlace.value.parent_id)
-  choose({ id: data.data.id, label: data.data.label, ancestor_ids: [newPlace.value.parent_id, commune?.parent_id].filter(Boolean) })
-  adding.value = false
+  reportError.value = ''
+  try {
+    const { data } = await http.post('/places/reports', newPlace.value)
+    reported.value = newPlace.value.name
+    choose(data.data.place)
+    adding.value = false
+  } catch (e) {
+    reportError.value = e.response?.data?.message || 'Signalement impossible.'
+  }
 }
 </script>
 
@@ -128,16 +140,19 @@ async function add() {
         Quartier absent ? {{ carrierName }} ne le dessert pas :
         <button type="button" class="font-medium text-emerald-700 hover:underline" @mousedown.prevent="open = false; emit('change-deliverer')">choisir un autre livreur</button>
       </p>
-      <button v-else-if="search.trim().length >= 2" type="button" class="w-full border-t border-slate-100 px-4 py-2.5 text-left text-sm text-emerald-700 hover:bg-emerald-50" @mousedown.prevent="startAdding">+ Ajouter « {{ search }} » comme quartier</button>
+      <button v-else-if="search.trim().length >= 2" type="button" class="w-full border-t border-slate-100 px-4 py-2.5 text-left text-sm text-emerald-700 hover:bg-emerald-50" @mousedown.prevent="startAdding">Quartier introuvable ? Signaler « {{ search }} »</button>
     </div>
     <div v-if="adding" class="mt-2 flex flex-wrap gap-2 rounded-lg bg-slate-50 p-2">
       <input v-model="newPlace.name" class="input min-w-0 flex-1" placeholder="Nom du quartier" />
       <select v-model="newPlace.parent_id" class="input w-auto">
-        <option :value="null" disabled>Commune…</option>
+        <option :value="null" disabled>Commune ou ville…</option>
         <option v-for="c in communes" :key="c.id" :value="c.id">{{ c.name }}</option>
       </select>
-      <button type="button" class="btn-secondary" :disabled="!newPlace.name || !newPlace.parent_id" @click="add">Ajouter</button>
+      <button type="button" class="btn-secondary" :disabled="!newPlace.name || !newPlace.parent_id" @click="add">Signaler</button>
       <button type="button" class="btn-ghost" @click="adding = false">Annuler</button>
+      <p class="w-full text-xs text-slate-600">Les quartiers sont les mêmes pour tous : il sera ajouté après vérification. En attendant, la commune est choisie.</p>
+      <p v-if="reportError" class="w-full text-sm text-red-600">{{ reportError }}</p>
     </div>
+    <p v-else-if="reported" class="mt-1 text-xs text-emerald-700">« {{ reported }} » signalé, merci : la commune est choisie en attendant.</p>
   </div>
 </template>

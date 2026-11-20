@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Orders;
 use App\Http\Controllers\Controller;
 use App\Models\DeliveryZone;
 use App\Models\Place;
+use App\Models\PlaceReport;
 use App\Services\Orders\DeliveryCalendar;
 use App\Services\Places\DeliveryRates;
 use App\Services\Places\PlaceMatcher;
@@ -12,7 +13,7 @@ use App\Services\Places\Places;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Jibiat\Socle\Places\Places as CommonPlaces;
 
 /**
  * Lieux (recherche, ajout d'un quartier manquant) et zones de livraison de la boutique.
@@ -50,28 +51,31 @@ class DeliveryController extends Controller
     }
 
     /**
-     * Quartier absent du référentiel : ajouté pour cette boutique seulement.
+     * Quartier absent du référentiel : signalé à la plateforme (plus d'ajout libre). Il sera ajouté à la liste commune,
+     * pour toutes les boutiques et les entreprises de Jibiat ; en attendant, la commune est choisie.
      */
-    public function addPlace(Request $request): JsonResponse
+    public function reportPlace(Request $request): JsonResponse
     {
         $store = $this->currentStore();
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:80'],
+            'name' => ['required', 'string', 'max:120'],
             'parent_id' => ['required', 'integer'],
-        ], [], ['name' => 'nom', 'parent_id' => 'commune']);
+        ], [], ['name' => 'quartier', 'parent_id' => 'commune']);
 
         $parent = Place::visibleTo($store->id)->whereIn('type', ['city', 'commune'])->findOrFail($data['parent_id']);
-        $place = Place::create([
-            'store_id' => $store->id,
-            'country' => $parent->country,
-            'parent_id' => $parent->id,
-            'type' => $parent->type === 'city' ? 'commune' : 'neighborhood',
-            'name' => trim($data['name']),
-            'slug' => Str::slug($data['name']),
-        ]);
-        $this->places->forget($store);
+        // Déjà dans la liste sous ce nom (ou une variante) : on le dit au lieu d'enregistrer un doublon
+        $known = CommonPlaces::named($data['name']);
+        if ($known !== null && in_array($parent->code, CommonPlaces::lineage($known['code']), true)) {
+            return response()->json(['message' => '« '.CommonPlaces::label($known['code']).' » est déjà dans la liste : cherchez-le par son nom.', 'errors' => ['name' => ['Déjà dans la liste.']]], 422);
+        }
 
-        return response()->json(['data' => ['id' => $place->id, 'label' => $place->load('parent')->label()]], 201);
+        $report = PlaceReport::create(['store_id' => $store->id, 'user_id' => $request->user()->id, 'name' => trim($data['name']), 'parent_id' => $parent->id, 'status' => 'pending']);
+
+        return response()->json(['data' => [
+            'id' => $report->id,
+            // La commune, à choisir en attendant l'ajout du quartier
+            'place' => ['id' => $parent->id, 'label' => $parent->load('parent')->label(), 'ancestor_ids' => array_values(array_filter([$parent->parent_id]))],
+        ]], 201);
     }
 
     public function zones(): JsonResponse

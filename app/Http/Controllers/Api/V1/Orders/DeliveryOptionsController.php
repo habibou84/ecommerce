@@ -167,7 +167,7 @@ class DeliveryOptionsController extends Controller
                 $zone = $zoneOf($p);
 
                 return $this->place($p) + ['zone' => $zone->label(), 'zone_id' => $zone->id, 'fee' => $zone->fee];
-            })->sortBy(fn ($p) => [$p['zone'], $p['label']])->values()]);
+            })->sortBy(fn ($p) => $p['zone'])->values()]);
         }
 
         // Lieux les plus livrés par la boutique : nombre de commandes des 90 derniers jours
