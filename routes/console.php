@@ -64,6 +64,8 @@ Artisan::command('shipping:sync', function (CarrierEvents $events) {
 })->purpose('Synchronise les expéditions avec les entreprises de livraison');
 
 Schedule::command('shipping:sync')->everyTenMinutes()->withoutOverlapping()->runInBackground();
+// Référentiel des lieux (socle) : nouveaux quartiers ajoutés aux lieux communs
+Schedule::command('places:sync')->hourly()->withoutOverlapping();
 // Connexion directe : demandes en cours relues chez l'entreprise (décision perdue), au plus toutes les 15 minutes
 Schedule::call(function () {
     CarrierRequest::withoutGlobalScopes()->whereIn('status', CarrierRequest::OPEN)

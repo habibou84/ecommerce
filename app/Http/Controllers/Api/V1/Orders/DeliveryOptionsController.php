@@ -113,6 +113,19 @@ class DeliveryOptionsController extends Controller
     }
 
     /**
+     * Entrée « Expédition » : les villes de l'intérieur (ni celle de la boutique, ni celles livrées directement), les
+     * plus expédiées d'abord, avec le prix d'expédition retenu par la boutique.
+     */
+    public function cities(DeliveryRates $rates): JsonResponse
+    {
+        $store = $this->currentStore();
+
+        return response()->json(['data' => array_map(fn (array $c) => [
+            'id' => $c['id'], 'label' => $c['name'], 'ancestor_ids' => [], 'fee' => $c['fee'] ?? $store->expedition_fee,
+        ], $rates->cities($store))]);
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function directory(Store $store, Place $place, bool $fragile, int $grams): array
@@ -139,7 +152,8 @@ class DeliveryOptionsController extends Controller
             'carrier_connection_id' => ['nullable', 'integer'],
         ]);
         $store = $this->currentStore();
-        $all = $places->forStore($store);
+        // Ville de la boutique et villes livrées directement ; les autres villes passent par « Expédition » (cities)
+        $all = $places->local($store);
         $search = trim((string) ($data['search'] ?? ''));
 
         if (! empty($data['carrier_connection_id'])) {
@@ -167,7 +181,7 @@ class DeliveryOptionsController extends Controller
                 $zone = $zoneOf($p);
 
                 return $this->place($p) + ['zone' => $zone->label(), 'zone_id' => $zone->id, 'fee' => $zone->fee];
-            })->sortBy(fn ($p) => [$p['zone'], $p['label']])->values()]);
+            })->sortBy(fn ($p) => $p['zone'])->values()]);
         }
 
         // Lieux les plus livrés par la boutique : nombre de commandes des 90 derniers jours

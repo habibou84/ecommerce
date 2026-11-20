@@ -15,6 +15,9 @@ class Places
     /** @var array<int, Collection<int, Place>> */
     private array $cache = [];
 
+    /** @var array<int, Collection<int, Place>> */
+    private array $local = [];
+
     /**
      * @return Collection<int, Place>
      */
@@ -23,9 +26,30 @@ class Places
         return $this->cache[$store->id] ??= Place::visibleTo($store->id)->with('parent.parent')->get();
     }
 
+    /**
+     * Lieux proposés dans la recherche d'une adresse de livraison : la ville de la boutique (ses communes et quartiers)
+     * et les villes livrées directement (Grand-Bassam depuis Abidjan). Les villes de l'intérieur n'y sont pas : elles
+     * se choisissent par l'entrée « Expédition ».
+     *
+     * @return Collection<int, Place>
+     */
+    public function local(Store $store): Collection
+    {
+        return $this->local[$store->id] ??= (function () use ($store) {
+            $rates = app(DeliveryRates::class);
+            $home = $rates->home($store);
+            if ($home === null) {
+                return $this->forStore($store);
+            }
+            $cities = $rates->directCityIds($home);
+
+            return $this->forStore($store)->filter(fn (Place $p) => in_array($rates->cityOf($p)->id, $cities, true))->values();
+        })();
+    }
+
     public function forget(Store $store): void
     {
-        unset($this->cache[$store->id]);
+        unset($this->cache[$store->id], $this->local[$store->id]);
     }
 
     /**
