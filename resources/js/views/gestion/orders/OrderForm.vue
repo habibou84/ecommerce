@@ -1019,6 +1019,10 @@ async function save() {
       <RouterLink v-if="conversation" :to="`/gestion/messages/${conversation.id}`" class="min-w-0 truncate text-sm text-slate-500 hover:text-emerald-700">← Conversation avec {{ conversation.name || conversation.phone_display }}</RouterLink>
       <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="back-link text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
     </div>
+    <!-- Plusieurs clients d'un coup (après un live, une liste à saisir) -->
+    <RouterLink v-if="!editing && !conversation" to="/gestion/commandes/plusieurs" class="flex items-center justify-end gap-1.5 text-sm font-bold text-emerald-700 hover:underline">
+      <ColorIcon name="colis" :size="22" :tile="false" />Plusieurs commandes d'un coup ›
+    </RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="parseInfo" tone="info">{{ parseInfo }}</Alert>
     <!-- Ce qui manque, après un appui sur « Créer la commande » -->
