@@ -62,6 +62,7 @@ const storeRoutes = [
       { path: 'commandes', component: () => import('../views/gestion/orders/OrderList.vue'), meta: { title: 'Commandes', permission: 'orders.view' } },
       { path: 'commandes/retours', component: () => import('../views/gestion/orders/Returns.vue'), meta: { title: 'Retours et échanges', permission: 'orders.manage' } },
       { path: 'commandes/nouvelle', component: () => import('../views/gestion/orders/OrderForm.vue'), meta: { title: 'Nouvelle commande', permission: 'orders.manage' } },
+      { path: 'commandes/plusieurs', component: () => import('../views/gestion/orders/MultiOrderForm.vue'), meta: { title: 'Plusieurs commandes', permission: 'orders.manage' } },
       { path: 'commandes/:id(\\d+)', component: () => import('../views/gestion/orders/OrderDetail.vue'), props: true, meta: { title: 'Commande', permission: 'orders.view' } },
       { path: 'commandes/:id(\\d+)/modifier', component: () => import('../views/gestion/orders/OrderForm.vue'), props: true, meta: { title: 'Modifier la commande', permission: 'orders.view' } },
       { path: 'paniers-abandonnes', component: () => import('../views/gestion/orders/AbandonedCarts.vue'), meta: { title: 'Paniers abandonnés', permission: 'orders.manage' } },

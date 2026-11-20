@@ -4,8 +4,9 @@ import Icon from './Icon.vue'
 import http from '../lib/http'
 import { money } from '../lib/format'
 
-// Quartier de livraison. Entreprise de livraison choisie : seulement les quartiers qu'elle dessert, rangés par zone
-// avec son tarif. Sinon les lieux de la boutique avec ses zones, et l'ajout d'un quartier absent du référentiel.
+// Quartier de livraison : un seul champ pour les communes et les quartiers. Entreprise de livraison choisie : seulement
+// les quartiers qu'elle dessert, rangés par zone avec son tarif. Sinon les lieux de la boutique : à l'ouverture, les
+// plus livrés sont proposés ; en tapant, ceux-là restent en tête ; et l'ajout d'un quartier absent.
 const props = defineProps({
   modelValue: { type: Object, default: null }, // { id, label, ancestor_ids }
   id: { type: String, default: 'place' },
@@ -34,7 +35,7 @@ watch(() => props.carrierId, () => {
 
 async function load() {
   const term = props.modelValue && search.value === props.modelValue.label ? '' : search.value.trim()
-  if (!props.carrierId && term.length < 2) return (results.value = [])
+  if (!props.carrierId && term.length === 1) return (results.value = [])
   loading.value = true
   try {
     results.value = (await http.get('/orders/delivery-options/places', { params: { search: term || null, carrier_connection_id: props.carrierId } })).data.data
@@ -45,7 +46,7 @@ async function load() {
 
 function onFocus() {
   open.value = true
-  if (props.carrierId && !results.value.length) load()
+  if (!results.value.length || (!props.carrierId && !search.value.trim())) load()
 }
 
 function onInput() {
@@ -65,12 +66,14 @@ function choose(place) {
   open.value = false
 }
 
-// Résultats rangés par zone (prix de la zone en titre)
+// Sans entreprise : une seule liste (les plus livrés d'abord) ; avec une entreprise : rangés par zone (son tarif en titre)
+const typed = computed(() => !!search.value.trim() && !(props.modelValue && search.value === props.modelValue.label))
 const groups = computed(() => {
+  if (!props.carrierId) return results.value.length ? [{ title: typed.value ? '' : 'Suggestions', fee: null, places: results.value }] : []
   const byZone = new Map()
   for (const p of results.value) {
     const key = p.zone ?? ''
-    if (!byZone.has(key)) byZone.set(key, { zone: p.zone, fee: p.fee, places: [] })
+    if (!byZone.has(key)) byZone.set(key, { title: p.zone ? `Zone ${p.zone}` : 'Hors de vos zones', zone: p.zone, fee: p.fee, places: [] })
     byZone.get(key).places.push(p)
   }
   return [...byZone.values()].sort((a, b) => (a.zone === null) - (b.zone === null))
@@ -110,13 +113,13 @@ async function add() {
       <div class="max-h-80 overflow-y-auto">
         <p v-if="loading && !results.length" class="px-4 py-3 text-sm text-slate-500">Recherche…</p>
         <p v-else-if="!results.length && carrierId" class="px-4 py-3 text-sm text-slate-500">Aucun quartier desservi ne correspond.</p>
-        <template v-for="g in groups" :key="g.zone ?? 'hors-zone'">
-          <p class="flex items-center justify-between px-4 pb-1 pt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-            <span>{{ g.zone ? `Zone ${g.zone}` : 'Hors de vos zones' }}</span><span v-if="g.fee !== null && g.fee !== undefined">{{ money(g.fee) }}</span>
+        <template v-for="g in groups" :key="g.title || 'resultats'">
+          <p v-if="g.title" class="flex items-center justify-between px-4 pb-1 pt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+            <span>{{ g.title }}</span><span v-if="g.fee !== null && g.fee !== undefined">{{ money(g.fee) }}</span>
           </p>
           <button v-for="p in g.places" :key="p.id" type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-emerald-50" :class="{ 'bg-emerald-50': modelValue?.id === p.id }" @mousedown.prevent="choose(p)">
             <Icon name="pin" :size="18" :class="modelValue?.id === p.id ? 'text-emerald-700' : 'text-slate-400'" />
-            <span class="min-w-0 flex-1">{{ parts(p.label)[0] }}<strong>{{ parts(p.label)[1] }}</strong>{{ parts(p.label)[2] }}<span v-if="p.type === 'commune'" class="ml-1 text-xs text-slate-400">commune</span></span>
+            <span class="min-w-0 flex-1">{{ parts(p.label)[0] }}<strong>{{ parts(p.label)[1] }}</strong>{{ parts(p.label)[2] }}<span v-if="p.type === 'commune'" class="ml-1 text-xs text-slate-500">commune</span></span>
             <span v-if="p.fee !== null && p.fee !== undefined" class="text-sm text-slate-500 tabular-nums">{{ money(p.fee) }}</span>
           </button>
         </template>

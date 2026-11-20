@@ -384,7 +384,8 @@ async function exportList() {
       </select>
       <button type="button" class="btn-ghost hidden sm:inline-flex" @click="exportList">Exporter (Excel)</button>
       <RouterLink v-if="canManage" to="/gestion/commandes/retours" class="btn-ghost hidden xl:inline-flex">Retours</RouterLink>
-      <RouterLink v-if="canManage" to="/gestion/commandes/nouvelle" class="btn-brand ml-auto hidden lg:inline-flex"><Icon name="plus" :size="18" />Nouvelle commande</RouterLink>
+      <RouterLink v-if="canManage" to="/gestion/commandes/plusieurs" class="btn-secondary ml-auto hidden lg:inline-flex">Plusieurs commandes</RouterLink>
+      <RouterLink v-if="canManage" to="/gestion/commandes/nouvelle" class="btn-brand hidden lg:inline-flex"><Icon name="plus" :size="18" />Nouvelle commande</RouterLink>
     </div>
 
     <!-- Période : un sélecteur compact (un seul choix), pour ne pas le confondre avec les étapes en dessous -->
