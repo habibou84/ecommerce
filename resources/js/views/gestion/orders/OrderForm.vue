@@ -9,7 +9,6 @@ import Icon from '../../../components/Icon.vue'
 import Modal from '../../../components/Modal.vue'
 import DelivererPicker from '../../../components/DelivererPicker.vue'
 import DeliveryPlacePicker from '../../../components/DeliveryPlacePicker.vue'
-import PlaceTapPicker from '../../../components/PlaceTapPicker.vue'
 import ProductPicker from '../../../components/ProductPicker.vue'
 import http, { download, errorMessage, fieldErrors } from '../../../lib/http'
 import { money, phoneDisplay } from '../../../lib/format'
@@ -471,10 +470,6 @@ function bringToTop(event) {
       if (Math.abs(delta) > 8) window.scrollBy({ top: delta })
     }, 900),
   ]
-}
-
-function focusPlaceSearch() {
-  document.getElementById('place')?.focus()
 }
 
 // Acompte : vide = calculé tout seul (articles, réglage de la boutique) ; envoyé seulement s'il a été changé ici
@@ -1019,6 +1014,10 @@ async function save() {
       <RouterLink v-if="conversation" :to="`/gestion/messages/${conversation.id}`" class="min-w-0 truncate text-sm text-slate-500 hover:text-emerald-700">← Conversation avec {{ conversation.name || conversation.phone_display }}</RouterLink>
       <RouterLink v-else :to="editing ? `/gestion/commandes/${id}` : '/gestion/commandes'" class="back-link text-sm text-slate-500 hover:text-emerald-700">← {{ editing ? 'Commande' : 'Commandes' }}</RouterLink>
     </div>
+    <!-- Plusieurs clients d'un coup (après un live, une liste à saisir) -->
+    <RouterLink v-if="!editing && !conversation" to="/gestion/commandes/plusieurs" class="flex items-center justify-end gap-1.5 text-sm font-bold text-emerald-700 hover:underline">
+      <ColorIcon name="colis" :size="22" :tile="false" />Plusieurs commandes d'un coup ›
+    </RouterLink>
     <Alert v-if="error">{{ error }}</Alert>
     <Alert v-if="parseInfo" tone="info">{{ parseInfo }}</Alert>
     <!-- Ce qui manque, après un appui sur « Créer la commande » -->
@@ -1193,7 +1192,6 @@ async function save() {
             <!-- Où livrer -->
             <div id="place-field" :class="addressFlash ? 'rounded-xl ring-4 ring-emerald-300 transition' : 'transition'">
               <p class="mb-1.5 flex items-center gap-1.5 text-base font-extrabold"><ColorIcon name="lieu" :size="24" :tile="false" />Où livrer <span class="text-red-600">*</span></p>
-              <PlaceTapPicker v-if="!place && !placeCarrier && rates?.home" class="mb-2" :rates="rates" :show-fees="canPrice" @pick="place = $event" @search="focusPlaceSearch" />
               <DeliveryPlacePicker id="place" v-model="place" :carrier-id="placeCarrier?.id ?? null" :carrier-name="placeCarrier?.name ?? ''" @change-deliverer="pickerOpen = true" />
               <p v-if="errors.shipping_place_id" class="mt-1.5 text-sm text-red-600">{{ errors.shipping_place_id }}</p>
               <p v-else-if="placeHint" class="mt-2 text-sm" :class="placeHint.tone === 'text-emerald-800' ? 'inline-flex rounded-full bg-emerald-50 px-3 py-1 font-bold text-emerald-800' : placeHint.tone">{{ placeHint.text }}</p>

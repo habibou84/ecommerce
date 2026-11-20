@@ -108,7 +108,9 @@ class DeliveryOptionsController extends Controller
 
     /**
      * Recherche du quartier de livraison. Entreprise de livraison choisie : seulement les quartiers qu'elle dessert,
-     * avec sa zone et son tarif ; sinon les lieux de la boutique, avec la zone de la boutique et ses frais.
+     * avec sa zone et son tarif ; sinon les lieux de la boutique, avec la zone de la boutique et ses frais. Sans
+     * recherche : les lieux les plus livrés (90 derniers jours) ; avec une recherche, ceux-là passent en tête
+     * (« frequent »), pour que le quartier habituel se trouve tout de suite.
      */
     public function places(Request $request, Places $places, PlaceMatcher $matcher): JsonResponse
     {
@@ -148,15 +150,27 @@ class DeliveryOptionsController extends Controller
             })->sortBy(fn ($p) => [$p['zone'], $p['label']])->values()]);
         }
 
-        if (mb_strlen($search) < 2) {
-            return response()->json(['data' => []]);
-        }
-
-        return response()->json(['data' => $matcher->search($search, $all, 20)->map(function (Place $p) use ($places, $store) {
+        // Lieux les plus livrés par la boutique : nombre de commandes des 90 derniers jours
+        $frequent = Order::whereNotNull('shipping_place_id')->where('created_at', '>=', now()->subDays(90))
+            ->toBase()->selectRaw('shipping_place_id, COUNT(*) AS n')->groupBy('shipping_place_id')
+            ->orderByDesc('n')->limit(8)->pluck('n', 'shipping_place_id')->map(fn ($n) => (int) $n)->all();
+        $present = function (Place $p) use ($places, $store, $frequent): array {
             $zone = $places->zoneFor($store, $p);
 
-            return $this->place($p) + ['zone' => $zone?->name, 'zone_id' => $zone?->id, 'fee' => $zone?->fee];
-        })->values()]);
+            return $this->place($p) + [
+                'zone' => $zone?->name, 'zone_id' => $zone?->id, 'fee' => $zone?->fee,
+                'frequent' => isset($frequent[$p->id]), 'orders_count' => $frequent[$p->id] ?? 0,
+            ];
+        };
+
+        if (mb_strlen($search) < 2) {
+            $byId = $all->keyBy('id');
+
+            return response()->json(['data' => collect(array_keys($frequent))->map(fn ($id) => $byId->get($id))->filter()->map($present)->values()]);
+        }
+
+        return response()->json(['data' => $matcher->search($search, $all, 20)->map($present)
+            ->sortByDesc(fn ($p) => $p['orders_count'])->values()]);
     }
 
     /**
