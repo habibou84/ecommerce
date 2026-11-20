@@ -2,7 +2,12 @@
 // Carte OpenStreetMap (MapLibre), chargée seulement quand elle s'affiche : points numérotés, départ, arrivée,
 // points approximatifs (centre du quartier), trait de l'ordre de passage ; ou épingle à placer (mode « pick »).
 import 'maplibre-gl/dist/maplibre-gl.css'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+// MapLibre 6 : le worker (fichier à part, autonome) est copié par Vite ; sans cette adresse, la bibliothèque le
+// chercherait à côté du fichier compilé, où il n'est pas
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
+
+maplibregl.setWorkerUrl(workerUrl)
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { boot } from '../lib/boot'
 

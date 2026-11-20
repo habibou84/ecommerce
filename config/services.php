@@ -129,6 +129,14 @@ return [
     // Cartes Membre Premium demandées par les entreprises de Jibiat : secret partagé avec le serveur de Jibiat
     'jibiat' => [
         'premium_secret' => env('JIBIAT_PREMIUM_SECRET'),
+        // Connexion directe aux entreprises (contrat socle 1.12) : secret partagé avec Jibiat, dans les deux sens
+        'connect_secret' => env('CONNECT_JIBIAT_MARCHAND_SECRET'),
+    ],
+
+    // Cloudflare Turnstile : anti-robot du passage de commande de la boutique en ligne (allumé avec les deux clés)
+    'turnstile' => [
+        'site_key' => env('TURNSTILE_SITE_KEY'),
+        'secret_key' => env('TURNSTILE_SECRET_KEY'),
     ],
 
 ];

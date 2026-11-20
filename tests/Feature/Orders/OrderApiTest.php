@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Models\Conversation;
 use App\Models\Order;
 use App\Models\Place;
+use App\Models\PlaceReport;
 use App\Models\Store;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Places\Places;
@@ -202,9 +203,18 @@ class OrderApiTest extends TestCase
         $this->assertCount(1, $zones[$other['id']]['places']);
 
         $this->assertSame('Yopougon', $this->api('GET', 'places?search=yop')->json('data.0.name'));
-        $added = $this->api('POST', 'places', ['name' => 'Cité Sir', 'parent_id' => Place::where('name', 'Cocody')->value('id')])->assertCreated()->json('data');
-        $this->assertSame('Cité Sir, Cocody', $added['label']);
-        $this->assertSame('Cité Sir', $this->api('GET', 'places?search=cite sir')->json('data.0.name'));
+        // Quartier absent : signalé (référentiel commun, plus d'ajout libre) ; la commune est choisie en attendant
+        $cocody = Place::whereNull('store_id')->where('name', 'Cocody')->value('id');
+        $reported = $this->api('POST', 'places/reports', ['name' => 'Cité Sir', 'parent_id' => $cocody])->assertCreated()->json('data');
+        $this->assertSame([$cocody, 'Cocody'], [$reported['place']['id'], $reported['place']['label']]);
+        $this->assertSame([], $this->api('GET', 'places?search=cite sir')->json('data'));
+        $this->assertSame(['Cité Sir'], PlaceReport::pluck('name')->all());
+        // Déjà dans la liste : dit, pas de signalement en double
+        $this->api('POST', 'places/reports', ['name' => 'Riv 3', 'parent_id' => $cocody])->assertStatus(422);
+        // Ancien quartier ajouté par la boutique : plus proposé
+        Place::create(['store_id' => $this->store->id, 'parent_id' => $cocody, 'type' => 'neighborhood', 'name' => 'Cité Ancienne', 'slug' => 'cite-ancienne']);
+        app(Places::class)->forget($this->store);
+        $this->assertSame([], $this->api('GET', 'places?search=cite ancienne')->json('data'));
     }
 
     public function test_notifications_dashboard_and_tracking_page(): void

@@ -14,6 +14,7 @@ use App\Enums\Permission;
 use App\Exceptions\BusinessRuleException;
 use App\Jobs\AutoAssignOrder;
 use App\Models\CarrierConnection;
+use App\Models\CarrierRequest;
 use App\Models\Courier;
 use App\Models\Order;
 use App\Models\OrderConfirmation;
@@ -37,6 +38,7 @@ use App\Services\Customers\Loyalty;
 use App\Services\Places\DeliveryRates;
 use App\Services\Places\Places;
 use App\Services\Promotions\Pricing;
+use App\Services\Shipping\CarrierDirectConnect;
 use App\Services\Shipping\ShipmentDesk;
 use App\Services\Stock\StockKeeper;
 use Illuminate\Support\Arr;
@@ -110,7 +112,7 @@ class OrderDesk
             ]);
             $this->applyPlace($store, $order);
             $this->applyExpedition($order, $data);
-            $this->applyPlannedDelivery($order, $data);
+            $this->applyPlannedDelivery($order, $data, $actor);
             $this->ensureDeliveryDate($store, $order);
             // Fidélité : points utilisés et réduction de parrainage (avant le calcul du total)
             $this->loyalty->prepare($store, $order, $customer, $data);
@@ -184,8 +186,8 @@ class OrderDesk
             }
             $this->applyExpedition($order, $data);
             $placeChanged = $placeChanged || $order->isDirty(['expedition_payer']);
-            if (array_key_exists('planned_courier_id', $data) || array_key_exists('planned_carrier_connection_id', $data) || $order->delivery_method === 'pickup') {
-                $this->applyPlannedDelivery($order, $data);
+            if (array_key_exists('planned_courier_id', $data) || array_key_exists('planned_carrier_connection_id', $data) || array_key_exists('planned_carrier_slug', $data) || $order->delivery_method === 'pickup') {
+                $this->applyPlannedDelivery($order, $data, $actor);
             }
             // Livreur choisi ou changé sur une commande déjà confirmée : la course part, comme à la confirmation
             $plannedChanged = $order->isDirty(['planned_courier_id', 'planned_carrier_connection_id'])
@@ -773,12 +775,32 @@ class OrderDesk
      *
      * @param  array<string, mixed>  $data
      */
-    private function applyPlannedDelivery(Order $order, array $data): void
+    private function applyPlannedDelivery(Order $order, array $data, ?User $actor = null): void
     {
         $courierId = $data['planned_courier_id'] ?? null;
         $carrierId = $data['planned_carrier_connection_id'] ?? null;
+        $slug = $data['planned_carrier_slug'] ?? null;
         if ($order->delivery_method === 'pickup') {
-            $courierId = $carrierId = null;
+            $courierId = $carrierId = $slug = null;
+        }
+        $requestId = null;
+        // Entreprise de l'annuaire pas encore partenaire : son compte est demandé en un clic. Ouvert tout de suite, la
+        // commande lui est confiée ; sinon elle attend la réponse (24 h), puis revient « à assigner » sans réponse.
+        if ($slug !== null) {
+            if ($actor === null) {
+                throw new BusinessRuleException('Choisissez une entreprise déjà connectée.', 'planned_carrier_slug');
+            }
+            $keep = $order->planned_carrier_request_id ? CarrierRequest::forStore($order->store_id)->find($order->planned_carrier_request_id) : null;
+            $request = $keep !== null && $keep->slug === $slug && $keep->isOpen()
+                ? $keep
+                : app(CarrierDirectConnect::class)->request($order->store, $actor, $slug, 1);
+            if ($request->status === 'connected' && $request->connection_id) {
+                $carrierId = $request->connection_id;
+            } elseif ($request->isOpen()) {
+                $requestId = $request->id;
+            } else {
+                throw new BusinessRuleException($request->reason ?: "{$request->name} n'a pas ouvert votre compte : choisissez un autre livreur.", 'planned_carrier_slug');
+            }
         }
         if ($courierId !== null && ! Courier::forStore($order->store_id)->whereIn('status', ['active', 'invited'])->whereKey($courierId)->exists()) {
             throw new BusinessRuleException('Ce livreur n\'est pas actif dans votre espace marchand.', 'planned_courier_id');
@@ -786,7 +808,7 @@ class OrderDesk
         if ($carrierId !== null && ! CarrierConnection::forStore($order->store_id)->where('status', 'active')->whereKey($carrierId)->exists()) {
             throw new BusinessRuleException('Cette entreprise de livraison n\'est pas connectée.', 'planned_carrier_connection_id');
         }
-        $order->forceFill(['planned_courier_id' => $courierId, 'planned_carrier_connection_id' => $carrierId]);
+        $order->forceFill(['planned_courier_id' => $courierId, 'planned_carrier_connection_id' => $carrierId, 'planned_carrier_request_id' => $requestId]);
     }
 
     /**

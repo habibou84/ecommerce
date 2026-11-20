@@ -84,7 +84,8 @@ class PreprodGate
     // Retour seulement vers une page de ce site
     private function back(string $path): string
     {
-        return str_starts_with($path, '/') && ! str_starts_with($path, '//') && ! str_starts_with($path, '/'.self::PATH) ? $path : '/';
+        // « /\site.com » vaut « //site.com » pour les navigateurs : aucun antislash ni caractère de contrôle accepté
+        return preg_match('#^/(?![/\\\\])[^\\\\\x00-\x1f]*$#', $path) === 1 && ! str_starts_with($path, '/'.self::PATH) ? $path : '/';
     }
 
     private function form(string $back, ?string $error = null, int $status = 401): Response

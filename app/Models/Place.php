@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Lieu du référentiel commun (ville › commune › quartier). store_id renseigné : lieu ajouté par une boutique,
- * visible d'elle seule.
+ * Lieu du référentiel commun (ville › commune › quartier), copié de la liste du socle. store_id renseigné : ancien lieu
+ * ajouté par une boutique, gardé sur ses anciennes commandes mais plus proposé (un quartier manquant se signale).
  */
 class Place extends Model
 {
@@ -31,11 +31,11 @@ class Place extends Model
     }
 
     /**
-     * Lieux communs et lieux propres à la boutique.
+     * Lieux proposés à la boutique : ceux du référentiel commun seulement (les mêmes que chez Jibiat).
      */
     public function scopeVisibleTo(Builder $query, int $storeId): Builder
     {
-        return $query->where('is_active', true)->where(fn ($q) => $q->whereNull('store_id')->orWhere('store_id', $storeId));
+        return $query->where('is_active', true)->whereNull('store_id');
     }
 
     /**

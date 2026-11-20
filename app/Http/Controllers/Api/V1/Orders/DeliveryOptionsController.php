@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Orders;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\CarrierConnection;
 use App\Models\CarrierZone;
@@ -11,14 +12,17 @@ use App\Models\Order;
 use App\Models\Place;
 use App\Models\ProductVariant;
 use App\Models\Shipment;
+use App\Models\Store;
 use App\Services\Orders\DeliveryCalendar;
 use App\Services\Partners\PartnerReferrals;
 use App\Services\Places\DeliveryRates;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
+use App\Services\Shipping\CarrierDirectory;
 use App\Services\Shipping\ShipmentDesk;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Jibiat\Socle\Places\Places as CommonPlaces;
 
 /**
  * Saisie d'une commande : qui peut livrer ce quartier (mes livreurs, entreprises de livraison) et à quel prix,
@@ -100,10 +104,39 @@ class DeliveryOptionsController extends Controller
             'zone' => $zone ? ['id' => $zone->id, 'name' => $zone->name, 'fee' => $zone->fee, 'free_above' => $zone->free_above, 'eta_label' => $zone->eta_label] : null,
             'couriers' => $couriers,
             'carriers' => $carriers,
+            // Entreprises de l'annuaire pas encore partenaires qui livrent ce lieu : compte ouvert en un clic
+            'directory' => $place !== null && $request->user()->can(Permission::CarriersManage->value) ? $this->directory($store, $place, $fragile, $grams) : [],
             'recent' => $recent,
             // Jours de livraison de la boutique : première date possible et jours fermés à griser
             'calendar' => ['earliest' => $calendar->earliest($store), 'days' => $calendar->days($store), 'cutoff' => $calendar->settings($store)['cutoff']],
         ]]);
+    }
+
+    /**
+     * Entrée « Expédition » : les villes de l'intérieur (ni celle de la boutique, ni celles livrées directement), les
+     * plus expédiées d'abord, avec le prix d'expédition retenu par la boutique.
+     */
+    public function cities(DeliveryRates $rates): JsonResponse
+    {
+        $store = $this->currentStore();
+
+        return response()->json(['data' => array_map(fn (array $c) => [
+            'id' => $c['id'], 'label' => $c['name'], 'ancestor_ids' => [], 'fee' => $c['fee'] ?? $store->expedition_fee,
+        ], $rates->cities($store))]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function directory(Store $store, Place $place, bool $fragile, int $grams): array
+    {
+        $code = $place->commonCode();
+        if ($code === null) {
+            return [];
+        }
+        $pickup = CommonPlaces::inText((string) $store->address)[0]['code'] ?? null;
+
+        return app(CarrierDirectory::class)->quotesFor($store, $code, $pickup, $fragile, $grams ? round($grams / 1000, 2) : null);
     }
 
     /**
@@ -119,7 +152,8 @@ class DeliveryOptionsController extends Controller
             'carrier_connection_id' => ['nullable', 'integer'],
         ]);
         $store = $this->currentStore();
-        $all = $places->forStore($store);
+        // Ville de la boutique et villes livrées directement ; les autres villes passent par « Expédition » (cities)
+        $all = $places->local($store);
         $search = trim((string) ($data['search'] ?? ''));
 
         if (! empty($data['carrier_connection_id'])) {
@@ -147,7 +181,7 @@ class DeliveryOptionsController extends Controller
                 $zone = $zoneOf($p);
 
                 return $this->place($p) + ['zone' => $zone->label(), 'zone_id' => $zone->id, 'fee' => $zone->fee];
-            })->sortBy(fn ($p) => [$p['zone'], $p['label']])->values()]);
+            })->sortBy(fn ($p) => $p['zone'])->values()]);
         }
 
         // Lieux les plus livrés par la boutique : nombre de commandes des 90 derniers jours

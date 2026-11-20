@@ -317,7 +317,7 @@ class OrderListing
     private function deliverer(Builder $query, string $who): void
     {
         if ($who === 'none') {
-            $query->whereNull('planned_courier_id')->whereNull('planned_carrier_connection_id')->whereDoesntHave('shipments');
+            $query->whereNull('planned_courier_id')->whereNull('planned_carrier_connection_id')->whereNull('planned_carrier_request_id')->whereDoesntHave('shipments');
 
             return;
         }

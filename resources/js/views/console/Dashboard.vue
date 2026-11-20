@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import Alert from '../../components/Alert.vue'
+import ConsolePlaceReports from '../../components/ConsolePlaceReports.vue'
 import http, { errorMessage } from '../../lib/http'
 import { money } from '../../lib/format'
 
@@ -32,6 +33,7 @@ const maxDay = computed(() => Math.max(1, ...days.value.map((d) => d.total)))
 <template>
   <div class="space-y-5">
     <Alert v-if="error">{{ error }}</Alert>
+    <ConsolePlaceReports />
     <template v-if="stats">
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div class="card p-4"><p class="text-sm text-slate-500">Espaces marchands</p><p class="text-2xl font-semibold">{{ stats.stores }}</p><p class="text-xs text-slate-500">+{{ stats.new_7d }} en 7 j · +{{ stats.new_30d }} en 30 j</p></div>

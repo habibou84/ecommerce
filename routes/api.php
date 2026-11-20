@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\Api\Partners\ConnectionController;
 use App\Http\Controllers\Api\Partners\PremiumCardController;
 use App\Http\Controllers\Api\V1\AccessKeyController;
 use App\Http\Controllers\Api\V1\AuthController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\Api\V1\Console\ConsoleHealthController;
 use App\Http\Controllers\Api\V1\Console\ConsoleHelpController;
 use App\Http\Controllers\Api\V1\Console\ConsoleMaterielController;
 use App\Http\Controllers\Api\V1\Console\ConsolePaymentsController;
+use App\Http\Controllers\Api\V1\Console\ConsolePlaceReportController;
 use App\Http\Controllers\Api\V1\Console\ConsoleReferralController;
 use App\Http\Controllers\Api\V1\Console\ConsoleSupportAgentController;
 use App\Http\Controllers\Api\V1\Console\ConsoleTeamController;
@@ -106,6 +108,9 @@ Route::prefix('partners/v1')->name('partners.')->middleware(['zone:api', 'thrott
     Route::get('premium-cards', [PremiumCardController::class, 'index'])->name('premium-cards.index');
     Route::delete('premium-cards/{code}', [PremiumCardController::class, 'destroy'])->where('code', '[A-Za-z0-9-]{1,20}')->name('premium-cards.destroy');
 });
+// Décisions des entreprises de Jibiat sur la connexion directe (contrat socle 1.12), secret de la connexion directe
+Route::post('partners/v1/connections', [ConnectionController::class, 'store'])
+    ->middleware(['zone:api', 'throttle:120,1', VerifyPartnerSignature::class.':connect'])->name('partners.connections.store');
 
 Route::prefix('v1')->name('v1.')->group(function () {
     // ── jibiat-marchand.com : création de boutique, retrouver ses boutiques ──
@@ -194,6 +199,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
             Route::delete('sessions/{session}', [ConsoleTeamController::class, 'closeSession'])->where('session', 'others|[a-f0-9]{64}')->name('sessions.close');
             Route::get('users', [ConsoleTeamController::class, 'users'])->middleware('throttle:60,1')->name('users');
             Route::get('health', [ConsoleHealthController::class, 'show'])->name('health');
+            // Quartiers manquants signalés par les boutiques : à ajouter à la liste commune (socle)
+            Route::get('place-reports', [ConsolePlaceReportController::class, 'index'])->name('place-reports');
+            Route::put('place-reports/{placeReport}', [ConsolePlaceReportController::class, 'update'])->whereNumber('placeReport')->name('place-reports.update');
             Route::post('health/failed-jobs/{uuid}', [ConsoleHealthController::class, 'failedJob'])->whereUuid('uuid')->name('health.failed-job');
             Route::get('stores', [ConsoleController::class, 'stores'])->name('stores');
             Route::get('whatsapp-health', [ConsoleController::class, 'whatsappHealth'])->name('whatsapp-health');
@@ -440,6 +448,7 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 // Saisie : qui peut livrer ce quartier et à quel prix, zones et tarifs d'une entreprise de livraison
                 Route::post('orders/delivery-options', DeliveryOptionsController::class)->name('orders.delivery-options');
                 Route::get('orders/delivery-options/places', [DeliveryOptionsController::class, 'places'])->name('orders.delivery-options.places');
+                Route::get('orders/delivery-options/cities', [DeliveryOptionsController::class, 'cities'])->name('orders.delivery-options.cities');
                 Route::get('orders/delivery-options/carriers/{carrier}', [DeliveryOptionsController::class, 'tariffs'])->whereNumber('carrier')->name('orders.delivery-options.tariffs');
                 Route::post('orders/{order}/status', [OrderController::class, 'transition'])->whereNumber('order')->name('orders.status');
                 Route::post('orders/{order}/payments', [OrderController::class, 'payment'])->whereNumber('order')->name('orders.payments');
@@ -449,7 +458,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 // Expédition vers une autre ville : dépôt à la gare, colis récupéré
                 Route::post('orders/{order}/expedition', [ExpeditionController::class, 'store'])->whereNumber('order')->name('orders.expedition');
                 Route::post('orders/{order}/expedition/collected', [ExpeditionController::class, 'collected'])->whereNumber('order')->name('orders.expedition.collected');
-                Route::post('places', [DeliveryController::class, 'addPlace'])->name('places.store');
+                // Quartier manquant : signalé à la plateforme (le référentiel est commun, plus d'ajout libre)
+                Route::post('places/reports', [DeliveryController::class, 'reportPlace'])->middleware('throttle:20,1')->name('places.reports.store');
                 // Prix tapé dans une commande, retenu pour la suite (commune, quartier, expéditions)
                 Route::post('delivery-rates/remember', [DeliveryRatesController::class, 'remember'])->name('delivery-rates.remember');
                 Route::post('customers', [CustomerController::class, 'store'])->name('customers.store');
@@ -497,6 +507,9 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('carriers/directory', [CarrierController::class, 'directory'])->name('carriers.directory');
                 Route::post('carriers/connect/start', [CarrierController::class, 'connectStart'])->middleware('throttle:20,1')->name('carriers.connect.start');
                 Route::post('carriers/connect/finish', [CarrierController::class, 'connectFinish'])->middleware('throttle:10,1')->name('carriers.connect.finish');
+                Route::post('carriers/connect/direct', [CarrierController::class, 'connectDirect'])->middleware('throttle:20,1')->name('carriers.connect.direct');
+                Route::post('carriers/requests/{carrierRequest}/refresh', [CarrierController::class, 'refreshRequest'])->whereNumber('carrierRequest')->middleware('throttle:20,1')->name('carriers.requests.refresh');
+                Route::delete('carriers/requests/{carrierRequest}', [CarrierController::class, 'cancelRequest'])->whereNumber('carrierRequest')->name('carriers.requests.cancel');
                 Route::post('carriers/manual', [CarrierController::class, 'connectManual'])->name('carriers.manual');
                 Route::patch('carriers/{carrier}', [CarrierController::class, 'update'])->whereNumber('carrier')->name('carriers.update');
                 Route::delete('carriers/{carrier}', [CarrierController::class, 'destroy'])->whereNumber('carrier')->name('carriers.destroy');

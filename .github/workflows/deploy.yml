@@ -1,6 +1,9 @@
 name: Mise à jour des serveurs
 
-# Fusion dans main → préproduction ; fusion dans production → production.
+# Fusion dans main → préproduction ; fusion dans production → production, seulement une fois les tests (CI) de ce
+# commit réussis : une fusion dont les tests échouent n'est jamais déployée.
+# (Déclenché par la fusion elle-même, pas par « workflow_run » : celui-ci ne marche que depuis la branche par défaut
+# du dépôt, qui n'est pas forcément main.)
 # Connexion SSH avec une clé qui ne peut lancer que deploy/update.sh (voir docs/MISE-A-JOUR-AUTOMATIQUE.md).
 # Tant que les secrets ne sont pas enregistrés, la mise à jour est simplement sautée.
 on:
@@ -10,6 +13,10 @@ on:
       - 'mobile/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
 
 # Une mise à jour à la fois par serveur ; une fusion arrivée entre-temps passe ensuite (jamais annulée en cours)
 concurrency:
@@ -21,8 +28,9 @@ jobs:
     name: ${{ github.ref_name == 'production' && 'Production' || 'Préproduction' }}
     if: github.ref_name == 'main' || github.ref_name == 'production'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
+      SHA: ${{ github.sha }}
       HOST: ${{ secrets.DEPLOY_HOST }}
       PORT: ${{ secrets.DEPLOY_PORT || '22' }}
       USER_NAME: ${{ secrets.DEPLOY_USER || 'jmdeploy' }}
@@ -39,6 +47,24 @@ jobs:
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Tests de ce commit (CI)
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Attend la CI de ce commit : verte → mise à jour ; rouge ou annulée → rien n'est déployé
+          for i in $(seq 1 90); do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
+              --jq '.workflow_runs[0] | if . == null then "absent" else "\(.status) \(.conclusion)" end' || echo "erreur")"
+            case "$state" in
+              "completed success") echo "::notice::Tests réussis pour ${SHA:0:7}."; exit 0 ;;
+              completed*) echo "::error::Tests en échec pour ${SHA:0:7} ($state) : rien n'est déployé."; exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "::error::Tests de ${SHA:0:7} toujours pas terminés au bout de 30 minutes ($state) : rien n'est déployé."
+          exit 1
 
       - name: Connexion
         if: steps.secrets.outputs.ready == 'true'
@@ -74,8 +100,8 @@ jobs:
           deployed="$(grep 'Terminé' deploy.log | tail -n1 | sed 's/\x1b\[[0-9;]*m//g')"
           echo "::notice::${deployed#==> }"
           case "$deployed" in
-            *"${GITHUB_SHA:0:7}"*) ;;
-            *) echo "::warning::Le serveur affiche une autre version que ${GITHUB_SHA:0:7} (une fusion plus récente est peut-être déjà passée)." ;;
+            *"${SHA:0:7}"*) ;;
+            *) echo "::warning::Le serveur affiche une autre version que ${SHA:0:7} (une fusion plus récente est peut-être déjà passée)." ;;
           esac
 
       - name: Vérification

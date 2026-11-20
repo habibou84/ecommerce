@@ -68,6 +68,57 @@ async function connectFromDirectory(company) {
   }
 }
 
+// Connexion directe (en un clic, sans quitter Jibiat Marchand) : compte ouvert tout de suite, ou demande envoyée
+async function workWith(company) {
+  connecting.value = company.slug
+  error.value = ''
+  notice.value = ''
+  try {
+    const { data } = await http.post('/carriers/connect/direct', { slug: company.slug })
+    applyRequest(company, data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    connecting.value = null
+  }
+}
+
+async function refreshRequest(company) {
+  connecting.value = company.slug
+  try {
+    const { data } = await http.post(`/carriers/requests/${company.request.id}/refresh`)
+    applyRequest(company, data.data)
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    connecting.value = null
+  }
+}
+
+async function cancelRequest(company) {
+  if (!confirm(`Annuler votre demande chez ${company.name} ?`)) return
+  try {
+    const { data } = await http.delete(`/carriers/requests/${company.request.id}`)
+    company.request = { ...company.request, status: data.data.status }
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
+function applyRequest(company, request) {
+  company.request = request
+  if (request.status === 'connected') {
+    notice.value = `${company.name} a ouvert votre compte : vos commandes peuvent lui être confiées en un clic.`
+    company.connected = true
+    load()
+    if (request.connection?.unmapped_count) openZones(request.connection)
+  } else if (request.status === 'pending') {
+    notice.value = `Demande envoyée à ${company.name} : vous serez connecté dès qu'elle ouvre votre compte.`
+  } else if (request.status === 'confirmation') {
+    notice.value = `Vous avez déjà un compte chez ${company.name} : confirmez sur WhatsApp, la connexion se fera aussitôt.`
+  }
+}
+
 // Retour de la page « Connecter » de l'entreprise : code à échanger, demande envoyée ou refus
 async function finishReturn() {
   const { code, state, error: refused } = route.query
@@ -328,6 +379,23 @@ const copy = (text) => navigator.clipboard?.writeText(text)
           </dl>
           <p class="explain-detail">{{ d.stats.deliveries_90d }} colis livrés en 90 jours<template v-if="d.stats.success_rate === null"> · chiffres affichés dès 20 courses</template><template v-if="d.accepts === 'request'"> · ouverture de compte sur demande</template></p>
           <span v-if="d.connected" class="mt-auto rounded-lg bg-emerald-50 py-2 text-center font-medium text-emerald-800">✓ Déjà connectée</span>
+          <template v-else-if="d.direct && d.request && ['pending', 'confirmation'].includes(d.request.status)">
+            <p class="mt-auto rounded-lg bg-amber-50 p-2 text-amber-900">
+              <template v-if="d.request.status === 'confirmation'">Confirmez sur WhatsApp : vous avez déjà un compte chez {{ d.name }}.</template>
+              <template v-else>Demande envoyée : {{ d.name }} doit ouvrir votre compte<template v-if="d.request.decide_before"> (réponse avant le {{ new Date(d.request.decide_before).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }})</template>.</template>
+            </p>
+            <div class="flex gap-2">
+              <button class="btn-ghost flex-1" :disabled="connecting === d.slug" @click="refreshRequest(d)">{{ connecting === d.slug ? '…' : 'Actualiser' }}</button>
+              <button class="btn-ghost flex-1 text-red-600" @click="cancelRequest(d)">Annuler</button>
+            </div>
+          </template>
+          <template v-else-if="d.direct">
+            <p v-if="d.request && ['declined', 'expired', 'failed'].includes(d.request.status)" class="mt-auto rounded-lg bg-red-50 p-2 text-red-800">
+              {{ d.request.status === 'expired' ? `${d.name} n'a pas répondu à temps.` : d.request.status === 'failed' ? 'Compte ouvert, mais la connexion a échoué.' : `${d.name} n'a pas ouvert votre compte.` }}<template v-if="d.request.reason"> {{ d.request.reason }}</template>
+            </p>
+            <button class="btn-brand mt-auto" :disabled="connecting === d.slug || busy" @click="workWith(d)">{{ connecting === d.slug ? 'Envoi…' : `Travailler avec ${d.name}` }}</button>
+            <p class="explain-detail text-center">Votre compte est ouvert sans quitter Jibiat Marchand<template v-if="d.accepts === 'request'"> (validé par l'entreprise)</template>.</p>
+          </template>
           <button v-else class="btn-brand mt-auto" :disabled="connecting === d.slug || busy" @click="connectFromDirectory(d)">{{ connecting === d.slug ? 'Ouverture…' : 'Connecter' }}</button>
         </article>
       </div>

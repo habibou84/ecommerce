@@ -120,6 +120,11 @@ class DeliveryAdvisor
             return null;
         }
 
+        // Compte en cours d'ouverture chez l'entreprise choisie : la commande l'attend, pas de règle automatique
+        if ($order->planned_carrier_request_id !== null) {
+            return null;
+        }
+
         $suggestion = $this->planned($order);
         if ($suggestion === null && $order->store->assignment_mode === 'auto') {
             $suggestion = $this->suggest($order);

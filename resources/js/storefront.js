@@ -338,6 +338,8 @@ function checkoutPage() {
       const fields = Object.keys(error.errors)
       fields.forEach((field) => showError(field, error.errors[field][0]))
       if (!fields.length) showError('form', error.message)
+      // Jeton anti-robot à usage unique : un nouveau pour le prochain essai
+      window.turnstile?.reset()
       button.disabled = false
       button.textContent = 'Confirmer la commande'
     }

@@ -14,6 +14,7 @@ use App\Services\Marketing\MetaAds;
 use App\Services\Payments\PaymentDesk;
 use App\Services\Places\PlaceMatcher;
 use App\Services\Places\Places;
+use App\Services\Security\Turnstile;
 use App\Services\Storefront\CartService;
 use App\Services\Storefront\Checkout;
 use App\Services\Storefront\OnlinePayment;
@@ -55,6 +56,8 @@ class CheckoutController extends Controller
             // Acompte des articles ou de la règle de la boutique : demandé en ligne au moment de commander
             'cartDeposit' => $this->depositEstimate($store, $cart),
             'referral' => ($loyalty = app(Loyalty::class)->settings($store))['referral_enabled'] ? $loyalty['referral_discount'] : null,
+            // Anti-robot Cloudflare : widget affiché seulement quand il est configuré
+            'turnstileKey' => app(Turnstile::class)->siteKey(),
             'meta' => ['title' => 'Commande · '.$store->name, 'description' => '', 'path' => '/commande', 'noindex' => true],
         ]);
     }
@@ -96,6 +99,10 @@ class CheckoutController extends Controller
     {
         if (filled($request->input('website'))) {
             abort(422, 'Requête refusée.'); // champ piège invisible : robots
+        }
+        // Anti-robot Cloudflare (quand il est configuré) : pas de fausses commandes en masse avec les numéros de tiers
+        if (! app(Turnstile::class)->passes($request->input('cf-turnstile-response'), $request->ip())) {
+            throw new BusinessRuleException('La vérification anti-robot a échoué. Rechargez la page et réessayez.', 'form');
         }
         if (is_string($request->input('phone')) && PhoneNumber::isValid($request->input('phone'))) {
             $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);

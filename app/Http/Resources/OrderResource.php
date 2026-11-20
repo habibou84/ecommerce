@@ -78,6 +78,8 @@ class OrderResource extends JsonResource
             // Qui livre, choisi à la saisie (l'expédition est créée à la confirmation)
             'planned_courier' => $this->plannedCourier?->only(['id', 'name']),
             'planned_carrier' => $this->plannedCarrier?->only(['id', 'name']),
+            // Entreprise pas encore partenaire : compte en cours d'ouverture (24 h au plus quand le colis attend)
+            'planned_carrier_request' => $this->planned_carrier_request_id ? $this->plannedCarrierRequest?->only(['id', 'slug', 'name', 'status', 'decide_before']) : null,
             // Envoi automatique de la course au livreur choisi qui a échoué (pas de course en cours) : la raison, à montrer
             'assignment_error' => $this->assignmentError(),
             'location_id' => $this->location_id,
@@ -198,6 +200,6 @@ class OrderResource extends JsonResource
 
     public static function loadDetail(Order $order): Order
     {
-        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store', 'shipments.connection', 'shipments.courier', 'shipments.events', 'shipments.origin', 'plannedCourier', 'plannedCarrier', 'expeditionCity']);
+        return $order->load(['items', 'payments.recorder:id,name', 'confirmations.user:id,name', 'events.user:id,name', 'zone', 'store', 'shipments.connection', 'shipments.courier', 'shipments.events', 'shipments.origin', 'plannedCourier', 'plannedCarrier', 'plannedCarrierRequest', 'expeditionCity']);
     }
 }
