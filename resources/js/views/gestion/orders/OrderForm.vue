@@ -1097,12 +1097,13 @@ async function save() {
 
             <div v-if="!editing">
               <p class="label">Vendu sur</p>
-              <div class="flex flex-wrap gap-1.5" role="group" aria-label="Canal de vente">
+              <!-- Une ligne qu'on fait glisser -->
+              <div v-tab-strip class="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:-mx-5 sm:px-5" role="group" aria-label="Canal de vente">
                 <button
                   v-for="s in SOURCES"
                   :key="s.value"
                   type="button"
-                  class="inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold"
+                  class="inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-semibold"
                   :class="form.source === s.value ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-emerald-500'"
                   :aria-pressed="form.source === s.value"
                   @click="form.source = s.value; habitsUsed.source = false"
