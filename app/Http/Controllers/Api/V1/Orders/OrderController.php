@@ -17,6 +17,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Services\Customers\CustomerBook;
 use App\Services\Live\LiveCheckout;
+use App\Services\Orders\NewDateMessage;
 use App\Services\Orders\OrderBulk;
 use App\Services\Orders\OrderDesk;
 use App\Services\Orders\OrderDocuments;
@@ -60,6 +61,15 @@ class OrderController extends Controller
             'summary' => $listing->summary($request, $page->total()),
             'progress' => $listing->progress($request),
         ]);
+    }
+
+    /**
+     * Prévenir le client de la nouvelle date de livraison (après une relivraison décidée) : envoyé par le WhatsApp de la
+     * boutique quand c'est possible, sinon un lien WhatsApp avec le message prêt.
+     */
+    public function newDateMessage(Request $request, int $order, NewDateMessage $messages): JsonResponse
+    {
+        return response()->json(['data' => $messages->send(Order::with(['items', 'store'])->findOrFail($order), $request->user())]);
     }
 
     /**

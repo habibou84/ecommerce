@@ -314,6 +314,17 @@ class OrderListing
             'shipment_status' => $shipment && ! $shipment->status->isFinal() ? $shipment->status->value : null,
             'shipment_status_label' => $shipment && ! $shipment->status->isFinal() ? $shipment->status->label() : null,
             'delivery_failed' => $shipment !== null && ! $shipment->status->isFinal() && ($shipment->needs_decision || in_array($shipment->status, [ShipmentStatus::Failed, ShipmentStatus::Rescheduled, ShipmentStatus::Returning], true)),
+            // Livraison ratée, reportée ou colis qui revient : ce qui s'est passé et ce qu'on peut faire (carte de l'accueil)
+            'failure' => $shipment !== null && ! $shipment->status->isFinal() && ($shipment->needs_decision || in_array($shipment->status, [ShipmentStatus::Failed, ShipmentStatus::Rescheduled, ShipmentStatus::Returning], true)) ? [
+                'status' => $shipment->status->value,
+                'reason' => $shipment->failure_reason,
+                'at' => $shipment->status_changed_at?->toIso8601String(),
+                'attempts' => (int) $shipment->attempts_count,
+                'needs_decision' => $shipment->isOwnCourier() ? $shipment->status === ShipmentStatus::Failed : (bool) $shipment->needs_decision,
+                'own_courier' => $shipment->isOwnCourier(),
+                'manual' => ! $shipment->isOwnCourier() && ! ($shipment->connection?->isApi() ?? false),
+                'rescheduled_to' => $shipment->rescheduled_to?->toDateString(),
+            ] : null,
             'tracking_code' => $shipment && ! $shipment->status->isFinal() ? $shipment->carrier_tracking_code : null,
             'deliverer_editable' => $deliverer !== null && $order->delivery_method === 'delivery' && (
                 ($shipment === null && in_array($order->status, [OrderStatus::PendingConfirmation, OrderStatus::Confirmed, OrderStatus::Processing], true))
