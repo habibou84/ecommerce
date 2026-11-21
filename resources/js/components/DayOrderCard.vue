@@ -2,8 +2,8 @@
 // Carte d'une commande sur la page Commandes de l'accueil : le contact bien visible, Appeler, WhatsApp,
 // et le livreur choisi, qu'on peut changer (mêmes règles que la liste des commandes).
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import DelivererPicker from './DelivererPicker.vue'
+import RedeliverSheet from './RedeliverSheet.vue'
 import Icon from './Icon.vue'
 import StateBadge from './StateBadge.vue'
 import http, { errorMessage } from '../lib/http'
@@ -14,7 +14,6 @@ import { useAuthStore } from '../stores/auth'
 const props = defineProps({ order: { type: Object, required: true }, options: { type: Object, default: null } })
 const emit = defineEmits(['changed', 'message'])
 const auth = useAuthStore()
-const router = useRouter()
 
 const o = computed(() => props.order)
 const phone = computed(() => phoneDisplay(o.value.customer_phone) || o.value.customer_phone_display || '')
@@ -24,6 +23,64 @@ const canAssign = computed(() => auth.can('shipments.manage'))
 const assignable = computed(() => o.value.delivery_method === 'delivery' && ['pending_confirmation', 'confirmed', 'processing'].includes(o.value.status)
   && !o.value.shipment_id && !(o.value.prepay_due > 0 && o.value.status !== 'pending_confirmation'))
 const canChange = computed(() => canAssign.value && !closed.value && (o.value.deliverer ? o.value.deliverer_editable : assignable.value))
+
+// ── Livraison ratée, reportée ou colis qui revient ──
+const f = computed(() => o.value.failure)
+const hhmm = (iso) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '')
+function dayWords(date) {
+  if (!date) return ''
+  const d = new Date(`${date}T12:00:00`)
+  const diff = Math.round((d - new Date(`${new Date().toLocaleDateString('sv-SE')}T12:00:00`)) / 86400000)
+  return diff === 0 ? 'à aujourd\'hui' : diff === 1 ? 'à demain' : `au ${d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`
+}
+const box = computed(() => {
+  const x = f.value
+  if (!x) return null
+  const who = o.value.deliverer || 'Le livreur'
+  if (x.status === 'returning') return { tone: 'bg-orange-50 text-orange-900', title: `↩ Colis à rapporter · chez ${who}`, line: x.at ? `Demandé à ${hhmm(x.at)}` : '' }
+  if (x.status === 'rescheduled' && !x.needs_decision) return { tone: 'bg-sky-50 text-sky-900', title: `📅 Reportée ${dayWords(x.rescheduled_to)}`, line: [x.reason ? `« ${x.reason} »` : '', 'rien à décider'].filter(Boolean).join(' · ') }
+  if (!x.own_courier && x.needs_decision) return { tone: 'bg-orange-50 text-orange-900', title: `⏳ ${who} attend votre décision`, line: [x.reason ? `« ${x.reason} »` : '', hhmm(x.at)].filter(Boolean).join(' · ') }
+  return { tone: 'bg-red-50 text-red-900', title: `⚠ ${x.reason || 'Échec de livraison'}${x.at ? ` · ${hhmm(x.at)}` : ''}`, line: [who, x.attempts ? `${x.attempts === 1 ? '1re' : `${x.attempts}e`} tentative` : '', 'colis encore chez lui'].filter(Boolean).join(' · ') }
+})
+const canManage = computed(() => auth.can('orders.manage') || auth.can('shipments.manage'))
+const sheet = ref(null) // 'redeliver' | 'date'
+async function bringBack() {
+  if (!window.confirm(`Faire revenir le colis de ${o.value.customer_name || o.value.reference} à la boutique ?`)) return
+  busy.value = true
+  try {
+    await http.post(`/shipments/${o.value.shipment_id}/decision`, { decision: 'return' })
+    emit('message', { text: `${o.value.reference} : ${o.value.deliverer || 'le livreur'} doit rapporter le colis.` })
+    emit('changed')
+  } catch (e) {
+    emit('message', { error: true, text: errorMessage(e) })
+  } finally {
+    busy.value = false
+  }
+}
+async function received() {
+  busy.value = true
+  try {
+    await http.post(`/shipments/${o.value.shipment_id}/status`, { status: 'returned', note: 'Colis reçu à la boutique' })
+    emit('message', { text: `${o.value.reference} : colis rentré, articles remis en stock.` })
+    emit('changed')
+  } catch (e) {
+    emit('message', { error: true, text: errorMessage(e) })
+  } finally {
+    busy.value = false
+  }
+}
+// La liste se recharge une fois la fenêtre fermée (la carte peut quitter la liste du jour)
+const reloadOnClose = ref(false)
+function sheetClose() {
+  sheet.value = null
+  if (reloadOnClose.value) emit('changed')
+  reloadOnClose.value = false
+}
+function sheetDone(text) {
+  sheet.value = null
+  if (text) emit('message', { text })
+  emit('changed')
+}
 
 const picking = ref(false)
 const busy = ref(false)
@@ -88,8 +145,22 @@ async function choose(key) {
       <span v-if="o.amount_due > 0 && !['cancelled', 'returned'].includes(o.status)" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">À encaisser {{ money(o.amount_due) }}</span>
     </div>
 
+    <!-- Livraison ratée, reportée ou colis qui revient : ce qui s'est passé et quoi faire -->
+    <template v-if="box">
+      <div class="mt-3 rounded-xl px-3 py-2 text-sm" :class="box.tone"><b class="block">{{ box.title }}</b><span v-if="box.line" class="opacity-90">{{ box.line }}</span></div>
+      <div v-if="canManage" class="mt-2 grid grid-cols-2 gap-2">
+        <template v-if="f.needs_decision">
+          <button type="button" class="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-sm font-bold text-white" :disabled="busy" @click="sheet = 'redeliver'">↻ Relivrer</button>
+          <button type="button" class="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-orange-300 bg-white text-sm font-bold text-orange-800" :disabled="busy" @click="bringBack">↩ Faire revenir</button>
+        </template>
+        <button v-else-if="f.status === 'rescheduled' && f.own_courier" type="button" class="col-span-2 flex h-11 items-center justify-center rounded-xl border border-slate-200 text-sm font-bold text-slate-700" :disabled="busy" @click="sheet = 'date'">Changer la date</button>
+        <button v-else-if="f.status === 'returning' && (f.own_courier || f.manual)" type="button" class="col-span-2 flex h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 text-sm font-bold text-white" :disabled="busy" @click="received">📦 Colis reçu à la boutique</button>
+        <p v-else-if="f.status === 'returning'" class="col-span-2 text-center text-xs text-slate-500">L'entreprise rapporte le colis : il rentrera tout seul.</p>
+      </div>
+    </template>
+
     <!-- Livreur -->
-    <div v-if="o.delivery_method === 'delivery'" class="mt-3 flex min-h-11 items-center gap-2 rounded-xl border pl-3 pr-1" :class="o.deliverer ? 'border-emerald-200 bg-emerald-50' : 'border-dashed border-slate-300 bg-slate-50'">
+    <div v-if="o.delivery_method === 'delivery' && !(f && f.status === 'returning')" class="mt-3 flex min-h-11 items-center gap-2 rounded-xl border pl-3 pr-1" :class="o.deliverer ? 'border-emerald-200 bg-emerald-50' : 'border-dashed border-slate-300 bg-slate-50'">
       <Icon name="truck" :size="17" class="shrink-0" :class="o.deliverer ? 'text-emerald-700' : 'text-slate-400'" />
       <span class="min-w-0 flex-1 truncate text-sm font-bold" :class="o.deliverer ? 'text-emerald-900' : 'text-slate-500'">{{ o.deliverer || (o.prepay_due > 0 && !o.shipment_id ? `⏳ ${o.prepay_kind === 'expedition' ? 'Paiement avant l\'envoi' : 'Acompte attendu'} · ${money(o.prepay_due)}` : 'Pas encore de livreur') }}<span v-if="o.deliverer_planned" class="font-normal text-emerald-700"> · prévu</span></span>
       <button v-if="canChange" type="button" class="h-9 shrink-0 rounded-lg bg-white px-3 text-sm font-bold text-emerald-800 shadow-sm" :disabled="busy || !options" @click="picking = true">{{ o.deliverer ? 'Changer' : 'Choisir' }}</button>
@@ -100,7 +171,7 @@ async function choose(key) {
       <a v-if="o.customer_phone" :href="`tel:${o.customer_phone}`" class="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700"><Icon name="phone" :size="17" />Appeler</a>
       <a v-if="o.whatsapp_url" :href="o.whatsapp_url" target="_blank" rel="noopener" class="flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-sm font-bold text-emerald-800"><Icon name="whatsapp" :size="17" />WhatsApp</a>
     </div>
-    <button v-if="o.delivery_failed" type="button" class="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-700 text-sm font-bold text-white" @click="router.push(`/gestion/commandes/${o.id}`)"><Icon name="alert" :size="16" />Livraison ratée : que faire ?</button>
+    <RedeliverSheet v-if="sheet" :order="o" :options="options" :mode="sheet" @close="sheetClose" @done="sheetDone" @changed="reloadOnClose = true" />
 
     <DelivererPicker v-if="picking" :model-value="o.deliverer_key ?? ''" :options="options" :place-label="o.shipping_place_label ?? ''" @update:model-value="choose" @close="picking = false" />
   </article>

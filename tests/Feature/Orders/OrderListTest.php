@@ -7,6 +7,7 @@ use App\Models\CarrierConnection;
 use App\Models\Courier;
 use App\Models\Order;
 use App\Models\Place;
+use App\Models\StockLevel;
 use App\Models\Store;
 use App\Services\Catalog\CatalogWriter;
 use App\Services\Places\Places;
@@ -74,6 +75,54 @@ class OrderListTest extends TestCase
         $this->assertTrue(collect($list->json('data'))->firstWhere('id', $failed->id)['delivery_failed']);
         // Toutes les dates
         $this->api('GET', 'orders?period=all')->assertOk()->assertJsonPath('progress.count', 5);
+    }
+
+    public function test_failed_delivery_is_handled_from_the_card(): void
+    {
+        $courier = Courier::create(['store_id' => $this->store->id, 'name' => 'Koffi', 'phone' => '+2250102030405', 'status' => 'active', 'is_available' => true]);
+        $order = $this->order(['confirmed' => true, 'scheduled_date' => today()->toDateString()]);
+        $this->api('POST', 'orders/bulk', ['ids' => [$order->id], 'action' => 'assign', 'courier_id' => $courier->id])->assertOk();
+        $order->refresh()->forceFill(['status' => OrderStatus::Shipped])->save();
+        $shipment = $order->shipments()->first();
+        $shipment->forceFill(['status' => 'failed', 'failure_reason' => 'Client injoignable', 'attempts_count' => 1])->save();
+
+        // La carte dit ce qui s'est passé et qu'une décision est attendue
+        $row = collect($this->api('GET', 'orders?period=today&status=failed')->json('data'))->firstWhere('id', $order->id);
+        $this->assertSame(['failed', 'Client injoignable', 1, true, true], [$row['failure']['status'], $row['failure']['reason'], $row['failure']['attempts'], $row['failure']['needs_decision'], $row['failure']['own_courier']]);
+
+        // Relivrer demain : la course est reportée et la commande prend la nouvelle date
+        $tomorrow = today()->addDay()->toDateString();
+        $this->api('POST', "shipments/{$shipment->id}/decision", ['decision' => 'redeliver', 'date' => $tomorrow])->assertOk();
+        $this->assertSame([$tomorrow, 'rescheduled'], [$order->fresh()->scheduled_date->toDateString(), $shipment->fresh()->status->value]);
+        $this->assertSame([$order->id], collect($this->api('GET', 'orders?period=tomorrow')->json('data'))->pluck('id')->all());
+
+        // Prévenir la cliente : sans conversation WhatsApp ouverte, le message est prêt à envoyer depuis le téléphone
+        $message = $this->api('POST', "orders/{$order->id}/new-date-message")->assertOk()->json('data');
+        $this->assertFalse($message['sent']);
+        $this->assertStringContainsString('Nouvelle livraison prévue demain', $message['text']);
+        $this->assertStringStartsWith('https://wa.me/2250506070809?text=', $message['whatsapp_url']);
+    }
+
+    public function test_failed_parcel_comes_back_to_stock(): void
+    {
+        $courier = Courier::create(['store_id' => $this->store->id, 'name' => 'Koffi', 'phone' => '+2250102030405', 'status' => 'active', 'is_available' => true]);
+        $order = $this->order(['confirmed' => true, 'scheduled_date' => today()->toDateString()]);
+        $this->api('POST', 'orders/bulk', ['ids' => [$order->id], 'action' => 'assign', 'courier_id' => $courier->id])->assertOk();
+        $shipment = $order->shipments()->first();
+        $available = fn () => (fn ($l) => $l->on_hand - $l->reserved)(StockLevel::where('variant_id', $this->variantId)->sole());
+        $before = $available();
+        // Colis ramassé (le stock sort), puis livraison ratée
+        $this->api('POST', "shipments/{$shipment->id}/status", ['status' => 'in_transit'])->assertOk();
+        $this->assertSame('shipped', $order->fresh()->status->value);
+        $shipment->forceFill(['status' => 'failed', 'failure_reason' => 'Refus du client'])->save();
+
+        // Faire revenir, puis « Colis reçu à la boutique » : commande retournée, articles remis en stock
+        $this->api('POST', "shipments/{$shipment->id}/decision", ['decision' => 'return'])->assertOk();
+        $row = collect($this->api('GET', 'orders?period=today&status=failed')->json('data'))->firstWhere('id', $order->id);
+        $this->assertSame(['returning', false], [$row['failure']['status'], $row['failure']['needs_decision']]);
+        $this->api('POST', "shipments/{$shipment->id}/status", ['status' => 'returned'])->assertOk();
+        $this->assertSame('returned', $order->fresh()->status->value);
+        $this->assertSame($before + 2, $available());
     }
 
     public function test_list_by_period_late_tab_summary_and_row_details(): void

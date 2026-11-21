@@ -571,6 +571,8 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::get('simulator', [PaymentSettingsController::class, 'simulator'])->name('simulator');
                 Route::get('report', [PaymentSettingsController::class, 'report'])->name('report');
             });
+            Route::post('orders/{order}/new-date-message', [OrderController::class, 'newDateMessage'])->whereNumber('order')
+                ->middleware(['permission:'.Permission::OrdersManage->value, 'throttle:30,1'])->name('orders.new-date-message');
             Route::post('orders/{order}/payment-links', [OrderPaymentController::class, 'link'])->whereNumber('order')
                 ->middleware(['permission:'.Permission::OrdersManage->value, 'feature:online_payment'])->name('orders.payment-links');
             Route::post('orders/{order}/refunds', [OrderPaymentController::class, 'refund'])->whereNumber('order')
