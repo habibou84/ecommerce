@@ -696,6 +696,21 @@ class ShippingTest extends TestCase
         $this->assertSame(['store', CarrierConnections::WEBHOOK_EVENTS], [$connection->fresh()->setting('fee_payer'), $connection->fresh()->setting('webhook_events')]);
     }
 
+    public function test_quotes_are_kept_a_few_minutes(): void
+    {
+        $this->connect();
+        $order = $this->confirmedOrder();
+        $asked = fn () => collect(Http::recorded())->filter(fn ($pair) => $pair[0]->url() === self::API.'/quotes')->count();
+
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}/shipping-quotes")->assertOk()->assertJsonPath('data.0.fee', 1200);
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}/shipping-quotes")->assertOk()->assertJsonPath('data.0.fee', 1200);
+        $this->assertSame(1, $asked());
+
+        $this->travel(11)->minutes();
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}/shipping-quotes")->assertOk();
+        $this->assertSame(2, $asked());
+    }
+
     public function test_quotes_say_when_the_carrier_can_deliver(): void
     {
         $this->connect();

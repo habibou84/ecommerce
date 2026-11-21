@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Jobs\Concerns\RunsLong;
 use App\Models\WhatsappSignup;
 use App\Services\WhatsApp\SignupByWhatsApp;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -14,13 +15,16 @@ use Throwable;
  */
 class DraftSignupProduct implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, RunsLong;
 
     public int $tries = 1;
 
     public int $timeout = 120;
 
-    public function __construct(public int $signupId, public string $mediaId) {}
+    public function __construct(public int $signupId, public string $mediaId)
+    {
+        $this->onLongQueue();
+    }
 
     public function handle(SignupByWhatsApp $signups): void
     {

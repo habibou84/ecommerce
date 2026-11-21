@@ -10,7 +10,9 @@ use App\Models\Place;
 use App\Models\StockLevel;
 use App\Models\Store;
 use App\Services\Catalog\CatalogWriter;
+use App\Services\Orders\OrderListing;
 use App\Services\Places\Places;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OrderListTest extends TestCase
@@ -42,6 +44,16 @@ class OrderListTest extends TestCase
         ], $overrides))->assertCreated()->json('data.id');
 
         return Order::findOrFail($id);
+    }
+
+    public function test_default_sort_matches_its_index(): void
+    {
+        // L'index orders_store_delivery_day_sort_index reprend ce texte : il doit suivre la liste des statuts
+        $statuses = "'".implode("', '", OrderListing::NEEDS_DATE)."'";
+        $this->assertStringContainsString("status IN ({$statuses})", OrderListing::NEEDS_DATE_SQL);
+
+        $indexes = DB::table('pg_indexes')->where('tablename', 'orders')->pluck('indexname');
+        $this->assertContains('orders_store_delivery_day_sort_index', $indexes);
     }
 
     public function test_day_tabs_and_progress(): void

@@ -84,7 +84,7 @@ class StoreDataExport
             'produits' => [
                 ['Produit', 'Variante', 'SKU', 'Code-barres', 'Prix', 'Prix barré', "Prix d'achat", 'Stock', 'Réservé', 'Statut', 'En ligne', 'Lot', 'Précommande'],
                 $t('product_variants')->join('products as p', 'p.id', '=', 'product_variants.product_id')->whereNull('product_variants.deleted_at')->whereNull('p.deleted_at')
-                    ->leftJoinSub(DB::table('stock_levels')->groupBy('variant_id')->selectRaw('variant_id, SUM(on_hand) AS on_hand, SUM(reserved) AS reserved'), 'l', 'l.variant_id', '=', 'product_variants.id')
+                    ->leftJoinSub($t('stock_levels')->groupBy('variant_id')->selectRaw('variant_id, SUM(on_hand) AS on_hand, SUM(reserved) AS reserved'), 'l', 'l.variant_id', '=', 'product_variants.id')
                     ->select('p.title', 'product_variants.title as variant', 'product_variants.is_default', 'product_variants.sku', 'product_variants.barcode', 'product_variants.price',
                         'product_variants.compare_at_price', 'product_variants.cost_price', 'l.on_hand', 'l.reserved', 'p.status', 'p.is_visible_online', 'p.is_bundle', 'p.preorder_enabled')
                     ->orderBy('p.id')->orderBy('product_variants.position'),

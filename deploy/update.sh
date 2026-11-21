@@ -124,7 +124,7 @@ main() {
     step "Redémarrage en douceur des processus"
     restart_processes
     install_supervisor
-    supervisorctl status "$INSTANCE-queue:*" || true
+    supervisorctl status "$INSTANCE-queue:*" "$INSTANCE-queue-long" || true
 
     step "Vérification du site"
     check_site || fail "le site ne répond pas correctement avec la nouvelle version."

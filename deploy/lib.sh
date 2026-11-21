@@ -288,7 +288,7 @@ install_supervisor() {
     systemctl enable --now supervisor
     supervisorctl reread
     supervisorctl update
-    supervisorctl restart "$INSTANCE-queue:*"
+    supervisorctl restart "$INSTANCE-queue:*" "$INSTANCE-queue-long"
     install_whatsapp_bridge
 }
 
