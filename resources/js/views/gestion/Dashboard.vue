@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../components/Alert.vue'
 import ColorIcon from '../../components/ColorIcon.vue'
 import Icon from '../../components/Icon.vue'
+import ReturnHandoverBanner from '../../components/ReturnHandoverBanner.vue'
 import SwipeHome from '../../components/SwipeHome.vue'
 import { platformOn } from '../../router'
 import http from '../../lib/http'
@@ -251,6 +252,9 @@ const showGuide = computed(() => guide.value && guide.value.total > 0 && guide.v
       Essai gratuit de l'offre {{ subscription.plan }} : encore <strong>{{ trialDays }} jour{{ trialDays > 1 ? 's' : '' }}</strong>
       (jusqu'au {{ formatDate(subscription.trial_ends_at) }}).
     </Alert>
+
+    <!-- Livreur de Jibiat avec des colis retournés : à confirmer -->
+    <ReturnHandoverBanner />
 
     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div class="min-w-0 space-y-4">

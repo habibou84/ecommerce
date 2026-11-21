@@ -211,6 +211,31 @@ class DeliveryAppDriver implements CarrierDriver
         $this->send($connection, fn (PendingRequest $http) => $http->delete('webhooks/'.rawurlencode($connection->remote_webhook_id)), allowMissing: true);
     }
 
+    /**
+     * Remises des retours que le marchand peut confirmer (contrat 1.14). Une entreprise plus ancienne, sans cette
+     * adresse, répond 404 : aucune remise.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function returnHandovers(CarrierConnection $connection): array
+    {
+        $response = $this->send($connection, fn (PendingRequest $http) => $http->get('return-handovers'), allowMissing: true);
+
+        return $response->status() === 404 ? [] : (array) $response->json('data', []);
+    }
+
+    /**
+     * « Tout reçu » (confirm) ou « Il en manque » (dispute).
+     *
+     * @return array<string, mixed>
+     */
+    public function answerReturnHandover(CarrierConnection $connection, string $reference, bool $allReceived): array
+    {
+        $action = $allReceived ? 'confirm' : 'dispute';
+
+        return (array) $this->send($connection, fn (PendingRequest $http) => $http->post('return-handovers/'.rawurlencode($reference).'/'.$action))->json('data');
+    }
+
     public function paidPayouts(CarrierConnection $connection, ?\DateTimeInterface $since = null): array
     {
         $references = [];

@@ -74,6 +74,8 @@ class CarrierEvents
                 ? $this->applyOrder($connection, RemoteShipment::fromDeliveryApp($data['order'], $occurredAt), 'carrier_webhook', $data['change']['note'] ?? null)
                 : null,
             'payout.paid' => isset($data['payout']['reference']) ? $this->payouts->import($connection, (string) $data['payout']['reference']) : null,
+            // Contrat 1.14 : livreur chez le marchand avec des colis retournés, remise confirmée, contestée…
+            'return_handover.updated' => isset($data['return_handover']) ? app(ReturnHandovers::class)->apply($connection, (array) $data['return_handover']) : null,
             default => null, // ping, stock.low : rien à faire ici
         };
     }
