@@ -38,6 +38,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\ServiceProvider;
 use Jibiat\Socle\PhoneNumber;
 use Jibiat\Socle\Sms\SmsGateway;
@@ -71,6 +72,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->frenchRelativeDates();
+
         // E-mails envoyés par le compte Gmail connecté avec Google dans la console (API Gmail, sans mot de passe d'application)
         Mail::extend('gmail_api', fn () => new GmailApiTransport(app(GoogleMail::class)));
 
@@ -157,5 +160,23 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('meta-webhooks', fn (Request $request) => Limit::perMinute(20000)->by('meta-webhooks:'.$request->ip()));
 
         RateLimiter::for('verification-code', fn (Request $request) => Limit::perMinute(10)->by('verification-code:'.$request->ip()));
+    }
+
+    /**
+     * « after_or_equal:today » : « postérieure ou égale à aujourd'hui » (et non « au today »).
+     */
+    private function frenchRelativeDates(): void
+    {
+        $words = ['today' => 'aujourd\'hui', 'tomorrow' => 'demain', 'yesterday' => 'hier', 'now' => 'maintenant'];
+        foreach (['after', 'after_or_equal', 'before', 'before_or_equal', 'date_equals'] as $rule) {
+            Validator::replacer($rule, function (string $message, string $attribute, string $rule, array $parameters, $validator) use ($words) {
+                $date = (string) ($parameters[0] ?? '');
+                $label = $words[strtolower($date)] ?? (strtotime($date) !== false
+                    ? $validator->getDisplayableValue($attribute, $date)
+                    : $validator->getDisplayableAttribute($date));
+
+                return str_replace(':date', $label, $message);
+            });
+        }
     }
 }

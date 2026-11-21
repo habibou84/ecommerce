@@ -107,4 +107,22 @@ CSV;
         $this->expectExceptionMessage('Colonne « Nom » introuvable');
         $this->csv()->import($store, "Prix;Stock\n1;2\n", null);
     }
+
+    public function test_values_too_long_and_lines_without_product_are_reported_by_line(): void
+    {
+        $store = $this->createStore();
+        $long = str_repeat('X', 300);
+        $csv = "Nom;Prix;Marque;SKU\n;1000;;ORPHELIN\n{$long};2000;;L-1\nTrop longue marque;2500;".str_repeat('M', 300).";L-2\nRobe;3000;;R-1\n";
+
+        foreach ([true, false] as $dryRun) {
+            $summary = $this->csv()->import($store, $csv, null, $dryRun);
+
+            $this->assertSame(1, $summary['products_created']);
+            $messages = collect($summary['errors'])->mapWithKeys(fn ($e) => [$e['line'] => $e['message']]);
+            $this->assertStringContainsString('nom du produit manquant', $messages[2]);
+            $this->assertStringContainsString('nom trop long (300 caractères, 255 au plus)', $messages[3]);
+            $this->assertStringContainsString('valeur trop longue', $messages[4]);
+        }
+        $this->assertSame(['Robe'], Product::forStore($store->id)->pluck('title')->all());
+    }
 }

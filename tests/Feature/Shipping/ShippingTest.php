@@ -331,6 +331,9 @@ class ShippingTest extends TestCase
 
         $this->stub([self::API.'/orders/LV-7K2M-QX9P/cancel' => Http::response(['data' => $this->remoteOrder('cancelled')])]);
         $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/cancel", ['reason' => 'Client absent'])->assertOk()->assertJsonPath('data.status', 'cancelled');
+        // Deuxième clic : la livraison est déjà annulée (et non « le colis est déjà parti »)
+        $this->storeApi($this->store, 'POST', "shipments/{$shipment->id}/cancel", ['reason' => 'Client absent'])
+            ->assertStatus(422)->assertJsonPath('message', 'Cette livraison est déjà annulée.');
         $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
         $this->assertSame([5, 2], $this->stock());
 
