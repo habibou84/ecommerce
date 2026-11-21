@@ -33,7 +33,7 @@ console (champs masqués) ou directement sur le serveur.
 |---|---|---|
 | **Sauvegardes** | Moi | Console › Santé au vert (nuit, copie hors du serveur, test de restauration du dimanche) ; une fois par trimestre, récupérer et déchiffrer une copie distante à la main (docs/SAUVEGARDES.md) |
 | Espace disque, mémoire, durée des pages | Moi | Tableau de bord de l'hébergeur ; disque < 70 %, pages < 1 s |
-| Mises à jour du système du serveur | Moi | `apt update && apt upgrade` (paquets de sécurité), redémarrage si demandé |
+| Mises à jour du système du serveur | Moi | `apt update && apt upgrade` (paquets de sécurité), redémarrage si demandé. La nuit, seuls les correctifs de sécurité de Debian passent, jamais PHP ; après chaque `apt`, la garde de PHP (`deploy/php-guard.sh`) remet les extensions de PHP 8.4 et la commande `php` sur 8.4. Journal : `/var/log/jibiat-php-guard.log`. Changer de version de PHP : à décider, puis préparer avec Claude (jamais par une mise à jour automatique) |
 | Revue des membres d'équipe et des accès | Moi | Supprimer les comptes qui ne servent plus (console et boutiques de démonstration) |
 | Coût de l'assistant IA | Moi | Console › Assistant IA |
 

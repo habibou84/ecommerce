@@ -85,6 +85,8 @@ main() {
 
     # Sauvegardes de la nuit, entretien et journaux : installés ou mis à jour à chaque fois (docs/SAUVEGARDES.md)
     install_backup
+    # PHP et ses extensions vérifiés (et réparés) avant de toucher au site ; garde installée (deploy/php-guard.sh)
+    protect_php "$WORK"
 
     trap finish EXIT
     if [[ "$maintenance" == "1" ]]; then

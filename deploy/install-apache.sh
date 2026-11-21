@@ -130,6 +130,7 @@ systemctl reload apache2
 install_supervisor
 install_cron
 install_backup
+protect_php
 save_deploy_conf
 
 # ─────────────────────────── Vérification ───────────────────────────
