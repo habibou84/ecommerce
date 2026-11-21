@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\Store;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
 use Jibiat\Socle\PhoneNumber;
@@ -43,6 +44,10 @@ class MessageTexts
             'label' => 'Commande en route',
             'text' => "Bonjour {prenom}, votre commande {commande} est en route 🚚\nMontant à payer à la livraison : {reste}\nSuivi : {suivi}",
         ],
+        'new_date' => [
+            'label' => 'Nouvelle date de livraison (après une livraison ratée)',
+            'text' => "Bonjour {prenom}, nous n'avons pas pu vous livrer votre commande {commande} de {boutique}.\nNouvelle livraison prévue {date_livraison}.\nMontant à payer : {reste}\nMerci de rester joignable 🙏",
+        ],
         'thanks' => [
             'label' => 'Remerciement',
             'text' => 'Bonjour {prenom}, merci pour votre achat chez {boutique} ! Nous espérons que vous êtes satisfait(e). À bientôt 🙏',
@@ -71,6 +76,7 @@ class MessageTexts
         'lien_boutique' => 'lien de la boutique en ligne',
         'livreur' => 'prénom du livreur',
         'tel_livreur' => 'téléphone du livreur',
+        'date_livraison' => 'jour de livraison (« demain », « le lundi 23 novembre »)',
     ];
 
     /**
@@ -164,6 +170,22 @@ class MessageTexts
             'lien_boutique' => $order->store->url(),
             'livreur' => $courier ? (string) strtok($courier->name, ' ') : '',
             'tel_livreur' => $courier?->phone ? PhoneNumber::display($courier->phone) : '',
+            'date_livraison' => self::dayWords($order->scheduled_date),
         ];
+    }
+
+    /** « aujourd'hui », « demain », « le lundi 23 novembre » */
+    public static function dayWords(?\DateTimeInterface $date): string
+    {
+        if ($date === null) {
+            return '';
+        }
+        $day = Carbon::parse($date)->startOfDay();
+
+        return match (true) {
+            $day->isToday() => 'aujourd\'hui',
+            $day->isTomorrow() => 'demain',
+            default => 'le '.$day->locale('fr')->translatedFormat('l j F'),
+        };
     }
 }

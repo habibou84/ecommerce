@@ -368,9 +368,19 @@ class ShipmentDesk
      */
     public function decideAtCarrier(Shipment $shipment, string $decision, ?string $date, ?string $note, ?User $actor): Shipment
     {
-        if ($shipment->isOwnCourier()) {
-            return $this->decideForCourier($shipment, $decision, $date, $note, $actor);
+        $fresh = $shipment->isOwnCourier()
+            ? $this->decideForCourier($shipment, $decision, $date, $note, $actor)
+            : $this->decideWithCarrier($shipment, $decision, $date, $note, $actor);
+        // Relivraison : la commande prend la nouvelle date (elle apparaît ce jour-là dans les commandes du jour)
+        if ($decision === 'redeliver' && $date !== null) {
+            $fresh->order?->forceFill(['scheduled_date' => Carbon::parse($date)->toDateString()])->save();
         }
+
+        return $fresh;
+    }
+
+    private function decideWithCarrier(Shipment $shipment, string $decision, ?string $date, ?string $note, ?User $actor): Shipment
+    {
         [$connection, $driver] = $this->carrierLink($shipment);
         if (! $shipment->needs_decision) {
             throw new BusinessRuleException('Aucune décision n\'est attendue pour cette livraison.');
