@@ -184,7 +184,7 @@ afficher `redis`) et `redis-cli -n 4 dbsize` (nombre de sessions ouvertes).
 |---|---|
 | Erreurs de l'application | `/var/www/jibiat-marchand/storage/logs/laravel-AAAA-MM-JJ.log` |
 | Apache | `/var/log/apache2/jibiat-marchand-error.log` |
-| File d'attente | `supervisorctl status jibiat-marchand-queue`, `/var/www/jibiat-marchand/storage/logs/queue.log` |
+| File d'attente | `supervisorctl status jibiat-marchand-queue: jibiat-marchand-queue-long`, `/var/www/jibiat-marchand/storage/logs/queue.log` (et `queue-long.log` : exports, IA) |
 | Certificat | `certbot certificates` ; essai de renouvellement : `certbot renew --dry-run` |
 | Configuration | `/var/www/jibiat-marchand/.env` (puis `sudo -u jibiat php artisan optimize`) |
 

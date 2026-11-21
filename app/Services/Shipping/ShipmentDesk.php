@@ -80,11 +80,7 @@ class ShipmentDesk
                 $quote['error'] = $placeId === null || ! $hasZones ? null : 'Quartier non couvert (ou sans correspondance de zone).';
             } elseif ($connection->isApi()) {
                 try {
-                    $quote['fee'] = $this->connections->driver($connection)->quote($connection, [
-                        'zone_id' => $zone->remote_id,
-                        'is_fragile' => $fragile,
-                        'weight_kg' => $weightKg,
-                    ]) ?? $zone->fee;
+                    $quote['fee'] = $this->remoteQuote($connection, $zone->remote_id, $fragile, $weightKg) ?? $zone->fee;
                 } catch (CarrierException $e) {
                     $quote['error'] = $quote['fee'] === null ? $e->getMessage() : null;
                 }
@@ -96,6 +92,34 @@ class ShipmentDesk
         }
 
         return $quotes;
+    }
+
+    /** Durée de vie d'un devis transporteur : le formulaire de commande en redemande un à chaque ouverture */
+    private const QUOTE_CACHE_MINUTES = 10;
+
+    /**
+     * Prix demandé à l'entreprise de livraison, gardé quelques minutes par zone, fragilité et poids : chaque ouverture
+     * du formulaire n'attend plus un appel par transporteur. Les erreurs ne sont pas gardées (nouvel essai au
+     * prochain affichage). Le prix facturé reste celui de la course créée.
+     */
+    private function remoteQuote(CarrierConnection $connection, int|string|null $zoneId, bool $fragile, ?float $weightKg): ?int
+    {
+        $key = 'carrier-quote:'.$connection->id.':'.md5(json_encode([$zoneId, $fragile, $weightKg]));
+        $cached = Cache::get($key);
+        if (is_int($cached)) {
+            return $cached;
+        }
+
+        $fee = $this->connections->driver($connection)->quote($connection, [
+            'zone_id' => $zoneId,
+            'is_fragile' => $fragile,
+            'weight_kg' => $weightKg,
+        ]);
+        if (is_int($fee)) {
+            Cache::put($key, $fee, now()->addMinutes(self::QUOTE_CACHE_MINUTES));
+        }
+
+        return $fee;
     }
 
     /**

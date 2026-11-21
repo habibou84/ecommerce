@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Jobs\Concerns\RunsLong;
 use App\Models\StoreExport;
 use App\Models\User;
 use App\Notifications\ExportReady;
@@ -17,11 +18,14 @@ use Illuminate\Queue\SerializesModels;
  */
 class ExportStoreData implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, RunsLong, SerializesModels;
 
     public int $timeout = 600;
 
-    public function __construct(public readonly int $exportId) {}
+    public function __construct(public readonly int $exportId)
+    {
+        $this->onLongQueue();
+    }
 
     public function handle(StoreDataExport $exports): void
     {

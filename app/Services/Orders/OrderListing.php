@@ -29,6 +29,15 @@ class OrderListing
     public const NEEDS_DATE = ['pending_confirmation', 'confirmed', 'processing', 'shipped'];
 
     /**
+     * Expressions du tri par défaut (byDeliveryDay). L'index orders_store_delivery_day_sort_index est construit sur
+     * ces mêmes textes : PostgreSQL ne s'en sert que si la requête les reprend à l'identique. Changer l'une d'elles
+     * (ou NEEDS_DATE) demande une migration qui recrée l'index.
+     */
+    public const NEEDS_DATE_SQL = "scheduled_date IS NULL AND delivery_method = 'delivery' AND status IN ('pending_confirmation', 'confirmed', 'processing', 'shipped')";
+
+    public const DELIVERY_DAY_SQL = 'COALESCE(scheduled_date, CAST(created_at AS DATE))';
+
+    /**
      * @return array<string, mixed>
      */
     public static function rules(): array
@@ -120,11 +129,9 @@ class OrderListing
      */
     private function byDeliveryDay(Builder $query): Builder
     {
-        $open = "'".implode("','", self::NEEDS_DATE)."'";
-
         return $query
-            ->orderByRaw("(scheduled_date IS NULL AND delivery_method = 'delivery' AND status IN ({$open})) DESC")
-            ->orderByRaw('COALESCE(scheduled_date, CAST(created_at AS DATE)) DESC')
+            ->orderByRaw('('.self::NEEDS_DATE_SQL.') DESC')
+            ->orderByRaw('('.self::DELIVERY_DAY_SQL.') DESC')
             ->latest('id');
     }
 
