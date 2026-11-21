@@ -435,8 +435,11 @@ EOF
     [[ "$version" == "$PHP_V" ]] || fail "la commande php est en PHP ${version:-?} au lieu de $PHP_V (update-alternatives --set php /usr/bin/php$PHP_V). Rien n'a été changé."
     local required=(pdo_pgsql pgsql mbstring intl bcmath gd zip dom curl)
     [[ "$(env_get SESSION_DRIVER)" != redis && "$(env_get CACHE_STORE)" != redis ]] || required+=(redis)
+    # Liste lue en entier d'abord (« php -m | grep -q » sous pipefail peut échouer alors que l'extension est là)
+    local loaded
+    loaded="$("$PHP_BIN" -m 2>/dev/null || true)"
     for ext in "${required[@]}"; do
-        "$PHP_BIN" -m 2>/dev/null | grep -qix "$ext" || missing+=" $ext"
+        grep -qix "$ext" <<<"$loaded" || missing+=" $ext"
     done
     [[ -z "$missing" ]] || fail "PHP $PHP_V n'a pas les extensions :$missing (journal : /var/log/jibiat-php-guard.log). Rien n'a été changé."
     info "PHP $PHP_V : extensions présentes, commande php fixée, garde installée (après chaque mise à jour et toutes les 10 min)."

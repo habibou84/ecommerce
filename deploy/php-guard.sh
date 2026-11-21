@@ -20,6 +20,8 @@
 # 10 minutes (cron), et à chaque déploiement.
 
 set -uo pipefail
+# Lancée par cron, le chemin des commandes ne contient pas /usr/sbin (phpenmod, php-fpm)
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 CONF="${JIBIAT_PHP_GUARD_CONF:-/etc/jibiat-php-guard.conf}"
 LOG="${JIBIAT_PHP_GUARD_LOG:-/var/log/jibiat-php-guard.log}"
@@ -44,7 +46,13 @@ log() {
     logger -t jibiat-php-guard "$*" 2>/dev/null || true
 }
 installed() { dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q 'install ok installed'; }
-has_extension() { "$1" -m 2>/dev/null | grep -qix "$2"; }
+# Liste lue en entier avant la recherche : « php -m | grep -q » couperait la sortie de PHP dès le premier résultat, et
+# avec pipefail cette coupure compte comme un échec (une extension présente semblait absente, au hasard)
+has_extension() {
+    local list
+    list="$("$1" -m 2>/dev/null)" || return 1
+    grep -qix "$2" <<<"$list"
+}
 UPDATED=0
 reinstall() {
     local cmd=(apt-get install -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold "$1")
