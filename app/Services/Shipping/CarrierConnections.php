@@ -29,7 +29,7 @@ use Jibiat\Socle\Places\Places as CommonPlaces;
  */
 class CarrierConnections
 {
-    public const WEBHOOK_EVENTS = ['order.status_changed', 'order.incident', 'order.updated', 'payout.paid'];
+    public const WEBHOOK_EVENTS = ['order.status_changed', 'order.incident', 'order.updated', 'payout.paid', 'return_handover.updated'];
 
     public function __construct(
         private readonly DeliveryAppImporter $addresses,
