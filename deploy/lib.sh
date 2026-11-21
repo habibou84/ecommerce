@@ -390,11 +390,56 @@ APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 APT::Periodic::AutocleanInterval "7";
 EOF
-    cat > /etc/apt/apt.conf.d/52jibiat-upgrades <<EOF
-// Jibiat Marchand : correctifs de sécurité seulement, jamais de redémarrage automatique du serveur
+    # Guillemets autour de EOF : ${distro_codename} est lu par apt, pas par bash
+    cat > /etc/apt/apt.conf.d/52jibiat-upgrades <<'EOF'
+// Jibiat Marchand : correctifs de sécurité de Debian seulement, jamais de redémarrage automatique du serveur.
 Unattended-Upgrade::Automatic-Reboot "false";
-Unattended-Upgrade::Remove-Unused-Dependencies "true";
+// Ne jamais retirer de paquet « devenu inutile » : le 21/11/2026, l'extension PostgreSQL de PHP 8.4 a été retirée
+// ainsi (les paquets PHP génériques étaient passés à PHP 8.6) et les deux sites sont tombés en erreur 500.
+Unattended-Upgrade::Remove-Unused-Dependencies "false";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "false";
+// Dépôts : la sécurité de Debian seulement (pas le dépôt PHP de l'hébergeur)
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+    "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+    "origin=Debian,codename=${distro_codename},label=Debian-Security";
+};
+// PHP jamais mis à jour la nuit, sans surveillance : il l'est au déploiement, avec vérification du site
+Unattended-Upgrade::Package-Blacklist { "php"; "libapache2-mod-php"; };
 EOF
+}
+
+# PHP de l'application gardé intact (deploy/php-guard.sh) : extensions réinstallées et réactivées si une mise à jour
+# du serveur les retire, commande « php » fixée sur la version de l'application. La garde passe après chaque
+# installation de paquets et toutes les 10 minutes. Au déploiement, avant la bascule : si PHP n'a pas ce qu'il faut
+# malgré la réparation, la mise à jour s'arrête sans rien changer au site.
+protect_php() {
+    local source="${1:-$APP_DIR}"
+    step "PHP $PHP_V (extensions gardées, version fixée)"
+    install -m 755 "$source/deploy/php-guard.sh" /usr/local/sbin/jibiat-php-guard
+    touch /etc/jibiat-php-guard.conf
+    if ! grep -qx "$PHP_V $INSTANCE" /etc/jibiat-php-guard.conf; then
+        sed -i "/ $INSTANCE\$/d" /etc/jibiat-php-guard.conf
+        echo "$PHP_V $INSTANCE" >> /etc/jibiat-php-guard.conf
+    fi
+    cat > /etc/apt/apt.conf.d/99jibiat-php-guard <<'EOF'
+// Jibiat Marchand : après chaque installation de paquets, PHP de l'application vérifié et réparé (90 s après)
+DPkg::Post-Invoke { "if [ -x /usr/local/sbin/jibiat-php-guard ]; then /usr/local/sbin/jibiat-php-guard --later; fi"; };
+EOF
+    echo "*/10 * * * * root /usr/local/sbin/jibiat-php-guard" > /etc/cron.d/jibiat-php-guard
+    chmod 644 /etc/cron.d/jibiat-php-guard /etc/apt/apt.conf.d/99jibiat-php-guard
+    /usr/local/sbin/jibiat-php-guard
+
+    local version missing="" ext
+    version="$("$PHP_BIN" -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
+    [[ "$version" == "$PHP_V" ]] || fail "la commande php est en PHP ${version:-?} au lieu de $PHP_V (update-alternatives --set php /usr/bin/php$PHP_V). Rien n'a été changé."
+    local required=(pdo_pgsql pgsql mbstring intl bcmath gd zip dom curl)
+    [[ "$(env_get SESSION_DRIVER)" != redis && "$(env_get CACHE_STORE)" != redis ]] || required+=(redis)
+    for ext in "${required[@]}"; do
+        "$PHP_BIN" -m 2>/dev/null | grep -qix "$ext" || missing+=" $ext"
+    done
+    [[ -z "$missing" ]] || fail "PHP $PHP_V n'a pas les extensions :$missing (journal : /var/log/jibiat-php-guard.log). Rien n'a été changé."
+    info "PHP $PHP_V : extensions présentes, commande php fixée, garde installée (après chaque mise à jour et toutes les 10 min)."
 }
 
 # Paramètres relus par update.sh
