@@ -33,6 +33,15 @@ class AttackSimulationTest extends TestCase
         $this->assertGuest('web');
     }
 
+    public function test_an_api_link_opened_without_session_answers_401_not_500(): void
+    {
+        // Lien d'export ouvert dans un nouvel onglet après expiration de la session (navigateur : pas d'en-tête JSON)
+        $store = $this->createStore();
+
+        $this->get($this->storeUrl($store, '/api/v1/orders/export'), ['Accept' => 'text/html'])
+            ->assertUnauthorized()->assertJsonPath('message', 'Non authentifié.');
+    }
+
     public function test_the_team_cannot_read_or_answer_the_support_messages_of_the_owner(): void
     {
         // WhatsApp du propriétaire relié à la boîte Messages : le lien de connexion envoyé par le support n'y arrive pas

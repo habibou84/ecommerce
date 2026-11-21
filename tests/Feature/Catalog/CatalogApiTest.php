@@ -172,6 +172,18 @@ class CatalogApiTest extends TestCase
             ->post($this->storeUrl($this->store, '/api/v1/catalog/import'), ['file' => $file, 'dry_run' => '1'], ['Accept' => 'application/json'])
             ->assertOk()->assertJsonPath('data.dry_run', true)->assertJsonPath('data.products_created', 1);
         $this->assertSame(1, Product::forStore($this->store->id)->count());
+
+        // Une ligne qui commence par une balise fait prendre le CSV pour une page web : il reste accepté
+        $html = UploadedFile::fake()->createWithContent('catalogue.csv', "Nom;Prix\n<script>alert(1)</script>;4000\n<b>Gras</b>;3000\n");
+        $this->withHeaders(['Referer' => $this->storeUrl($this->store)])
+            ->post($this->storeUrl($this->store, '/api/v1/catalog/import'), ['file' => $html, 'dry_run' => '1'], ['Accept' => 'application/json'])
+            ->assertOk()->assertJsonPath('data.products_created', 2);
+
+        // Vrai fichier binaire : refusé avec un message lisible
+        $zip = UploadedFile::fake()->createWithContent('catalogue.csv', "PK\x03\x04".str_repeat("\x00\x01\xff", 50));
+        $this->withHeaders(['Referer' => $this->storeUrl($this->store)])
+            ->post($this->storeUrl($this->store, '/api/v1/catalog/import'), ['file' => $zip], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonPath('errors.file.0', fn ($m) => ! str_contains($m, 'fichier fichier'));
     }
 
     public function test_delivery_app_catalog_preview_and_import(): void

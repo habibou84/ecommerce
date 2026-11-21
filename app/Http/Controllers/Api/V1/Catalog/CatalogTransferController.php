@@ -30,9 +30,12 @@ class CatalogTransferController extends Controller
     public function import(Request $request, CatalogCsv $csv): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel', 'max:5120'],
+            // text/html : CSV dont une ligne commence par une balise (description HTML), lu comme du texte
+            'file' => ['required', 'file', 'mimetypes:text/csv,text/plain,text/html,application/csv,application/vnd.ms-excel', 'max:5120'],
             'dry_run' => ['sometimes', 'boolean'],
-        ], [], ['file' => 'fichier']);
+        ], [
+            'file.mimetypes' => 'Le fichier doit être un CSV (dans le tableur : Fichier › Enregistrer sous › CSV).',
+        ], ['file' => 'fichier']);
 
         $summary = $csv->import($this->currentStore(), (string) file_get_contents($request->file('file')->getRealPath()), $request->user(), $request->boolean('dry_run'));
 

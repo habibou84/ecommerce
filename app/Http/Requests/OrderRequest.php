@@ -90,6 +90,10 @@ class OrderRequest extends FormRequest
             'referral_code' => 'code de parrainage',
             'planned_courier_id' => 'livreur', 'planned_carrier_connection_id' => 'entreprise de livraison', 'planned_carrier_slug' => 'entreprise de livraison',
             'scheduled_date' => 'date de livraison',
+            'delivery_method' => 'mode de remise', 'shipping_name' => 'nom du destinataire', 'shipping_phone' => 'téléphone du destinataire',
+            'shipping_place_id' => 'quartier', 'shipping_address' => 'adresse de livraison', 'shipping_landmark' => 'repère',
+            'time_slot' => 'créneau', 'customer_note' => 'note du client', 'internal_note' => 'note interne',
+            'external_reference' => 'référence externe', 'deposit_required' => 'acompte demandé',
         ];
     }
 

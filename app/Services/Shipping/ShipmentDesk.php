@@ -293,7 +293,12 @@ class ShipmentDesk
     public function cancel(Shipment $shipment, ?string $reason, ?User $actor, ?string $reasonCode = null): Shipment
     {
         if (! $shipment->status->isCancellable()) {
-            throw new BusinessRuleException('Le colis est déjà parti : la livraison ne peut plus être annulée.');
+            throw new BusinessRuleException(match ($shipment->status) {
+                ShipmentStatus::Cancelled => 'Cette livraison est déjà annulée.',
+                ShipmentStatus::Rejected => 'Cette livraison a été refusée par l\'entreprise de livraison : rien à annuler.',
+                ShipmentStatus::Delivered => 'Cette livraison est déjà faite : elle ne peut plus être annulée.',
+                default => 'Le colis est déjà parti : la livraison ne peut plus être annulée.',
+            });
         }
 
         $connection = $shipment->connection;

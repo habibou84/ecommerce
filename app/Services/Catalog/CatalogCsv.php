@@ -13,6 +13,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Stock\StockKeeper;
 use App\Support\SpreadsheetCell;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
@@ -125,6 +126,12 @@ class CatalogCsv
                     $summary['variants'] += $variants;
                 } catch (BusinessRuleException $e) {
                     $summary['errors'][] = ['line' => $group['line'], 'message' => "« {$group['label']} » : {$e->getMessage()}"];
+                } catch (QueryException $e) {
+                    // Valeur plus longue que la colonne (marque, SKU, code-barres…) : erreur de la ligne, pas de l'import
+                    if ($e->getCode() !== '22001') {
+                        throw $e;
+                    }
+                    $summary['errors'][] = ['line' => $group['line'], 'message' => "« {$group['label']} » : valeur trop longue dans une colonne (255 caractères au plus)."];
                 }
             }
 
@@ -226,10 +233,13 @@ class CatalogCsv
 
             $key = isset($data['handle']) ? Str::slug($data['handle']) : (isset($data['title']) ? Str::slug($data['title']) : $current);
             if ($key === null) {
+                // Ligne sans nom avant tout produit : signalée (« nom du produit manquant »), jamais ignorée en silence
+                $groups['line:'.$line['line']] = ['key' => null, 'label' => 'ligne '.$line['line'], 'line' => $line['line'], 'rows' => [['line' => $line['line'], 'data' => $data]]];
+
                 continue;
             }
 
-            $groups[$key] ??= ['key' => $key, 'label' => $data['title'] ?? $data['handle'] ?? $key, 'line' => $line['line'], 'rows' => []];
+            $groups[$key] ??= ['key' => $key, 'label' => Str::limit($data['title'] ?? $data['handle'] ?? $key, 60), 'line' => $line['line'], 'rows' => []];
             $groups[$key]['rows'][] = ['line' => $line['line'], 'data' => $data];
             $current = $key;
         }
@@ -243,10 +253,16 @@ class CatalogCsv
     private function importGroup(Store $store, array $group, ?User $actor): array
     {
         $first = collect($group['rows'])->first(fn ($r) => isset($r['data']['title']))['data'] ?? $group['rows'][0]['data'];
-        $product = Product::forStore($store->id)->where('slug', $group['key'])->with('variants')->first();
+        $product = $group['key'] === null ? null : Product::forStore($store->id)->where('slug', $group['key'])->with('variants')->first();
 
         if ($product === null && ! isset($first['title'])) {
             throw new BusinessRuleException('nom du produit manquant.');
+        }
+        if (isset($first['title']) && mb_strlen($first['title']) > 255) {
+            throw new BusinessRuleException('nom trop long ('.mb_strlen($first['title']).' caractères, 255 au plus).');
+        }
+        if (mb_strlen((string) $group['key']) > 255) {
+            throw new BusinessRuleException('identifiant trop long (255 caractères au plus).');
         }
 
         // Options : noms de la première ligne, valeurs dans l'ordre d'apparition
