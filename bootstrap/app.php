@@ -52,6 +52,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(SecurityHeaders::class);
         // Gestion (SPA) authentifiée par cookie de session, limité au nom d'hôte de la boutique
         $middleware->statefulApi();
+        // Seule l'API est protégée : un visiteur non connecté reçoit 401, jamais une redirection vers une route « login » qui n'existe pas
+        $middleware->redirectGuestsTo(fn () => null);
         // Sessions fermées à distance (voir Sessions::revoke) : déconnectées à leur prochaine requête
         $middleware->web(append: [EnsureSessionCurrent::class]);
         $middleware->api(append: [EnsureSessionCurrent::class]);

@@ -192,7 +192,7 @@ async function addNote() {
     <PaymentProofCard v-if="order.upfront?.payment_proof_at && order.upfront.due > 0" :order="order" :can-manage="auth.can('orders.manage')" @changed="load" />
     <Alert v-if="order.duplicates.length" tone="warning">
       Autre(s) commande(s) en cours de ce client depuis 24 h :
-      <RouterLink v-for="d in order.duplicates" :key="d.id" :to="`/gestion/commandes/${d.id}`" class="font-medium underline">{{ d.reference }}</RouterLink>. Doublon ?
+      <template v-for="(d, i) in order.duplicates" :key="d.id"><template v-if="i">, </template><RouterLink :to="`/gestion/commandes/${d.id}`" class="font-medium underline">{{ d.reference }}</RouterLink></template>. Doublon ?
     </Alert>
     <Alert v-if="order.customer?.is_blacklisted" tone="error">Client sur liste noire{{ order.customer.blacklist_reason ? ` : ${order.customer.blacklist_reason}` : '' }}.</Alert>
     <Alert v-if="order.status === 'cancelled'" tone="info">Annulée : {{ order.cancel_reason_label }}{{ order.cancel_note ? ` — ${order.cancel_note}` : '' }}</Alert>
