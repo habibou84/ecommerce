@@ -7,6 +7,7 @@ use App\Enums\Role;
 use App\Enums\ShipmentStatus;
 use App\Models\CarrierConnection;
 use App\Models\CarrierPayout;
+use App\Models\CarrierReturnHandover;
 use App\Models\CarrierZone;
 use App\Models\Order;
 use App\Models\Place;
@@ -921,5 +922,62 @@ class ShippingTest extends TestCase
         $this->storeApi($this->store, 'POST', "orders/{$order->id}/shipments", ['carrier_connection_id' => $connection->id, 'origin_location_id' => $locationId])->assertCreated();
         Http::assertSent(fn (HttpRequest $r) => $r->url() === self::API.'/orders' && $r->method() === 'POST'
             && $r['pickup_hub_id'] === 4 && $r['items'][0]['product_id'] === 55 && ! isset($r['pickup_address']));
+    }
+
+    public function test_the_store_confirms_the_parcels_brought_back_by_the_courier(): void
+    {
+        $connection = $this->connect();
+        $this->assertContains('return_handover.updated', CarrierConnections::WEBHOOK_EVENTS);
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, $connection);
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('returning')], 'evt-r1')->assertOk();
+        $stockBefore = $this->stock();
+
+        // Le livreur arrive : remise du contrat, équipe prévenue
+        $this->contractWebhook($connection, 'webhook-return-handover')->assertOk();
+        $handover = CarrierReturnHandover::sole();
+        $this->assertSame(['R-4821', 'pending', 'Moussa Koné', 2], [$handover->reference, $handover->status, $handover->courier_name, count($handover->parcels)]);
+        $this->assertSame('Moussa Koné vous rapporte 2 colis', DatabaseNotification::all()->firstWhere('data.kind', 'return_handover')->data['title']);
+
+        // Bandeau : la remise relue chez l'entreprise, le colis de la boutique relié à sa commande
+        $this->stub([self::API.'/return-handovers' => Http::response(Contract::example('return-handover-list'))]);
+        $list = $this->storeApi($this->store, 'GET', 'return-handovers')->assertOk()->json('data');
+        $this->assertCount(1, $list);
+        $this->assertSame($order->id, $list[0]['parcels'][0]['order_id']);
+        $this->assertSame($order->fresh()->reference(), $list[0]['parcels'][0]['order_reference']);
+        $this->assertNull($list[0]['parcels'][1]['order_id']); // course créée ailleurs
+        $this->assertSame(1, DatabaseNotification::all()->where('data.kind', 'return_handover')->count()); // pas de doublon
+
+        // « Tout reçu » : envoyé à l'entreprise ; le stock ne revient qu'avec le statut « Retournée » de la course
+        $this->stub(['POST '.self::API.'/return-handovers/R-4821/confirm' => Http::response(Contract::example('return-handover-confirmed'))]);
+        $this->storeApi($this->store, 'POST', "return-handovers/{$handover->id}/confirm")->assertOk()->assertJsonPath('data.status', 'confirmed');
+        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'POST' && $r->url() === self::API.'/return-handovers/R-4821/confirm');
+        $this->assertSame($stockBefore, $this->stock());
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('returned')], 'evt-r2')->assertOk();
+        $this->assertSame('returned', $shipment->fresh()->status->value);
+        $this->assertSame($stockBefore[0] + 2, $this->stock()[0]);
+
+        // Plus listée chez l'entreprise : plus proposée
+        $handover->refresh()->forceFill(['status' => 'pending'])->save();
+        $this->stub([self::API.'/return-handovers' => Http::response(['data' => []])]);
+        $this->assertSame([], $this->storeApi($this->store, 'GET', 'return-handovers')->assertOk()->json('data'));
+        $this->assertSame('closed', $handover->fresh()->status);
+    }
+
+    public function test_parcels_missing_from_the_handover_are_reported_to_the_carrier(): void
+    {
+        $connection = $this->connect();
+        $this->contractWebhook($connection, 'webhook-return-handover')->assertOk();
+        $handover = CarrierReturnHandover::sole();
+
+        $disputed = Contract::example('return-handover-confirmed');
+        $disputed['data'] = ['status' => 'disputed', 'confirmed_at' => null, 'confirmed_via' => null, 'disputed_at' => now()->toIso8601String()] + $disputed['data'];
+        $this->stub(['POST '.self::API.'/return-handovers/R-4821/dispute' => Http::response($disputed)]);
+        $this->storeApi($this->store, 'POST', "return-handovers/{$handover->id}/dispute")->assertOk()->assertJsonPath('data.status', 'disputed');
+        $this->assertSame('disputed', $handover->fresh()->status);
+
+        // Entreprise plus ancienne, sans remise des retours : rien à afficher, pas d'erreur
+        $this->stub([self::API.'/return-handovers' => Http::response(['message' => 'Introuvable'], 404)]);
+        $this->assertSame([], $this->storeApi($this->store, 'GET', 'return-handovers')->assertOk()->json('data'));
     }
 }

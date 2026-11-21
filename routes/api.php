@@ -81,6 +81,7 @@ use App\Http\Controllers\Api\V1\Reports\StatsController;
 use App\Http\Controllers\Api\V1\SetupGuideController;
 use App\Http\Controllers\Api\V1\Shipping\CarrierBalanceController;
 use App\Http\Controllers\Api\V1\Shipping\CarrierController;
+use App\Http\Controllers\Api\V1\Shipping\ReturnHandoverController;
 use App\Http\Controllers\Api\V1\Shipping\ShipmentController;
 use App\Http\Controllers\Api\V1\Shipping\ShippingRuleController;
 use App\Http\Controllers\Api\V1\SignupController;
@@ -547,6 +548,10 @@ Route::prefix('v1')->name('v1.')->group(function () {
                 Route::post('shipments/{shipment}/assign', [ShipmentController::class, 'assign'])->whereNumber('shipment')->name('shipments.assign');
                 Route::get('shipments/{shipment}/proof', [ShipmentController::class, 'proof'])->whereNumber('shipment')->name('shipments.proof');
                 Route::get('shipments/{shipment}/label', [ShipmentController::class, 'label'])->whereNumber('shipment')->name('shipments.label');
+                // Contrat 1.14 : colis retournés rapportés par un livreur de Jibiat, à confirmer
+                Route::get('return-handovers', [ReturnHandoverController::class, 'index'])->middleware('throttle:30,1')->name('return-handovers.index');
+                Route::post('return-handovers/{handover}/confirm', [ReturnHandoverController::class, 'confirm'])->whereNumber('handover')->middleware('throttle:30,1')->name('return-handovers.confirm');
+                Route::post('return-handovers/{handover}/dispute', [ReturnHandoverController::class, 'dispute'])->whereNumber('handover')->middleware('throttle:30,1')->name('return-handovers.dispute');
                 Route::get('shipping-rules', [ShippingRuleController::class, 'index'])->name('shipping-rules.index');
                 Route::post('shipping-rules', [ShippingRuleController::class, 'store'])->name('shipping-rules.store');
                 Route::put('shipping-rules/{rule}', [ShippingRuleController::class, 'update'])->whereNumber('rule')->name('shipping-rules.update');

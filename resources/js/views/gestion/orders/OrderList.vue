@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import Alert from '../../../components/Alert.vue'
 import DelivererPicker from '../../../components/DelivererPicker.vue'
 import Icon from '../../../components/Icon.vue'
+import ReturnHandoverBanner from '../../../components/ReturnHandoverBanner.vue'
 import Modal from '../../../components/Modal.vue'
 import Pagination from '../../../components/Pagination.vue'
 import MaterielTip from '../../../components/MaterielTip.vue'
@@ -386,6 +387,9 @@ async function exportList() {
 
 <template>
   <div class="space-y-4">
+    <!-- Livreur de Jibiat avec des colis retournés : à confirmer -->
+    <ReturnHandoverBanner />
+
     <!-- Recherche, période, filtres, tri, export -->
     <div class="flex flex-wrap items-center gap-2">
       <div class="relative min-w-0 flex-1 sm:max-w-xs">
