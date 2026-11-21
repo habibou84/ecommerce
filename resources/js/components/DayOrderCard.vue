@@ -75,7 +75,7 @@ async function choose(key) {
           <b class="shrink-0 text-base">{{ money(o.total) }}</b>
         </span>
         <span class="flex items-baseline justify-between gap-2">
-          <span class="truncate text-[15px] font-bold text-slate-800">{{ phone || 'Pas de numéro' }}</span>
+          <span class="truncate text-base font-bold text-slate-800">{{ phone || 'Pas de numéro' }}</span>
           <span class="shrink-0 text-xs font-semibold text-slate-500">{{ o.reference }}</span>
         </span>
         <span class="mt-0.5 block truncate text-sm text-slate-500">{{ o.delivery_method === 'pickup' ? 'Retrait' : o.expedition_city ? `📦 Expédition · ${o.expedition_city}` : o.shipping_place_label || 'Quartier à préciser' }} · {{ o.items_label }}</span>
