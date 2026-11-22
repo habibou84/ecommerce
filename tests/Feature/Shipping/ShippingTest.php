@@ -361,6 +361,27 @@ class ShippingTest extends TestCase
         $this->assertSame([5, 0], $this->stock());
     }
 
+    public function test_a_reassigned_parcel_leaves_the_order_like_a_return_with_where_it_went(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, $connection);
+        $this->webhook($connection, 'order.incident', ['order' => $this->remoteOrder('delivery_failed', ['last_incident' => 'Colis refusé par le client', 'attempts_count' => 1])], 'evt-f')->assertOk();
+        $before = $this->stock();
+
+        // Contrat 1.15 : le colis part avec une autre course du même article ; pour le stock, comme un retour
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('reassigned', ['reassigned_to' => 'LV-4HRW-91KD'])], 'evt-ra')->assertOk();
+        $this->assertSame('reassigned', $shipment->fresh()->status->value);
+        $this->assertTrue($shipment->fresh()->status->isFinal());
+        $this->assertSame(OrderStatus::Returned, $order->fresh()->status);
+        $this->assertSame($before[0] + 2, $this->stock()[0]);
+        $this->assertStringContainsString('LV-4HRW-91KD', json_encode($order->fresh()->events()->latest('id')->value('data'), JSON_UNESCAPED_UNICODE));
+        $this->assertContains('Colis réaffecté', DatabaseNotification::all()->pluck('data.title')->map(fn ($t) => explode(' · ', (string) $t)[0])->all());
+
+        $read = RemoteShipment::fromDeliveryApp(Contract::example('order-reassigned')['data']);
+        $this->assertSame([ShipmentStatus::Reassigned, 'LV-4HRW-91KD'], [$read->status, $read->reassignedTo]);
+    }
+
     public function test_cancellations_say_who_and_why(): void
     {
         $connection = $this->connect();
@@ -694,6 +715,21 @@ class ShippingTest extends TestCase
         $this->assertCount(2, $created); // connexion, puis une seule recréation
         $this->assertContains('order.updated', $created->last()[0]['events']);
         $this->assertSame(['store', CarrierConnections::WEBHOOK_EVENTS], [$connection->fresh()->setting('fee_payer'), $connection->fresh()->setting('webhook_events')]);
+    }
+
+    public function test_quotes_are_kept_a_few_minutes(): void
+    {
+        $this->connect();
+        $order = $this->confirmedOrder();
+        $asked = fn () => collect(Http::recorded())->filter(fn ($pair) => $pair[0]->url() === self::API.'/quotes')->count();
+
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}/shipping-quotes")->assertOk()->assertJsonPath('data.0.fee', 1200);
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}/shipping-quotes")->assertOk()->assertJsonPath('data.0.fee', 1200);
+        $this->assertSame(1, $asked());
+
+        $this->travel(11)->minutes();
+        $this->storeApi($this->store, 'GET', "orders/{$order->id}/shipping-quotes")->assertOk();
+        $this->assertSame(2, $asked());
     }
 
     public function test_quotes_say_when_the_carrier_can_deliver(): void

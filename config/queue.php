@@ -44,6 +44,17 @@ return [
             'after_commit' => false,
         ],
 
+        // Tâches longues (App\Jobs\Concerns\RunsLong : export, IA) : même table, file « long », reprise seulement
+        // après la plus longue durée permise (ExportStoreData : 600 s) pour ne jamais lancer une tâche deux fois.
+        'database-long' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'long',
+            'retry_after' => 660,
+            'after_commit' => false,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

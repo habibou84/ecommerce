@@ -42,6 +42,9 @@ final class RemoteShipment
         public readonly array|false|null $reschedule = null,
         /** Raison du retour (contrat 1.11) : refused, max_attempts, company, merchant ; null si inconnue ou pas de retour */
         public readonly ?string $returnCause = null,
+        /** Colis réaffecté (contrat 1.15) : code de la nouvelle course qui l'emporte, ou de la course d'origine */
+        public readonly ?string $reassignedTo = null,
+        public readonly ?string $reassignedFrom = null,
     ) {}
 
     /**
@@ -80,6 +83,8 @@ final class RemoteShipment
             cancellation: is_array($order['cancellation'] ?? null) ? $order['cancellation'] : null,
             reschedule: array_key_exists('reschedule', $order) ? (is_array($order['reschedule']) ? $order['reschedule'] : false) : null,
             returnCause: is_string($order['return_cause'] ?? null) ? $order['return_cause'] : null,
+            reassignedTo: is_string($order['reassigned_to'] ?? null) ? $order['reassigned_to'] : null,
+            reassignedFrom: is_string($order['reassigned_from'] ?? null) ? $order['reassigned_from'] : null,
         );
     }
 

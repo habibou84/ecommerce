@@ -80,11 +80,7 @@ class ShipmentDesk
                 $quote['error'] = $placeId === null || ! $hasZones ? null : 'Quartier non couvert (ou sans correspondance de zone).';
             } elseif ($connection->isApi()) {
                 try {
-                    $quote['fee'] = $this->connections->driver($connection)->quote($connection, [
-                        'zone_id' => $zone->remote_id,
-                        'is_fragile' => $fragile,
-                        'weight_kg' => $weightKg,
-                    ]) ?? $zone->fee;
+                    $quote['fee'] = $this->remoteQuote($connection, $zone->remote_id, $fragile, $weightKg) ?? $zone->fee;
                 } catch (CarrierException $e) {
                     $quote['error'] = $quote['fee'] === null ? $e->getMessage() : null;
                 }
@@ -96,6 +92,34 @@ class ShipmentDesk
         }
 
         return $quotes;
+    }
+
+    /** Durée de vie d'un devis transporteur : le formulaire de commande en redemande un à chaque ouverture */
+    private const QUOTE_CACHE_MINUTES = 10;
+
+    /**
+     * Prix demandé à l'entreprise de livraison, gardé quelques minutes par zone, fragilité et poids : chaque ouverture
+     * du formulaire n'attend plus un appel par transporteur. Les erreurs ne sont pas gardées (nouvel essai au
+     * prochain affichage). Le prix facturé reste celui de la course créée.
+     */
+    private function remoteQuote(CarrierConnection $connection, int|string|null $zoneId, bool $fragile, ?float $weightKg): ?int
+    {
+        $key = 'carrier-quote:'.$connection->id.':'.md5(json_encode([$zoneId, $fragile, $weightKg]));
+        $cached = Cache::get($key);
+        if (is_int($cached)) {
+            return $cached;
+        }
+
+        $fee = $this->connections->driver($connection)->quote($connection, [
+            'zone_id' => $zoneId,
+            'is_fragile' => $fragile,
+            'weight_kg' => $weightKg,
+        ]);
+        if (is_int($fee)) {
+            Cache::put($key, $fee, now()->addMinutes(self::QUOTE_CACHE_MINUTES));
+        }
+
+        return $fee;
     }
 
     /**
@@ -697,6 +721,10 @@ class ShipmentDesk
             ShipmentStatus::Delivered => $this->delivered($shipment, $order, $actor, $remote),
             ShipmentStatus::Returned => $order->status->canTransitionTo(OrderStatus::Returned)
                 ? $this->orders->transition($order, OrderStatus::Returned, $actor, ['note' => $label.' : colis retourné', 'restock' => true]) : null,
+            // Colis parti avec une autre course (même article) : pour le stock, comme un retour (la nouvelle commande
+            // sort l'article à son tour) ; la note dit où il est parti
+            ShipmentStatus::Reassigned => $order->status->canTransitionTo(OrderStatus::Returned)
+                ? $this->orders->transition($order, OrderStatus::Returned, $actor, ['note' => $label.' : colis réaffecté à '.($remote->reassignedTo ?? 'une autre course').' (parti chez un autre client du même article)', 'restock' => true]) : null,
             // Course refusée ou annulée avant le ramassage : la commande revient à « Confirmée »
             ShipmentStatus::Cancelled, ShipmentStatus::Rejected => $order->status === OrderStatus::Processing
                 ? $this->orders->transition($order, OrderStatus::Confirmed, $actor, ['note' => $label.' : '.$to->label()]) : null,
@@ -711,6 +739,7 @@ class ShipmentDesk
             ShipmentStatus::Rescheduled => 'Livraison reportée',
             ShipmentStatus::Lost => 'Colis perdu',
             ShipmentStatus::Returned => 'Colis retourné',
+            ShipmentStatus::Reassigned => 'Colis réaffecté',
             default => null,
         };
         // Alerte quand l'information vient du terrain (transporteur ou livreur), pas d'une saisie dans la gestion
@@ -718,6 +747,7 @@ class ShipmentDesk
             $detail = match (true) {
                 $to === ShipmentStatus::Rescheduled && $shipment->rescheduled_to !== null => trim(($shipment->failure_reason ? $shipment->failure_reason.', ' : '').'nouvelle date le '.$shipment->rescheduled_to->format('d/m/Y')),
                 in_array($to, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true) && $remote->cancellation !== null => RemoteShipment::cancellationText($remote->cancellation, $shipment->connection?->name ?? 'l\'entreprise'),
+                $to === ShipmentStatus::Reassigned => 'parti chez un autre client qui avait commandé le même article'.($remote->reassignedTo ? " ({$remote->reassignedTo})" : ''),
                 default => $shipment->failure_reason,
             };
             $this->notifier->notify($shipment->store, Permission::OrdersView->value, new ShipmentAlert($shipment, $alert, $detail));
