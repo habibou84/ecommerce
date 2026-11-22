@@ -61,7 +61,7 @@ class CourierMissions
             default => null,
         };
 
-        if (in_array($to, [ShipmentStatus::Delivered, ShipmentStatus::Returned, ShipmentStatus::Cancelled, ShipmentStatus::Lost], true)) {
+        if (in_array($to, [ShipmentStatus::Delivered, ShipmentStatus::Returned, ShipmentStatus::Cancelled, ShipmentStatus::Lost, ShipmentStatus::Reassigned], true)) {
             CourierAssignment::forStore($shipment->store_id)->where('shipment_id', $shipment->id)->where('status', 'assigned')
                 ->update(['status' => $to === ShipmentStatus::Cancelled ? 'cancelled' : 'completed', 'completed_at' => now()]);
         }

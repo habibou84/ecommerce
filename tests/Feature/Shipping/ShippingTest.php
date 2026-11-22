@@ -361,6 +361,27 @@ class ShippingTest extends TestCase
         $this->assertSame([5, 0], $this->stock());
     }
 
+    public function test_a_reassigned_parcel_leaves_the_order_like_a_return_with_where_it_went(): void
+    {
+        $connection = $this->connect();
+        $order = $this->confirmedOrder();
+        $shipment = $this->ship($order, $connection);
+        $this->webhook($connection, 'order.incident', ['order' => $this->remoteOrder('delivery_failed', ['last_incident' => 'Colis refusé par le client', 'attempts_count' => 1])], 'evt-f')->assertOk();
+        $before = $this->stock();
+
+        // Contrat 1.15 : le colis part avec une autre course du même article ; pour le stock, comme un retour
+        $this->webhook($connection, 'order.status_changed', ['order' => $this->remoteOrder('reassigned', ['reassigned_to' => 'LV-4HRW-91KD'])], 'evt-ra')->assertOk();
+        $this->assertSame('reassigned', $shipment->fresh()->status->value);
+        $this->assertTrue($shipment->fresh()->status->isFinal());
+        $this->assertSame(OrderStatus::Returned, $order->fresh()->status);
+        $this->assertSame($before[0] + 2, $this->stock()[0]);
+        $this->assertStringContainsString('LV-4HRW-91KD', json_encode($order->fresh()->events()->latest('id')->value('data'), JSON_UNESCAPED_UNICODE));
+        $this->assertContains('Colis réaffecté', DatabaseNotification::all()->pluck('data.title')->map(fn ($t) => explode(' · ', (string) $t)[0])->all());
+
+        $read = RemoteShipment::fromDeliveryApp(Contract::example('order-reassigned')['data']);
+        $this->assertSame([ShipmentStatus::Reassigned, 'LV-4HRW-91KD'], [$read->status, $read->reassignedTo]);
+    }
+
     public function test_cancellations_say_who_and_why(): void
     {
         $connection = $this->connect();
