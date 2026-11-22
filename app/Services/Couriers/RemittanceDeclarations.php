@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Notifications\RemittanceDecided;
 use App\Notifications\RemittanceDeclared;
 use App\Services\Accounts\TeamNotifier;
+use App\Support\Files;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
@@ -48,7 +49,7 @@ class RemittanceDeclarations
             'method' => $data['method'],
             'reference' => trim((string) ($data['reference'] ?? '')) ?: null,
             'note' => $data['note'] ?? null,
-            'proof_path' => $photo?->store("remittances/{$courier->store_id}", 'local'),
+            'proof_path' => $photo?->store("remittances/{$courier->store_id}", Files::privateDisk()),
             'held_amount' => $held,
         ]);
 

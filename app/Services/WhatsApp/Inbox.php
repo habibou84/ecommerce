@@ -17,9 +17,9 @@ use App\Services\Accounts\TeamNotifier;
 use App\Services\Live\LiveSales;
 use App\Services\Messaging\AutoReplier;
 use App\Services\Social\MetaSocial;
+use App\Support\Files;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Jibiat\Socle\PhoneNumber;
 use RuntimeException;
@@ -481,7 +481,7 @@ class Inbox
             return null;
         }
         $path = "conversation-photos/{$message->store_id}/{$message->id}";
-        $disk = Storage::disk('local');
+        $disk = Files::private();
         if ($disk->exists($path)) {
             return $disk->get($path);
         }

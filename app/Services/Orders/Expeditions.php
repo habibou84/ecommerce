@@ -13,6 +13,7 @@ use App\Models\OutboundMessage;
 use App\Models\User;
 use App\Models\WhatsappAccount;
 use App\Services\WhatsApp\CustomerMessenger;
+use App\Support\Files;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -79,7 +80,7 @@ class Expeditions
                 'expedition_company' => Str::limit($company, 60, ''),
                 'expedition_fee' => $fee,
                 'expedition_ticket' => filled($data['ticket'] ?? null) ? Str::limit(trim($data['ticket']), 60, '') : null,
-                'expedition_receipt_path' => ($receipt instanceof UploadedFile ? $receipt->store("proofs/{$order->store_id}", 'local') : $receipt) ?? $order->expedition_receipt_path,
+                'expedition_receipt_path' => ($receipt instanceof UploadedFile ? $receipt->store("proofs/{$order->store_id}", Files::privateDisk()) : $receipt) ?? $order->expedition_receipt_path,
                 'expedition_advanced' => $advanced,
                 'expedition_dropped_at' => $order->expedition_dropped_at ?? now(),
             ]);

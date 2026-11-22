@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
 use App\Services\Orders\Expeditions;
+use App\Support\Files;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -43,8 +43,8 @@ class ExpeditionController extends Controller
     public function receipt(int $order): StreamedResponse
     {
         $model = Order::findOrFail($order);
-        abort_unless($model->expedition_receipt_path && Storage::disk('local')->exists($model->expedition_receipt_path), 404);
+        abort_unless($model->expedition_receipt_path && Files::private()->exists($model->expedition_receipt_path), 404);
 
-        return Storage::disk('local')->response($model->expedition_receipt_path);
+        return Files::private()->response($model->expedition_receipt_path);
     }
 }

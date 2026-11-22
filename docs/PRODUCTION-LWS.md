@@ -124,5 +124,6 @@ Ne jamais mettre `PREPROD_ACCESS_CODE` en production (il y est de toute façon i
 - **Ressources** : trois applications partagent le VPS. Surveiller la mémoire (`free -h`) et la charge (`uptime`)
   pendant le pilote ; passer à un serveur dédié (`docs/LANCEMENT.md`) quand le trafic augmente.
 - **Sauvegardes hors du serveur** : régler la copie chiffrée vers Cloudflare R2 (docs/SAUVEGARDES.md).
+- **Fichiers sur R2 et Cloudflare en mode proxy** : photos et documents hors du serveur, adresse du serveur masquée (docs/FICHIERS-R2.md).
 - **En cas de problème** : journaux dans `/var/www/jibiat-production/storage/logs`,
   `/var/log/apache2/jibiat-production-error.log`, `supervisorctl status jibiat-production-queue: jibiat-production-queue-long`.

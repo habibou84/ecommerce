@@ -9,9 +9,9 @@ use App\Models\CourierRemittance;
 use App\Models\CourierRemittanceDeclaration;
 use App\Services\Couriers\CashDesk;
 use App\Services\Couriers\RemittanceDeclarations;
+use App\Support\Files;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -84,7 +84,7 @@ class CashController extends Controller
     {
         $path = CourierRemittanceDeclaration::whereNotNull('proof_path')->findOrFail($declaration)->proof_path;
 
-        return Storage::disk('local')->response($path);
+        return Files::private()->response($path);
     }
 
     /**

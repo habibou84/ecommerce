@@ -13,10 +13,10 @@ use App\Services\Shipping\CarrierException;
 use App\Services\Shipping\DeliveryAdvisor;
 use App\Services\Shipping\ShipmentDesk;
 use App\Services\Shipping\ShipmentPresenter;
+use App\Support\Files;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Jibiat\Socle\Contract\Contract;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -106,9 +106,9 @@ class ShipmentController extends Controller
     {
         $model = Shipment::findOrFail($shipment);
         if ($model->proof_photo_path) {
-            abort_unless(Storage::disk('local')->exists($model->proof_photo_path), 404);
+            abort_unless(Files::private()->exists($model->proof_photo_path), 404);
 
-            return Storage::disk('local')->response($model->proof_photo_path);
+            return Files::private()->response($model->proof_photo_path);
         }
 
         abort_unless($model->proof_photo_url, 404);

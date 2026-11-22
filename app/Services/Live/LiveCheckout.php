@@ -27,10 +27,10 @@ use App\Services\WhatsApp\ModelsOnWhatsApp;
 use App\Services\WhatsApp\RecapOrders;
 use App\Services\WhatsApp\WhatsAppBridge;
 use App\Services\WhatsApp\WhatsAppCloud;
+use App\Support\Files;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Jibiat\Socle\Money;
 use Jibiat\Socle\PhoneNumber;
@@ -584,8 +584,8 @@ class LiveCheckout
             return null;
         }
         $path = "payment-proofs/{$order->store_id}/{$order->payment_proof_message_id}.jpg";
-        if (Storage::disk('local')->exists($path)) {
-            return Storage::disk('local')->get($path);
+        if (Files::private()->exists($path)) {
+            return Files::private()->get($path);
         }
         $message = ConversationMessage::forStore($order->store_id)->with('conversation')->find($order->payment_proof_message_id);
         if ($message === null || $message->conversation === null) {
@@ -595,7 +595,7 @@ class LiveCheckout
             ? (($link = app(Inbox::class)->linkFor($message->conversation)) && $message->provider_message_id ? app(WhatsAppBridge::class)->image($link, $message->provider_message_id) : null)
             : (($account = WhatsappAccount::forStore($order->store_id)->first()) && $message->media_id ? app(WhatsAppCloud::class)->image($account, $message->media_id) : null), null, false);
         if (is_string($bytes) && $bytes !== '') {
-            Storage::disk('local')->put($path, $bytes);
+            Files::private()->put($path, $bytes);
 
             return $bytes;
         }

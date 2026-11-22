@@ -15,8 +15,11 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
-    // Photos du catalogue (public : servies directement ; s3 en production)
+    // Photos du catalogue et images publiques (servies directement) : « public » (disque du serveur) ou « r2 »
     'catalog_disk' => env('CATALOG_DISK', 'public'),
+
+    // Fichiers privés servis par l'application (App\Support\Files) : « local » ou « r2-private »
+    'private_disk' => env('PRIVATE_DISK', 'local'),
 
     /*
     |--------------------------------------------------------------------------
@@ -46,6 +49,41 @@ return [
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
+        // Cloudflare R2 (docs/FICHIERS-R2.md) : un espace public pour le catalogue, servi par son adresse
+        // (R2_PUBLIC_URL, ex. https://medias.jibiat-marchand.com), un espace privé pour le reste.
+        'r2' => [
+            'driver' => 's3',
+            'key' => env('R2_ACCESS_KEY_ID'),
+            'secret' => env('R2_SECRET_ACCESS_KEY'),
+            'region' => 'auto',
+            'bucket' => env('R2_PUBLIC_BUCKET'),
+            'url' => env('R2_PUBLIC_URL'),
+            'endpoint' => env('R2_ENDPOINT'),
+            'use_path_style_endpoint' => true,
+            'visibility' => 'public',
+            // R2 n'a pas d'ACL par fichier (l'espace entier est public ou privé) : une copie ne relit pas la visibilité
+            'retain_visibility' => false,
+            // Chemins uniques (photo remplacée = nouveau chemin) : gardées un mois par les navigateurs et Cloudflare,
+            // comme /storage sur le serveur (deploy/apache.conf)
+            'options' => ['CacheControl' => 'public, max-age=2592000'],
+            'throw' => false,
+            'report' => false,
+        ],
+
+        'r2-private' => [
+            'driver' => 's3',
+            'key' => env('R2_ACCESS_KEY_ID'),
+            'secret' => env('R2_SECRET_ACCESS_KEY'),
+            'region' => 'auto',
+            'bucket' => env('R2_PRIVATE_BUCKET'),
+            'endpoint' => env('R2_ENDPOINT'),
+            'use_path_style_endpoint' => true,
+            'visibility' => 'private',
+            'retain_visibility' => false,
             'throw' => false,
             'report' => false,
         ],

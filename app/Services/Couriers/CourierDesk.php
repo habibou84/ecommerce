@@ -12,6 +12,7 @@ use App\Services\Orders\Expeditions;
 use App\Services\Shipping\Drivers\RemoteShipment;
 use App\Services\Shipping\ShipmentDesk;
 use App\Services\WhatsApp\CustomerMessenger;
+use App\Support\Files;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -69,7 +70,7 @@ class CourierDesk
         if ($expedition && (blank($data['expedition_company'] ?? null) || ! isset($data['expedition_fee']))) {
             throw new BusinessRuleException('Indiquez la compagnie de transport et les frais d\'expédition payés.', 'expedition_company');
         }
-        $photoPath = $photo?->store("proofs/{$store->id}", 'local');
+        $photoPath = $photo?->store("proofs/{$store->id}", Files::privateDisk());
         $remote = match (true) {
             $expedition => new RemoteShipment(trackingCode: '', status: ShipmentStatus::Delivered, rawStatus: 'delivered', collected: 0, proofPhotoPath: $photoPath, occurredAt: $data['occurred_at'] ?? null),
             $step === 'delivered' => $this->delivered($shipment, $data, $photoPath),

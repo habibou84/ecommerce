@@ -16,9 +16,9 @@ use App\Services\Couriers\CourierNetwork;
 use App\Services\Couriers\CourierPayroll;
 use App\Services\Couriers\CourierRoster;
 use App\Services\Couriers\SharedCouriers;
+use App\Support\Files;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Jibiat\Socle\PhoneNumber;
 use Jibiat\Socle\Rules\PhoneNumber as PhoneRule;
@@ -139,7 +139,7 @@ class CourierController extends Controller
         $model = Courier::where('status', 'active')->findOrFail($courier);
         $profile = CourierProfile::where('user_id', $model->user_id)->whereNotNull('id_document_path')->firstOrFail();
 
-        return Storage::disk('local')->response($profile->id_document_path, null, ['Cache-Control' => 'private, no-store']);
+        return Files::private()->response($profile->id_document_path, null, ['Cache-Control' => 'private, no-store']);
     }
 
     /** Photo d'un livreur : de l'annuaire, ou relié à la boutique */
@@ -148,7 +148,7 @@ class CourierController extends Controller
         $model = CourierProfile::whereNotNull('photo_path')->findOrFail($profile);
         abort_unless($model->listed || Courier::where('user_id', $model->user_id)->exists(), 404);
 
-        return Storage::disk('local')->response($model->photo_path, null, ['Cache-Control' => 'private, max-age=3600']);
+        return Files::private()->response($model->photo_path, null, ['Cache-Control' => 'private, max-age=3600']);
     }
 
     public function update(Request $request, int $courier): JsonResponse

@@ -16,10 +16,10 @@ use App\Notifications\CourierNetworkNotice;
 use App\Services\Accounts\StoreRoles;
 use App\Services\Accounts\TeamNotifier;
 use App\Services\Billing\PlanLimits;
+use App\Support\Files;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Livreurs inscrits au lien commun et boutiques : une boutique demande à un livreur de livrer pour elle (par son
@@ -175,18 +175,18 @@ class CourierNetwork
     public function savePhoto(CourierProfile $profile, UploadedFile $file): void
     {
         $old = $profile->photo_path;
-        $profile->forceFill(['photo_path' => $file->store("couriers/{$profile->id}", 'local')])->save();
+        $profile->forceFill(['photo_path' => $file->store("couriers/{$profile->id}", Files::privateDisk())])->save();
         if ($old) {
-            Storage::disk('local')->delete($old);
+            Files::private()->delete($old);
         }
     }
 
     public function saveIdDocument(CourierProfile $profile, UploadedFile $file): void
     {
         $old = $profile->id_document_path;
-        $profile->forceFill(['id_document_path' => $file->store("couriers/{$profile->id}/id", 'local'), 'id_document_at' => now()])->save();
+        $profile->forceFill(['id_document_path' => $file->store("couriers/{$profile->id}/id", Files::privateDisk()), 'id_document_at' => now()])->save();
         if ($old) {
-            Storage::disk('local')->delete($old);
+            Files::private()->delete($old);
         }
     }
 

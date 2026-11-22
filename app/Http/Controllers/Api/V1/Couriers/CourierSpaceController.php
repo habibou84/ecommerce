@@ -15,12 +15,12 @@ use App\Services\Accounts\PhoneVerifier;
 use App\Services\Couriers\CourierNetwork;
 use App\Services\Couriers\CourierSignup;
 use App\Services\Couriers\SharedCouriers;
+use App\Support\Files;
 use chillerlan\QRCode\QRCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Jibiat\Socle\PhoneNumber;
@@ -146,7 +146,7 @@ class CourierSpaceController extends Controller
     {
         $profile = CourierProfile::where('user_id', $request->user()->id)->whereNotNull('photo_path')->firstOrFail();
 
-        return Storage::disk('local')->response($profile->photo_path, null, ['Cache-Control' => 'private, max-age=3600']);
+        return Files::private()->response($profile->photo_path, null, ['Cache-Control' => 'private, max-age=3600']);
     }
 
     public function saveIdDocument(Request $request): JsonResponse
