@@ -66,7 +66,7 @@ class OrderAlerts
 
     private const ON_THE_WAY = [ShipmentStatus::InTransit, ShipmentStatus::OutForDelivery];
 
-    private const FINAL = [ShipmentStatus::Delivered, ShipmentStatus::Returned, ShipmentStatus::Cancelled, ShipmentStatus::Rejected, ShipmentStatus::Lost];
+    private const FINAL = [ShipmentStatus::Delivered, ShipmentStatus::Returned, ShipmentStatus::Cancelled, ShipmentStatus::Rejected, ShipmentStatus::Lost, ShipmentStatus::Reassigned];
 
     public function __construct(private readonly TeamNotifier $team, private readonly DeliveryCalendar $calendar) {}
 

@@ -20,6 +20,8 @@ enum ShipmentStatus: string
     case Returned = 'returned';
     case Cancelled = 'cancelled';
     case Lost = 'lost';
+    // Colis en retour parti chez un autre client du même article (Jibiat, contrat 1.15) : pas revenu à la boutique
+    case Reassigned = 'reassigned';
 
     public function label(): string
     {
@@ -37,6 +39,7 @@ enum ShipmentStatus: string
             self::Returned => 'Retournée',
             self::Cancelled => 'Annulée',
             self::Lost => 'Perdue',
+            self::Reassigned => 'Réaffectée à une autre commande',
         };
     }
 
@@ -59,6 +62,7 @@ enum ShipmentStatus: string
             'returned' => self::Returned,
             'cancelled' => self::Cancelled,
             'lost' => self::Lost,
+            'reassigned' => self::Reassigned,
             default => null,
         };
     }
@@ -68,7 +72,7 @@ enum ShipmentStatus: string
      */
     public function hasLeft(): bool
     {
-        return in_array($this, [self::InTransit, self::OutForDelivery, self::Delivered, self::Failed, self::Rescheduled, self::Returning, self::Returned, self::Lost], true);
+        return in_array($this, [self::InTransit, self::OutForDelivery, self::Delivered, self::Failed, self::Rescheduled, self::Returning, self::Returned, self::Lost, self::Reassigned], true);
     }
 
     /**
@@ -76,7 +80,7 @@ enum ShipmentStatus: string
      */
     public function isFinal(): bool
     {
-        return in_array($this, [self::Delivered, self::Returned, self::Cancelled, self::Rejected, self::Lost], true);
+        return in_array($this, [self::Delivered, self::Returned, self::Cancelled, self::Rejected, self::Lost, self::Reassigned], true);
     }
 
     /**

@@ -721,6 +721,10 @@ class ShipmentDesk
             ShipmentStatus::Delivered => $this->delivered($shipment, $order, $actor, $remote),
             ShipmentStatus::Returned => $order->status->canTransitionTo(OrderStatus::Returned)
                 ? $this->orders->transition($order, OrderStatus::Returned, $actor, ['note' => $label.' : colis retourné', 'restock' => true]) : null,
+            // Colis parti avec une autre course (même article) : pour le stock, comme un retour (la nouvelle commande
+            // sort l'article à son tour) ; la note dit où il est parti
+            ShipmentStatus::Reassigned => $order->status->canTransitionTo(OrderStatus::Returned)
+                ? $this->orders->transition($order, OrderStatus::Returned, $actor, ['note' => $label.' : colis réaffecté à '.($remote->reassignedTo ?? 'une autre course').' (parti chez un autre client du même article)', 'restock' => true]) : null,
             // Course refusée ou annulée avant le ramassage : la commande revient à « Confirmée »
             ShipmentStatus::Cancelled, ShipmentStatus::Rejected => $order->status === OrderStatus::Processing
                 ? $this->orders->transition($order, OrderStatus::Confirmed, $actor, ['note' => $label.' : '.$to->label()]) : null,
@@ -735,6 +739,7 @@ class ShipmentDesk
             ShipmentStatus::Rescheduled => 'Livraison reportée',
             ShipmentStatus::Lost => 'Colis perdu',
             ShipmentStatus::Returned => 'Colis retourné',
+            ShipmentStatus::Reassigned => 'Colis réaffecté',
             default => null,
         };
         // Alerte quand l'information vient du terrain (transporteur ou livreur), pas d'une saisie dans la gestion
@@ -742,6 +747,7 @@ class ShipmentDesk
             $detail = match (true) {
                 $to === ShipmentStatus::Rescheduled && $shipment->rescheduled_to !== null => trim(($shipment->failure_reason ? $shipment->failure_reason.', ' : '').'nouvelle date le '.$shipment->rescheduled_to->format('d/m/Y')),
                 in_array($to, [ShipmentStatus::Cancelled, ShipmentStatus::Rejected], true) && $remote->cancellation !== null => RemoteShipment::cancellationText($remote->cancellation, $shipment->connection?->name ?? 'l\'entreprise'),
+                $to === ShipmentStatus::Reassigned => 'parti chez un autre client qui avait commandé le même article'.($remote->reassignedTo ? " ({$remote->reassignedTo})" : ''),
                 default => $shipment->failure_reason,
             };
             $this->notifier->notify($shipment->store, Permission::OrdersView->value, new ShipmentAlert($shipment, $alert, $detail));

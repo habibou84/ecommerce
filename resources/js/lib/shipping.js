@@ -14,6 +14,7 @@ export const SHIPMENT_TONES = {
   rejected: 'bg-red-700 text-white',
   cancelled: 'bg-slate-100 text-slate-600',
   lost: 'bg-red-700 text-white',
+  reassigned: 'bg-sky-100 text-sky-800',
 }
 
 // Icône de chaque état de course : l'état se lit aussi sans la couleur
@@ -31,6 +32,7 @@ export const SHIPMENT_ICONS = {
   rejected: 'close',
   cancelled: 'close',
   lost: 'alert',
+  reassigned: 'truck',
 }
 
 // Statuts qu'on saisit à la main pour un transporteur sans API
