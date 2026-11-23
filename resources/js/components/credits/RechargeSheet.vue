@@ -21,7 +21,7 @@ import { credits } from '../../lib/credits'
           <div class="rounded-xl bg-slate-50 p-3"><b class="block font-display text-2xl tabular-nums">{{ credits.data.ai }}</b><span class="text-xs text-slate-500">actions IA</span></div>
         </div>
         <RechargePicker :data="credits.data" />
-        <RouterLink to="/gestion/solde" class="block text-center text-sm font-bold text-emerald-700 underline" @click="credits.open = false">Voir mon solde et ce qui est compté</RouterLink>
+        <RouterLink to="/gestion/mon-offre?onglet=solde" class="block text-center text-sm font-bold text-emerald-700 underline" @click="credits.open = false">Voir mon solde et ce qui est compté</RouterLink>
       </template>
     </div>
   </Modal>

@@ -176,7 +176,7 @@ async function share() {
         <h3 class="font-extrabold text-slate-900">3 · Mon solde</h3>
         <p class="mt-1">Chaque commande prise par WhatsApp compte pour 1, retirée du solde chaque soir.</p>
         <p v-if="billing.month_until" class="mt-1 font-semibold text-emerald-800">Illimité en cours : rien à compter.</p>
-        <p v-else class="mt-1">Solde : <b>{{ billing.orders }} commandes</b> · <RouterLink to="/gestion/solde" class="font-bold text-emerald-700 underline">Recharger</RouterLink></p>
+        <p v-else class="mt-1">Solde : <b>{{ billing.orders }} commandes</b> · <RouterLink to="/gestion/mon-offre?onglet=solde" class="font-bold text-emerald-700 underline">Recharger</RouterLink></p>
       </section>
       <button type="button" class="btn-brand w-full py-3 text-base" :disabled="busy || !session || !products.length" @click="open">💬 Ouvrir les commandes</button>
     </template>

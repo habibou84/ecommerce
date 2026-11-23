@@ -221,7 +221,7 @@ async function copy(text, key) {
       <section class="rounded-2xl bg-white p-4 shadow-soft">
         <h3 class="text-base font-black">Prix</h3>
         <p class="explain mt-1">Connexion et suivi gratuits ; la pub est payée à Meta.</p>
-        <p class="explain-detail">Chaque commande venue d'un boost compte dans <RouterLink to="/gestion/solde" class="font-bold text-emerald-700 underline">votre solde</RouterLink>, comme une commande en live.</p>
+        <p class="explain-detail">Chaque commande venue d'un boost compte dans <RouterLink to="/gestion/mon-offre?onglet=solde" class="font-bold text-emerald-700 underline">votre solde</RouterLink>, comme une commande en live.</p>
       </section>
     </template>
 

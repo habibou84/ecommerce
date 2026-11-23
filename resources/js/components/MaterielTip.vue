@@ -34,7 +34,7 @@ function close() {
     <span v-else class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white text-2xl">🛍️</span>
     <span class="min-w-0 flex-1">
       <span class="block text-emerald-900">{{ text }}</span>
-      <RouterLink to="/gestion/materiel" class="font-semibold text-emerald-800 underline">{{ product.name }} · {{ money(product.price) }}</RouterLink>
+      <RouterLink to="/gestion/mon-offre?onglet=materiel" class="font-semibold text-emerald-800 underline">{{ product.name }} · {{ money(product.price) }}</RouterLink>
     </span>
     <button type="button" class="shrink-0 text-emerald-700" aria-label="Fermer" @click="close"><Icon name="close" :size="16" /></button>
   </div>
