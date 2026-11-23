@@ -18,7 +18,7 @@
         <link rel="manifest" href="{{ request()->is('gestion/messages*') ? '/gestion/messages/manifest.webmanifest' : '/gestion/manifest.webmanifest' }}">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-title" content="{{ \Illuminate\Support\Str::limit($boot['store']['name'], 12, '') }}">
+        <meta name="apple-mobile-web-app-title" content="Jibiat">
     @elseif (request()->is('console*'))
         {{-- Console installable (ordinateur : icône d'installation de la barre d'adresse ; téléphone : « Installer l'application ») --}}
         <link rel="manifest" href="/console/manifest.webmanifest">
