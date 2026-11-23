@@ -55,11 +55,11 @@ Route::middleware('zone:store,custom_domain')->group(function () {
 
     Route::get('/recu/{token}', ReceiptController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('receipt');
     // Gestion de la boutique : manifeste (installation sur l'écran d'accueil du téléphone ou de l'ordinateur).
-    // L'icône s'appelle « Jibiat », pas du nom de la boutique.
+    // L'icône s'appelle « Jibiat Marchand », pas du nom de la boutique.
     Route::get('/gestion/manifest.webmanifest', function () {
         return response()->json([
-            'name' => 'Jibiat',
-            'short_name' => 'Jibiat',
+            'name' => 'Jibiat Marchand',
+            'short_name' => 'Jibiat Marchand',
             'start_url' => '/gestion',
             'scope' => '/gestion',
             'display' => 'standalone',
@@ -84,7 +84,7 @@ Route::middleware('zone:store,custom_domain')->group(function () {
     Route::get('/gestion/messages/manifest.webmanifest', function () {
         return response()->json([
             'id' => '/gestion/messages',
-            'name' => 'Messages · Jibiat',
+            'name' => 'Messages · Jibiat Marchand',
             'short_name' => 'Messages',
             'start_url' => '/gestion/messages',
             'scope' => '/gestion',

@@ -181,12 +181,12 @@ class TenancyTest extends TestCase
         $this->get($this->storeUrl($store, '/gestion'))->assertOk()
             ->assertSee('<link rel="manifest" href="/gestion/manifest.webmanifest">', false)
             ->assertSee('<meta name="apple-mobile-web-app-capable" content="yes">', false)
-            ->assertSee('<meta name="apple-mobile-web-app-title" content="Jibiat">', false);
+            ->assertSee('<meta name="apple-mobile-web-app-title" content="Jibiat Marchand">', false);
         $this->get($this->storeUrl($store, '/gestion/manifest.webmanifest'))->assertOk()
             ->assertHeader('Content-Type', 'application/manifest+json')
-            // L'icône s'appelle « Jibiat », pas du nom de la boutique
-            ->assertJsonPath('name', 'Jibiat')
-            ->assertJsonPath('short_name', 'Jibiat')
+            // L'icône s'appelle « Jibiat Marchand », pas du nom de la boutique
+            ->assertJsonPath('name', 'Jibiat Marchand')
+            ->assertJsonPath('short_name', 'Jibiat Marchand')
             ->assertJsonPath('start_url', '/gestion')
             ->assertJsonPath('display', 'standalone')
             ->assertJsonPath('icons.1.sizes', '512x512')
@@ -198,7 +198,7 @@ class TenancyTest extends TestCase
             ->assertSee('<link rel="manifest" href="/gestion/messages/manifest.webmanifest">', false);
         $this->get($this->storeUrl($store, '/gestion/messages/manifest.webmanifest'))->assertOk()
             ->assertJsonPath('id', '/gestion/messages')
-            ->assertJsonPath('name', 'Messages · Jibiat')
+            ->assertJsonPath('name', 'Messages · Jibiat Marchand')
             ->assertJsonPath('short_name', 'Messages')
             ->assertJsonPath('start_url', '/gestion/messages')
             ->assertJsonPath('icons.0.src', '/brand/messages-192.png');
