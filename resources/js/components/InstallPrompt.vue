@@ -42,36 +42,37 @@ function postpone() {
 </script>
 
 <template>
-  <div v-if="show" class="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[55] mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl" role="dialog" :aria-label="`Installer ${props.name}`">
+  <!-- Carte au dégradé vert de la marque, texte blanc : elle se distingue du reste de l'écran (blanc et gris) -->
+  <div v-if="show" class="bg-brand-grad fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[55] mx-auto max-w-md rounded-2xl p-4 text-white shadow-2xl shadow-emerald-950/40 ring-4 ring-white" role="dialog" :aria-label="`Installer ${props.name}`">
     <div class="flex items-start gap-3">
-      <img :src="props.icon" alt="" class="h-12 w-12 shrink-0 rounded-xl border border-slate-100">
+      <img :src="props.icon" alt="" class="h-14 w-14 shrink-0 rounded-2xl bg-white p-1 shadow-md">
       <div class="min-w-0 flex-1">
-        <p class="explain">Installez {{ props.name }} sur votre téléphone</p>
-        <p class="explain-detail">Une icône sur l'écran d'accueil : l'application s'ouvre d'un geste, avec les notifications.</p>
+        <p class="text-lg font-extrabold leading-snug">Installez {{ props.name }} sur votre téléphone</p>
+        <p class="mt-0.5 text-sm leading-relaxed text-white/90">Une icône sur l'écran d'accueil : l'application s'ouvre d'un geste, avec les notifications.</p>
       </div>
     </div>
 
     <!-- iPhone : la marche à suivre, montrée tout de suite -->
     <template v-if="!install.prompt">
       <ol v-if="iosInApp" class="mt-3 space-y-2.5 text-base">
-        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-900">1</span><span>Touchez <b>⋯</b> ou <b>Partager</b>, puis <b>Ouvrir dans Safari</b>.</span></li>
-        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-900">2</span><span>Dans Safari, touchez <b>Partager</b> puis <b>Sur l'écran d'accueil</b>.</span></li>
+        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-sm font-bold text-emerald-800">1</span><span>Touchez <b>⋯</b> ou <b>Partager</b>, puis <b>Ouvrir dans Safari</b>.</span></li>
+        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-sm font-bold text-emerald-800">2</span><span>Dans Safari, touchez <b>Partager</b> puis <b>Sur l'écran d'accueil</b>.</span></li>
       </ol>
       <ol v-else class="mt-3 space-y-2.5 text-base">
-        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-900">1</span>
+        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-sm font-bold text-emerald-800">1</span>
           <span>Touchez <b>Partager</b>
-            <svg class="mx-0.5 inline h-5 w-5 align-[-3px] text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4" /><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1" /></svg>
+            <svg class="mx-0.5 inline h-5 w-5 align-[-3px] text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4" /><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1" /></svg>
             {{ iosChrome ? 'en haut à droite' : 'en bas de l\'écran' }}.</span></li>
-        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-900">2</span><span>Faites défiler et choisissez <b>Sur l'écran d'accueil</b>.</span></li>
-        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-900">3</span><span>Touchez <b>Ajouter</b> en haut à droite.</span></li>
+        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-sm font-bold text-emerald-800">2</span><span>Faites défiler et choisissez <b>Sur l'écran d'accueil</b>.</span></li>
+        <li class="flex gap-3"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-sm font-bold text-emerald-800">3</span><span>Touchez <b>Ajouter</b> en haut à droite.</span></li>
       </ol>
-      <button type="button" class="btn-ghost mt-3 w-full" @click="postpone">Plus tard</button>
+      <button type="button" class="mt-3 min-h-11 w-full rounded-xl text-sm font-semibold text-white/90 underline underline-offset-2" @click="postpone">Plus tard</button>
     </template>
 
     <!-- Android, ordinateur : installation en un geste -->
     <div v-else class="mt-3 grid grid-cols-2 gap-2">
-      <button type="button" class="btn-secondary" @click="postpone">Plus tard</button>
-      <button type="button" class="btn-brand" @click="installNow">Installer</button>
+      <button type="button" class="btn border border-white/60 text-white hover:bg-white/10" @click="postpone">Plus tard</button>
+      <button type="button" class="btn bg-white font-extrabold text-emerald-800 shadow-md hover:bg-emerald-50" @click="installNow">Installer</button>
     </div>
   </div>
 </template>
