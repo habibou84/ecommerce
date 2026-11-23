@@ -61,7 +61,7 @@ const copy = (t) => navigator.clipboard?.writeText(t)
       <ExplainMore>La gestion reste sur l'adresse Jibiat Marchand.</ExplainMore>
     </div>
     <Alert v-if="data?.hosted_by" tone="info">Cette boutique est une page de {{ data.hosted_by }} : ajoutez votre nom de domaine à {{ data.hosted_by }}, il servira aussi cette page ({{ data.subdomain.replace(/^https?:\/\//, '') }}).</Alert>
-    <Alert v-else-if="data && !data.available" tone="warning">Le domaine personnalisé est compris dans l'offre Pro. <RouterLink to="/gestion/abonnement" class="underline">Voir les offres</RouterLink></Alert>
+    <Alert v-else-if="data && !data.available" tone="warning">Le domaine personnalisé est compris dans l'offre Pro. <RouterLink to="/gestion/mon-offre" class="underline">Voir les offres</RouterLink></Alert>
     <Alert v-if="error">{{ error }}</Alert>
 
     <form v-if="data?.available" class="card flex flex-wrap items-end gap-3 p-4" @submit.prevent="add">

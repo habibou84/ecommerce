@@ -90,7 +90,7 @@ async function redo(live) {
       <div class="mt-3"><LiveTraining :url="pageUrl" @prepare="router.push('/gestion/live')" /></div>
     </details>
 
-    <RouterLink to="/gestion/solde" class="card flex items-center gap-3 p-4 text-sm">
+    <RouterLink to="/gestion/mon-offre?onglet=solde" class="card flex items-center gap-3 p-4 text-sm">
       <span class="text-2xl" aria-hidden="true">💳</span>
       <span class="min-w-0 flex-1"><b class="block">Mon solde</b><span class="text-slate-600">Commandes retirées par live, recharges et actions IA.</span></span>
       <span class="font-bold text-emerald-700">Voir ▸</span>

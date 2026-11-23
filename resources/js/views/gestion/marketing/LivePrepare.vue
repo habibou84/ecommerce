@@ -358,7 +358,7 @@ const bubble = (n) => ['grid h-10 w-10 shrink-0 place-items-center rounded-full 
       <!-- Solde sur une ligne : seulement quand les commandes sont comptées -->
       <div v-if="billing?.paid" class="flex items-center gap-3 rounded-2xl bg-white p-3">
         <span aria-hidden="true">🧾</span>
-        <RouterLink to="/gestion/solde" class="min-w-0 flex-1">
+        <RouterLink to="/gestion/mon-offre?onglet=solde" class="min-w-0 flex-1">
           <b class="block font-display text-base font-extrabold tabular-nums">{{ billing.month_until ? 'Illimité' : `${billing.orders} commandes` }} · ✨ {{ billing.ai }} IA</b>
           <span class="text-sm text-slate-500">1 commande {{ whatsappOpen ? 'avec code' : 'du live' }} = 1 du solde</span>
         </RouterLink>

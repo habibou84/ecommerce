@@ -25,7 +25,7 @@ onMounted(async () => {
     } catch (e) {
       notice.value = { ok: false, text: errorMessage(e) }
     }
-    router.replace({ query: {} })
+    router.replace({ query: { ...route.query, paiement: undefined } })
   } else {
     await loadCredits()
   }

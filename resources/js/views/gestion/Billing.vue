@@ -9,6 +9,8 @@ import http, { download, errorMessage } from '../../lib/http'
 import { formatDate, formatDateTime, money } from '../../lib/format'
 import { useAuthStore } from '../../stores/auth'
 
+// Dans « Mon offre Jibiat » : le solde a son propre onglet, son raccourci n'est pas répété ici
+const props = defineProps({ embedded: { type: Boolean, default: false } })
 const route = useRoute()
 const router = useRouter()
 const data = ref(null)
@@ -40,7 +42,7 @@ onMounted(async () => {
       notice.value = res.data.status === 'paid'
         ? { tone: 'success', text: `Paiement reçu : offre ${res.data.plan} active. Merci !` }
         : { tone: 'warning', text: 'Paiement pas encore confirmé. S\'il a bien été fait, l\'offre s\'activera dans quelques minutes.' }
-      router.replace('/gestion/abonnement')
+      router.replace({ query: { ...route.query, facture: undefined } })
     }
     await load()
   } catch (e) {
@@ -220,7 +222,7 @@ async function cancel(value) {
       Le renouvellement se fait <a :href="data.covered_by.url" class="underline">depuis cette boutique</a>.
     </Alert>
 
-    <section v-if="!data.covered_by" class="card space-y-4 p-4">
+    <section v-if="!data.covered_by" id="choisir-offre" class="card scroll-mt-20 space-y-4 p-4">
       <h3 class="font-semibold">{{ sub && sub.status !== 'trialing' ? 'Renouveler ou changer d\'offre' : 'Choisir une offre' }}</h3>
       <div class="flex gap-1 rounded-lg bg-slate-100 p-1 text-sm sm:w-fit">
         <button v-if="weekly" class="flex-1 rounded-md px-3 py-1 whitespace-nowrap" :class="choice.cycle === 'weekly' ? 'bg-white shadow-sm' : ''" @click="choice.cycle = 'weekly'">Semaine</button>
@@ -262,7 +264,7 @@ async function cancel(value) {
     </section>
 
     <!-- Commandes (live, WhatsApp, boost) et actions IA : sur « Mon solde », à part de l'abonnement -->
-    <RouterLink to="/gestion/solde" class="card flex items-center gap-3 p-4 text-sm">
+    <RouterLink v-if="!props.embedded" to="/gestion/mon-offre?onglet=solde" class="card flex items-center gap-3 p-4 text-sm">
       <span class="text-2xl" aria-hidden="true">💳</span>
       <span class="min-w-0 flex-1"><b class="block">Mon solde : commandes et IA</b><span class="text-slate-600">Packs de commandes avec IA incluse, ou illimité 30 jours.</span></span>
       <span class="font-bold text-emerald-700">Voir ▸</span>

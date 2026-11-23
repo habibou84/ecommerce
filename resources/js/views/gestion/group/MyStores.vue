@@ -149,7 +149,7 @@ async function separate(store) {
         </p>
         <p v-else class="text-sm text-slate-600">
           Pour les réunir à une adresse : offre <strong>Business</strong>.
-          <RouterLink to="/gestion/abonnement" class="text-emerald-700 underline">Voir les offres</RouterLink>
+          <RouterLink to="/gestion/mon-offre" class="text-emerald-700 underline">Voir les offres</RouterLink>
         </p>
       </div>
       <ul class="divide-y divide-slate-100">
@@ -169,7 +169,7 @@ async function separate(store) {
     </Alert>
     <Alert v-else tone="info">
       Chaque boutique a son propre abonnement. L'offre <strong>Business</strong> regroupe plusieurs boutiques sous un seul abonnement.
-      <RouterLink to="/gestion/abonnement" class="underline">Voir les offres</RouterLink>
+      <RouterLink to="/gestion/mon-offre" class="underline">Voir les offres</RouterLink>
     </Alert>
 
     <form class="card space-y-4 p-4 sm:p-6" @submit.prevent="create">

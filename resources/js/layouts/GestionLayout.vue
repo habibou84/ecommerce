@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RechargeSheet from '../components/credits/RechargeSheet.vue'
 import CreditsMeter from '../components/credits/CreditsMeter.vue'
+import { offerLink, offerState } from '../lib/offre'
 import ColorIcon from '../components/ColorIcon.vue'
 import Icon from '../components/Icon.vue'
 import InstallPrompt from '../components/InstallPrompt.vue'
@@ -26,6 +27,8 @@ const menuOpen = ref(false)
 const switchError = ref('')
 // Titre de l'en-tête et de la fenêtre : celui de l'écran ouvert s'il en donne un (« Commande #1002 »), sinon celui de la route
 const screenTitle = computed(() => pageTitle() || route.meta.title)
+// Menu du profil : « Mon offre Jibiat » (abonnement, solde, matériel)
+const offer = computed(() => offerState(auth.store))
 
 // Lien « Aller au contenu » : le focus passe sur la page, le prochain Tab part de son premier élément
 function skipToContent() {
@@ -95,7 +98,6 @@ const groups = [
     { to: '/gestion/alertes', label: 'Alertes' },
     { to: '/gestion/paiements', label: 'Paiement en ligne' },
     { to: '/gestion/acompte', label: 'Acompte' },
-    { to: '/gestion/materiel', label: 'Matériel (étiquettes, live…)' },
     { to: '/gestion/mes-boutiques', label: 'Ajouter une boutique', single: true },
   ] },
 ]
@@ -468,9 +470,9 @@ async function switchTo(store) {
       <div class="relative mt-auto border-t border-slate-100 p-3">
         <div v-if="profileMenu" class="absolute inset-x-3 bottom-full mb-1 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
           <RouterLink to="/gestion/compte" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">Mon compte</RouterLink>
-          <RouterLink to="/gestion/solde" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">Mon solde<span class="block text-xs text-slate-500">Commandes et IA</span></RouterLink>
-          <RouterLink v-if="auth.can('billing.manage')" to="/gestion/abonnement" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">
-            Abonnement<span v-if="auth.store?.free || auth.store?.subscription" class="block text-xs text-slate-500">Offre {{ auth.store.free?.plan ?? auth.store.subscription.plan }}<template v-if="auth.store.free"> · offerte</template><template v-else-if="auth.store.subscription.status === 'trialing'"> · essai</template></span>
+          <!-- Abonnement, solde et matériel : une seule page -->
+          <RouterLink :to="offerLink(offer)" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" @click="profileMenu = false; menuOpen = false">
+            Mon offre Jibiat<span class="block text-xs text-slate-500">{{ offer.line }}<template v-if="offer.orders !== null"> · {{ offer.orders }} commandes</template></span>
           </RouterLink>
           <button type="button" class="block w-full rounded-lg border-t border-slate-100 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50" @click="logout">Déconnexion</button>
         </div>

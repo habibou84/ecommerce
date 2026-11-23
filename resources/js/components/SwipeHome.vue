@@ -15,6 +15,8 @@ import DayProgress from './DayProgress.vue'
 import DayOrderCard from './DayOrderCard.vue'
 import { platformOn } from '../router'
 import { boot } from '../lib/boot'
+import { credits, loadCredits } from '../lib/credits'
+import { offerLink, offerState } from '../lib/offre'
 import { useAuthStore } from '../stores/auth'
 
 /**
@@ -36,7 +38,7 @@ function canOpen(path) {
   if (meta.permissionAny) return meta.permissionAny.some((p) => auth.can(p))
   return !meta.permission || auth.can(meta.permission)
 }
-const links = (list) => list.filter((l) => canOpen(l.to))
+const links = (list) => list.filter((l) => canOpen(l.to) && (!l.show || l.show()))
 
 // ── Alertes de chaque page (mêmes règles que l'accueil) ──
 const s = computed(() => props.stats ?? {})
@@ -92,7 +94,7 @@ const PAGES = [
     badge: () => { const n = (s.value.unread_messages ?? 0) + (whatsapp.value?.todo?.recaps ?? 0) + (whatsapp.value?.todo?.carts ?? 0); return n ? { n, level: 'orange' } : null },
     settings: [{ to: '/gestion/whatsapp', label: 'Mon numéro WhatsApp' }, { to: '/gestion/whatsapp/ventes', label: 'Assistant des ventes' }, { to: '/gestion/whatsapp/reponses', label: 'Assistant des réponses' }, { to: '/gestion/textes-messages', label: 'Textes des messages' }, { to: '/gestion/marketing/relances', label: 'Relances' }] },
   { key: 'live', name: 'Live', icon: '🔴', show: () => canOpen('/gestion/live'), badge: () => (s.value.live?.state === 'live' ? { n: '●', level: 'red' } : null),
-    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/materiel', label: 'Matériel du live' }] },
+    settings: [{ to: '/gestion/live/passes', label: 'Lives passés et chiffres' }, { to: '/gestion/mon-offre?onglet=materiel', label: 'Matériel du live', show: () => !!auth.profile?.materiel && auth.can('billing.manage') }] },
   // Boost : la pub Facebook et Instagram au même endroit (connexion, pixel, produits à booster, commandes venues des boosts)
   { key: 'boost', name: 'Boost', icon: '🚀', show: () => canOpen('/gestion/boost'), badge: () => null,
     settings: [{ to: '/gestion/marketing/suivi', label: 'Pixels et catalogue (réglages avancés)' }, { to: '/gestion/marketing/reseaux', label: 'Réseaux sociaux' }] },
@@ -108,7 +110,8 @@ const PAGES = [
     settings: [{ to: '/gestion/marketing/fidelite', label: 'Fidélité et parrainage' }, { to: '/gestion/marketing/avis', label: 'Avis clients' }] },
   { key: 'items', name: 'Articles', icon: '👗', show: () => canOpen('/gestion/catalogue'), badge: () => (s.value.stock && s.value.stock.out + s.value.stock.low ? { n: s.value.stock.out + s.value.stock.low, level: s.value.stock.out ? 'red' : 'orange' } : null),
     settings: [{ to: '/gestion/collections', label: 'Collections' }, { to: '/gestion/packs', label: 'Packs et prix de gros' }, { to: '/gestion/stock', label: 'Stock détaillé et mouvements' }, { to: '/gestion/stock/commandes', label: 'Fournisseurs et bons de commande' }, { to: '/gestion/catalogue/import', label: 'Importer des produits' }] },
-  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => null, settings: [{ to: '/gestion/parametres', label: 'Ma boutique' }, { to: '/gestion/equipe', label: 'Équipe' }] },
+  // Plus : pastille quand l'offre ou le solde demande d'agir (solde bas, échéance proche, paiement en retard)
+  { key: 'more', name: 'Plus', icon: '☰', show: () => true, badge: () => (offer.value.level ? { n: '!', level: offer.value.level } : null), settings: [{ to: '/gestion/parametres', label: 'Ma boutique' }, { to: '/gestion/equipe', label: 'Équipe' }] },
 ]
 const pages = computed(() => PAGES.filter((p) => p.show()))
 
@@ -363,6 +366,9 @@ const PLUS = [
   { to: '/gestion/parametres', label: 'Ma boutique', color: 'reglages' },
 ]
 const plus = computed(() => links(PLUS))
+// Mon offre Jibiat : carte en haut de Plus (l'en-tête de ce mode n'a pas de place pour le compteur)
+const offer = computed(() => offerState(auth.store))
+onMounted(() => credits.data || loadCredits())
 // Réglages de chaque page, regroupés dans Plus
 const pageSettings = computed(() => pages.value.filter((p) => p.key !== 'more').map((p) => ({ ...p, items: links(p.settings) })).filter((p) => p.items.length))
 const helpUrl = computed(() => (boot.supportWhatsapp ? `https://wa.me/${String(boot.supportWhatsapp).replace(/\D/g, '')}?text=${encodeURIComponent(`Bonjour, j'ai besoin d'aide pour mon espace marchand ${auth.store?.name ?? ''}.`)}` : null))
@@ -598,6 +604,19 @@ function open(to) {
 
         <!-- PLUS : grandes icônes, aide, réglages de chaque page, compte -->
         <template v-else>
+          <RouterLink :to="offerLink(offer)" class="mb-3 flex items-center gap-3 rounded-[20px] bg-white px-4 py-3.5 shadow-soft transition active:scale-[.98]"
+                      :class="offer.level === 'red' ? 'ring-2 ring-red-300' : offer.level === 'orange' ? 'ring-2 ring-ocre-100' : ''">
+            <ColorIcon name="argent" :size="44" />
+            <span class="min-w-0 flex-1">
+              <b class="block text-base font-black">Mon offre Jibiat</b>
+              <span class="block truncate text-xs font-semibold" :class="offer.level === 'red' ? 'text-red-700' : offer.level === 'orange' ? 'text-ocre-800' : 'text-slate-600'">{{ offer.line }}</span>
+            </span>
+            <span v-if="offer.orders !== null" class="flex shrink-0 flex-col items-end gap-1 text-xs font-extrabold tabular-nums">
+              <span class="rounded-full px-2 py-0.5" :class="offer.soldeLevel === 'red' ? 'bg-red-50 text-red-700' : offer.soldeLevel ? 'bg-ocre-50 text-ocre-800' : 'bg-emerald-50 text-emerald-700'"><span aria-hidden="true">🧾 </span>{{ offer.orders }}<span class="sr-only"> commandes</span></span>
+              <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700"><span aria-hidden="true">✨ </span>{{ offer.ai }}<span class="sr-only"> actions IA</span></span>
+            </span>
+            <span class="text-xl text-slate-400" aria-hidden="true">›</span>
+          </RouterLink>
           <div class="grid grid-cols-3 gap-2.5">
             <a v-if="helpUrl" :href="helpUrl" target="_blank" rel="noopener" class="flex flex-col items-center gap-1.5 rounded-[18px] bg-white px-1 py-3 text-center shadow-soft transition active:scale-95">
               <ColorIcon name="aide" :size="44" /><span class="text-xs font-semibold leading-tight text-slate-700">Aide</span>

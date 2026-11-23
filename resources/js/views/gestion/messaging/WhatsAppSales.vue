@@ -63,7 +63,7 @@ const codes = computed(() => data.value?.codes)
   <div v-if="data" class="space-y-4 pb-24 sm:pb-0">
     <div>
       <p class="explain">Les commandes prises dans WhatsApp s'enregistrent seules.</p>
-      <p class="explain-detail">Chaque commande confirmée compte 1 commande de votre <RouterLink to="/gestion/solde" class="font-semibold text-emerald-700 underline">solde</RouterLink>.</p>
+      <p class="explain-detail">Chaque commande confirmée compte 1 commande de votre <RouterLink to="/gestion/mon-offre?onglet=solde" class="font-semibold text-emerald-700 underline">solde</RouterLink>.</p>
     </div>
     <Alert v-if="error">{{ error }}</Alert>
 

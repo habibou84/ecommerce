@@ -124,7 +124,7 @@ async function changeSlug() {
         Offre {{ auth.store.subscription.plan }}
         <template v-if="auth.store.subscription.covered_by"> (abonnement de {{ auth.store.subscription.covered_by }})</template>
         <template v-else-if="auth.store.subscription.status === 'trialing'"> (essai gratuit)</template>.
-        <RouterLink v-if="auth.can('billing.manage')" to="/gestion/abonnement" class="text-emerald-700 underline">Gérer l'abonnement</RouterLink>
+        <RouterLink v-if="auth.can('billing.manage')" to="/gestion/mon-offre" class="text-emerald-700 underline">Gérer l'abonnement</RouterLink>
       </p>
     </section>
 
