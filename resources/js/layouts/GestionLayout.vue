@@ -5,6 +5,7 @@ import RechargeSheet from '../components/credits/RechargeSheet.vue'
 import CreditsMeter from '../components/credits/CreditsMeter.vue'
 import ColorIcon from '../components/ColorIcon.vue'
 import Icon from '../components/Icon.vue'
+import InstallPrompt from '../components/InstallPrompt.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 import Dashboard from '../views/gestion/Dashboard.vue'
 import { credits } from '../lib/credits'
@@ -159,6 +160,8 @@ watch(() => badges.value.messages, (count) => {
   }
 })
 onMounted(() => {
+  // Service worker : rend l'application installable (Chrome) et reçoit les notifications
+  if (!inApp && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
   registerDevice()
   refreshBadges()
   badgeTimer = setInterval(() => document.visibilityState === 'visible' && refreshBadges(), 30000)
@@ -608,5 +611,7 @@ async function switchTo(store) {
     </div>
     <!-- Recharger le solde (commandes et IA), de n'importe quel écran -->
     <RechargeSheet v-if="credits.open" />
+    <!-- Pas encore installée sur ce téléphone : bouton « Installer » (Android) ou marche à suivre (iPhone) -->
+    <InstallPrompt />
   </div>
 </template>

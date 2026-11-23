@@ -1,4 +1,5 @@
 <script setup>
+import InstallPrompt from '../components/InstallPrompt.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import http from '../lib/http'
@@ -126,5 +127,7 @@ const badge = (tab) => (tab.to === '/livreur' ? offline.offers : 0)
         </span>{{ tab.label }}
       </RouterLink>
     </nav>
+    <!-- Pas encore installée : bouton « Installer » (Android) ou marche à suivre (iPhone) -->
+    <InstallPrompt name="l'application livreur" icon="/livreur-icon.svg" hide="/livreur/__aucun" />
   </div>
 </template>
