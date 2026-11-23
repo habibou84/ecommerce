@@ -20,7 +20,6 @@ use App\Http\Controllers\Webhooks\WhatsAppBridgeWebhookController;
 use App\Http\Controllers\Webhooks\WhatsAppWebhookController;
 use App\Support\Tenancy;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Str;
 
 /*
  * Pages publiques, sans session ni jeton CSRF : un visiteur n'a qu'un cookie de panier. Les écritures (panier,
@@ -55,13 +54,12 @@ Route::middleware('zone:store,custom_domain')->group(function () {
     });
 
     Route::get('/recu/{token}', ReceiptController::class)->where('token', '[A-Za-z0-9]{16,32}')->name('receipt');
-    // Gestion de la boutique : manifeste (installation sur l'écran d'accueil du téléphone ou de l'ordinateur)
-    Route::get('/gestion/manifest.webmanifest', function (Tenancy $tenancy) {
-        $store = $tenancy->store();
-
+    // Gestion de la boutique : manifeste (installation sur l'écran d'accueil du téléphone ou de l'ordinateur).
+    // L'icône s'appelle « Jibiat Marchand », pas du nom de la boutique.
+    Route::get('/gestion/manifest.webmanifest', function () {
         return response()->json([
-            'name' => $store->name.' · Jibiat Marchand',
-            'short_name' => Str::limit($store->name, 12, ''),
+            'name' => 'Jibiat Marchand',
+            'short_name' => 'Jibiat Marchand',
             'start_url' => '/gestion',
             'scope' => '/gestion',
             'display' => 'standalone',
@@ -83,12 +81,10 @@ Route::middleware('zone:store,custom_domain')->group(function () {
     })->middleware('zone:store');
 
     // Messages : icône à part sur l'écran d'accueil, qui ouvre directement les conversations
-    Route::get('/gestion/messages/manifest.webmanifest', function (Tenancy $tenancy) {
-        $store = $tenancy->store();
-
+    Route::get('/gestion/messages/manifest.webmanifest', function () {
         return response()->json([
             'id' => '/gestion/messages',
-            'name' => 'Messages · '.$store->name,
+            'name' => 'Messages · Jibiat Marchand',
             'short_name' => 'Messages',
             'start_url' => '/gestion/messages',
             'scope' => '/gestion',
